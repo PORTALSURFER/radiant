@@ -37,6 +37,28 @@ pub(in crate::application) type TransientOverlayPainter<State> =
     Box<dyn for<'a> FnMut(&mut State, TransientOverlayContext<'a>, &mut Vec<PaintPrimitive>)>;
 pub(in crate::application) type TransientOverlayActivity<State> =
     Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
+pub(in crate::application) struct TransientOverlayBinding<State> {
+    /// Stable descriptor identity retained alongside declaration order.
+    pub(in crate::application) key: u64,
+    pub(in crate::application) activity: TransientOverlayActivity<State>,
+    pub(in crate::application) painter: Option<TransientOverlayPainter<State>>,
+    pub(in crate::application) pending_paint_eligibility: Option<bool>,
+}
+
+impl<State> TransientOverlayBinding<State> {
+    pub(in crate::application) const fn new(
+        key: u64,
+        activity: TransientOverlayActivity<State>,
+        painter: Option<TransientOverlayPainter<State>>,
+    ) -> Self {
+        Self {
+            key,
+            activity,
+            painter,
+            pending_paint_eligibility: None,
+        }
+    }
+}
 pub(in crate::application) type AppFrameClockActivity<State> =
     Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
 pub(in crate::application) type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;

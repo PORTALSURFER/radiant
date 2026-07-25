@@ -1092,10 +1092,17 @@ applying fixed kind z-order.
 Scenes can also carry presentation declarations that belong to the root
 surface instead of launch wiring. Use `Scene::frame_clock(...)` or
 `Scene::frame_clock_opt(...)` for host-state frame messages, and
-`Scene::overlay(...)` or `Scene::overlay_opt(...)` for paint-only transient
-overlays over the cached scene. Presentation declarations do not become layout
-or input children, so they do not change base hit testing, layer ordering, or
-widget state synchronization.
+repeat `Scene::overlay(...)` or use `Scene::overlay_opt(...)` for ordered, keyed
+paint-only transient overlays over the cached scene. Overlay declaration order
+is their paint z-order; each descriptor's `when(...)` predicate gates its own
+painter, while the runtime combines the active overlays' paint-only demand and
+cadence. A later declaration with an existing key replaces that binding in its
+original slot, so duplicate keys update the last value without changing
+z-order; distinct keys append in declaration order. Activity is sampled once
+per host animation poll and consumed by the corresponding paint. Direct paint
+or a newly projected scene evaluates an unsampled predicate once as a fallback.
+Presentation declarations do not become layout or input children, so they do
+not change base hit testing, layer ordering, or widget state synchronization.
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
 `ShortcutLayer` values plus an optional fallback resolver for dynamic keys such
@@ -1356,12 +1363,15 @@ radiant::app(state)
 ```
 
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
-paint-only presentation work over the cached surface. These descriptors lower to
-the same runtime animation and transient-overlay hooks whether they are attached
-to `Scene` or to the app builder. Reducer messages request a surface repaint by
+paint-only presentation work over the cached surface, and a `Presentation` can
+declare multiple keyed overlays in order with repeated
+`.transient_overlay(...)` or `.transient_overlays(...)`. These descriptors lower
+to the same runtime animation and transient-overlay hooks whether they are
+attached to `Scene` or to the app builder. Reducer messages request a surface repaint by
 default, while frame-clock messages with `repaint_scope(...)` can resolve to
 paint-only repaint when the frame update did not require a structural surface
-refresh.
+refresh. Duplicate presentation keys use the same in-place replacement rule;
+activity samples are not reused after a scene presentation is cleared.
 
 For realtime-feeling desktop surfaces, prefer a 60Hz frame clock with a strict
 `repaint_scope(...)` policy over a conditional frame clock that starts and stops

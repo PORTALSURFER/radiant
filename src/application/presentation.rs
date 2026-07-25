@@ -1,7 +1,7 @@
 use crate::{
     application::runtime::{
         AppBridgeLifecycle, AppFrameClockActivity, AppFrameMessage, AppFrameRepaintPolicy,
-        TransientOverlayActivity, TransientOverlayPainter,
+        TransientOverlayActivity, TransientOverlayBinding, TransientOverlayPainter,
     },
     runtime::{PaintPrimitive, RuntimeAnimationActivity, TransientOverlayContext},
 };
@@ -14,7 +14,7 @@ use std::any::Any;
 /// concerns without spelling out lower-level runtime lifecycle hooks.
 pub struct Presentation<State, Message> {
     frame_clock: Option<FrameClock<State, Message>>,
-    transient_overlay: Option<TransientOverlay<State>>,
+    transient_overlays: Vec<TransientOverlay<State>>,
 }
 
 /// Build an empty presentation descriptor.
@@ -27,7 +27,7 @@ impl<State: 'static, Message> Presentation<State, Message> {
     pub const fn new() -> Self {
         Self {
             frame_clock: None,
-            transient_overlay: None,
+            transient_overlays: Vec::new(),
         }
     }
 
@@ -39,7 +39,16 @@ impl<State: 'static, Message> Presentation<State, Message> {
 
     /// Declare a transient paint overlay.
     pub fn transient_overlay(mut self, overlay: TransientOverlay<State>) -> Self {
-        self.transient_overlay = Some(overlay);
+        self.transient_overlays.push(overlay);
+        self
+    }
+
+    /// Declare transient paint overlays in declaration and z-order.
+    pub fn transient_overlays(
+        mut self,
+        overlays: impl IntoIterator<Item = TransientOverlay<State>>,
+    ) -> Self {
+        self.transient_overlays.extend(overlays);
         self
     }
 
@@ -58,12 +67,14 @@ impl<State: 'static, Message> Presentation<State, Message> {
             lifecycle.frame_repaint_policy = repaint_policy;
         }
 
-        if let Some(overlay) = self.transient_overlay {
-            let TransientOverlayParts { activity, painter } = overlay.into_parts();
-            lifecycle.transient_overlay_activity = Some(activity);
-            if let Some(painter) = painter {
-                lifecycle.transient_overlay = Some(painter);
-            }
+        for overlay in self.transient_overlays {
+            let TransientOverlayParts {
+                key,
+                activity,
+                painter,
+            } = overlay.into_parts();
+            lifecycle
+                .upsert_transient_overlay(TransientOverlayBinding::new(key, activity, painter));
         }
     }
 
@@ -82,12 +93,15 @@ impl<State: 'static, Message> Presentation<State, Message> {
             lifecycle.scene_frame_repaint_policy = repaint_policy;
         }
 
-        if let Some(overlay) = self.transient_overlay {
-            let TransientOverlayParts { activity, painter } = overlay.into_parts();
-            lifecycle.scene_transient_overlay_activity = Some(activity);
-            if let Some(painter) = painter {
-                lifecycle.scene_transient_overlay = Some(painter);
-            }
+        for overlay in self.transient_overlays {
+            let TransientOverlayParts {
+                key,
+                activity,
+                painter,
+            } = overlay.into_parts();
+            lifecycle.upsert_scene_transient_overlay(TransientOverlayBinding::new(
+                key, activity, painter,
+            ));
         }
     }
 }
@@ -293,6 +307,7 @@ pub struct TransientOverlay<State> {
 }
 
 struct TransientOverlayParts<State> {
+    key: u64,
     activity: TransientOverlayActivity<State>,
     painter: Option<TransientOverlayPainter<State>>,
 }
@@ -345,7 +360,7 @@ impl<State: 'static> TransientOverlay<State> {
 
     fn into_parts(self) -> TransientOverlayParts<State> {
         let Self {
-            key: _,
+            key,
             mut when,
             target_fps,
             painter,
@@ -359,6 +374,10 @@ impl<State: 'static> TransientOverlay<State> {
                 None => RuntimeAnimationActivity::paint_only(),
             }
         });
-        TransientOverlayParts { activity, painter }
+        TransientOverlayParts {
+            key,
+            activity,
+            painter,
+        }
     }
 }

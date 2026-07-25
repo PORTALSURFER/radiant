@@ -3,8 +3,8 @@ use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
     AppNativeFrameDiagnostics, AppRuntime, AppScroll, AppShortcuts, AppShutdown, AppStartup,
-    AppSubscriptions, RetainedPainter, TransientOverlayActivity, TransientOverlayPainter,
-    UiUpdateContext,
+    AppSubscriptions, RetainedPainter, TransientOverlayActivity, TransientOverlayBinding,
+    TransientOverlayPainter, UiUpdateContext,
 };
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::{
@@ -108,15 +108,14 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) auxiliary_windows: Option<AppAuxiliaryWindows<State, Message>>,
     /// Retained-surface painters keyed by descriptor key.
     pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
-    /// Transient-overlay frame activity callback.
+    /// App-level transient overlays in declaration and z-order.
+    pub(in crate::application) transient_overlays: Vec<TransientOverlayBinding<State>>,
+    /// Scene-declared transient overlays in declaration and z-order.
+    pub(in crate::application) scene_transient_overlays: Vec<TransientOverlayBinding<State>>,
+    /// Legacy direct transient-overlay frame activity callback.
     pub(in crate::application) transient_overlay_activity: Option<TransientOverlayActivity<State>>,
-    /// Lightweight frame-time overlay painter.
+    /// Legacy direct transient-overlay painter.
     pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
-    /// Scene-declared transient-overlay frame activity callback.
-    pub(in crate::application) scene_transient_overlay_activity:
-        Option<TransientOverlayActivity<State>>,
-    /// Scene-declared lightweight frame-time overlay painter.
-    pub(in crate::application) scene_transient_overlay: Option<TransientOverlayPainter<State>>,
 }
 
 impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
@@ -143,22 +142,49 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             close_requested: None,
             auxiliary_windows: None,
             retained_painters: HashMap::new(),
+            transient_overlays: Vec::new(),
+            scene_transient_overlays: Vec::new(),
             transient_overlay_activity: None,
             transient_overlay: None,
-            scene_transient_overlay_activity: None,
-            scene_transient_overlay: None,
         }
     }
 }
 
 impl<State, Message> AppBridgeLifecycle<State, Message> {
+    pub(in crate::application) fn upsert_transient_overlay(
+        &mut self,
+        overlay: TransientOverlayBinding<State>,
+    ) {
+        upsert_transient_overlay(&mut self.transient_overlays, overlay);
+    }
+
+    pub(in crate::application) fn upsert_scene_transient_overlay(
+        &mut self,
+        overlay: TransientOverlayBinding<State>,
+    ) {
+        upsert_transient_overlay(&mut self.scene_transient_overlays, overlay);
+    }
+
     pub(in crate::application) fn clear_scene_presentation(&mut self) {
         self.scene_frame_message = None;
         self.scene_frame_clock_activity = None;
         self.scene_frame_repaint_policy = None;
-        self.scene_transient_overlay_activity = None;
-        self.scene_transient_overlay = None;
+        self.scene_transient_overlays.clear();
         self.scene_shortcuts = None;
+    }
+}
+
+fn upsert_transient_overlay<State>(
+    overlays: &mut Vec<TransientOverlayBinding<State>>,
+    overlay: TransientOverlayBinding<State>,
+) {
+    if let Some(existing) = overlays
+        .iter_mut()
+        .find(|existing| existing.key == overlay.key)
+    {
+        *existing = overlay;
+    } else {
+        overlays.push(overlay);
     }
 }
 

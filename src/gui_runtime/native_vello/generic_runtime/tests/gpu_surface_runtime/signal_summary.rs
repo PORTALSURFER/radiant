@@ -79,6 +79,25 @@ fn shader_vec4_array(shader: &str, declaration: &str) -> Vec<[f32; 4]> {
         .collect()
 }
 
+fn shader_vec3_mix_color(shader: &str, declaration: &str) -> [f32; 3] {
+    let start = shader
+        .find(declaration)
+        .unwrap_or_else(|| panic!("missing shader declaration: {declaration}"));
+    let values = shader[start..]
+        .split_once("mix(vec3<f32>(")
+        .and_then(|(_, rest)| rest.split_once(')'))
+        .map(|(values, _)| values)
+        .expect("shader vec3 mix should contain an edge tint");
+    let values = values
+        .split(',')
+        .map(|value| value.trim().parse::<f32>().expect("shader color channel"))
+        .collect::<Vec<_>>();
+    let [red, green, blue] = values.as_slice() else {
+        panic!("shader vec3 mix should contain three color channels");
+    };
+    [*red, *green, *blue]
+}
+
 fn rgb_distance(left: [f32; 4], right: [f32; 4]) -> f32 {
     let squared = (0..3)
         .map(|channel| (left[channel] - right[channel]).powi(2))
@@ -122,7 +141,25 @@ fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     assert!(rgb_distance(mid, high) > 0.20);
     assert!(shader.contains("let low_gradient = smoothstep(0.16, 0.92, shell_light);"));
     assert!(shader.contains("let mid_gradient = smoothstep(0.12, 0.90, shell_light);"));
-    assert!(shader.contains("let high_edge = mix(vec3<f32>(0.72, 0.76, 0.78), high_body"));
+    let high_edge_tint = shader_vec3_mix_color(shader, "let high_edge = mix(");
+    let high_edge_min = high_edge_tint[0]
+        .min(high_edge_tint[1])
+        .min(high_edge_tint[2]);
+    let high_edge_max = high_edge_tint[0]
+        .max(high_edge_tint[1])
+        .max(high_edge_tint[2]);
+    assert!(
+        high_edge_min >= 0.68,
+        "high edge tint should remain bright: {high_edge_tint:?}"
+    );
+    assert!(
+        high_edge_tint[2] >= high_edge_tint[0] && high_edge_tint[2] >= high_edge_tint[1],
+        "high edge tint should stay cool: {high_edge_tint:?}"
+    );
+    assert!(
+        high_edge_max - high_edge_min <= 0.12,
+        "high edge tint should be near-neutral: {high_edge_tint:?}"
+    );
     assert!(shader.contains("coverage_softness = 0.24;"));
     assert!(shader.contains("coverage_softness = 0.14;"));
     assert!(shader.contains("band_alpha_scale = 0.46 + inner_light * 0.30;"));

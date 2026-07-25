@@ -56,8 +56,11 @@ fn paint_active_overlays<State>(
     primitives: &mut Vec<PaintPrimitive>,
 ) {
     for overlay in overlays {
-        let activity = (overlay.activity)(state);
-        if !activity.needs_animation() {
+        let eligible = overlay
+            .pending_paint_eligibility
+            .take()
+            .unwrap_or_else(|| (overlay.activity)(state).needs_animation());
+        if !eligible {
             continue;
         }
         if let Some(paint) = overlay.painter.as_mut() {

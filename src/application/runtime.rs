@@ -39,10 +39,10 @@ pub(in crate::application) type TransientOverlayActivity<State> =
     Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
 pub(in crate::application) struct TransientOverlayBinding<State> {
     /// Stable descriptor identity retained alongside declaration order.
-    #[allow(dead_code)]
     pub(in crate::application) key: u64,
     pub(in crate::application) activity: TransientOverlayActivity<State>,
     pub(in crate::application) painter: Option<TransientOverlayPainter<State>>,
+    pub(in crate::application) pending_paint_eligibility: Option<bool>,
 }
 
 impl<State> TransientOverlayBinding<State> {
@@ -55,6 +55,7 @@ impl<State> TransientOverlayBinding<State> {
             key,
             activity,
             painter,
+            pending_paint_eligibility: None,
         }
     }
 }

@@ -151,12 +151,40 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
 }
 
 impl<State, Message> AppBridgeLifecycle<State, Message> {
+    pub(in crate::application) fn upsert_transient_overlay(
+        &mut self,
+        overlay: TransientOverlayBinding<State>,
+    ) {
+        upsert_transient_overlay(&mut self.transient_overlays, overlay);
+    }
+
+    pub(in crate::application) fn upsert_scene_transient_overlay(
+        &mut self,
+        overlay: TransientOverlayBinding<State>,
+    ) {
+        upsert_transient_overlay(&mut self.scene_transient_overlays, overlay);
+    }
+
     pub(in crate::application) fn clear_scene_presentation(&mut self) {
         self.scene_frame_message = None;
         self.scene_frame_clock_activity = None;
         self.scene_frame_repaint_policy = None;
         self.scene_transient_overlays.clear();
         self.scene_shortcuts = None;
+    }
+}
+
+fn upsert_transient_overlay<State>(
+    overlays: &mut Vec<TransientOverlayBinding<State>>,
+    overlay: TransientOverlayBinding<State>,
+) {
+    if let Some(existing) = overlays
+        .iter_mut()
+        .find(|existing| existing.key == overlay.key)
+    {
+        *existing = overlay;
+    } else {
+        overlays.push(overlay);
     }
 }
 

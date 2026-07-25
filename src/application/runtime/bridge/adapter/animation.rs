@@ -46,7 +46,7 @@ where
                 self.lifecycle
                     .transient_overlays
                     .iter_mut()
-                    .map(|overlay| (overlay.activity)(&mut self.state))
+                    .map(|overlay| poll_transient_overlay_activity(overlay, &mut self.state))
                     .fold(
                         RuntimeAnimationActivity::idle(),
                         RuntimeAnimationActivity::merge,
@@ -56,7 +56,7 @@ where
             .lifecycle
             .scene_transient_overlays
             .iter_mut()
-            .map(|overlay| (overlay.activity)(&mut self.state))
+            .map(|overlay| poll_transient_overlay_activity(overlay, &mut self.state))
             .fold(
                 RuntimeAnimationActivity::idle(),
                 RuntimeAnimationActivity::merge,
@@ -174,6 +174,15 @@ where
             scope,
         });
     }
+}
+
+fn poll_transient_overlay_activity<State>(
+    overlay: &mut crate::application::runtime::TransientOverlayBinding<State>,
+    state: &mut State,
+) -> RuntimeAnimationActivity {
+    let activity = (overlay.activity)(state);
+    overlay.pending_paint_eligibility = Some(activity.needs_animation());
+    activity
 }
 
 fn frame_message_due(

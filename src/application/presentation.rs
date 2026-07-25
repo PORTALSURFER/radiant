@@ -74,8 +74,7 @@ impl<State: 'static, Message> Presentation<State, Message> {
                 painter,
             } = overlay.into_parts();
             lifecycle
-                .transient_overlays
-                .push(TransientOverlayBinding::new(key, activity, painter));
+                .upsert_transient_overlay(TransientOverlayBinding::new(key, activity, painter));
         }
     }
 
@@ -100,9 +99,9 @@ impl<State: 'static, Message> Presentation<State, Message> {
                 activity,
                 painter,
             } = overlay.into_parts();
-            lifecycle
-                .scene_transient_overlays
-                .push(TransientOverlayBinding::new(key, activity, painter));
+            lifecycle.upsert_scene_transient_overlay(TransientOverlayBinding::new(
+                key, activity, painter,
+            ));
         }
     }
 }

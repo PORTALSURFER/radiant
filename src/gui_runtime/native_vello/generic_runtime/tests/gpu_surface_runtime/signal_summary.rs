@@ -58,6 +58,34 @@ fn gpu_signal_shader_does_not_cap_gain_preview() {
     assert!(!shader.contains("clamp(params.gain_preview_a.w, 0.0, 4.0)"));
 }
 
+fn shader_vec4_array(shader: &str, declaration: &str) -> Vec<[f32; 4]> {
+    let start = shader
+        .find(declaration)
+        .unwrap_or_else(|| panic!("missing shader declaration: {declaration}"));
+    let body = shader[start..]
+        .split_once(");")
+        .expect("shader vec4 array should terminate with `);`")
+        .0;
+
+    body.lines()
+        .filter_map(|line| {
+            let values = line.split_once("vec4<f32>(")?.1.split_once(')')?.0;
+            let values = values
+                .split(',')
+                .map(|value| value.trim().parse::<f32>().expect("shader color channel"))
+                .collect::<Vec<_>>();
+            (values.len() == 4).then(|| [values[0], values[1], values[2], values[3]])
+        })
+        .collect()
+}
+
+fn rgb_distance(left: [f32; 4], right: [f32; 4]) -> f32 {
+    let squared = (0..3)
+        .map(|channel| (left[channel] - right[channel]).powi(2))
+        .sum::<f32>();
+    squared.sqrt()
+}
+
 #[test]
 fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
@@ -66,12 +94,35 @@ fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     assert!(shader.contains("band_gamma = array<f32, 4>(1.03, 0.94, 0.42, 1.70)"));
     assert!(shader.contains("raw_signal = projected_band_peak"));
     assert!(shader.contains("display_peak"));
-    assert!(shader.contains("vec4<f32>(0.655, 0.231, 0.188, 0.88)"));
-    assert!(shader.contains("vec4<f32>(0.843, 0.290, 0.220, 0.92)"));
-    assert!(shader.contains("vec4<f32>(0.847, 0.839, 0.816, 0.78)"));
+    let band_colors = shader_vec4_array(shader, "let band_colors = array<vec4<f32>, 4>(");
+    assert_eq!(band_colors.len(), 4);
+    let [low, mid, high, raw_outer] = band_colors[..] else {
+        panic!("waveform band palette should contain low, mid, high, and raw colors");
+    };
+
+    // The palette is a semantic contract: blue low band, coral mid band, and
+    // bright cool-neutral high band, with the raw/outer band only a faint aid.
+    assert!(low[2] > low[0] + 0.20 && low[2] > low[1] + 0.20);
+    assert!(mid[0] > mid[1] + 0.30 && mid[0] > mid[2] + 0.30);
+    let high_min = high[0].min(high[1]).min(high[2]);
+    let high_max = high[0].max(high[1]).max(high[2]);
+    assert!(high_min >= 0.80, "high band should remain bright: {high:?}");
+    assert!(high[2] >= high[0], "high band should stay cool: {high:?}");
+    assert!(
+        high_max - high_min <= 0.12,
+        "high band should be near-neutral: {high:?}"
+    );
+    assert!(
+        raw_outer[3] <= 0.10,
+        "raw/outer band should be low-opacity: {raw_outer:?}"
+    );
+    assert!(raw_outer[3] < high[3]);
+    assert!(rgb_distance(low, mid) > 0.20);
+    assert!(rgb_distance(low, high) > 0.20);
+    assert!(rgb_distance(mid, high) > 0.20);
     assert!(shader.contains("let low_gradient = smoothstep(0.16, 0.92, shell_light);"));
     assert!(shader.contains("let mid_gradient = smoothstep(0.12, 0.90, shell_light);"));
-    assert!(shader.contains("let high_edge = mix(vec3<f32>(0.66, 0.67, 0.66), high_body"));
+    assert!(shader.contains("let high_edge = mix(vec3<f32>(0.72, 0.76, 0.78), high_body"));
     assert!(shader.contains("coverage_softness = 0.24;"));
     assert!(shader.contains("coverage_softness = 0.14;"));
     assert!(shader.contains("band_alpha_scale = 0.46 + inner_light * 0.30;"));

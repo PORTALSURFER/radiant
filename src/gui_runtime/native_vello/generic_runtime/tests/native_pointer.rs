@@ -381,6 +381,153 @@ fn native_pointer_diagnostics_report_hit_target_and_capture_state() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn macos_control_left_is_one_latched_secondary_gesture() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    let point = Point::new(12.0, 12.0);
+    harness.cursor_moved_logical(point);
+    harness.modifiers_changed(
+        ModifiersState::CONTROL
+            | ModifiersState::SUPER
+            | ModifiersState::SHIFT
+            | ModifiersState::ALT,
+    );
+
+    let press = harness.mouse_pressed_route(MouseButton::Left);
+    assert_eq!(press.button, Some(PointerButton::Secondary));
+    assert_eq!(
+        press.diagnostic.modifiers,
+        PointerModifiers {
+            command: true,
+            shift: true,
+            alt: true,
+        }
+    );
+    assert_eq!(
+        harness.runner.input.effective_pointer_gesture,
+        Some(
+            crate::gui_runtime::native_vello::generic_runtime::input::NativePointerGesture {
+                button: PointerButton::Secondary,
+                consume_control: true,
+            }
+        )
+    );
+
+    // macOS can report the Control release before the matching mouse-up. The
+    // latched effective button must still drive the release.
+    harness.modifiers_changed(ModifiersState::SUPER | ModifiersState::SHIFT);
+    let release = harness.mouse_released_route(MouseButton::Left);
+    assert_eq!(release.button, Some(PointerButton::Secondary));
+    assert!(harness.runner.input.effective_pointer_gesture.is_none());
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_command_left_without_control_remains_primary() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+    harness.modifiers_changed(ModifiersState::SUPER);
+
+    let press = harness.mouse_pressed_route(MouseButton::Left);
+    assert_eq!(press.button, Some(PointerButton::Primary));
+    assert!(press.diagnostic.modifiers.command);
+    let release = harness.mouse_released_route(MouseButton::Left);
+    assert_eq!(release.button, Some(PointerButton::Primary));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_secondary_double_click_uses_converted_button_identity() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+    harness.modifiers_changed(ModifiersState::CONTROL);
+
+    let first_press = harness.mouse_pressed_route(MouseButton::Left);
+    assert!(!first_press.double_click);
+    let _first_release = harness.mouse_released_route(MouseButton::Left);
+    let second_press = harness.mouse_pressed_route(MouseButton::Left);
+    assert!(second_press.double_click);
+    assert_eq!(second_press.button, Some(PointerButton::Secondary));
+    let _second_release = harness.mouse_released_route(MouseButton::Left);
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_control_left_release_keeps_latched_button_during_capture() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    let button_point = harness
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&11)
+        .map(|rect| Point::new(rect.min.x + 4.0, rect.min.y + 4.0))
+        .expect("button should be laid out");
+    harness.cursor_moved_logical(button_point);
+    harness.modifiers_changed(ModifiersState::CONTROL);
+
+    let press = harness.mouse_pressed_route(MouseButton::Left);
+    assert_eq!(press.button, Some(PointerButton::Secondary));
+    assert_eq!(harness.runner.core.runtime.pointer_capture(), Some(11));
+
+    harness.cursor_moved_logical(Point::new(button_point.x + 40.0, button_point.y + 8.0));
+    harness.modifiers_changed(ModifiersState::empty());
+    let release = harness.mouse_released_route(MouseButton::Left);
+    assert_eq!(release.button, Some(PointerButton::Secondary));
+    assert!(harness.runner.input.effective_pointer_gesture.is_none());
+}
+
+#[test]
+#[cfg(not(target_os = "macos"))]
+fn non_macos_control_left_remains_primary() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    let point = Point::new(12.0, 12.0);
+    harness.cursor_moved_logical(point);
+    harness.modifiers_changed(ModifiersState::CONTROL);
+
+    let press = harness.mouse_pressed_route(MouseButton::Left);
+    assert_eq!(press.button, Some(PointerButton::Primary));
+    let release = harness.mouse_released_route(MouseButton::Left);
+    assert_eq!(release.button, Some(PointerButton::Primary));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_physical_right_remains_secondary_without_control_consumption() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+    harness.modifiers_changed(ModifiersState::CONTROL | ModifiersState::SHIFT);
+
+    let press = harness.mouse_pressed_route(MouseButton::Right);
+    assert_eq!(press.button, Some(PointerButton::Secondary));
+    assert_eq!(
+        press.diagnostic.modifiers,
+        PointerModifiers {
+            command: true,
+            shift: true,
+            alt: false,
+        }
+    );
+    let release = harness.mouse_released_route(MouseButton::Right);
+    assert_eq!(release.button, Some(PointerButton::Secondary));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_focus_loss_clears_effective_pointer_gesture_latch() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+    harness.modifiers_changed(ModifiersState::CONTROL);
+    let _press = harness.mouse_pressed_route(MouseButton::Left);
+    assert!(harness.runner.input.effective_pointer_gesture.is_some());
+
+    let _ = harness.focus_lost();
+
+    assert!(harness.runner.input.effective_pointer_gesture.is_none());
+}
+
+#[test]
 fn native_pointer_harness_routes_wheel_with_modifiers() {
     let mut harness =
         NativePointerHarness::new(GpuWheelBridge::default(), Vector2::new(320.0, 80.0));

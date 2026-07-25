@@ -81,7 +81,8 @@ pub(in crate::gui_runtime::native_vello) use gpu_surface::{
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
 use gpu_surface_wheel::PendingScrollbarDrag;
 use input::{
-    key_code_from_winit, keypress_from_input, logical_point_from_winit, pointer_button_from_winit,
+    key_code_from_winit, keypress_from_input, logical_point_from_winit,
+    native_pointer_press_gesture, pointer_button_from_winit, pointer_modifiers_for_native_gesture,
     pointer_modifiers_from_winit,
 };
 #[cfg(test)]

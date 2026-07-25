@@ -2,8 +2,8 @@
 
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, is_double_click, maybe_log_route_profile,
-    pointer_button_from_winit, pointer_modifiers_from_winit, render_profile_enabled,
-    scroll_delta_to_logical,
+    native_pointer_press_gesture, pointer_button_from_winit, pointer_modifiers_for_native_gesture,
+    pointer_modifiers_from_winit, render_profile_enabled, scroll_delta_to_logical,
 };
 use crate::{
     gui::types::Point,
@@ -116,8 +116,25 @@ where
             ElementState::Released => NativePointerEventKind::MouseRelease,
         };
         let position = self.input.last_cursor;
-        let button = pointer_button_from_winit(button);
-        let modifiers = self.pointer_modifiers();
+        let physical_button = pointer_button_from_winit(button);
+        let gesture = match state {
+            ElementState::Pressed => {
+                let gesture = native_pointer_press_gesture(physical_button, self.input.modifiers);
+                self.input.effective_pointer_gesture = gesture;
+                gesture
+            }
+            ElementState::Released => self.input.effective_pointer_gesture.or_else(|| {
+                physical_button.map(|button| super::input::NativePointerGesture {
+                    button,
+                    consume_control: false,
+                })
+            }),
+        };
+        let button = gesture.map(|gesture| gesture.button);
+        let modifiers = gesture.map_or_else(
+            || self.pointer_modifiers(),
+            |gesture| self.pointer_modifiers_for_gesture(gesture.consume_control),
+        );
         let double_click = state == ElementState::Pressed
             && self.core.last_pointer_press.is_some_and(|last| {
                 position.is_some_and(|position| {
@@ -130,7 +147,7 @@ where
         let Some(position) = position else {
             diagnostic.result = NativePointerRouteResult::NoCursor;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeMouseInputRoute::new(
+            let route = NativeMouseInputRoute::new(
                 GenericRouteOutcome::default(),
                 None,
                 button,
@@ -138,11 +155,15 @@ where
                 double_click,
                 diagnostic,
             );
+            if state == ElementState::Released {
+                self.input.effective_pointer_gesture = None;
+            }
+            return route;
         };
         let Some(button) = button else {
             diagnostic.result = NativePointerRouteResult::UnsupportedButton;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeMouseInputRoute::new(
+            let route = NativeMouseInputRoute::new(
                 GenericRouteOutcome::default(),
                 Some(position),
                 None,
@@ -150,12 +171,19 @@ where
                 double_click,
                 diagnostic,
             );
+            if state == ElementState::Released {
+                self.input.effective_pointer_gesture = None;
+            }
+            return route;
         };
         if state == ElementState::Released {
             self.flush_pending_scrollbar_drag_now();
         }
         self.flush_pending_wheel_input_now();
-        let modifiers = self.pointer_modifiers();
+        let modifiers = gesture.map_or_else(
+            || self.pointer_modifiers(),
+            |gesture| self.pointer_modifiers_for_gesture(gesture.consume_control),
+        );
         let started = Instant::now();
         let outcome = match state {
             ElementState::Pressed => self
@@ -168,20 +196,28 @@ where
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
-        NativeMouseInputRoute::new(
+        let route = NativeMouseInputRoute::new(
             outcome,
             Some(position),
             Some(button),
             state,
             double_click,
             diagnostic,
-        )
+        );
+        if state == ElementState::Released {
+            self.input.effective_pointer_gesture = None;
+        }
+        route
     }
 
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {
         let position = self.input.last_cursor;
         let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
-        let modifiers = self.pointer_modifiers();
+        let consume_control = self
+            .input
+            .effective_pointer_gesture
+            .is_some_and(|gesture| gesture.consume_control);
+        let modifiers = self.pointer_modifiers_for_gesture(consume_control);
         let now = Instant::now();
         self.flush_stale_pending_wheel_input(now);
         let mut diagnostic = self.native_pointer_diagnostic(
@@ -244,15 +280,22 @@ where
         modifiers: ModifiersState,
     ) -> GenericRouteOutcome {
         self.input.modifiers = modifiers;
+        let consume_control = self
+            .input
+            .effective_pointer_gesture
+            .is_some_and(|gesture| gesture.consume_control);
         let mut diagnostic = self.native_pointer_diagnostic(
             NativePointerEventKind::ModifiersChanged,
             self.input.last_cursor,
             None,
-            self.pointer_modifiers(),
+            self.pointer_modifiers_for_gesture(consume_control),
         );
-        let outcome = self
-            .core
-            .route_pointer_modifiers_changed(pointer_modifiers_from_winit(modifiers));
+        let outcome =
+            self.core
+                .route_pointer_modifiers_changed(pointer_modifiers_for_native_gesture(
+                    modifiers,
+                    consume_control,
+                ));
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
         outcome
@@ -260,6 +303,10 @@ where
 
     fn pointer_modifiers(&self) -> PointerModifiers {
         pointer_modifiers_from_winit(self.input.modifiers)
+    }
+
+    fn pointer_modifiers_for_gesture(&self, consume_control: bool) -> PointerModifiers {
+        pointer_modifiers_for_native_gesture(self.input.modifiers, consume_control)
     }
 
     fn native_pointer_diagnostic(

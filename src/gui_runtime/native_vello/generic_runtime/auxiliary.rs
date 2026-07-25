@@ -127,6 +127,18 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.update_native_dpi_scale(scale_factor);
             }
+            WindowEvent::Focused(false) => {
+                let routed = self.runner.handle_focus_lost_before_external_drag();
+                self.runner.handle_route_outcome(event_loop, routed);
+                if self.runner.core.runtime.external_drag_armed() {
+                    let outcome = self.runner.launch_external_drag_if_armed();
+                    self.runner.handle_route_outcome(event_loop, outcome);
+                }
+            }
+            WindowEvent::Focused(true) => {
+                let routed = self.runner.handle_focus_regained_after_native_modal_loop();
+                self.runner.handle_route_outcome(event_loop, routed);
+            }
             WindowEvent::CursorEntered { .. } => self.runner.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),

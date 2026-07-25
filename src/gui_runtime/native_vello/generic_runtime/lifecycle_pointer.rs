@@ -98,6 +98,7 @@ where
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
         self.window.native_focus_lost = true;
+        self.input.effective_pointer_gesture = None;
         let mut outcome = self.clear_native_pointer_presence();
         outcome.merge(self.clear_native_modifier_state());
         outcome.merge(self.core.route_focus_lost());

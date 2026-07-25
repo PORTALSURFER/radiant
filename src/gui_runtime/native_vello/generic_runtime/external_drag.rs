@@ -26,6 +26,7 @@ where
         let Some(session) = self.core.runtime.take_external_drag_session() else {
             return GenericRouteOutcome::default();
         };
+        self.input.effective_pointer_gesture = None;
         self.core.runtime.cancel_pointer_capture();
         let preview_cleared = self.core.runtime.take_drag_preview_for_external_drag();
         let path_count = match &session.request.payload {

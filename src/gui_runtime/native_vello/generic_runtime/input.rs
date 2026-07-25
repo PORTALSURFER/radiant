@@ -33,6 +33,42 @@ pub(super) fn pointer_button_from_winit(button: MouseButton) -> Option<PointerBu
     })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativePointerGesture {
+    pub(super) button: PointerButton,
+    pub(super) consume_control: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativePointerGestureLatch {
+    pub(super) physical_button: MouseButton,
+    pub(super) gesture: NativePointerGesture,
+}
+
+pub(super) fn native_pointer_press_gesture(
+    button: Option<PointerButton>,
+    modifiers: winit::keyboard::ModifiersState,
+) -> Option<NativePointerGesture> {
+    native_pointer_press_gesture_for_platform(button, modifiers, cfg!(target_os = "macos"))
+}
+
+fn native_pointer_press_gesture_for_platform(
+    button: Option<PointerButton>,
+    modifiers: winit::keyboard::ModifiersState,
+    macos: bool,
+) -> Option<NativePointerGesture> {
+    let button = button?;
+    let consume_control = macos && button == PointerButton::Primary && modifiers.control_key();
+    Some(NativePointerGesture {
+        button: if consume_control {
+            PointerButton::Secondary
+        } else {
+            button
+        },
+        consume_control,
+    })
+}
+
 pub(super) fn pointer_modifiers_from_winit(
     modifiers: winit::keyboard::ModifiersState,
 ) -> PointerModifiers {
@@ -41,6 +77,20 @@ pub(super) fn pointer_modifiers_from_winit(
         shift: modifiers.shift_key(),
         alt: modifiers.alt_key(),
     }
+}
+
+pub(super) fn pointer_modifiers_for_native_gesture(
+    modifiers: winit::keyboard::ModifiersState,
+    consume_control: bool,
+) -> PointerModifiers {
+    let mut projected = pointer_modifiers_from_winit(modifiers);
+    if consume_control && cfg!(target_os = "macos") {
+        // On macOS Control is folded into the generic command projection. A
+        // converted Control-click consumes only that physical modifier while
+        // retaining an independently held Command key.
+        projected.command = modifiers.super_key();
+    }
+    projected
 }
 
 pub(super) fn keypress_from_input(
@@ -87,6 +137,47 @@ mod tests {
             logical_point_from_winit(PhysicalPosition::new(f64::MAX, 20.25), DpiScale::ONE),
             None
         );
+    }
+
+    #[test]
+    fn native_pointer_gesture_conversion_is_platform_scoped() {
+        let control = ModifiersState::CONTROL;
+        assert_eq!(
+            native_pointer_press_gesture_for_platform(Some(PointerButton::Primary), control, true,),
+            Some(NativePointerGesture {
+                button: PointerButton::Secondary,
+                consume_control: true,
+            })
+        );
+        assert_eq!(
+            native_pointer_press_gesture_for_platform(Some(PointerButton::Primary), control, false,),
+            Some(NativePointerGesture {
+                button: PointerButton::Primary,
+                consume_control: false,
+            })
+        );
+        assert_eq!(
+            native_pointer_press_gesture_for_platform(
+                Some(PointerButton::Secondary),
+                control,
+                true,
+            ),
+            Some(NativePointerGesture {
+                button: PointerButton::Secondary,
+                consume_control: false,
+            })
+        );
+    }
+
+    #[test]
+    fn converted_control_click_preserves_independent_modifiers() {
+        let projected = pointer_modifiers_for_native_gesture(
+            ModifiersState::CONTROL | ModifiersState::SUPER | ModifiersState::SHIFT,
+            true,
+        );
+        assert!(projected.command);
+        assert!(projected.shift);
+        assert!(!projected.alt);
     }
 
     #[test]

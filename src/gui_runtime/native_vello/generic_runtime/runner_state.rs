@@ -2,6 +2,7 @@
 
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
+use super::input::NativePointerGestureLatch;
 use super::{FrameWork, FrameWorkReason};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
@@ -42,6 +43,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) native_cursor_apply_count: usize,
     pub(super) clipboard: Option<arboard::Clipboard>,
     pub(super) modifiers: ModifiersState,
+    pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
@@ -58,6 +60,7 @@ impl Default for NativeRunnerInputState {
             native_cursor_apply_count: 0,
             clipboard: arboard::Clipboard::new().ok(),
             modifiers: ModifiersState::default(),
+            effective_pointer_gesture: None,
             last_navigation_key_repeat: None,
             pending_gpu_surface_wheel: None,
             pending_scroll_container_wheel: None,

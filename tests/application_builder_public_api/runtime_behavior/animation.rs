@@ -475,6 +475,166 @@ fn presentation_transient_overlay_can_cap_paint_only_frame_rate() {
 }
 
 #[test]
+fn presentation_transient_overlays_coexist_in_declaration_order_and_reuse_base_refresh() {
+    use radiant::prelude as ui;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let first_paints = Arc::new(AtomicUsize::new(0));
+    let second_paints = Arc::new(AtomicUsize::new(0));
+    let first_paints_for_overlay = Arc::clone(&first_paints);
+    let second_paints_for_overlay = Arc::clone(&second_paints);
+    let first = ui::TransientOverlay::new(101_u64)
+        .paint_only()
+        .when(|_| true)
+        .fps(24)
+        .paint(move |_state: &mut DemoState, _context, primitives| {
+            first_paints_for_overlay.fetch_add(1, Ordering::Relaxed);
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 10,
+                rect: ui::Rect::from_size(4.0, 4.0),
+                color: ui::Rgba8::new(255, 0, 0, 255),
+            }));
+        });
+    let second = ui::TransientOverlay::new(202_u64)
+        .paint_only()
+        .when(|_| true)
+        .fps(48)
+        .paint(move |_state: &mut DemoState, _context, primitives| {
+            second_paints_for_overlay.fetch_add(1, Ordering::Relaxed);
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 10,
+                rect: ui::Rect::from_size(8.0, 8.0),
+                color: ui::Rgba8::new(0, 0, 255, 255),
+            }));
+        });
+
+    let bridge = ui::app(DemoState::default())
+        .view(|_state| ui::text("Base").id(10))
+        .presentation(
+            ui::Presentation::new()
+                .transient_overlay(first)
+                .transient_overlay(second),
+        )
+        .update(|_, _: DemoMessage| {})
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+    let before = runtime.refresh_counters();
+
+    let activity = runtime.host_animation_activity();
+    assert!(activity.needs_animation());
+    assert!(!activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), Some(48));
+
+    let plan = runtime.paint_plan(&radiant::theme::ThemeTokens::default());
+    let mut overlay = Vec::new();
+    runtime.host_paint_transient_overlay(
+        ui::TransientOverlayContext::new(&plan, Vector2::new(180.0, 48.0), Duration::ZERO),
+        &mut overlay,
+    );
+
+    let colors: Vec<_> = overlay
+        .iter()
+        .map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => fill.color,
+            _ => panic!("expected only fill-rect overlay markers"),
+        })
+        .collect();
+    assert_eq!(
+        colors,
+        [
+            ui::Rgba8::new(255, 0, 0, 255),
+            ui::Rgba8::new(0, 0, 255, 255)
+        ]
+    );
+    assert_eq!(first_paints.load(Ordering::Relaxed), 1);
+    assert_eq!(second_paints.load(Ordering::Relaxed), 1);
+    assert_eq!(runtime.refresh_counters(), before);
+}
+
+#[test]
+fn scene_transient_overlays_gate_painters_independently_and_retain_active_cadence() {
+    use radiant::prelude as ui;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let inactive_paints = Arc::new(AtomicUsize::new(0));
+    let active_paints = Arc::new(AtomicUsize::new(0));
+    let bridge = ui::app(DemoState::default())
+        .view({
+            let inactive_paints = Arc::clone(&inactive_paints);
+            let active_paints = Arc::clone(&active_paints);
+            move |state| {
+                let inactive_paints_for_overlay = Arc::clone(&inactive_paints);
+                let active_paints_for_overlay = Arc::clone(&active_paints);
+                ui::scene(ui::text(format!("Frame {}", state.count)).id(10))
+                    .overlay(
+                        ui::TransientOverlay::new(303_u64)
+                            .paint_only()
+                            .when(|state: &mut DemoState| state.count > 0)
+                            .fps(24)
+                            .paint(move |_state, _context, _primitives| {
+                                inactive_paints_for_overlay.fetch_add(1, Ordering::Relaxed);
+                            }),
+                    )
+                    .overlay(
+                        ui::TransientOverlay::new(404_u64)
+                            .paint_only()
+                            .when(|_: &mut DemoState| true)
+                            .fps(30)
+                            .paint(move |_state, _context, _primitives| {
+                                active_paints_for_overlay.fetch_add(1, Ordering::Relaxed);
+                            }),
+                    )
+                    .into_view()
+            }
+        })
+        .update(|state, message| {
+            if matches!(message, DemoMessage::Increment) {
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.host_animation_activity();
+    assert!(activity.needs_animation());
+    assert!(!activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), Some(30));
+
+    let plan = runtime.paint_plan(&radiant::theme::ThemeTokens::default());
+    let mut overlay = Vec::new();
+    runtime.host_paint_transient_overlay(
+        ui::TransientOverlayContext::new(&plan, Vector2::new(180.0, 48.0), Duration::ZERO),
+        &mut overlay,
+    );
+    assert!(overlay.is_empty());
+    assert_eq!(inactive_paints.load(Ordering::Relaxed), 0);
+    assert_eq!(active_paints.load(Ordering::Relaxed), 1);
+
+    assert!(
+        runtime
+            .dispatch_message(DemoMessage::Increment)
+            .surface_refresh_requested
+    );
+    let activity = runtime.host_animation_activity();
+    assert_eq!(activity.target_fps(), Some(30));
+    let plan = runtime.paint_plan(&radiant::theme::ThemeTokens::default());
+    let mut overlay = Vec::new();
+    runtime.host_paint_transient_overlay(
+        ui::TransientOverlayContext::new(&plan, Vector2::new(180.0, 48.0), Duration::ZERO),
+        &mut overlay,
+    );
+    assert!(overlay.is_empty());
+    assert_eq!(inactive_paints.load(Ordering::Relaxed), 1);
+    assert_eq!(active_paints.load(Ordering::Relaxed), 2);
+}
+
+#[test]
 fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update() {
     use radiant::prelude as ui;
 

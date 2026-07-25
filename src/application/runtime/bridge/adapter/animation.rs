@@ -41,14 +41,26 @@ where
             .as_mut()
             .map_or_else(RuntimeAnimationActivity::idle, |activity| {
                 activity(&mut self.state)
-            });
+            })
+            .merge(
+                self.lifecycle
+                    .transient_overlays
+                    .iter_mut()
+                    .map(|overlay| (overlay.activity)(&mut self.state))
+                    .fold(
+                        RuntimeAnimationActivity::idle(),
+                        RuntimeAnimationActivity::merge,
+                    ),
+            );
         let scene_transient_overlay_animation = self
             .lifecycle
-            .scene_transient_overlay_activity
-            .as_mut()
-            .map_or_else(RuntimeAnimationActivity::idle, |activity| {
-                activity(&mut self.state)
-            });
+            .scene_transient_overlays
+            .iter_mut()
+            .map(|overlay| (overlay.activity)(&mut self.state))
+            .fold(
+                RuntimeAnimationActivity::idle(),
+                RuntimeAnimationActivity::merge,
+            );
         let launch_animation = launch_animation.into_runtime_activity();
         let app_frame_message_animation = launch_animation.merge(frame_clock_animation);
         let app_frame_message_active = app_frame_message_animation.needs_frame_message();

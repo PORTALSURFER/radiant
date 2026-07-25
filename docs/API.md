@@ -1092,10 +1092,13 @@ applying fixed kind z-order.
 Scenes can also carry presentation declarations that belong to the root
 surface instead of launch wiring. Use `Scene::frame_clock(...)` or
 `Scene::frame_clock_opt(...)` for host-state frame messages, and
-`Scene::overlay(...)` or `Scene::overlay_opt(...)` for paint-only transient
-overlays over the cached scene. Presentation declarations do not become layout
-or input children, so they do not change base hit testing, layer ordering, or
-widget state synchronization.
+repeat `Scene::overlay(...)` or use `Scene::overlay_opt(...)` for ordered, keyed
+paint-only transient overlays over the cached scene. Overlay declaration order
+is their paint z-order; each descriptor's `when(...)` predicate gates its own
+painter, while the runtime combines the active overlays' paint-only demand and
+cadence. Presentation declarations do not become layout or input children, so
+they do not change base hit testing, layer ordering, or widget state
+synchronization.
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
 `ShortcutLayer` values plus an optional fallback resolver for dynamic keys such
@@ -1356,9 +1359,11 @@ radiant::app(state)
 ```
 
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
-paint-only presentation work over the cached surface. These descriptors lower to
-the same runtime animation and transient-overlay hooks whether they are attached
-to `Scene` or to the app builder. Reducer messages request a surface repaint by
+paint-only presentation work over the cached surface, and a `Presentation` can
+declare multiple keyed overlays in order with repeated
+`.transient_overlay(...)` or `.transient_overlays(...)`. These descriptors lower
+to the same runtime animation and transient-overlay hooks whether they are
+attached to `Scene` or to the app builder. Reducer messages request a surface repaint by
 default, while frame-clock messages with `repaint_scope(...)` can resolve to
 paint-only repaint when the frame update did not require a structural surface
 refresh.

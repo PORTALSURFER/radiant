@@ -1,5 +1,6 @@
 use super::super::AppBridge;
 use crate::{
+    application::runtime::TransientOverlayBinding,
     application::{IntoView, UiUpdateContext},
     gui::{paint::PaintFrame as GuiPaintFrame, types::Rect},
     layout::Vector2,
@@ -33,8 +34,34 @@ where
         if let Some(paint) = self.lifecycle.transient_overlay.as_mut() {
             paint(&mut self.state, context, primitives);
         }
-        if let Some(paint) = self.lifecycle.scene_transient_overlay.as_mut() {
-            paint(&mut self.state, context, primitives);
+        paint_active_overlays(
+            &mut self.lifecycle.transient_overlays,
+            &mut self.state,
+            context,
+            primitives,
+        );
+        paint_active_overlays(
+            &mut self.lifecycle.scene_transient_overlays,
+            &mut self.state,
+            context,
+            primitives,
+        );
+    }
+}
+
+fn paint_active_overlays<State>(
+    overlays: &mut [TransientOverlayBinding<State>],
+    state: &mut State,
+    context: TransientOverlayContext<'_>,
+    primitives: &mut Vec<PaintPrimitive>,
+) {
+    for overlay in overlays {
+        let activity = (overlay.activity)(state);
+        if !activity.needs_animation() {
+            continue;
+        }
+        if let Some(paint) = overlay.painter.as_mut() {
+            paint(state, context, primitives);
         }
     }
 }

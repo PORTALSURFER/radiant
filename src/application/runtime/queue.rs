@@ -1,7 +1,10 @@
 use super::threading::BusinessThreadPool;
-use super::timer::TimerLane;
-use crate::runtime::{RuntimeDiagnostics, RuntimeDiagnosticsRecorder, TaskPriority};
-use crate::{gui::repaint::RepaintSignal, runtime::Command};
+use super::timer::{TimerIdentity, TimerLane, TimerSink, TimerWake, timer_sink};
+use crate::gui::repaint::RepaintSignal;
+use crate::runtime::{
+    RuntimeDiagnostics, RuntimeDiagnosticsRecorder, RuntimeTimerWake, TaskPriority,
+};
+use std::collections::HashMap;
 use std::sync::{
     Arc, Mutex, OnceLock,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -22,11 +25,14 @@ enum PendingMessage<Message> {
 pub(in crate::application) struct AppRuntime<Message> {
     pending: Mutex<Vec<PendingMessage<Message>>>,
     pending_frame: Mutex<Option<Message>>,
-    commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
     business: BusinessThreadPool,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
-    timers: OnceLock<TimerLane<Message>>,
+    timers: OnceLock<TimerLane>,
+    timer_wakes: Mutex<Vec<TimerWake>>,
+    timer_identities: Mutex<HashMap<TimerIdentity, TimerIdentity>>,
+    next_timer_id: AtomicU64,
+    timer_epoch: AtomicU64,
     alive: AtomicBool,
     next_stream_slot: AtomicU64,
 }
@@ -37,11 +43,14 @@ impl<Message> Default for AppRuntime<Message> {
         Self {
             pending: Mutex::new(Vec::new()),
             pending_frame: Mutex::new(None),
-            commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
             diagnostics,
             timers: OnceLock::new(),
+            timer_wakes: Mutex::new(Vec::new()),
+            timer_identities: Mutex::new(HashMap::new()),
+            next_timer_id: AtomicU64::new(1),
+            timer_epoch: AtomicU64::new(1),
             alive: AtomicBool::new(true),
             next_stream_slot: AtomicU64::new(1),
         }
@@ -108,15 +117,6 @@ impl<Message> AppRuntime<Message> {
             *pending_frame = Some(message);
         }
         self.record_current_pending_depth();
-        self.request_repaint();
-        true
-    }
-
-    pub(super) fn enqueue_command(&self, command: Command<Message>) -> bool {
-        if !self.is_alive() || command.is_empty() {
-            return false;
-        }
-        lock_runtime_state(&self.commands).push(command);
         self.request_repaint();
         true
     }
@@ -202,14 +202,6 @@ impl<Message> AppRuntime<Message> {
         remaining
     }
 
-    pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
-        drain_runtime_vec(&self.commands)
-    }
-
-    pub(super) fn drain_commands_into(&self, commands: &mut Vec<Command<Message>>) {
-        drain_runtime_vec_into(&self.commands, commands);
-    }
-
     pub(super) fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
         *lock_runtime_state(&self.repaint) = Some(signal);
     }
@@ -223,14 +215,23 @@ impl<Message> AppRuntime<Message> {
 
     pub(super) fn shutdown(&self) {
         self.alive.store(false, Ordering::Release);
+        self.timer_epoch.fetch_add(1, Ordering::AcqRel);
+        lock_runtime_state(&self.timer_identities).clear();
+        lock_runtime_state(&self.timer_wakes).clear();
+        if let Some(timers) = self.timers.get() {
+            timers.close();
+        }
         *lock_runtime_state(&self.pending_frame) = None;
         lock_runtime_state(&self.pending).clear();
-        lock_runtime_state(&self.commands).clear();
         self.record_current_pending_depth();
     }
 
     pub(super) fn is_alive(&self) -> bool {
         self.alive.load(Ordering::Acquire)
+    }
+
+    pub(super) fn take_timer_wakes(&self) -> Vec<TimerWake> {
+        std::mem::take(&mut *lock_runtime_state(&self.timer_wakes))
     }
 
     fn record_current_pending_depth(&self) {
@@ -251,28 +252,78 @@ impl<Message> AppRuntime<Message>
 where
     Message: Send + 'static,
 {
-    pub(super) fn schedule_message(self: &Arc<Self>, delay: Duration, message: Message) -> bool {
-        if !self.is_alive() {
-            return false;
-        }
-        self.timers
-            .get_or_init(TimerLane::new)
-            .schedule(Arc::downgrade(self), delay, message)
+    pub(super) fn allocate_timer_identity(&self, generation: u64) -> TimerIdentity {
+        TimerIdentity::application(
+            self.next_timer_id.fetch_add(1, Ordering::Relaxed),
+            generation,
+            self.timer_epoch.load(Ordering::Acquire),
+        )
     }
 
-    pub(super) fn schedule_interval(
+    pub(super) fn schedule_timer(
         self: &Arc<Self>,
-        every: Duration,
-        message: Arc<dyn Fn() -> Message + Send + Sync>,
+        delay: Duration,
+        identity: TimerIdentity,
+        recurring: bool,
     ) -> bool {
         if !self.is_alive() {
             return false;
         }
-        self.timers.get_or_init(TimerLane::new).schedule_interval(
-            Arc::downgrade(self),
-            every,
-            message,
-        )
+        if identity.owner == crate::runtime::RuntimeTimerOwner::Application {
+            lock_runtime_state(&self.timer_identities).insert(identity, identity);
+        }
+        let sink = timer_sink(self);
+        let timers = self.timers.get_or_init(TimerLane::new);
+        let accepted = if recurring {
+            timers.schedule_interval(sink, delay, identity)
+        } else {
+            timers.schedule(sink, delay, identity)
+        };
+        if !accepted {
+            if identity.owner == crate::runtime::RuntimeTimerOwner::Application {
+                lock_runtime_state(&self.timer_identities).remove(&identity);
+            }
+        }
+        accepted
+    }
+
+    pub(super) fn schedule_timer_wake(
+        self: &Arc<Self>,
+        delay: Duration,
+        wake: RuntimeTimerWake,
+    ) -> bool {
+        self.schedule_timer(delay, wake, false)
+    }
+}
+
+impl<Message> TimerSink for AppRuntime<Message>
+where
+    Message: Send + 'static,
+{
+    fn admit_timer(&self, identity: TimerIdentity) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
+        if identity.owner == crate::runtime::RuntimeTimerOwner::Controller {
+            return true;
+        }
+        self.timer_epoch.load(Ordering::Acquire) == identity.epoch
+            && lock_runtime_state(&self.timer_identities)
+                .get(&identity)
+                .is_some_and(|current| *current == identity)
+    }
+
+    fn enqueue_timer_wake(&self, wake: TimerWake) -> bool {
+        if !self.admit_timer(wake) {
+            return false;
+        }
+        lock_runtime_state(&self.timer_wakes).push(wake);
+        self.request_repaint();
+        true
+    }
+
+    fn timer_is_current(&self, identity: TimerIdentity) -> bool {
+        self.admit_timer(identity)
     }
 }
 
@@ -305,11 +356,6 @@ fn prepend_pending_frame<T>(frame: Option<T>, mut pending: Vec<T>) -> Vec<T> {
         pending.insert(0, frame);
     }
     pending
-}
-
-fn drain_runtime_vec_into<T>(state: &Mutex<Vec<T>>, out: &mut Vec<T>) {
-    let mut queued = lock_runtime_state(state);
-    out.extend(queued.drain(..));
 }
 
 #[cfg(test)]

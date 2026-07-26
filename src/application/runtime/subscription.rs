@@ -1,6 +1,6 @@
 use super::AppRuntime;
 use super::threading::{runtime_alive, spawn_business_thread};
-use super::timer::min_timer_delay;
+use super::timer::{TimerRegistry, min_timer_delay};
 use std::{
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
@@ -22,7 +22,7 @@ pub enum Subscription<Message> {
         /// Delay between emitted messages.
         every: Duration,
         /// Message factory invoked for each tick.
-        message: Arc<dyn Fn() -> Message + Send + Sync>,
+        message: Arc<dyn Fn() -> Message>,
     },
     /// Forward messages from a host-owned receiver.
     Worker {
@@ -60,7 +60,7 @@ impl<Message> Subscription<Message> {
     pub fn interval(
         id: &'static str,
         every: Duration,
-        message: impl Fn() -> Message + Send + Sync + 'static,
+        message: impl Fn() -> Message + 'static,
     ) -> Self {
         Self::Interval {
             id,
@@ -88,8 +88,9 @@ impl<Message> Subscription<Message> {
     }
 }
 
-pub(super) fn spawn_subscription<Message>(
+pub(super) fn spawn_subscription_with_registry<Message>(
     runtime: Weak<AppRuntime<Message>>,
+    timers: &mut TimerRegistry<Message>,
     subscription: Subscription<Message>,
 ) where
     Message: Send + 'static,
@@ -98,14 +99,14 @@ pub(super) fn spawn_subscription<Message>(
         Subscription::None => {}
         Subscription::Batch(subscriptions) => {
             for subscription in subscriptions {
-                spawn_subscription(runtime.clone(), subscription);
+                spawn_subscription_with_registry(runtime.clone(), timers, subscription);
             }
         }
         Subscription::Interval { id, every, message } => {
             let Some(runtime) = runtime.upgrade() else {
                 return;
             };
-            if !runtime.schedule_interval(every.max(min_timer_delay()), message) {
+            if !timers.schedule_interval(&runtime, every.max(min_timer_delay()), message) {
                 tracing::warn!(
                     subscription.id = id,
                     "Radiant app runtime failed to start interval subscription"

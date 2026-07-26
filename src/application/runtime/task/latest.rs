@@ -1,33 +1,56 @@
 use super::{TaskCompletion, TaskTicket};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, Mutex, Weak},
+};
 
-static NEXT_LATEST_SLOT_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_EFFECT_SLOT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[cfg(test)]
 #[path = "latest/tests.rs"]
 mod tests;
 
+#[derive(Debug)]
+struct LatestState {
+    next_id: u64,
+    active: Option<TaskTicket>,
+    predecessors: HashMap<TaskTicket, Option<TaskTicket>>,
+    rejected: HashSet<TaskTicket>,
+}
+
+#[derive(Debug)]
+enum LatestStorage {
+    Inline {
+        next_id: u64,
+        active: Option<TaskTicket>,
+    },
+    Shared {
+        slot: u64,
+        state: Arc<Mutex<LatestState>>,
+    },
+}
+
 /// Tracks the latest in-flight task for one host-owned resource.
 #[derive(Debug)]
 pub struct LatestTask {
+    storage: LatestStorage,
     effect_id: u64,
-    next_id: u64,
-    active: Option<TaskTicket>,
 }
 
 impl Clone for LatestTask {
     fn clone(&self) -> Self {
+        let (next_id, active) = self.snapshot();
         Self {
+            storage: LatestStorage::Inline { next_id, active },
             effect_id: 0,
-            next_id: self.next_id,
-            active: self.active,
         }
     }
 }
 
 impl PartialEq for LatestTask {
     fn eq(&self, other: &Self) -> bool {
-        self.next_id == other.next_id && self.active == other.active
+        self.snapshot() == other.snapshot()
     }
 }
 
@@ -43,35 +66,84 @@ impl LatestTask {
     /// Build an idle task tracker.
     pub const fn new() -> Self {
         Self {
+            storage: LatestStorage::Inline {
+                next_id: 1,
+                active: None,
+            },
             effect_id: 0,
-            next_id: 1,
-            active: None,
         }
     }
 
     /// Start a new latest task and return its ticket.
     pub fn begin(&mut self) -> TaskTicket {
-        let ticket = TaskTicket::new(self.next_id);
-        self.next_id = self.next_id.saturating_add(1);
-        self.active = Some(ticket);
-        ticket
+        match &mut self.storage {
+            LatestStorage::Inline { next_id, active } => {
+                let ticket = TaskTicket::new(*next_id);
+                *next_id = next_id.saturating_add(1);
+                *active = Some(ticket);
+                ticket
+            }
+            LatestStorage::Shared { state, .. } => {
+                let mut state = lock_state(state);
+                let ticket = TaskTicket::new(state.next_id);
+                state.next_id = state.next_id.saturating_add(1);
+                state.active = Some(ticket);
+                state.predecessors.clear();
+                state.rejected.clear();
+                ticket
+            }
+        }
+    }
+
+    /// Reserve a timer replacement and publish its ticket transactionally.
+    pub(crate) fn begin_timer_replacement(&mut self) -> LatestTimerTransaction {
+        let (slot, state) = match &mut self.storage {
+            LatestStorage::Inline { next_id, active } => {
+                let shared = Arc::new(Mutex::new(LatestState {
+                    next_id: *next_id,
+                    active: *active,
+                    predecessors: HashMap::new(),
+                    rejected: HashSet::new(),
+                }));
+                let slot = NEXT_EFFECT_SLOT_ID.fetch_add(1, Ordering::Relaxed);
+                self.storage = LatestStorage::Shared {
+                    slot,
+                    state: Arc::clone(&shared),
+                };
+                (slot, shared)
+            }
+            LatestStorage::Shared { slot, state } => (*slot, Arc::clone(state)),
+        };
+        let mut state_guard = lock_state(&state);
+        let previous = state_guard.active;
+        let replacement = TaskTicket::new(state_guard.next_id);
+        state_guard.next_id = state_guard.next_id.saturating_add(1);
+        state_guard.active = Some(replacement);
+        state_guard.predecessors.insert(replacement, previous);
+        state_guard.rejected.remove(&replacement);
+        LatestTimerTransaction {
+            slot,
+            replacement,
+            previous,
+            state: Arc::downgrade(&state),
+        }
     }
 
     /// Return the currently active latest task, if any.
-    pub const fn active(&self) -> Option<TaskTicket> {
-        self.active
+    pub fn active(&self) -> Option<TaskTicket> {
+        self.snapshot().1
     }
 
-    pub(in crate::application) fn effect_id(&mut self) -> u64 {
+    pub(crate) fn effect_id(&mut self) -> u64 {
         if self.effect_id == 0 {
-            self.effect_id = NEXT_LATEST_SLOT_ID.fetch_add(1, Ordering::Relaxed);
+            self.effect_id = NEXT_EFFECT_SLOT_ID.fetch_add(1, Ordering::Relaxed);
         }
         self.effect_id
     }
 
     /// Return whether this ticket is still the active latest task.
     pub fn is_active(&self, ticket: TaskTicket) -> bool {
-        self.active == Some(ticket)
+        self.active() == Some(ticket)
     }
 
     /// Return whether this completion belongs to the active latest task.
@@ -81,12 +153,12 @@ impl LatestTask {
 
     /// Clear this task if `ticket` is still active.
     pub fn finish(&mut self, ticket: TaskTicket) -> bool {
-        if self.is_active(ticket) {
-            self.active = None;
-            true
-        } else {
-            false
+        if !self.is_active(ticket) {
+            return false;
         }
+        self.set_active(None);
+        self.invalidate_transactions();
+        true
     }
 
     /// Clear this task for a current completion and return its output.
@@ -99,6 +171,112 @@ impl LatestTask {
 
     /// Clear any active task.
     pub fn cancel(&mut self) {
-        self.active = None;
+        self.set_active(None);
+        self.invalidate_transactions();
     }
+
+    fn snapshot(&self) -> (u64, Option<TaskTicket>) {
+        match &self.storage {
+            LatestStorage::Inline { next_id, active } => (*next_id, *active),
+            LatestStorage::Shared { state, .. } => {
+                let state = lock_state(state);
+                (state.next_id, resolve_active(&state))
+            }
+        }
+    }
+
+    fn set_active(&mut self, active: Option<TaskTicket>) {
+        match &mut self.storage {
+            LatestStorage::Inline {
+                active: current, ..
+            } => *current = active,
+            LatestStorage::Shared { state, .. } => lock_state(state).active = active,
+        }
+    }
+
+    fn invalidate_transactions(&mut self) {
+        if let LatestStorage::Shared { state, .. } = &mut self.storage {
+            let mut state = lock_state(state);
+            state.predecessors.clear();
+            state.rejected.clear();
+        }
+    }
+}
+
+impl Drop for LatestTask {
+    fn drop(&mut self) {
+        self.invalidate_transactions();
+    }
+}
+
+/// A timer replacement that can be committed or rolled back by the controller.
+pub(crate) struct LatestTimerTransaction {
+    slot: u64,
+    replacement: TaskTicket,
+    previous: Option<TaskTicket>,
+    state: Weak<Mutex<LatestState>>,
+}
+
+impl LatestTimerTransaction {
+    pub(crate) fn replacement(&self) -> TaskTicket {
+        self.replacement
+    }
+
+    pub(crate) fn slot(&self) -> u64 {
+        self.slot
+    }
+
+    pub(crate) fn generation(&self) -> u64 {
+        self.replacement.id()
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.state.upgrade().is_some_and(|state| {
+            let state = lock_state(&state);
+            resolve_active(&state) == Some(self.replacement)
+        })
+    }
+
+    /// Commit the replacement after the host accepts its timer registration.
+    /// Publication already happened in [`LatestTask::begin_timer_replacement`];
+    /// once committed, its predecessor link is no longer needed for rollback.
+    pub(crate) fn accept(&self) {
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let mut state = lock_state(&state);
+        state.predecessors.remove(&self.replacement);
+        state.rejected.remove(&self.replacement);
+    }
+
+    pub(crate) fn reject(self) {
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let mut state = lock_state(&state);
+        state.rejected.insert(self.replacement);
+        if state.active == Some(self.replacement) {
+            state.active = resolve_ticket(&state, self.previous);
+        }
+    }
+}
+
+fn resolve_active(state: &LatestState) -> Option<TaskTicket> {
+    resolve_ticket(state, state.active)
+}
+
+fn resolve_ticket(state: &LatestState, mut ticket: Option<TaskTicket>) -> Option<TaskTicket> {
+    while let Some(current) = ticket {
+        if !state.rejected.contains(&current) {
+            return Some(current);
+        }
+        ticket = state.predecessors.get(&current).copied().flatten();
+    }
+    None
+}
+
+fn lock_state(state: &Mutex<LatestState>) -> std::sync::MutexGuard<'_, LatestState> {
+    state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }

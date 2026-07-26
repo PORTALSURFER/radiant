@@ -62,3 +62,39 @@ fn cloned_latest_tasks_have_isolated_effect_identities() {
     assert!(first.finish(first_ticket));
     assert!(second.is_active(second_ticket));
 }
+
+#[test]
+fn timer_replacement_publishes_and_accepts_latest_ticket() {
+    let mut task = LatestTask::new();
+    let transaction = task.begin_timer_replacement();
+    let ticket = transaction.replacement();
+
+    assert_eq!(task.active(), Some(ticket));
+    assert!(transaction.is_active());
+    assert!(task.finish(ticket));
+    assert!(!transaction.is_active());
+}
+
+#[test]
+fn rejected_timer_replacements_restore_the_observable_chain() {
+    let mut task = LatestTask::new();
+    let first = task.begin_timer_replacement();
+    let first_ticket = first.replacement();
+    let second = task.begin_timer_replacement();
+    let second_ticket = second.replacement();
+    assert_eq!(task.active(), Some(second_ticket));
+
+    second.reject();
+    assert_eq!(task.active(), Some(first_ticket));
+    assert!(first.is_active());
+
+    let third = task.begin_timer_replacement();
+    let third_ticket = third.replacement();
+    let fourth = task.begin_timer_replacement();
+    let fourth_ticket = fourth.replacement();
+    assert_eq!(task.active(), Some(fourth_ticket));
+    fourth.reject();
+    assert_eq!(task.active(), Some(third_ticket));
+    third.reject();
+    assert_eq!(task.active(), Some(first_ticket));
+}

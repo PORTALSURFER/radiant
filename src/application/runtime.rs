@@ -25,6 +25,7 @@ pub(in crate::application) use bridge::{
 };
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;
+pub(crate) use task::LatestTimerTransaction;
 pub use task::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, ResourceTaskTicket,
     ResourceTasks, TaskCompletion, TaskTicket,

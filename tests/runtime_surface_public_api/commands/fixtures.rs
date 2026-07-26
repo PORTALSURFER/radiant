@@ -16,6 +16,18 @@ pub(super) struct CommandDemoBridge {
 pub(super) struct RuntimeCommandBridge {
     pub(super) count: usize,
     pending: Arc<std::sync::Mutex<Vec<DemoMessage>>>,
+    timer_wakes: Arc<std::sync::Mutex<Vec<radiant::runtime::RuntimeTimerWake>>>,
+    command_drains: Arc<std::sync::Mutex<usize>>,
+}
+
+impl RuntimeCommandBridge {
+    pub(super) fn pending_timer_wake_count(&self) -> usize {
+        self.timer_wakes.lock().expect("timer wakes poisoned").len()
+    }
+
+    pub(super) fn command_drain_count(&self) -> usize {
+        *self.command_drains.lock().expect("command drains poisoned")
+    }
 }
 
 impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
@@ -72,14 +84,18 @@ impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
 }
 
 impl RuntimeTaskHost<DemoMessage> for RuntimeCommandBridge {
-    fn schedule_message(&mut self, delay: Duration, message: DemoMessage) -> bool {
-        let pending = Arc::clone(&self.pending);
+    fn schedule_timer(
+        &mut self,
+        delay: Duration,
+        wake: radiant::runtime::RuntimeTimerWake,
+    ) -> bool {
+        let timer_wakes = Arc::clone(&self.timer_wakes);
         std::thread::spawn(move || {
             std::thread::sleep(delay);
-            pending
+            timer_wakes
                 .lock()
                 .expect("pending messages poisoned")
-                .push(message);
+                .push(wake);
         });
         true
     }
@@ -103,8 +119,17 @@ impl RuntimeTaskHost<DemoMessage> for RuntimeCommandBridge {
 }
 
 impl RuntimeQueueHost<DemoMessage> for RuntimeCommandBridge {
+    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<DemoMessage>>) {
+        *self.command_drains.lock().expect("command drains poisoned") += 1;
+        commands.extend(self.take_runtime_commands());
+    }
+
     fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
         std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
+    }
+
+    fn take_runtime_timer_wakes(&mut self) -> Vec<radiant::runtime::RuntimeTimerWake> {
+        std::mem::take(&mut *self.timer_wakes.lock().expect("timer wakes poisoned"))
     }
 }
 

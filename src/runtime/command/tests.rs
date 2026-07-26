@@ -12,6 +12,37 @@ fn batch_drops_empty_commands_and_preserves_message_order() {
 }
 
 #[test]
+fn after_accepts_non_send_message_and_mapper_for_ui_turn_execution() {
+    use std::rc::Rc;
+
+    let message = Rc::new(String::from("ui-only"));
+    let command = Command::after(std::time::Duration::ZERO, Rc::clone(&message));
+    let Command::Timer(effect) = command else {
+        panic!("after should retain a timer effect");
+    };
+    let mapped = (effect.map)();
+    assert_eq!(mapped.as_str(), "ui-only");
+}
+
+#[test]
+fn after_latest_accepts_non_send_mapper_for_ui_turn_execution() {
+    use std::rc::Rc;
+
+    let mut latest = crate::application::LatestTask::new();
+    let transaction = latest.begin_timer_replacement();
+    let ticket = transaction.replacement();
+    let mapper_state = Rc::new(String::from("latest-ui-only"));
+    let command =
+        Command::after_latest(std::time::Duration::ZERO, ticket, transaction, move |_| {
+            Rc::clone(&mapper_state)
+        });
+    let Command::Timer(effect) = command else {
+        panic!("after_latest should retain a timer effect");
+    };
+    assert_eq!((effect.map)().as_str(), "latest-ui-only");
+}
+
+#[test]
 fn batch_flattens_nested_command_groups() {
     let command = Command::batch([
         Command::batch([Command::message("first")]),

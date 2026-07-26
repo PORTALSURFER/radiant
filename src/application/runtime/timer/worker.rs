@@ -1,16 +1,16 @@
-//! Timer worker loop and message delivery.
+//! Timer worker loop and opaque wake delivery.
 
 use super::queue::{
     TimerEntry, TimerPayload, TimerState, lock_timer_queue, wait_for_timer_work,
     wait_until_timer_due,
 };
 use super::timing::min_timer_delay;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-pub(super) fn timer_loop<Message>(state: Arc<TimerState<Message>>)
-where
-    Message: Send + 'static,
-{
+pub(super) fn timer_loop(state: Arc<TimerState>) {
     loop {
         let entry = {
             let mut queue = lock_timer_queue(&state.queue);
@@ -32,34 +32,29 @@ where
                 queue = wait_until_timer_due(&state, queue, due.saturating_duration_since(now));
             }
         };
-        deliver_timer_message(&state, entry);
+        deliver_timer_wake(&state, entry);
     }
 }
 
-fn deliver_timer_message<Message>(state: &TimerState<Message>, mut entry: TimerEntry<Message>)
-where
-    Message: Send + 'static,
-{
+fn deliver_timer_wake(state: &TimerState, entry: TimerEntry) {
     let Some(runtime) = entry.runtime.upgrade() else {
         return;
     };
-    if !runtime.is_alive() {
+    let (identity, recurring, every) = match entry.payload {
+        TimerPayload::Once { identity } => (identity, false, Duration::ZERO),
+        TimerPayload::Interval { every, identity } => (identity, true, every),
+    };
+    if !runtime.admit_timer(identity) {
         return;
     }
-    match entry.payload {
-        TimerPayload::Once(ref mut message) => {
-            if let Some(message) = message.take() {
-                let _ = runtime.enqueue(message);
-            }
-        }
-        TimerPayload::Interval { every, message } => {
-            if runtime.enqueue(message()) {
-                let _ = state.schedule_interval(
-                    Arc::downgrade(&runtime),
-                    every.max(min_timer_delay()),
-                    message,
-                );
-            }
-        }
+    if !runtime.enqueue_timer_wake(identity) {
+        return;
+    }
+    if recurring && runtime.timer_is_current(identity) {
+        let _ = state.schedule_interval(
+            Arc::downgrade(&runtime),
+            every.max(min_timer_delay()),
+            identity,
+        );
     }
 }

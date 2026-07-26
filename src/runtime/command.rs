@@ -3,6 +3,7 @@
 use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
+use crate::application::LatestTimerTransaction;
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
 use std::time::Duration;
 use std::{any::Any, sync::Arc};
@@ -127,13 +128,9 @@ pub enum Command<Message> {
     SetDpiScale(DpiScale),
     /// Request a native-window logical viewport size from runtime adapters that own windows.
     SetWindowLogicalSize(Vector2),
-    /// Dispatch a host-defined message after a delay.
-    After {
-        /// Delay before the message is delivered.
-        delay: Duration,
-        /// Message to dispatch.
-        message: Message,
-    },
+    /// Schedule a UI-local mapper after a delay.
+    #[doc(hidden)]
+    Timer(TimerEffect<Message>),
     /// Run host work on a business thread and dispatch the resulting message.
     #[doc(hidden)]
     Perform {
@@ -245,6 +242,14 @@ pub enum Command<Message> {
     EndExternalDrag,
     /// Request that the active runtime exits.
     Exit,
+}
+
+/// UI-owned delayed work. Only its opaque identity crosses the host boundary.
+#[doc(hidden)]
+pub struct TimerEffect<Message> {
+    pub(crate) delay: Duration,
+    pub(crate) transaction: Option<LatestTimerTransaction>,
+    pub(crate) map: Box<dyn FnOnce() -> Message + 'static>,
 }
 
 /// Opaque worker-effect command payload.

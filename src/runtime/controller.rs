@@ -19,6 +19,7 @@ mod refresh;
 mod scratch;
 mod scroll;
 mod state;
+mod timers;
 mod traversal_state;
 mod work;
 
@@ -42,6 +43,7 @@ use crate::{
 use effects::WorkerEffects;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use scratch::RuntimeScratch;
+use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
 
@@ -84,6 +86,7 @@ where
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
     worker_effects: WorkerEffects<Message>,
+    timer_effects: TimerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,
     pending_frame_refresh_diagnostics: SurfaceRefreshDiagnostics,

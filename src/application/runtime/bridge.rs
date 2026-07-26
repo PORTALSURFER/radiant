@@ -1,4 +1,5 @@
-use super::subscription::spawn_subscription;
+use super::subscription::spawn_subscription_with_registry;
+use super::timer::TimerRegistry;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
@@ -21,6 +22,8 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) project: Project,
     pub(in crate::application) update: Update,
     pub(in crate::application) runtime: Arc<AppRuntime<Message>>,
+    pub(in crate::application) commands: Vec<Command<Message>>,
+    pub(in crate::application) timer_registry: TimerRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
@@ -206,6 +209,8 @@ where
             project,
             update,
             runtime: Arc::new(AppRuntime::default()),
+            commands: Vec::new(),
+            timer_registry: TimerRegistry::default(),
             lifecycle,
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,
@@ -296,7 +301,11 @@ where
         if let Some(startup) = self.lifecycle.startup.as_mut() {
             let mut context = UiUpdateContext::default();
             startup(&mut self.state, &mut context);
-            self.runtime.enqueue_command(context.into_command());
+            let command = context.into_command();
+            if !command.is_empty() {
+                self.commands.push(command);
+                self.runtime.request_repaint();
+            }
         }
         self.runtime_flags.startup_ran = true;
     }
@@ -309,8 +318,9 @@ where
             return;
         }
         if let Some(subscriptions) = self.lifecycle.subscriptions.as_mut() {
-            spawn_subscription(
+            spawn_subscription_with_registry(
                 Arc::downgrade(&self.runtime),
+                &mut self.timer_registry,
                 subscriptions(&mut self.state),
             );
         }
@@ -325,5 +335,9 @@ where
             .as_mut()
             .map(|project| project(&mut self.state))
             .unwrap_or_default()
+    }
+
+    pub(in crate::application) fn clear_runtime_commands(&mut self) {
+        self.commands.clear();
     }
 }

@@ -29,6 +29,11 @@ impl<Message> UiUpdateContext<Message> {
     }
 
     /// Dispatch a message after a delay.
+    ///
+    /// The message is kept by the UI runtime until an opaque timer wake is
+    /// drained on the UI turn; it is not constructed or transported by the
+    /// timer thread. Use this for one delayed action that does not need
+    /// replacement/latest semantics.
     pub fn after(&mut self, delay: std::time::Duration, message: Message)
     where
         Message: 'static,
@@ -37,6 +42,11 @@ impl<Message> UiUpdateContext<Message> {
     }
 
     /// Dispatch a delayed message tagged with a latest-task ticket.
+    ///
+    /// Calling this method replaces the pending delay for `latest`. The UI
+    /// runtime invokes the mapper only for the still-active ticket after it
+    /// drains and validates the opaque wake. The mapper and resulting message
+    /// remain UI-owned; no message crosses the timer thread.
     pub fn after_latest(
         &mut self,
         latest: &mut LatestTask,

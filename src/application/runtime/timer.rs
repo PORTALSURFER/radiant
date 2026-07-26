@@ -1,4 +1,4 @@
-//! Runtime-owned timer lane for delayed UI messages.
+//! Runtime-owned timer lane for delayed UI wakes.
 
 mod lane;
 mod queue;

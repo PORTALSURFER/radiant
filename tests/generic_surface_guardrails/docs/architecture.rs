@@ -37,6 +37,7 @@ fn architecture_map_documents_target_aligned_boundaries() {
         "`docs/API.md`",
         "`docs/ARCHITECTURE.md`",
         "`docs/TARGET.md`",
+        "`docs/migrations/TIMER_API_MIGRATION.md`",
         "workspace CC0 1.0 license",
         "Examples are maintained API sandboxes and validation targets",
         "cargo test --examples",

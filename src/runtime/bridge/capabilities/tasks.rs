@@ -5,6 +5,13 @@ use crate::{
 use std::{sync::Arc, time::Duration};
 
 /// Opaque timer identity delivered from a host timer lane to the UI runtime.
+///
+/// Timer threads and custom hosts carry this value only; they never construct,
+/// transport, or reduce an application message. The UI runtime owns wake
+/// ordering, generation/epoch validation, mapper invocation, and message
+/// reduction. See [`RuntimeTaskHost::schedule_timer`],
+/// [`crate::runtime::RuntimeQueueHost::take_runtime_timer_wakes`], and
+/// [`crate::runtime::RuntimeQueueHost::map_runtime_timer_wake`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RuntimeTimerWake {
     pub(crate) id: u64,
@@ -51,8 +58,14 @@ pub trait RuntimeTaskHost<Message> {
     /// Install a repaint signal for host-owned background work.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
 
-    /// Schedule an opaque timer wake. The host must not construct or transport
-    /// an application message while waiting for the timer.
+    /// Schedule an opaque timer wake on the host timer lane.
+    ///
+    /// The host carries only `wake` while waiting: it must not construct,
+    /// transport, map, or reduce an application message on the timer thread.
+    /// The UI runtime later receives the wake through
+    /// [`crate::runtime::RuntimeQueueHost::take_runtime_timer_wakes`], validates it, and owns
+    /// mapper invocation and message reduction. Return `true` when the wake was
+    /// accepted by the host timer lane.
     fn schedule_timer(&mut self, _delay: Duration, _wake: RuntimeTimerWake) -> bool {
         false
     }

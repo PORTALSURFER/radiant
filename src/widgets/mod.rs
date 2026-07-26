@@ -62,8 +62,9 @@ mod primitives;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, PaintBounds, PaintContract, PointerCapturePolicy, Widget, WidgetId,
-    WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
+    FocusBehavior, PaintBounds, PaintContract, PointerCapturePolicy,
+    WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities, WidgetId, WidgetProminence,
+    WidgetSemantics, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
     stable_widget_id, stable_widget_id_u64,
 };
 pub use interaction::{

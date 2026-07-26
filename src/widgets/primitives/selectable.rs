@@ -1,13 +1,14 @@
 //! Reusable selectable surface primitive.
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::{Rect, Rgba8};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::{ColorMarkerProps, support::WidgetCommon};
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
 
 mod builders;
@@ -87,6 +88,16 @@ impl SelectableWidget {
     }
 }
 
+impl WidgetSemantics for SelectableWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Selectable
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.props.label.as_str().to_owned())
+    }
+}
+
 impl Widget for SelectableWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -104,12 +115,8 @@ impl Widget for SelectableWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Selectable
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        Some(self.props.label.as_str().to_owned())
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn append_paint(

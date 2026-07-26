@@ -3,7 +3,7 @@ use radiant::gui::automation::{
     AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
     AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_TOGGLE, AutomationRole,
 };
-use radiant::widgets::{ListItemWidget, SelectableWidget};
+use radiant::widgets::{ListItemWidget, SelectableWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION};
 
 #[test]
 fn surface_runtime_automation_snapshot_reports_common_widget_semantics() {
@@ -117,9 +117,17 @@ fn direct_widget_automation_semantics_cover_rows_selectables_and_custom_fallback
         true,
         WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
     );
-    let custom = ScenePointerWidget::new(22);
+    let mut custom = ScenePointerWidget::new(22);
+    custom.common.focus = radiant::widgets::FocusBehavior::Keyboard;
+    custom.common.state.selected = true;
+    custom.common.state.disabled = true;
 
     assert_eq!(list_item.automation_semantics().role, AutomationRole::Row);
+    assert_eq!(
+        list_item.capabilities().contract_version,
+        WIDGET_CAPABILITIES_CONTRACT_VERSION
+    );
+    assert!(list_item.capabilities().has_semantics());
     assert_eq!(
         list_item.automation_semantics().label.as_deref(),
         Some("Kick 01")
@@ -133,13 +141,36 @@ fn direct_widget_automation_semantics_cover_rows_selectables_and_custom_fallback
         Some("Candidate")
     );
     assert!(selectable.automation_semantics().selected);
-    assert_eq!(custom.automation_semantics().role, AutomationRole::Custom);
+    assert!(selectable.capabilities().has_semantics());
+    assert!(!custom.capabilities().has_semantics());
+    let custom_semantics = custom.automation_semantics();
+    assert_eq!(custom_semantics.role, AutomationRole::Custom);
+    assert!(custom_semantics.selected);
+    assert!(custom_semantics.disabled);
+    assert!(!custom_semantics.focusable);
+    assert_eq!(custom_semantics.tab_index, None);
 
     let row_actions = list_item.automation_semantics().default_available_actions();
     assert_eq!(
         row_actions,
         [AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_SELECT]
     );
+}
+
+#[test]
+fn custom_widget_semantics_capability_is_discovered_without_runtime_trait_inference() {
+    let custom = SemanticWidget::new(23);
+    let capabilities = custom.capabilities();
+
+    assert_eq!(
+        capabilities.contract_version,
+        WIDGET_CAPABILITIES_CONTRACT_VERSION
+    );
+    assert!(capabilities.has_semantics());
+    let semantics = custom.automation_semantics();
+    assert_eq!(semantics.role, AutomationRole::Readout);
+    assert_eq!(semantics.label.as_deref(), Some("Custom readout"));
+    assert!(semantics.focusable);
 }
 
 #[test]

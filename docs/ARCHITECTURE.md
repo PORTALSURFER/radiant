@@ -308,10 +308,13 @@ normal quality lane before merging meaningful changes.
   worker durations are reported separately under `RuntimeDiagnostics::business`.
 - Examples: `cargo test --examples`, or the focused example target when a
   change is local to one sandbox.
-- Documentation: `cargo doc --no-deps` to verify the public docs build and
-  catch broken intra-doc links before they reach CI.
-- Doctests: `cargo test --doc` to keep public documentation snippets compiling
-  against the real crate API.
+- Documentation: `cargo doc --no-deps` to verify the generated rustdoc build and
+  source-level intra-doc references. The current setup does not establish
+  `rustdoc with broken intra-doc links denied`, and this command does not
+  validate Markdown API-reference snippets.
+- Doctests: `cargo test --doc` to keep doctests for public documentation examples
+  in Rust doc comments compiling against the real crate API. It does not execute
+  Markdown API-reference snippets.
 - Formatting and linting: `cargo fmt -- --check` and
   `cargo clippy --all-targets --all-features -- -D warnings`.
 - Broad regression lane: `cargo test --lib --tests`, matching CI. Use

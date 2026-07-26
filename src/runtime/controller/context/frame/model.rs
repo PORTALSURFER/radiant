@@ -2,7 +2,7 @@ use crate::{gui::types::Rect, layout::LayoutOutput, runtime::SurfacePaintPlan};
 
 /// Borrowed runtime frame for host renderers that do not need owned layout data.
 ///
-/// Unlike [`SurfaceFrame`], this frame borrows the runtime's current layout
+/// Unlike [`crate::runtime::SurfaceFrame`], this frame borrows the runtime's current layout
 /// output while owning the freshly generated paint plan. It is useful for
 /// embedded hosts and custom renderers that render immediately and want to
 /// avoid cloning potentially large layout maps on every frame.

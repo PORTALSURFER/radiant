@@ -5,7 +5,7 @@ mod tests;
 /// Runtime-visible animation demand for the next timed frame.
 ///
 /// Frame-message animation mutates host state through
-/// [`crate::runtime::RuntimeBridge::queue_animation_frame`]. Paint-only
+/// [`crate::runtime::RuntimeAnimationHost::queue_animation_frame`]. Paint-only
 /// animation only needs another presentation over the cached surface.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuntimeAnimationActivity {

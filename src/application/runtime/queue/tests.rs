@@ -214,6 +214,30 @@ fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
 
     assert!(!worker.join().expect("worker should complete"));
     assert!(runtime.take_pending().is_empty());
+
+    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let identity = WorkerSubscriptionIdentity { id: 4, epoch: 1 };
+    let pre_append = Arc::new(Barrier::new(2));
+    let release_append = Arc::new(Barrier::new(2));
+    let worker_runtime = Arc::clone(&runtime);
+    let worker_pre_append = Arc::clone(&pre_append);
+    let worker_release_append = Arc::clone(&release_append);
+    let worker = thread::spawn(move || {
+        worker_runtime.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Disconnected { identity },
+            move || {
+                worker_pre_append.wait();
+                worker_release_append.wait();
+            },
+        )
+    });
+
+    pre_append.wait();
+    runtime.shutdown();
+    release_append.wait();
+
+    assert!(!worker.join().expect("disconnect worker should complete"));
+    assert!(runtime.take_pending().is_empty());
 }
 
 #[test]

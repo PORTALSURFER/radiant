@@ -87,6 +87,17 @@ impl<Message> AppRuntime<Message> {
         payload: Box<dyn std::any::Any + Send>,
         before_pending_lock: impl FnOnce(),
     ) -> bool {
+        self.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Payload { identity, payload },
+            before_pending_lock,
+        )
+    }
+
+    fn enqueue_worker_delivery_with_pre_append_hook(
+        &self,
+        delivery: WorkerSubscriptionDelivery,
+        before_pending_lock: impl FnOnce(),
+    ) -> bool {
         if !self.is_alive() {
             return false;
         }
@@ -96,9 +107,7 @@ impl<Message> AppRuntime<Message> {
             if !self.is_alive() {
                 return false;
             }
-            pending.push(PendingMessage::Worker(
-                WorkerSubscriptionDelivery::Payload { identity, payload },
-            ));
+            pending.push(PendingMessage::Worker(delivery));
             self.record_pending_depth(&pending);
         }
         self.request_repaint();
@@ -106,18 +115,10 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn enqueue_worker_disconnect(&self, identity: WorkerSubscriptionIdentity) -> bool {
-        if !self.is_alive() {
-            return false;
-        }
-        {
-            let mut pending = lock_runtime_state(&self.pending);
-            pending.push(PendingMessage::Worker(
-                WorkerSubscriptionDelivery::Disconnected { identity },
-            ));
-            self.record_pending_depth(&pending);
-        }
-        self.request_repaint();
-        true
+        self.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Disconnected { identity },
+            || {},
+        )
     }
 
     pub(super) fn begin_stream_slot(&self) -> RuntimeStreamSlot {

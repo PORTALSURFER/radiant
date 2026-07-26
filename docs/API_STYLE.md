@@ -8,6 +8,17 @@ ownership.
 The purpose is to give contributors and cleanup agents a stable target for what
 "good Radiant API" means before they open implementation tickets.
 
+## Document Status And Authority
+
+This is the preferred application-facing style and migration target, not an
+inventory of every API that is already shipped. Use `docs/API.md` for current
+names, supported behavior, and compatibility notes. The detailed target-state
+architecture is normative in `docs/DESIGN_DIRECTION.md`; the broader product
+boundary and incremental-delivery guidance remains in `docs/TARGET.md`, while
+`docs/ARCHITECTURE.md` maps the current implementation. If a style example
+uses a future spelling, keep it clearly target-oriented and do not present it as
+an implemented API until the corresponding migration lands.
+
 ## Reference Point
 
 The Linebender Xilem examples are useful reference material because they show a
@@ -140,6 +151,11 @@ Examples:
 | status-line segments | product-specific status copy and actions |
 
 ## Canonical View Shape
+
+The following is the preferred target shape for serious application surfaces.
+The exact return type and some builder spellings may differ in the current
+release; use the current API reference when writing code that must compile on
+the checked-out branch.
 
 For serious application surfaces, prefer this shape:
 

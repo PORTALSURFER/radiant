@@ -1,5 +1,13 @@
 # Radiant Project Target: A High-Performance General-Purpose Rust GUI Library
 
+`docs/DESIGN_DIRECTION.md` is the normative, detailed target-state architecture
+contract for Radiant's node model, application API, scheduling, and rendering
+boundaries. This document remains the broader product boundary and incremental
+delivery guide: it explains what Radiant is trying to become and what belongs
+in the library, but it does not assert that every target-state API or runtime
+behavior is shipped today. For current API names and compatibility status, see
+`docs/API.md`; for current module ownership, see `docs/ARCHITECTURE.md`.
+
 ## Vision
 
 Radiant should become a clean, reusable, high-performance, general-purpose GUI library for building serious desktop applications in Rust.
@@ -147,7 +155,11 @@ At this stage, Radiant should also not replace Vello or attempt to build a full 
 
 VST/plugin integration belongs to the application or plugin framework using Radiant. Radiant should provide the GUI/window/surface/rendering/event APIs that make plugin UI integration possible, but the plugin-domain layer should own VST-specific behavior.
 
-Accessibility is also not a priority for the current stage. Full accessibility support is a future concern, not a current implementation target.
+Accessibility is also not a priority for the current implementation stage. The
+target-state design still reserves backend-neutral semantics, focus, and
+automation boundaries so future native accessibility adapters do not require a
+second UI model. Full native accessibility integration remains a future concern,
+not a current implementation target.
 
 Radiant may support sample managers, DAWs, plugins, todo apps, editors, and other tools, but it should do so through general-purpose GUI primitives and extensible architecture.
 
@@ -560,7 +572,12 @@ The architecture should support:
 - Minimal synchronization overhead
 - Safe Rust concurrency patterns
 
-Radiant should not assume all UI work must happen on one thread unless required by platform, windowing, host, Vello, WGPU, or backend constraints.
+The target keeps the declarative UI tree, input/layout state, and native
+renderer state confined to their owning window or UI runtime. It should not
+turn that live state into a cross-thread object merely to parallelize work.
+Expensive preparation, immutable payload production, and other bounded work may
+run off-thread and return owned, generation-checked results through the runtime
+boundary; a separate physical render thread remains platform-dependent.
 
 Expensive work should be structured so it can be parallelized, cached, incrementally updated, or moved to the GPU where appropriate.
 
@@ -846,7 +863,10 @@ Full internationalization can be a future concern, but the core text system shou
 
 ## Accessibility
 
-Accessibility is not a current priority for Radiant.
+Accessibility is not a current implementation priority for Radiant. The
+target-state contract in `docs/DESIGN_DIRECTION.md` still treats semantic tree
+ownership and focus behavior as GUI architecture concerns; native accessibility
+adapters remain deferred until those runtime contracts are ready.
 
 Full accessibility support is a non-goal for the current phase.
 

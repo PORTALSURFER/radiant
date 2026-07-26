@@ -8,19 +8,26 @@ use crate::{
     layout::Vector2,
     widgets::WidgetInput,
 };
+use std::{cell::RefCell, rc::Rc};
 
 #[test]
 fn compact_option_list_activation_maps_clicked_row_index() {
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_projector = Rc::clone(&calls);
     let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
         Vec::<usize>::new(),
-        |_| {
+        move |_| {
+            let calls_for_mapper = Rc::clone(&calls_for_projector);
             let items = vec![
                 CompactOptionListItem::new("Kick"),
                 CompactOptionListItem::new("Snare").selected(true),
             ];
             let list = CompactOptionListParts::new(items, 80.0);
             compact_option_list(list)
-                .on_activate(|index| index)
+                .on_activate(move |index| {
+                    *calls_for_mapper.borrow_mut() += 1;
+                    index
+                })
                 .view()
                 .into_surface()
         },
@@ -36,20 +43,27 @@ fn compact_option_list_activation_maps_clicked_row_index() {
     runtime.dispatch_primary_click(click_rect.center());
 
     assert_eq!(runtime.bridge().state(), &[1]);
+    assert_eq!(*calls.borrow(), 1);
 }
 
 #[test]
 fn compact_option_list_interaction_maps_hovered_row_index() {
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_projector = Rc::clone(&calls);
     let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
         Vec::<usize>::new(),
-        |_| {
+        move |_| {
+            let calls_for_mapper = Rc::clone(&calls_for_projector);
             let items = vec![
                 CompactOptionListItem::new("Kick"),
                 CompactOptionListItem::new("Snare").selected(true),
             ];
             let list = CompactOptionListParts::new(items, 80.0);
             compact_option_list(list)
-                .on_hover(|index| index)
+                .on_hover(move |index| {
+                    *calls_for_mapper.borrow_mut() += 1;
+                    index
+                })
                 .view()
                 .into_surface()
         },
@@ -70,6 +84,7 @@ fn compact_option_list_interaction_maps_hovered_row_index() {
     );
 
     assert_eq!(runtime.bridge().state(), &[1]);
+    assert_eq!(*calls.borrow(), 1);
 }
 
 #[test]

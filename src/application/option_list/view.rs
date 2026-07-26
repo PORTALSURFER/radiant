@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use super::{
     model::{CompactOptionListItem, CompactOptionListParts},
@@ -14,7 +14,7 @@ use crate::widgets::{
     PointerButton, PointerShieldMessage, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
-type OptionListMessageMap<Message> = Arc<dyn Fn(usize) -> Option<Message> + Send + Sync + 'static>;
+type OptionListMessageMap<Message> = Rc<dyn Fn(usize) -> Option<Message> + 'static>;
 
 /// Fluent builder for compact option-list content, interaction, and placement.
 pub struct CompactOptionListBuilder<Message> {
@@ -38,47 +38,41 @@ pub fn compact_option_list<Message>(
 
 impl<Message> CompactOptionListBuilder<Message> {
     /// Emit a host message when an option row is activated.
-    pub fn on_activate(
-        mut self,
-        activate: impl Fn(usize) -> Message + Send + Sync + 'static,
-    ) -> Self
+    pub fn on_activate(mut self, activate: impl Fn(usize) -> Message + 'static) -> Self
     where
         Message: 'static,
     {
-        self.activate = Some(Arc::new(move |index| Some(activate(index))));
+        self.activate = Some(Rc::new(move |index| Some(activate(index))));
         self
     }
 
     /// Conditionally emit a host message when an option row is activated.
     pub fn filter_map_activate(
         mut self,
-        activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+        activate: impl Fn(usize) -> Option<Message> + 'static,
     ) -> Self
     where
         Message: 'static,
     {
-        self.activate = Some(Arc::new(activate));
+        self.activate = Some(Rc::new(activate));
         self
     }
 
     /// Emit a host message when the pointer hovers an option row.
-    pub fn on_hover(mut self, hover: impl Fn(usize) -> Message + Send + Sync + 'static) -> Self
+    pub fn on_hover(mut self, hover: impl Fn(usize) -> Message + 'static) -> Self
     where
         Message: 'static,
     {
-        self.hover = Some(Arc::new(move |index| Some(hover(index))));
+        self.hover = Some(Rc::new(move |index| Some(hover(index))));
         self
     }
 
     /// Conditionally emit a host message when the pointer hovers an option row.
-    pub fn filter_map_hover(
-        mut self,
-        hover: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
-    ) -> Self
+    pub fn filter_map_hover(mut self, hover: impl Fn(usize) -> Option<Message> + 'static) -> Self
     where
         Message: 'static,
     {
-        self.hover = Some(Arc::new(hover));
+        self.hover = Some(Rc::new(hover));
         self
     }
 
@@ -132,8 +126,8 @@ fn compact_option_list_view<Message: 'static>(
                 index,
                 item,
                 row_metrics,
-                activate.as_ref().map(Arc::clone),
-                hover.as_ref().map(Arc::clone),
+                activate.as_ref().map(Rc::clone),
+                hover.as_ref().map(Rc::clone),
                 pointer_move,
             )
         })

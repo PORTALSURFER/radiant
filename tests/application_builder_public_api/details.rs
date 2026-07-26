@@ -1,3 +1,5 @@
+use super::*;
+
 #[test]
 fn details_columns_use_logical_widths() {
     use radiant::application::{DetailsColumn, DetailsColumnParts};
@@ -245,4 +247,72 @@ fn compact_resizable_details_header_cell_builds_standard_interactive_cell() {
             |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "Name v")
         )
     );
+}
+
+#[test]
+fn message_details_list_accepts_ui_local_projection_mappers() {
+    use std::{cell::RefCell, rc::Rc};
+
+    use radiant::{application as app, prelude::IntoView};
+
+    let calls = Rc::new(RefCell::new(Vec::<String>::new()));
+    let sort_calls = Rc::clone(&calls);
+    let select_calls = Rc::clone(&calls);
+    let surface: UiSurface<DemoMessage> = app::message_selectable_sortable_details_list(
+        [app::DetailsColumn::fixed("name", "Name", 96.0)],
+        [app::DetailsRow::new("kick", ["Kick"])],
+        None,
+        move |column| {
+            sort_calls.borrow_mut().push(format!("sort:{column}"));
+            DemoMessage::Increment
+        },
+        Some(move |row| {
+            select_calls.borrow_mut().push(format!("select:{row}"));
+            DemoMessage::Increment
+        }),
+    )
+    .into_surface();
+
+    assert_eq!(
+        calls.borrow().as_slice(),
+        ["sort:name".to_string(), "select:kick".to_string()]
+    );
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}
+
+#[test]
+fn compact_details_header_accepts_ui_local_resize_mapper() {
+    use std::{cell::RefCell, rc::Rc};
+
+    use radiant::{application as ui, prelude::IntoView, widgets::DragHandleMessage};
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface: UiSurface<DemoMessage> = ui::compact_resizable_details_header_cell(
+        "Name",
+        120.0,
+        DemoMessage::Increment,
+        |_| DemoMessage::Increment,
+        move |_| {
+            *calls_for_mapper.borrow_mut() += 1;
+            DemoMessage::Increment
+        },
+    )
+    .id(1)
+    .into_surface();
+    let resize_id = ui::compact_details_header_resize_id(1);
+
+    assert_eq!(
+        surface.dispatch_widget_output(
+            resize_id,
+            radiant::widgets::WidgetOutput::typed(DragHandleMessage::started(Point::new(
+                120.0, 10.0
+            ),)),
+        ),
+        Some(DemoMessage::Increment)
+    );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }

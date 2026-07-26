@@ -2,18 +2,16 @@ use crate::{
     application::{View, button, disclosure_button, drag_handle, row, spacer, text},
     widgets::{ButtonMessage, WidgetProminence, WidgetStyle, WidgetTone},
 };
-use std::sync::Arc;
+use std::rc::Rc;
 
 use super::TreeListItem;
 
 pub(super) fn message_tree_list_row<Message>(
     item: TreeListItem,
-    select_message: Arc<dyn Fn(String) -> Message + Send + Sync>,
-    toggle_message: Arc<dyn Fn(String) -> Message + Send + Sync>,
-    context_message: Option<Arc<dyn Fn(String) -> Message + Send + Sync>>,
-    drag_message: Option<
-        Arc<dyn Fn(String, crate::widgets::DragHandleMessage) -> Message + Send + Sync>,
-    >,
+    select_message: Rc<dyn Fn(String) -> Message>,
+    toggle_message: Rc<dyn Fn(String) -> Message>,
+    context_message: Option<Rc<dyn Fn(String) -> Message>>,
+    drag_message: Option<Rc<dyn Fn(String, crate::widgets::DragHandleMessage) -> Message>>,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,

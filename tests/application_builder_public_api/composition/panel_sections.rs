@@ -46,13 +46,19 @@ fn application_builder_panel_section_supports_convenience_constructor() {
 #[test]
 fn panel_section_header_parts_builds_standard_resize_header() {
     use radiant::prelude::{self as ui, IntoView};
+    use std::{cell::RefCell, rc::Rc};
 
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_mapper = Rc::clone(&calls);
     let surface: UiSurface<DemoMessage> = ui::panel_section_from_header_parts(
         app::PanelSectionHeaderParts::resize_header(
             "resize-header",
             22.0,
             ui::text("Panel content"),
-            |_| DemoMessage::Increment,
+            move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
         )
         .header_id(12)
         .height(72.0),
@@ -77,6 +83,9 @@ fn panel_section_header_parts_builds_standard_resize_header() {
         ),
         Some(DemoMessage::Increment)
     );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }
 
 #[test]

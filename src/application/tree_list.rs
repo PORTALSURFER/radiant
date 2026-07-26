@@ -2,7 +2,7 @@ use crate::{
     application::{TextContent, View, column, scroll},
     widgets::DragHandleMessage,
 };
-use std::sync::Arc;
+use std::rc::Rc;
 
 mod row;
 
@@ -93,8 +93,8 @@ impl TreeListItem {
 /// Build a compact tree list that emits select and toggle messages.
 pub fn message_tree_list<Message>(
     items: impl IntoIterator<Item = TreeListItem>,
-    select_message: impl Fn(String) -> Message + Send + Sync + 'static,
-    toggle_message: impl Fn(String) -> Message + Send + Sync + 'static,
+    select_message: impl Fn(String) -> Message + 'static,
+    toggle_message: impl Fn(String) -> Message + 'static,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
@@ -111,31 +111,30 @@ where
 /// Build a compact tree list with optional context and drag messages.
 pub fn message_tree_list_with_drag<Message>(
     items: impl IntoIterator<Item = TreeListItem>,
-    select_message: impl Fn(String) -> Message + Send + Sync + 'static,
-    toggle_message: impl Fn(String) -> Message + Send + Sync + 'static,
-    context_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,
-    drag_message: Option<impl Fn(String, DragHandleMessage) -> Message + Send + Sync + 'static>,
+    select_message: impl Fn(String) -> Message + 'static,
+    toggle_message: impl Fn(String) -> Message + 'static,
+    context_message: Option<impl Fn(String) -> Message + 'static>,
+    drag_message: Option<impl Fn(String, DragHandleMessage) -> Message + 'static>,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let select_message = Arc::new(select_message) as Arc<dyn Fn(String) -> Message + Send + Sync>;
-    let toggle_message = Arc::new(toggle_message) as Arc<dyn Fn(String) -> Message + Send + Sync>;
-    let context_message = context_message.map(|context_message| {
-        Arc::new(context_message) as Arc<dyn Fn(String) -> Message + Send + Sync>
-    });
+    let select_message = Rc::new(select_message) as Rc<dyn Fn(String) -> Message>;
+    let toggle_message = Rc::new(toggle_message) as Rc<dyn Fn(String) -> Message>;
+    let context_message = context_message
+        .map(|context_message| Rc::new(context_message) as Rc<dyn Fn(String) -> Message>);
     let drag_message = drag_message.map(|drag_message| {
-        Arc::new(drag_message) as Arc<dyn Fn(String, DragHandleMessage) -> Message + Send + Sync>
+        Rc::new(drag_message) as Rc<dyn Fn(String, DragHandleMessage) -> Message>
     });
 
     scroll(
         column(items.into_iter().map(|item| {
             message_tree_list_row(
                 item,
-                Arc::clone(&select_message),
-                Arc::clone(&toggle_message),
-                context_message.as_ref().map(Arc::clone),
-                drag_message.as_ref().map(Arc::clone),
+                Rc::clone(&select_message),
+                Rc::clone(&toggle_message),
+                context_message.as_ref().map(Rc::clone),
+                drag_message.as_ref().map(Rc::clone),
             )
         }))
         .fill_width()

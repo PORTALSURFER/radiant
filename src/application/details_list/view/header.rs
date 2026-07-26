@@ -123,8 +123,8 @@ pub fn compact_resizable_details_header_cell<Message>(
     label: impl Into<TextContent>,
     width: f32,
     sort_message: Message,
-    drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
-    resize_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    drag_message: impl Fn(DragHandleMessage) -> Message + 'static,
+    resize_message: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
@@ -146,8 +146,8 @@ pub fn compact_resizable_details_header_cell_with_ids<Message>(
     width: f32,
     ids: CompactDetailsHeaderCellIds,
     sort_message: Message,
-    drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
-    resize_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    drag_message: impl Fn(DragHandleMessage) -> Message + 'static,
+    resize_message: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,

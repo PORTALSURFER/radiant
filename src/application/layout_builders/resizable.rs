@@ -57,7 +57,7 @@ impl<Message: 'static> ResizableBuilder<Message> {
     /// Finish the resizable content with a mapped trailing resize handle.
     pub fn resize_handle(
         self,
-        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let mut handle_builder = drag_handle();
         if self.hover_chrome_only {
@@ -87,7 +87,7 @@ impl<Message: 'static> ResizableBuilder<Message> {
     pub fn subtle_resize_handle(
         self,
         key: impl ToString,
-        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.hover_chrome_only()
             .handle_key(key)

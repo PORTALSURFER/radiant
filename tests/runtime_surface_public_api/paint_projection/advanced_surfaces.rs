@@ -72,3 +72,37 @@ fn retained_canvas_builder_projects_metadata_and_input_mapping() {
         })
     );
 }
+
+#[test]
+fn retained_canvas_input_mapper_accepts_ui_local_capture() {
+    use std::{cell::RefCell, rc::Rc};
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface = radiant::runtime::retained_canvas(45)
+        .on_input(move |message| {
+            *calls_for_mapper.borrow_mut() += 1;
+            match message {
+                CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+            }
+        })
+        .id(45)
+        .size(120.0, 40.0)
+        .into_surface();
+
+    let input = WidgetInput::PointerMove {
+        position: Point::new(8.0, 12.0),
+    };
+    assert_eq!(
+        surface.dispatch_widget_output(
+            45,
+            WidgetOutput::typed(CanvasMessage::Input {
+                input: input.clone(),
+            }),
+        ),
+        Some(DemoMessage::CanvasInput(input)),
+    );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}

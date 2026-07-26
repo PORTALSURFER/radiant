@@ -1,7 +1,10 @@
 //! Row, column, grid, and stack layout builders.
 
 use super::collection::collect_children;
-use crate::application::{ViewNode, ViewNodeKind, empty};
+use crate::{
+    application::{ViewNode, ViewNodeKind, empty},
+    layout::{ContainerKind, ContainerPolicy, GridPolicy, WrapPolicy},
+};
 
 /// Default main-axis gap for Radiant application row containers.
 pub const DEFAULT_ROW_SPACING: f32 = 4.0;
@@ -15,8 +18,12 @@ pub const DEFAULT_GRID_GAP: f32 = 4.0;
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
-    ViewNode::new(ViewNodeKind::Row {
-        spacing: DEFAULT_ROW_SPACING,
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Row,
+            spacing: DEFAULT_ROW_SPACING,
+            ..ContainerPolicy::default()
+        },
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -33,8 +40,12 @@ pub fn row_key<Message>(
 /// Build a column container with fill-slot children.
 pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
-    ViewNode::new(ViewNodeKind::Column {
-        spacing: DEFAULT_COLUMN_SPACING,
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Column,
+            spacing: DEFAULT_COLUMN_SPACING,
+            ..ContainerPolicy::default()
+        },
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -64,10 +75,16 @@ pub fn grid_with_gaps<Message>(
     row_gap: f32,
 ) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
-    ViewNode::new(ViewNodeKind::Grid {
-        columns,
-        column_gap,
-        row_gap,
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Grid,
+            grid: GridPolicy {
+                columns,
+                column_gap,
+                row_gap,
+            },
+            ..ContainerPolicy::default()
+        },
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -80,9 +97,12 @@ pub fn wrap<Message>(
     line_gap: f32,
 ) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
-    ViewNode::new(ViewNodeKind::Wrap {
-        item_gap,
-        line_gap,
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Wrap,
+            wrap: WrapPolicy { item_gap, line_gap },
+            ..ContainerPolicy::default()
+        },
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -91,8 +111,14 @@ pub fn wrap<Message>(
 /// Build a stack container that overlays children in paint order.
 pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
-    ViewNode::new(ViewNodeKind::Stack { children })
-        .with_reserved_descendant_identity(has_reserved_descendant_identity)
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Stack,
+            ..ContainerPolicy::default()
+        },
+        children,
+    })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build an overlay stack only when multiple layers are present.
@@ -107,17 +133,60 @@ pub fn stack_layers<Message: 'static>(
     match children.len() {
         0 => empty(),
         1 => children.remove(0),
-        _ => ViewNode::new(ViewNodeKind::Stack { children })
-            .with_reserved_descendant_identity(has_reserved_descendant_identity),
+        _ => ViewNode::new(ViewNodeKind::Container {
+            policy: ContainerPolicy {
+                kind: ContainerKind::Stack,
+                ..ContainerPolicy::default()
+            },
+            children,
+        })
+        .with_reserved_descendant_identity(has_reserved_descendant_identity),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, stack_layers, text},
-        layout::{ContainerKind, LayoutNode, Vector2},
+        application::{IntoView, column, grid_with_gaps, row, stack, stack_layers, text, wrap},
+        layout::{ContainerKind, LayoutNode, SizeModeMain, Vector2},
     };
+
+    #[test]
+    fn built_in_containers_lower_through_the_shared_surface_container() {
+        let cases = [
+            (row([text::<()>("row child")]), ContainerKind::Row, 1),
+            (
+                column([text::<()>("column child")]),
+                ContainerKind::Column,
+                1,
+            ),
+            (
+                grid_with_gaps([text::<()>("grid child")], 2, 3.0, 5.0),
+                ContainerKind::Grid,
+                1,
+            ),
+            (
+                wrap([text::<()>("wrap child")], 6.0, 7.0),
+                ContainerKind::Wrap,
+                1,
+            ),
+            (stack([text::<()>("stack child")]), ContainerKind::Stack, 1),
+        ];
+
+        for (view, kind, child_count) in cases {
+            let LayoutNode::Container(container) = view.into_surface().layout_node() else {
+                panic!("built-in container should lower to a SurfaceContainer");
+            };
+            assert_eq!(container.policy.kind, kind);
+            assert_eq!(container.children.len(), child_count);
+            if kind == ContainerKind::Stack {
+                assert!(matches!(
+                    container.children[0].slot.size_main,
+                    SizeModeMain::Fill(_)
+                ));
+            }
+        }
+    }
 
     #[test]
     fn stack_layers_without_children_lowers_to_empty_widget() {

@@ -86,11 +86,7 @@ impl<Message> ViewNode<Message> {
                     layer.view.collect_reserved_ids(child_scope, ids);
                 }
             }
-            ViewNodeKind::Row { children, .. }
-            | ViewNodeKind::Column { children, .. }
-            | ViewNodeKind::Grid { children, .. }
-            | ViewNodeKind::Wrap { children, .. }
-            | ViewNodeKind::Stack { children } => {
+            ViewNodeKind::Container { children, .. } => {
                 reserve_child_identity_capacity(children, ids);
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);

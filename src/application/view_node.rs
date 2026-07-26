@@ -17,8 +17,8 @@ use crate::{
     application::{Overlays, PointerTarget, TextContent, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{
-        CrossAlign, FloatingLayerHorizontalOverflow, FloatingLayerVerticalOverflow, Insets,
-        MainAlign, NodeId, Vector2,
+        ContainerPolicy, CrossAlign, FloatingLayerHorizontalOverflow,
+        FloatingLayerVerticalOverflow, Insets, MainAlign, NodeId, Vector2,
     },
     runtime::{
         LayerKind, NativeFileDrop, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceNode,
@@ -97,23 +97,8 @@ pub(in crate::application) enum ViewNodeKind<Message> {
     },
     Runtime(SurfaceNode<Message>),
     Widget(Box<dyn WidgetView<Message>>),
-    Row {
-        spacing: f32,
-        children: Vec<ViewNode<Message>>,
-    },
-    Column {
-        spacing: f32,
-        children: Vec<ViewNode<Message>>,
-    },
-    Grid {
-        columns: usize,
-        column_gap: f32,
-        row_gap: f32,
-        children: Vec<ViewNode<Message>>,
-    },
-    Wrap {
-        item_gap: f32,
-        line_gap: f32,
+    Container {
+        policy: ContainerPolicy,
         children: Vec<ViewNode<Message>>,
     },
     Scroll {
@@ -122,9 +107,6 @@ pub(in crate::application) enum ViewNodeKind<Message> {
     VirtualScroll {
         child: Box<ViewNode<Message>>,
         overscan_px: f32,
-    },
-    Stack {
-        children: Vec<ViewNode<Message>>,
     },
     OverlayPanel {
         rect: crate::gui::types::Rect,
@@ -301,11 +283,7 @@ impl<Message> ViewNode<Message> {
                     layer.view.drain_overlay_layers_in_declaration_order(layers);
                 }
             }
-            ViewNodeKind::Row { children, .. }
-            | ViewNodeKind::Column { children, .. }
-            | ViewNodeKind::Grid { children, .. }
-            | ViewNodeKind::Wrap { children, .. }
-            | ViewNodeKind::Stack { children } => {
+            ViewNodeKind::Container { children, .. } => {
                 for child in children {
                     child.drain_overlay_layers_in_declaration_order(layers);
                 }

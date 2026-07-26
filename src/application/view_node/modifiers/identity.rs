@@ -1,4 +1,4 @@
-use super::super::ViewNode;
+use super::super::{ViewNode, identity::ContinuityKey};
 use crate::layout::NodeId;
 
 impl<Message> ViewNode<Message> {
@@ -14,9 +14,12 @@ impl<Message> ViewNode<Message> {
     ///
     /// Child keys are scoped by their keyed or explicitly identified parent, so repeated rows can
     /// use names such as `"done"` or `"delete"` without colliding with sibling rows.
+    ///
+    /// Existing `ToString` inputs remain accepted for compatibility. Prefer an
+    /// explicit [`ContinuityKey`] when naming a durable view identity.
     pub fn key(mut self, key: impl ToString) -> Self {
         self.id = None;
-        self.key = Some(key.to_string());
+        self.key = Some(ContinuityKey::new(key.to_string()));
         self.has_reserved_identity = true;
         self
     }

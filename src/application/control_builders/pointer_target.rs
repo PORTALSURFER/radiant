@@ -17,7 +17,7 @@ impl<Message> PointerTarget<Message> {
 
     /// Assign a stable key to the target input surface.
     pub fn key(mut self, key: impl ToString) -> Self {
-        self.input = self.input.key(key);
+        self.input = self.input.key(key.to_string());
         self
     }
 

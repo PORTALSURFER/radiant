@@ -84,7 +84,7 @@ pub fn panel_section_resize_header<Message: 'static>(
     drag_handle()
         .hover_chrome_only()
         .mapped(map)
-        .key(key)
+        .key(key.to_string())
         .style(WidgetStyle::subtle(WidgetTone::Accent))
         .fill_width()
         .height(height)

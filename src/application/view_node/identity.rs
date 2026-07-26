@@ -1,6 +1,52 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::application::scoped_key_id;
 use crate::layout::NodeId;
+use std::fmt;
+
+/// Owned application-facing identity for declarative view continuity.
+///
+/// A continuity key is scoped by its keyed or explicitly identified parent
+/// during view lowering. Keeping the key as a distinct type prevents it from
+/// being confused with numeric runtime ids or other application identities
+/// while retaining ergonomic construction from ordinary strings.
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct ContinuityKey(String);
+
+impl ContinuityKey {
+    /// Construct a continuity key from owned or borrowed string data.
+    pub fn new(key: impl Into<String>) -> Self {
+        Self(key.into())
+    }
+
+    /// Borrow the stable key text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for ContinuityKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl From<&str> for ContinuityKey {
+    fn from(key: &str) -> Self {
+        Self::new(key)
+    }
+}
+
+impl From<&String> for ContinuityKey {
+    fn from(key: &String) -> Self {
+        Self::new(key.clone())
+    }
+}
+
+impl From<String> for ContinuityKey {
+    fn from(key: String) -> Self {
+        Self(key)
+    }
+}
 
 #[cfg(test)]
 #[path = "identity/tests.rs"]
@@ -67,8 +113,11 @@ impl<Message> ViewNode<Message> {
     }
 
     pub(super) fn resolved_id(&self, scope: u64) -> Option<NodeId> {
-        self.id
-            .or_else(|| self.key.as_ref().map(|key| scoped_key_id(scope, key)))
+        self.id.or_else(|| {
+            self.key
+                .as_ref()
+                .map(|key| scoped_key_id(scope, key.as_str()))
+        })
     }
 
     fn child_scope(&self, parent_scope: u64) -> u64 {

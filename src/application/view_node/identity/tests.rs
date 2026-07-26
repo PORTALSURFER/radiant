@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     application::{
-        Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, scoped_key_id, text,
+        ContinuityKey, Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key,
+        scoped_key_id, text,
     },
     gui::types::Point,
     layout::Vector2,
@@ -46,6 +47,75 @@ fn identity_modifiers_use_last_call_wins() {
         Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
     );
     assert_eq!(identified.resolved_id(ROOT_KEY_SCOPE), Some(42));
+}
+
+#[test]
+fn continuity_key_preserves_string_compatibility_and_same_scope_identity() {
+    let borrowed = ContinuityKey::from("title");
+    let owned = ContinuityKey::new(String::from("title"));
+
+    assert_eq!(borrowed.as_str(), "title");
+    assert_eq!(borrowed, owned);
+    assert_eq!(
+        text::<()>("Borrowed")
+            .key(borrowed)
+            .resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
+    );
+    assert_eq!(
+        text::<()>("Owned").key(owned).resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
+    );
+}
+
+#[test]
+fn view_node_key_accepts_previous_to_string_inputs() {
+    let borrowed: &str = "borrowed";
+    let owned = String::from("owned");
+
+    assert_eq!(
+        text::<()>("Borrowed")
+            .key(borrowed)
+            .resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, borrowed))
+    );
+    assert_eq!(
+        text::<()>("Owned").key(owned).resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "owned"))
+    );
+    assert_eq!(
+        text::<()>("Numeric")
+            .key(17_u32)
+            .resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "17"))
+    );
+}
+
+#[test]
+fn continuity_key_identity_is_isolated_by_parent_scope() {
+    let first_parent = column([text::<()>("Child").key("same")]).key("first");
+    let second_parent = column([text::<()>("Child").key("same")]).key("second");
+    let first_parent_id = scoped_key_id(ROOT_KEY_SCOPE, "first");
+    let second_parent_id = scoped_key_id(ROOT_KEY_SCOPE, "second");
+    let mut first_ids = Vec::new();
+    let mut second_ids = Vec::new();
+
+    first_parent.collect_reserved_ids(ROOT_KEY_SCOPE, &mut first_ids);
+    second_parent.collect_reserved_ids(ROOT_KEY_SCOPE, &mut second_ids);
+
+    assert_eq!(first_ids[0], first_parent_id);
+    assert_eq!(second_ids[0], second_parent_id);
+    assert_eq!(
+        first_ids[1],
+        scoped_key_id(first_parent_id, "same"),
+        "child key should be scoped by its parent"
+    );
+    assert_eq!(
+        second_ids[1],
+        scoped_key_id(second_parent_id, "same"),
+        "child key should be scoped by its parent"
+    );
+    assert_ne!(first_ids[1], second_ids[1]);
 }
 
 #[test]

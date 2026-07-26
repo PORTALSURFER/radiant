@@ -143,7 +143,7 @@ new focused export leaf or a module split, not a formatting workaround.
   panels, lists, selection, shortcuts, text-line placement, visualization
   helpers, automation snapshots, and visual snapshots.
 - `src/gui_runtime` owns native runtime integration and renderer adapters. Its
-  native Vello runtime is the Windows-first implementation path and keeps WGPU,
+  native Vello runtime is the macOS-first implementation path and keeps WGPU,
   Vello, font loading, scene caching, native input, window policy, and popup
   behavior behind Radiant-owned runtime options.
 - `examples` owns maintained public-API sandboxes. Examples are validation
@@ -222,15 +222,15 @@ or renderer internals.
 
 ## Platform Boundary
 
-Radiant is Windows-first today, but core GUI, runtime, widget, layout, and
-paint-plan code should stay platform-neutral. Windows-specific integration
-belongs in native runtime/windowing modules or explicitly named platform
-adapters. Platform services such as file dialogs and URL opening flow through
-typed `PlatformRequest` commands and the opt-in `RuntimePlatformHost` capability.
-Application update handlers request those services through Radiant context
-helpers instead of calling platform APIs directly. The portable library
-boundary should keep compiling for future Linux and macOS targets even while
-native runtime behavior is validated Windows-first.
+Radiant is macOS-first today, with a cross-platform design goal. Core GUI,
+runtime, widget, layout, and paint-plan code should stay platform-neutral.
+Platform-specific integration belongs in native runtime/windowing modules or
+explicitly named platform adapters. Platform services such as file dialogs and
+URL opening flow through typed `PlatformRequest` commands and the opt-in
+`RuntimePlatformHost` capability. Application update handlers request those
+services through Radiant context helpers instead of calling platform APIs
+directly. The portable library boundary should keep compiling for additional
+targets while native runtime behavior is validated on macOS.
 
 Current target-specific seams are intentionally narrow:
 

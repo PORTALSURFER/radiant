@@ -62,16 +62,18 @@ Radiant should scale from simple “hello world” interfaces to advanced applic
 
 ## Platform Target
 
-Radiant should be developed Windows-first.
+Radiant should be developed macOS-first while preserving a cross-platform
+architecture and public API.
 
 The initial primary development and testing target is:
 
-- Windows
+- macOS
 
-However, Radiant should be architected so it can support these platforms in the future:
+Radiant should be architected so it can support additional platforms as the
+implementation matures:
 
 - Linux
-- macOS
+- Windows
 
 Cross-platform support does not need to be fully implemented immediately, but the architecture should avoid unnecessary Windows-only assumptions in core library code.
 
@@ -79,10 +81,10 @@ Platform-specific code should be isolated behind clear boundaries. The public Ra
 
 The goal is:
 
-- Build and validate Radiant on Windows first.
-- Avoid hardcoding Windows-specific assumptions into core systems.
+- Build and validate Radiant on macOS first.
+- Avoid hardcoding platform-specific assumptions into core systems.
 - Keep windowing, surface creation, platform event handling, file/resource behavior, and backend integration modular.
-- Make future Linux and macOS support an extension of the architecture, not a rewrite.
+- Make additional platform support an extension of the architecture, not a rewrite.
 
 ## Windowing and Platform Integration
 
@@ -90,7 +92,8 @@ Radiant should clearly separate GUI architecture from platform/windowing integra
 
 Radiant may use an existing Rust windowing/event-loop solution where appropriate, but the public API should not force normal application code to depend directly on low-level platform details.
 
-The architecture should make it possible to support future Linux and macOS targets without rewriting core systems such as layout, widgets, styling, state, or rendering.
+The architecture should make it possible to support additional targets without
+rewriting core systems such as layout, widgets, styling, state, or rendering.
 
 Platform-specific code should be kept out of generic widget, layout, styling, and state systems unless there is a clear reason.
 
@@ -1350,7 +1353,7 @@ When evaluating Radiant, ask:
 - Does this preserve the option to change or replace rendering internals later without redesigning the public API?
 - Is platform-specific code isolated?
 - Does this assume Windows unnecessarily?
-- Would this design make future Linux/macOS support difficult?
+- Would this design make additional platform support difficult?
 - Does this accidentally couple Radiant to VST/plugin SDK concepts?
 - Is the module boundary clear?
 - Is this function or struct too large?
@@ -1376,8 +1379,8 @@ Radiant is moving toward the target when it has:
 - Clean integration between Vello-rendered UI and direct-WGPU custom surfaces
 - No unnecessary leakage of Vello or WGPU internals into normal application code
 - Rendering architecture that can evolve later without requiring a public API rewrite
-- Windows-first support without unnecessary Windows-only assumptions in core code
-- Architecture that can extend to Linux and macOS later
+- macOS-first implementation without unnecessary platform-specific assumptions in core code
+- Cross-platform architecture that can extend to Linux and Windows
 - No direct VST SDK integration inside Radiant
 - A plugin-friendly GUI architecture that can be integrated by application/plugin frameworks
 - Clean internal module structure

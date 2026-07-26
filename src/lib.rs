@@ -1,12 +1,12 @@
 //! # Radiant
 //!
-//! Radiant is a Windows-first Rust GUI library for building native desktop
-//! applications. It is application-independent: your application owns its
-//! state and domain behavior, while Radiant provides declarative views,
-//! application updates, layout, input, focus, styling, rendering, and runtime
-//! integration. The public API is designed to grow from a small app to an
-//! explicitly hosted UI without claiming a cross-platform target that is not
-//! ready yet.
+//! Radiant is a macOS-first Rust GUI library for building native desktop
+//! applications, with a cross-platform design goal. It is
+//! application-independent: your application owns its state and domain
+//! behavior, while Radiant provides declarative views, application updates,
+//! layout, input, focus, styling, rendering, and runtime integration. The
+//! public API grows from a small app to an explicitly hosted UI while keeping
+//! platform-specific details behind runtime boundaries.
 //!
 //! ## Start with an app
 //!

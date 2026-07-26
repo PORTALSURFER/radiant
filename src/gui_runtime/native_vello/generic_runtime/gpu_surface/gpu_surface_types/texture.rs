@@ -1,9 +1,14 @@
+use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::wgpu_device_id;
 use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceTexture {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
+        RenderCanvasContentIdentity,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _content_owner:
+        RenderCanvasContentOwner,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) width: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) height: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _texture: wgpu::Texture,
@@ -15,6 +20,7 @@ impl GpuSurfaceTexture {
         &self,
         device: &wgpu::Device,
         revision: u64,
+        content_identity: RenderCanvasContentIdentity,
         width: usize,
         height: usize,
     ) -> bool {
@@ -22,12 +28,14 @@ impl GpuSurfaceTexture {
             AtlasTextureDescriptor {
                 device: self.device,
                 revision: self.revision,
+                content_identity: self.content_identity,
                 width: self.width,
                 height: self.height,
             },
             AtlasTextureDescriptor {
                 device: wgpu_device_id(device),
                 revision,
+                content_identity,
                 width,
                 height,
             },
@@ -39,6 +47,7 @@ impl GpuSurfaceTexture {
 struct AtlasTextureDescriptor {
     device: usize,
     revision: u64,
+    content_identity: RenderCanvasContentIdentity,
     width: usize,
     height: usize,
 }
@@ -59,6 +68,7 @@ mod tests {
         let descriptor = AtlasTextureDescriptor {
             device: 7,
             revision: 8,
+            content_identity: Default::default(),
             width: 64,
             height: 32,
         };

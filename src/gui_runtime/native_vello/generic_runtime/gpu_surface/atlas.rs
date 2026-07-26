@@ -37,6 +37,7 @@ impl GpuSurfaceRenderer {
         };
         let texture_identity = GpuSurfaceTextureIdentity::RgbaAtlas {
             revision: texture.revision,
+            content_identity: texture.content_identity,
             width: texture.width,
             height: texture.height,
         };
@@ -89,6 +90,17 @@ impl GpuSurfaceRenderer {
             .get(&surface.key)
             .is_none_or(|binding| binding.cache_key != cache_key);
         if rebuild_binding {
+            if let Some(binding) = self.resources.composite_bindings.get(&surface.key) {
+                if binding.cache_key.pipeline_generation == cache_key.pipeline_generation
+                    && binding.cache_key.revision() != cache_key.revision()
+                {
+                    stats.composite.binding_revision_mismatches += 1;
+                } else if binding.cache_key.pipeline_generation == cache_key.pipeline_generation
+                    && binding.cache_key.texture != cache_key.texture
+                {
+                    stats.composite.binding_content_mismatches += 1;
+                }
+            }
             stats.composite.binding_rebuilds += 1;
             let uniform_buffer = target.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("radiant_gpu_surface_uniforms"),

@@ -37,6 +37,10 @@ pub struct NativeGpuSurfaceAtlasDiagnostics {
     pub texture_uploads: usize,
     /// Atlas texture cache hits this frame.
     pub texture_cache_hits: usize,
+    /// Atlas texture reuse rejected because the host revision changed.
+    pub texture_revision_mismatches: usize,
+    /// Atlas texture reuse rejected because exact immutable content changed.
+    pub texture_content_mismatches: usize,
 }
 
 /// Signal GPU-surface diagnostics for one native frame.
@@ -46,10 +50,18 @@ pub struct NativeGpuSurfaceSignalDiagnostics {
     pub summary_builds: usize,
     /// Signal summary cache hits this frame.
     pub summary_cache_hits: usize,
+    /// Signal summary reuse rejected because the host revision changed.
+    pub summary_revision_mismatches: usize,
+    /// Signal summary reuse rejected because exact immutable content changed.
+    pub summary_content_mismatches: usize,
     /// Signal body renders encoded this frame.
     pub body_renders: usize,
     /// Signal body cache hits this frame.
     pub body_cache_hits: usize,
+    /// Signal body reuse rejected because the host revision changed.
+    pub body_revision_mismatches: usize,
+    /// Signal body reuse rejected because exact immutable content changed.
+    pub body_content_mismatches: usize,
 }
 
 /// Composite binding diagnostics for one native frame.
@@ -59,6 +71,10 @@ pub struct NativeGpuSurfaceCompositeDiagnostics {
     pub binding_rebuilds: usize,
     /// Composite binding groups reused from cache this frame.
     pub binding_cache_hits: usize,
+    /// Composite binding reuse rejected because the retained revision changed.
+    pub binding_revision_mismatches: usize,
+    /// Composite binding reuse rejected because exact immutable content changed.
+    pub binding_content_mismatches: usize,
 }
 
 /// Native WGPU custom-shader diagnostics for one native frame.

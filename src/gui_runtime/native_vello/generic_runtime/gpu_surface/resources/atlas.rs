@@ -1,4 +1,5 @@
 use super::super::gpu_surface_types::GpuSurfaceTexture;
+use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
@@ -15,16 +16,23 @@ impl GpuSurfaceRenderer {
         let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &surface.content else {
             return;
         };
-        if self
-            .resources
-            .textures
-            .get(&surface.key)
-            .is_some_and(|texture| {
-                texture.matches_atlas(device, surface.revision, atlas.width(), atlas.height())
-            })
-        {
-            stats.atlas.texture_cache_hits += 1;
-            return;
+        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        if let Some(texture) = self.resources.textures.get(&surface.key) {
+            if texture.matches_atlas(
+                device,
+                surface.revision,
+                content_identity,
+                atlas.width(),
+                atlas.height(),
+            ) {
+                stats.atlas.texture_cache_hits += 1;
+                return;
+            }
+            if texture.revision != surface.revision {
+                stats.atlas.texture_revision_mismatches += 1;
+            } else {
+                stats.atlas.texture_content_mismatches += 1;
+            }
         }
         let Some(extent) =
             GpuAtlasTextureExtent::new(atlas.width(), atlas.height(), atlas.pixels().len())
@@ -71,6 +79,8 @@ impl GpuSurfaceRenderer {
             GpuSurfaceTexture {
                 device: wgpu_device_id(device),
                 revision: surface.revision,
+                content_identity,
+                _content_owner: RenderCanvasContentOwner::from_content(&surface.content),
                 width: atlas.width(),
                 height: atlas.height(),
                 _texture: texture,

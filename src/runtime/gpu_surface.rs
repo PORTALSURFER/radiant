@@ -4,6 +4,40 @@ use crate::gui::types::Rgba8;
 
 mod content;
 mod signal_summary;
+
+/// Stable application-facing identity for a retained render canvas.
+///
+/// Canvas keys identify the logical resource slot. They are intentionally
+/// separate from widget ids and from the host-maintained content revision;
+/// the native renderer also verifies the exact immutable content identity
+/// before reusing retained resources.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CanvasKey(u64);
+
+impl CanvasKey {
+    /// Construct a canvas key from a stable host value.
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    /// Return the underlying stable host value.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl From<u64> for CanvasKey {
+    fn from(value: u64) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<CanvasKey> for u64 {
+    fn from(value: CanvasKey) -> Self {
+        value.get()
+    }
+}
+
 pub use content::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,

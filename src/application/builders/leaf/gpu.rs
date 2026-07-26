@@ -2,7 +2,10 @@ use super::super::defaults::default_gpu_surface_sizing;
 use super::core::view_node_from_widget;
 use crate::{
     application::{MappedWidget, ViewNode},
-    runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, WidgetMessageMapper},
+    runtime::{
+        CanvasKey, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
+        WidgetMessageMapper,
+    },
     widgets::{GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, WidgetInput},
 };
 
@@ -74,11 +77,11 @@ impl GpuSurfaceConfiguredParts {
 
 /// Build a retained render canvas with generated application identity.
 pub fn render_canvas<Message: 'static>(
-    key: u64,
+    key: impl Into<CanvasKey>,
     revision: u64,
     content: crate::runtime::RenderCanvasContent,
 ) -> ViewNode<Message> {
-    gpu_surface(key, revision, content)
+    gpu_surface(key.into().get(), revision, content)
 }
 
 /// Build a retained render canvas from named construction inputs.
@@ -97,22 +100,22 @@ pub fn render_canvas_configured_from_parts<Message: 'static>(
 
 /// Build a retained render canvas with runtime interaction capabilities.
 pub fn render_canvas_with_capabilities<Message: 'static>(
-    key: u64,
+    key: impl Into<CanvasKey>,
     revision: u64,
     content: crate::runtime::RenderCanvasContent,
     capabilities: crate::runtime::RenderCanvasCapabilities,
 ) -> ViewNode<Message> {
-    gpu_surface_with_capabilities(key, revision, content, capabilities)
+    gpu_surface_with_capabilities(key.into().get(), revision, content, capabilities)
 }
 
 /// Build an input-emitting retained render canvas.
 pub fn render_canvas_input<Message: 'static>(
-    key: u64,
+    key: impl Into<CanvasKey>,
     revision: u64,
     content: crate::runtime::RenderCanvasContent,
     map: impl Fn(WidgetInput) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
-    gpu_surface_input(key, revision, content, map)
+    gpu_surface_input(key.into().get(), revision, content, map)
 }
 
 /// Build an input-emitting retained render canvas from named construction inputs.

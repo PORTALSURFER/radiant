@@ -3,6 +3,8 @@ use super::gpu_surface_types::{
     CachedSignalSummaryValidation, GpuSurfaceTextureIdentity, SignalBodyCacheKey,
     SignalBodyCacheKeyParts, SignalBufferCacheKey, SignalUniforms,
 };
+use super::identity::RenderCanvasContentIdentity;
+use super::identity::RenderCanvasContentOwner;
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
 use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
@@ -72,10 +74,12 @@ impl GpuSurfaceRenderer {
             surface.key,
             SignalBufferCacheKey::new(
                 surface.revision,
+                RenderCanvasContentIdentity::from_content(&surface.content),
                 body.level_index,
                 body.bucket_start,
                 body.bucket_count,
             ),
+            RenderCanvasContentOwner::from_content(&surface.content),
             body.buckets,
             &body.uniforms,
         );
@@ -116,6 +120,7 @@ impl GpuSurfaceRenderer {
             GpuSurfaceContent::SignalBands { samples, .. } => self.cached_signal_summary(
                 surface.key,
                 surface.revision,
+                RenderCanvasContentIdentity::from_content(&surface.content),
                 shape.frames,
                 shape.band_count,
                 samples,
@@ -234,6 +239,7 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
     let extent = surface_pixel_extent(request.surface.rect, request.target.dpi_scale)?;
     Some(SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
         revision: request.surface.revision,
+        content_identity: RenderCanvasContentIdentity::from_content(&request.surface.content),
         extent,
         frames: request.source.shape.frames,
         band_count: request.source.shape.band_count,

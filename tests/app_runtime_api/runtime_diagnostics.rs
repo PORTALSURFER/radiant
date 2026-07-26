@@ -86,7 +86,7 @@ fn business_worker_runtime_is_not_counted_as_slow_ui_handler() {
                 );
             }
             DemoMessage::Noop => {}
-            DemoMessage::GpuInput(_) | DemoMessage::VirtualListWindowChanged(_) => {}
+            DemoMessage::CanvasInput(_) | DemoMessage::VirtualListWindowChanged(_) => {}
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));

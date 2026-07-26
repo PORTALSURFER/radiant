@@ -43,6 +43,7 @@ fn offscreen_visible_prime_step(process_id: u32, step: PopupPrimeStep) -> bool {
     }
 }
 
+#[cfg(any(test, target_os = "windows"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PopupPrimeStep {
     Show { focus: bool },
@@ -51,6 +52,7 @@ enum PopupPrimeStep {
     WaitHidden,
 }
 
+#[cfg(any(test, target_os = "windows"))]
 fn offscreen_visible_prime_steps() -> [PopupPrimeStep; 6] {
     [
         PopupPrimeStep::Show { focus: false },

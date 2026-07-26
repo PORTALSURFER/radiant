@@ -2,7 +2,7 @@ use crate::{
     application::{TextContent, ViewNode, button, column, row, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// Named construction inputs for a generic inspector/property row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -84,19 +84,18 @@ pub fn property_rows<Message: 'static>(
 pub fn message_selectable_property_panel<Message>(
     title: impl Into<TextContent>,
     rows: impl IntoIterator<Item = PropertyRow>,
-    select_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,
+    select_message: Option<impl Fn(String) -> Message + 'static>,
 ) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let select_message = select_message.map(|select_message| {
-        Arc::new(select_message) as Arc<dyn Fn(String) -> Message + Send + Sync>
-    });
+    let select_message = select_message
+        .map(|select_message| Rc::new(select_message) as Rc<dyn Fn(String) -> Message>);
     column([
         text(title).height(20.0).fill_width(),
         column(
             rows.into_iter()
-                .map(|row| message_property_row(row, select_message.as_ref().map(Arc::clone))),
+                .map(|row| message_property_row(row, select_message.as_ref().map(Rc::clone))),
         )
         .fill_width()
         .spacing(1.0),
@@ -141,7 +140,7 @@ fn read_only_property_row<Message: 'static>(row_data: PropertyRow) -> ViewNode<M
 
 fn message_property_row<Message>(
     row_data: PropertyRow,
-    select_message: Option<Arc<dyn Fn(String) -> Message + Send + Sync>>,
+    select_message: Option<Rc<dyn Fn(String) -> Message>>,
 ) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,

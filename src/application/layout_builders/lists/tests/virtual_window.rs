@@ -1,9 +1,14 @@
 use super::*;
 use crate::{
     application::{ViewNode, button, column},
-    gui::list::VirtualListWindow,
+    gui::{
+        list::VirtualListWindow,
+        types::{Point, Vector2},
+    },
     layout::{ContainerKind, LayoutNode, NodeId},
+    runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
 };
+use std::{cell::RefCell, rc::Rc};
 
 #[test]
 fn virtual_list_window_projects_only_materialized_range() {
@@ -163,6 +168,92 @@ fn virtual_list_window_body_uses_app_owned_spacer_scroll() {
         scroll.policy.virtualization.is_none(),
         "app-owned virtual windows must not let layout-level virtualization cull the body spacer"
     );
+}
+
+#[test]
+fn virtual_list_builder_window_mapper_invokes_and_drops_ui_local_capture() {
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_projector = Rc::clone(&calls);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        Vec::<()>::new(),
+        move |_| {
+            let calls_for_mapper = Rc::clone(&calls_for_projector);
+            virtual_list_windowed(|index| {
+                list_row_id(
+                    50_000 + index as NodeId,
+                    [button(format!("Row {index:05}"))
+                        .message(())
+                        .id(60_000 + index as NodeId)],
+                )
+            })
+            .window(VirtualListWindow {
+                total_items: 256,
+                viewport_start: 0,
+                viewport_end: 6,
+                window_start: 0,
+                window_end: 8,
+            })
+            .row_height(24.0)
+            .on_window_changed(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+            })
+            .view()
+            .into_surface()
+        },
+        |state, message| state.push(message),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 144.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, 144.0)));
+    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(runtime.bridge().state().len(), 1);
+    drop(runtime);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}
+
+#[test]
+fn materialized_virtual_list_builder_window_mapper_invokes_and_drops_ui_local_capture() {
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_projector = Rc::clone(&calls);
+    let rows = vec!["Kick"; 256];
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        Vec::<()>::new(),
+        move |_| {
+            let calls_for_mapper = Rc::clone(&calls_for_projector);
+            virtual_list_materialized_windowed(
+                VirtualListWindow {
+                    total_items: 256,
+                    viewport_start: 0,
+                    viewport_end: 6,
+                    window_start: 0,
+                    window_end: 8,
+                },
+                &rows,
+                |index, label: &&str| {
+                    list_row_id(
+                        70_000 + index as NodeId,
+                        [button(format!("{index:05} {label}"))
+                            .message(())
+                            .id(80_000 + index as NodeId)],
+                    )
+                },
+            )
+            .on_window_changed(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+            })
+            .row_height(24.0)
+            .view()
+            .into_surface()
+        },
+        |state, message| state.push(message),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 144.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, 144.0)));
+    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(runtime.bridge().state().len(), 1);
+    drop(runtime);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }
 
 fn virtual_list_body_container_id(window: VirtualListWindow) -> NodeId {

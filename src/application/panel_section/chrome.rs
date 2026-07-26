@@ -79,7 +79,7 @@ where
 pub fn panel_section_resize_header<Message: 'static>(
     key: impl ToString,
     height: f32,
-    map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     drag_handle()
         .hover_chrome_only()

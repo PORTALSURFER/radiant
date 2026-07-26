@@ -63,7 +63,7 @@ impl RetainedCanvasBuilder {
     /// Build a retained canvas that maps canvas input to host messages.
     pub fn on_input<Message: 'static>(
         self,
-        map: impl Fn(crate::widgets::CanvasMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(crate::widgets::CanvasMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         view_node_from_widget(MappedWidget::new(
             CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(self.descriptor),

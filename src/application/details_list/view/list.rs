@@ -3,7 +3,7 @@ use crate::{
     application::{View, button, column, scroll, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
-use std::sync::Arc;
+use std::rc::Rc;
 
 use super::super::model::{DetailsColumn, DetailsRow, DetailsSort};
 
@@ -12,7 +12,7 @@ pub fn message_sortable_details_list<Message>(
     columns: impl IntoIterator<Item = DetailsColumn>,
     rows: impl IntoIterator<Item = DetailsRow>,
     sort: Option<DetailsSort>,
-    sort_message: impl Fn(String) -> Message + Send + Sync + 'static,
+    sort_message: impl Fn(String) -> Message + 'static,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
@@ -31,23 +31,22 @@ pub fn message_selectable_sortable_details_list<Message>(
     columns: impl IntoIterator<Item = DetailsColumn>,
     rows: impl IntoIterator<Item = DetailsRow>,
     sort: Option<DetailsSort>,
-    sort_message: impl Fn(String) -> Message + Send + Sync + 'static,
-    select_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,
+    sort_message: impl Fn(String) -> Message + 'static,
+    select_message: Option<impl Fn(String) -> Message + 'static>,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
     let columns = columns.into_iter().collect::<Vec<_>>();
-    let sort_message = Arc::new(sort_message) as Arc<dyn Fn(String) -> Message + Send + Sync>;
-    let select_message = select_message.map(|select_message| {
-        Arc::new(select_message) as Arc<dyn Fn(String) -> Message + Send + Sync>
-    });
+    let sort_message = Rc::new(sort_message) as Rc<dyn Fn(String) -> Message>;
+    let select_message = select_message
+        .map(|select_message| Rc::new(select_message) as Rc<dyn Fn(String) -> Message>);
 
     column([
-        message_details_header(&columns, sort.as_ref(), Arc::clone(&sort_message)),
+        message_details_header(&columns, sort.as_ref(), Rc::clone(&sort_message)),
         scroll(
             column(rows.into_iter().map(|row| {
-                message_details_row(&columns, row, select_message.as_ref().map(Arc::clone))
+                message_details_row(&columns, row, select_message.as_ref().map(Rc::clone))
             }))
             .fill_width()
             .spacing(1.0),
@@ -62,7 +61,7 @@ where
 fn message_details_header<Message>(
     columns: &[DetailsColumn],
     sort: Option<&DetailsSort>,
-    sort_message: Arc<dyn Fn(String) -> Message + Send + Sync>,
+    sort_message: Rc<dyn Fn(String) -> Message>,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,
@@ -91,7 +90,7 @@ where
 fn message_details_row<Message>(
     columns: &[DetailsColumn],
     row_data: DetailsRow,
-    select_message: Option<Arc<dyn Fn(String) -> Message + Send + Sync>>,
+    select_message: Option<Rc<dyn Fn(String) -> Message>>,
 ) -> View<Message>
 where
     Message: Clone + Send + Sync + 'static,

@@ -19,7 +19,7 @@ pub struct VirtualTreeListBuilder<'a, Message, Project> {
     guide_style: TreeGuideOverlayStyle,
     project: Project,
     overscan_px: f32,
-    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message>>,
 }
 
 /// Build a vertically virtualized fixed-row tree list with guide overlays.
@@ -53,7 +53,7 @@ impl<'a, Message, Project> VirtualTreeListBuilder<'a, Message, Project> {
     /// Emit a message when runtime scrolling resolves a different tree window.
     pub fn on_window_changed(
         mut self,
-        message: impl Fn(VirtualListWindowChange) -> Message + Send + Sync + 'static,
+        message: impl Fn(VirtualListWindowChange) -> Message + 'static,
     ) -> Self {
         self.on_window_changed = Some(Box::new(message));
         self

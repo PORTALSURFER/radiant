@@ -113,7 +113,7 @@ pub fn render_canvas_input<Message: 'static>(
     key: impl Into<CanvasKey>,
     revision: u64,
     content: crate::runtime::RenderCanvasContent,
-    map: impl Fn(WidgetInput) -> Message + Send + Sync + 'static,
+    map: impl Fn(WidgetInput) -> Message + 'static,
 ) -> ViewNode<Message> {
     gpu_surface_input(key.into().get(), revision, content, map)
 }
@@ -124,7 +124,7 @@ pub fn render_canvas_input_from_parts<Message, Map>(
 ) -> ViewNode<Message>
 where
     Message: 'static,
-    Map: Fn(WidgetInput) -> Message + Send + Sync + 'static,
+    Map: Fn(WidgetInput) -> Message + 'static,
 {
     gpu_surface_input_from_parts(parts)
 }
@@ -208,7 +208,7 @@ pub fn gpu_surface_input<Message: 'static>(
     key: u64,
     revision: u64,
     content: GpuSurfaceContent,
-    map: impl Fn(WidgetInput) -> Message + Send + Sync + 'static,
+    map: impl Fn(WidgetInput) -> Message + 'static,
 ) -> ViewNode<Message> {
     gpu_surface_input_from_parts(GpuSurfaceInputParts {
         key,
@@ -224,7 +224,7 @@ pub fn gpu_surface_input_from_parts<Message, Map>(
 ) -> ViewNode<Message>
 where
     Message: 'static,
-    Map: Fn(WidgetInput) -> Message + Send + Sync + 'static,
+    Map: Fn(WidgetInput) -> Message + 'static,
 {
     view_node_from_widget(MappedWidget::new(
         GpuSurfaceWidget::from_parts(GpuSurfaceParts {

@@ -110,3 +110,26 @@ fn property_rows_support_named_parts_construction() {
     assert_eq!(from_parts, positional);
     assert!(from_parts.selected);
 }
+
+#[test]
+fn message_property_panel_accepts_ui_local_projection_mapper() {
+    use std::{cell::RefCell, rc::Rc};
+
+    use radiant::prelude::{self as ui, IntoView};
+
+    let calls = Rc::new(RefCell::new(Vec::<String>::new()));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface: UiSurface<DemoMessage> = app::message_selectable_property_panel(
+        "Inspector",
+        [ui::PropertyRow::new("name", "Name", "Kick")],
+        Some(move |id| {
+            calls_for_mapper.borrow_mut().push(id);
+            DemoMessage::Increment
+        }),
+    )
+    .into_surface();
+
+    assert_eq!(calls.borrow().as_slice(), ["name"]);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}

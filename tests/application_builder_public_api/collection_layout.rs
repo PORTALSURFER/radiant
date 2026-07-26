@@ -311,6 +311,35 @@ fn tree_list_items_support_named_parts_construction() {
 }
 
 #[test]
+fn message_tree_list_accepts_ui_local_projection_mappers() {
+    use radiant::prelude::IntoView;
+    use std::{cell::RefCell, rc::Rc};
+
+    let calls = Rc::new(RefCell::new(Vec::<String>::new()));
+    let select_calls = Rc::clone(&calls);
+    let toggle_calls = Rc::clone(&calls);
+    let surface: UiSurface<DemoMessage> = app::message_tree_list(
+        [app::TreeListItem::new("root", 0, "Root").branch(true)],
+        move |id| {
+            select_calls.borrow_mut().push(format!("select:{id}"));
+            DemoMessage::Increment
+        },
+        move |id| {
+            toggle_calls.borrow_mut().push(format!("toggle:{id}"));
+            DemoMessage::Increment
+        },
+    )
+    .into_surface();
+
+    assert_eq!(
+        calls.borrow().as_slice(),
+        ["select:root".to_string(), "toggle:root".to_string()]
+    );
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}
+
+#[test]
 fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
     use radiant::prelude::{self as ui, IntoView};
 

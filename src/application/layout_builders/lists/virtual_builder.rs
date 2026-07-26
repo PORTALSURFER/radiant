@@ -16,7 +16,7 @@ pub struct VirtualListBuilder<Message, Project> {
     row_height: f32,
     overscan_px: f32,
     project: Project,
-    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message>>,
     retain_materialized_window: bool,
 }
 
@@ -32,7 +32,7 @@ pub struct MaterializedVirtualListBuilder<'a, Message, Item, Project> {
     row_height: f32,
     overscan_px: f32,
     project: Project,
-    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message>>,
     retain_materialized_window: bool,
 }
 
@@ -58,7 +58,7 @@ impl<Message, Project> VirtualListBuilder<Message, Project> {
     /// Emit a message when runtime scrolling resolves a different list window.
     pub fn on_window_changed(
         mut self,
-        message: impl Fn(VirtualListWindowChange) -> Message + Send + Sync + 'static,
+        message: impl Fn(VirtualListWindowChange) -> Message + 'static,
     ) -> Self {
         self.on_window_changed = Some(Box::new(message));
         self
@@ -92,7 +92,7 @@ impl<'a, Message, Item, Project> MaterializedVirtualListBuilder<'a, Message, Ite
     /// Emit a message when runtime scrolling resolves a different list window.
     pub fn on_window_changed(
         mut self,
-        message: impl Fn(VirtualListWindowChange) -> Message + Send + Sync + 'static,
+        message: impl Fn(VirtualListWindowChange) -> Message + 'static,
     ) -> Self {
         self.on_window_changed = Some(Box::new(message));
         self

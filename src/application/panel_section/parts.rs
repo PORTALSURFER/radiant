@@ -114,7 +114,7 @@ impl<Message> PanelSectionParts<Message> {
     pub fn trailing_resize_handle<Map>(self, key: impl ToString, map: Map) -> Self
     where
         Message: 'static,
-        Map: Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        Map: Fn(DragHandleMessage) -> Message + 'static,
     {
         self.trailing(drag_handle_mapped(map).key(key.to_string()).size(
             DEFAULT_PANEL_SECTION_RESIZE_HANDLE_WIDTH,
@@ -224,7 +224,7 @@ impl<Message> PanelSectionHeaderParts<Message> {
     ) -> Self
     where
         Message: 'static,
-        Map: Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        Map: Fn(DragHandleMessage) -> Message + 'static,
     {
         Self::new(
             drag_handle()

@@ -72,3 +72,78 @@ fn retained_canvas_builder_projects_metadata_and_input_mapping() {
         })
     );
 }
+
+#[test]
+fn retained_canvas_input_mapper_accepts_ui_local_capture() {
+    use std::{cell::RefCell, rc::Rc};
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface = radiant::runtime::retained_canvas(45)
+        .on_input(move |message| {
+            *calls_for_mapper.borrow_mut() += 1;
+            match message {
+                CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+            }
+        })
+        .id(45)
+        .size(120.0, 40.0)
+        .into_surface();
+
+    let input = WidgetInput::PointerMove {
+        position: Point::new(8.0, 12.0),
+    };
+    assert_eq!(
+        surface.dispatch_widget_output(
+            45,
+            WidgetOutput::typed(CanvasMessage::Input {
+                input: input.clone(),
+            }),
+        ),
+        Some(DemoMessage::CanvasInput(input)),
+    );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}
+
+#[test]
+fn gpu_leaf_input_mapper_accepts_ui_local_capture() {
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface = radiant::runtime::gpu_surface_input(
+        77,
+        1,
+        GpuSurfaceContent::SignalBands {
+            frames: 2,
+            band_count: 1,
+            frame_range: [0.0, 2.0],
+            samples: Arc::from([0.0, 1.0]),
+        },
+        move |input| {
+            *calls_for_mapper.borrow_mut() += 1;
+            DemoMessage::CanvasInput(input)
+        },
+    )
+    .id(77)
+    .size(120.0, 40.0)
+    .into_surface();
+
+    let input = WidgetInput::PointerMove {
+        position: Point::new(8.0, 12.0),
+    };
+    assert_eq!(
+        surface.dispatch_widget_output(
+            77,
+            WidgetOutput::typed(GpuSurfaceMessage::Input {
+                input: input.clone(),
+            }),
+        ),
+        Some(DemoMessage::CanvasInput(input)),
+    );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert_eq!(Rc::strong_count(&calls), 1);
+}

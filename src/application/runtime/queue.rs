@@ -214,7 +214,7 @@ impl<Message> AppRuntime<Message> {
         *lock_runtime_state(&self.repaint) = Some(signal);
     }
 
-    fn request_repaint(&self) {
+    pub(super) fn request_repaint(&self) {
         let signal = lock_runtime_state(&self.repaint).as_ref().map(Arc::clone);
         if let Some(signal) = signal {
             signal.request_repaint();

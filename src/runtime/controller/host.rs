@@ -107,6 +107,21 @@ where
             })
     }
 
+    pub(crate) fn host_spawn_worker_task(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool {
+        self.host_capabilities
+            .tasks
+            .as_ref()
+            .is_some_and(|capability| {
+                (capability.spawn_worker_task)(&mut self.bridge, name, priority, is_cancelled, work)
+            })
+    }
+
     pub(crate) fn host_spawn_streaming_message_task(
         &mut self,
         name: &'static str,

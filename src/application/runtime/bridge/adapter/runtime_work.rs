@@ -46,6 +46,26 @@ where
             })
     }
 
+    pub(super) fn spawn_runtime_worker_task(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool {
+        if !self.runtime.is_alive() {
+            return false;
+        }
+        let runtime = Arc::downgrade(&self.runtime);
+        self.runtime
+            .spawn_business_task(name, priority, is_cancelled, move || {
+                work();
+                if let Some(runtime) = runtime.upgrade() {
+                    runtime.request_repaint();
+                }
+            })
+    }
+
     pub(super) fn spawn_runtime_streaming_message_task(
         &mut self,
         name: &'static str,

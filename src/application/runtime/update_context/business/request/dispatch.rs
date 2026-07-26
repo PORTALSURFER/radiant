@@ -16,6 +16,28 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self.run_with_optional_cancellation(None, work, map);
     }
 
+    /// Run worker-only work and map its owned output on the UI runtime.
+    ///
+    /// The existing [`Self::run`] spelling remains the compatibility path;
+    /// this explicit variant proves the worker/output ownership boundary.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.context
+            .queue_command(Command::perform_worker_effect_with_priority(
+                self.name,
+                self.priority,
+                None,
+                0,
+                move || work(BusinessWorkContext::new(None)),
+                map,
+            ));
+    }
+
     /// Run this business request and allow worker code to emit intermediate
     /// events before the final output message.
     pub fn stream<Event, Output>(

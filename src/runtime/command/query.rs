@@ -14,6 +14,7 @@ impl<Message> Command<Message> {
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
+            | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -59,6 +60,7 @@ impl<Message> Command<Message> {
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
+            | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -99,6 +101,7 @@ impl<Message> Command<Message> {
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
+            | Self::PerformWorker(..)
             | Self::ClearFocus
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
@@ -133,6 +136,7 @@ impl<Message> Command<Message> {
                 priority,
                 ..
             } if *command_name == name => Some(*priority),
+            Self::PerformWorker(effect) if effect.name == name => Some(effect.priority),
             Self::Batch(commands) => commands
                 .iter()
                 .find_map(|command| command.business_task_priority(name)),

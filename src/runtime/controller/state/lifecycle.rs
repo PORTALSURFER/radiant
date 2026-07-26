@@ -46,6 +46,7 @@ where
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
+            worker_effects: super::super::effects::WorkerEffects::default(),
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
             pending_frame_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),

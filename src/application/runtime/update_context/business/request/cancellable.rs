@@ -36,11 +36,13 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         self,
         latest: &mut LatestTask,
     ) -> CancellableBusinessLatestRequest<'context, Message> {
+        let effect_id = latest.effect_id();
         let ticket = latest.begin();
         CancellableBusinessLatestRequest {
             request: self.request,
             token: self.token,
             ticket,
+            effect_id,
         }
     }
 
@@ -121,6 +123,34 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         let token = self.token.clone();
         self.request
             .run_with_optional_cancellation(Some(self.token), work, map);
+        token
+    }
+
+    /// Run cancellable worker-only work and map its output on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> CancellationToken
+    where
+        Output: Send + 'static,
+    {
+        let token = self.token.clone();
+        let worker_token = self.token.clone();
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_effect_with_priority(
+                self.request.name,
+                self.request.priority,
+                is_cancelled,
+                0,
+                move || work(BusinessWorkContext::new(Some(worker_token))),
+                map,
+            ),
+        );
         token
     }
 

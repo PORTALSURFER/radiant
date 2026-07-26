@@ -1,15 +1,37 @@
 use super::{TaskCompletion, TaskTicket};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_LATEST_SLOT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[cfg(test)]
 #[path = "latest/tests.rs"]
 mod tests;
 
 /// Tracks the latest in-flight task for one host-owned resource.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct LatestTask {
+    effect_id: u64,
     next_id: u64,
     active: Option<TaskTicket>,
 }
+
+impl Clone for LatestTask {
+    fn clone(&self) -> Self {
+        Self {
+            effect_id: 0,
+            next_id: self.next_id,
+            active: self.active,
+        }
+    }
+}
+
+impl PartialEq for LatestTask {
+    fn eq(&self, other: &Self) -> bool {
+        self.next_id == other.next_id && self.active == other.active
+    }
+}
+
+impl Eq for LatestTask {}
 
 impl Default for LatestTask {
     fn default() -> Self {
@@ -21,6 +43,7 @@ impl LatestTask {
     /// Build an idle task tracker.
     pub const fn new() -> Self {
         Self {
+            effect_id: 0,
             next_id: 1,
             active: None,
         }
@@ -37,6 +60,13 @@ impl LatestTask {
     /// Return the currently active latest task, if any.
     pub const fn active(&self) -> Option<TaskTicket> {
         self.active
+    }
+
+    pub(in crate::application) fn effect_id(&mut self) -> u64 {
+        if self.effect_id == 0 {
+            self.effect_id = NEXT_LATEST_SLOT_ID.fetch_add(1, Ordering::Relaxed);
+        }
+        self.effect_id
     }
 
     /// Return whether this ticket is still the active latest task.

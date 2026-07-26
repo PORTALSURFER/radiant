@@ -38,6 +38,13 @@ where
                 .field("name", name)
                 .field("priority", priority)
                 .finish(),
+            Self::PerformWorker(effect) => f
+                .debug_struct("PerformWorker")
+                .field("name", &effect.name)
+                .field("priority", &effect.priority)
+                .field("id", &effect.id)
+                .field("generation", &effect.generation)
+                .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::ClearFocus => f.write_str("ClearFocus"),
             Self::ScrollTo { node_id, offset } => f

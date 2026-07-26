@@ -260,6 +260,11 @@ where
                     outcome.repaint_requested = true;
                 }
             }
+            Command::PerformWorker(effect) => {
+                if self.submit_worker_effect(effect) {
+                    outcome.repaint_requested = true;
+                }
+            }
             Command::Focus(widget_id) => {
                 let focused = self.focus_widget(widget_id);
                 outcome.repaint_requested |= focused;
@@ -362,6 +367,7 @@ where
                 outcome.surface_repaint_requested = true;
             }
             Command::Exit => {
+                self.worker_effects.shutdown();
                 outcome.exit_requested = true;
                 self.exit_requested = true;
             }

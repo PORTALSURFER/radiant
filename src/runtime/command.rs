@@ -4,8 +4,8 @@ use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
-use std::sync::Arc;
 use std::time::Duration;
+use std::{any::Any, sync::Arc};
 
 mod constructors;
 mod debug;
@@ -172,6 +172,9 @@ pub enum Command<Message> {
         /// Background work lowered into a latest-event message-emitting closure.
         work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
     },
+    /// Run worker-only work and deliver its owned output to a UI-local mapper.
+    #[doc(hidden)]
+    PerformWorker(WorkerEffect<Message>),
     /// Move keyboard focus to one widget.
     Focus(WidgetId),
     /// Clear keyboard focus from any focused widget.
@@ -243,6 +246,32 @@ pub enum Command<Message> {
     /// Request that the active runtime exits.
     Exit,
 }
+
+/// Opaque worker-effect command payload.
+///
+/// This is intentionally hidden from the normal application vocabulary. The
+/// worker closure only returns an owned, type-erased `Send` value; the mapper
+/// is retained by the UI runtime and is never moved to a worker.
+#[doc(hidden)]
+pub struct WorkerEffect<Message> {
+    pub(crate) name: &'static str,
+    pub(crate) priority: TaskPriority,
+    pub(crate) is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+    pub(crate) id: EffectId,
+    pub(crate) generation: EffectGeneration,
+    pub(crate) work: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>,
+    pub(crate) map: Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + Send + 'static>,
+}
+
+/// Opaque identity for one worker effect slot.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct EffectId(pub(crate) u64);
+
+/// Opaque generation for replacement/latest effect slots.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct EffectGeneration(pub(crate) u64);
 
 #[cfg(test)]
 mod tests;

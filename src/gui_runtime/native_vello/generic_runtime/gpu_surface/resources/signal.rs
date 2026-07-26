@@ -4,6 +4,7 @@ use super::super::encoding::{
 use super::super::gpu_surface_types::{
     SignalBodyCacheKey, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalUniforms,
 };
+use super::super::identity::RenderCanvasContentOwner;
 use super::super::passes::signal_body_render_pass;
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
@@ -32,7 +33,21 @@ impl GpuSurfaceRenderer {
             stats.signal.body_cache_hits += 1;
             return Some(body.view.clone());
         }
+        if let Some(body) = self.resources.signal_bodies.get(&key)
+            && body.device == wgpu_device_id(device)
+        {
+            match signal_body_cache_mismatch(body.cache_key, body_key) {
+                Some(SignalBodyCacheMismatch::Revision) => {
+                    stats.signal.body_revision_mismatches += 1;
+                }
+                Some(SignalBodyCacheMismatch::Content) => {
+                    stats.signal.body_content_mismatches += 1;
+                }
+                None => {}
+            }
+        }
         let buffer = self.resources.signals.get(&key)?;
+        let content_owner = buffer._content_owner.clone();
         let pipeline = self.signal_pipeline.as_ref()?;
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_gpu_signal_body_texture"),
@@ -64,6 +79,7 @@ impl GpuSurfaceRenderer {
             SignalBodyTexture {
                 device: wgpu_device_id(device),
                 cache_key: body_key,
+                _content_owner: content_owner,
                 _texture: texture,
                 view,
             },
@@ -77,6 +93,7 @@ impl GpuSurfaceRenderer {
         queue: &wgpu::Queue,
         key: u64,
         cache_key: SignalBufferCacheKey,
+        content_owner: RenderCanvasContentOwner,
         buckets: &[GpuSignalSummaryBucket],
         uniforms: &SignalUniforms,
     ) {
@@ -126,10 +143,81 @@ impl GpuSurfaceRenderer {
                 cache_key,
                 sample_count,
                 pipeline_generation: self.signal_pipeline_generation,
+                _content_owner: content_owner,
                 _sample_buffer: sample_buffer,
                 uniform_buffer,
                 bind_group,
             },
+        );
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SignalBodyCacheMismatch {
+    Revision,
+    Content,
+}
+
+fn signal_body_cache_mismatch(
+    cached: SignalBodyCacheKey,
+    target: SignalBodyCacheKey,
+) -> Option<SignalBodyCacheMismatch> {
+    if cached.revision != target.revision {
+        Some(SignalBodyCacheMismatch::Revision)
+    } else if cached.content_identity != target.content_identity {
+        Some(SignalBodyCacheMismatch::Content)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::SignalBodyCacheKeyParts;
+    use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::identity::RenderCanvasContentIdentity;
+
+    fn body_key(
+        revision: u64,
+        content_identity: RenderCanvasContentIdentity,
+    ) -> SignalBodyCacheKey {
+        SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
+            revision,
+            content_identity,
+            extent: super::super::super::passes::SurfacePixelExtent {
+                width: 64,
+                height: 32,
+            },
+            frames: 128,
+            band_count: 2,
+            frame_range: [0.0, 1.0],
+            sample_slide_frame_offset: 0,
+            sample_count: 256,
+            level_index: 0,
+            gain_preview: None,
+        })
+    }
+
+    #[test]
+    fn signal_body_cache_mismatch_reports_revision_or_content() {
+        let identity = RenderCanvasContentIdentity::default();
+        let replacement = RenderCanvasContentIdentity::SignalBands {
+            samples: 1,
+            frames: 128,
+            band_count: 2,
+            frame_range: [0.0f32.to_bits(), 1.0f32.to_bits()],
+        };
+        assert_eq!(
+            signal_body_cache_mismatch(body_key(1, identity), body_key(2, identity)),
+            Some(SignalBodyCacheMismatch::Revision)
+        );
+        assert_eq!(
+            signal_body_cache_mismatch(body_key(1, identity), body_key(1, replacement)),
+            Some(SignalBodyCacheMismatch::Content)
+        );
+        assert_eq!(
+            signal_body_cache_mismatch(body_key(1, identity), body_key(1, identity)),
+            None
         );
     }
 }

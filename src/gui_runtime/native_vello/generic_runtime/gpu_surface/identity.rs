@@ -1,5 +1,20 @@
-use crate::gui::types::Rect;
-use crate::runtime::{GpuSignalGainPreview, GpuSurfaceContent};
+use crate::gui::types::{ImageRgba, Rect};
+use crate::runtime::{
+    GpuShaderSurfaceDescriptor, GpuSignalGainPreview, GpuSignalSummary, GpuSurfaceContent,
+};
+use std::sync::Arc;
+
+/// Ownership token retained with each cache entry whose identity uses an Arc
+/// allocation address. Holding the immutable source keeps the address unique
+/// for the lifetime of the cached resource and prevents allocator ABA reuse.
+#[allow(dead_code)]
+#[derive(Clone)]
+pub(super) enum RenderCanvasContentOwner {
+    RgbaAtlas(Arc<ImageRgba>),
+    SignalBands(Arc<[f32]>),
+    SignalSummaryBands(Arc<GpuSignalSummary>),
+    CustomShader(Arc<GpuShaderSurfaceDescriptor>),
+}
 
 /// Exact immutable identity used to authorize retained render-canvas reuse.
 ///
@@ -68,6 +83,23 @@ impl RenderCanvasContentIdentity {
             GpuSurfaceContent::CustomShader { descriptor } => Self::CustomShader {
                 descriptor: arc_ptr(descriptor),
             },
+        }
+    }
+}
+
+impl RenderCanvasContentOwner {
+    pub(super) fn from_content(content: &GpuSurfaceContent) -> Self {
+        match content {
+            GpuSurfaceContent::RgbaAtlas { atlas, .. } => Self::RgbaAtlas(Arc::clone(atlas)),
+            GpuSurfaceContent::SignalBands { samples, .. } => {
+                Self::SignalBands(Arc::clone(samples))
+            }
+            GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
+                Self::SignalSummaryBands(Arc::clone(summary))
+            }
+            GpuSurfaceContent::CustomShader { descriptor } => {
+                Self::CustomShader(Arc::clone(descriptor))
+            }
         }
     }
 }

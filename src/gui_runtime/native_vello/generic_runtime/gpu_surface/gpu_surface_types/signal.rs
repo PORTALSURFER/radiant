@@ -1,6 +1,6 @@
 mod cache_key;
 
-use super::super::identity::RenderCanvasContentIdentity;
+use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::wgpu_device_id;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;
@@ -15,6 +15,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
         SignalBufferCacheKey,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) pipeline_generation: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _content_owner:
+        RenderCanvasContentOwner,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _sample_buffer:
         wgpu::Buffer,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) uniform_buffer:
@@ -32,6 +34,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Ca
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) summary:
         Arc<GpuSignalSummary>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _source_samples:
+        Arc<[f32]>,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CachedSignalSummaryValidation
@@ -60,6 +64,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cache_key:
         SignalBodyCacheKey,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _content_owner:
+        RenderCanvasContentOwner,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _texture: wgpu::Texture,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) view: wgpu::TextureView,
 }

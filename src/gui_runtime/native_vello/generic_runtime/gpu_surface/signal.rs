@@ -4,6 +4,7 @@ use super::gpu_surface_types::{
     SignalBodyCacheKeyParts, SignalBufferCacheKey, SignalUniforms,
 };
 use super::identity::RenderCanvasContentIdentity;
+use super::identity::RenderCanvasContentOwner;
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
 use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
@@ -78,6 +79,7 @@ impl GpuSurfaceRenderer {
                 body.bucket_start,
                 body.bucket_count,
             ),
+            RenderCanvasContentOwner::from_content(&surface.content),
             body.buckets,
             &body.uniforms,
         );

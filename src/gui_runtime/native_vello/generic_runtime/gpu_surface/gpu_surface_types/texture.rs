@@ -1,4 +1,4 @@
-use super::super::identity::RenderCanvasContentIdentity;
+use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::wgpu_device_id;
 use vello::wgpu;
 
@@ -7,6 +7,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
         RenderCanvasContentIdentity,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _content_owner:
+        RenderCanvasContentOwner,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) width: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) height: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _texture: wgpu::Texture,

@@ -1,5 +1,5 @@
 use super::super::gpu_surface_types::GpuSurfaceTexture;
-use super::super::identity::RenderCanvasContentIdentity;
+use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
@@ -80,6 +80,7 @@ impl GpuSurfaceRenderer {
                 device: wgpu_device_id(device),
                 revision: surface.revision,
                 content_identity,
+                _content_owner: RenderCanvasContentOwner::from_content(&surface.content),
                 width: atlas.width(),
                 height: atlas.height(),
                 _texture: texture,

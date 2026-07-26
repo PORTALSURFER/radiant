@@ -45,6 +45,7 @@ impl GpuSurfaceRenderer {
                 band_count,
                 sample_count: samples.len(),
                 summary: Arc::clone(&summary),
+                _source_samples: Arc::clone(samples),
             },
         );
         stats.signal.summary_builds += 1;
@@ -111,15 +112,8 @@ mod tests {
     fn cached_signal_summary_rebuilds_for_new_immutable_content_with_same_revision() {
         let mut renderer = GpuSurfaceRenderer::default();
         let first_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-        let second_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let first_identity = RenderCanvasContentIdentity::SignalBands {
             samples: Arc::as_ptr(&first_samples) as *const () as usize,
-            frames: 4,
-            band_count: 1,
-            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
-        };
-        let second_identity = RenderCanvasContentIdentity::SignalBands {
-            samples: Arc::as_ptr(&second_samples) as *const () as usize,
             frames: 4,
             band_count: 1,
             frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
@@ -127,11 +121,36 @@ mod tests {
         let mut stats = GpuSurfaceRenderStats::default();
 
         renderer.cached_signal_summary(7, 1, first_identity, 4, 1, &first_samples, &mut stats);
+        drop(first_samples);
+        assert_eq!(
+            renderer
+                .resources
+                .signal_summaries
+                .get(&7)
+                .map(|cached| Arc::as_ptr(&cached._source_samples) as *const () as usize),
+            Some(first_identity_sample_ptr(first_identity))
+        );
+
+        let second_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let second_identity = RenderCanvasContentIdentity::SignalBands {
+            samples: Arc::as_ptr(&second_samples) as *const () as usize,
+            frames: 4,
+            band_count: 1,
+            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
+        };
         renderer.cached_signal_summary(7, 1, second_identity, 4, 1, &second_samples, &mut stats);
 
+        assert_ne!(first_identity, second_identity);
         assert_eq!(stats.signal.summary_builds, 2);
         assert_eq!(stats.signal.summary_cache_hits, 0);
         assert_eq!(stats.signal.summary_revision_mismatches, 0);
         assert_eq!(stats.signal.summary_content_mismatches, 1);
+    }
+
+    fn first_identity_sample_ptr(identity: RenderCanvasContentIdentity) -> usize {
+        let RenderCanvasContentIdentity::SignalBands { samples, .. } = identity else {
+            unreachable!()
+        };
+        samples
     }
 }

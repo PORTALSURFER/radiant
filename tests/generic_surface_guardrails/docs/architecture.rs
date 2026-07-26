@@ -19,6 +19,7 @@ fn architecture_map_documents_target_aligned_boundaries() {
 
     assert!(
         manifest.contains("description = ")
+            && manifest.contains("macOS-first Rust GUI library")
             && manifest.contains("license = \"CC0-1.0\"")
             && manifest.contains("readme = \"README.md\"")
             && manifest.contains("repository = \"https://github.com/PORTALSURFER/radiant\"")
@@ -29,7 +30,8 @@ fn architecture_map_documents_target_aligned_boundaries() {
     );
     for required in [
         "# Radiant",
-        "Windows-first Rust GUI library",
+        "macOS-first Rust GUI library",
+        "cross-platform library",
         "one public API for declarative views",
         "Radiant is intended to stay application-independent",
         "RuntimeBridge",
@@ -55,6 +57,11 @@ fn architecture_map_documents_target_aligned_boundaries() {
     assert!(
         api_docs.contains("docs/ARCHITECTURE.md"),
         "docs/API.md should point contributors to the architecture map"
+    );
+    assert!(
+        !normalized_readme.contains("Windows-first")
+            && !normalized_architecture.contains("Windows-first"),
+        "public platform guidance should not retain the superseded Windows-first identity"
     );
 
     for required in [
@@ -84,8 +91,8 @@ fn architecture_map_documents_target_aligned_boundaries() {
         "`src/gui_runtime/native_vello/text_edit` owns native text-edit state",
         "`NativeTextOptions` and `EmbeddedFont`",
         "## Platform Boundary",
-        "Windows-first today",
-        "future Linux and macOS targets",
+        "macOS-first today",
+        "cross-platform design goal",
         "Portable library boundary",
         "typed `PlatformRequest` commands",
         "Current target-specific seams are intentionally narrow",

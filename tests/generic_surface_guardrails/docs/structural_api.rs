@@ -19,7 +19,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
 
     for required in [
         "# Radiant",
-        "Windows-first Rust GUI library",
+        "macOS-first Rust GUI library",
+        "cross-platform design goal",
         "application-independent",
         "## Start with an app",
         "use radiant::prelude::*;",
@@ -46,6 +47,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
 
     for required in [
         "# Radiant Core API",
+        "current native implementation is macOS-first",
+        "designed for cross-platform use",
         "Dependency Boundary",
         "host -> Radiant, never Radiant -> host",
         "Boundary tests prove that dependency direction, public exports, examples, and",
@@ -113,8 +116,9 @@ fn api_docs_describe_the_structural_boundary_strategy() {
     assert!(
         !normalized_crate_docs
             .contains("reusable GUI primitives and runtimes for host applications")
-            && !normalized_crate_docs.contains("Start with `README.md`"),
-        "crate front page should lead with Radiant's GUI-library identity and use robust guide links"
+            && !normalized_crate_docs.contains("Start with `README.md`")
+            && !normalized_crate_docs.contains("Windows-first"),
+        "crate front page should lead with Radiant's GUI-library identity and current platform goal"
     );
 }
 

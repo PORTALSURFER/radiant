@@ -4,6 +4,8 @@ Radiant is a reusable declarative GUI library. Host applications own domain
 state and business logic; Radiant owns view-tree identity, layout, input
 routing, focus, style resolution, invalidation, renderer-facing paint plans,
 typed platform services, and business-work scheduling.
+Radiant's current native implementation is macOS-first, while its backend-neutral
+GUI contracts and host boundaries are designed for cross-platform use.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
 boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see

@@ -1,9 +1,9 @@
 # Radiant
 
-Radiant is a Windows-first Rust GUI library for serious desktop applications.
-It exposes one public API for declarative views, application state updates,
-layout, input, focus, styling, Vello-backed rendering, and retained GPU
-surfaces for dense realtime visuals.
+Radiant is a macOS-first Rust GUI library for serious desktop applications,
+designed to grow into a cross-platform library. It exposes one public API for
+declarative views, application state updates, layout, input, focus, styling,
+Vello-backed rendering, and retained GPU surfaces for dense realtime visuals.
 
 Radiant is intended to stay application-independent. Product state, files,
 audio/plugin host behavior, and domain-specific naming belong in the host
@@ -112,5 +112,6 @@ cargo doc --no-deps
 cargo test --doc
 ```
 
-Portable library checks for the documented future Linux and macOS targets and
-the perf-harness smoke lane are also part of the full validation path.
+Portable library checks preserve the cross-platform boundary without asserting
+a current platform-support matrix, and the perf-harness smoke lane is also
+part of the full validation path.

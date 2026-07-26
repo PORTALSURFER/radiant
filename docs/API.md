@@ -9,6 +9,17 @@ boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see
 `docs/API_STYLE.md`.
 
+## Document Status And Authority
+
+This document describes the currently shipped application-facing API and calls
+out compatibility or migration paths where they remain public. It is not a
+claim that Radiant already implements the target architecture. For new
+architecture and API decisions, `docs/DESIGN_DIRECTION.md` is the normative
+target-state contract; `docs/TARGET.md` remains the broader product boundary
+and incremental-delivery direction. When a target example uses a name that is
+not yet shipped, this document's current API spelling and migration note take
+precedence for code that must compile today.
+
 ## Dependency Boundary
 
 The dependency direction is host application to Radiant. Radiant default builds

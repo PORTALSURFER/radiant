@@ -1,10 +1,16 @@
 # Radiant Architecture Map
 
-This map explains how the current Radiant codebase is organized against
-`docs/TARGET.md`. It is a contributor guide, not a second public API reference:
-`docs/API.md` remains the application-facing contract, while
-`docs/API_STYLE.md` defines the preferred application-facing API style and
-cleanup-ticket target shape.
+This map explains how the current Radiant codebase is organized against the
+broader project direction in `docs/TARGET.md`. It is a contributor guide, not a
+second public API reference: `docs/API.md` remains the application-facing
+contract (and the current API reference), while `docs/API_STYLE.md` defines the
+preferred application-facing API style and cleanup-ticket target shape.
+
+`docs/DESIGN_DIRECTION.md` is the normative target-state architecture contract
+for new design and API decisions. This map intentionally describes shipped
+module ownership and the migration seams between it and that target; a boundary
+described here is not evidence that every target-state node, scheduling, or
+renderer contract is already implemented.
 
 Radiant's architecture should keep one external mental model while allowing
 focused internal modules. The main ownership rule is:
@@ -20,6 +26,9 @@ focused internal modules. The main ownership rule is:
   Worker closures may receive `radiant::runtime::BusinessWorkContext` as an
   explicit runtime capability for cooperative cancellation, but the worker
   context is not part of the normal app prelude and is not app-constructible.
+  The target design describes the same ownership boundary as an owned effect
+  model; until that migration is complete, `UiUpdateContext` and its business
+  lanes are the shipped spelling.
 - Radiant additions must pass the primitive-boundary test in `docs/TARGET.md`:
   they should be generic UI primitives or reusable GUI building blocks, not
   product-shaped composite widgets or application workflows.

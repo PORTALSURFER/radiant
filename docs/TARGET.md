@@ -1,5 +1,13 @@
 # Radiant Project Target: A High-Performance General-Purpose Rust GUI Library
 
+`docs/DESIGN_DIRECTION.md` is the normative, detailed target-state architecture
+contract for Radiant's node model, application API, scheduling, and rendering
+boundaries. This document remains the broader product boundary and incremental
+delivery guide: it explains what Radiant is trying to become and what belongs
+in the library, but it does not assert that every target-state API or runtime
+behavior is shipped today. For current API names and compatibility status, see
+`docs/API.md`; for current module ownership, see `docs/ARCHITECTURE.md`.
+
 ## Vision
 
 Radiant should become a clean, reusable, high-performance, general-purpose GUI library for building serious desktop applications in Rust.
@@ -560,7 +568,12 @@ The architecture should support:
 - Minimal synchronization overhead
 - Safe Rust concurrency patterns
 
-Radiant should not assume all UI work must happen on one thread unless required by platform, windowing, host, Vello, WGPU, or backend constraints.
+The target keeps the declarative UI tree, input/layout state, and native
+renderer state confined to their owning window or UI runtime. It should not
+turn that live state into a cross-thread object merely to parallelize work.
+Expensive preparation, immutable payload production, and other bounded work may
+run off-thread and return owned, generation-checked results through the runtime
+boundary; a separate physical render thread remains platform-dependent.
 
 Expensive work should be structured so it can be parallelized, cached, incrementally updated, or moved to the GPU where appropriate.
 

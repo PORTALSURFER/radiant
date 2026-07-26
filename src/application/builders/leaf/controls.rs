@@ -2,6 +2,7 @@ use super::core::view_node_from_widget;
 use crate::{
     application::TextContent,
     application::{ViewNode, ViewNodeKind},
+    layout::{ContainerKind, ContainerPolicy},
     widgets::{BadgeWidget, ButtonWidget, CardWidget, TextInputWidget, TextWidget, ToggleWidget},
 };
 
@@ -91,8 +92,11 @@ pub fn empty<Message: 'static>() -> ViewNode<Message> {
 
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
-    ViewNode::new(ViewNodeKind::Row {
-        spacing: 0.0,
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Row,
+            ..ContainerPolicy::default()
+        },
         children: Vec::new(),
     })
     .size(1.0, 1.0)

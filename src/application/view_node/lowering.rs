@@ -4,10 +4,7 @@ use crate::{
         IdGenerator, IntoView, ROOT_KEY_SCOPE, ViewProjection, WidgetViewContext,
         launch::SceneProjection, view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
-    layout::{
-        ContainerKind, ContainerPolicy, GridPolicy, NodeId, VirtualizationAxis,
-        VirtualizationPolicy, WrapPolicy,
-    },
+    layout::{ContainerKind, ContainerPolicy, NodeId, VirtualizationAxis, VirtualizationPolicy},
     runtime::{SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
 };
 
@@ -101,53 +98,21 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 text_inset: node.text_inset,
                 tooltip: node.tooltip,
             }),
-            ViewNodeKind::Row { spacing, children } => {
-                let policy = ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing,
-                    ..base_policy()
-                };
-                let children = self.lower_slot_children(children, child_scope, true);
-                styled_container(self, policy, children)
-            }
-            ViewNodeKind::Column { spacing, children } => {
-                let policy = ContainerPolicy {
-                    kind: ContainerKind::Column,
-                    spacing,
-                    ..base_policy()
-                };
-                let children = self.lower_slot_children(children, child_scope, false);
-                styled_container(self, policy, children)
-            }
-            ViewNodeKind::Grid {
-                columns,
-                column_gap,
-                row_gap,
+            ViewNodeKind::Container {
+                mut policy,
                 children,
             } => {
-                let policy = ContainerPolicy {
-                    kind: ContainerKind::Grid,
-                    grid: GridPolicy {
-                        columns,
-                        column_gap,
-                        row_gap,
-                    },
-                    ..base_policy()
+                let defaults = base_policy();
+                policy.padding = defaults.padding;
+                policy.align_main = defaults.align_main;
+                policy.align_cross = defaults.align_cross;
+                let children = if policy.kind == ContainerKind::Stack {
+                    self.lower_fill_children(children, child_scope)
+                } else {
+                    let parent_horizontal =
+                        matches!(policy.kind, ContainerKind::Row | ContainerKind::Wrap);
+                    self.lower_slot_children(children, child_scope, parent_horizontal)
                 };
-                let children = self.lower_slot_children(children, child_scope, false);
-                styled_container(self, policy, children)
-            }
-            ViewNodeKind::Wrap {
-                item_gap,
-                line_gap,
-                children,
-            } => {
-                let policy = ContainerPolicy {
-                    kind: ContainerKind::Wrap,
-                    wrap: WrapPolicy { item_gap, line_gap },
-                    ..base_policy()
-                };
-                let children = self.lower_slot_children(children, child_scope, true);
                 styled_container(self, policy, children)
             }
             ViewNodeKind::Scroll { child } => {
@@ -171,14 +136,6 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     ..base_policy()
                 };
                 let children = vec![self.lower_fill_child(*child, child_scope)];
-                styled_container(self, policy, children)
-            }
-            ViewNodeKind::Stack { children } => {
-                let policy = ContainerPolicy {
-                    kind: ContainerKind::Stack,
-                    ..base_policy()
-                };
-                let children = self.lower_fill_children(children, child_scope);
                 styled_container(self, policy, children)
             }
             ViewNodeKind::OverlayPanel { rect, label } => {

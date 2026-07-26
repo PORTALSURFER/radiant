@@ -48,12 +48,14 @@ impl<Message> ViewNode<Message> {
 
     fn set_spacing(&mut self, spacing: f32) {
         match &mut self.kind {
-            ViewNodeKind::Row {
-                spacing: current, ..
+            ViewNodeKind::Container { policy, .. }
+                if matches!(
+                    policy.kind,
+                    crate::layout::ContainerKind::Row | crate::layout::ContainerKind::Column
+                ) =>
+            {
+                policy.spacing = spacing.max(0.0)
             }
-            | ViewNodeKind::Column {
-                spacing: current, ..
-            } => *current = spacing.max(0.0),
             ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
                 child.set_spacing(spacing)
             }

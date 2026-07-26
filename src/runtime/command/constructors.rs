@@ -119,6 +119,7 @@ impl<Message> Command<Message> {
         })
     }
 
+    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn perform_with_priority<Output>(
         name: &'static str,
         priority: TaskPriority,
@@ -175,7 +176,7 @@ impl<Message> Command<Message> {
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         generation: u64,
         work: impl FnOnce() -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) -> Self
     where
         Output: Send + 'static,
@@ -199,7 +200,7 @@ impl<Message> Command<Message> {
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         generation: u64,
         work: impl FnOnce() -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) -> Self
     where
         Output: Send + 'static,

@@ -31,25 +31,7 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
-    ) where
-        Output: Send + 'static,
-    {
-        let ticket = self.ticket;
-        self.request.run(
-            move |context| TaskCompletion {
-                ticket,
-                output: work(context),
-            },
-            map,
-        );
-    }
-
-    /// Run latest worker-only work and map its output on the UI runtime.
-    pub fn run_on_ui<Output>(
-        self,
-        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) where
         Output: Send + 'static,
     {
@@ -61,10 +43,24 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
                 self.request.priority,
                 None,
                 ticket.id(),
-                move || work(BusinessWorkContext::new(None)),
-                move |output| map(TaskCompletion { ticket, output }),
+                move || TaskCompletion {
+                    ticket,
+                    output: work(BusinessWorkContext::new(None)),
+                },
+                map,
             ),
         );
+    }
+
+    /// Run latest worker-only work and map its output on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.run(work, map);
     }
 
     /// Run latest work that may emit intermediate events tagged with this task ticket.
@@ -141,29 +137,7 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
-    ) -> CancellationToken
-    where
-        Output: Send + 'static,
-    {
-        let token = self.token.clone();
-        let ticket = self.ticket;
-        self.request.run_with_optional_cancellation(
-            Some(self.token),
-            move |context| TaskCompletion {
-                ticket,
-                output: work(context),
-            },
-            map,
-        );
-        token
-    }
-
-    /// Run cancellable latest worker-only work and map its output on the UI runtime.
-    pub fn run_on_ui<Output>(
-        self,
-        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Output: Send + 'static,
@@ -182,11 +156,26 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
                 self.request.priority,
                 is_cancelled,
                 ticket.id(),
-                move || work(BusinessWorkContext::new(Some(worker_token))),
-                move |output| map(TaskCompletion { ticket, output }),
+                move || TaskCompletion {
+                    ticket,
+                    output: work(BusinessWorkContext::new(Some(worker_token))),
+                },
+                map,
             ),
         );
         token
+    }
+
+    /// Run cancellable latest worker-only work and map its output on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> CancellationToken
+    where
+        Output: Send + 'static,
+    {
+        self.run(work, map)
     }
 
     /// Run cancellable latest work that may emit intermediate events tagged with this task ticket.

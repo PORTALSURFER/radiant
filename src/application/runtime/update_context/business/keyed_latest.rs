@@ -39,7 +39,7 @@ where
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) where
         Output: Send + 'static,
     {
@@ -155,7 +155,7 @@ where
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Output: Send + 'static,

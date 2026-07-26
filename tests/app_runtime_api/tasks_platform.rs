@@ -1,27 +1,153 @@
 use super::*;
 
-fn take_perform(
-    command: radiant::runtime::Command<DemoMessage>,
-) -> (
-    &'static str,
-    radiant::prelude::TaskPriority,
-    Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
+fn assert_worker_command(
+    command: &radiant::runtime::Command<DemoMessage>,
+    name: &'static str,
+    priority: radiant::prelude::TaskPriority,
 ) {
-    match command {
-        radiant::runtime::Command::Perform {
-            name,
-            priority,
-            is_cancelled: _,
-            work,
-        } => (name, priority, work),
-        other => panic!("expected one business perform command, got {other:?}"),
-    }
+    assert!(matches!(
+        command,
+        radiant::runtime::Command::PerformWorker(_)
+    ));
+    assert_eq!(command.business_task_priority(name), Some(priority));
 }
 
 #[test]
 fn business_work_context_is_explicit_runtime_api_not_prelude_app_api() {
     type WorkerContext = radiant::runtime::BusinessWorkContext;
     let _accepts_worker_context = WorkerContext::is_cancelled as fn(&WorkerContext) -> bool;
+}
+
+#[test]
+fn business_run_accepts_ui_local_mapper_capture() {
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let mapper_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    context.business().background("ui-local-map").run(
+        |_| 7_u32,
+        move |output| {
+            mapper_state.borrow_mut().push(output);
+            DemoMessage::Increment
+        },
+    );
+
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "ui-local-map",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+}
+
+#[test]
+fn one_shot_business_families_accept_ui_local_mappers() {
+    let mut ordinary = radiant::prelude::UiUpdateContext::default();
+    let ordinary_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let ordinary_capture = std::rc::Rc::clone(&ordinary_state);
+    ordinary
+        .business()
+        .background("ui-local-ordinary")
+        .run_on_ui(
+            |_| 1_u8,
+            move |_| {
+                *ordinary_capture.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &ordinary.into_command(),
+        "ui-local-ordinary",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*ordinary_state.borrow(), 0);
+
+    let mut latest_task = radiant::prelude::LatestTask::new();
+    let mut latest = radiant::prelude::UiUpdateContext::default();
+    let latest_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let latest_capture = std::rc::Rc::clone(&latest_state);
+    latest
+        .business()
+        .background("ui-local-latest")
+        .latest(&mut latest_task)
+        .run_on_ui(
+            |_| 1_u8,
+            move |_| {
+                *latest_capture.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &latest.into_command(),
+        "ui-local-latest",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*latest_state.borrow(), 0);
+
+    let mut cancellable = radiant::prelude::UiUpdateContext::default();
+    let cancellable_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let cancellable_capture = std::rc::Rc::clone(&cancellable_state);
+    cancellable
+        .business()
+        .background("ui-local-cancellable")
+        .cancellable()
+        .run_on_ui(
+            |_| 1_u8,
+            move |_| {
+                *cancellable_capture.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &cancellable.into_command(),
+        "ui-local-cancellable",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*cancellable_state.borrow(), 0);
+
+    let mut keyed_tasks = radiant::prelude::KeyedLatestTasks::new();
+    let mut keyed = radiant::prelude::UiUpdateContext::default();
+    let keyed_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let keyed_capture = std::rc::Rc::clone(&keyed_state);
+    keyed
+        .business()
+        .background("ui-local-keyed")
+        .latest_for(&mut keyed_tasks, "row-1")
+        .run(
+            |_| 1_u8,
+            move |_| {
+                *keyed_capture.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &keyed.into_command(),
+        "ui-local-keyed",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*keyed_state.borrow(), 0);
+
+    let mut resource = radiant::prelude::ResourceSlot::<String>::new("ui-local-resource");
+    let mut resource_context = radiant::prelude::UiUpdateContext::default();
+    let resource_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let resource_capture = std::rc::Rc::clone(&resource_state);
+    resource_context
+        .business()
+        .background("ui-local-resource")
+        .resource(&mut resource)
+        .run(
+            |_| Ok(String::from("ready")),
+            move |_| {
+                *resource_capture.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &resource_context.into_command(),
+        "ui-local-resource",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*resource_state.borrow(), 0);
 }
 
 #[test]
@@ -103,11 +229,8 @@ fn business_runtime_builds_named_priority_lanes() {
         let mut context = radiant::prelude::UiUpdateContext::default();
         submit(&mut context);
 
-        let (name, priority, work) = take_perform(context.into_command());
-
-        assert_eq!(name, expected_name);
-        assert_eq!(priority, expected_priority);
-        assert_eq!(work(), DemoMessage::Increment);
+        let command = context.into_command();
+        assert_worker_command(&command, expected_name, expected_priority);
     }
 }
 
@@ -123,11 +246,12 @@ fn business_runtime_priority_helper_uses_host_selected_lane() {
         )
         .run(|_| DemoMessage::Increment, |message| message);
 
-    let (name, priority, work) = take_perform(context.into_command());
-
-    assert_eq!(name, "host-selected-work");
-    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
-    assert_eq!(work(), DemoMessage::Increment);
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "host-selected-work",
+        radiant::prelude::TaskPriority::BlockingIo,
+    );
 }
 
 #[test]
@@ -150,8 +274,12 @@ fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
         );
 
     assert_eq!(keyed.active(&key).map(|ticket| ticket.id()), Some(1));
-    let (_name, _priority, work) = take_perform(context.into_command());
-    assert_eq!(work(), DemoMessage::Increment);
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "keyed-preview",
+        radiant::prelude::TaskPriority::Interactive,
+    );
 }
 
 #[test]
@@ -180,10 +308,12 @@ fn business_runtime_priority_helper_composes_with_resource_policies() {
         );
 
     assert_eq!(resources.active(&key).map(|ticket| ticket.id()), Some(1));
-    let (name, priority, work) = take_perform(context.into_command());
-    assert_eq!(name, "resource-preview");
-    assert_eq!(priority, radiant::prelude::TaskPriority::Interactive);
-    assert_eq!(work(), DemoMessage::Increment);
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "resource-preview",
+        radiant::prelude::TaskPriority::Interactive,
+    );
 
     let exclusive_key = radiant::prelude::ResourceKey::scoped("preview", "snare");
     let mut exclusive_context: radiant::prelude::UiUpdateContext<DemoMessage> =
@@ -233,8 +363,12 @@ fn business_runtime_resource_request_returns_typed_completion() {
         );
 
     assert!(resource.is_loading());
-    let (_name, _priority, work) = take_perform(context.into_command());
-    assert_eq!(work(), DemoMessage::Increment);
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "load-preview",
+        radiant::prelude::TaskPriority::Background,
+    );
 }
 
 #[test]
@@ -254,8 +388,12 @@ fn business_runtime_cancellable_work_exposes_worker_context() {
         },
     );
 
-    let (_name, _priority, work) = take_perform(context.into_command());
-    assert_eq!(work(), DemoMessage::Increment);
+    let command = context.into_command();
+    assert_worker_command(
+        &command,
+        "cancel-visible",
+        radiant::prelude::TaskPriority::Background,
+    );
 }
 
 #[test]

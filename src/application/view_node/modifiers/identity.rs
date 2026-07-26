@@ -14,9 +14,12 @@ impl<Message> ViewNode<Message> {
     ///
     /// Child keys are scoped by their keyed or explicitly identified parent, so repeated rows can
     /// use names such as `"done"` or `"delete"` without colliding with sibling rows.
-    pub fn key(mut self, key: impl Into<ContinuityKey>) -> Self {
+    ///
+    /// Existing `ToString` inputs remain accepted for compatibility. Prefer an
+    /// explicit [`ContinuityKey`] when naming a durable view identity.
+    pub fn key(mut self, key: impl ToString) -> Self {
         self.id = None;
-        self.key = Some(key.into());
+        self.key = Some(ContinuityKey::new(key.to_string()));
         self.has_reserved_identity = true;
         self
     }

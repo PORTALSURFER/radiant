@@ -1,6 +1,7 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::application::scoped_key_id;
 use crate::layout::NodeId;
+use std::fmt;
 
 /// Owned application-facing identity for declarative view continuity.
 ///
@@ -20,6 +21,12 @@ impl ContinuityKey {
     /// Borrow the stable key text.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Display for ContinuityKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
     }
 }
 

@@ -57,12 +57,37 @@ fn continuity_key_preserves_string_compatibility_and_same_scope_identity() {
     assert_eq!(borrowed.as_str(), "title");
     assert_eq!(borrowed, owned);
     assert_eq!(
-        text::<()>("Borrowed").key(borrowed).resolved_id(ROOT_KEY_SCOPE),
+        text::<()>("Borrowed")
+            .key(borrowed)
+            .resolved_id(ROOT_KEY_SCOPE),
         Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
     );
     assert_eq!(
         text::<()>("Owned").key(owned).resolved_id(ROOT_KEY_SCOPE),
         Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
+    );
+}
+
+#[test]
+fn view_node_key_accepts_previous_to_string_inputs() {
+    let borrowed: &str = "borrowed";
+    let owned = String::from("owned");
+
+    assert_eq!(
+        text::<()>("Borrowed")
+            .key(borrowed)
+            .resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, borrowed))
+    );
+    assert_eq!(
+        text::<()>("Owned").key(owned).resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "owned"))
+    );
+    assert_eq!(
+        text::<()>("Numeric")
+            .key(17_u32)
+            .resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "17"))
     );
 }
 

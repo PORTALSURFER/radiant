@@ -29,12 +29,13 @@ fn after_latest_accepts_non_send_mapper_for_ui_turn_execution() {
     use std::rc::Rc;
 
     let mut latest = crate::application::LatestTask::new();
-    let ticket = latest.begin();
-    let slot = latest.effect_id();
+    let transaction = latest.begin_timer_replacement();
+    let ticket = transaction.replacement();
     let mapper_state = Rc::new(String::from("latest-ui-only"));
-    let command = Command::after_latest(std::time::Duration::ZERO, ticket, slot, None, move |_| {
-        Rc::clone(&mapper_state)
-    });
+    let command =
+        Command::after_latest(std::time::Duration::ZERO, ticket, transaction, move |_| {
+            Rc::clone(&mapper_state)
+        });
     let Command::Timer(effect) = command else {
         panic!("after_latest should retain a timer effect");
     };

@@ -1,4 +1,5 @@
 use super::{batching, *};
+use crate::runtime::RuntimeTimerOwner;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -9,16 +10,33 @@ where
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget) = self.runtime_drain_budget();
 
-        let timer_wakes = self
-            .runtime_work
+        self.runtime_work
             .drain_bridge_timer_wakes(&mut self.bridge, self.host_capabilities.queues.as_ref());
         self.runtime_work.set_timer_work_remaining(false);
-        self.timer_effects.enqueue(timer_wakes);
-        for message in self.timer_effects.drain(message_budget) {
-            self.dispatch_message_inner(message, &mut outcome);
+        let timer_high_water = self
+            .runtime_work
+            .timer_wake_len()
+            .min(message_budget.max(1));
+        for _ in 0..timer_high_water {
+            let Some(wake) = self.runtime_work.pop_timer_wake() else {
+                break;
+            };
+            let message = if wake.owner == RuntimeTimerOwner::Application {
+                self.host_capabilities
+                    .queues
+                    .as_ref()
+                    .and_then(|capability| {
+                        (capability.map_runtime_timer_wake)(&mut self.bridge, wake)
+                    })
+            } else {
+                self.timer_effects.map_wake(wake)
+            };
+            if let Some(message) = message {
+                self.dispatch_message_inner(message, &mut outcome);
+            }
         }
         self.runtime_work
-            .set_timer_work_remaining(self.timer_effects.has_remaining_work());
+            .set_timer_work_remaining(self.runtime_work.timer_wake_len() > 0);
 
         // Worker effects are mapped only on this UI-owned turn. The ingress
         // takes a start-of-turn high-water snapshot, so an immediate worker

@@ -26,6 +26,12 @@ pub trait RuntimeQueueHost<Message> {
         Vec::new()
     }
 
+    /// Map an application-owned timer wake when it reaches the unified FIFO
+    /// head. Controller-owned wakes are mapped by the runtime controller.
+    fn map_runtime_timer_wake(&mut self, _wake: RuntimeTimerWake) -> Option<Message> {
+        None
+    }
+
     /// Drain messages into caller-owned scratch storage.
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
         messages.extend(self.take_runtime_messages());
@@ -46,6 +52,7 @@ pub(crate) struct RuntimeQueueCapability<Bridge, Message> {
     pub drain_runtime_commands_into: fn(&mut Bridge, &mut Vec<Command<Message>>),
     pub drain_runtime_message_batch_into: fn(&mut Bridge, &mut Vec<Message>, usize) -> bool,
     pub take_runtime_timer_wakes: fn(&mut Bridge) -> Vec<RuntimeTimerWake>,
+    pub map_runtime_timer_wake: fn(&mut Bridge, RuntimeTimerWake) -> Option<Message>,
 }
 
 impl<Bridge, Message> RuntimeQueueCapability<Bridge, Message>
@@ -57,6 +64,7 @@ where
             drain_runtime_commands_into: Bridge::drain_runtime_commands_into,
             drain_runtime_message_batch_into: Bridge::drain_runtime_message_batch_into,
             take_runtime_timer_wakes: Bridge::take_runtime_timer_wakes,
+            map_runtime_timer_wake: Bridge::map_runtime_timer_wake,
         }
     }
 }

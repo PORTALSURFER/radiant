@@ -93,9 +93,7 @@ impl<Message> Command<Message> {
     {
         Self::Timer(TimerEffect {
             delay,
-            generation: 0,
-            latest_slot: None,
-            previous_generation: None,
+            transaction: None,
             map: Box::new(move || message),
         })
     }
@@ -103,8 +101,7 @@ impl<Message> Command<Message> {
     pub(crate) fn after_latest(
         delay: Duration,
         ticket: crate::application::TaskTicket,
-        latest_slot: u64,
-        previous_generation: Option<u64>,
+        transaction: crate::application::LatestTimerTransaction,
         map: impl FnOnce(crate::application::TaskTicket) -> Message + 'static,
     ) -> Self
     where
@@ -112,9 +109,7 @@ impl<Message> Command<Message> {
     {
         Self::Timer(TimerEffect {
             delay,
-            generation: ticket.id(),
-            latest_slot: Some(latest_slot),
-            previous_generation,
+            transaction: Some(transaction),
             map: Box::new(move || map(ticket)),
         })
     }

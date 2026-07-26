@@ -21,7 +21,7 @@ where
             Self::Timer(effect) => f
                 .debug_struct("Timer")
                 .field("delay", &effect.delay)
-                .field("generation", &effect.generation)
+                .field("transaction", &effect.transaction.is_some())
                 .finish(),
             Self::Perform { name, priority, .. } => f
                 .debug_struct("Perform")

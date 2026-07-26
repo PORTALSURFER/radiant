@@ -109,6 +109,13 @@ where
         self.take_runtime_timer_wake_queue()
     }
 
+    fn map_runtime_timer_wake(
+        &mut self,
+        wake: crate::runtime::RuntimeTimerWake,
+    ) -> Option<Message> {
+        AppBridge::map_runtime_timer_wake(self, wake)
+    }
+
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
         self.drain_runtime_message_queue_into(messages);
     }

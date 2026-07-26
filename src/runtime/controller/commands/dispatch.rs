@@ -380,6 +380,7 @@ where
             Command::Exit => {
                 self.worker_effects.shutdown();
                 self.timer_effects.shutdown();
+                self.runtime_work.clear_timer_wakes();
                 outcome.exit_requested = true;
                 self.exit_requested = true;
             }

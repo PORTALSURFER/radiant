@@ -45,16 +45,9 @@ impl<Message> UiUpdateContext<Message> {
     ) where
         Message: 'static,
     {
-        let previous_generation = latest.active().map(|ticket| ticket.id());
-        let ticket = latest.begin();
-        let latest_slot = latest.effect_id();
-        self.queue_command(Command::after_latest(
-            delay,
-            ticket,
-            latest_slot,
-            previous_generation,
-            map,
-        ));
+        let transaction = latest.begin_timer_replacement();
+        let ticket = transaction.replacement();
+        self.queue_command(Command::after_latest(delay, ticket, transaction, map));
     }
 
     /// Request runtime exit.

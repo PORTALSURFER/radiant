@@ -171,17 +171,14 @@ where
     pub(super) fn take_runtime_timer_wake_queue(
         &mut self,
     ) -> Vec<crate::runtime::RuntimeTimerWake> {
-        let mut wakes = Vec::new();
-        for wake in self.runtime.take_timer_wakes() {
-            if wake.owner == crate::runtime::RuntimeTimerOwner::Application
-                && let Some(message) = self.timer_registry.map_wake(wake)
-            {
-                let _ = self.runtime.enqueue(message);
-            } else {
-                wakes.push(wake);
-            }
-        }
-        wakes
+        self.runtime.take_timer_wakes()
+    }
+
+    pub(super) fn map_runtime_timer_wake(
+        &mut self,
+        wake: crate::runtime::RuntimeTimerWake,
+    ) -> Option<Message> {
+        self.timer_registry.map_wake(wake)
     }
 
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {

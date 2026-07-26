@@ -1,4 +1,4 @@
-use super::subscription::spawn_subscription_with_registry;
+use super::subscription::{WorkerSubscriptionRegistry, spawn_subscription_with_registry};
 use super::timer::TimerRegistry;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
@@ -24,6 +24,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) runtime: Arc<AppRuntime<Message>>,
     pub(in crate::application) commands: Vec<Command<Message>>,
     pub(in crate::application) timer_registry: TimerRegistry<Message>,
+    pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
@@ -211,6 +212,7 @@ where
             runtime: Arc::new(AppRuntime::default()),
             commands: Vec::new(),
             timer_registry: TimerRegistry::default(),
+            worker_registry: WorkerSubscriptionRegistry::default(),
             lifecycle,
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,
@@ -321,6 +323,7 @@ where
             spawn_subscription_with_registry(
                 Arc::downgrade(&self.runtime),
                 &mut self.timer_registry,
+                &mut self.worker_registry,
                 subscriptions(&mut self.state),
             );
         }

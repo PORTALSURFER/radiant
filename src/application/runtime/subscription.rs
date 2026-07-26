@@ -2,24 +2,35 @@ use super::AppRuntime;
 use super::threading::{runtime_alive, spawn_business_thread};
 use super::timer::{TimerRegistry, min_timer_delay};
 use std::{
+    any::Any,
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
     time::Duration,
+};
+
+mod registry;
+
+pub(crate) use registry::{
+    WorkerSubscriptionDelivery, WorkerSubscriptionIdentity, WorkerSubscriptionRegistry,
 };
 
 const SUBSCRIPTION_CANCEL_POLL: Duration = Duration::from_millis(50);
 
 /// App-level subscription sources evaluated when the native runtime starts.
 ///
-/// Interval ticks are represented by opaque timer wakes until the UI runtime
-/// drains and maps them. The timer lane never constructs or transports an
-/// application message; the interval factory runs on the UI owner.
+/// `WorkerPayload` is an additional exhaustive-enum variant for typed payloads;
+/// existing `worker` construction and behavior remain unchanged.
 pub enum Subscription<Message> {
     /// No subscription.
     None,
     /// Multiple subscriptions.
     Batch(Vec<Subscription<Message>>),
     /// Dispatch messages on a fixed interval.
+    ///
+    /// Interval ticks are represented by opaque timer wakes until the UI
+    /// runtime drains and maps them. The timer lane never constructs or
+    /// transports an application message; the interval factory runs on the
+    /// UI owner.
     Interval {
         /// Human-readable subscription id.
         id: &'static str,
@@ -35,6 +46,40 @@ pub enum Subscription<Message> {
         /// Receiver drained on a background thread.
         receiver: std::sync::mpsc::Receiver<Message>,
     },
+    /// Forward owned payloads from a host-owned receiver and map them on the UI thread.
+    WorkerPayload {
+        /// Human-readable subscription id.
+        id: &'static str,
+        /// Type-erased receiver drained on a background thread.
+        receiver: Box<dyn WorkerSubscriptionReceiver>,
+        /// UI-owned mapper invoked for each delivered payload.
+        mapper: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+    },
+}
+
+/// Type-erased receiver used by [`Subscription::worker_payload`].
+///
+/// Implementations only transport owned `Send` payloads. The mapper supplied to
+/// `worker_payload` is retained separately by the UI-owned application bridge.
+#[doc(hidden)]
+pub trait WorkerSubscriptionReceiver: Send {
+    /// Receive one payload, waiting no longer than `timeout`.
+    fn recv_timeout(&self, timeout: Duration) -> Result<Box<dyn Any + Send>, RecvTimeoutError>;
+}
+
+struct TypedWorkerSubscriptionReceiver<Payload> {
+    receiver: std::sync::mpsc::Receiver<Payload>,
+}
+
+impl<Payload> WorkerSubscriptionReceiver for TypedWorkerSubscriptionReceiver<Payload>
+where
+    Payload: Send + 'static,
+{
+    fn recv_timeout(&self, timeout: Duration) -> Result<Box<dyn Any + Send>, RecvTimeoutError> {
+        self.receiver
+            .recv_timeout(timeout)
+            .map(|payload| Box::new(payload) as Box<dyn Any + Send>)
+    }
 }
 
 impl<Message> Subscription<Message> {
@@ -63,8 +108,8 @@ impl<Message> Subscription<Message> {
     /// Build an interval subscription.
     ///
     /// Each accepted interval wake invokes `message` during the UI runtime's
-    /// drain turn. Only the opaque wake crosses the timer-lane boundary, so the
-    /// factory and resulting application message remain UI-owned.
+    /// drain turn. Only the opaque wake crosses the timer-lane boundary, so
+    /// the factory and resulting application message remain UI-owned.
     pub fn interval(
         id: &'static str,
         every: Duration,
@@ -80,6 +125,27 @@ impl<Message> Subscription<Message> {
     /// Build a worker-message subscription from a receiver.
     pub const fn worker(id: &'static str, receiver: std::sync::mpsc::Receiver<Message>) -> Self {
         Self::Worker { id, receiver }
+    }
+
+    /// Build a worker subscription that transports owned payloads and maps them on the UI thread.
+    pub fn worker_payload<Payload>(
+        id: &'static str,
+        receiver: std::sync::mpsc::Receiver<Payload>,
+        mapper: impl Fn(Payload) -> Message + 'static,
+    ) -> Self
+    where
+        Payload: Send + 'static,
+    {
+        Self::WorkerPayload {
+            id,
+            receiver: Box::new(TypedWorkerSubscriptionReceiver { receiver }),
+            mapper: Box::new(move |payload| {
+                payload
+                    .downcast::<Payload>()
+                    .ok()
+                    .map(|payload| mapper(*payload))
+            }),
+        }
     }
 
     fn append_to_batch(self, subscriptions: &mut Vec<Subscription<Message>>) {
@@ -99,6 +165,7 @@ impl<Message> Subscription<Message> {
 pub(super) fn spawn_subscription_with_registry<Message>(
     runtime: Weak<AppRuntime<Message>>,
     timers: &mut TimerRegistry<Message>,
+    workers: &mut WorkerSubscriptionRegistry<Message>,
     subscription: Subscription<Message>,
 ) where
     Message: Send + 'static,
@@ -107,7 +174,7 @@ pub(super) fn spawn_subscription_with_registry<Message>(
         Subscription::None => {}
         Subscription::Batch(subscriptions) => {
             for subscription in subscriptions {
-                spawn_subscription_with_registry(runtime.clone(), timers, subscription);
+                spawn_subscription_with_registry(runtime.clone(), timers, workers, subscription);
             }
         }
         Subscription::Interval { id, every, message } => {
@@ -122,38 +189,79 @@ pub(super) fn spawn_subscription_with_registry<Message>(
             }
         }
         Subscription::Worker { id, receiver } => {
-            spawn_business_thread(format!("worker-subscription-{id}"), move || {
-                while let WorkerSubscriptionEvent::Message(message) =
-                    receive_worker_message(&runtime, &receiver)
-                {
-                    let Some(runtime) = runtime.upgrade() else {
-                        break;
-                    };
-                    if !runtime.enqueue(message) {
-                        break;
-                    }
-                }
+            let mapper = Box::new(|payload: Box<dyn Any + Send>| {
+                payload.downcast::<Message>().ok().map(|payload| *payload)
             });
+            spawn_worker_subscription(
+                runtime,
+                workers,
+                id,
+                Box::new(TypedWorkerSubscriptionReceiver { receiver }),
+                mapper,
+            );
+        }
+        Subscription::WorkerPayload {
+            id,
+            receiver,
+            mapper,
+        } => {
+            spawn_worker_subscription(runtime, workers, id, receiver, mapper);
         }
     }
 }
 
-enum WorkerSubscriptionEvent<Message> {
-    Message(Message),
+fn spawn_worker_subscription<Message>(
+    runtime: Weak<AppRuntime<Message>>,
+    workers: &mut WorkerSubscriptionRegistry<Message>,
+    id: &'static str,
+    receiver: Box<dyn WorkerSubscriptionReceiver>,
+    mapper: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+) where
+    Message: Send + 'static,
+{
+    let identity = workers.register(mapper);
+    let worker_identity = identity;
+    if !spawn_business_thread(format!("worker-subscription-{id}"), move || {
+        loop {
+            match receive_worker_payload(&runtime, receiver.as_ref()) {
+                WorkerSubscriptionEvent::Payload(payload) => {
+                    let Some(runtime) = runtime.upgrade() else {
+                        break;
+                    };
+                    if !runtime.enqueue_worker_payload(worker_identity, payload) {
+                        break;
+                    }
+                }
+                WorkerSubscriptionEvent::Disconnected => {
+                    if let Some(runtime) = runtime.upgrade() {
+                        let _ = runtime.enqueue_worker_disconnect(worker_identity);
+                    }
+                    break;
+                }
+                WorkerSubscriptionEvent::Stopped => break,
+            }
+        }
+    }) {
+        workers.remove(identity);
+    }
+}
+
+enum WorkerSubscriptionEvent {
+    Payload(Box<dyn Any + Send>),
     Disconnected,
     Stopped,
 }
 
-fn receive_worker_message<Message>(
+fn receive_worker_payload<Message>(
     runtime: &Weak<AppRuntime<Message>>,
-    receiver: &std::sync::mpsc::Receiver<Message>,
-) -> WorkerSubscriptionEvent<Message> {
+    receiver: &dyn WorkerSubscriptionReceiver,
+) -> WorkerSubscriptionEvent {
     loop {
         if !runtime_alive(runtime) {
             return WorkerSubscriptionEvent::Stopped;
         }
         match receiver.recv_timeout(SUBSCRIPTION_CANCEL_POLL) {
-            Ok(message) => return WorkerSubscriptionEvent::Message(message),
+            Ok(payload) => return WorkerSubscriptionEvent::Payload(payload),
             Err(RecvTimeoutError::Disconnected) => return WorkerSubscriptionEvent::Disconnected,
             Err(RecvTimeoutError::Timeout) => {}
         }

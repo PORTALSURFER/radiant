@@ -5,15 +5,13 @@ use crate::widgets::interaction::InteractiveRowMessage;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build an interactive-row message mapper.
-    pub fn interactive_row(
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
+    pub fn interactive_row(map: impl Fn(InteractiveRowMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 
     /// Build an interactive-row message mapper that can ignore selected row events.
     pub fn interactive_row_filtered(
-        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + 'static,
     ) -> Self {
         Self::dynamic(move |output| {
             output

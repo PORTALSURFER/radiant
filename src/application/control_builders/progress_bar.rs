@@ -74,7 +74,7 @@ impl ProgressBarBuilder {
     /// Emit a mapped host message when this progress bar emits output.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(ProgressBarMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ProgressBarMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let (progress, style) = self.into_widget_and_style();
         view_node_with_style(

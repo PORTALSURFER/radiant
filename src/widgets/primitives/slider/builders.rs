@@ -8,7 +8,7 @@ use super::SliderWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a slider-message mapper.
-    pub fn slider(map: impl Fn(SliderMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn slider(map: impl Fn(SliderMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -19,7 +19,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         value: f32,
         sizing: WidgetSizing,
-        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+        map: impl Fn(f32) -> Message + 'static,
     ) -> Self {
         Self::slider_mapped(id, value, sizing, move |message| match message {
             SliderMessage::ValueChanged { value } => map(value),
@@ -31,7 +31,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         value: f32,
         sizing: WidgetSizing,
-        map: impl Fn(SliderMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(SliderMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             SliderWidget::new(id, value, sizing),

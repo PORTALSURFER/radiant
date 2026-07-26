@@ -107,7 +107,21 @@ impl<Message> SurfaceContainer<Message> {
     }
 
     /// Return this container with a scroll movement message mapper.
-    pub fn with_scroll_message(mut self, message: ScrollMessageMapper<Message>) -> Self {
+    pub fn with_scroll_message(
+        mut self,
+        message: std::sync::Arc<
+            dyn Fn(crate::runtime::ScrollUpdate) -> Option<Message> + Send + Sync,
+        >,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        self.scroll_message = Some(std::rc::Rc::new(move |update| message(update)));
+        self
+    }
+
+    /// Return this container with a UI-local scroll movement message mapper.
+    pub fn with_scroll_message_local(mut self, message: ScrollMessageMapper<Message>) -> Self {
         self.scroll_message = Some(message);
         self
     }

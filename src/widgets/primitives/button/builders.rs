@@ -8,14 +8,14 @@ use super::ButtonWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a button-message mapper.
-    pub fn button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn button(map: impl Fn(ButtonMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 
     /// Build an allocation-free button activation binding.
     pub(crate) fn button_message(message: Message) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self::constant(message, |output| {
             output.typed_ref::<ButtonMessage>().is_some()
@@ -32,7 +32,7 @@ impl<Message> SurfaceNode<Message> {
         message: Message,
     ) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self::widget(
             ButtonWidget::new(id, PaintText::from(label.into()), sizing),
@@ -45,7 +45,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         label: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ButtonMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             ButtonWidget::new(id, PaintText::from(label.into()), sizing),

@@ -22,7 +22,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// Emit mapped host messages for row interactions.
     pub fn mapped(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.finish(WidgetMessageMapper::interactive_row(map))
     }
@@ -30,7 +30,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// Emit host messages for selected row interactions.
     pub fn filter_mapped(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + 'static,
     ) -> ViewNode<Message> {
         self.finish(WidgetMessageMapper::interactive_row_filtered(map))
     }

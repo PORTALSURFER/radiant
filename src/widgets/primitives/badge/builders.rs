@@ -8,14 +8,14 @@ use super::BadgeWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a badge-message mapper.
-    pub fn badge(map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn badge(map: impl Fn(BadgeMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 
     /// Build an allocation-free badge activation binding.
     pub(crate) fn badge_message(message: Message) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self::constant(message, |output| {
             matches!(
@@ -35,7 +35,7 @@ impl<Message> SurfaceNode<Message> {
         message: Message,
     ) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self::widget(
             BadgeWidget::new(id, PaintText::from(label.into()), sizing),
@@ -48,7 +48,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         label: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(BadgeMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             BadgeWidget::new(id, PaintText::from(label.into()), sizing),

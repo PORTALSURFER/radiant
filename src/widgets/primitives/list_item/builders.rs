@@ -8,7 +8,7 @@ use super::ListItemWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a list-item-message mapper.
-    pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn list_item(map: impl Fn(ListItemMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -31,7 +31,7 @@ impl<Message> SurfaceNode<Message> {
         message: Message,
     ) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self::list_item_mapped(id, label, sizing, move |_| message.clone())
     }
@@ -41,7 +41,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         label: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ListItemMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             ListItemWidget::new(id, PaintText::from(label.into()), sizing),

@@ -13,9 +13,9 @@ pub fn widget<Message>(widget: impl WidgetView<Message> + 'static) -> ViewNode<M
 /// Build a custom widget view with generated identity and an output mapper.
 pub fn custom_widget<Message: 'static>(
     widget: impl Widget + Clone + 'static,
-    map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
+    map: impl Fn(WidgetOutput) -> Option<Message> + 'static,
 ) -> ViewNode<Message> {
-    view_node_from_widget(DynamicWidget::new(widget, map))
+    view_node_from_widget(DynamicWidget::new_local(widget, map))
 }
 
 /// Build a custom widget view with a typed output mapper.
@@ -27,7 +27,7 @@ pub fn custom_widget<Message: 'static>(
 /// message.
 pub fn custom_widget_mapped<Output, Message>(
     widget: impl Widget + Clone + 'static,
-    map: impl Fn(Output) -> Message + Send + Sync + 'static,
+    map: impl Fn(Output) -> Message + 'static,
 ) -> ViewNode<Message>
 where
     Output: Clone + Send + Sync + 'static,

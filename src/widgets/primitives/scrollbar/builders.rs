@@ -10,7 +10,7 @@ use super::{ScrollbarAxis, ScrollbarWidget};
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a scrollbar-message mapper.
-    pub fn scrollbar(map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn scrollbar(map: impl Fn(ScrollbarMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -21,7 +21,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         axis: ScrollbarAxis,
         sizing: WidgetSizing,
-        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+        map: impl Fn(f32) -> Message + 'static,
     ) -> Self {
         Self::scrollbar_mapped(id, axis, sizing, move |message| match message {
             ScrollbarMessage::OffsetChanged { offset_fraction } => map(offset_fraction),
@@ -33,7 +33,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         axis: ScrollbarAxis,
         sizing: WidgetSizing,
-        map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ScrollbarMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             ScrollbarWidget::new(id, axis, sizing),

@@ -8,6 +8,7 @@ use crate::layout::{SizeModeCross, SizeModeMain};
 use crate::runtime::{
     NativeFrameDiagnostics, RepaintScope, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
+use std::rc::Rc;
 
 #[derive(Default)]
 pub(in super::super) struct CanvasBridge {
@@ -177,7 +178,7 @@ impl RuntimeBridge<String> for ScrollRefreshBridge {
                         .collect(),
                 ),
             )
-            .with_scroll_message(Arc::new(|_| Some(String::from("scroll")))),
+            .with_scroll_message_local(Rc::new(|_| Some(String::from("scroll")))),
         ))
     }
 

@@ -4,9 +4,10 @@ use crate::{
     runtime::{NativeFileDrop, ScrollUpdate},
     widgets::WidgetOutput,
 };
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-type DynamicOutputMapper<Message> = Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>;
+type DynamicOutputMapper<Message> = Rc<dyn Fn(WidgetOutput) -> Option<Message>>;
 
 enum OutputMapper<Message> {
     Dynamic(DynamicOutputMapper<Message>),
@@ -15,7 +16,7 @@ enum OutputMapper<Message> {
 
 /// Constant binding that stays inline until it must be shared by a clone.
 struct ConstantOutputMapper<Message> {
-    message: Mutex<ConstantMessage<Message>>,
+    message: RefCell<ConstantMessage<Message>>,
     matches: fn(&WidgetOutput) -> bool,
     clone_message: fn(&Message) -> Message,
 }
@@ -25,26 +26,15 @@ enum ConstantMessage<Message> {
     /// Message owned inline by a freshly projected mapper.
     Inline(Message),
     /// Message shared after the mapper or its enclosing surface is cloned.
-    Shared(Arc<Message>),
-    /// Temporary sentinel used only while moving storage under the mutex.
-    Transitioning,
+    Shared(Rc<Message>),
+    /// Temporary sentinel used while moving storage out of the cell.
+    Empty,
 }
-
-// SAFETY: Dynamic mappers store only a `Send + Sync` callback and do not retain
-// a `Message`. The sole constructor for the constant variant requires `Message`
-// to be `Send + Sync`, so every value actually retained by that variant is safe
-// to move and share with the mapper. Keeping this invariant here preserves
-// dynamic mappers for host message types that do not themselves need to be
-// `Send + Sync`.
-unsafe impl<Message> Send for OutputMapper<Message> {}
-// SAFETY: See the `Send` implementation above; both auto-trait guarantees are
-// enforced by the private variant and its bounded constructor.
-unsafe impl<Message> Sync for OutputMapper<Message> {}
 
 impl<Message> Clone for OutputMapper<Message> {
     fn clone(&self) -> Self {
         match self {
-            Self::Dynamic(map) => Self::Dynamic(Arc::clone(map)),
+            Self::Dynamic(map) => Self::Dynamic(Rc::clone(map)),
             Self::Constant(map) => Self::Constant(map.clone()),
         }
     }
@@ -52,11 +42,9 @@ impl<Message> Clone for OutputMapper<Message> {
 
 impl<Message> Clone for ConstantOutputMapper<Message> {
     fn clone(&self) -> Self {
-        let cloned = self
-            .shared_message()
-            .map_or(ConstantMessage::Transitioning, ConstantMessage::Shared);
+        let cloned = ConstantMessage::Shared(self.shared_message());
         Self {
-            message: Mutex::new(cloned),
+            message: RefCell::new(cloned),
             matches: self.matches,
             clone_message: self.clone_message,
         }
@@ -64,22 +52,22 @@ impl<Message> Clone for ConstantOutputMapper<Message> {
 }
 
 impl<Message> ConstantOutputMapper<Message> {
-    fn shared_message(&self) -> Option<Arc<Message>> {
-        let mut message = lock_constant_message(&self.message);
-        let current = std::mem::replace(&mut *message, ConstantMessage::Transitioning);
+    fn shared_message(&self) -> Rc<Message> {
+        let mut message = self.message.borrow_mut();
+        let current = std::mem::replace(&mut *message, ConstantMessage::Empty);
         match current {
             ConstantMessage::Inline(current) => {
-                let current = Arc::new(current);
-                let shared = Arc::clone(&current);
+                let current = Rc::new(current);
+                let shared = Rc::clone(&current);
                 *message = ConstantMessage::Shared(current);
-                Some(shared)
+                shared
             }
             ConstantMessage::Shared(current) => {
-                let shared = Arc::clone(&current);
+                let shared = Rc::clone(&current);
                 *message = ConstantMessage::Shared(current);
-                Some(shared)
+                shared
             }
-            ConstantMessage::Transitioning => None,
+            ConstantMessage::Empty => unreachable!("constant mapper storage is not reentrant"),
         }
     }
 
@@ -87,30 +75,24 @@ impl<Message> ConstantOutputMapper<Message> {
         if !(self.matches)(output) {
             return None;
         }
-        let message = self.shared_message()?;
+        let message = self.shared_message();
         Some((self.clone_message)(message.as_ref()))
     }
 }
 
-fn lock_constant_message<Message>(
-    message: &Mutex<ConstantMessage<Message>>,
-) -> MutexGuard<'_, ConstantMessage<Message>> {
-    match message.lock() {
-        Ok(message) => message,
-        Err(poisoned) => poisoned.into_inner(),
-    }
-}
+/// UI-local mapper type that turns widget-specific payloads into host-defined messages.
+///
+/// Mappers are invoked and dropped on the UI runtime; they are not `Send` or `Sync`.
+pub type MessageMapper<Input, Message> = Rc<dyn Fn(Input) -> Message>;
 
-/// Shared mapper type that turns widget-specific payloads into host-defined messages.
-pub type MessageMapper<Input, Message> = Arc<dyn Fn(Input) -> Message + Send + Sync>;
-
-/// Shared mapper type that turns scroll movement into optional host-defined messages.
+/// UI-local mapper type that turns scroll movement into optional host-defined messages.
 ///
 /// Scroll containers may update local runtime offset for sub-row or otherwise
 /// unchanged movement without asking the host to reproject the surface.
-pub type ScrollMessageMapper<Message> = Arc<dyn Fn(ScrollUpdate) -> Option<Message> + Send + Sync>;
+/// The mapper remains owned by the UI runtime and is not `Send` or `Sync`.
+pub type ScrollMessageMapper<Message> = Rc<dyn Fn(ScrollUpdate) -> Option<Message>>;
 
-/// Shared mapper type that turns native file-drop events into host-defined messages.
+/// UI-local mapper type that turns native file-drop events into host-defined messages.
 pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Message>;
 
 /// Message bindings that turn widget output payloads into host-defined messages.
@@ -124,7 +106,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
-            native_file_drop: self.native_file_drop.as_ref().map(Arc::clone),
+            native_file_drop: self.native_file_drop.as_ref().map(Rc::clone),
         }
     }
 }
@@ -139,7 +121,7 @@ impl<Message> WidgetMessageMapper<Message> {
     }
 
     /// Build a mapper for any typed widget output payload.
-    pub fn typed<Output>(map: impl Fn(Output) -> Message + Send + Sync + 'static) -> Self
+    pub fn typed<Output>(map: impl Fn(Output) -> Message + 'static) -> Self
     where
         Output: Clone + Send + Sync + 'static,
     {
@@ -152,11 +134,11 @@ impl<Message> WidgetMessageMapper<Message> {
     /// pointer alongside the message instead of allocating a dynamic callback.
     pub(crate) fn constant(message: Message, matches: fn(&WidgetOutput) -> bool) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         Self {
             map: Some(OutputMapper::Constant(ConstantOutputMapper {
-                message: Mutex::new(ConstantMessage::Inline(message)),
+                message: RefCell::new(ConstantMessage::Inline(message)),
                 matches,
                 clone_message: Message::clone,
             })),
@@ -165,9 +147,9 @@ impl<Message> WidgetMessageMapper<Message> {
     }
 
     /// Build a dynamic output mapper for custom widgets.
-    pub fn dynamic(map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static) -> Self {
+    pub fn dynamic(map: impl Fn(WidgetOutput) -> Option<Message> + 'static) -> Self {
         Self {
-            map: Some(OutputMapper::Dynamic(Arc::new(map))),
+            map: Some(OutputMapper::Dynamic(Rc::new(map))),
             native_file_drop: None,
         }
     }
@@ -175,9 +157,9 @@ impl<Message> WidgetMessageMapper<Message> {
     /// Return this mapper with native file-drop events mapped to host messages.
     pub fn with_native_file_drop(
         mut self,
-        map: impl Fn(NativeFileDrop) -> Message + Send + Sync + 'static,
+        map: impl Fn(NativeFileDrop) -> Message + 'static,
     ) -> Self {
-        self.native_file_drop = Some(Arc::new(map));
+        self.native_file_drop = Some(Rc::new(map));
         self
     }
 
@@ -205,6 +187,7 @@ impl<Message> WidgetMessageMapper<Message> {
 mod tests {
     use super::*;
     use crate::widgets::{ButtonMessage, TextInputMessage};
+    use std::cell::RefCell;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -323,5 +306,64 @@ mod tests {
             })),
             None
         );
+    }
+
+    #[test]
+    fn dynamic_mapper_keeps_ui_local_capture_and_drops_on_ui_runtime() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let captured = Rc::clone(&calls);
+        let mapper = WidgetMessageMapper::dynamic(move |_| {
+            *captured.borrow_mut() += 1;
+            Some(Rc::new(RefCell::new(())))
+        });
+        let clone = mapper.clone();
+
+        assert!(
+            mapper
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert!(
+            clone
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert_eq!(*calls.borrow(), 2);
+
+        drop(clone);
+        drop(mapper);
+        assert_eq!(Rc::strong_count(&calls), 1);
+    }
+
+    #[test]
+    fn dynamic_mapper_invokes_and_drops_ui_local_capture() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let dropped = Rc::new(RefCell::new(false));
+        let probe = UiDropProbe(Rc::clone(&dropped));
+        let calls_for_mapper = Rc::clone(&calls);
+        let mapper = WidgetMessageMapper::dynamic(move |_| {
+            let _probe = &probe;
+            *calls_for_mapper.borrow_mut() += 1;
+            Some(())
+        });
+
+        assert_eq!(
+            mapper.map_output(WidgetOutput::typed(ButtonMessage::Activate)),
+            Some(())
+        );
+        assert_eq!(*calls.borrow(), 1);
+        drop(mapper);
+        assert!(
+            *dropped.borrow(),
+            "local mapper capture should drop on the UI runtime"
+        );
+    }
+
+    struct UiDropProbe(Rc<RefCell<bool>>);
+
+    impl Drop for UiDropProbe {
+        fn drop(&mut self) {
+            *self.0.borrow_mut() = true;
+        }
     }
 }

@@ -34,7 +34,7 @@ impl ScrollbarBuilder {
     /// Emit a host message mapped from the normalized scrollbar offset.
     pub fn message<Message: 'static>(
         self,
-        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+        map: impl Fn(f32) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.mapped(move |message| match message {
             ScrollbarMessage::OffsetChanged { offset_fraction } => map(offset_fraction),
@@ -44,7 +44,7 @@ impl ScrollbarBuilder {
     /// Emit a host message mapped from scrollbar messages.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ScrollbarMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let size = match self.axis {
             ScrollbarAxis::Horizontal => crate::layout::Vector2::new(120.0, 6.0),

@@ -1,6 +1,6 @@
 use super::super::{
     SurfaceChild, SurfaceContainer, SurfaceLayer, SurfaceNode, SurfaceScene,
-    node::SurfaceContainerParts, widget::ScrollMessageMapper,
+    node::SurfaceContainerParts,
 };
 use crate::{
     layout::{
@@ -70,7 +70,26 @@ impl<Message> SurfaceNode<Message> {
     }
 
     /// Return this node with a scroll movement message mapper when it is a container.
-    pub fn with_scroll_message(mut self, message: ScrollMessageMapper<Message>) -> Self {
+    pub fn with_scroll_message(
+        mut self,
+        message: std::sync::Arc<
+            dyn Fn(crate::runtime::ScrollUpdate) -> Option<Message> + Send + Sync,
+        >,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        if let Self::Container(container) = &mut self {
+            container.scroll_message = Some(std::rc::Rc::new(move |update| message(update)));
+        }
+        self
+    }
+
+    /// Return this node with a UI-local scroll movement message mapper.
+    pub fn with_scroll_message_local(
+        mut self,
+        message: crate::runtime::ScrollMessageMapper<Message>,
+    ) -> Self {
         if let Self::Container(container) = &mut self {
             container.scroll_message = Some(message);
         }

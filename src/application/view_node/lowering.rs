@@ -57,7 +57,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 let mut container =
                     lowering.lower_container(id, policy, style, hoverable, children);
                 if let Some(scroll_message) = scroll_message.clone() {
-                    container = container.with_scroll_message(scroll_message);
+                    container = container.with_scroll_message_local(scroll_message);
                 }
                 container
             };

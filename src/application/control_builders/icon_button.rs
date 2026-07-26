@@ -107,7 +107,7 @@ impl IconButtonBuilder {
     /// Emit a mapped host message when activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ButtonMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let (widget, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(

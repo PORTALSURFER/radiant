@@ -78,7 +78,7 @@ impl SelectableBuilder {
     /// Emit a host message mapped from selected state.
     pub fn message<Message: 'static>(
         self,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+        map: impl Fn(bool) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.mapped(move |message| match message {
             SelectableMessage::SelectionChanged { selected } => map(selected),
@@ -88,7 +88,7 @@ impl SelectableBuilder {
     /// Emit a mapped host message when selection changes.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(SelectableMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let SelectableBuilder {
             label,
@@ -135,7 +135,7 @@ pub fn selectable(label: impl Into<TextContent>, selected: bool) -> SelectableBu
 pub fn selectable_mapped<Message: 'static>(
     label: impl Into<TextContent>,
     selected: bool,
-    map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    map: impl Fn(bool) -> Message + 'static,
 ) -> ViewNode<Message> {
     selectable(label, selected).message(map)
 }

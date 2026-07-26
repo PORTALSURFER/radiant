@@ -228,7 +228,7 @@ impl InteractiveBadgeBuilder {
     /// Emit mapped host messages for badge interactions.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let Self { badge, row } = self;
         input_overlay(badge.passive_view(), row.mapped(map))
@@ -237,7 +237,7 @@ impl InteractiveBadgeBuilder {
     /// Emit host messages for selected badge interactions.
     pub fn filter_mapped<Message: 'static>(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + 'static,
     ) -> ViewNode<Message> {
         let Self { badge, row } = self;
         input_overlay(badge.passive_view(), row.filter_mapped(map))

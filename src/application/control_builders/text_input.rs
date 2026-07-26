@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::{
     application::{
@@ -87,12 +87,12 @@ impl TextInputBuilder {
     /// Add a reserved trailing clear-button slot that emits a mapped host message.
     pub fn clear_button_mapped<Message: 'static>(
         self,
-        map: impl Fn() -> Message + Send + Sync + 'static,
+        map: impl Fn() -> Message + 'static,
     ) -> TextInputWithClearButtonBuilder<Message> {
         let clear_visible = !self.value.is_empty();
         TextInputWithClearButtonBuilder {
             input: self,
-            clear_message: Arc::new(map),
+            clear_message: Rc::new(map),
             clear_visible,
             input_id: None,
             clear_button_id: None,
@@ -107,7 +107,7 @@ impl TextInputBuilder {
     /// Emit a host message mapped from the input value.
     pub fn message<Message: 'static>(
         self,
-        map: impl Fn(String) -> Message + Send + Sync + 'static,
+        map: impl Fn(String) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.message_event(move |message| map(message.into_value()))
     }
@@ -115,7 +115,7 @@ impl TextInputBuilder {
     /// Emit a host message mapped from the full text-input event.
     pub fn message_event<Message: 'static>(
         self,
-        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(TextInputMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let (input, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(
@@ -154,7 +154,7 @@ impl TextInputBuilder {
 /// behavior.
 pub struct TextInputWithClearButtonBuilder<Message> {
     input: TextInputBuilder,
-    clear_message: Arc<dyn Fn() -> Message + Send + Sync>,
+    clear_message: Rc<dyn Fn() -> Message>,
     clear_visible: bool,
     input_id: Option<WidgetId>,
     clear_button_id: Option<WidgetId>,
@@ -233,17 +233,14 @@ impl<Message> TextInputWithClearButtonBuilder<Message> {
 
 impl<Message: 'static> TextInputWithClearButtonBuilder<Message> {
     /// Emit a host message mapped from the input value.
-    pub fn message(
-        self,
-        map: impl Fn(String) -> Message + Send + Sync + 'static,
-    ) -> ViewNode<Message> {
+    pub fn message(self, map: impl Fn(String) -> Message + 'static) -> ViewNode<Message> {
         self.message_event(move |message| map(message.into_value()))
     }
 
     /// Emit a host message mapped from the full text-input event.
     pub fn message_event(
         self,
-        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(TextInputMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let Self {
             input,
@@ -269,7 +266,7 @@ impl<Message: 'static> TextInputWithClearButtonBuilder<Message> {
         let clear = fixed_slot_if(
             clear_visible,
             || {
-                let clear_message = Arc::clone(&clear_message);
+                let clear_message = Rc::clone(&clear_message);
                 let mut clear = close_button().subtle().mapped(move |_| clear_message());
                 if let Some(id) = clear_button_id {
                     clear = clear.id(id);
@@ -305,7 +302,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
 /// Build a single-line text input that maps edits and submissions by value.
 pub fn text_input_mapped<Message: 'static>(
     value: impl Into<String>,
-    map: impl Fn(String) -> Message + Send + Sync + 'static,
+    map: impl Fn(String) -> Message + 'static,
 ) -> ViewNode<Message> {
     text_input(value).message(map)
 }

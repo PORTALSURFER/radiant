@@ -7,11 +7,8 @@ impl<Message> ViewNode<Message> {
     /// This is intended for declarative scroll-driven views such as fixed-row
     /// virtual lists whose app state owns the logical window while Radiant owns
     /// the runtime scroll container and pixel offset.
-    pub fn on_scroll_update(
-        mut self,
-        message: impl Fn(ScrollUpdate) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        self.scroll_message = Some(std::sync::Arc::new(move |update| Some(message(update))));
+    pub fn on_scroll_update(mut self, message: impl Fn(ScrollUpdate) -> Message + 'static) -> Self {
+        self.scroll_message = Some(std::rc::Rc::new(move |update| Some(message(update))));
         self
     }
 
@@ -21,9 +18,9 @@ impl<Message> ViewNode<Message> {
     /// offset without host reprojection until the logical scroll window changes.
     pub fn on_scroll_update_opt(
         mut self,
-        message: impl Fn(ScrollUpdate) -> Option<Message> + Send + Sync + 'static,
+        message: impl Fn(ScrollUpdate) -> Option<Message> + 'static,
     ) -> Self {
-        self.scroll_message = Some(std::sync::Arc::new(message));
+        self.scroll_message = Some(std::rc::Rc::new(message));
         self
     }
 }

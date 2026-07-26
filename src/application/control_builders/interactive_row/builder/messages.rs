@@ -10,7 +10,7 @@ impl InteractiveRowBuilder {
     /// Emit mapped host messages for row interactions.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.with_message_mapper(WidgetMessageMapper::interactive_row(map))
     }
@@ -18,7 +18,7 @@ impl InteractiveRowBuilder {
     /// Emit host messages for selected row interactions.
     pub fn filter_mapped<Message: 'static>(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + 'static,
     ) -> ViewNode<Message> {
         self.with_message_mapper(WidgetMessageMapper::interactive_row_filtered(map))
     }

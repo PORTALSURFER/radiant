@@ -8,7 +8,7 @@ use super::DragHandleWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a drag-handle-message mapper.
-    pub fn drag_handle(map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn drag_handle(map: impl Fn(DragHandleMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -18,7 +18,7 @@ impl<Message> SurfaceNode<Message> {
     pub fn drag_handle_mapped(
         id: WidgetId,
         sizing: WidgetSizing,
-        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             DragHandleWidget::new(id, sizing),

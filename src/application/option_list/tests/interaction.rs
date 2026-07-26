@@ -44,6 +44,8 @@ fn compact_option_list_activation_maps_clicked_row_index() {
 
     assert_eq!(runtime.bridge().state(), &[1]);
     assert_eq!(*calls.borrow(), 1);
+    drop(runtime);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }
 
 #[test]
@@ -85,6 +87,8 @@ fn compact_option_list_interaction_maps_hovered_row_index() {
 
     assert_eq!(runtime.bridge().state(), &[1]);
     assert_eq!(*calls.borrow(), 1);
+    drop(runtime);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }
 
 #[test]

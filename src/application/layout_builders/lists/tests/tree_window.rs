@@ -133,4 +133,6 @@ fn virtual_tree_list_window_mapper_accepts_ui_local_capture_on_scroll() {
     ));
     assert_eq!(*calls.borrow(), 1);
     assert_eq!(runtime.bridge().state().len(), 1);
+    drop(runtime);
+    assert_eq!(Rc::strong_count(&calls), 1);
 }

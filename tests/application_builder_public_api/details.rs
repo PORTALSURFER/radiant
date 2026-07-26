@@ -288,14 +288,18 @@ fn compact_details_header_accepts_ui_local_resize_mapper() {
     use radiant::{application as ui, prelude::IntoView, widgets::DragHandleMessage};
 
     let calls = Rc::new(RefCell::new(0usize));
-    let calls_for_mapper = Rc::clone(&calls);
+    let drag_calls = Rc::clone(&calls);
+    let resize_calls = Rc::clone(&calls);
     let surface: UiSurface<DemoMessage> = ui::compact_resizable_details_header_cell(
         "Name",
         120.0,
         DemoMessage::Increment,
-        |_| DemoMessage::Increment,
         move |_| {
-            *calls_for_mapper.borrow_mut() += 1;
+            *drag_calls.borrow_mut() += 1;
+            DemoMessage::Increment
+        },
+        move |_| {
+            *resize_calls.borrow_mut() += 1;
             DemoMessage::Increment
         },
     )
@@ -305,6 +309,15 @@ fn compact_details_header_accepts_ui_local_resize_mapper() {
 
     assert_eq!(
         surface.dispatch_widget_output(
+            ui::compact_details_header_sort_drag_id(1),
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Drag(
+                DragHandleMessage::started(Point::new(60.0, 10.0)),
+            )),
+        ),
+        Some(DemoMessage::Increment)
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
             resize_id,
             radiant::widgets::WidgetOutput::typed(DragHandleMessage::started(Point::new(
                 120.0, 10.0
@@ -312,7 +325,7 @@ fn compact_details_header_accepts_ui_local_resize_mapper() {
         ),
         Some(DemoMessage::Increment)
     );
-    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(*calls.borrow(), 2);
     drop(surface);
     assert_eq!(Rc::strong_count(&calls), 1);
 }

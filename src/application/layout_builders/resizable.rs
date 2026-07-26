@@ -114,7 +114,10 @@ mod tests {
     use crate::{
         application::{IntoView, resizable, text},
         layout::{ContainerKind, LayoutNode},
+        runtime::UiSurface,
+        widgets::{DragHandleMessage, DragHandleWidget, WidgetOutput},
     };
+    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn resizable_wraps_content_and_resize_handle_in_a_row() {
@@ -143,5 +146,70 @@ mod tests {
         };
         assert_eq!(container.policy.kind, ContainerKind::Row);
         assert_eq!(container.children.len(), 2);
+    }
+
+    #[test]
+    fn resizable_builder_mapper_invokes_and_drops_ui_local_capture() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let calls_for_mapper = Rc::clone(&calls);
+        let surface = resizable(text("Sidebar"))
+            .resize_handle(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+            })
+            .into_surface();
+        let handle_id = find_drag_handle_id(&surface, &surface.layout_node())
+            .expect("resizable layout should include a drag handle");
+
+        assert_eq!(
+            surface.dispatch_widget_output(
+                handle_id,
+                WidgetOutput::typed(DragHandleMessage::started(crate::gui::types::Point::new(
+                    120.0, 10.0
+                ),)),
+            ),
+            Some(())
+        );
+        assert_eq!(*calls.borrow(), 1);
+        drop(surface);
+        assert_eq!(Rc::strong_count(&calls), 1);
+    }
+
+    #[test]
+    fn subtle_resizable_builder_mapper_invokes_and_drops_ui_local_capture() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let calls_for_mapper = Rc::clone(&calls);
+        let surface = resizable(text("Sidebar"))
+            .subtle_resize_handle("sidebar-handle", move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+            })
+            .into_surface();
+        let handle_id = find_drag_handle_id(&surface, &surface.layout_node())
+            .expect("subtle resizable layout should include a drag handle");
+
+        assert_eq!(
+            surface.dispatch_widget_output(
+                handle_id,
+                WidgetOutput::typed(DragHandleMessage::started(crate::gui::types::Point::new(
+                    120.0, 10.0
+                ),)),
+            ),
+            Some(())
+        );
+        assert_eq!(*calls.borrow(), 1);
+        drop(surface);
+        assert_eq!(Rc::strong_count(&calls), 1);
+    }
+
+    fn find_drag_handle_id(surface: &UiSurface<()>, node: &LayoutNode) -> Option<u64> {
+        match node {
+            LayoutNode::Widget(widget) => surface
+                .find_widget(widget.id)
+                .filter(|widget| widget.widget().as_any().is::<DragHandleWidget>())
+                .map(|_| widget.id),
+            LayoutNode::Container(container) => container
+                .children
+                .iter()
+                .find_map(|child| find_drag_handle_id(surface, &child.child)),
+        }
     }
 }

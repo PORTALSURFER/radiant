@@ -15,7 +15,7 @@ pub fn custom_widget<Message: 'static>(
     widget: impl Widget + Clone + 'static,
     map: impl Fn(WidgetOutput) -> Option<Message> + 'static,
 ) -> ViewNode<Message> {
-    view_node_from_widget(DynamicWidget::new(widget, map))
+    view_node_from_widget(DynamicWidget::new_local(widget, map))
 }
 
 /// Build a custom widget view with a typed output mapper.

@@ -334,4 +334,36 @@ mod tests {
         drop(mapper);
         assert_eq!(Rc::strong_count(&calls), 1);
     }
+
+    #[test]
+    fn dynamic_mapper_invokes_and_drops_ui_local_capture() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let dropped = Rc::new(RefCell::new(false));
+        let probe = UiDropProbe(Rc::clone(&dropped));
+        let calls_for_mapper = Rc::clone(&calls);
+        let mapper = WidgetMessageMapper::dynamic(move |_| {
+            let _probe = &probe;
+            *calls_for_mapper.borrow_mut() += 1;
+            Some(())
+        });
+
+        assert_eq!(
+            mapper.map_output(WidgetOutput::typed(ButtonMessage::Activate)),
+            Some(())
+        );
+        assert_eq!(*calls.borrow(), 1);
+        drop(mapper);
+        assert!(
+            *dropped.borrow(),
+            "local mapper capture should drop on the UI runtime"
+        );
+    }
+
+    struct UiDropProbe(Rc<RefCell<bool>>);
+
+    impl Drop for UiDropProbe {
+        fn drop(&mut self) {
+            *self.0.borrow_mut() = true;
+        }
+    }
 }

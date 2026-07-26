@@ -100,7 +100,8 @@ pub use runtime::{
     TransientOverlay, UiUpdateContext, presentation,
 };
 pub use surfaces::{
-    DynamicWidget, DynamicWidgetParts, GpuSurfaceConfiguredParts, GpuSurfaceInputParts,
+    DynamicWidget, DynamicWidgetLocalParts, DynamicWidgetParts, GpuSurfaceConfiguredParts,
+    GpuSurfaceInputParts,
     RenderCanvasConfiguredParts, RenderCanvasInputParts, RetainedCanvasBuilder, ScrollbarBuilder,
     TextContent, canvas, card, custom_widget, custom_widget_direct, custom_widget_mapped, empty,
     gpu_surface, gpu_surface_configured_from_parts, gpu_surface_from_parts, gpu_surface_input,

@@ -6,7 +6,7 @@ use crate::{
         WidgetStyle,
     },
 };
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 /// App-builder context supplied when a widget view becomes a runtime surface node.
 ///
@@ -164,13 +164,34 @@ pub struct DynamicWidget<Message> {
 pub struct DynamicWidgetParts<Message> {
     /// Boxed widget object that owns input and paint behavior.
     pub widget: Box<dyn Widget>,
-    /// Dynamic mapper that turns widget output into host-defined messages.
+    /// Legacy thread-safe mapper that turns widget output into host-defined messages.
+    ///
+    /// The mapper is normalized into UI-local [`Rc`] storage when the parts are
+    /// lowered into a runtime surface. This field remains `Arc` for source
+    /// compatibility with existing public callers.
+    pub map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+}
+
+/// Named construction fields for a [`DynamicWidget`] with a UI-local mapper.
+pub struct DynamicWidgetLocalParts<Message> {
+    /// Boxed widget object that owns input and paint behavior.
+    pub widget: Box<dyn Widget>,
+    /// UI-local mapper that turns widget output into host-defined messages.
     pub map: Rc<dyn Fn(WidgetOutput) -> Option<Message>>,
 }
 
-impl<Message> DynamicWidget<Message> {
+impl<Message: 'static> DynamicWidget<Message> {
     /// Build a dynamic widget view from named parts.
     pub fn from_parts(parts: DynamicWidgetParts<Message>) -> Self {
+        let map = parts.map;
+        Self {
+            widget: parts.widget,
+            map: Rc::new(move |output| map(output)),
+        }
+    }
+
+    /// Build a dynamic widget view from named parts containing a UI-local mapper.
+    pub fn from_local_parts(parts: DynamicWidgetLocalParts<Message>) -> Self {
         Self {
             widget: parts.widget,
             map: parts.map,
@@ -180,9 +201,20 @@ impl<Message> DynamicWidget<Message> {
     /// Build a dynamic widget view from a boxed widget object.
     pub fn new(
         widget: impl Widget + Clone + 'static,
-        map: impl Fn(WidgetOutput) -> Option<Message> + 'static,
+        map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
     ) -> Self {
         Self::from_parts(DynamicWidgetParts {
+            widget: Box::new(widget),
+            map: Arc::new(map),
+        })
+    }
+
+    /// Build a dynamic widget view from a mapper that may capture UI-local state.
+    pub fn new_local(
+        widget: impl Widget + Clone + 'static,
+        map: impl Fn(WidgetOutput) -> Option<Message> + 'static,
+    ) -> Self {
+        Self::from_local_parts(DynamicWidgetLocalParts {
             widget: Box::new(widget),
             map: Rc::new(map),
         })

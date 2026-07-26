@@ -15,4 +15,4 @@ pub use super::super::retained_canvas::{
     RetainedCanvasBuilder, retained_canvas, retained_canvas_with,
 };
 pub use super::super::text_content::TextContent;
-pub use super::super::widget_view::{DynamicWidget, DynamicWidgetParts};
+pub use super::super::widget_view::{DynamicWidget, DynamicWidgetLocalParts, DynamicWidgetParts};

@@ -6,7 +6,7 @@ use radiant::{
     runtime::{SurfaceRuntime, UiSurface, WidgetMessageMapper},
     widgets::{PointerButton, TextWidget, WidgetInput, WidgetOutput},
 };
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[test]
 fn application_builder_accepts_custom_widgets_with_generated_and_explicit_ids() {
@@ -76,6 +76,49 @@ fn application_builder_custom_widget_views_support_named_parts_construction() {
         .dispatch_widget_output(42, WidgetOutput::custom(CustomWidgetMessage::Activated))
         .expect("dynamic widget named-parts mapper should emit a message");
     assert_eq!(message, DemoMessage::SetActive(true));
+}
+
+#[test]
+fn application_builder_custom_widget_local_parts_keep_mapper_on_ui_runtime() {
+    use radiant::prelude as ui;
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let dropped = Rc::new(RefCell::new(false));
+    let drop_probe = DropProbe(Rc::clone(&dropped));
+    let calls_for_mapper = Rc::clone(&calls);
+    let surface: UiSurface<DemoMessage> = ui::widget(ui::DynamicWidget::from_local_parts(
+        app::DynamicWidgetLocalParts {
+            widget: Box::new(CustomStatusWidget::new(3)),
+            map: Rc::new(move |output| {
+                let _probe = &drop_probe;
+                *calls_for_mapper.borrow_mut() += 1;
+                output
+                    .custom_ref::<CustomWidgetMessage>()
+                    .map(|_| DemoMessage::SetActive(true))
+            }),
+        },
+    ))
+    .id(43)
+    .into_surface();
+
+    assert_eq!(
+        surface.dispatch_widget_output(43, WidgetOutput::custom(CustomWidgetMessage::Activated)),
+        Some(DemoMessage::SetActive(true))
+    );
+    assert_eq!(*calls.borrow(), 1);
+    drop(surface);
+    assert!(
+        *dropped.borrow(),
+        "local mapper capture should drop on the UI side"
+    );
+}
+
+struct DropProbe(Rc<RefCell<bool>>);
+
+impl Drop for DropProbe {
+    fn drop(&mut self) {
+        *self.0.borrow_mut() = true;
+    }
 }
 
 #[test]

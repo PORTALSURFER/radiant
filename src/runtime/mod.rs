@@ -76,6 +76,7 @@ pub use bridge::{
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
+pub(crate) use command::EffectId;
 pub use command::{
     BusinessMessageSink, Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     SurfaceInvalidation, SurfaceRevisions, TaskPriority,

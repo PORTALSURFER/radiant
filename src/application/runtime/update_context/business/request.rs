@@ -39,6 +39,7 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         BusinessLatestRequest {
             request: self,
             ticket: latest.begin(),
+            effect_id: latest.effect_id(),
         }
     }
 

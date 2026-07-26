@@ -25,6 +25,19 @@ pub trait RuntimeTaskHost<Message> {
         false
     }
 
+    /// Spawn worker-only work that reports completion through a runtime-owned
+    /// ingress. The closure must not construct or transport an application
+    /// message.
+    fn spawn_worker_task(
+        &mut self,
+        _name: &'static str,
+        _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        _work: Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool {
+        false
+    }
+
     /// Spawn ordered streaming host work.
     fn spawn_streaming_message_task(
         &mut self,
@@ -62,6 +75,13 @@ pub(crate) struct RuntimeTaskCapability<Bridge, Message> {
         CancellationProbe,
         MessageWork<Message>,
     ) -> bool,
+    pub spawn_worker_task: fn(
+        &mut Bridge,
+        &'static str,
+        TaskPriority,
+        CancellationProbe,
+        Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool,
     pub spawn_streaming_message_task: fn(
         &mut Bridge,
         &'static str,
@@ -87,6 +107,7 @@ where
             install_repaint_signal: Bridge::install_repaint_signal,
             schedule_message: Bridge::schedule_message,
             spawn_message_task: Bridge::spawn_message_task,
+            spawn_worker_task: Bridge::spawn_worker_task,
             spawn_streaming_message_task: Bridge::spawn_streaming_message_task,
             spawn_latest_streaming_message_task: Bridge::spawn_latest_streaming_message_task,
         }

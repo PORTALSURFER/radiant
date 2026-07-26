@@ -36,6 +36,16 @@ where
         self.spawn_runtime_message_task(name, priority, is_cancelled, work)
     }
 
+    fn spawn_worker_task(
+        &mut self,
+        name: &'static str,
+        priority: crate::runtime::TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool {
+        self.spawn_runtime_worker_task(name, priority, is_cancelled, work)
+    }
+
     fn spawn_streaming_message_task(
         &mut self,
         name: &'static str,

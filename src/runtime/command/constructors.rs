@@ -7,7 +7,13 @@ use crate::{
     theme::DpiScale,
     widgets::WidgetId,
 };
-use std::time::Duration;
+use std::{
+    any::Any,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
+
+static NEXT_EFFECT_ID: AtomicU64 = AtomicU64::new(1);
 
 mod scroll;
 
@@ -129,6 +135,61 @@ impl<Message> Command<Message> {
             is_cancelled,
             work: Box::new(work),
         }
+    }
+
+    /// Build a worker-only effect whose output is mapped on the UI owner.
+    ///
+    /// Unlike [`Self::perform_with_priority`], the worker closure never
+    /// constructs or transports `Message`. The mapper remains UI-local.
+    pub(crate) fn perform_worker_effect_with_priority<Output>(
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        generation: u64,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
+        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+        Self::perform_worker_effect_with_identity(
+            super::EffectId(id),
+            name,
+            priority,
+            is_cancelled,
+            generation,
+            work,
+            map,
+        )
+    }
+
+    pub(crate) fn perform_worker_effect_with_identity<Output>(
+        id: super::EffectId,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        generation: u64,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
+        Self::PerformWorker(super::WorkerEffect {
+            name,
+            priority,
+            is_cancelled,
+            id,
+            generation: super::EffectGeneration(generation),
+            work: Box::new(move || Box::new(work()) as Box<dyn Any + Send>),
+            map: Box::new(move |output| {
+                let output = output
+                    .downcast::<Output>()
+                    .expect("worker effect output type must match its mapper");
+                map(*output)
+            }),
+        })
     }
 
     /// Build a command that moves keyboard focus to one widget.

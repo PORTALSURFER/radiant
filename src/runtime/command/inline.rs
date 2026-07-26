@@ -89,6 +89,7 @@ impl<Message> Command<Message> {
                     dispatch(message);
                 }
             }
+            Self::PerformWorker(_) => {}
         }
     }
 }

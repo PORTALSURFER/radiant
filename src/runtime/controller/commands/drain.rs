@@ -9,6 +9,13 @@ where
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget) = self.runtime_drain_budget();
 
+        // Worker effects are mapped only on this UI-owned turn. The ingress
+        // takes a start-of-turn high-water snapshot, so an immediate worker
+        // completion is necessarily deferred to the next drain pass.
+        for message in self.worker_effects.drain() {
+            self.dispatch_message_inner(message, &mut outcome);
+        }
+
         self.runtime_work.drain_bridge_commands(
             &mut self.bridge,
             self.host_capabilities.queues.as_ref(),

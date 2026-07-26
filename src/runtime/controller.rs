@@ -6,6 +6,7 @@
 
 mod commands;
 mod context;
+mod effects;
 mod events;
 mod focus;
 mod hit_order;
@@ -38,6 +39,7 @@ use crate::{
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     widgets::{WidgetId, WidgetInput},
 };
+use effects::WorkerEffects;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use scratch::RuntimeScratch;
 use traversal_state::RuntimeTraversalState;
@@ -81,6 +83,7 @@ where
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
+    worker_effects: WorkerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,
     pending_frame_refresh_diagnostics: SurfaceRefreshDiagnostics,

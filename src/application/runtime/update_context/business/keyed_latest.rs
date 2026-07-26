@@ -59,8 +59,8 @@ where
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -92,8 +92,8 @@ where
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -179,8 +179,8 @@ where
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,
@@ -216,8 +216,8 @@ where
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,
@@ -274,10 +274,11 @@ mod tests {
             );
 
         let command = context.into_command();
-        let Command::PerformStream { priority, .. } = &command else {
-            panic!("expected stream command");
-        };
-        assert_eq!(*priority, TaskPriority::Interactive);
+        assert!(matches!(command, Command::PerformWorker(_)));
+        assert_eq!(
+            command.business_task_priority("keyed-stream-test"),
+            Some(TaskPriority::Interactive)
+        );
     }
 
     #[test]
@@ -298,9 +299,10 @@ mod tests {
             );
 
         let command = context.into_command();
-        let Command::PerformStreamLatest { priority, .. } = &command else {
-            panic!("expected latest stream command");
-        };
-        assert_eq!(*priority, TaskPriority::Interactive);
+        assert!(matches!(command, Command::PerformWorker(_)));
+        assert_eq!(
+            command.business_task_priority("keyed-latest-stream-test"),
+            Some(TaskPriority::Interactive)
+        );
     }
 }

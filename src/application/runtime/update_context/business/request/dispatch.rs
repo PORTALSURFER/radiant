@@ -35,8 +35,8 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -54,8 +54,8 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -96,8 +96,8 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self,
         token: Option<CancellationToken>,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -108,18 +108,19 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
         });
         self.context
-            .queue_command(Command::perform_stream_with_priority(
+            .queue_command(Command::perform_worker_stream_with_priority(
                 self.name,
                 self.priority,
                 is_cancelled,
-                move |message_sink| {
-                    let event_sink = BusinessEventSink::new({
-                        let message_sink = message_sink.clone();
-                        move |event| message_sink.emit(map_event(event))
-                    });
-                    let output = work(BusinessWorkContext::new(worker_token), event_sink);
-                    let _ = message_sink.emit(map_final(output));
+                0,
+                false,
+                move |sink| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(BusinessWorkContext::new(worker_token), event_sink)
                 },
+                map_event,
+                map_final,
             ));
     }
 
@@ -130,8 +131,8 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self,
         token: Option<CancellationToken>,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
@@ -142,20 +143,24 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
         });
         self.context
-            .queue_command(Command::perform_latest_stream_with_priority(
+            .queue_command(Command::perform_worker_stream_with_priority(
                 self.name,
                 self.priority,
                 is_cancelled,
-                move |message_sink| {
+                0,
+                true,
+                move |sink| {
                     let event_sink = BusinessEventSink::new({
-                        let message_sink = message_sink.clone();
-                        move |event| message_sink.emit_latest(map_event(event))
+                        let sink = sink.clone();
+                        move |event| sink.emit_latest(Box::new(event))
                     });
-                    let close_guard = LatestStreamCloseGuard::new(message_sink.clone());
+                    let close_guard = LatestStreamCloseGuard::new(sink.clone());
                     let output = work(BusinessWorkContext::new(worker_token), event_sink);
                     close_guard.close();
-                    let _ = message_sink.emit(map_final(output));
+                    output
                 },
+                map_event,
+                map_final,
             ));
     }
 }

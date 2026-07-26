@@ -1,6 +1,9 @@
 use crate::application::{CancellationToken, TaskCompletion, TaskTicket};
 
-use super::{BusinessEventSink, BusinessWorkContext, request::BusinessRequest};
+use super::{
+    BusinessEventSink, BusinessWorkContext,
+    request::{BusinessRequest, LatestStreamCloseGuard},
+};
 
 /// Builder for one latest business request.
 pub struct BusinessLatestRequest<'context, Message> {
@@ -67,23 +70,36 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
         Message: 'static,
     {
+        let effect_id = crate::runtime::EffectId(self.effect_id);
         let ticket = self.ticket;
-        self.request.stream(
-            work,
-            move |event| {
-                map_event(TaskCompletion {
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| map_final(TaskCompletion { ticket, output }),
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                None,
+                ticket.id(),
+                false,
+                move |sink| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(BusinessWorkContext::new(None), event_sink)
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
         );
     }
 
@@ -91,23 +107,41 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) where
         Event: Send + 'static,
         Output: Send + 'static,
         Message: 'static,
     {
+        let effect_id = crate::runtime::EffectId(self.effect_id);
         let ticket = self.ticket;
-        self.request.stream_latest(
-            work,
-            move |event| {
-                map_event(TaskCompletion {
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| map_final(TaskCompletion { ticket, output }),
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                None,
+                ticket.id(),
+                true,
+                move |sink| {
+                    let event_sink = BusinessEventSink::new({
+                        let sink = sink.clone();
+                        move |event| sink.emit_latest(Box::new(event))
+                    });
+                    let close_guard = LatestStreamCloseGuard::new(sink.clone());
+                    let output = work(BusinessWorkContext::new(None), event_sink);
+                    close_guard.close();
+                    output
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
         );
     }
 }
@@ -182,26 +216,43 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,
         Output: Send + 'static,
         Message: 'static,
     {
+        let effect_id = crate::runtime::EffectId(self.effect_id);
         let token = self.token.clone();
+        let worker_token = self.token.clone();
         let ticket = self.ticket;
-        self.request.stream_with_optional_cancellation(
-            Some(self.token),
-            work,
-            move |event| {
-                map_event(TaskCompletion {
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| map_final(TaskCompletion { ticket, output }),
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                is_cancelled,
+                ticket.id(),
+                false,
+                move |sink| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(BusinessWorkContext::new(Some(worker_token)), event_sink)
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
         );
         token
     }
@@ -210,26 +261,48 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,
         Output: Send + 'static,
         Message: 'static,
     {
+        let effect_id = crate::runtime::EffectId(self.effect_id);
         let token = self.token.clone();
+        let worker_token = self.token.clone();
         let ticket = self.ticket;
-        self.request.latest_stream_with_optional_cancellation(
-            Some(self.token),
-            work,
-            move |event| {
-                map_event(TaskCompletion {
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| map_final(TaskCompletion { ticket, output }),
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                is_cancelled,
+                ticket.id(),
+                true,
+                move |sink| {
+                    let event_sink = BusinessEventSink::new({
+                        let sink = sink.clone();
+                        move |event| sink.emit_latest(Box::new(event))
+                    });
+                    let close_guard = LatestStreamCloseGuard::new(sink.clone());
+                    let output = work(BusinessWorkContext::new(Some(worker_token)), event_sink);
+                    close_guard.close();
+                    output
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
         );
         token
     }

@@ -142,8 +142,8 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
     pub fn stream<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,
@@ -164,8 +164,8 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
     pub fn stream_latest<Event, Output>(
         self,
         work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
-        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
-        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
     ) -> CancellationToken
     where
         Event: Send + 'static,

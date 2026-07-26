@@ -2,6 +2,8 @@ mod cancellable;
 mod dispatch;
 mod stream_guard;
 
+pub(super) use stream_guard::LatestStreamCloseGuard;
+
 pub use cancellable::CancellableBusinessRequest;
 
 use std::hash::Hash;

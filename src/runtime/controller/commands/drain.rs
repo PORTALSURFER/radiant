@@ -41,7 +41,10 @@ where
         // Worker effects are mapped only on this UI-owned turn. The ingress
         // takes a start-of-turn high-water snapshot, so an immediate worker
         // completion is necessarily deferred to the next drain pass.
-        for message in self.worker_effects.drain() {
+        for message in self
+            .worker_effects
+            .drain_with_diagnostics(&self.diagnostics)
+        {
             self.dispatch_message_inner(message, &mut outcome);
         }
 

@@ -72,10 +72,10 @@ development `.app` wrapper around a prebuilt binary. From the root of a
 standalone Radiant checkout, run:
 
 ```bash
-cargo build --release --bin my_app
-RADIANT_DEV_APP_NAME="My App" \
-RADIANT_DEV_APP_BINARY="$PWD/target/release/my_app" \
-RADIANT_DEV_APP_BUNDLE_ID="com.example.my-app.dev" \
+cargo build --release --example hello_world
+RADIANT_DEV_APP_NAME="Radiant Hello World" \
+RADIANT_DEV_APP_BINARY="$PWD/target/release/examples/hello_world" \
+RADIANT_DEV_APP_BUNDLE_ID="com.example.radiant.hello-world.dev" \
 ./scripts/dev_app_bundle.sh --log
 ```
 

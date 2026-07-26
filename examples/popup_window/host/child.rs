@@ -108,6 +108,7 @@ impl PopupHost {
 
     #[cfg(not(test))]
     pub(super) fn wait_until_ready(&self, timeout: std::time::Duration) -> bool {
+        #[cfg(target_os = "windows")]
         let Some(process_id) = self.child.as_ref().map(Child::id) else {
             return false;
         };

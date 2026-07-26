@@ -118,7 +118,7 @@ pub use external_drag::{
 pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
 pub use file_open::NativeFileOpen;
 pub use gpu_surface::{
-    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
+    CanvasKey, GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
     GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
     GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, RenderCanvasCapabilities, RenderCanvasContent,

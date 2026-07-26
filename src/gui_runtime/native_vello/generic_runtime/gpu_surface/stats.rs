@@ -12,16 +12,22 @@ pub(crate) struct GpuSurfaceRenderStats {
 pub(crate) struct GpuSurfaceAtlasRenderStats {
     pub(crate) texture_uploads: usize,
     pub(crate) texture_cache_hits: usize,
+    pub(crate) texture_revision_mismatches: usize,
+    pub(crate) texture_content_mismatches: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceSignalRenderStats {
     pub(crate) summary_builds: usize,
     pub(crate) summary_cache_hits: usize,
+    pub(crate) summary_revision_mismatches: usize,
+    pub(crate) summary_content_mismatches: usize,
     pub(crate) summary_validation_runs: usize,
     pub(crate) summary_validation_cache_hits: usize,
     pub(crate) body_renders: usize,
     pub(crate) body_cache_hits: usize,
+    pub(crate) body_revision_mismatches: usize,
+    pub(crate) body_content_mismatches: usize,
     pub(crate) body_encode_elapsed: Duration,
 }
 
@@ -29,6 +35,8 @@ pub(crate) struct GpuSurfaceSignalRenderStats {
 pub(crate) struct GpuSurfaceCompositeRenderStats {
     pub(crate) binding_rebuilds: usize,
     pub(crate) binding_cache_hits: usize,
+    pub(crate) binding_revision_mismatches: usize,
+    pub(crate) binding_content_mismatches: usize,
     pub(crate) encode_elapsed: Duration,
 }
 

@@ -1,5 +1,6 @@
 mod cache_key;
 
+use super::super::identity::RenderCanvasContentIdentity;
 use super::super::wgpu_device_id;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;
@@ -24,6 +25,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CachedSignalSummary {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
+        RenderCanvasContentIdentity,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
@@ -84,6 +87,7 @@ mod tests {
     fn signal_body_texture_identity_tracks_device_and_body_key() {
         let key = SignalBodyCacheKey {
             revision: 1,
+            content_identity: Default::default(),
             width: 64,
             height: 32,
             frame_start_bits: 0.0f32.to_bits(),

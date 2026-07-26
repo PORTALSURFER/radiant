@@ -14,6 +14,7 @@ mod atlas;
 mod custom_shader;
 mod encoding;
 mod gpu_surface_types;
+mod identity;
 mod overlays;
 mod passes;
 mod pipeline;
@@ -185,6 +186,7 @@ impl GpuSurfaceRenderer {
 
 #[cfg(test)]
 mod tests {
+    use super::identity::RenderCanvasContentIdentity;
     use super::*;
     use crate::gui::types::{Point, Rgba8};
     use std::sync::Arc;
@@ -195,8 +197,24 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
-        renderer.cached_signal_summary(8, 1, 4, 1, &samples, &mut stats);
+        renderer.cached_signal_summary(
+            7,
+            1,
+            RenderCanvasContentIdentity::default(),
+            4,
+            1,
+            &samples,
+            &mut stats,
+        );
+        renderer.cached_signal_summary(
+            8,
+            1,
+            RenderCanvasContentIdentity::default(),
+            4,
+            1,
+            &samples,
+            &mut stats,
+        );
 
         renderer.active_keys.mark_active(8);
         renderer.prune_inactive_resources();
@@ -211,7 +229,15 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let summary = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+        let summary = renderer.cached_signal_summary(
+            7,
+            1,
+            RenderCanvasContentIdentity::default(),
+            4,
+            1,
+            &samples,
+            &mut stats,
+        );
         let surface = crate::runtime::PaintGpuSurface {
             widget_id: 7,
             key: 7,

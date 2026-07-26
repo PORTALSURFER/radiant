@@ -1,9 +1,12 @@
+use super::super::super::identity::RenderCanvasContentIdentity;
 use super::super::super::passes::SurfacePixelExtent;
 use crate::runtime::GpuSignalGainPreview;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKeyParts
 {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
+        RenderCanvasContentIdentity,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) extent:
         SurfacePixelExtent,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
@@ -20,6 +23,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
+        RenderCanvasContentIdentity,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_start: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_count: usize,
@@ -29,12 +34,14 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 impl SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn new(
         revision: u64,
+        content_identity: RenderCanvasContentIdentity,
         level_index: usize,
         bucket_start: usize,
         bucket_count: usize,
     ) -> Self {
         Self {
             revision,
+            content_identity,
             level_index,
             bucket_start,
             bucket_count,
@@ -46,6 +53,8 @@ impl SignalBufferCacheKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
+        RenderCanvasContentIdentity,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) width: u32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) height: u32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_start_bits: u32,
@@ -67,6 +76,7 @@ impl SignalBodyCacheKey {
     ) -> Self {
         Self {
             revision: parts.revision,
+            content_identity: parts.content_identity,
             width: parts.extent.width,
             height: parts.extent.height,
             frame_start_bits: parts.frame_range[0].to_bits(),
@@ -130,17 +140,17 @@ mod tests {
 
     #[test]
     fn signal_buffer_cache_key_keeps_revision_and_level_independent() {
-        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, 0, 4, 8);
-        let low_revision_high_level = SignalBufferCacheKey::new(0, 1, 4, 8);
+        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, Default::default(), 0, 4, 8);
+        let low_revision_high_level = SignalBufferCacheKey::new(0, Default::default(), 1, 4, 8);
 
         assert_ne!(high_revision, low_revision_high_level);
     }
 
     #[test]
     fn signal_buffer_cache_key_tracks_uploaded_bucket_window() {
-        let first = SignalBufferCacheKey::new(9, 0, 4, 8);
-        let moved = SignalBufferCacheKey::new(9, 0, 5, 8);
-        let wider = SignalBufferCacheKey::new(9, 0, 4, 9);
+        let first = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 8);
+        let moved = SignalBufferCacheKey::new(9, Default::default(), 0, 5, 8);
+        let wider = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 9);
 
         assert_ne!(first, moved);
         assert_ne!(first, wider);

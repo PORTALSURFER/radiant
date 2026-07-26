@@ -83,16 +83,42 @@ pub(super) fn native_frame_diagnostics(
             atlas: crate::runtime::NativeGpuSurfaceAtlasDiagnostics {
                 texture_uploads: parts.gpu_surface_stats.atlas.texture_uploads,
                 texture_cache_hits: parts.gpu_surface_stats.atlas.texture_cache_hits,
+                texture_revision_mismatches: parts
+                    .gpu_surface_stats
+                    .atlas
+                    .texture_revision_mismatches,
+                texture_content_mismatches: parts
+                    .gpu_surface_stats
+                    .atlas
+                    .texture_content_mismatches,
             },
             signal: crate::runtime::NativeGpuSurfaceSignalDiagnostics {
                 summary_builds: parts.gpu_surface_stats.signal.summary_builds,
                 summary_cache_hits: parts.gpu_surface_stats.signal.summary_cache_hits,
+                summary_revision_mismatches: parts
+                    .gpu_surface_stats
+                    .signal
+                    .summary_revision_mismatches,
+                summary_content_mismatches: parts
+                    .gpu_surface_stats
+                    .signal
+                    .summary_content_mismatches,
                 body_renders: parts.gpu_surface_stats.signal.body_renders,
                 body_cache_hits: parts.gpu_surface_stats.signal.body_cache_hits,
+                body_revision_mismatches: parts.gpu_surface_stats.signal.body_revision_mismatches,
+                body_content_mismatches: parts.gpu_surface_stats.signal.body_content_mismatches,
             },
             composite: crate::runtime::NativeGpuSurfaceCompositeDiagnostics {
                 binding_rebuilds: parts.gpu_surface_stats.composite.binding_rebuilds,
                 binding_cache_hits: parts.gpu_surface_stats.composite.binding_cache_hits,
+                binding_revision_mismatches: parts
+                    .gpu_surface_stats
+                    .composite
+                    .binding_revision_mismatches,
+                binding_content_mismatches: parts
+                    .gpu_surface_stats
+                    .composite
+                    .binding_content_mismatches,
             },
             custom_shader: crate::runtime::NativeGpuSurfaceCustomShaderDiagnostics {
                 surfaces_rendered: parts.gpu_surface_stats.custom_shader.surfaces_rendered,

@@ -1,3 +1,4 @@
+use super::super::identity::RenderCanvasContentIdentity;
 use super::signal::SignalBodyCacheKey;
 use vello::wgpu;
 
@@ -19,15 +20,35 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         GpuSurfaceTextureIdentity,
 }
 
+impl GpuSurfaceCompositeBindingKey {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn revision(
+        self,
+    ) -> u64 {
+        self.texture.revision()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) enum GpuSurfaceTextureIdentity
 {
     RgbaAtlas {
         revision: u64,
+        content_identity: RenderCanvasContentIdentity,
         width: usize,
         height: usize,
     },
     SignalBody(SignalBodyCacheKey),
+}
+
+impl GpuSurfaceTextureIdentity {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn revision(
+        self,
+    ) -> u64 {
+        match self {
+            Self::RgbaAtlas { revision, .. } => revision,
+            Self::SignalBody(key) => key.revision,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -40,6 +61,7 @@ mod tests {
             pipeline_generation: 1,
             texture: GpuSurfaceTextureIdentity::RgbaAtlas {
                 revision: 7,
+                content_identity: crate::gui_runtime::native_vello::generic_runtime::gpu_surface::identity::RenderCanvasContentIdentity::CustomShader { descriptor: 1 },
                 width: 64,
                 height: 32,
             },
@@ -52,6 +74,7 @@ mod tests {
             pipeline_generation: 1,
             texture: GpuSurfaceTextureIdentity::RgbaAtlas {
                 revision: 8,
+                content_identity: crate::gui_runtime::native_vello::generic_runtime::gpu_surface::identity::RenderCanvasContentIdentity::CustomShader { descriptor: 1 },
                 width: 64,
                 height: 32,
             },

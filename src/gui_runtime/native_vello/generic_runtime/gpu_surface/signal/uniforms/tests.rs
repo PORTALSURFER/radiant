@@ -24,6 +24,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
     let bucket_window = super::super::SignalBucketWindow { start: 1, end: 4 };
     let body_key = SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
         revision: 9,
+        content_identity: Default::default(),
         extent: surface_pixel_extent(
             UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 48.0)),
             DpiScale::default(),

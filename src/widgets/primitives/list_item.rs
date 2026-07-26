@@ -1,13 +1,14 @@
 //! Reusable list-row and list-item primitive.
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{ListItemMessage, WidgetInput, WidgetOutput};
 
 mod builders;
@@ -63,6 +64,22 @@ impl ListItemWidget {
     }
 }
 
+impl WidgetSemantics for ListItemWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Row
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.label.as_str().to_owned())
+    }
+
+    fn automation_value_text(&self) -> Option<String> {
+        self.detail
+            .as_ref()
+            .map(|detail| detail.as_str().to_owned())
+    }
+}
+
 impl Widget for ListItemWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -80,18 +97,8 @@ impl Widget for ListItemWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Row
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        Some(self.label.as_str().to_owned())
-    }
-
-    fn automation_value_text(&self) -> Option<String> {
-        self.detail
-            .as_ref()
-            .map(|detail| detail.as_str().to_owned())
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn append_paint(

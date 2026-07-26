@@ -1,13 +1,14 @@
 //! Reusable single-line text-input primitive.
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
 
 mod builders;
@@ -81,6 +82,23 @@ impl TextInputWidget {
     }
 }
 
+impl WidgetSemantics for TextInputWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::TextInput
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        self.props
+            .placeholder
+            .as_ref()
+            .map(|placeholder| placeholder.as_str().to_owned())
+    }
+
+    fn automation_value_text(&self) -> Option<String> {
+        Some(self.state.value.clone())
+    }
+}
+
 impl Widget for TextInputWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -110,19 +128,8 @@ impl Widget for TextInputWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::TextInput
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        self.props
-            .placeholder
-            .as_ref()
-            .map(|placeholder| placeholder.as_str().to_owned())
-    }
-
-    fn automation_value_text(&self) -> Option<String> {
-        Some(self.state.value.clone())
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn selected_text_slice(&self) -> Option<&str> {

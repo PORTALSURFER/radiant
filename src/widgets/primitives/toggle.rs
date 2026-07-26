@@ -5,14 +5,15 @@ mod input;
 mod model;
 mod paint;
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{ToggleMessage, WidgetInput, WidgetOutput};
 
 pub use model::{ToggleProps, ToggleState};
@@ -83,6 +84,20 @@ impl ToggleWidget {
     }
 }
 
+impl WidgetSemantics for ToggleWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Toggle
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.props.label.as_str().to_owned())
+    }
+
+    fn automation_checked(&self) -> Option<bool> {
+        Some(self.state.checked)
+    }
+}
+
 impl Widget for ToggleWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -100,16 +115,8 @@ impl Widget for ToggleWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Toggle
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        Some(self.props.label.as_str().to_owned())
-    }
-
-    fn automation_checked(&self) -> Option<bool> {
-        Some(self.state.checked)
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

@@ -1,13 +1,14 @@
 //! Reusable text and label primitive.
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::{Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
-use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
 mod builders;
@@ -137,6 +138,16 @@ impl TextWidget {
     }
 }
 
+impl WidgetSemantics for TextWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Text
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.text.as_str().to_owned())
+    }
+}
+
 impl Widget for TextWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -154,12 +165,8 @@ impl Widget for TextWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Text
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        Some(self.text.as_str().to_owned())
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn set_text_wrap(&mut self, wrap: TextWrap) -> bool {

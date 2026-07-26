@@ -6,14 +6,15 @@ mod input;
 mod model;
 mod paint;
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, clamp_fraction};
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{SliderMessage, WidgetInput, WidgetOutput};
 
 pub use model::{SliderProps, SliderState};
@@ -105,6 +106,16 @@ impl SliderWidget {
     }
 }
 
+impl WidgetSemantics for SliderWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Slider
+    }
+
+    fn automation_value_text(&self) -> Option<String> {
+        Some(format!("{:.3}", self.state.value))
+    }
+}
+
 impl Widget for SliderWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -122,12 +133,8 @@ impl Widget for SliderWidget {
         true
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Slider
-    }
-
-    fn automation_value_text(&self) -> Option<String> {
-        Some(format!("{:.3}", self.state.value))
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn append_paint(

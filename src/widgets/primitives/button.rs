@@ -5,7 +5,6 @@ mod input;
 mod model;
 mod paint;
 
-use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
@@ -13,7 +12,9 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::TextAlign;
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+};
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
 
 pub use model::{ButtonProps, ButtonState};
@@ -101,6 +102,19 @@ impl ButtonWidget {
     }
 }
 
+impl WidgetSemantics for ButtonWidget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        crate::gui::automation::AutomationRole::Button
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(match self.props.trailing_label.as_ref() {
+            Some(trailing) => format!("{} {}", self.props.label, trailing),
+            None => self.props.label.as_str().to_owned(),
+        })
+    }
+}
+
 impl Widget for ButtonWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -126,15 +140,8 @@ impl Widget for ButtonWidget {
         false
     }
 
-    fn automation_role(&self) -> AutomationRole {
-        AutomationRole::Button
-    }
-
-    fn automation_label(&self) -> Option<String> {
-        Some(match self.props.trailing_label.as_ref() {
-            Some(trailing) => format!("{} {}", self.props.label, trailing),
-            None => self.props.label.as_str().to_owned(),
-        })
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
     }
 
     fn needs_state_synchronization(&self) -> bool {

@@ -27,8 +27,8 @@ use radiant::{
         ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleWidget, GpuSurfaceWidget,
         PointerButton, PointerModifiers, RetainedSurfaceDescriptor, TextEditCommand,
         TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
-        resolve_widget_visual_tokens,
+        WidgetOutput, WidgetProminence, WidgetSemantics, WidgetSizing, WidgetState, WidgetStyle,
+        WidgetTone, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{Arc, Mutex};
@@ -154,6 +154,57 @@ impl Widget for ScenePointerWidget {
 
     fn accepts_wheel_input(&self) -> bool {
         true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Clone)]
+struct SemanticWidget {
+    common: WidgetCommon,
+}
+
+impl SemanticWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(80.0, 24.0)))
+                .with_keyboard_focus(),
+        }
+    }
+}
+
+impl WidgetSemantics for SemanticWidget {
+    fn automation_role(&self) -> radiant::gui::automation::AutomationRole {
+        radiant::gui::automation::AutomationRole::Readout
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some("Custom readout".to_owned())
+    }
+}
+
+impl Widget for SemanticWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn capabilities(&self) -> radiant::widgets::WidgetCapabilities<'_> {
+        radiant::widgets::WidgetCapabilities::new().semantics(self)
     }
 
     fn append_paint(

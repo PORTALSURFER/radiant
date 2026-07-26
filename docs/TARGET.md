@@ -1352,7 +1352,7 @@ When evaluating Radiant, ask:
 - Does this leak Vello or WGPU details into normal application code unnecessarily?
 - Does this preserve the option to change or replace rendering internals later without redesigning the public API?
 - Is platform-specific code isolated?
-- Does this assume Windows unnecessarily?
+- Does this assume a specific platform unnecessarily?
 - Would this design make additional platform support difficult?
 - Does this accidentally couple Radiant to VST/plugin SDK concepts?
 - Is the module boundary clear?

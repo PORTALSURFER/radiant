@@ -112,6 +112,6 @@ cargo doc --no-deps
 cargo test --doc
 ```
 
-Portable library checks for the cross-platform boundary, including the
-documented Linux target, and the perf-harness smoke lane are also part of the
-full validation path.
+Portable library checks preserve the cross-platform boundary without asserting
+a current platform-support matrix, and the perf-harness smoke lane is also
+part of the full validation path.

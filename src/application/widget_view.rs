@@ -6,7 +6,7 @@ use crate::{
         WidgetStyle,
     },
 };
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// App-builder context supplied when a widget view becomes a runtime surface node.
 ///
@@ -86,7 +86,7 @@ impl WidgetViewContext {
 /// becomes a message-mapped [`SurfaceNode`]. Any `Widget + Clone + 'static`
 /// automatically implements `WidgetView<()>` as a non-emitting leaf. Interactive
 /// widgets can use [`MappedWidget`] to bind widget output to host messages.
-pub trait WidgetView<Message>: Send + Sync {
+pub trait WidgetView<Message> {
     /// Default sizing used before callers override the enclosing
     /// [`ViewNode`](crate::application::ViewNode).
     fn default_sizing(&self) -> WidgetSizing;
@@ -157,7 +157,7 @@ where
 /// A boxed widget plus dynamic output mapper for application views.
 pub struct DynamicWidget<Message> {
     widget: Box<dyn Widget>,
-    map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+    map: Rc<dyn Fn(WidgetOutput) -> Option<Message>>,
 }
 
 /// Named construction fields for a [`DynamicWidget`].
@@ -165,7 +165,7 @@ pub struct DynamicWidgetParts<Message> {
     /// Boxed widget object that owns input and paint behavior.
     pub widget: Box<dyn Widget>,
     /// Dynamic mapper that turns widget output into host-defined messages.
-    pub map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+    pub map: Rc<dyn Fn(WidgetOutput) -> Option<Message>>,
 }
 
 impl<Message> DynamicWidget<Message> {
@@ -180,11 +180,11 @@ impl<Message> DynamicWidget<Message> {
     /// Build a dynamic widget view from a boxed widget object.
     pub fn new(
         widget: impl Widget + Clone + 'static,
-        map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(WidgetOutput) -> Option<Message> + 'static,
     ) -> Self {
         Self::from_parts(DynamicWidgetParts {
             widget: Box::new(widget),
-            map: Arc::new(map),
+            map: Rc::new(map),
         })
     }
 }

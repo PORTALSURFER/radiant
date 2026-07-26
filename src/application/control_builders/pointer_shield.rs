@@ -50,7 +50,7 @@ impl PointerShieldBuilder {
     /// Emit a mapped host message when the pointer shield emits output.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(PointerShieldMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(PointerShieldMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         view_node_from_widget(MappedWidget::new(
             self.widget,
@@ -61,7 +61,7 @@ impl PointerShieldBuilder {
     /// Emit host messages for selected pointer shield outputs.
     pub fn filter_map<Message: 'static>(
         self,
-        map: impl Fn(PointerShieldMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(PointerShieldMessage) -> Option<Message> + 'static,
     ) -> ViewNode<Message> {
         view_node_from_widget(MappedWidget::new(
             self.widget,
@@ -104,7 +104,7 @@ impl PointerShieldBuilder {
     /// Emit a host message from pointer movement positions only.
     pub fn on_pointer_move<Message: 'static>(
         self,
-        map: impl Fn(Point) -> Message + Send + Sync + 'static,
+        map: impl Fn(Point) -> Message + 'static,
     ) -> ViewNode<Message> {
         view_node_from_widget(MappedWidget::new(
             self.widget,

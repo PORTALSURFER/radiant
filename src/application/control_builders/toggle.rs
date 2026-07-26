@@ -43,7 +43,7 @@ impl ToggleBuilder {
     /// Emit a host message mapped from checked state.
     pub fn message<Message: 'static>(
         self,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+        map: impl Fn(bool) -> Message + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_toggle_sizing(&self.label, self.compact);
         let mut node = view_node_from_widget(MappedWidget::new(
@@ -81,7 +81,7 @@ pub fn checkbox(checked: bool) -> ToggleBuilder {
 pub fn toggle_mapped<Message: 'static>(
     label: impl Into<TextContent>,
     checked: bool,
-    map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    map: impl Fn(bool) -> Message + 'static,
 ) -> ViewNode<Message> {
     toggle(label, checked).message(map)
 }

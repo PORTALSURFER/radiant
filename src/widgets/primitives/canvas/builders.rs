@@ -8,7 +8,7 @@ use super::{CanvasWidget, RetainedSurfaceDescriptor};
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a canvas-message mapper.
-    pub fn canvas(map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn canvas(map: impl Fn(CanvasMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -23,7 +23,7 @@ impl<Message> SurfaceNode<Message> {
     pub fn canvas_mapped(
         id: WidgetId,
         sizing: WidgetSizing,
-        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(CanvasMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             CanvasWidget::new(id, sizing),
@@ -36,7 +36,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         sizing: WidgetSizing,
         retained: RetainedSurfaceDescriptor,
-        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(CanvasMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             CanvasWidget::new(id, sizing).with_retained_surface(retained),

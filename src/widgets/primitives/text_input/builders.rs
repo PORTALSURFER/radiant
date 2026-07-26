@@ -8,7 +8,7 @@ use super::TextInputWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a text-input-message mapper.
-    pub fn text_input(map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn text_input(map: impl Fn(TextInputMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -19,7 +19,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         value: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(String) -> Message + Send + Sync + 'static,
+        map: impl Fn(String) -> Message + 'static,
     ) -> Self {
         Self::text_input_mapped(id, value, sizing, move |message| map(message.into_value()))
     }
@@ -29,7 +29,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         value: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(TextInputMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             TextInputWidget::new(id, value, sizing),

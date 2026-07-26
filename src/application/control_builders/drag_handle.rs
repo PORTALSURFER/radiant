@@ -34,7 +34,7 @@ impl DragHandleBuilder {
     /// Emit a mapped host message for drag lifecycle events.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let mut handle = DragHandleWidget::new(0, default_drag_handle_sizing());
         if self.hover_chrome_only {
@@ -64,7 +64,7 @@ pub fn drag_handle() -> DragHandleBuilder {
 
 /// Build a drag handle with a custom widget-message mapper.
 pub fn drag_handle_mapped<Message: 'static>(
-    map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     drag_handle().mapped(map)
 }

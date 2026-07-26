@@ -8,7 +8,7 @@ use super::SelectableWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a selectable-message mapper.
-    pub fn selectable(map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn selectable(map: impl Fn(SelectableMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -20,7 +20,7 @@ impl<Message> SurfaceNode<Message> {
         label: impl Into<String>,
         selected: bool,
         sizing: WidgetSizing,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+        map: impl Fn(bool) -> Message + 'static,
     ) -> Self {
         Self::selectable_mapped(id, label, selected, sizing, move |message| match message {
             SelectableMessage::SelectionChanged { selected } => map(selected),
@@ -33,7 +33,7 @@ impl<Message> SurfaceNode<Message> {
         label: impl Into<String>,
         selected: bool,
         sizing: WidgetSizing,
-        map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(SelectableMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             SelectableWidget::new(id, PaintText::from(label.into()), selected, sizing),

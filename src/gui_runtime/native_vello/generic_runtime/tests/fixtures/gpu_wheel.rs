@@ -2,6 +2,7 @@ use super::super::*;
 use crate::runtime::{
     NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in super::super) struct GpuWheelMessage {
@@ -199,7 +200,7 @@ impl RuntimeBridge<String> for GpuWheelScrollBridge {
                     WidgetMessageMapper::none(),
                 ),
             )
-            .with_scroll_message(Arc::new(|_| Some(String::from("scroll")))),
+            .with_scroll_message_local(Rc::new(|_| Some(String::from("scroll")))),
         ))
     }
 

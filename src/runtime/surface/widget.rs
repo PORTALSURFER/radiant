@@ -218,7 +218,7 @@ impl<Message> SurfaceWidget<Message> {
 
     pub(in crate::runtime) fn with_native_file_drop(
         mut self,
-        map: impl Fn(crate::runtime::NativeFileDrop) -> Message + Send + Sync + 'static,
+        map: impl Fn(crate::runtime::NativeFileDrop) -> Message + 'static,
     ) -> Self {
         self.accepts_native_file_drop = true;
         self.messages = self.messages.with_native_file_drop(map);

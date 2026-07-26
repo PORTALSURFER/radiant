@@ -27,7 +27,7 @@ impl BadgeBuilder {
     /// Emit a mapped host message when activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(BadgeMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_badge_sizing(&self.label);
         let badge = BadgeWidget::new(0, self.label, sizing).with_active(self.active);
@@ -49,7 +49,7 @@ where
 /// Build a badge with a custom widget-message mapper.
 pub fn badge_mapped<Message: 'static>(
     label: impl Into<TextContent>,
-    map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(BadgeMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     badge(label).mapped(map)
 }

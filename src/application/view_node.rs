@@ -25,7 +25,7 @@ use crate::{
     },
     widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
-use std::{any::Any, sync::Arc};
+use std::{any::Any, rc::Rc};
 
 /// A typed scene overlay layer.
 pub struct Layer<Message> {
@@ -186,10 +186,10 @@ impl<Message> ViewNode<Message> {
     /// Emit a host message when a native file hover, cancel, or drop targets this view subtree.
     pub fn on_native_file_drop(
         mut self,
-        map: impl Fn(NativeFileDrop) -> Message + Send + Sync + 'static,
+        map: impl Fn(NativeFileDrop) -> Message + 'static,
     ) -> Self {
         self.accepts_native_file_drop = true;
-        self.native_file_drop = Some(Arc::new(map));
+        self.native_file_drop = Some(Rc::new(map));
         self
     }
 

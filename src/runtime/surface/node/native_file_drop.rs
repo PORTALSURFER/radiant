@@ -1,6 +1,6 @@
 use super::{SurfaceChild, SurfaceLayer, SurfaceNode};
 use crate::runtime::{NativeFileDrop, NativeFileDropMessageMapper};
-use std::sync::Arc;
+use std::rc::Rc;
 
 impl<Message> SurfaceNode<Message> {
     pub(crate) fn with_native_file_drop_mapper(
@@ -13,11 +13,11 @@ impl<Message> SurfaceNode<Message> {
         match self {
             Self::Scene(mut scene) => {
                 scene.base =
-                    Box::new((*scene.base).with_native_file_drop_mapper(Arc::clone(&mapper)));
+                    Box::new((*scene.base).with_native_file_drop_mapper(Rc::clone(&mapper)));
                 scene.layers = scene
                     .layers
                     .into_iter()
-                    .map(|layer| layer.with_native_file_drop_mapper(Arc::clone(&mapper)))
+                    .map(|layer| layer.with_native_file_drop_mapper(Rc::clone(&mapper)))
                     .collect();
                 Self::Scene(scene)
             }
@@ -27,9 +27,7 @@ impl<Message> SurfaceNode<Message> {
                     .into_iter()
                     .map(|child| SurfaceChild {
                         slot: child.slot,
-                        child: child
-                            .child
-                            .with_native_file_drop_mapper(Arc::clone(&mapper)),
+                        child: child.child.with_native_file_drop_mapper(Rc::clone(&mapper)),
                     })
                     .collect();
                 Self::Container(container)
@@ -44,9 +42,7 @@ impl<Message> SurfaceNode<Message> {
                     .into_iter()
                     .map(|child| SurfaceChild {
                         slot: child.slot,
-                        child: child
-                            .child
-                            .with_native_file_drop_mapper(Arc::clone(&mapper)),
+                        child: child.child.with_native_file_drop_mapper(Rc::clone(&mapper)),
                     })
                     .collect();
                 Self::FloatingLayer(layer)
@@ -104,7 +100,7 @@ impl<Message> SurfaceLayer<Message> {
             kind: self.kind,
             input: self
                 .input
-                .map(|input| input.with_native_file_drop_mapper(Arc::clone(&mapper))),
+                .map(|input| input.with_native_file_drop_mapper(Rc::clone(&mapper))),
             node: self.node.with_native_file_drop_mapper(mapper),
         }
     }

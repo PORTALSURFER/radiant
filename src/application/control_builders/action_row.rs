@@ -65,7 +65,7 @@ impl ActionRowBuilder {
     /// Emit a mapped host message when the row is activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(InteractiveRowMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         let label = self.label.clone();
         stack([

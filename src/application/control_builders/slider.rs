@@ -63,7 +63,7 @@ impl SliderBuilder {
     /// Emit a host message mapped from the normalized slider value.
     pub fn message<Message: 'static>(
         self,
-        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+        map: impl Fn(f32) -> Message + 'static,
     ) -> ViewNode<Message> {
         let mut slider = SliderWidget::new(
             0,
@@ -105,7 +105,7 @@ pub fn slider(value: f32) -> SliderBuilder {
 /// Build a horizontal normalized slider that maps value changes.
 pub fn slider_mapped<Message: 'static>(
     value: f32,
-    map: impl Fn(f32) -> Message + Send + Sync + 'static,
+    map: impl Fn(f32) -> Message + 'static,
 ) -> ViewNode<Message> {
     slider(value).message(map)
 }

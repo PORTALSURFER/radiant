@@ -65,7 +65,7 @@ impl PointerTargetBuilder {
     /// Emit host messages for selected pointer target outputs.
     pub fn filter_map<Message: 'static>(
         self,
-        map: impl Fn(crate::widgets::PointerShieldMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(crate::widgets::PointerShieldMessage) -> Option<Message> + 'static,
     ) -> PointerTarget<Message> {
         PointerTarget::new(self.shield.filter_map(map).input_only().fill())
     }
@@ -81,7 +81,7 @@ impl PointerTargetBuilder {
     /// Emit a host message from pointer movement positions only.
     pub fn on_pointer_move<Message: 'static>(
         self,
-        map: impl Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        map: impl Fn(crate::gui::types::Point) -> Message + 'static,
     ) -> PointerTarget<Message> {
         PointerTarget::new(self.shield.on_pointer_move(map).input_only().fill())
     }

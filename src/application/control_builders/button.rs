@@ -78,7 +78,7 @@ impl ButtonBuilder {
     /// Emit a mapped host message when activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ButtonMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
         self.with_message_mapper(WidgetMessageMapper::button(map))
     }
@@ -86,7 +86,7 @@ impl ButtonBuilder {
     /// Emit a host message for selected button outputs.
     pub fn filter_mapped<Message: 'static>(
         self,
-        map: impl Fn(ButtonMessage) -> Option<Message> + Send + Sync + 'static,
+        map: impl Fn(ButtonMessage) -> Option<Message> + 'static,
     ) -> ViewNode<Message> {
         self.with_message_mapper(WidgetMessageMapper::dynamic(move |output: WidgetOutput| {
             output.typed_ref::<ButtonMessage>().cloned().and_then(&map)
@@ -97,7 +97,7 @@ impl ButtonBuilder {
     pub fn click_or_drag<Message>(
         self,
         activate: Message,
-        drag: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+        drag: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> ViewNode<Message>
     where
         Message: Clone + Send + Sync + 'static,
@@ -159,7 +159,7 @@ where
 /// Build a button with a custom widget-message mapper.
 pub fn button_mapped<Message: 'static>(
     label: impl Into<TextContent>,
-    map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(ButtonMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)
 }

@@ -6,6 +6,27 @@ use radiant::widgets::{
     TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc};
+
+#[test]
+fn mapped_control_accepts_ui_local_capture() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let captured = Rc::clone(&calls);
+    let surface: UiSurface<()> = ui::button("Local")
+        .mapped(move |_| {
+            *captured.borrow_mut() += 1;
+        })
+        .into_surface();
+
+    assert!(
+        surface
+            .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+            .is_some()
+    );
+    assert_eq!(*calls.borrow(), 1);
+}
 
 #[test]
 fn application_text_builders_accept_static_owned_and_shared_content() {

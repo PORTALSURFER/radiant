@@ -8,7 +8,7 @@ use super::ToggleWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a toggle-message mapper.
-    pub fn toggle(map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static) -> Self {
+    pub fn toggle(map: impl Fn(ToggleMessage) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -19,7 +19,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         label: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+        map: impl Fn(bool) -> Message + 'static,
     ) -> Self {
         Self::toggle_with_checked(id, label, false, sizing, map)
     }
@@ -30,7 +30,7 @@ impl<Message> SurfaceNode<Message> {
         label: impl Into<String>,
         checked: bool,
         sizing: WidgetSizing,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+        map: impl Fn(bool) -> Message + 'static,
     ) -> Self {
         Self::toggle_mapped_with_checked(id, label, checked, sizing, move |message| match message {
             ToggleMessage::ValueChanged { checked } => map(checked),
@@ -42,7 +42,7 @@ impl<Message> SurfaceNode<Message> {
         id: WidgetId,
         label: impl Into<String>,
         sizing: WidgetSizing,
-        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ToggleMessage) -> Message + 'static,
     ) -> Self {
         Self::toggle_mapped_with_checked(id, label, false, sizing, map)
     }
@@ -53,7 +53,7 @@ impl<Message> SurfaceNode<Message> {
         label: impl Into<String>,
         checked: bool,
         sizing: WidgetSizing,
-        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ToggleMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
             ToggleWidget::new(id, PaintText::from(label.into()), sizing).with_checked(checked),

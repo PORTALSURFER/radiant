@@ -116,7 +116,7 @@ impl<Message> PanelSectionParts<Message> {
         Message: 'static,
         Map: Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
     {
-        self.trailing(drag_handle_mapped(map).key(key).size(
+        self.trailing(drag_handle_mapped(map).key(key.to_string()).size(
             DEFAULT_PANEL_SECTION_RESIZE_HANDLE_WIDTH,
             DEFAULT_PANEL_SECTION_RESIZE_HANDLE_HEIGHT,
         ))
@@ -230,7 +230,7 @@ impl<Message> PanelSectionHeaderParts<Message> {
             drag_handle()
                 .hover_chrome_only()
                 .mapped(map)
-                .key(key)
+                .key(key.to_string())
                 .style(WidgetStyle::subtle(WidgetTone::Accent))
                 .fill_width()
                 .height(header_height),

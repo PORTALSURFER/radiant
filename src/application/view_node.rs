@@ -9,6 +9,8 @@ mod modifiers;
 #[path = "view_node/slot.rs"]
 mod slot;
 
+pub use identity::ContinuityKey;
+
 use slot::SlotBehavior;
 
 use crate::{
@@ -63,7 +65,7 @@ pub enum LayerInputPolicy {
 pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
-    key: Option<String>,
+    key: Option<identity::ContinuityKey>,
     has_reserved_identity: bool,
     has_reserved_descendant_identity: bool,
     sizing: Option<WidgetSizing>,

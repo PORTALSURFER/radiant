@@ -27,7 +27,7 @@ pub fn row_key<Message>(
     key: impl ToString,
     children: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
-    row(children).key(key)
+    row(children).key(key.to_string())
 }
 
 /// Build a column container with fill-slot children.
@@ -45,7 +45,7 @@ pub fn column_key<Message>(
     key: impl ToString,
     children: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
-    column(children).key(key)
+    column(children).key(key.to_string())
 }
 
 /// Build a grid container with a fixed column count and default gaps.

@@ -32,6 +32,20 @@ enum LatestStorage {
 }
 
 /// Tracks the latest in-flight task for one host-owned resource.
+///
+/// The application owns one tracker per logical resource and keeps it with the
+/// UI state that starts and accepts the work. Starting another request advances
+/// the ticket; a completion is current only when [`Self::is_active`] accepts
+/// its ticket, and the reducer should call [`Self::finish`] before applying the
+/// output. This is the normal app-facing stale-result contract used by
+/// `context.business().latest(...)` and
+/// [`crate::application::UiUpdateContext::after_latest`].
+///
+/// Custom hosts may use the same tracker with an explicit
+/// [`crate::runtime::RuntimeBridge`] or [`crate::runtime::RuntimeTaskHost`]
+/// integration, but they must preserve ticket ownership and perform the
+/// active-ticket check on the UI owner. A timer or worker thread must not invoke
+/// the mapper or mutate this tracker.
 #[derive(Debug)]
 pub struct LatestTask {
     storage: LatestStorage,

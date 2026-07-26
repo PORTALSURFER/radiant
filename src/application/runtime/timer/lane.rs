@@ -14,11 +14,12 @@ mod tests;
 
 const TIMER_THREAD_NAME: &str = "radiant-timer";
 
-/// Runtime-owned timer lane for delayed UI messages.
+/// Runtime-owned timer lane for delayed UI wakes.
 ///
 /// Delays should not occupy the UI/event/render owner, and they should not
-/// create one OS thread per scheduled message. This lane keeps delayed messages
-/// on one ordered worker and wakes the runtime only when messages become due.
+/// create one OS thread per scheduled delay. This lane keeps opaque timer
+/// identities on one ordered worker and wakes the runtime only when identities
+/// become due; the UI runtime maps and reduces the resulting message.
 pub(in crate::application::runtime) struct TimerLane {
     state: Option<Arc<TimerState>>,
     worker: Option<thread::JoinHandle<()>>,
@@ -64,7 +65,7 @@ impl TimerLane {
     ) -> bool {
         let Some(state) = &self.state else {
             tracing::warn!(
-                "Radiant app runtime has no timer lane available for delayed message; refusing to block the UI path"
+                "Radiant app runtime has no timer lane available for delayed wake; refusing to block the UI path"
             );
             return false;
         };

@@ -7,7 +7,8 @@ typed platform services, and business-work scheduling.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
 boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see
-`docs/API_STYLE.md`.
+`docs/API_STYLE.md`. For custom-host timer integration after the opaque-wake
+change, see [the timer host API migration](migrations/TIMER_API_MIGRATION.md).
 
 ## Document Status And Authority
 
@@ -635,10 +636,24 @@ completions should call `ResourceTasks::finish_key(...)` or
 `TaskTicket` before applying progress, preview, playback, or final output. Use
 `ResourceKey::scoped(...)` or `ResourceKey::path(...)` to keep resource classes
 explicit instead of hand-concatenating scope prefixes in app code. Use
-`UiUpdateContext::after_latest(...)` for debounced one-resource UI delays when a
-selection, search query, or inspector target should only start after it remains
-current for a short delay; the delayed message carries the same ticket type and
-should be accepted through the same `LatestTask` methods.
+`Command::after(...)` and `UiUpdateContext::after(...)` schedule one delayed
+UI-owned mapper. The host timer lane carries only an opaque wake; it never
+constructs or transports the application message. `UiUpdateContext::after_latest(...)`
+uses a caller-owned `LatestTask` to replace a pending debounce, and the UI
+runtime invokes the mapper only when its ticket is still active. Keep one
+`LatestTask` with the host's UI state for each logical resource, and call
+`LatestTask::finish(...)` (or its completion helper) before applying work
+results. `Subscription::interval(...)` uses the same opaque-wake lane for
+recurring ticks; its message factory also runs on the UI owner.
+
+For custom hosts, implement `RuntimeTaskHost::schedule_timer(...)`,
+`RuntimeQueueHost::take_runtime_timer_wakes(...)`, and
+`RuntimeQueueHost::map_runtime_timer_wake(...)` together. The host stores or
+forwards `RuntimeTimerWake` values only; the UI runtime owns FIFO ordering,
+generation/epoch validation, mapper invocation, and message reduction. No
+application message crosses the timer thread, and controller-owned wakes must
+remain available to the runtime controller rather than being mapped by the
+host.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
@@ -1846,9 +1861,11 @@ message and do that short UI-state work in the reducer, but the default
 architecture is UI-first and non-blocking.
 Delayed messages use a runtime-owned timer lane rather than one sleeping OS
 thread per delay, so timer bursts do not monopolize the UI path or create
-unbounded background threads. Interval subscriptions use the same timer lane for
-recurring ticks; receiver-backed worker subscriptions keep a dedicated thread
-only when they must wait on a host-owned blocking receiver.
+unbounded background threads. The lane transports opaque timer wakes only; the
+UI runtime maps a wake to its registered message and reduces that message on
+the UI owner. Interval subscriptions use the same wake lane for recurring
+ticks; receiver-backed worker subscriptions keep a dedicated thread only when
+they must wait on a host-owned blocking receiver.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

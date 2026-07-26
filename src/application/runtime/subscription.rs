@@ -10,6 +10,10 @@ use std::{
 const SUBSCRIPTION_CANCEL_POLL: Duration = Duration::from_millis(50);
 
 /// App-level subscription sources evaluated when the native runtime starts.
+///
+/// Interval ticks are represented by opaque timer wakes until the UI runtime
+/// drains and maps them. The timer lane never constructs or transports an
+/// application message; the interval factory runs on the UI owner.
 pub enum Subscription<Message> {
     /// No subscription.
     None,
@@ -57,6 +61,10 @@ impl<Message> Subscription<Message> {
     }
 
     /// Build an interval subscription.
+    ///
+    /// Each accepted interval wake invokes `message` during the UI runtime's
+    /// drain turn. Only the opaque wake crosses the timer-lane boundary, so the
+    /// factory and resulting application message remain UI-owned.
     pub fn interval(
         id: &'static str,
         every: Duration,

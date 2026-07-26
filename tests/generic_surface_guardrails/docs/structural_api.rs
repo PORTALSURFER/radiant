@@ -18,20 +18,25 @@ fn api_docs_describe_the_structural_boundary_strategy() {
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
 
     for required in [
-        "Radiant exposes one public API with progressive control",
+        "# Radiant",
+        "Windows-first Rust GUI library",
+        "application-independent",
+        "## Start with an app",
         "use radiant::prelude::*;",
         "radiant::window(\"Radiant Hello World\").run(text(\"Hello, world!\"))",
+        "## Find your next layer",
+        "Prelude, applications, and views",
+        "Widgets and composition",
+        "Runtime and custom hosting",
         "not a separate framework",
-        "Start with `README.md`",
-        "`docs/API.md`",
-        "checked public API boundary",
-        "`docs/ARCHITECTURE.md`",
-        "ownership boundaries",
-        "`docs/TARGET.md`",
-        "long-term standalone GUI library direction",
-        "`widget_gallery`",
-        "`waveform_view`",
-        "`timeline_editor`",
+        "github.com/PORTALSURFER/radiant#readme",
+        "github.com/PORTALSURFER/radiant/blob/main/docs/API.md",
+        "github.com/PORTALSURFER/radiant/blob/main/docs/ARCHITECTURE.md",
+        "github.com/PORTALSURFER/radiant/blob/main/docs/DESIGN_DIRECTION.md",
+        "github.com/PORTALSURFER/radiant/blob/main/docs/TARGET.md",
+        "github.com/PORTALSURFER/radiant/blob/main/docs/migrations/TIMER_API_MIGRATION.md",
+        "github.com/PORTALSURFER/radiant/tree/main/examples",
+        "custom-host-oriented",
     ] {
         assert!(
             normalized_crate_docs.contains(required),
@@ -104,6 +109,13 @@ fn api_docs_describe_the_structural_boundary_strategy() {
             "docs/API.md should document `{required}`"
         );
     }
+
+    assert!(
+        !normalized_crate_docs
+            .contains("reusable GUI primitives and runtimes for host applications")
+            && !normalized_crate_docs.contains("Start with `README.md`"),
+        "crate front page should lead with Radiant's GUI-library identity and use robust guide links"
+    );
 }
 
 #[test]

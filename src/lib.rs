@@ -1,14 +1,17 @@
-//! `radiant`: reusable GUI primitives and runtimes for host applications.
+//! # Radiant
 //!
-//! Radiant exposes one public API with progressive control. Applications can
-//! start with [`prelude`] for readable window, app, and view
-//! builders, then name [`runtime`], [`widgets`],
-//! [`layout`], and [`theme`] objects when they need
-//! more explicit control. All of those entry points lower into the same generic
-//! declarative UI tree and native Vello backend without depending on host-shaped
-//! shell DTOs.
+//! Radiant is a Windows-first Rust GUI library for building native desktop
+//! applications. It is application-independent: your application owns its
+//! state and domain behavior, while Radiant provides declarative views,
+//! application updates, layout, input, focus, styling, rendering, and runtime
+//! integration. The public API is designed to grow from a small app to an
+//! explicitly hosted UI without claiming a cross-platform target that is not
+//! ready yet.
 //!
-//! A minimal app starts through the prelude:
+//! ## Start with an app
+//!
+//! The [`prelude`] is the normal starting point for applications. The
+//! application and view builders keep a first window concise:
 //!
 //! ```no_run
 //! use radiant::prelude::*;
@@ -18,24 +21,42 @@
 //! }
 //! ```
 //!
-//! For more explicit control, use the same model through [`runtime::RuntimeBridge`],
-//! [`runtime::UiSurface`], [`runtime::SurfaceNode`], and
-//! [`runtime::NativeRunOptions`]. Those APIs are supported host control
-//! surfaces, not a separate framework.
+//! ## Find your next layer
 //!
-//! Start with `README.md`, then use `docs/API.md` for the checked public API
-//! boundary and lifecycle model, `docs/ARCHITECTURE.md` for ownership boundaries,
-//! and `docs/TARGET.md` for the long-term standalone GUI library direction. The
-//! checked `hello_world`, `counter`, `generic_native`, `widget_gallery`,
-//! `waveform_view`, and `timeline_editor` examples cover application patterns
-//! across the target areas.
+//! - **Prelude, applications, and views:** begin with [`prelude`], then use
+//!   [`application`] to define stateful apps and view projections.
+//! - **Widgets and composition:** compose [`widgets`], [`layout`], and
+//!   [`theme`] contracts when an app needs reusable controls, containers, or
+//!   visual tokens beyond the builder defaults.
+//! - **Runtime and custom hosting:** advanced embedders can use [`runtime`],
+//!   [`runtime::RuntimeBridge`], [`runtime::UiSurface`],
+//!   [`runtime::SurfaceNode`], and [`runtime::NativeRunOptions`] to own the
+//!   host boundary while keeping the same declarative model.
 //!
-//! Generic host-facing modules:
-//! - [`layout`]: stable slot-based layout primitives
-//! - [`widgets`]: first-class reusable widget contracts
-//! - [`gui_runtime`]: backend runtimes and scheduling
-//! - [`runtime`]: generic declarative view/message bridge for new hosts
-//! - [`theme`]: reusable visual tokens for generic widgets and containers
+//! The application builders and explicit runtime objects are supported parts of
+//! one API; the latter are not a separate framework.
+//!
+//! ## Design and API guides
+//!
+//! The repository guides extend this API reference:
+//!
+//! - [README and installation overview](https://github.com/PORTALSURFER/radiant#readme)
+//! - [API guide](https://github.com/PORTALSURFER/radiant/blob/main/docs/API.md)
+//! - [Architecture map](https://github.com/PORTALSURFER/radiant/blob/main/docs/ARCHITECTURE.md)
+//! - [Design direction](https://github.com/PORTALSURFER/radiant/blob/main/docs/DESIGN_DIRECTION.md)
+//! - [Long-term target](https://github.com/PORTALSURFER/radiant/blob/main/docs/TARGET.md)
+//! - [Timer host migration](https://github.com/PORTALSURFER/radiant/blob/main/docs/migrations/TIMER_API_MIGRATION.md)
+//!
+//! The maintained [examples](https://github.com/PORTALSURFER/radiant/tree/main/examples)
+//! provide progressively richer application patterns, including
+//! [`hello_world`](https://github.com/PORTALSURFER/radiant/blob/main/examples/hello_world.rs),
+//! [`counter`](https://github.com/PORTALSURFER/radiant/blob/main/examples/counter.rs),
+//! [`widget_gallery`](https://github.com/PORTALSURFER/radiant/blob/main/examples/widget_gallery.rs),
+//! and custom-host-oriented [`generic_native`](https://github.com/PORTALSURFER/radiant/blob/main/examples/generic_native.rs).
+//!
+//! Generic host-facing modules include [`gui_runtime`] for native runtime
+//! adapters, [`runtime`] for the declarative view/message bridge, and the
+//! reusable [`layout`], [`widgets`], and [`theme`] contracts.
 
 /// Readable application and view builder implementation.
 pub mod application;

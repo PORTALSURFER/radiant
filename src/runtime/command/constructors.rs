@@ -87,6 +87,11 @@ impl<Message> Command<Message> {
     }
 
     /// Build a command that dispatches one message after the provided delay.
+    ///
+    /// The delay is registered as a UI-owned mapper. A host timer lane carries
+    /// only an opaque wake; when the UI runtime drains that wake it invokes the
+    /// mapper and dispatches `message` on the UI owner. The message does not
+    /// cross the timer thread.
     pub fn after(delay: Duration, message: Message) -> Self
     where
         Message: 'static,

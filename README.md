@@ -35,6 +35,8 @@ widgets. They are explicit control surfaces, not a second framework.
   validation lane.
 - `docs/API_STYLE.md`: preferred public API style, example style, and cleanup
   ticket criteria.
+- `docs/migrations/TIMER_API_MIGRATION.md`: custom-host timer wake migration
+  and the UI-owned mapper contract.
 - `docs/ARCHITECTURE.md`: contributor map for ownership boundaries, platform
   seams, rendering boundaries, and validation slices.
 - `docs/TARGET.md`: long-term project direction for a standalone,

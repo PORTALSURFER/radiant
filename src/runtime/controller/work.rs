@@ -17,6 +17,7 @@ pub(super) struct RuntimeWorkQueues<Message> {
     bridge_messages_remaining: bool,
     timer_wakes: VecDeque<RuntimeTimerWake>,
     timer_work_remaining: bool,
+    timer_ingress_closed: bool,
 }
 
 impl<Message> RuntimeWorkQueues<Message> {
@@ -54,6 +55,12 @@ impl<Message> RuntimeWorkQueues<Message> {
         bridge: &mut Bridge,
         capability: Option<&RuntimeQueueCapability<Bridge, Message>>,
     ) {
+        if self.timer_ingress_closed {
+            if let Some(capability) = capability {
+                let _ = (capability.take_runtime_timer_wakes)(bridge);
+            }
+            return;
+        }
         if let Some(capability) = capability {
             self.timer_wakes
                 .extend((capability.take_runtime_timer_wakes)(bridge));
@@ -68,7 +75,8 @@ impl<Message> RuntimeWorkQueues<Message> {
         self.timer_wakes.len()
     }
 
-    pub(super) fn clear_timer_wakes(&mut self) {
+    pub(super) fn fence_timer_wakes(&mut self) {
+        self.timer_ingress_closed = true;
         self.timer_wakes.clear();
     }
 
@@ -111,6 +119,7 @@ impl<Message> Default for RuntimeWorkQueues<Message> {
             bridge_messages_remaining: false,
             timer_wakes: VecDeque::new(),
             timer_work_remaining: false,
+            timer_ingress_closed: false,
         }
     }
 }
@@ -158,5 +167,19 @@ mod tests {
             Some(RuntimeTimerWake::application(2, 0, 1))
         );
         assert_eq!(queues.pop_timer_wake(), None);
+    }
+
+    #[test]
+    fn fenced_timer_queue_discards_late_host_wakes() {
+        let mut host = Host {
+            wakes: vec![RuntimeTimerWake::application(1, 0, 1)],
+        };
+        let mut queues = RuntimeWorkQueues::<u8>::default();
+        queues.fence_timer_wakes();
+        let capability = RuntimeQueueCapability::new();
+        queues.drain_bridge_timer_wakes(&mut host, Some(&capability));
+
+        assert_eq!(queues.timer_wake_len(), 0);
+        assert!(host.wakes.is_empty());
     }
 }

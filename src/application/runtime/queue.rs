@@ -1,3 +1,4 @@
+use super::subscription::{WorkerSubscriptionDelivery, WorkerSubscriptionIdentity};
 use super::threading::BusinessThreadPool;
 use super::timer::{TimerIdentity, TimerLane, TimerSink, TimerWake, timer_sink};
 use crate::gui::repaint::RepaintSignal;
@@ -16,6 +17,7 @@ pub(in crate::application) struct RuntimeStreamSlot(u64);
 
 enum PendingMessage<Message> {
     Ordinary(Message),
+    Worker(WorkerSubscriptionDelivery),
     StreamLatest {
         slot: RuntimeStreamSlot,
         message: Message,
@@ -71,6 +73,54 @@ impl<Message> AppRuntime<Message> {
         true
     }
 
+    pub(super) fn enqueue_worker_payload(
+        &self,
+        identity: WorkerSubscriptionIdentity,
+        payload: Box<dyn std::any::Any + Send>,
+    ) -> bool {
+        self.enqueue_worker_payload_with_pre_append_hook(identity, payload, || {})
+    }
+
+    fn enqueue_worker_payload_with_pre_append_hook(
+        &self,
+        identity: WorkerSubscriptionIdentity,
+        payload: Box<dyn std::any::Any + Send>,
+        before_pending_lock: impl FnOnce(),
+    ) -> bool {
+        self.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Payload { identity, payload },
+            before_pending_lock,
+        )
+    }
+
+    fn enqueue_worker_delivery_with_pre_append_hook(
+        &self,
+        delivery: WorkerSubscriptionDelivery,
+        before_pending_lock: impl FnOnce(),
+    ) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
+        before_pending_lock();
+        {
+            let mut pending = lock_runtime_state(&self.pending);
+            if !self.is_alive() {
+                return false;
+            }
+            pending.push(PendingMessage::Worker(delivery));
+            self.record_pending_depth(&pending);
+        }
+        self.request_repaint();
+        true
+    }
+
+    pub(super) fn enqueue_worker_disconnect(&self, identity: WorkerSubscriptionIdentity) -> bool {
+        self.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Disconnected { identity },
+            || {},
+        )
+    }
+
     pub(super) fn begin_stream_slot(&self) -> RuntimeStreamSlot {
         RuntimeStreamSlot(self.next_stream_slot.fetch_add(1, Ordering::Relaxed))
     }
@@ -87,7 +137,9 @@ impl<Message> AppRuntime<Message> {
                     slot: pending_slot,
                     message,
                 } if *pending_slot == slot => Some(message),
-                PendingMessage::Ordinary(_) | PendingMessage::StreamLatest { .. } => None,
+                PendingMessage::Ordinary(_)
+                | PendingMessage::Worker(_)
+                | PendingMessage::StreamLatest { .. } => None,
             }) {
                 *existing = message;
                 self.diagnostics.record_stream_message_coalesced();
@@ -159,29 +211,60 @@ impl<Message> AppRuntime<Message> {
         self.diagnostics.snapshot()
     }
 
+    #[cfg(test)]
     pub(super) fn take_pending(&self) -> Vec<Message> {
+        self.take_pending_with_worker_mapper(|_| None)
+    }
+
+    pub(super) fn take_pending_with_worker_mapper(
+        &self,
+        mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+    ) -> Vec<Message> {
         let frame = lock_runtime_state(&self.pending_frame).take();
         let pending = drain_runtime_vec(&self.pending)
             .into_iter()
-            .map(PendingMessage::into_message)
+            .filter_map(|message| message.into_message(&mut map_worker))
             .collect();
         self.record_current_pending_depth();
         prepend_pending_frame(frame, pending)
     }
 
+    #[cfg(test)]
     pub(super) fn drain_pending_into(&self, pending: &mut Vec<Message>) {
+        self.drain_pending_into_with_worker_mapper(pending, |_| None);
+    }
+
+    pub(super) fn drain_pending_into_with_worker_mapper(
+        &self,
+        pending: &mut Vec<Message>,
+        mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+    ) {
         if let Some(frame) = lock_runtime_state(&self.pending_frame).take() {
             pending.insert(0, frame);
         }
         let mut queued = lock_runtime_state(&self.pending);
-        pending.extend(queued.drain(..).map(PendingMessage::into_message));
+        pending.extend(
+            queued
+                .drain(..)
+                .filter_map(|message| message.into_message(&mut map_worker)),
+        );
         self.record_pending_depth(&queued);
     }
 
+    #[cfg(test)]
     pub(super) fn drain_pending_batch_into(
         &self,
         pending: &mut Vec<Message>,
         max_messages: usize,
+    ) -> bool {
+        self.drain_pending_batch_into_with_worker_mapper(pending, max_messages, |_| None)
+    }
+
+    pub(super) fn drain_pending_batch_into_with_worker_mapper(
+        &self,
+        pending: &mut Vec<Message>,
+        max_messages: usize,
+        mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
     ) -> bool {
         let max_messages = max_messages.max(1);
         if let Some(frame) = lock_runtime_state(&self.pending_frame).take() {
@@ -194,7 +277,7 @@ impl<Message> AppRuntime<Message> {
             pending.extend(
                 queued
                     .drain(..drain_count)
-                    .map(PendingMessage::into_message),
+                    .filter_map(|message| message.into_message(&mut map_worker)),
             );
         }
         let remaining = !queued.is_empty();
@@ -340,9 +423,13 @@ fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
 }
 
 impl<Message> PendingMessage<Message> {
-    fn into_message(self) -> Message {
+    fn into_message(
+        self,
+        map_worker: &mut impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+    ) -> Option<Message> {
         match self {
-            Self::Ordinary(message) | Self::StreamLatest { message, .. } => message,
+            Self::Ordinary(message) | Self::StreamLatest { message, .. } => Some(message),
+            Self::Worker(delivery) => map_worker(delivery),
         }
     }
 

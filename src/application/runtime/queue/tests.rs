@@ -1,7 +1,10 @@
 use super::*;
+use crate::application::runtime::subscription::{
+    WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
+};
 use std::{
     sync::{
-        Arc,
+        Arc, Barrier,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -130,6 +133,111 @@ fn ordinary_pending_messages_keep_full_ordering_and_depth() {
     assert_eq!(diagnostics.queue.stream_events_coalesced, 0);
     assert_eq!(diagnostics.queue.max_pending_messages, 100);
     assert_eq!(diagnostics.queue.max_pending_stream_slots, 0);
+}
+
+#[test]
+fn opaque_worker_messages_preserve_fifo_with_ordinary_messages() {
+    let runtime = AppRuntime::<u32>::default();
+    let identity = WorkerSubscriptionIdentity { id: 1, epoch: 1 };
+
+    assert!(runtime.enqueue(1));
+    assert!(runtime.enqueue_worker_payload(identity, Box::new(2_u32)));
+    assert!(runtime.enqueue(3));
+
+    let mapped = runtime.take_pending_with_worker_mapper(|delivery| match delivery {
+        WorkerSubscriptionDelivery::Payload { payload, .. } => {
+            Some(*payload.downcast::<u32>().expect("u32 payload"))
+        }
+        WorkerSubscriptionDelivery::Disconnected { .. } => None,
+    });
+    assert_eq!(mapped, vec![1, 2, 3]);
+}
+
+#[test]
+fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
+    let runtime = AppRuntime::<u32>::default();
+    let identity = WorkerSubscriptionIdentity { id: 2, epoch: 1 };
+    for message in 0..65_u32 {
+        assert!(runtime.enqueue_worker_payload(identity, Box::new(message)));
+    }
+
+    let mut normal = Vec::new();
+    assert!(
+        runtime.drain_pending_batch_into_with_worker_mapper(&mut normal, 64, |delivery| {
+            match delivery {
+                WorkerSubscriptionDelivery::Payload { payload, .. } => {
+                    Some(*payload.downcast::<u32>().expect("u32 payload"))
+                }
+                WorkerSubscriptionDelivery::Disconnected { .. } => None,
+            }
+        },)
+    );
+    assert_eq!(normal.len(), 64);
+
+    let mut interactive = Vec::new();
+    assert!(!runtime.drain_pending_batch_into_with_worker_mapper(
+        &mut interactive,
+        8,
+        |delivery| match delivery {
+            WorkerSubscriptionDelivery::Payload { payload, .. } => {
+                Some(*payload.downcast::<u32>().expect("u32 payload"))
+            }
+            WorkerSubscriptionDelivery::Disconnected { .. } => None,
+        },
+    ));
+    assert_eq!(interactive, vec![64]);
+}
+
+#[test]
+fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
+    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let identity = WorkerSubscriptionIdentity { id: 3, epoch: 1 };
+    let pre_append = Arc::new(Barrier::new(2));
+    let release_append = Arc::new(Barrier::new(2));
+    let worker_runtime = Arc::clone(&runtime);
+    let worker_pre_append = Arc::clone(&pre_append);
+    let worker_release_append = Arc::clone(&release_append);
+    let worker = thread::spawn(move || {
+        worker_runtime.enqueue_worker_payload_with_pre_append_hook(
+            identity,
+            Box::new(99_u32),
+            move || {
+                worker_pre_append.wait();
+                worker_release_append.wait();
+            },
+        )
+    });
+
+    pre_append.wait();
+    runtime.shutdown();
+    release_append.wait();
+
+    assert!(!worker.join().expect("worker should complete"));
+    assert!(runtime.take_pending().is_empty());
+
+    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let identity = WorkerSubscriptionIdentity { id: 4, epoch: 1 };
+    let pre_append = Arc::new(Barrier::new(2));
+    let release_append = Arc::new(Barrier::new(2));
+    let worker_runtime = Arc::clone(&runtime);
+    let worker_pre_append = Arc::clone(&pre_append);
+    let worker_release_append = Arc::clone(&release_append);
+    let worker = thread::spawn(move || {
+        worker_runtime.enqueue_worker_delivery_with_pre_append_hook(
+            WorkerSubscriptionDelivery::Disconnected { identity },
+            move || {
+                worker_pre_append.wait();
+                worker_release_append.wait();
+            },
+        )
+    });
+
+    pre_append.wait();
+    runtime.shutdown();
+    release_append.wait();
+
+    assert!(!worker.join().expect("disconnect worker should complete"));
+    assert!(runtime.take_pending().is_empty());
 }
 
 #[test]

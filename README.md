@@ -68,15 +68,20 @@ cargo test --examples
 Direct Unix binaries with windows are not always visible as normal applications
 to macOS LaunchServices or app-level UI automation tools. Radiant ships a
 generic helper for host applications that need a LaunchServices-visible
-development `.app` wrapper around a prebuilt binary:
+development `.app` wrapper around a prebuilt binary. From the root of a
+standalone Radiant checkout, run:
 
 ```bash
 cargo build --release --bin my_app
 RADIANT_DEV_APP_NAME="My App" \
 RADIANT_DEV_APP_BINARY="$PWD/target/release/my_app" \
 RADIANT_DEV_APP_BUNDLE_ID="com.example.my-app.dev" \
-vendor/radiant/scripts/dev_app_bundle.sh --log
+./scripts/dev_app_bundle.sh --log
 ```
+
+When Radiant is vendored under `vendor/radiant` in a host repository, run
+`vendor/radiant/scripts/dev_app_bundle.sh` from that host repository's root
+instead.
 
 The helper stages `target/dev-app/My App.app`, writes a minimal `Info.plist`,
 copies the binary into `Contents/MacOS`, ad-hoc signs when possible, and

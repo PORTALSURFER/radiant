@@ -3091,11 +3091,10 @@ transport, mixer, audio, DSP, and plugin behavior remain host-owned.
 ## Quality Gate
 
 The local validation lane runs formatting, Clippy with warnings denied, library
-and integration tests, checked examples, rustdoc with broken intra-doc links
-denied, doctests for public documentation examples, no-default-features library
-checks for the documented Linux and macOS targets, and a perf-harness smoke pass
-that lists scenarios and proves baseline capture/comparison with
-`--fail-on-missing-baseline`.
+and integration tests, checked examples, a rustdoc build, Rust source-level
+doctests, no-default-features library checks for the documented Linux and macOS
+targets, and a perf-harness smoke pass that lists scenarios and proves baseline
+capture/comparison with `--fail-on-missing-baseline`.
 
 Radiant's normal local quality lane is:
 
@@ -3113,6 +3112,13 @@ cargo bench --bench perf_harness -- --list
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\target\perf-baseline.jsonl
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\target\perf-baseline.jsonl --fail-on-missing-baseline
 ```
+
+`cargo doc --no-deps` validates generated rustdoc and source-level intra-doc
+references. The current setup does not establish `rustdoc with broken intra-doc
+links denied`, and this command does not validate Markdown API-reference
+snippets in `docs/API.md`. `cargo test --doc` runs doctests for public
+documentation examples extracted from Rust doc comments; it does not execute
+Markdown API-reference snippets.
 
 The perf-harness listing is a smoke check for scenario registration. The
 focused baseline round trip proves the JSONL capture/comparison path and missing

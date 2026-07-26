@@ -18,7 +18,7 @@ pub use lifecycle::RuntimeLifecycleHost;
 pub use platform::RuntimePlatformHost;
 pub use presentation::{RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost};
 pub use queues::RuntimeQueueHost;
-pub use tasks::RuntimeTaskHost;
+pub use tasks::{RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake};
 
 use crate::{
     gui::{

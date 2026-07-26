@@ -1,8 +1,7 @@
 //! Runtime-facing timer lane API.
 
-use super::queue::TimerState;
+use super::queue::{TimerIdentity, TimerSink, TimerState};
 use super::worker::timer_loop;
-use crate::application::runtime::queue::AppRuntime;
 use std::{
     sync::{Arc, Weak},
     thread,
@@ -20,24 +19,18 @@ const TIMER_THREAD_NAME: &str = "radiant-timer";
 /// Delays should not occupy the UI/event/render owner, and they should not
 /// create one OS thread per scheduled message. This lane keeps delayed messages
 /// on one ordered worker and wakes the runtime only when messages become due.
-pub(in crate::application::runtime) struct TimerLane<Message> {
-    state: Option<Arc<TimerState<Message>>>,
+pub(in crate::application::runtime) struct TimerLane {
+    state: Option<Arc<TimerState>>,
     worker: Option<thread::JoinHandle<()>>,
 }
 
-impl<Message> Default for TimerLane<Message>
-where
-    Message: Send + 'static,
-{
+impl Default for TimerLane {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<Message> TimerLane<Message>
-where
-    Message: Send + 'static,
-{
+impl TimerLane {
     pub(in crate::application::runtime) fn new() -> Self {
         let state = Arc::new(TimerState::default());
         let worker_state = Arc::clone(&state);
@@ -65,9 +58,9 @@ where
 
     pub(in crate::application::runtime) fn schedule(
         &self,
-        runtime: Weak<AppRuntime<Message>>,
+        runtime: Weak<dyn TimerSink>,
         delay: Duration,
-        message: Message,
+        identity: TimerIdentity,
     ) -> bool {
         let Some(state) = &self.state else {
             tracing::warn!(
@@ -75,14 +68,14 @@ where
             );
             return false;
         };
-        state.schedule_once(runtime, delay, message)
+        state.schedule_once(runtime, delay, identity)
     }
 
     pub(in crate::application::runtime) fn schedule_interval(
         &self,
-        runtime: Weak<AppRuntime<Message>>,
+        runtime: Weak<dyn TimerSink>,
         every: Duration,
-        message: Arc<dyn Fn() -> Message + Send + Sync>,
+        identity: TimerIdentity,
     ) -> bool {
         let Some(state) = &self.state else {
             tracing::warn!(
@@ -90,7 +83,7 @@ where
             );
             return false;
         };
-        state.schedule_interval(runtime, every, message)
+        state.schedule_interval(runtime, every, identity)
     }
 
     #[cfg(test)]
@@ -100,9 +93,15 @@ where
             worker: None,
         }
     }
+
+    pub(in crate::application::runtime) fn close(&self) {
+        if let Some(state) = &self.state {
+            state.close();
+        }
+    }
 }
 
-impl<Message> Drop for TimerLane<Message> {
+impl Drop for TimerLane {
     fn drop(&mut self) {
         if let Some(state) = &self.state {
             state.close();

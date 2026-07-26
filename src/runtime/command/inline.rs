@@ -43,7 +43,7 @@ impl<Message> Command<Message> {
             | Self::EndDrag
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Exit => {}
             Self::Message(message) => dispatch(message),
             Self::Batch(commands) => {

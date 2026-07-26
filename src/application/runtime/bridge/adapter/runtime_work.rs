@@ -22,8 +22,12 @@ where
         self.start_subscriptions_once();
     }
 
-    pub(super) fn schedule_runtime_message(&mut self, delay: Duration, message: Message) -> bool {
-        self.runtime.schedule_message(delay, message)
+    pub(super) fn schedule_runtime_timer(
+        &mut self,
+        delay: Duration,
+        wake: crate::runtime::RuntimeTimerWake,
+    ) -> bool {
+        self.runtime.schedule_timer_wake(delay, wake)
     }
 
     pub(super) fn spawn_runtime_message_task(
@@ -141,20 +145,43 @@ where
                 work(sink);
             })
     }
+}
 
+impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
+where
+    Project: FnMut(&State) -> View + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
+    View: IntoView<Message> + 'static,
+{
     pub(super) fn take_runtime_command_queue(&mut self) -> Vec<Command<Message>> {
-        self.runtime.take_commands()
+        std::mem::take(&mut self.commands)
     }
 
     pub(super) fn drain_runtime_command_queue_into(
         &mut self,
         commands: &mut Vec<Command<Message>>,
     ) {
-        self.runtime.drain_commands_into(commands);
+        commands.append(&mut self.commands);
     }
 
     pub(super) fn take_runtime_message_queue(&mut self) -> Vec<Message> {
         self.runtime.take_pending()
+    }
+
+    pub(super) fn take_runtime_timer_wake_queue(
+        &mut self,
+    ) -> Vec<crate::runtime::RuntimeTimerWake> {
+        let mut wakes = Vec::new();
+        for wake in self.runtime.take_timer_wakes() {
+            if wake.owner == crate::runtime::RuntimeTimerOwner::Application
+                && let Some(message) = self.timer_registry.map_wake(wake)
+            {
+                let _ = self.runtime.enqueue(message);
+            } else {
+                wakes.push(wake);
+            }
+        }
+        wakes
     }
 
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {

@@ -29,7 +29,10 @@ impl<Message> UiUpdateContext<Message> {
     }
 
     /// Dispatch a message after a delay.
-    pub fn after(&mut self, delay: std::time::Duration, message: Message) {
+    pub fn after(&mut self, delay: std::time::Duration, message: Message)
+    where
+        Message: 'static,
+    {
         self.queue_command(Command::after(delay, message));
     }
 
@@ -38,10 +41,20 @@ impl<Message> UiUpdateContext<Message> {
         &mut self,
         latest: &mut LatestTask,
         delay: std::time::Duration,
-        map: impl FnOnce(crate::application::TaskTicket) -> Message,
-    ) {
+        map: impl FnOnce(crate::application::TaskTicket) -> Message + 'static,
+    ) where
+        Message: 'static,
+    {
+        let previous_generation = latest.active().map(|ticket| ticket.id());
         let ticket = latest.begin();
-        self.after(delay, map(ticket));
+        let latest_slot = latest.effect_id();
+        self.queue_command(Command::after_latest(
+            delay,
+            ticket,
+            latest_slot,
+            previous_generation,
+            map,
+        ));
     }
 
     /// Request runtime exit.

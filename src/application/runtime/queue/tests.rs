@@ -35,22 +35,6 @@ fn pending_messages_recover_after_poisoned_queue_lock() {
 }
 
 #[test]
-fn commands_recover_after_poisoned_queue_lock() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let poisoned = Arc::clone(&runtime);
-    let _ = thread::spawn(move || {
-        let mut commands = poisoned.commands.lock().expect("pending commands lock");
-        commands.push(Command::message(1));
-        panic!("poison pending command queue");
-    })
-    .join();
-
-    assert!(runtime.enqueue_command(Command::message(2)));
-
-    assert_eq!(runtime.take_commands().len(), 2);
-}
-
-#[test]
 fn repaint_requests_recover_after_poisoned_signal_lock() {
     let runtime = Arc::new(AppRuntime::<u32>::default());
     let called = Arc::new(AtomicBool::new(false));
@@ -163,22 +147,6 @@ fn stream_diagnostics_count_stale_and_shutdown_drops() {
 }
 
 #[test]
-fn command_queue_retains_capacity_after_drain() {
-    let runtime = AppRuntime::<u32>::default();
-    for message in 0..32 {
-        assert!(runtime.enqueue_command(Command::message(message)));
-    }
-    let capacity = runtime.commands.lock().expect("commands lock").capacity();
-
-    let commands = runtime.take_commands();
-    assert_eq!(commands.len(), 32);
-    assert_eq!(commands.capacity(), capacity);
-
-    let retained_capacity = runtime.commands.lock().expect("commands lock").capacity();
-    assert_eq!(retained_capacity, capacity);
-}
-
-#[test]
 fn pending_message_queue_drains_into_reused_output_without_replacing_queue_storage() {
     let runtime = AppRuntime::<u32>::default();
     for message in 0..32 {
@@ -271,35 +239,17 @@ fn pending_frame_is_coalesced_until_drained() {
 }
 
 #[test]
-fn command_queue_drains_into_reused_output_without_replacing_queue_storage() {
-    let runtime = AppRuntime::<u32>::default();
-    for message in 0..32 {
-        assert!(runtime.enqueue_command(Command::message(message)));
-    }
-    let queue_capacity = runtime.commands.lock().expect("commands lock").capacity();
-    let mut commands = Vec::with_capacity(64);
-    let output_capacity = commands.capacity();
-
-    runtime.drain_commands_into(&mut commands);
-
-    assert_eq!(commands.len(), 32);
-    assert_eq!(commands.capacity(), output_capacity);
-    let queue = runtime.commands.lock().expect("commands lock");
-    assert!(queue.is_empty());
-    assert_eq!(queue.capacity(), queue_capacity);
-}
-
-#[test]
 fn delayed_messages_use_runtime_timer_lane() {
     let runtime = Arc::new(AppRuntime::<u32>::default());
+    let identity = runtime.allocate_timer_identity(0);
 
-    assert!(runtime.schedule_message(Duration::from_millis(1), 7));
+    assert!(runtime.schedule_timer_wake(Duration::from_millis(1), identity));
 
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        delivered = runtime.take_pending();
-        if !delivered.is_empty() {
+        if !runtime.take_timer_wakes().is_empty() {
+            delivered.push(7);
             break;
         }
         thread::sleep(Duration::from_millis(1));
@@ -311,10 +261,37 @@ fn delayed_messages_use_runtime_timer_lane() {
 #[test]
 fn delayed_messages_stop_after_runtime_shutdown() {
     let runtime = Arc::new(AppRuntime::<u32>::default());
+    let identity = runtime.allocate_timer_identity(0);
 
     runtime.shutdown();
 
-    assert!(!runtime.schedule_message(Duration::ZERO, 7));
+    assert!(!runtime.schedule_timer_wake(Duration::ZERO, identity));
     thread::sleep(Duration::from_millis(1));
     assert!(runtime.take_pending().is_empty());
+}
+
+#[test]
+fn controller_timer_wakes_do_not_enter_application_identity_registry() {
+    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let baseline = runtime
+        .timer_identities
+        .lock()
+        .expect("timer identities lock")
+        .len();
+
+    for id in 1..=256 {
+        assert!(
+            runtime.schedule_timer_wake(Duration::ZERO, RuntimeTimerWake::controller(id, 0, 1),)
+        );
+    }
+
+    assert_eq!(
+        runtime
+            .timer_identities
+            .lock()
+            .expect("timer identities lock")
+            .len(),
+        baseline
+    );
+    runtime.shutdown();
 }

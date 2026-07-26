@@ -18,10 +18,10 @@ where
             Self::SetWindowLogicalSize(size) => {
                 f.debug_tuple("SetWindowLogicalSize").field(size).finish()
             }
-            Self::After { delay, message } => f
-                .debug_struct("After")
-                .field("delay", delay)
-                .field("message", message)
+            Self::Timer(effect) => f
+                .debug_struct("Timer")
+                .field("delay", &effect.delay)
+                .field("generation", &effect.generation)
                 .finish(),
             Self::Perform { name, priority, .. } => f
                 .debug_struct("Perform")

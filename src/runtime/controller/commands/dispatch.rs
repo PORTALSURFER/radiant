@@ -12,6 +12,17 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    fn schedule_timer_effect(
+        &mut self,
+        effect: crate::runtime::command::TimerEffect<Message>,
+    ) -> bool {
+        let capability = self.host_capabilities.tasks.as_ref();
+        let bridge = &mut self.bridge;
+        self.timer_effects.schedule(effect, |delay, wake| {
+            capability.is_some_and(|capability| (capability.schedule_timer)(bridge, delay, wake))
+        })
+    }
+
     pub(in crate::runtime::controller) fn dispatch_message_inner(
         &mut self,
         message: Message,
@@ -224,8 +235,8 @@ where
                 outcome.request_surface_refresh(RepaintScope::Surface);
                 outcome.window_logical_size = Some(size);
             }
-            Command::After { delay, message } => {
-                if self.host_schedule_message(delay, message) {
+            Command::Timer(effect) => {
+                if self.schedule_timer_effect(effect) {
                     outcome.repaint_requested = true;
                 }
             }
@@ -368,6 +379,7 @@ where
             }
             Command::Exit => {
                 self.worker_effects.shutdown();
+                self.timer_effects.shutdown();
                 outcome.exit_requested = true;
                 self.exit_requested = true;
             }

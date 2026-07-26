@@ -1,7 +1,12 @@
 use super::{TaskCompletion, TaskTicket};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+    sync::{Mutex, OnceLock},
+};
 
 static NEXT_LATEST_SLOT_ID: AtomicU64 = AtomicU64::new(1);
+static ACTIVE_LATEST: OnceLock<Mutex<HashMap<u64, u64>>> = OnceLock::new();
 
 #[cfg(test)]
 #[path = "latest/tests.rs"]
@@ -62,11 +67,37 @@ impl LatestTask {
         self.active
     }
 
-    pub(in crate::application) fn effect_id(&mut self) -> u64 {
+    pub(crate) fn effect_id(&mut self) -> u64 {
         if self.effect_id == 0 {
             self.effect_id = NEXT_LATEST_SLOT_ID.fetch_add(1, Ordering::Relaxed);
         }
+        if let Some(ticket) = self.active {
+            latest_registry()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(self.effect_id, ticket.id());
+        }
         self.effect_id
+    }
+
+    pub(crate) fn generation_active(slot: u64, generation: u64) -> bool {
+        latest_registry()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(&slot)
+            .copied()
+            == Some(generation)
+    }
+
+    pub(crate) fn restore_generation(slot: u64, generation: Option<u64>) {
+        let mut registry = latest_registry()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(generation) = generation {
+            registry.insert(slot, generation);
+        } else {
+            registry.remove(&slot);
+        }
     }
 
     /// Return whether this ticket is still the active latest task.
@@ -83,6 +114,12 @@ impl LatestTask {
     pub fn finish(&mut self, ticket: TaskTicket) -> bool {
         if self.is_active(ticket) {
             self.active = None;
+            if self.effect_id != 0 {
+                latest_registry()
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .remove(&self.effect_id);
+            }
             true
         } else {
             false
@@ -100,5 +137,26 @@ impl LatestTask {
     /// Clear any active task.
     pub fn cancel(&mut self) {
         self.active = None;
+        if self.effect_id != 0 {
+            latest_registry()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .remove(&self.effect_id);
+        }
     }
+}
+
+impl Drop for LatestTask {
+    fn drop(&mut self) {
+        if self.effect_id != 0 {
+            latest_registry()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .remove(&self.effect_id);
+        }
+    }
+}
+
+fn latest_registry() -> &'static Mutex<HashMap<u64, u64>> {
+    ACTIVE_LATEST.get_or_init(|| Mutex::new(HashMap::new()))
 }

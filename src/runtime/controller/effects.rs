@@ -147,7 +147,7 @@ impl<Message> WorkerEffects<Message> {
                 }
                 let result = panic::catch_unwind(AssertUnwindSafe(work));
                 let terminal = match result {
-                    Ok(output) if is_cancelled.as_ref().is_some_and(|probe| probe()) => {
+                    Ok(_output) if is_cancelled.as_ref().is_some_and(|probe| probe()) => {
                         EffectResult::Cancelled
                     }
                     Ok(output) => EffectResult::Completed(output),
@@ -205,7 +205,7 @@ impl<Message> WorkerEffects<Message> {
             return;
         };
         match terminal.result {
-            EffectResult::Completed(output)
+            EffectResult::Completed(_output)
                 if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) => {}
             EffectResult::Completed(output) => messages.push((entry.map)(output)),
             EffectResult::Panicked(message) => {

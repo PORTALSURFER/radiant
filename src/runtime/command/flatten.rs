@@ -37,7 +37,7 @@ impl<Message> Command<Message> {
             | Self::RequestPaintOnly
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
@@ -71,7 +71,7 @@ impl<Message> Command<Message> {
             | Self::RequestPaintOnly
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }

@@ -1,6 +1,8 @@
 use super::{
-    AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_message, spawn_subscription,
+    AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_message,
+    spawn_subscription_with_registry,
 };
+use crate::application::runtime::timer::TimerRegistry;
 use std::{
     sync::{Arc, mpsc},
     thread,
@@ -69,15 +71,22 @@ fn batch_collapses_single_subscription_groups() {
 #[test]
 fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
     let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut registry = TimerRegistry::default();
 
-    spawn_subscription(
+    spawn_subscription_with_registry(
         Arc::downgrade(&runtime),
+        &mut registry,
         Subscription::interval("tick", Duration::from_millis(1), || 1),
     );
 
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
+        for wake in runtime.take_timer_wakes() {
+            if let Some(message) = registry.map_wake(wake) {
+                let _ = runtime.enqueue(message);
+            }
+        }
         delivered.extend(runtime.take_pending());
         if !delivered.is_empty() {
             break;

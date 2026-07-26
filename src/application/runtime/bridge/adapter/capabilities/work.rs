@@ -22,8 +22,8 @@ where
         self.install_runtime_repaint_signal(signal);
     }
 
-    fn schedule_message(&mut self, delay: Duration, message: Message) -> bool {
-        self.schedule_runtime_message(delay, message)
+    fn schedule_timer(&mut self, delay: Duration, wake: crate::runtime::RuntimeTimerWake) -> bool {
+        self.schedule_runtime_timer(delay, wake)
     }
 
     fn spawn_message_task(
@@ -91,7 +91,6 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
     State: 'static,
 {
     fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {
@@ -104,6 +103,10 @@ where
 
     fn take_runtime_messages(&mut self) -> Vec<Message> {
         self.take_runtime_message_queue()
+    }
+
+    fn take_runtime_timer_wakes(&mut self) -> Vec<crate::runtime::RuntimeTimerWake> {
+        self.take_runtime_timer_wake_queue()
     }
 
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {

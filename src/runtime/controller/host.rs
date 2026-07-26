@@ -77,13 +77,16 @@ where
         }
     }
 
-    pub(crate) fn host_schedule_message(&mut self, delay: Duration, message: Message) -> bool {
+    #[allow(dead_code)]
+    pub(crate) fn host_schedule_timer(
+        &mut self,
+        delay: Duration,
+        wake: crate::runtime::RuntimeTimerWake,
+    ) -> bool {
         self.host_capabilities
             .tasks
             .as_ref()
-            .is_some_and(|capability| {
-                (capability.schedule_message)(&mut self.bridge, delay, message)
-            })
+            .is_some_and(|capability| (capability.schedule_timer)(&mut self.bridge, delay, wake))
     }
 
     pub(crate) fn host_spawn_message_task(

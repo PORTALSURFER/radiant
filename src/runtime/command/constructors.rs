@@ -1,4 +1,4 @@
-use super::{BusinessMessageSink, Command, TaskPriority};
+use super::{BusinessMessageSink, Command, TaskPriority, TimerEffect};
 use crate::{
     runtime::{
         DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResult,
@@ -87,8 +87,36 @@ impl<Message> Command<Message> {
     }
 
     /// Build a command that dispatches one message after the provided delay.
-    pub const fn after(delay: Duration, message: Message) -> Self {
-        Self::After { delay, message }
+    pub fn after(delay: Duration, message: Message) -> Self
+    where
+        Message: 'static,
+    {
+        Self::Timer(TimerEffect {
+            delay,
+            generation: 0,
+            latest_slot: None,
+            previous_generation: None,
+            map: Box::new(move || message),
+        })
+    }
+
+    pub(crate) fn after_latest(
+        delay: Duration,
+        ticket: crate::application::TaskTicket,
+        latest_slot: u64,
+        previous_generation: Option<u64>,
+        map: impl FnOnce(crate::application::TaskTicket) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        Self::Timer(TimerEffect {
+            delay,
+            generation: ticket.id(),
+            latest_slot: Some(latest_slot),
+            previous_generation,
+            map: Box::new(move || map(ticket)),
+        })
     }
 
     pub(crate) fn perform_with_priority<Output>(

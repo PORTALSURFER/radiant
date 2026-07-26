@@ -10,7 +10,7 @@ impl<Message> Command<Message> {
             | Self::RequestPaintOnly
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
@@ -56,7 +56,7 @@ impl<Message> Command<Message> {
                 .reduce(RepaintScope::merge),
             Self::None
             | Self::Message(_)
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }
@@ -97,7 +97,7 @@ impl<Message> Command<Message> {
             | Self::RequestLayoutRefresh
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
-            | Self::After { .. }
+            | Self::Timer(..)
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::PerformStreamLatest { .. }

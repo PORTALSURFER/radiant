@@ -29,6 +29,8 @@ widgets. They are explicit control surfaces, not a second framework.
 
 ## Documentation Map
 
+- `docs/DESIGN_DIRECTION.md`: normative target-state architecture contract for
+  the node model, application API, scheduling, and rendering boundaries.
 - `docs/API.md`: application-facing API contract, examples, runtime model, and
   validation lane.
 - `docs/API_STYLE.md`: preferred public API style, example style, and cleanup

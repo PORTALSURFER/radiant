@@ -155,7 +155,11 @@ At this stage, Radiant should also not replace Vello or attempt to build a full 
 
 VST/plugin integration belongs to the application or plugin framework using Radiant. Radiant should provide the GUI/window/surface/rendering/event APIs that make plugin UI integration possible, but the plugin-domain layer should own VST-specific behavior.
 
-Accessibility is also not a priority for the current stage. Full accessibility support is a future concern, not a current implementation target.
+Accessibility is also not a priority for the current implementation stage. The
+target-state design still reserves backend-neutral semantics, focus, and
+automation boundaries so future native accessibility adapters do not require a
+second UI model. Full native accessibility integration remains a future concern,
+not a current implementation target.
 
 Radiant may support sample managers, DAWs, plugins, todo apps, editors, and other tools, but it should do so through general-purpose GUI primitives and extensible architecture.
 
@@ -859,7 +863,10 @@ Full internationalization can be a future concern, but the core text system shou
 
 ## Accessibility
 
-Accessibility is not a current priority for Radiant.
+Accessibility is not a current implementation priority for Radiant. The
+target-state contract in `docs/DESIGN_DIRECTION.md` still treats semantic tree
+ownership and focus behavior as GUI architecture concerns; native accessibility
+adapters remain deferred until those runtime contracts are ready.
 
 Full accessibility support is a non-goal for the current phase.
 

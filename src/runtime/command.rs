@@ -83,6 +83,7 @@ impl<Message> BusinessMessageSink<Message> {
         (self.emit)(message)
     }
 
+    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn emit_latest(&self, message: Message) -> bool {
         match &self.emit_latest {
             Some(emit) => emit(message),
@@ -264,8 +265,74 @@ pub struct WorkerEffect<Message> {
     pub(crate) is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
-    pub(crate) work: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>,
-    pub(crate) map: Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>,
+    pub(crate) work: WorkerEffectWork,
+    pub(crate) mapper: WorkerEffectMapper<Message>,
+}
+
+pub(crate) enum WorkerEffectWork {
+    Once(Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>),
+    Stream(Box<dyn FnOnce(WorkerEffectSink) -> Box<dyn Any + Send> + Send + 'static>),
+}
+
+pub(crate) enum WorkerEffectMapper<Message> {
+    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>),
+    Stream {
+        latest: bool,
+        map_event: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        map_final: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+    },
+}
+
+/// Worker-side payload sink used by UI-owned streaming worker effects.
+///
+/// The sink carries only opaque `Send` payloads. Event and final mappers stay
+/// in the UI-owned effect registry and are never moved onto the worker lane.
+#[derive(Clone)]
+pub(crate) struct WorkerEffectSink {
+    emit: Arc<dyn Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static>,
+    emit_latest: Option<Arc<dyn Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static>>,
+    close_latest: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+}
+
+impl WorkerEffectSink {
+    pub(crate) fn new_ordered(
+        emit: impl Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            emit: Arc::new(emit),
+            emit_latest: None,
+            close_latest: None,
+        }
+    }
+
+    pub(crate) fn new_latest(
+        emit: impl Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static,
+        emit_latest: impl Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static,
+        close_latest: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            emit: Arc::new(emit),
+            emit_latest: Some(Arc::new(emit_latest)),
+            close_latest: Some(Arc::new(close_latest)),
+        }
+    }
+
+    pub(crate) fn emit(&self, payload: Box<dyn Any + Send>) -> bool {
+        (self.emit)(payload)
+    }
+
+    pub(crate) fn emit_latest(&self, payload: Box<dyn Any + Send>) -> bool {
+        match &self.emit_latest {
+            Some(emit) => emit(payload),
+            None => self.emit(payload),
+        }
+    }
+
+    pub(crate) fn close_latest(&self) {
+        if let Some(close) = &self.close_latest {
+            close();
+        }
+    }
 }
 
 /// Opaque identity for one worker effect slot.

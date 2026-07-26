@@ -116,6 +116,17 @@ impl RuntimeTaskHost<DemoMessage> for RuntimeCommandBridge {
         });
         true
     }
+
+    fn spawn_worker_task(
+        &mut self,
+        _name: &'static str,
+        _priority: radiant::runtime::TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce() + Send + 'static>,
+    ) -> bool {
+        std::thread::spawn(work);
+        true
+    }
 }
 
 impl RuntimeQueueHost<DemoMessage> for RuntimeCommandBridge {

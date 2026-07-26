@@ -77,11 +77,11 @@ pub use bridge::{
     declarative_runtime_bridge,
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
-pub(crate) use command::EffectId;
 pub use command::{
     BusinessMessageSink, Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     SurfaceInvalidation, SurfaceRevisions, TaskPriority,
 };
+pub(crate) use command::{EffectId, WorkerEffectSink};
 pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,

@@ -1,15 +1,31 @@
-use crate::runtime::BusinessMessageSink;
+use crate::runtime::{BusinessMessageSink, WorkerEffectSink};
 
-pub(super) struct LatestStreamCloseGuard<Message> {
-    sink: Option<BusinessMessageSink<Message>>,
+pub(crate) trait CloseLatest {
+    fn close_latest(&self);
 }
 
-impl<Message> LatestStreamCloseGuard<Message> {
-    pub(super) fn new(sink: BusinessMessageSink<Message>) -> Self {
+impl<Message> CloseLatest for BusinessMessageSink<Message> {
+    fn close_latest(&self) {
+        BusinessMessageSink::close_latest(self);
+    }
+}
+
+impl CloseLatest for WorkerEffectSink {
+    fn close_latest(&self) {
+        WorkerEffectSink::close_latest(self);
+    }
+}
+
+pub(crate) struct LatestStreamCloseGuard<S: CloseLatest> {
+    sink: Option<S>,
+}
+
+impl<S: CloseLatest> LatestStreamCloseGuard<S> {
+    pub(crate) fn new(sink: S) -> Self {
         Self { sink: Some(sink) }
     }
 
-    pub(super) fn close(mut self) {
+    pub(crate) fn close(mut self) {
         self.close_inner();
     }
 
@@ -20,7 +36,7 @@ impl<Message> LatestStreamCloseGuard<Message> {
     }
 }
 
-impl<Message> Drop for LatestStreamCloseGuard<Message> {
+impl<S: CloseLatest> Drop for LatestStreamCloseGuard<S> {
     fn drop(&mut self) {
         self.close_inner();
     }

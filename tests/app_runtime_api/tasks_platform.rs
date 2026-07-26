@@ -151,6 +151,156 @@ fn one_shot_business_families_accept_ui_local_mappers() {
 }
 
 #[test]
+fn streaming_business_families_use_worker_effects_with_ui_local_mappers() {
+    let mut ordinary = radiant::prelude::UiUpdateContext::default();
+    let ordinary_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let ordinary_event_state = std::rc::Rc::clone(&ordinary_state);
+    let ordinary_final_state = std::rc::Rc::clone(&ordinary_state);
+    ordinary.business().background("stream-ordinary").stream(
+        |_context, events| {
+            assert!(events.emit(1_u8));
+            2_u8
+        },
+        move |_| {
+            *ordinary_event_state.borrow_mut() += 1;
+            DemoMessage::Increment
+        },
+        move |_| {
+            *ordinary_final_state.borrow_mut() += 1;
+            DemoMessage::Increment
+        },
+    );
+    assert_worker_command(
+        &ordinary.into_command(),
+        "stream-ordinary",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*ordinary_state.borrow(), 0);
+
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut latest_context = radiant::prelude::UiUpdateContext::default();
+    let latest_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let latest_event_state = std::rc::Rc::clone(&latest_state);
+    let latest_final_state = std::rc::Rc::clone(&latest_state);
+    latest_context
+        .business()
+        .background("stream-latest")
+        .latest(&mut latest)
+        .stream_latest(
+            |_context, events| {
+                assert!(events.emit(1_u8));
+                2_u8
+            },
+            move |_| {
+                *latest_event_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+            move |_| {
+                *latest_final_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &latest_context.into_command(),
+        "stream-latest",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*latest_state.borrow(), 0);
+
+    let mut cancellable = radiant::prelude::UiUpdateContext::default();
+    let cancellable_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let cancellable_event_state = std::rc::Rc::clone(&cancellable_state);
+    let cancellable_final_state = std::rc::Rc::clone(&cancellable_state);
+    cancellable
+        .business()
+        .background("stream-cancellable")
+        .cancellable()
+        .stream(
+            |_context, events| {
+                assert!(events.emit(1_u8));
+                2_u8
+            },
+            move |_| {
+                *cancellable_event_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+            move |_| {
+                *cancellable_final_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &cancellable.into_command(),
+        "stream-cancellable",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*cancellable_state.borrow(), 0);
+
+    let mut keyed_tasks = radiant::prelude::KeyedLatestTasks::new();
+    let mut keyed = radiant::prelude::UiUpdateContext::default();
+    let keyed_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let keyed_event_state = std::rc::Rc::clone(&keyed_state);
+    let keyed_final_state = std::rc::Rc::clone(&keyed_state);
+    keyed
+        .business()
+        .background("stream-keyed")
+        .latest_for(&mut keyed_tasks, "row-1")
+        .stream_latest(
+            |_context, events| {
+                assert!(events.emit(1_u8));
+                2_u8
+            },
+            move |_| {
+                *keyed_event_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+            move |_| {
+                *keyed_final_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &keyed.into_command(),
+        "stream-keyed",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*keyed_state.borrow(), 0);
+
+    let mut resources = radiant::prelude::ResourceTasks::default();
+    let mut resource = radiant::prelude::UiUpdateContext::default();
+    let resource_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));
+    let resource_event_state = std::rc::Rc::clone(&resource_state);
+    let resource_final_state = std::rc::Rc::clone(&resource_state);
+    resource
+        .business()
+        .background("stream-resource")
+        .latest_for_resource(
+            &mut resources,
+            radiant::prelude::ResourceKey::scoped("kind", "id"),
+        )
+        .stream(
+            |_context, events| {
+                assert!(events.emit(1_u8));
+                2_u8
+            },
+            move |_| {
+                *resource_event_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+            move |_| {
+                *resource_final_state.borrow_mut() += 1;
+                DemoMessage::Increment
+            },
+        );
+    assert_worker_command(
+        &resource.into_command(),
+        "stream-resource",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert_eq!(*resource_state.borrow(), 0);
+}
+
+#[test]
 fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
     let mut latest = radiant::prelude::LatestTask::new();
     let first = latest.begin();

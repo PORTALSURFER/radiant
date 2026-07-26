@@ -2,13 +2,16 @@
 
 use super::SurfaceRuntime;
 use crate::runtime::RuntimeBridge;
-use crate::runtime::command::{EffectGeneration, EffectId};
+use crate::runtime::command::{
+    EffectGeneration, EffectId, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
+};
 use std::{
     any::Any,
     collections::{HashMap, VecDeque},
     panic::{self, AssertUnwindSafe},
     sync::{
         Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
         mpsc::{SyncSender, TrySendError},
     },
 };
@@ -24,6 +27,8 @@ struct EffectTerminal {
 }
 
 enum EffectResult {
+    Event(Box<dyn Any + Send>),
+    LatestEvent,
     Completed(Box<dyn Any + Send>),
     Cancelled,
     Panicked(String),
@@ -32,6 +37,10 @@ enum EffectResult {
 struct EffectIngress {
     sender: SyncSender<EffectTerminal>,
     sequence: Arc<Mutex<u64>>,
+    finals: Arc<Mutex<VecDeque<EffectTerminal>>>,
+    stream_events_coalesced: Arc<AtomicUsize>,
+    stream_events_dropped: Arc<AtomicUsize>,
+    stream_events_stale: Arc<AtomicUsize>,
 }
 
 impl EffectIngress {
@@ -62,11 +71,78 @@ impl EffectIngress {
         }
     }
 
+    fn send_event(
+        &self,
+        id: EffectId,
+        generation: EffectGeneration,
+        epoch: u64,
+        result: EffectResult,
+    ) -> bool {
+        let accepted = self.send(id, generation, epoch, result);
+        if !accepted {
+            self.stream_events_dropped.fetch_add(1, Ordering::AcqRel);
+        }
+        accepted
+    }
+
+    fn send_final(
+        &self,
+        id: EffectId,
+        generation: EffectGeneration,
+        epoch: u64,
+        result: EffectResult,
+    ) -> bool {
+        let mut sequence = self
+            .sequence
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let terminal = EffectTerminal {
+            sequence: *sequence,
+            id,
+            generation,
+            epoch,
+            result,
+        };
+        *sequence = sequence.saturating_add(1);
+        self.finals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push_back(terminal);
+        true
+    }
+
+    fn record_coalesced(&self) {
+        self.stream_events_coalesced.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn record_stale(&self) {
+        self.stream_events_stale.fetch_add(1, Ordering::AcqRel);
+    }
+
     fn high_water(&self) -> u64 {
         *self
             .sequence
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn take_finals(&self) -> Vec<EffectTerminal> {
+        self.finals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .drain(..)
+            .collect()
+    }
+
+    fn clone_handle(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            sequence: Arc::clone(&self.sequence),
+            finals: Arc::clone(&self.finals),
+            stream_events_coalesced: Arc::clone(&self.stream_events_coalesced),
+            stream_events_dropped: Arc::clone(&self.stream_events_dropped),
+            stream_events_stale: Arc::clone(&self.stream_events_stale),
+        }
     }
 }
 
@@ -74,7 +150,78 @@ struct Registered<Message> {
     generation: EffectGeneration,
     epoch: u64,
     is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
-    map: Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>,
+    mapper: RegisteredMapper<Message>,
+}
+
+enum RegisteredMapper<Message> {
+    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>),
+    Stream {
+        latest: bool,
+        latest_state: Option<Arc<LatestStreamState>>,
+        map_event: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        map_final: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+    },
+}
+
+struct LatestStreamState {
+    gate: Mutex<LatestStreamGate>,
+    ingress: EffectIngress,
+    id: EffectId,
+    generation: EffectGeneration,
+    epoch: u64,
+}
+
+struct LatestStreamGate {
+    closed: bool,
+    marker_enqueued: bool,
+    latest: Option<Box<dyn Any + Send>>,
+}
+
+impl LatestStreamState {
+    fn emit(&self, payload: Box<dyn Any + Send>) -> bool {
+        let mut gate = self
+            .gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if gate.closed {
+            self.ingress.record_stale();
+            return false;
+        }
+        gate.latest = Some(payload);
+        if gate.marker_enqueued {
+            self.ingress.record_coalesced();
+            return true;
+        }
+        gate.marker_enqueued = true;
+        if self.ingress.send_event(
+            self.id,
+            self.generation,
+            self.epoch,
+            EffectResult::LatestEvent,
+        ) {
+            true
+        } else {
+            gate.marker_enqueued = false;
+            gate.latest = None;
+            false
+        }
+    }
+
+    fn close(&self) {
+        self.gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .closed = true;
+    }
+
+    fn take_latest(&self) -> Option<Box<dyn Any + Send>> {
+        let mut gate = self
+            .gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        gate.marker_enqueued = false;
+        gate.latest.take()
+    }
 }
 
 pub(super) struct WorkerEffects<Message> {
@@ -84,6 +231,7 @@ pub(super) struct WorkerEffects<Message> {
     registry: HashMap<EffectId, Registered<Message>>,
     pending: usize,
     epoch: u64,
+    stream_events_stale: usize,
 }
 
 impl<Message> Default for WorkerEffects<Message> {
@@ -96,6 +244,7 @@ impl<Message> Default for WorkerEffects<Message> {
             registry: HashMap::new(),
             pending: 0,
             epoch: 1,
+            stream_events_stale: 0,
         }
     }
 }
@@ -117,22 +266,90 @@ impl<Message> WorkerEffects<Message> {
         let epoch = self.epoch;
         let is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>> =
             effect.is_cancelled.map(Arc::from);
+        let (mapper, stream_latest) = match effect.mapper {
+            WorkerEffectMapper::Once(map) => (RegisteredMapper::Once(map), None),
+            WorkerEffectMapper::Stream {
+                latest,
+                map_event,
+                map_final,
+            } => (
+                RegisteredMapper::Stream {
+                    latest,
+                    latest_state: None,
+                    map_event,
+                    map_final,
+                },
+                Some(latest),
+            ),
+        };
+        let latest_state = stream_latest.map(|_| {
+            Arc::new(LatestStreamState {
+                gate: Mutex::new(LatestStreamGate {
+                    closed: false,
+                    marker_enqueued: false,
+                    latest: None,
+                }),
+                ingress: self.ingress.clone_handle(),
+                id,
+                generation,
+                epoch,
+            })
+        });
+        let mapper = match mapper {
+            RegisteredMapper::Once(map) => RegisteredMapper::Once(map),
+            RegisteredMapper::Stream {
+                latest,
+                latest_state: _,
+                map_event,
+                map_final,
+            } => RegisteredMapper::Stream {
+                latest,
+                latest_state: latest_state.clone(),
+                map_event,
+                map_final,
+            },
+        };
         let previous = self.registry.insert(
             id,
             Registered {
                 generation,
                 epoch,
                 is_cancelled: is_cancelled.clone(),
-                map: effect.map,
+                mapper,
             },
         );
         self.pending += 1;
 
-        let ingress = Arc::new(EffectIngress {
-            sender: self.ingress.sender.clone(),
-            sequence: Arc::clone(&self.ingress.sequence),
-        });
+        let ingress = Arc::new(self.ingress.clone_handle());
         let work = effect.work;
+        let final_ingress = Arc::clone(&ingress);
+        let stream_sink = stream_latest.map(|latest| {
+            if latest {
+                if let Some(latest_state) = latest_state.as_ref().cloned() {
+                    let ordered = ingress.clone_handle();
+                    WorkerEffectSink::new_latest(
+                        move |payload| {
+                            ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                        },
+                        {
+                            let latest_state = Arc::clone(&latest_state);
+                            move |payload| latest_state.emit(payload)
+                        },
+                        move || latest_state.close(),
+                    )
+                } else {
+                    let ordered = Arc::clone(&ingress);
+                    WorkerEffectSink::new_ordered(move |payload| {
+                        ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                    })
+                }
+            } else {
+                let ordered = Arc::clone(&ingress);
+                WorkerEffectSink::new_ordered(move |payload| {
+                    ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                })
+            }
+        });
         let accepted = runtime.host_spawn_worker_task(
             effect.name,
             effect.priority,
@@ -142,10 +359,30 @@ impl<Message> WorkerEffects<Message> {
             }),
             Box::new(move || {
                 if is_cancelled.as_ref().is_some_and(|probe| probe()) {
-                    let _ = ingress.send(id, generation, epoch, EffectResult::Cancelled);
+                    if let Some(state) = latest_state.as_ref() {
+                        state.close();
+                    }
+                    let _ =
+                        final_ingress.send_final(id, generation, epoch, EffectResult::Cancelled);
                     return;
                 }
-                let result = panic::catch_unwind(AssertUnwindSafe(work));
+                let result = panic::catch_unwind(AssertUnwindSafe(|| match work {
+                    WorkerEffectWork::Once(work) => work(),
+                    WorkerEffectWork::Stream(work) => {
+                        let sink = stream_sink.unwrap_or_else(|| {
+                            let ordered = Arc::clone(&final_ingress);
+                            WorkerEffectSink::new_ordered(move |payload| {
+                                ordered.send_event(
+                                    id,
+                                    generation,
+                                    epoch,
+                                    EffectResult::Event(payload),
+                                )
+                            })
+                        });
+                        work(sink)
+                    }
+                }));
                 let terminal = match result {
                     Ok(_output) if is_cancelled.as_ref().is_some_and(|probe| probe()) => {
                         EffectResult::Cancelled
@@ -153,7 +390,10 @@ impl<Message> WorkerEffects<Message> {
                     Ok(output) => EffectResult::Completed(output),
                     Err(payload) => EffectResult::Panicked(panic_message(payload)),
                 };
-                let _ = ingress.send(id, generation, epoch, terminal);
+                if let Some(state) = latest_state.as_ref() {
+                    state.close();
+                }
+                let _ = final_ingress.send_final(id, generation, epoch, terminal);
             }),
         );
         if !accepted {
@@ -171,20 +411,59 @@ impl<Message> WorkerEffects<Message> {
         self.drain_at_high_water(self.ingress.high_water())
     }
 
-    fn drain_at_high_water(&mut self, high_water: u64) -> Vec<Message> {
-        let mut messages = Vec::new();
-        while let Some(terminal) = self.deferred.pop_front() {
-            if terminal.sequence >= high_water {
-                self.deferred.push_front(terminal);
-                break;
-            }
-            self.apply_terminal(terminal, &mut messages);
+    pub(super) fn drain_with_diagnostics(
+        &mut self,
+        diagnostics: &crate::runtime::RuntimeDiagnosticsRecorder,
+    ) -> Vec<Message> {
+        let messages = self.drain();
+        let coalesced = self
+            .ingress
+            .stream_events_coalesced
+            .swap(0, Ordering::AcqRel);
+        let dropped = self.ingress.stream_events_dropped.swap(0, Ordering::AcqRel);
+        let stale =
+            self.ingress.stream_events_stale.swap(0, Ordering::AcqRel) + self.stream_events_stale;
+        self.stream_events_stale = 0;
+        for _ in 0..coalesced {
+            diagnostics.record_stream_message_coalesced();
         }
+        for _ in 0..dropped {
+            diagnostics.record_stream_message_dropped();
+        }
+        for _ in 0..stale {
+            diagnostics.record_stream_message_stale();
+        }
+        messages
+    }
+
+    fn drain_at_high_water(&mut self, high_water: u64) -> Vec<Message> {
+        let mut terminals = Vec::new();
+        let mut deferred = VecDeque::new();
+        while let Some(terminal) = self.deferred.pop_front() {
+            if terminal.sequence < high_water {
+                terminals.push(terminal);
+            } else {
+                deferred.push_back(terminal);
+            }
+        }
+        self.deferred = deferred;
         while let Ok(terminal) = self.receiver.try_recv() {
             if terminal.sequence >= high_water {
                 self.deferred.push_back(terminal);
                 break;
             }
+            terminals.push(terminal);
+        }
+        for terminal in self.ingress.take_finals() {
+            if terminal.sequence >= high_water {
+                self.deferred.push_back(terminal);
+            } else {
+                terminals.push(terminal);
+            }
+        }
+        terminals.sort_by_key(|terminal| terminal.sequence);
+        let mut messages = Vec::new();
+        for terminal in terminals {
             self.apply_terminal(terminal, &mut messages);
         }
         messages
@@ -194,24 +473,99 @@ impl<Message> WorkerEffects<Message> {
         if terminal.epoch != self.epoch {
             return;
         }
-        self.pending = self.pending.saturating_sub(1);
+        if matches!(
+            &terminal.result,
+            EffectResult::Completed(_) | EffectResult::Cancelled | EffectResult::Panicked(_)
+        ) {
+            self.pending = self.pending.saturating_sub(1);
+        }
         let current = self.registry.get(&terminal.id).is_some_and(|entry| {
             entry.generation == terminal.generation && entry.epoch == terminal.epoch
         });
         if !current {
+            if matches!(
+                terminal.result,
+                EffectResult::Event(_) | EffectResult::LatestEvent
+            ) {
+                self.stream_events_stale += 1;
+            }
             return;
         }
-        let Some(entry) = self.registry.remove(&terminal.id) else {
-            return;
-        };
         match terminal.result {
-            EffectResult::Completed(_output)
-                if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) => {}
-            EffectResult::Completed(output) => messages.push((entry.map)(output)),
+            EffectResult::Event(output) => {
+                let Some(entry) = self.registry.get_mut(&terminal.id) else {
+                    return;
+                };
+                if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
+                    return;
+                }
+                if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper {
+                    if let Some(message) = map_event(output) {
+                        messages.push(message);
+                    }
+                }
+            }
+            EffectResult::LatestEvent => {
+                let Some(entry) = self.registry.get_mut(&terminal.id) else {
+                    return;
+                };
+                if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
+                    return;
+                }
+                if let RegisteredMapper::Stream {
+                    latest_state: Some(state),
+                    map_event,
+                    ..
+                } = &entry.mapper
+                {
+                    if let Some(output) = state.take_latest() {
+                        if let Some(message) = map_event(output) {
+                            messages.push(message);
+                        }
+                    }
+                }
+            }
+            EffectResult::Completed(output) => {
+                let Some(entry) = self.registry.remove(&terminal.id) else {
+                    return;
+                };
+                if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
+                    return;
+                }
+                match entry.mapper {
+                    RegisteredMapper::Once(map) => messages.push(map(output)),
+                    RegisteredMapper::Stream { map_final, .. } => {
+                        if let Some(message) = map_final(output) {
+                            messages.push(message);
+                        }
+                    }
+                }
+            }
             EffectResult::Panicked(message) => {
+                let Some(entry) = self.registry.remove(&terminal.id) else {
+                    return;
+                };
+                if let RegisteredMapper::Stream {
+                    latest_state: Some(state),
+                    ..
+                } = entry.mapper
+                {
+                    state.close();
+                }
                 tracing::error!(effect.id = terminal.id.0, %message, "Radiant worker effect panicked")
             }
-            EffectResult::Cancelled => {}
+            EffectResult::Cancelled => {
+                let Some(entry) = self.registry.remove(&terminal.id) else {
+                    return;
+                };
+                if let RegisteredMapper::Stream {
+                    latest_state: Some(state),
+                    ..
+                } = entry.mapper
+                {
+                    state.close();
+                }
+            }
         }
     }
 
@@ -223,15 +577,21 @@ impl<Message> WorkerEffects<Message> {
         self.ingress = ingress;
         self.receiver = receiver;
         self.pending = 0;
+        self.stream_events_stale = 0;
     }
 }
 
 fn new_ingress() -> (EffectIngress, std::sync::mpsc::Receiver<EffectTerminal>) {
     let (sender, receiver) = std::sync::mpsc::sync_channel(EFFECT_INGRESS_CAPACITY);
+    let finals = Arc::new(Mutex::new(VecDeque::new()));
     (
         EffectIngress {
             sender,
             sequence: Arc::new(Mutex::new(0)),
+            finals,
+            stream_events_coalesced: Arc::new(AtomicUsize::new(0)),
+            stream_events_dropped: Arc::new(AtomicUsize::new(0)),
+            stream_events_stale: Arc::new(AtomicUsize::new(0)),
         },
         receiver,
     )
@@ -287,7 +647,9 @@ mod tests {
                 generation: EffectGeneration(generation),
                 epoch: effect.epoch,
                 is_cancelled: None,
-                map: Box::new(|output| *output.downcast::<usize>().expect("usize output")),
+                mapper: RegisteredMapper::Once(Box::new(|output| {
+                    *output.downcast::<usize>().expect("usize output")
+                })),
             },
         );
         effect.pending += 1;
@@ -333,13 +695,13 @@ mod tests {
                 generation: EffectGeneration(1),
                 epoch: effects.epoch,
                 is_cancelled: None,
-                map: {
+                mapper: RegisteredMapper::Once(Box::new({
                     let invoked = Arc::clone(&invoked);
-                    Box::new(move |_| {
+                    move |_| {
                         invoked.fetch_add(1, Ordering::AcqRel);
                         1
-                    })
-                },
+                    }
+                })),
             },
         );
         effects.pending += 1;
@@ -379,13 +741,13 @@ mod tests {
                     let cancelled = Arc::clone(&cancelled);
                     Some(Arc::new(move || cancelled.load(Ordering::Acquire)))
                 },
-                map: {
+                mapper: RegisteredMapper::Once(Box::new({
                     let invoked = Arc::clone(&invoked);
-                    Box::new(move |_| {
+                    move |_| {
                         invoked.fetch_add(1, Ordering::AcqRel);
                         1
-                    })
-                },
+                    }
+                })),
             },
         );
         effects.pending += 1;
@@ -415,12 +777,12 @@ mod tests {
                 generation: EffectGeneration(1),
                 epoch: effects.epoch,
                 is_cancelled: None,
-                map: Box::new(move |output| {
+                mapper: RegisteredMapper::Once(Box::new(move |output| {
                     let _marker = &mapper_marker;
                     let output = *output.downcast::<usize>().expect("usize output");
                     mapper_state.borrow_mut().push(output);
                     output + 1
-                }),
+                })),
             },
         );
         effects.pending += 1;
@@ -435,6 +797,135 @@ mod tests {
         assert_eq!(effects.drain(), vec![8]);
         assert_eq!(*mapped.borrow(), vec![7]);
         assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn ordered_stream_maps_events_and_final_on_ui_in_fifo_order() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_stream_with_priority(
+                "ordered-stream",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                false,
+                |sink| {
+                    assert!(sink.emit(Box::new(1_u8)));
+                    assert!(sink.emit(Box::new(2_u8)));
+                    3_u8
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |event: u8| {
+                        mapped.borrow_mut().push(event);
+                        usize::from(event)
+                    }
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |output: u8| {
+                        mapped.borrow_mut().push(output);
+                        usize::from(output)
+                    }
+                },
+            ),
+        );
+
+        runtime.drain_runtime_messages();
+
+        assert_eq!(*mapped.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn latest_stream_coalesces_events_and_keeps_final_after_latest_event() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_stream_with_priority(
+                "latest-stream",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                true,
+                |sink| {
+                    assert!(sink.emit_latest(Box::new(1_u8)));
+                    assert!(sink.emit_latest(Box::new(2_u8)));
+                    sink.close_latest();
+                    assert!(!sink.emit_latest(Box::new(3_u8)));
+                    4_u8
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |event: u8| {
+                        mapped.borrow_mut().push(event);
+                        usize::from(event)
+                    }
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |output: u8| {
+                        mapped.borrow_mut().push(output);
+                        usize::from(output)
+                    }
+                },
+            ),
+        );
+
+        runtime.drain_runtime_messages();
+
+        assert_eq!(*mapped.borrow(), vec![2, 4]);
+        let diagnostics = runtime.diagnostics.snapshot();
+        assert_eq!(diagnostics.queue.stream_events_coalesced, 1);
+        assert_eq!(diagnostics.queue.stream_events_stale, 1);
+    }
+
+    #[test]
+    fn ordered_stream_pressure_drops_events_but_preserves_accepted_order_and_final() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_stream_with_priority(
+                "ordered-pressure",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                false,
+                |sink| {
+                    for event in 0..(EFFECT_INGRESS_CAPACITY + 8) {
+                        let _ = sink.emit(Box::new(event as u8));
+                    }
+                    255_u8
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |event: u8| {
+                        mapped.borrow_mut().push(event);
+                        usize::from(event)
+                    }
+                },
+                {
+                    let mapped = Rc::clone(&mapped);
+                    move |output: u8| {
+                        mapped.borrow_mut().push(output);
+                        usize::from(output)
+                    }
+                },
+            ),
+        );
+
+        runtime.drain_runtime_messages();
+
+        let mapped = mapped.borrow();
+        assert_eq!(mapped.len(), EFFECT_INGRESS_CAPACITY + 1);
+        let expected = (0..EFFECT_INGRESS_CAPACITY as u8).collect::<Vec<_>>();
+        assert_eq!(&mapped[..EFFECT_INGRESS_CAPACITY], expected.as_slice());
+        assert_eq!(mapped.last(), Some(&255));
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(
+            runtime.diagnostics.snapshot().queue.stream_events_dropped,
+            8
+        );
     }
 
     #[test]
@@ -462,6 +953,10 @@ mod tests {
         let old_ingress = EffectIngress {
             sender: effects.ingress.sender.clone(),
             sequence: Arc::clone(&effects.ingress.sequence),
+            finals: Arc::clone(&effects.ingress.finals),
+            stream_events_coalesced: Arc::clone(&effects.ingress.stream_events_coalesced),
+            stream_events_dropped: Arc::clone(&effects.ingress.stream_events_dropped),
+            stream_events_stale: Arc::clone(&effects.ingress.stream_events_stale),
         };
         effects.shutdown();
 
@@ -532,6 +1027,36 @@ mod tests {
 
     struct AdmissionBridge {
         accepted: Arc<AtomicUsize>,
+    }
+
+    #[derive(Default)]
+    struct ImmediateBridge;
+
+    impl crate::runtime::RuntimeBridge<usize> for ImmediateBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            Arc::new(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for ImmediateBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            work();
+            true
+        }
     }
 
     impl crate::runtime::RuntimeBridge<usize> for AdmissionBridge {

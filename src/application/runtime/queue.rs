@@ -78,11 +78,24 @@ impl<Message> AppRuntime<Message> {
         identity: WorkerSubscriptionIdentity,
         payload: Box<dyn std::any::Any + Send>,
     ) -> bool {
+        self.enqueue_worker_payload_with_pre_append_hook(identity, payload, || {})
+    }
+
+    fn enqueue_worker_payload_with_pre_append_hook(
+        &self,
+        identity: WorkerSubscriptionIdentity,
+        payload: Box<dyn std::any::Any + Send>,
+        before_pending_lock: impl FnOnce(),
+    ) -> bool {
         if !self.is_alive() {
             return false;
         }
+        before_pending_lock();
         {
             let mut pending = lock_runtime_state(&self.pending);
+            if !self.is_alive() {
+                return false;
+            }
             pending.push(PendingMessage::Worker(
                 WorkerSubscriptionDelivery::Payload { identity, payload },
             ));

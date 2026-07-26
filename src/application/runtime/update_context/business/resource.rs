@@ -32,7 +32,7 @@ where
     pub fn run(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Result<Output, String> + Send + 'static,
-        map: impl FnOnce(ResourceCompletion<Output>) -> Message + Send + 'static,
+        map: impl FnOnce(ResourceCompletion<Output>) -> Message + 'static,
     ) {
         let resource = self.resource;
         self.request.run(
@@ -74,7 +74,7 @@ where
     pub fn run(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Result<Output, String> + Send + 'static,
-        map: impl FnOnce(ResourceCompletion<Output>) -> Message + Send + 'static,
+        map: impl FnOnce(ResourceCompletion<Output>) -> Message + 'static,
     ) -> CancellationToken {
         let token = self.token.clone();
         let resource = self.resource;

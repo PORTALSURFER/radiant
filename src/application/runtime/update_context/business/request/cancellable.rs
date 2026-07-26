@@ -115,7 +115,7 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) -> CancellationToken
     where
         Output: Send + 'static,
@@ -130,28 +130,12 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
     pub fn run_on_ui<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) -> CancellationToken
     where
         Output: Send + 'static,
     {
-        let token = self.token.clone();
-        let worker_token = self.token.clone();
-        let is_cancelled = Some(Box::new({
-            let token = self.token.clone();
-            move || token.is_cancelled()
-        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
-        self.request.context.queue_command(
-            crate::runtime::Command::perform_worker_effect_with_priority(
-                self.request.name,
-                self.request.priority,
-                is_cancelled,
-                0,
-                move || work(BusinessWorkContext::new(Some(worker_token))),
-                map,
-            ),
-        );
-        token
+        self.run(work, map)
     }
 
     /// Run this cancellable request as a stream and return its cancellation token.

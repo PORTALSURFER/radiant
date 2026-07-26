@@ -265,7 +265,7 @@ pub struct WorkerEffect<Message> {
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
     pub(crate) work: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>,
-    pub(crate) map: Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + Send + 'static>,
+    pub(crate) map: Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>,
 }
 
 /// Opaque identity for one worker effect slot.

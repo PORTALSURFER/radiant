@@ -9,7 +9,7 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     pub fn run<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) where
         Output: Send + 'static,
     {
@@ -23,19 +23,11 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     pub fn run_on_ui<Output>(
         self,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) where
         Output: Send + 'static,
     {
-        self.context
-            .queue_command(Command::perform_worker_effect_with_priority(
-                self.name,
-                self.priority,
-                None,
-                0,
-                move || work(BusinessWorkContext::new(None)),
-                map,
-            ));
+        self.run(work, map);
     }
 
     /// Run this business request and allow worker code to emit intermediate
@@ -78,7 +70,7 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self,
         token: Option<CancellationToken>,
         work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
     ) where
         Output: Send + 'static,
     {
@@ -86,13 +78,15 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         let is_cancelled = token.map(|token| {
             Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
         });
-        self.context.queue_command(Command::perform_with_priority(
-            self.name,
-            self.priority,
-            is_cancelled,
-            move || work(BusinessWorkContext::new(worker_token)),
-            map,
-        ));
+        self.context
+            .queue_command(Command::perform_worker_effect_with_priority(
+                self.name,
+                self.priority,
+                is_cancelled,
+                0,
+                move || work(BusinessWorkContext::new(worker_token)),
+                map,
+            ));
     }
 
     pub(in crate::application::runtime::update_context::business) fn stream_with_optional_cancellation<

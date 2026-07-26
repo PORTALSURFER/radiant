@@ -278,6 +278,7 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+    use std::{cell::RefCell, rc::Rc};
 
     fn register(effect: &mut WorkerEffects<usize>, id: u64, generation: u64) {
         effect.registry.insert(
@@ -399,6 +400,41 @@ mod tests {
         assert_eq!(invoked.load(Ordering::Acquire), 0);
         assert_eq!(effects.pending, 0);
         assert!(effects.registry.is_empty());
+    }
+
+    #[test]
+    fn completed_effect_invokes_and_drops_non_send_ui_mapper() {
+        let mut effects = WorkerEffects::<usize>::default();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let marker = Rc::new(());
+        let mapper_marker = Rc::clone(&marker);
+        effects.registry.insert(
+            EffectId(8),
+            Registered {
+                generation: EffectGeneration(1),
+                epoch: effects.epoch,
+                is_cancelled: None,
+                map: Box::new(move |output| {
+                    let _marker = &mapper_marker;
+                    let output = *output.downcast::<usize>().expect("usize output");
+                    mapper_state.borrow_mut().push(output);
+                    output + 1
+                }),
+            },
+        );
+        effects.pending += 1;
+        assert_eq!(Rc::strong_count(&marker), 2);
+        assert!(effects.ingress.send(
+            EffectId(8),
+            EffectGeneration(1),
+            effects.epoch,
+            EffectResult::Completed(Box::new(7_usize)),
+        ));
+
+        assert_eq!(effects.drain(), vec![8]);
+        assert_eq!(*mapped.borrow(), vec![7]);
+        assert_eq!(Rc::strong_count(&marker), 1);
     }
 
     #[test]

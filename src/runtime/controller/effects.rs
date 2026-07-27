@@ -664,7 +664,8 @@ mod tests {
     use crate::layout::ContainerPolicy;
     use crate::runtime::command::{EffectGeneration, EffectId};
     use crate::runtime::{
-        DragPreview, DragRequest, RuntimeDiagnosticsRecorder, RuntimeHostCapabilities,
+        DragPreview, DragRequest, ExternalDragEffect, ExternalDragOutcome, ExternalDragRequest,
+        PlatformResultDelivery, RuntimeDiagnosticsRecorder, RuntimeHostCapabilities,
         RuntimeTaskHost, SurfaceNode, UiSurface,
     };
     use crate::{
@@ -1042,6 +1043,85 @@ mod tests {
         assert_eq!(first.messages_dispatched, 8);
         assert!(first.runtime_work_remaining);
         assert_eq!(*mapped.borrow(), (0..8).collect::<Vec<_>>());
+    }
+
+    fn queue_external_completion(
+        runtime: &mut SurfaceRuntime<ImmediateBridge, usize>,
+        mapped: &Rc<RefCell<Vec<usize>>>,
+    ) {
+        let mapped = Rc::clone(mapped);
+        runtime.execute_command(crate::runtime::Command::begin_external_drag(
+            ExternalDragRequest::files([std::path::PathBuf::from("kick.wav")], "kick.wav"),
+            move |_| {
+                mapped.borrow_mut().push(100);
+                100
+            },
+        ));
+        let launch = runtime
+            .take_external_drag_launch()
+            .expect("external drag launch");
+        runtime.dispatch_external_drag_launch_result(
+            launch.identity,
+            Ok(ExternalDragOutcome {
+                effect: ExternalDragEffect::Copy,
+            }),
+        );
+    }
+
+    fn queue_platform_completions(
+        runtime: &mut SurfaceRuntime<ImmediateBridge, usize>,
+        mapped: &Rc<RefCell<Vec<usize>>>,
+        count: usize,
+    ) {
+        for id in 0..count {
+            let mapped = Rc::clone(mapped);
+            let identity = runtime.platform_registry.register(Box::new(move |_| {
+                mapped.borrow_mut().push(id);
+                id
+            }));
+            let reservation = crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                &runtime.platform_results,
+            )
+            .expect("platform completion reservation");
+            assert!(reservation.commit(PlatformResultDelivery::Completed {
+                identity,
+                result: Err(String::from("test")),
+            }));
+        }
+    }
+
+    #[test]
+    fn external_completion_shares_ordinary_budget_and_retains_the_remainder() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        queue_external_completion(&mut runtime, &mapped);
+        queue_platform_completions(&mut runtime, &mapped, 64);
+
+        let first = runtime.drain_runtime_messages();
+        assert_eq!(first.messages_dispatched, 64);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(mapped.borrow().first(), Some(&100));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(mapped.borrow().last(), Some(&63));
+    }
+
+    #[test]
+    fn external_completion_shares_interactive_budget_and_retains_the_remainder() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        queue_external_completion(&mut runtime, &mapped);
+        queue_platform_completions(&mut runtime, &mapped, 8);
+        runtime.execute_command(crate::runtime::Command::begin_drag(DragRequest::new(
+            DragPreview::sized("dragging", Vector2::new(80.0, 20.0)),
+            Point::new(0.0, 0.0),
+        )));
+
+        let first = runtime.drain_runtime_messages();
+        assert_eq!(first.messages_dispatched, 8);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(mapped.borrow().first(), Some(&100));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(mapped.borrow().last(), Some(&7));
     }
 
     #[test]

@@ -11,6 +11,13 @@ where
         let (command_budget, message_budget, mut completion_budget) = self.runtime_drain_budget();
         let worker_high_water = self.worker_effects.high_water();
 
+        // Admit the previous-turn external singleton before any mapper runs.
+        // It consumes one shared controller-completion slot, while a result
+        // enqueued during mapping remains pending for the next turn.
+        let external_completion = self.take_pending_external_drag_completion();
+        completion_budget =
+            completion_budget.saturating_sub(usize::from(external_completion.is_some()));
+
         // Freeze and remove the eligible platform prefix before invoking any
         // mapper. Older overflow is folded behind the remaining frozen queue,
         // so arrivals produced by a mapper cannot jump ahead of it.
@@ -26,7 +33,7 @@ where
         // Native external-drag completion is admitted only on the next UI
         // turn. The identity fence also makes duplicate and superseded
         // completions harmless before the mapper is invoked.
-        if let Some(pending) = self.take_pending_external_drag_completion() {
+        if let Some(pending) = external_completion {
             self.dispatch_message_inner((pending.on_completed)(pending.result), &mut outcome);
         }
 
@@ -128,7 +135,9 @@ where
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .pending_len();
-            platform_pending + self.worker_effects.retained_completion_count()
+            platform_pending
+                + self.worker_effects.retained_completion_count()
+                + usize::from(self.interaction.drag.pending_external_completion.is_some())
         };
         self.diagnostics
             .record_controller_completion_depth(pending_controller_completions);

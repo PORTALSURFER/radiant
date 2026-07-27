@@ -11,7 +11,7 @@ use crate::{
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
     widgets::{
-        EmbeddedInteractiveRowWidget, InteractiveRowActions, InteractiveRowVisualStateParts,
+        EmbeddedInteractiveRowWidget, InteractiveRowMessage, InteractiveRowVisualStateParts,
         InteractiveRowWidget, WidgetSizing, WidgetStyle,
     },
 };
@@ -22,9 +22,8 @@ use super::{
 };
 
 #[derive(Clone)]
-pub(super) struct TreeRowHitTarget<Message> {
+pub(super) struct TreeRowHitTarget {
     row: InteractiveRowWidget,
-    actions: InteractiveRowActions<Message>,
     label: PaintText,
     selected: bool,
     focused: bool,
@@ -45,7 +44,7 @@ pub(super) struct TreeRowHitTarget<Message> {
     trailing_icon: Option<SvgIcon>,
 }
 
-pub(super) struct TreeRowHitTargetParts<Message> {
+pub(super) struct TreeRowHitTargetParts {
     pub(super) label: PaintText,
     pub(super) selected: bool,
     pub(super) focused: bool,
@@ -64,14 +63,13 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) highlighted_label_color: Rgba8,
     pub(super) label_inset_x: f32,
     pub(super) trailing_icon: Option<SvgIcon>,
-    pub(super) actions: InteractiveRowActions<Message>,
 }
 
 const TREE_ROW_TRAILING_ICON_SIZE: f32 = 11.0;
 const TREE_ROW_TRAILING_ICON_INSET: f32 = 5.0;
 
-impl<Message> TreeRowHitTarget<Message> {
-    pub(super) fn new(parts: TreeRowHitTargetParts<Message>) -> Self {
+impl TreeRowHitTarget {
+    pub(super) fn new(parts: TreeRowHitTargetParts) -> Self {
         let mut row = crate::application::interactive_row()
             .tracked_drag_source_with_motion(
                 parts.drag_drop.drag_active,
@@ -95,7 +93,6 @@ impl<Message> TreeRowHitTarget<Message> {
         }
         Self {
             row,
-            actions: parts.actions,
             label: parts.label,
             selected: parts.selected,
             focused: parts.focused,
@@ -206,11 +203,8 @@ impl<Message> TreeRowHitTarget<Message> {
     }
 }
 
-impl<Message> EmbeddedInteractiveRowWidget for TreeRowHitTarget<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    type Message = Message;
+impl EmbeddedInteractiveRowWidget for TreeRowHitTarget {
+    type Message = InteractiveRowMessage;
 
     fn interactive_row(&self) -> &InteractiveRowWidget {
         &self.row
@@ -220,8 +214,8 @@ where
         &mut self.row
     }
 
-    fn interactive_row_actions(&self) -> Option<&InteractiveRowActions<Self::Message>> {
-        Some(&self.actions)
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
+        Some(message)
     }
 
     fn append_interactive_row_paint(

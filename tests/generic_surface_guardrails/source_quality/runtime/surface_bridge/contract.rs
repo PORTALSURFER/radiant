@@ -69,7 +69,7 @@ fn runtime_bridge_contract_stays_minimal_and_routes_optional_host_capabilities()
         "fn paint_transient_overlay",
         "fn observe_frame_diagnostics",
         "fn request_platform_service",
-        "fn spawn_message_task",
+        "fn spawn_worker_task",
         "fn on_runtime_exit",
     ] {
         assert!(

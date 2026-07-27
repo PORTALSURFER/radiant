@@ -17,7 +17,7 @@ pub use input::RuntimeInputHost;
 pub use lifecycle::RuntimeLifecycleHost;
 pub use platform::RuntimePlatformHost;
 pub use presentation::{RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost};
-pub use queues::RuntimeQueueHost;
+pub use queues::{RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem};
 pub use tasks::{RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake};
 
 use crate::{

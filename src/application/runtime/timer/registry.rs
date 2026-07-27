@@ -1,5 +1,5 @@
 use super::queue::{TimerIdentity, TimerWake};
-use crate::application::runtime::queue::AppRuntime;
+use crate::application::runtime::queue::SharedRuntimeIngress;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub(crate) struct TimerRegistry<Message> {
@@ -21,13 +21,10 @@ impl<Message> Default for TimerRegistry<Message> {
 impl<Message> TimerRegistry<Message> {
     pub(crate) fn schedule_interval(
         &mut self,
-        runtime: &Arc<AppRuntime<Message>>,
+        runtime: &Arc<SharedRuntimeIngress>,
         every: Duration,
         message: Arc<dyn Fn() -> Message + 'static>,
-    ) -> bool
-    where
-        Message: Send + 'static,
-    {
+    ) -> bool {
         let identity = runtime.allocate_timer_identity(0);
         self.entries
             .insert(identity, TimerRegistration::Interval(message));

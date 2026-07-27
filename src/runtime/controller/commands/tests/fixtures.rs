@@ -1,13 +1,12 @@
 use super::super::*;
 use crate::layout::{Constraints, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams};
 use crate::runtime::{
-    BusinessMessageSink, PlatformCompletion, PlatformRequest, PlatformResponse,
-    PlatformServiceFallback, RuntimeHostCapabilities, RuntimeInputHost, RuntimePlatformHost,
-    RuntimeQueueHost, RuntimeTaskHost, SurfaceChild, SurfaceNode, TaskPriority,
-    WidgetMessageMapper,
+    PlatformCompletion, PlatformRequest, PlatformResponse, PlatformServiceFallback,
+    RuntimeHostCapabilities, RuntimeInputHost, RuntimePlatformHost, RuntimeQueueHost, SurfaceChild,
+    SurfaceNode, WidgetMessageMapper,
 };
 use crate::widgets::{InteractiveRowWidget, WidgetSizing};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Default)]
 pub(super) struct QueuedCommandBridge {
@@ -19,11 +18,6 @@ pub(super) struct QueuedCommandBridge {
 pub(super) struct PlatformCommandBridge {
     pub(super) dispatched: Vec<usize>,
     pub(super) requests: Vec<PlatformRequest>,
-}
-
-#[derive(Default)]
-pub(super) struct StreamingCommandBridge {
-    pub(super) dispatched: Arc<Mutex<Vec<usize>>>,
 }
 
 #[derive(Default)]
@@ -102,48 +96,6 @@ impl RuntimeBridge<usize> for QueuedCommandBridge {
 impl RuntimeQueueHost<usize> for QueuedCommandBridge {
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
         commands.append(&mut self.commands);
-    }
-}
-
-impl RuntimeBridge<usize> for StreamingCommandBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
-            1,
-            ContainerPolicy::default(),
-            Vec::new(),
-        )))
-    }
-
-    fn reduce_message(&mut self, message: usize) {
-        self.dispatched
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push(message);
-    }
-
-    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
-        RuntimeHostCapabilities::new().with_tasks()
-    }
-}
-
-impl RuntimeTaskHost<usize> for StreamingCommandBridge {
-    fn spawn_streaming_message_task(
-        &mut self,
-        _name: &'static str,
-        _priority: TaskPriority,
-        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<usize>) + Send + 'static>,
-    ) -> bool {
-        let dispatched = Arc::clone(&self.dispatched);
-        let sink = BusinessMessageSink::new(move |message| {
-            dispatched
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .push(message);
-            true
-        });
-        work(sink);
-        true
     }
 }
 

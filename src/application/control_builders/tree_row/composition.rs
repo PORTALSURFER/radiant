@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::{
     application::{MappedWidget, ViewNode, disclosure_button, row, spacer},
@@ -14,16 +14,16 @@ use super::{
 
 impl TreeRowBuilder {
     /// Attach interactive row actions and build the row.
-    pub fn interactive_actions<Message: Clone + Send + Sync + 'static>(
+    pub fn interactive_actions<Message: Clone + 'static>(
         self,
         actions: InteractiveRowActions<Message>,
     ) -> ViewNode<Message> {
         self.build(None, actions)
     }
 
-    pub(super) fn build<Message: Clone + Send + Sync + 'static>(
+    pub(super) fn build<Message: Clone + 'static>(
         self,
-        toggle: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+        toggle: Option<Rc<dyn Fn() -> Message + 'static>>,
         actions: InteractiveRowActions<Message>,
     ) -> ViewNode<Message> {
         let row_height = self.row_height;
@@ -57,9 +57,9 @@ impl TreeRowBuilder {
         row
     }
 
-    fn expander<Message: Clone + Send + Sync + 'static>(
+    fn expander<Message: Clone + 'static>(
         &self,
-        toggle: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+        toggle: Option<Rc<dyn Fn() -> Message + 'static>>,
     ) -> ViewNode<Message> {
         let key = self.row_key.as_ref().map(|key| format!("{key}-expander"));
         let mut expander = if self.has_children {
@@ -84,7 +84,7 @@ impl TreeRowBuilder {
         expander
     }
 
-    fn hit_target<Message: Clone + Send + Sync + 'static>(
+    fn hit_target<Message: Clone + 'static>(
         self,
         actions: InteractiveRowActions<Message>,
     ) -> ViewNode<Message> {
@@ -108,11 +108,10 @@ impl TreeRowBuilder {
             highlighted_label_color: self.highlighted_label_color,
             label_inset_x: self.label_inset_x,
             trailing_icon: self.trailing_icon,
-            actions,
         });
         let mut view = crate::application::view_node_from_widget(MappedWidget::new(
             widget,
-            WidgetMessageMapper::typed(|message: Message| message),
+            WidgetMessageMapper::interactive_row_filtered(move |message| actions.route(message)),
         ));
         if let Some(input_id) = input_id {
             view = view.id(input_id);

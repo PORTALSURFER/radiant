@@ -15,7 +15,6 @@ pub(super) struct CommandDemoBridge {
 #[derive(Default)]
 pub(super) struct RuntimeCommandBridge {
     pub(super) count: usize,
-    pending: Arc<std::sync::Mutex<Vec<DemoMessage>>>,
     timer_wakes: Arc<std::sync::Mutex<Vec<radiant::runtime::RuntimeTimerWake>>>,
     command_drains: Arc<std::sync::Mutex<usize>>,
 }
@@ -100,23 +99,6 @@ impl RuntimeTaskHost<DemoMessage> for RuntimeCommandBridge {
         true
     }
 
-    fn spawn_message_task(
-        &mut self,
-        _name: &'static str,
-        _priority: radiant::runtime::TaskPriority,
-        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
-    ) -> bool {
-        let pending = Arc::clone(&self.pending);
-        std::thread::spawn(move || {
-            pending
-                .lock()
-                .expect("pending messages poisoned")
-                .push(work());
-        });
-        true
-    }
-
     fn spawn_worker_task(
         &mut self,
         _name: &'static str,
@@ -133,10 +115,6 @@ impl RuntimeQueueHost<DemoMessage> for RuntimeCommandBridge {
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<DemoMessage>>) {
         *self.command_drains.lock().expect("command drains poisoned") += 1;
         commands.extend(self.take_runtime_commands());
-    }
-
-    fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
-        std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
     }
 
     fn take_runtime_timer_wakes(&mut self) -> Vec<radiant::runtime::RuntimeTimerWake> {

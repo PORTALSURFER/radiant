@@ -24,7 +24,7 @@ pub fn message_menu<Message>(
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     message_menu_from_parts(MessageMenuParts {
         title: title.into(),
@@ -37,7 +37,7 @@ pub(super) fn message_menu_from_parts<Message>(
     parts: MessageMenuParts<Message>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let command_text = super::projection::MenuCommandTextColumns::for_commands(&parts.commands);
     column([

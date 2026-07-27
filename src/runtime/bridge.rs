@@ -14,8 +14,9 @@ pub use auxiliary::AuxiliaryWindowClosePolicy;
 pub use capabilities::{
     RuntimeAnimationHost, RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost,
     RuntimeHostCapabilities, RuntimeInputHost, RuntimeLifecycleHost, RuntimePlatformHost,
-    RuntimeQueueHost, RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner,
-    RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
+    RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, RuntimeRetainedSurfaceHost,
+    RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake, RuntimeTransientOverlayHost,
+    RuntimeWindowHost,
 };
 pub(crate) use capabilities::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub use contract::RuntimeBridge;

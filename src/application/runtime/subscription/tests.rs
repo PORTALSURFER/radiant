@@ -1,7 +1,7 @@
 use super::{
-    AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_payload,
-    spawn_subscription_with_registry,
+    Subscription, WorkerSubscriptionEvent, receive_worker_payload, spawn_subscription_with_registry,
 };
+use crate::application::runtime::AppRuntime;
 use crate::application::runtime::timer::TimerRegistry;
 use std::{
     cell::RefCell,
@@ -25,7 +25,7 @@ fn batch_flattens_nested_subscriptions_in_order() {
         Subscription::interval("first", Duration::from_millis(10), || 1),
         Subscription::batch([
             Subscription::none(),
-            Subscription::worker("second", receiver),
+            Subscription::worker_payload("second", receiver, |message| message),
             Subscription::batch([Subscription::interval(
                 "third",
                 Duration::from_millis(10),
@@ -45,7 +45,7 @@ fn batch_flattens_nested_subscriptions_in_order() {
     ));
     assert!(matches!(
         subscriptions[1],
-        Subscription::Worker { id: "second", .. }
+        Subscription::WorkerPayload { id: "second", .. }
     ));
     assert!(matches!(
         subscriptions[2],
@@ -72,11 +72,11 @@ fn batch_collapses_single_subscription_groups() {
 
 #[test]
 fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut runtime = AppRuntime::<u32>::default();
     let mut registry = TimerRegistry::default();
 
     spawn_subscription_with_registry(
-        Arc::downgrade(&runtime),
+        Arc::downgrade(runtime.shared()),
         &mut registry,
         &mut super::registry::WorkerSubscriptionRegistry::default(),
         Subscription::interval("tick", Duration::from_millis(1), || 1),
@@ -85,12 +85,11 @@ fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        for wake in runtime.take_timer_wakes() {
-            if let Some(message) = registry.map_wake(wake) {
-                let _ = runtime.enqueue(message);
-            }
-        }
-        delivered.extend(runtime.take_pending());
+        delivered.extend(runtime.take_pending_with_mappers(
+            |_| None,
+            |_| None,
+            |wake| registry.map_wake(wake),
+        ));
         if !delivered.is_empty() {
             break;
         }
@@ -104,8 +103,8 @@ fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
 
 #[test]
 fn worker_receive_stops_while_sender_remains_open() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let weak = Arc::downgrade(&runtime);
+    let mut runtime = AppRuntime::<u32>::default();
+    let weak = Arc::downgrade(runtime.shared());
     let (_sender, receiver) = mpsc::channel::<u32>();
     runtime.shutdown();
 
@@ -118,7 +117,7 @@ fn worker_receive_stops_while_sender_remains_open() {
 
 #[test]
 fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut runtime = AppRuntime::<u32>::default();
     let mut timers = TimerRegistry::default();
     let mut workers = super::registry::WorkerSubscriptionRegistry::default();
     let (sender, receiver) = mpsc::channel::<u32>();
@@ -129,7 +128,7 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let mapper_marker = Rc::clone(&marker);
 
     spawn_subscription_with_registry(
-        Arc::downgrade(&runtime),
+        Arc::downgrade(runtime.shared()),
         &mut timers,
         &mut workers,
         Subscription::worker_payload("payload", receiver, move |payload| {
@@ -147,9 +146,11 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        delivered.extend(
-            runtime.take_pending_with_worker_mapper(|delivery| workers.map_delivery(delivery)),
-        );
+        delivered.extend(runtime.take_pending_with_mappers(
+            |delivery| workers.map_delivery(delivery),
+            |_| None,
+            |_| None,
+        ));
         if !delivered.is_empty() && Rc::strong_count(&marker) == 1 {
             break;
         }

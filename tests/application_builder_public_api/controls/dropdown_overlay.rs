@@ -1,15 +1,34 @@
 use radiant::{
     application as app, prelude as ui,
-    runtime::{Event, PaintPrimitive, SurfaceRuntime},
+    runtime::{Event, PaintPrimitive, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
-    widgets::PointerButton,
+    widgets::{ButtonMessage, PointerButton, WidgetOutput},
 };
 use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum OverlayMessage {
     Dismiss,
     Pick,
+}
+
+#[test]
+fn dismiss_overlay_accepts_rc_backed_ui_message() {
+    use radiant::prelude::IntoView;
+
+    #[derive(Clone)]
+    struct UiOnlyMessage(Rc<RefCell<usize>>);
+
+    let state = Rc::new(RefCell::new(11usize));
+    let surface: UiSurface<UiOnlyMessage> = ui::dismiss_layer(UiOnlyMessage(Rc::clone(&state)))
+        .id(1002)
+        .into_surface();
+
+    let message = surface
+        .dispatch_widget_output(1002, WidgetOutput::typed(ButtonMessage::Activate))
+        .expect("dismiss overlay should emit its UI-local message");
+    assert!(Rc::ptr_eq(&message.0, &state));
 }
 
 #[test]

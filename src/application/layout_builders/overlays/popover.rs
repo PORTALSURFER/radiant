@@ -45,7 +45,7 @@ pub fn dismissible_anchored_popover_from_parts<Message>(
     dismiss_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     stack([
         dismiss_layer(dismiss_message).key("anchored-popover-dismiss"),

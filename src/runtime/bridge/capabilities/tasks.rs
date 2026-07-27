@@ -1,7 +1,4 @@
-use crate::{
-    gui::repaint::RepaintSignal,
-    runtime::{BusinessMessageSink, TaskPriority},
-};
+use crate::{gui::repaint::RepaintSignal, runtime::TaskPriority};
 use std::{sync::Arc, time::Duration};
 
 /// Opaque timer identity delivered from a host timer lane to the UI runtime.
@@ -70,17 +67,6 @@ pub trait RuntimeTaskHost<Message> {
         false
     }
 
-    /// Spawn message-producing host work.
-    fn spawn_message_task(
-        &mut self,
-        _name: &'static str,
-        _priority: TaskPriority,
-        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        _work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    ) -> bool {
-        false
-    }
-
     /// Spawn worker-only work that reports completion through a runtime-owned
     /// ingress. The closure must not construct or transport an application
     /// message.
@@ -93,44 +79,13 @@ pub trait RuntimeTaskHost<Message> {
     ) -> bool {
         false
     }
-
-    /// Spawn ordered streaming host work.
-    fn spawn_streaming_message_task(
-        &mut self,
-        _name: &'static str,
-        _priority: TaskPriority,
-        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        _work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        false
-    }
-
-    /// Spawn coalescing streaming host work.
-    fn spawn_latest_streaming_message_task(
-        &mut self,
-        _name: &'static str,
-        _priority: TaskPriority,
-        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        _work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        false
-    }
 }
 
 type CancellationProbe = Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>;
-type MessageWork<Message> = Box<dyn FnOnce() -> Message + Send + 'static>;
-type StreamingWork<Message> = Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>;
 
 pub(crate) struct RuntimeTaskCapability<Bridge, Message> {
     pub install_repaint_signal: fn(&mut Bridge, Arc<dyn RepaintSignal>),
     pub schedule_timer: fn(&mut Bridge, Duration, RuntimeTimerWake) -> bool,
-    pub spawn_message_task: fn(
-        &mut Bridge,
-        &'static str,
-        TaskPriority,
-        CancellationProbe,
-        MessageWork<Message>,
-    ) -> bool,
     pub spawn_worker_task: fn(
         &mut Bridge,
         &'static str,
@@ -138,20 +93,7 @@ pub(crate) struct RuntimeTaskCapability<Bridge, Message> {
         CancellationProbe,
         Box<dyn FnOnce() + Send + 'static>,
     ) -> bool,
-    pub spawn_streaming_message_task: fn(
-        &mut Bridge,
-        &'static str,
-        TaskPriority,
-        CancellationProbe,
-        StreamingWork<Message>,
-    ) -> bool,
-    pub spawn_latest_streaming_message_task: fn(
-        &mut Bridge,
-        &'static str,
-        TaskPriority,
-        CancellationProbe,
-        StreamingWork<Message>,
-    ) -> bool,
+    pub(super) _message: std::marker::PhantomData<fn() -> Message>,
 }
 
 impl<Bridge, Message> RuntimeTaskCapability<Bridge, Message>
@@ -162,10 +104,8 @@ where
         Self {
             install_repaint_signal: Bridge::install_repaint_signal,
             schedule_timer: Bridge::schedule_timer,
-            spawn_message_task: Bridge::spawn_message_task,
             spawn_worker_task: Bridge::spawn_worker_task,
-            spawn_streaming_message_task: Bridge::spawn_streaming_message_task,
-            spawn_latest_streaming_message_task: Bridge::spawn_latest_streaming_message_task,
+            _message: std::marker::PhantomData,
         }
     }
 }

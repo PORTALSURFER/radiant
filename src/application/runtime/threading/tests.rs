@@ -1,5 +1,5 @@
 use super::{
-    AppRuntime, BusinessThreadPool, business_thread_name, default_business_worker_count,
+    BusinessThreadPool, SharedRuntimeIngress, business_thread_name, default_business_worker_count,
     sleep_while_runtime_alive, spawn_business_thread,
 };
 use crate::runtime::{BusinessTaskDiagnosticState, TaskPriority};
@@ -347,7 +347,7 @@ fn single_worker_business_lane_keeps_running_after_task_panic() {
 
 #[test]
 fn runtime_sleep_stops_promptly_after_shutdown() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let runtime = Arc::new(SharedRuntimeIngress::default());
     let weak = Arc::downgrade(&runtime);
     let stopper = Arc::clone(&runtime);
     thread::spawn(move || {

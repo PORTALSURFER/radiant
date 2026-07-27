@@ -1,4 +1,4 @@
-use super::AppRuntime;
+use super::SharedRuntimeIngress;
 use super::threading::{runtime_alive, spawn_business_thread};
 use super::timer::{TimerRegistry, min_timer_delay};
 use std::{
@@ -18,8 +18,6 @@ const SUBSCRIPTION_CANCEL_POLL: Duration = Duration::from_millis(50);
 
 /// App-level subscription sources evaluated when the native runtime starts.
 ///
-/// `WorkerPayload` is an additional exhaustive-enum variant for typed payloads;
-/// existing `worker` construction and behavior remain unchanged.
 pub enum Subscription<Message> {
     /// No subscription.
     None,
@@ -38,13 +36,6 @@ pub enum Subscription<Message> {
         every: Duration,
         /// Message factory invoked for each tick.
         message: Arc<dyn Fn() -> Message>,
-    },
-    /// Forward messages from a host-owned receiver.
-    Worker {
-        /// Human-readable subscription id.
-        id: &'static str,
-        /// Receiver drained on a background thread.
-        receiver: std::sync::mpsc::Receiver<Message>,
     },
     /// Forward owned payloads from a host-owned receiver and map them on the UI thread.
     WorkerPayload {
@@ -122,11 +113,6 @@ impl<Message> Subscription<Message> {
         }
     }
 
-    /// Build a worker-message subscription from a receiver.
-    pub const fn worker(id: &'static str, receiver: std::sync::mpsc::Receiver<Message>) -> Self {
-        Self::Worker { id, receiver }
-    }
-
     /// Build a worker subscription that transports owned payloads and maps them on the UI thread.
     pub fn worker_payload<Payload>(
         id: &'static str,
@@ -163,13 +149,11 @@ impl<Message> Subscription<Message> {
 }
 
 pub(super) fn spawn_subscription_with_registry<Message>(
-    runtime: Weak<AppRuntime<Message>>,
+    runtime: Weak<SharedRuntimeIngress>,
     timers: &mut TimerRegistry<Message>,
     workers: &mut WorkerSubscriptionRegistry<Message>,
     subscription: Subscription<Message>,
-) where
-    Message: Send + 'static,
-{
+) {
     match subscription {
         Subscription::None => {}
         Subscription::Batch(subscriptions) => {
@@ -188,18 +172,6 @@ pub(super) fn spawn_subscription_with_registry<Message>(
                 );
             }
         }
-        Subscription::Worker { id, receiver } => {
-            let mapper = Box::new(|payload: Box<dyn Any + Send>| {
-                payload.downcast::<Message>().ok().map(|payload| *payload)
-            });
-            spawn_worker_subscription(
-                runtime,
-                workers,
-                id,
-                Box::new(TypedWorkerSubscriptionReceiver { receiver }),
-                mapper,
-            );
-        }
         Subscription::WorkerPayload {
             id,
             receiver,
@@ -211,14 +183,12 @@ pub(super) fn spawn_subscription_with_registry<Message>(
 }
 
 fn spawn_worker_subscription<Message>(
-    runtime: Weak<AppRuntime<Message>>,
+    runtime: Weak<SharedRuntimeIngress>,
     workers: &mut WorkerSubscriptionRegistry<Message>,
     id: &'static str,
     receiver: Box<dyn WorkerSubscriptionReceiver>,
     mapper: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
-) where
-    Message: Send + 'static,
-{
+) {
     let identity = workers.register(mapper);
     let worker_identity = identity;
     if !spawn_business_thread(format!("worker-subscription-{id}"), move || {
@@ -252,8 +222,8 @@ enum WorkerSubscriptionEvent {
     Stopped,
 }
 
-fn receive_worker_payload<Message>(
-    runtime: &Weak<AppRuntime<Message>>,
+fn receive_worker_payload(
+    runtime: &Weak<SharedRuntimeIngress>,
     receiver: &dyn WorkerSubscriptionReceiver,
 ) -> WorkerSubscriptionEvent {
     loop {

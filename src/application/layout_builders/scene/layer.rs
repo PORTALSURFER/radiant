@@ -56,7 +56,7 @@ impl<Message> Layer<Message> {
     /// behind this layer.
     pub fn dismiss_on_outside_click(mut self, message: Message) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         self.input_policy = LayerInputPolicy::DismissOnOutsideClick;
         self.input = Some(pointer_shield(true).filter_map(

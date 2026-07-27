@@ -40,6 +40,62 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
 }
 
 #[test]
+fn stateful_runtime_keeps_ordinary_messages_and_worker_mappers_ui_local() {
+    use radiant::prelude as ui;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[derive(Clone)]
+    enum UiOnlyMessage {
+        Load(Rc<RefCell<Vec<&'static str>>>),
+        Loaded(Rc<RefCell<Vec<&'static str>>>),
+    }
+
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let view_events = Rc::clone(&events);
+    let bridge = ui::app(DemoState::default())
+        .view(move |state| {
+            ui::column([
+                ui::text(format!("Count: {}", state.count)).id(10),
+                ui::button("Load")
+                    .message(UiOnlyMessage::Load(Rc::clone(&view_events)))
+                    .id(11),
+            ])
+        })
+        .handle_message(|state, message, context| match message {
+            UiOnlyMessage::Load(events) => {
+                events.borrow_mut().push("load");
+                context
+                    .business()
+                    .background("ui-only-message")
+                    .run(|_| (), move |()| UiOnlyMessage::Loaded(events));
+            }
+            UiOnlyMessage::Loaded(events) => {
+                events.borrow_mut().push("loaded");
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 64.0));
+    let message = runtime
+        .surface()
+        .dispatch_widget_output(
+            11,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        )
+        .expect("button should emit its UI-only message");
+
+    runtime.dispatch_message(message);
+    let finished = wait_for_runtime_message(&mut runtime);
+
+    assert_eq!(finished.messages_dispatched, 1);
+    assert_eq!(&*events.borrow(), &["load", "loaded"]);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Count: 1"
+    );
+}
+
+#[test]
 fn handle_message_exposes_ui_update_context_with_clear_app_api_name() {
     use radiant::prelude as ui;
 

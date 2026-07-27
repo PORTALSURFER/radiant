@@ -104,7 +104,7 @@ impl<Message> AnchoredContextMenuBuilder<Message> {
     /// Build the configured context-menu view.
     pub fn view(self) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         let size = self.size_for_content();
         let menu = anchored_popover_from_parts(AnchoredPopoverParts::below(

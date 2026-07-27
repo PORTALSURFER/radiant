@@ -38,9 +38,6 @@ impl<Message> Command<Message> {
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
-            | Self::Perform { .. }
-            | Self::PerformStream { .. }
-            | Self::PerformStreamLatest { .. }
             | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus
@@ -72,9 +69,6 @@ impl<Message> Command<Message> {
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
-            | Self::Perform { .. }
-            | Self::PerformStream { .. }
-            | Self::PerformStreamLatest { .. }
             | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus

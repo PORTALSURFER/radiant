@@ -1,6 +1,5 @@
 use super::{
-    BusinessMessageSink, Command, TaskPriority, TimerEffect, WorkerEffectMapper, WorkerEffectSink,
-    WorkerEffectWork,
+    Command, TaskPriority, TimerEffect, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
 };
 use crate::{
     runtime::{
@@ -122,59 +121,10 @@ impl<Message> Command<Message> {
         })
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_with_priority<Output>(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce() -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
-    ) -> Self
-    where
-        Output: Send + 'static,
-    {
-        Self::Perform {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(move || map(work())),
-        }
-    }
-
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_stream_with_priority(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
-    ) -> Self {
-        Self::PerformStream {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(work),
-        }
-    }
-
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_latest_stream_with_priority(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
-    ) -> Self {
-        Self::PerformStreamLatest {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(work),
-        }
-    }
-
     /// Build a worker-only effect whose output is mapped on the UI owner.
     ///
-    /// Unlike [`Self::perform_with_priority`], the worker closure never
-    /// constructs or transports `Message`. The mapper remains UI-local.
+    /// The worker closure never constructs or transports `Message`. The mapper
+    /// remains UI-local.
     pub(crate) fn perform_worker_effect_with_priority<Output>(
         name: &'static str,
         priority: TaskPriority,
@@ -309,7 +259,7 @@ impl<Message> Command<Message> {
     /// Build a command that arms a native external drag session.
     pub fn begin_external_drag(
         request: ExternalDragRequest,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         Self::BeginExternalDrag {
             request,
@@ -322,7 +272,7 @@ impl<Message> Command<Message> {
     pub fn begin_drag_with_external(
         drag: DragRequest,
         external: ExternalDragRequest,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         Self::batch([
             Self::begin_drag(drag),
@@ -338,7 +288,7 @@ impl<Message> Command<Message> {
     pub fn begin_drag_session(
         drag: Option<DragRequest>,
         external: Option<ExternalDragRequest>,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         match (drag, external) {
             (Some(drag), Some(external)) => {
@@ -371,7 +321,7 @@ impl<Message> Command<Message> {
     /// Build a command that requests a platform service.
     pub fn platform_request(
         request: PlatformRequest,
-        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
     ) -> Self {
         Self::PlatformRequest {
             request,

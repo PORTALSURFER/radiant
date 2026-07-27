@@ -66,7 +66,7 @@ pub fn dropdown_menu_height(option_count: usize) -> f32 {
 /// Build only the expanded option menu for a dropdown.
 pub fn dropdown_menu<Message>(options: Vec<DropdownOption<Message>>) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let option_count = options.len();
     column(
@@ -96,7 +96,7 @@ pub fn dropdown_menu_overlay_below<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     dropdown_menu_overlay_below_from_parts(DropdownMenuOverlayBelowParts {
         x,
@@ -117,7 +117,7 @@ pub fn dropdown_menu_overlay_below_trigger<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     dropdown_menu_overlay_below(x, trigger_y, dropdown_trigger_height(), gap, width, options)
 }
@@ -134,7 +134,7 @@ pub fn dropdown_menu_overlay_below_labeled_control<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     dropdown_menu_overlay_below_trigger(
         x,
@@ -160,7 +160,7 @@ pub fn dropdown_menu_overlay_below_stacked_labeled_control<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     dropdown_menu_overlay_below_labeled_control(x, stack_y + cursor.offset(), gap, width, options)
 }
@@ -170,7 +170,7 @@ pub fn dropdown_menu_overlay_below_from_parts<Message>(
     parts: DropdownMenuOverlayBelowParts<Message>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     dropdown_menu_overlay(
         parts.x,
@@ -188,7 +188,7 @@ pub fn dropdown_menu_overlay<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let menu_height = dropdown_menu_height(options.len());
     if let Some(width) = width {
@@ -224,7 +224,7 @@ pub fn anchored_dropdown_menu_popover<Message>(
     options: Vec<DropdownOption<Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     anchored_popover_from_parts(AnchoredPopoverParts::below(
         dropdown_menu(options),
@@ -247,7 +247,7 @@ fn dropdown_option_button<Message>(
     option: DropdownOption<Message>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     button(option.label)
         .message(option.message)

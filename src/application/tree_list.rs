@@ -97,7 +97,7 @@ pub fn message_tree_list<Message>(
     toggle_message: impl Fn(String) -> Message + 'static,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     message_tree_list_with_drag(
         items,
@@ -117,7 +117,7 @@ pub fn message_tree_list_with_drag<Message>(
     drag_message: Option<impl Fn(String, DragHandleMessage) -> Message + 'static>,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let select_message = Rc::new(select_message) as Rc<dyn Fn(String) -> Message>;
     let toggle_message = Rc::new(toggle_message) as Rc<dyn Fn(String) -> Message>;

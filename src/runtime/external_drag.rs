@@ -73,7 +73,7 @@ impl ExternalDragOutcome {
 }
 
 pub(crate) type ExternalDragCompletion<Message> =
-    Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>;
+    Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static>;
 
 /// Active external drag session owned by the runtime until it is launched or cancelled.
 pub(crate) struct ExternalDragSession<Message> {

@@ -14,7 +14,7 @@ pub(super) fn message_tree_list_row<Message>(
     drag_message: Option<Rc<dyn Fn(String, crate::widgets::DragHandleMessage) -> Message>>,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let select_id = item.id.clone();
     let context_id = item.id.clone();

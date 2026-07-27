@@ -11,9 +11,6 @@ impl<Message> Command<Message> {
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
-            | Self::Perform { .. }
-            | Self::PerformStream { .. }
-            | Self::PerformStreamLatest { .. }
             | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus
@@ -57,9 +54,6 @@ impl<Message> Command<Message> {
             Self::None
             | Self::Message(_)
             | Self::Timer(..)
-            | Self::Perform { .. }
-            | Self::PerformStream { .. }
-            | Self::PerformStreamLatest { .. }
             | Self::PerformWorker(..)
             | Self::Focus(_)
             | Self::ClearFocus
@@ -98,9 +92,6 @@ impl<Message> Command<Message> {
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
             | Self::Timer(..)
-            | Self::Perform { .. }
-            | Self::PerformStream { .. }
-            | Self::PerformStreamLatest { .. }
             | Self::PerformWorker(..)
             | Self::ClearFocus
             | Self::BeginExternalDrag { .. }
@@ -114,28 +105,13 @@ impl<Message> Command<Message> {
 
     /// Return the priority for the first queued business command with `name`.
     ///
-    /// This inspects both one-shot and streaming business commands and walks
-    /// nested batches in dispatch order. It is primarily useful in tests and
+    /// This inspects one-shot and streaming worker effects and walks nested
+    /// batches in dispatch order. It is primarily useful in tests and
     /// diagnostics that need to verify app work was routed to the intended
     /// runtime-managed business lane without pattern-matching hidden command
     /// internals.
     pub fn business_task_priority(&self, name: &'static str) -> Option<TaskPriority> {
         match self {
-            Self::Perform {
-                name: command_name,
-                priority,
-                ..
-            }
-            | Self::PerformStream {
-                name: command_name,
-                priority,
-                ..
-            }
-            | Self::PerformStreamLatest {
-                name: command_name,
-                priority,
-                ..
-            } if *command_name == name => Some(*priority),
             Self::PerformWorker(effect) if effect.name == name => Some(effect.priority),
             Self::Batch(commands) => commands
                 .iter()
@@ -151,13 +127,14 @@ mod tests {
     use crate::runtime::{Command, TaskPriority};
 
     #[test]
-    fn business_task_priority_finds_perform_command_in_batch() {
+    fn business_task_priority_finds_worker_effect_in_batch() {
         let command = Command::batch([
             Command::Message(1),
-            Command::perform_with_priority(
+            Command::perform_worker_effect_with_priority(
                 "target",
                 TaskPriority::Interactive,
                 None,
+                0,
                 || 2,
                 |message| message,
             ),
@@ -170,10 +147,19 @@ mod tests {
     }
 
     #[test]
-    fn business_task_priority_finds_stream_command_in_batch() {
+    fn business_task_priority_finds_worker_stream_in_batch() {
         let command = Command::batch([
             Command::Message(1),
-            Command::perform_stream_with_priority("target", TaskPriority::BlockingIo, None, |_| {}),
+            Command::perform_worker_stream_with_priority(
+                "target",
+                TaskPriority::BlockingIo,
+                None,
+                0,
+                false,
+                |_| (),
+                |_: ()| 2,
+                |_: ()| 3,
+            ),
         ]);
 
         assert_eq!(

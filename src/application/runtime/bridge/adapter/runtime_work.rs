@@ -1,20 +1,17 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UiUpdateContext},
+    application::{IntoView, UiUpdateContext, runtime::queue::SharedRuntimeDelivery},
     gui::repaint::RepaintSignal,
-    runtime::{BusinessMessageSink, Command, TaskPriority},
+    runtime::{Command, RuntimeQueueDelivery, RuntimeQueueItem, TaskPriority},
 };
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
 {
     pub(super) fn install_runtime_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.runtime.install_repaint(signal);
@@ -30,26 +27,6 @@ where
         self.runtime.schedule_timer_wake(delay, wake)
     }
 
-    pub(super) fn spawn_runtime_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let message = work();
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue(message);
-                }
-            })
-    }
-
     pub(super) fn spawn_runtime_worker_task(
         &mut self,
         name: &'static str,
@@ -60,89 +37,13 @@ where
         if !self.runtime.is_alive() {
             return false;
         }
-        let runtime = Arc::downgrade(&self.runtime);
+        let runtime = Arc::downgrade(self.runtime.shared());
         self.runtime
             .spawn_business_task(name, priority, is_cancelled, move || {
                 work();
                 if let Some(runtime) = runtime.upgrade() {
                     runtime.request_repaint();
                 }
-            })
-    }
-
-    pub(super) fn spawn_runtime_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let sink_runtime = runtime.clone();
-                let sink = BusinessMessageSink::new(move |message| {
-                    sink_runtime
-                        .upgrade()
-                        .is_some_and(|runtime| runtime.enqueue(message))
-                });
-                work(sink);
-            })
-    }
-
-    pub(super) fn spawn_runtime_latest_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let Some(runtime) = runtime.upgrade() else {
-                    return;
-                };
-                let slot = runtime.begin_stream_slot();
-                let gate = Arc::new(LatestStreamGate::new());
-                let emit_runtime = Arc::downgrade(&runtime);
-                let emit_latest_runtime = emit_runtime.clone();
-                let stale_latest_runtime = emit_runtime.clone();
-                let close_gate = Arc::clone(&gate);
-                let latest_gate = Arc::clone(&gate);
-                drop(runtime);
-                let sink = BusinessMessageSink::new_with_latest(
-                    move |message| {
-                        emit_runtime
-                            .upgrade()
-                            .is_some_and(|runtime| runtime.enqueue(message))
-                    },
-                    move |message| {
-                        latest_gate.emit_latest(
-                            message,
-                            |message| {
-                                emit_latest_runtime.upgrade().is_some_and(|runtime| {
-                                    runtime.enqueue_stream_latest(slot, message)
-                                })
-                            },
-                            || {
-                                if let Some(runtime) = stale_latest_runtime.upgrade() {
-                                    runtime.record_stale_stream_event();
-                                }
-                            },
-                        )
-                    },
-                    move || {
-                        close_gate.close();
-                    },
-                );
-                work(sink);
             })
     }
 }
@@ -166,14 +67,37 @@ where
 
     pub(super) fn take_runtime_message_queue(&mut self) -> Vec<Message> {
         let worker_registry = &mut self.worker_registry;
-        self.runtime
-            .take_pending_with_worker_mapper(|delivery| worker_registry.map_delivery(delivery))
+        let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
+        self.runtime.take_pending_with_mappers(
+            |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
+        )
     }
 
-    pub(super) fn take_runtime_timer_wake_queue(
+    pub(super) fn drain_runtime_queue_item_batch_into(
         &mut self,
-    ) -> Vec<crate::runtime::RuntimeTimerWake> {
-        self.runtime.take_timer_wakes()
+        items: &mut Vec<RuntimeQueueItem<Message>>,
+        max_items: usize,
+    ) -> bool {
+        self.runtime.drain_pending_item_batch_into(items, max_items)
+    }
+
+    pub(super) fn map_runtime_queue_delivery(
+        &mut self,
+        delivery: RuntimeQueueDelivery,
+    ) -> Option<Message> {
+        let Ok(delivery) = delivery.downcast::<SharedRuntimeDelivery>() else {
+            return None;
+        };
+        match delivery {
+            SharedRuntimeDelivery::Worker(delivery) => self.worker_registry.map_delivery(delivery),
+            SharedRuntimeDelivery::Platform(delivery) => {
+                self.platform_registry.map_delivery(delivery)
+            }
+            SharedRuntimeDelivery::Timer(wake) => self.timer_registry.map_wake(wake),
+        }
     }
 
     pub(super) fn map_runtime_timer_wake(
@@ -185,10 +109,14 @@ where
 
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {
         let worker_registry = &mut self.worker_registry;
-        self.runtime
-            .drain_pending_into_with_worker_mapper(messages, |delivery| {
-                worker_registry.map_delivery(delivery)
-            });
+        let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
+        self.runtime.drain_pending_into_with_mappers(
+            messages,
+            |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
+        );
     }
 
     pub(super) fn drain_runtime_message_queue_batch_into(
@@ -197,51 +125,14 @@ where
         max_messages: usize,
     ) -> bool {
         let worker_registry = &mut self.worker_registry;
-        self.runtime.drain_pending_batch_into_with_worker_mapper(
+        let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
+        self.runtime.drain_pending_batch_into_with_mappers(
             messages,
             max_messages,
             |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
         )
     }
 }
-
-struct LatestStreamGate {
-    live: Mutex<bool>,
-}
-
-impl LatestStreamGate {
-    fn new() -> Self {
-        Self {
-            live: Mutex::new(true),
-        }
-    }
-
-    fn emit_latest<Message>(
-        &self,
-        message: Message,
-        enqueue: impl FnOnce(Message) -> bool,
-        stale: impl FnOnce(),
-    ) -> bool {
-        let live = self
-            .live
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !*live {
-            drop(live);
-            stale();
-            return false;
-        }
-        enqueue(message)
-    }
-
-    fn close(&self) {
-        *self
-            .live
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = false;
-    }
-}
-
-#[cfg(test)]
-#[path = "../../tests/runtime_work.rs"]
-mod tests;

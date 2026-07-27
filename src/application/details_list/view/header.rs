@@ -127,7 +127,7 @@ pub fn compact_resizable_details_header_cell<Message>(
     resize_message: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     compact_resizable_details_header_cell_with_ids(
         label,
@@ -150,7 +150,7 @@ pub fn compact_resizable_details_header_cell_with_ids<Message>(
     resize_message: impl Fn(DragHandleMessage) -> Message + 'static,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let label: TextContent = label.into();
     let mut sort_drag = button("")

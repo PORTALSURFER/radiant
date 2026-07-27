@@ -1,3 +1,4 @@
+use super::PlatformCompletionRegistry;
 use super::subscription::{WorkerSubscriptionRegistry, spawn_subscription_with_registry};
 use super::timer::TimerRegistry;
 use super::{
@@ -21,10 +22,11 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) state: State,
     pub(in crate::application) project: Project,
     pub(in crate::application) update: Update,
-    pub(in crate::application) runtime: Arc<AppRuntime<Message>>,
+    pub(in crate::application) runtime: AppRuntime<Message>,
     pub(in crate::application) commands: Vec<Command<Message>>,
     pub(in crate::application) timer_registry: TimerRegistry<Message>,
     pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
+    pub(in crate::application) platform_registry: PlatformCompletionRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
@@ -209,10 +211,11 @@ where
             state,
             project,
             update,
-            runtime: Arc::new(AppRuntime::default()),
+            runtime: AppRuntime::default(),
             commands: Vec::new(),
             timer_registry: TimerRegistry::default(),
             worker_registry: WorkerSubscriptionRegistry::default(),
+            platform_registry: PlatformCompletionRegistry::default(),
             lifecycle,
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,
@@ -314,14 +317,14 @@ where
 
     fn start_subscriptions_once(&mut self)
     where
-        Message: Send + 'static,
+        Message: 'static,
     {
         if self.runtime_flags.subscriptions_started {
             return;
         }
         if let Some(subscriptions) = self.lifecycle.subscriptions.as_mut() {
             spawn_subscription_with_registry(
-                Arc::downgrade(&self.runtime),
+                Arc::downgrade(self.runtime.shared()),
                 &mut self.timer_registry,
                 &mut self.worker_registry,
                 subscriptions(&mut self.state),

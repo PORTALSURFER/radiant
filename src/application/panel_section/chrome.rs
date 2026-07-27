@@ -59,7 +59,7 @@ pub fn closeable_panel_section_from_parts<Message>(
     close_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     panel_section_from_parts(
         parts.trailing(

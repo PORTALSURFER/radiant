@@ -158,6 +158,12 @@ messages, or request runtime exit. Reducer-style aliases remain available for
 advanced lifecycle control during the breaking migration, but ordinary
 application code should stay message-first.
 
+Ordinary application `Message` values are owned and reduced on the UI thread, so
+they do not need to implement `Send` or `Sync` and may contain UI-local `Rc` or
+`RefCell` state. Cross-thread APIs instead require their request, payload, or
+worker result to implement `Send`; their completion mapper stays on the UI owner
+and may produce a UI-only application message.
+
 Immutable application labels use `TextContent`, which normal builders accept
 through `Into<TextContent>`. Literals such as `text("Ready")` and
 `button("Play")` remain in static storage through paint-plan construction.
@@ -648,14 +654,22 @@ runtime invokes the mapper only when its ticket is still active. Keep one
 results. `Subscription::interval(...)` uses the same opaque-wake lane for
 recurring ticks; its message factory also runs on the UI owner.
 
-For custom hosts, implement `RuntimeTaskHost::schedule_timer(...)`,
-`RuntimeQueueHost::take_runtime_timer_wakes(...)`, and
-`RuntimeQueueHost::map_runtime_timer_wake(...)` together. The host stores or
-forwards `RuntimeTimerWake` values only; the UI runtime owns FIFO ordering,
-generation/epoch validation, mapper invocation, and message reduction. No
-application message crosses the timer thread, and controller-owned wakes must
-remain available to the runtime controller rather than being mapped by the
-host.
+For custom hosts, implement `RuntimeTaskHost::schedule_timer(...)` and
+`RuntimeQueueHost::map_runtime_timer_wake(...)` together. Hosts with one shared
+worker/platform/timer ingress should also override
+`RuntimeQueueHost::drain_runtime_queue_item_batch_into(...)` and emit
+`RuntimeQueueItem` values in admission order. The host stores or forwards
+`RuntimeTimerWake` values only; the UI runtime owns FIFO ordering,
+generation/epoch validation, mapper invocation, and message reduction. The
+legacy `take_runtime_timer_wakes(...)` default remains useful for simple hosts
+without a combined ingress. No application message crosses the timer thread,
+and controller-owned wakes must remain available to the runtime controller
+rather than being mapped by the host.
+Worker/platform payloads whose mapper must also respect that total order can be
+wrapped in `RuntimeQueueDelivery` and emitted as
+`RuntimeQueueItem::Delivery`; implement
+`RuntimeQueueHost::map_runtime_queue_delivery(...)` to downcast and map them
+only when the controller reaches that FIFO item.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
@@ -1233,6 +1247,12 @@ Custom bridges handle those requests via
 platform service return an explicit unsupported error through the normal
 completion callback instead of blocking the UI thread or forcing app code to
 depend on a native dialog or clipboard crate.
+Platform and external-drag completion callbacks are UI-owned and may capture
+`Rc`, `RefCell`, or other local state. The app runtime assigns each platform
+request an opaque identity, sends only the request and `PlatformResult` across
+the worker boundary, and invokes the one-shot completion mapper while draining
+the UI queue. Late, duplicate, or post-shutdown completions are rejected before
+message reduction.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can
@@ -1786,14 +1806,11 @@ they should use `UiUpdateContext` capabilities, typed platform services, and
 immediate messages in a command can use
 `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
-Host-side unit tests that need to execute queued business work without a runtime
-adapter can use `Command::run_inline_for_tests(...)`. It runs `Message`, `Batch`,
-`Perform`, and `PerformStream` commands synchronously and preserves streamed
-message order, while intentionally ignoring repaint, timer, focus, drag,
-platform, window, and exit commands that require an installed runtime adapter.
 Tests and diagnostics can use `Command::business_task_priority(...)` to verify
-that a named one-shot or streaming business command was queued on the expected
-runtime worker lane without pattern-matching hidden command internals.
+that a named one-shot or streaming worker effect was queued on the expected
+runtime worker lane without pattern-matching hidden command internals. Worker
+closures transport only owned `Send` payloads; their application-message
+mappers remain registered on the UI owner.
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
 surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
 for overlay-only motion. Reducers can queue `Command::repaint(scope)` or
@@ -1824,6 +1841,13 @@ route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
 provide typed convenience mappers such as `WidgetMessageMapper::button`, but
 those mappers are also owned by the primitive module rather than the runtime
 surface core.
+Constant-message controls, menus, overlays, lists, and tree composition keep
+their application messages on the UI owner and therefore require only
+`Message: Clone + 'static`; those messages may contain `Rc`, `RefCell`, or other
+UI-local state. Typed widget output payloads still require `Send + Sync`
+because `WidgetOutput` is the transferable primitive boundary. Composite tree
+rows emit `InteractiveRowMessage` at that boundary and apply their
+application-action mapper afterward on the UI owner.
 `WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
 and `WidgetOutput::typed_cloned::<T>()`, `typed_copied::<T>()`,
 `custom_cloned::<T>()`, and `custom_copied::<T>()` provide owned payload
@@ -1866,8 +1890,17 @@ thread per delay, so timer bursts do not monopolize the UI path or create
 unbounded background threads. The lane transports opaque timer wakes only; the
 UI runtime maps a wake to its registered message and reduces that message on
 the UI owner. Interval subscriptions use the same wake lane for recurring
-ticks; receiver-backed worker subscriptions keep a dedicated thread only when
-they must wait on a host-owned blocking receiver.
+ticks. Receiver-backed worker subscriptions use
+`Subscription::worker_payload(...)`: the dedicated thread transports only the
+owned `Send` payload while its application-message mapper stays on the UI
+owner.
+Internally, `AppBridge` owns the generic application-message and frame queues
+directly. A separate non-generic shared ingress owns worker payload deliveries,
+opaque timer wakes, liveness, repaint signaling, diagnostics, and the bounded
+business pool. Worker and timer sources receive only that shared ingress, so
+adding UI-local state to `Message` does not make those ownership paths generic.
+Worker payloads, platform results, and timer wakes receive one admission
+sequence there and are mapped or reduced in that order on the UI owner.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

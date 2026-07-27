@@ -79,7 +79,7 @@ impl TextInputBuilder {
     /// Add a reserved trailing clear-button slot that emits one cloned host message.
     pub fn clear_button<Message>(self, message: Message) -> TextInputWithClearButtonBuilder<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         self.clear_button_mapped(move || message.clone())
     }

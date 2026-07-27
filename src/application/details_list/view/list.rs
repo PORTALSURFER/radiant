@@ -15,7 +15,7 @@ pub fn message_sortable_details_list<Message>(
     sort_message: impl Fn(String) -> Message + 'static,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     message_selectable_sortable_details_list(
         columns,
@@ -35,7 +35,7 @@ pub fn message_selectable_sortable_details_list<Message>(
     select_message: Option<impl Fn(String) -> Message + 'static>,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let columns = columns.into_iter().collect::<Vec<_>>();
     let sort_message = Rc::new(sort_message) as Rc<dyn Fn(String) -> Message>;
@@ -64,7 +64,7 @@ fn message_details_header<Message>(
     sort_message: Rc<dyn Fn(String) -> Message>,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     compact_details_row(columns.iter().map(|column| {
         let id = column.id.clone();
@@ -93,7 +93,7 @@ fn message_details_row<Message>(
     select_message: Option<Rc<dyn Fn(String) -> Message>>,
 ) -> View<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let row_id = row_data.id.clone();
     let selectable = select_message.is_some();

@@ -87,7 +87,7 @@ pub fn message_selectable_property_panel<Message>(
     select_message: Option<impl Fn(String) -> Message + 'static>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let select_message = select_message
         .map(|select_message| Rc::new(select_message) as Rc<dyn Fn(String) -> Message>);
@@ -143,7 +143,7 @@ fn message_property_row<Message>(
     select_message: Option<Rc<dyn Fn(String) -> Message>>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let row_id = row_data.id.clone();
     let selected = row_data.selected;
@@ -185,7 +185,7 @@ fn message_property_cell<Message>(
     message: Option<Message>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     if let Some(message) = message {
         button(value)

@@ -109,7 +109,7 @@ impl<Message> Overlays<Message> {
     /// activation.
     pub fn dismissible_context_menu(self, view: ViewNode<Message>, message: Message) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         self.layer(Layer::context_menu(view).dismiss_on_outside_click(message))
     }
@@ -122,7 +122,7 @@ impl<Message> Overlays<Message> {
         message: Message,
     ) -> Self
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         match view {
             Some(view) => self.dismissible_context_menu(view, message),

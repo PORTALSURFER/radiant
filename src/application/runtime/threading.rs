@@ -1,4 +1,4 @@
-use super::AppRuntime;
+use super::SharedRuntimeIngress;
 use super::update_context::{BusinessWorkDiagnosticSummary, with_business_work_diagnostics};
 use crate::runtime::{
     BusinessTaskDiagnosticState, RuntimeDiagnosticsRecorder, TaskPriority, elapsed_since,
@@ -436,8 +436,8 @@ fn business_lane_name(priority: TaskPriority) -> &'static str {
 }
 
 #[cfg(test)]
-pub(super) fn sleep_while_runtime_alive<Message>(
-    runtime: &Weak<AppRuntime<Message>>,
+pub(super) fn sleep_while_runtime_alive(
+    runtime: &Weak<SharedRuntimeIngress>,
     duration: std::time::Duration,
 ) -> bool {
     let mut remaining = duration;
@@ -452,7 +452,7 @@ pub(super) fn sleep_while_runtime_alive<Message>(
     runtime_alive(runtime)
 }
 
-pub(super) fn runtime_alive<Message>(runtime: &Weak<AppRuntime<Message>>) -> bool {
+pub(super) fn runtime_alive(runtime: &Weak<SharedRuntimeIngress>) -> bool {
     runtime.upgrade().is_some_and(|runtime| runtime.is_alive())
 }
 

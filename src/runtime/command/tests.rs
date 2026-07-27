@@ -257,6 +257,40 @@ fn drag_with_external_batches_preview_before_external_payload() {
 }
 
 #[test]
+fn external_drag_completion_accepts_ui_local_capture_and_message() {
+    use std::{cell::RefCell, rc::Rc};
+
+    #[derive(Clone)]
+    struct UiOnlyMessage(Rc<RefCell<usize>>);
+
+    let state = Rc::new(RefCell::new(0usize));
+    let captured = Rc::clone(&state);
+    let command = Command::begin_external_drag(
+        crate::runtime::ExternalDragRequest::files(
+            [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+            "Sample",
+        ),
+        move |_| {
+            *captured.borrow_mut() += 1;
+            UiOnlyMessage(Rc::clone(&captured))
+        },
+    );
+    let Command::BeginExternalDrag {
+        on_completed: Some(on_completed),
+        ..
+    } = command
+    else {
+        panic!("external drag should retain its UI-local completion mapper");
+    };
+
+    let message = on_completed(Ok(crate::runtime::ExternalDragOutcome {
+        effect: crate::runtime::ExternalDragEffect::Copy,
+    }));
+    assert!(Rc::ptr_eq(&message.0, &state));
+    assert_eq!(*state.borrow(), 1);
+}
+
+#[test]
 fn drag_session_command_uses_available_drag_surfaces() {
     let drag = crate::runtime::DragRequest::new(
         crate::runtime::DragPreview::sized("Sample", crate::layout::Vector2::new(120.0, 24.0)),

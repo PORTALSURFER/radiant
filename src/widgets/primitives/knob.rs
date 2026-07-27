@@ -167,8 +167,14 @@ impl KnobWidget {
             WidgetInput::FocusChanged(focused) => {
                 self.common.state.focused = focused;
                 if !focused {
+                    let had_active_gesture = self.state.gesture_origin.is_some();
                     self.common.state.pressed = false;
                     self.state.gesture_origin = None;
+                    if had_active_gesture {
+                        return Some(KnobMessage::GestureEnded {
+                            value: self.state.value,
+                        });
+                    }
                 }
                 None
             }
@@ -412,6 +418,33 @@ mod tests {
             None
         );
         assert_eq!(knob.state.value, 0.8);
+    }
+
+    #[test]
+    fn knob_focus_loss_ends_active_pointer_gesture_once() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureStarted { value: 0.5 })
+        ));
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::FocusChanged(false)),
+            Some(KnobMessage::GestureEnded { value: 0.5 })
+        );
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
+            None
+        );
+
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::FocusChanged(true)),
+            None
+        );
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::FocusChanged(false)),
+            None
+        );
     }
 
     #[test]

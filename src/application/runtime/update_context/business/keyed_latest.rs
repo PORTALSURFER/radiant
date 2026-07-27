@@ -1,12 +1,23 @@
-use crate::application::{CancellationToken, KeyedTaskCompletion, TaskTicket};
+use crate::application::{
+    CancellationToken, KeyedTaskCompletion, LatestTaskTransaction, TaskTicket,
+};
 
 use super::{BusinessEventSink, BusinessWorkContext, request::BusinessRequest};
+
+pub(super) enum KeyedLatestAdmission {
+    Transaction {
+        effect_id: u64,
+        transaction: LatestTaskTransaction,
+    },
+    Legacy,
+}
 
 /// Builder for one keyed-latest business request.
 pub struct BusinessKeyedLatestRequest<'context, Message, Key> {
     pub(super) request: BusinessRequest<'context, Message>,
     pub(super) ticket: TaskTicket,
     pub(super) key: Key,
+    pub(super) admission: KeyedLatestAdmission,
 }
 
 impl<Message, Key> BusinessKeyedLatestRequest<'_, Message, Key> {
@@ -32,6 +43,7 @@ where
             token: CancellationToken::new(),
             ticket: self.ticket,
             key: self.key,
+            admission: self.admission,
         }
     }
 
@@ -43,16 +55,37 @@ where
     ) where
         Output: Send + 'static,
     {
-        let key = self.key;
-        let ticket = self.ticket;
-        self.request.run(
-            move |context| KeyedTaskCompletion {
-                key,
-                ticket,
-                output: work(context),
-            },
-            map,
-        );
+        let Self {
+            request,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let work = move |context| KeyedTaskCompletion {
+            key,
+            ticket,
+            output: work(context),
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.run_with_latest_transaction(effect_id, transaction, None, work, map);
+        } else {
+            request.run(work, map);
+        }
+    }
+
+    /// Run keyed latest worker-only work and map its output on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.run(work, map);
     }
 
     /// Run keyed latest work that may emit intermediate events tagged with its key and task ticket.
@@ -66,26 +99,44 @@ where
         Output: Send + 'static,
         Message: 'static,
     {
-        let event_key = self.key.clone();
-        let final_key = self.key;
-        let ticket = self.ticket;
-        self.request.stream(
-            work,
-            move |event| {
-                map_event(KeyedTaskCompletion {
-                    key: event_key.clone(),
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| {
-                map_final(KeyedTaskCompletion {
-                    key: final_key,
-                    ticket,
-                    output,
-                })
-            },
-        );
+        let Self {
+            request,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let event_key = key.clone();
+        let event_map = move |event| {
+            map_event(KeyedTaskCompletion {
+                key: event_key.clone(),
+                ticket,
+                output: event,
+            })
+        };
+        let final_map = move |output| {
+            map_final(KeyedTaskCompletion {
+                key,
+                ticket,
+                output,
+            })
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.stream_with_latest_transaction(
+                effect_id,
+                transaction,
+                None,
+                work,
+                event_map,
+                final_map,
+                false,
+            );
+        } else {
+            request.stream(work, event_map, final_map);
+        }
     }
 
     /// Run keyed latest work with coalesced intermediate events tagged with its key and task ticket.
@@ -99,26 +150,44 @@ where
         Output: Send + 'static,
         Message: 'static,
     {
-        let event_key = self.key.clone();
-        let final_key = self.key;
-        let ticket = self.ticket;
-        self.request.stream_latest(
-            work,
-            move |event| {
-                map_event(KeyedTaskCompletion {
-                    key: event_key.clone(),
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| {
-                map_final(KeyedTaskCompletion {
-                    key: final_key,
-                    ticket,
-                    output,
-                })
-            },
-        );
+        let Self {
+            request,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let event_key = key.clone();
+        let event_map = move |event| {
+            map_event(KeyedTaskCompletion {
+                key: event_key.clone(),
+                ticket,
+                output: event,
+            })
+        };
+        let final_map = move |output| {
+            map_final(KeyedTaskCompletion {
+                key,
+                ticket,
+                output,
+            })
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.stream_with_latest_transaction(
+                effect_id,
+                transaction,
+                None,
+                work,
+                event_map,
+                final_map,
+                true,
+            );
+        } else {
+            request.stream_latest(work, event_map, final_map);
+        }
     }
 }
 
@@ -128,6 +197,7 @@ pub struct CancellableBusinessKeyedLatestRequest<'context, Message, Key> {
     pub(super) token: CancellationToken,
     pub(super) ticket: TaskTicket,
     pub(super) key: Key,
+    pub(super) admission: KeyedLatestAdmission,
 }
 
 impl<Message, Key> CancellableBusinessKeyedLatestRequest<'_, Message, Key> {
@@ -161,18 +231,46 @@ where
         Output: Send + 'static,
     {
         let token = self.token.clone();
-        let key = self.key;
-        let ticket = self.ticket;
-        self.request.run_with_optional_cancellation(
-            Some(self.token),
-            move |context| KeyedTaskCompletion {
-                key,
-                ticket,
-                output: work(context),
-            },
-            map,
-        );
+        let Self {
+            request,
+            token: worker_token,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let work = move |context| KeyedTaskCompletion {
+            key,
+            ticket,
+            output: work(context),
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.run_with_latest_transaction(
+                effect_id,
+                transaction,
+                Some(worker_token),
+                work,
+                map,
+            );
+        } else {
+            request.run_with_optional_cancellation(Some(worker_token), work, map);
+        }
         token
+    }
+
+    /// Run cancellable keyed latest worker-only work on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) -> CancellationToken
+    where
+        Output: Send + 'static,
+    {
+        self.run(work, map)
     }
 
     /// Run cancellable keyed latest work that may emit intermediate events tagged with its key and task ticket.
@@ -188,27 +286,50 @@ where
         Message: 'static,
     {
         let token = self.token.clone();
-        let event_key = self.key.clone();
-        let final_key = self.key;
-        let ticket = self.ticket;
-        self.request.stream_with_optional_cancellation(
-            Some(self.token),
-            work,
-            move |event| {
-                map_event(KeyedTaskCompletion {
-                    key: event_key.clone(),
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| {
-                map_final(KeyedTaskCompletion {
-                    key: final_key,
-                    ticket,
-                    output,
-                })
-            },
-        );
+        let Self {
+            request,
+            token: worker_token,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let event_key = key.clone();
+        let event_map = move |event| {
+            map_event(KeyedTaskCompletion {
+                key: event_key.clone(),
+                ticket,
+                output: event,
+            })
+        };
+        let final_map = move |output| {
+            map_final(KeyedTaskCompletion {
+                key,
+                ticket,
+                output,
+            })
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.stream_with_latest_transaction(
+                effect_id,
+                transaction,
+                Some(worker_token),
+                work,
+                event_map,
+                final_map,
+                false,
+            );
+        } else {
+            request.stream_with_optional_cancellation(
+                Some(worker_token),
+                work,
+                event_map,
+                final_map,
+            );
+        }
         token
     }
 
@@ -225,27 +346,50 @@ where
         Message: 'static,
     {
         let token = self.token.clone();
-        let event_key = self.key.clone();
-        let final_key = self.key;
-        let ticket = self.ticket;
-        self.request.latest_stream_with_optional_cancellation(
-            Some(self.token),
-            work,
-            move |event| {
-                map_event(KeyedTaskCompletion {
-                    key: event_key.clone(),
-                    ticket,
-                    output: event,
-                })
-            },
-            move |output| {
-                map_final(KeyedTaskCompletion {
-                    key: final_key,
-                    ticket,
-                    output,
-                })
-            },
-        );
+        let Self {
+            request,
+            token: worker_token,
+            ticket,
+            key,
+            admission,
+        } = self;
+        let event_key = key.clone();
+        let event_map = move |event| {
+            map_event(KeyedTaskCompletion {
+                key: event_key.clone(),
+                ticket,
+                output: event,
+            })
+        };
+        let final_map = move |output| {
+            map_final(KeyedTaskCompletion {
+                key,
+                ticket,
+                output,
+            })
+        };
+        if let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission
+        {
+            request.stream_with_latest_transaction(
+                effect_id,
+                transaction,
+                Some(worker_token),
+                work,
+                event_map,
+                final_map,
+                true,
+            );
+        } else {
+            request.latest_stream_with_optional_cancellation(
+                Some(worker_token),
+                work,
+                event_map,
+                final_map,
+            );
+        }
         token
     }
 }
@@ -304,5 +448,97 @@ mod tests {
             command.business_task_priority("keyed-latest-stream-test"),
             Some(TaskPriority::Interactive)
         );
+    }
+
+    #[test]
+    fn keyed_latest_reuses_identity_per_key_and_keeps_keys_independent() {
+        let key_a = ResourceKey::scoped("sample", "C:/a.wav");
+        let key_b = ResourceKey::scoped("sample", "C:/b.wav");
+        let mut latest = KeyedLatestTasks::new();
+        let mut context = UiUpdateContext::<()>::default();
+        context
+            .business()
+            .background("keyed-identity")
+            .latest_for(&mut latest, key_a.clone())
+            .run(|_| 1_u8, |_| ());
+        context
+            .business()
+            .background("keyed-identity")
+            .latest_for(&mut latest, key_b.clone())
+            .run(|_| 2_u8, |_| ());
+        context
+            .business()
+            .background("keyed-identity")
+            .latest_for(&mut latest, key_a.clone())
+            .run(|_| 3_u8, |_| ());
+
+        let Command::Batch(commands) = context.into_command() else {
+            panic!("three keyed requests should remain a command batch");
+        };
+        let effects = commands
+            .into_iter()
+            .map(|command| match command {
+                Command::PerformWorker(effect) => effect,
+                _ => panic!("keyed request should queue a worker effect"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(effects[0].id, effects[2].id);
+        assert_ne!(effects[0].id, effects[1].id);
+        assert_ne!(effects[0].generation, effects[2].generation);
+        assert_eq!(
+            effects[0]
+                .transaction
+                .as_ref()
+                .expect("keyed effect transaction")
+                .replacement()
+                .id(),
+            effects[0].generation.0
+        );
+        assert_eq!(
+            latest.active(&key_b).map(|ticket| ticket.id()),
+            Some(effects[1].generation.0)
+        );
+    }
+
+    #[test]
+    fn abandoned_keyed_and_resource_latest_builders_restore_predecessors() {
+        let key = ResourceKey::scoped("sample", "C:/abandoned.wav");
+        let mut keyed = KeyedLatestTasks::new();
+        let predecessor = keyed.begin(key.clone());
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("abandoned-keyed")
+            .latest_for(&mut keyed, key.clone());
+        drop(request);
+        assert_eq!(keyed.active(&key), Some(predecessor));
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("abandoned-keyed")
+            .cancellable()
+            .latest_for(&mut keyed, key.clone());
+        drop(request);
+        assert_eq!(keyed.active(&key), Some(predecessor));
+
+        let mut resources = crate::application::ResourceTasks::new();
+        let predecessor = resources
+            .begin_exclusive(key.clone())
+            .expect("resource predecessor");
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("abandoned-resource")
+            .latest_for_resource(&mut resources, key.clone());
+        drop(request);
+        assert_eq!(resources.active(&key), Some(predecessor.ticket()));
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("abandoned-resource")
+            .cancellable()
+            .latest_for_resource(&mut resources, key.clone());
+        drop(request);
+        assert_eq!(resources.active(&key), Some(predecessor.ticket()));
     }
 }

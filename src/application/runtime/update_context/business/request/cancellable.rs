@@ -11,8 +11,9 @@ use crate::{
 
 use super::{
     super::{
-        keyed_latest::CancellableBusinessKeyedLatestRequest,
-        latest::CancellableBusinessLatestRequest, resource::CancellableBusinessResourceRequest,
+        keyed_latest::{CancellableBusinessKeyedLatestRequest, KeyedLatestAdmission},
+        latest::CancellableBusinessLatestRequest,
+        resource::CancellableBusinessResourceRequest,
     },
     BusinessRequest,
 };
@@ -57,12 +58,16 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
     where
         Key: Clone + Eq + Hash,
     {
-        let ticket = latest.begin(key.clone());
+        let (ticket, transaction, effect_id) = latest.begin_replacement(key.clone());
         CancellableBusinessKeyedLatestRequest {
             request: self.request,
             token: self.token,
             ticket,
             key,
+            admission: KeyedLatestAdmission::Transaction {
+                effect_id,
+                transaction,
+            },
         }
     }
 
@@ -72,13 +77,17 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         resources: &mut ResourceTasks,
         key: impl Into<ResourceKey>,
     ) -> CancellableBusinessKeyedLatestRequest<'context, Message, ResourceKey> {
-        let ticket = resources.begin_latest(key.into());
+        let (ticket, transaction, effect_id) = resources.begin_latest_transaction(key.into());
         let key = ticket.key().clone();
         CancellableBusinessKeyedLatestRequest {
             request: self.request,
             token: self.token,
             ticket: ticket.ticket(),
             key,
+            admission: KeyedLatestAdmission::Transaction {
+                effect_id,
+                transaction,
+            },
         }
     }
 
@@ -97,6 +106,7 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
             token: self.token,
             ticket: ticket.ticket(),
             key,
+            admission: KeyedLatestAdmission::Legacy,
         })
     }
 

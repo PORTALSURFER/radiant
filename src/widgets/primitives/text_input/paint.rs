@@ -6,6 +6,7 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
     WidgetCommon,
+    support::push_automation_active_marker,
     text_input::{TextInputChrome, TextInputWidget},
 };
 
@@ -34,6 +35,7 @@ fn push_text_input_chrome(
             },
             width: 1.0,
         }));
+        push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
         return;
     }
     let fill = if common.state.disabled {
@@ -66,6 +68,7 @@ fn push_text_input_chrome(
             width: 1.0,
         }));
     }
+    push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
 }
 
 pub(super) fn push_text_input_widget_paint(

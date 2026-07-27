@@ -4,6 +4,7 @@ use crate::gui::types::{Point, Rect};
 use crate::runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect};
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::slider::{SliderWidget, geometry::track_rect};
+use crate::widgets::primitives::support::push_automation_active_marker;
 
 pub(super) fn push_slider_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
@@ -44,4 +45,11 @@ pub(super) fn push_slider_widget_paint(
             width: 1.0,
         }));
     }
+    push_automation_active_marker(
+        primitives,
+        slider.common.id,
+        bounds,
+        slider.common.state,
+        tokens.emphasis,
+    );
 }

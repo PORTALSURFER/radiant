@@ -6,4 +6,6 @@ mod paint;
 
 pub use common::WidgetCommon;
 pub(super) use input::{activate_on_keyboard, clamp_fraction};
-pub(super) use paint::{push_button_chrome, push_checkbox_chrome, push_control_chrome};
+pub(super) use paint::{
+    push_automation_active_marker, push_button_chrome, push_checkbox_chrome, push_control_chrome,
+};

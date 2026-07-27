@@ -405,3 +405,31 @@ fn caller_owned_trailing_svg_remains_untinted() {
         .expect("disabled caller-owned icon should paint");
     assert_eq!(enabled_svg.document, disabled_svg.document);
 }
+
+#[test]
+fn automation_marker_is_added_only_when_button_state_is_active() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+    let button = ButtonWidget::new(20, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let mut active = button.clone();
+    active.common.state.automation_active = true;
+    let mut passive_primitives = Vec::new();
+    let mut active_primitives = Vec::new();
+    button.append_paint(
+        &mut passive_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    active.append_paint(
+        &mut active_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert_eq!(active_primitives.len(), passive_primitives.len() + 1);
+    assert!(
+        active_primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
+    );
+}

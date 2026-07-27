@@ -10,10 +10,10 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    KnobMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+    KnobKeyboardGesture, KnobMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
 };
 
-use super::support::{WidgetCommon, clamp_fraction};
+use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker};
 
 const DEFAULT_DIAMETER: f32 = 40.0;
 const DEFAULT_SENSITIVITY: f32 = 0.006;
@@ -153,9 +153,10 @@ impl KnobWidget {
                     .map(|value| KnobMessage::GestureEnded { value })
             }
             WidgetInput::PointerDoubleClick {
+                position,
                 button: PointerButton::Primary,
                 ..
-            } if self.props.reset_on_double_click => {
+            } if self.props.reset_on_double_click && bounds.contains(position) => {
                 self.common.state.pressed = false;
                 self.state.gesture_origin = None;
                 self.state.value = self.props.default_value;
@@ -172,18 +173,14 @@ impl KnobWidget {
                 None
             }
             WidgetInput::KeyPress(key) if self.common.state.focused => match key {
-                WidgetKey::ArrowLeft | WidgetKey::ArrowDown => self
-                    .set_value(self.state.value - self.props.sensitivity * 16.0)
-                    .map(|value| KnobMessage::ValueChanged { value }),
-                WidgetKey::ArrowRight | WidgetKey::ArrowUp => self
-                    .set_value(self.state.value + self.props.sensitivity * 16.0)
-                    .map(|value| KnobMessage::ValueChanged { value }),
-                WidgetKey::Home => self
-                    .set_value(0.0)
-                    .map(|value| KnobMessage::ValueChanged { value }),
-                WidgetKey::End => self
-                    .set_value(1.0)
-                    .map(|value| KnobMessage::ValueChanged { value }),
+                WidgetKey::ArrowLeft | WidgetKey::ArrowDown => {
+                    self.keyboard_gesture(self.state.value - self.props.sensitivity * 16.0)
+                }
+                WidgetKey::ArrowRight | WidgetKey::ArrowUp => {
+                    self.keyboard_gesture(self.state.value + self.props.sensitivity * 16.0)
+                }
+                WidgetKey::Home => self.keyboard_gesture(0.0),
+                WidgetKey::End => self.keyboard_gesture(1.0),
                 _ => None,
             },
             _ => None,
@@ -197,6 +194,15 @@ impl KnobWidget {
         }
         self.state.value = value;
         Some(value)
+    }
+
+    fn keyboard_gesture(&mut self, value: f32) -> Option<KnobMessage> {
+        let start_value = self.state.value;
+        let final_value = self.set_value(value)?;
+        Some(KnobMessage::KeyboardGesture(KnobKeyboardGesture::new(
+            start_value,
+            final_value,
+        )))
     }
 }
 
@@ -290,25 +296,13 @@ impl Widget for KnobWidget {
                 width: 2.0,
             }));
         }
-        if self.common.state.automation_active && !self.common.state.disabled {
-            // A second, dashed-like marker (short radial tick) keeps
-            // automation visible without relying on color alone.
-            let marker_angle = ARC_START + ARC_SWEEP * 0.5;
-            let outer = Point::new(
-                center.x + radius * marker_angle.cos(),
-                center.y + radius * marker_angle.sin(),
-            );
-            let inner = Point::new(
-                center.x + (radius - 4.0) * marker_angle.cos(),
-                center.y + (radius - 4.0) * marker_angle.sin(),
-            );
-            primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-                widget_id: self.common.id,
-                points: [inner, outer].into(),
-                color: tokens.emphasis,
-                width: 2.0,
-            }));
-        }
+        push_automation_active_marker(
+            primitives,
+            self.common.id,
+            bounds,
+            self.common.state,
+            tokens.emphasis,
+        );
         if self.common.state.focused && self.common.paint.paints_focus {
             let focus_ring = circle_points(center, (radius + 2.0).max(1.0), 40);
             primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
@@ -361,10 +355,63 @@ mod tests {
         assert_eq!(
             knob.handle_input(
                 bounds,
+                WidgetInput::primary_double_click(Point::new(80.0, 80.0))
+            ),
+            None
+        );
+        assert_ne!(knob.state.value, 0.25);
+        assert_eq!(
+            knob.handle_input(
+                bounds,
                 WidgetInput::primary_double_click(Point::new(20.0, 20.0))
             ),
             Some(KnobMessage::Reset { value: 0.25 })
         );
+    }
+
+    #[test]
+    fn knob_keyboard_gesture_batch_requires_focus_and_preserves_clamped_order() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.98).with_sensitivity(0.1);
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowRight)),
+            None
+        );
+        knob.handle_input(bounds, WidgetInput::FocusChanged(true));
+        let Some(KnobMessage::KeyboardGesture(batch)) =
+            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowRight))
+        else {
+            panic!("focused keyboard edit should emit a lifecycle batch");
+        };
+        assert_eq!(
+            batch.events,
+            [
+                crate::widgets::KnobAutomationEvent::GestureStarted { value: 0.98 },
+                crate::widgets::KnobAutomationEvent::ValueChanged { value: 1.0 },
+                crate::widgets::KnobAutomationEvent::GestureEnded { value: 1.0 },
+            ]
+        );
+
+        knob.common.state.disabled = true;
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowLeft)),
+            None
+        );
+    }
+
+    #[test]
+    fn knob_double_click_reset_ignores_outside_and_disabled_inputs() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.8).with_default_value(0.2);
+        knob.common.state.disabled = true;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::primary_double_click(Point::new(20.0, 20.0))
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 0.8);
     }
 
     #[test]

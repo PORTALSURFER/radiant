@@ -9,7 +9,9 @@ use crate::widgets::interaction::{
     ActivationInputPolicy, ButtonMessage, PointerButton, WidgetInput, WidgetOutput,
     handle_activation_input,
 };
-use crate::widgets::primitives::support::{WidgetCommon, push_button_chrome};
+use crate::widgets::primitives::support::{
+    WidgetCommon, push_automation_active_marker, push_button_chrome,
+};
 
 mod builders;
 
@@ -141,6 +143,18 @@ impl Widget for IconButtonWidget {
             &self.icon
         };
         icon.append_paint(primitives, self.common.id, rect);
+        let tokens = crate::widgets::resolve_widget_visual_tokens(
+            theme,
+            self.common.style,
+            self.common.state,
+        );
+        push_automation_active_marker(
+            primitives,
+            self.common.id,
+            bounds,
+            self.common.state,
+            tokens.emphasis,
+        );
     }
 }
 
@@ -312,6 +326,42 @@ mod tests {
             primitive,
             PaintPrimitive::FillPolygon(_) | PaintPrimitive::StrokePolygon(_)
         )));
+    }
+
+    #[test]
+    fn bare_icon_button_automation_marker_is_state_gated() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect fill="#fff" x="4" y="4" width="8" height="8"/></svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(Point::default(), crate::layout::Vector2::new(22.0, 18.0));
+        let mut widget = IconButtonWidget::new(
+            104,
+            icon,
+            WidgetSizing::fixed(crate::layout::Vector2::new(22.0, 18.0)),
+        )
+        .bare();
+        let mut passive = Vec::new();
+        widget.append_paint(
+            &mut passive,
+            bounds,
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+        widget.common.state.automation_active = true;
+        let mut active = Vec::new();
+        widget.append_paint(
+            &mut active,
+            bounds,
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+        assert_eq!(active.len(), passive.len() + 1);
+        assert!(
+            active
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
+        );
     }
 
     fn chrome_colors(

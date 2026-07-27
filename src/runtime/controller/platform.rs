@@ -134,6 +134,17 @@ impl PlatformResultIngress {
         (pending, frozen_count > max_deliveries)
     }
 
+    /// Snapshot the eligible prefix and remove its budgeted portion while the
+    /// caller still holds the ingress lock. Later reservations therefore
+    /// cannot enter the frozen turn ahead of an older overflow delivery.
+    pub(super) fn take_budgeted_pending_batch(
+        &mut self,
+        max_deliveries: usize,
+    ) -> (Vec<PlatformResultDelivery>, bool) {
+        let frozen_count = self.pending_len();
+        self.take_frozen_pending_batch(frozen_count, max_deliveries)
+    }
+
     pub(super) fn pending_len(&self) -> usize {
         self.pending.len() + usize::from(self.overflow.is_some())
     }
@@ -302,5 +313,48 @@ mod tests {
         assert_eq!(batch.len(), 2);
         assert!(!frozen_remainder);
         assert_eq!(ingress.pending_len(), 1);
+    }
+
+    #[test]
+    fn atomic_frozen_batch_keeps_late_reservation_behind_older_overflow() {
+        let ingress = Arc::new(Mutex::new(PlatformResultIngress::default()));
+        for id in 0..63 {
+            let reservation = PlatformResultIngress::reserve(&ingress).expect("old reservation");
+            assert!(reservation.commit(PlatformResultDelivery::Completed {
+                identity: PlatformCompletionIdentity { id, epoch: 1 },
+                result: Ok(PlatformResponse::Completed),
+            }));
+        }
+        let late_reservation =
+            PlatformResultIngress::reserve(&ingress).expect("outstanding late reservation");
+        {
+            let mut state = ingress.lock().expect("ingress lock");
+            assert!(state.enqueue_overflow(PlatformResultDelivery::Completed {
+                identity: PlatformCompletionIdentity { id: 100, epoch: 1 },
+                result: Ok(PlatformResponse::Completed),
+            }));
+            let (frozen, frozen_remainder) = state.take_budgeted_pending_batch(8);
+            assert!(frozen_remainder);
+            assert_eq!(frozen.len(), 8);
+            assert!(frozen.iter().all(|delivery| match delivery {
+                PlatformResultDelivery::Completed { identity, .. } => identity.id < 8,
+                PlatformResultDelivery::Discarded { .. } => false,
+            }));
+        }
+        assert!(late_reservation.commit(PlatformResultDelivery::Completed {
+            identity: PlatformCompletionIdentity { id: 101, epoch: 1 },
+            result: Ok(PlatformResponse::Completed),
+        }));
+
+        let remainder = ingress.lock().expect("ingress lock").take_pending();
+        let ids = remainder
+            .into_iter()
+            .map(|delivery| match delivery {
+                PlatformResultDelivery::Completed { identity, .. } => identity.id,
+                PlatformResultDelivery::Discarded { identity } => identity.id,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ids.first(), Some(&8));
+        assert_eq!(ids.last(), Some(&101));
     }
 }

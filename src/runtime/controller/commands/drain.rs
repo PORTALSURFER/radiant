@@ -9,11 +9,6 @@ where
     pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget, mut completion_budget) = self.runtime_drain_budget();
-        let platform_start_count = self
-            .platform_results
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .pending_len();
         let worker_high_water = self.worker_effects.high_water();
 
         // Freeze and remove the eligible platform prefix before invoking any
@@ -24,7 +19,7 @@ where
                 .platform_results
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            pending.take_frozen_pending_batch(platform_start_count, completion_budget)
+            pending.take_budgeted_pending_batch(completion_budget)
         };
         completion_budget = completion_budget.saturating_sub(platform_results.len());
 

@@ -2,6 +2,9 @@ use crate::runtime::{PlatformCompletion, PlatformCompletionIdentity, PlatformRes
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
+use super::SurfaceRuntime;
+use crate::runtime::RuntimeBridge;
+
 pub(super) struct PlatformCompletionRegistry<Message> {
     entries: HashMap<PlatformCompletionIdentity, PlatformCompletion<Message>>,
     next_id: u64,
@@ -55,6 +58,22 @@ impl<Message> PlatformCompletionRegistry<Message> {
     pub(super) fn clear(&mut self) {
         self.entries.clear();
         self.epoch = self.epoch.saturating_add(1);
+    }
+}
+
+impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    pub(super) fn shutdown_platform_services(&mut self) {
+        {
+            let mut ingress = self
+                .platform_results
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            ingress.close();
+        }
+        self.platform_registry.clear();
     }
 }
 

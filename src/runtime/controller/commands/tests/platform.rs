@@ -5,8 +5,8 @@ use super::{
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
     FileDialogRequest, PlatformRequest, PlatformResponse, RuntimeBridge, RuntimeHostCapabilities,
-    RuntimePlatformResultHost, RuntimePlatformResultSink, RuntimeQueueDelivery, RuntimeQueueHost,
-    RuntimeQueueItem, SurfaceNode,
+    RuntimeLifecycleHost, RuntimePlatformResultHost, RuntimePlatformResultSink,
+    RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, SurfaceNode,
 };
 use std::sync::Arc;
 
@@ -21,6 +21,13 @@ struct DroppingResultBridge;
 #[derive(Default)]
 struct RetainingResultBridge {
     sinks: Vec<RuntimePlatformResultSink>,
+}
+
+#[derive(Default)]
+struct LifecycleResultBridge {
+    sinks: Vec<RuntimePlatformResultSink>,
+    captures: std::rc::Weak<std::cell::RefCell<usize>>,
+    observed_capture_count: Option<usize>,
 }
 
 #[derive(Default)]
@@ -139,6 +146,40 @@ impl RuntimePlatformResultHost for RetainingResultBridge {
     ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
         self.sinks.push(sink);
         Ok(())
+    }
+}
+
+impl RuntimeBridge<usize> for LifecycleResultBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new()
+            .with_platform_results()
+            .with_lifecycle()
+    }
+}
+
+impl RuntimePlatformResultHost for LifecycleResultBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
+impl RuntimeLifecycleHost for LifecycleResultBridge {
+    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.observed_capture_count = Some(self.captures.strong_count());
+        None
     }
 }
 
@@ -415,6 +456,42 @@ fn exit_fences_late_sink_drop_without_delivery() {
     drop(sink);
     assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     assert_eq!(*captures.borrow(), 0);
+}
+
+#[test]
+fn runtime_exit_hook_fences_late_platform_send_and_drop_without_command_exit() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let bridge = LifecycleResultBridge {
+        captures: std::rc::Rc::downgrade(&captures),
+        ..LifecycleResultBridge::default()
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, crate::gui::types::Vector2::new(100.0, 100.0));
+    for _ in 0..2 {
+        let mapper_captures = std::rc::Rc::clone(&captures);
+        runtime.execute_command(crate::runtime::Command::platform_request(
+            PlatformRequest::ReadText,
+            move |_| {
+                *mapper_captures.borrow_mut() += 1;
+                1
+            },
+        ));
+    }
+    assert_eq!(runtime.bridge().sinks.len(), 2);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 3);
+
+    assert_eq!(runtime.host_on_runtime_exit(), None);
+    assert_eq!(runtime.bridge().observed_capture_count, Some(1));
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+
+    let mut sinks = std::mem::take(&mut runtime.bridge_mut().sinks).into_iter();
+    sinks
+        .next()
+        .expect("first retained sink")
+        .send(Ok(PlatformResponse::Completed));
+    drop(sinks.next().expect("second retained sink"));
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(*captures.borrow(), 0);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
 }
 
 #[test]

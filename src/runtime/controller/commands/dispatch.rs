@@ -366,11 +366,7 @@ where
                 self.worker_effects.shutdown();
                 self.timer_effects.shutdown();
                 self.runtime_work.fence_timer_wakes();
-                self.platform_registry.clear();
-                self.platform_results
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .close();
+                self.shutdown_platform_services();
                 outcome.exit_requested = true;
                 self.exit_requested = true;
             }

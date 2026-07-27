@@ -4,7 +4,7 @@ use crate::{
     gui::repaint::RepaintSignal,
     runtime::{
         Command, RuntimeAnimationActivity, RuntimeAnimationHost, RuntimePlatformHost,
-        RuntimeQueueHost, RuntimeTaskHost,
+        RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -75,10 +75,6 @@ where
         self.take_runtime_message_queue()
     }
 
-    fn take_runtime_timer_wakes(&mut self) -> Vec<crate::runtime::RuntimeTimerWake> {
-        self.take_runtime_timer_wake_queue()
-    }
-
     fn map_runtime_timer_wake(
         &mut self,
         wake: crate::runtime::RuntimeTimerWake,
@@ -96,6 +92,14 @@ where
         max_messages: usize,
     ) -> bool {
         self.drain_runtime_message_queue_batch_into(messages, max_messages)
+    }
+
+    fn drain_runtime_queue_item_batch_into(
+        &mut self,
+        items: &mut Vec<RuntimeQueueItem<Message>>,
+        max_items: usize,
+    ) -> bool {
+        AppBridge::drain_runtime_queue_item_batch_into(self, items, max_items)
     }
 }
 

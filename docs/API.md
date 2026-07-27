@@ -654,14 +654,17 @@ runtime invokes the mapper only when its ticket is still active. Keep one
 results. `Subscription::interval(...)` uses the same opaque-wake lane for
 recurring ticks; its message factory also runs on the UI owner.
 
-For custom hosts, implement `RuntimeTaskHost::schedule_timer(...)`,
-`RuntimeQueueHost::take_runtime_timer_wakes(...)`, and
-`RuntimeQueueHost::map_runtime_timer_wake(...)` together. The host stores or
-forwards `RuntimeTimerWake` values only; the UI runtime owns FIFO ordering,
-generation/epoch validation, mapper invocation, and message reduction. No
-application message crosses the timer thread, and controller-owned wakes must
-remain available to the runtime controller rather than being mapped by the
-host.
+For custom hosts, implement `RuntimeTaskHost::schedule_timer(...)` and
+`RuntimeQueueHost::map_runtime_timer_wake(...)` together. Hosts with one shared
+worker/platform/timer ingress should also override
+`RuntimeQueueHost::drain_runtime_queue_item_batch_into(...)` and emit
+`RuntimeQueueItem` values in admission order. The host stores or forwards
+`RuntimeTimerWake` values only; the UI runtime owns FIFO ordering,
+generation/epoch validation, mapper invocation, and message reduction. The
+legacy `take_runtime_timer_wakes(...)` default remains useful for simple hosts
+without a combined ingress. No application message crosses the timer thread,
+and controller-owned wakes must remain available to the runtime controller
+rather than being mapped by the host.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
@@ -1891,6 +1894,8 @@ directly. A separate non-generic shared ingress owns worker payload deliveries,
 opaque timer wakes, liveness, repaint signaling, diagnostics, and the bounded
 business pool. Worker and timer sources receive only that shared ingress, so
 adding UI-local state to `Message` does not make those ownership paths generic.
+Worker payloads, platform results, and timer wakes receive one admission
+sequence there and are mapped or reduced in that order on the UI owner.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

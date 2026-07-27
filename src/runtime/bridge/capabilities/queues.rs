@@ -1,5 +1,17 @@
 use crate::runtime::{Command, RuntimeTimerWake};
 
+/// One UI-owned item drained from a host's ordered runtime ingress.
+///
+/// Hosts that combine worker, platform, and timer lanes should emit items in
+/// admission order. The runtime reduces messages directly and maps opaque timer
+/// wakes only after they reach this UI-owned queue.
+pub enum RuntimeQueueItem<Message> {
+    /// An application message ready for UI-owned reduction.
+    Message(Message),
+    /// An opaque timer wake awaiting UI-owned validation and mapping.
+    Timer(RuntimeTimerWake),
+}
+
 /// Optional host capability for runtime-owned command, message, and timer-wake
 /// queues.
 ///
@@ -61,12 +73,33 @@ pub trait RuntimeQueueHost<Message> {
         self.drain_runtime_messages_into(messages);
         false
     }
+
+    /// Drain ordered messages and timer wakes into caller-owned scratch storage.
+    ///
+    /// The default preserves the legacy host behavior of draining timer wakes
+    /// before ordinary messages. Hosts with a shared ingress should override
+    /// this method and preserve the admission order across both item kinds.
+    fn drain_runtime_queue_item_batch_into(
+        &mut self,
+        items: &mut Vec<RuntimeQueueItem<Message>>,
+        max_items: usize,
+    ) -> bool {
+        items.extend(
+            self.take_runtime_timer_wakes()
+                .into_iter()
+                .map(RuntimeQueueItem::Timer),
+        );
+        let mut messages = Vec::new();
+        let remaining = self.drain_runtime_message_batch_into(&mut messages, max_items);
+        items.extend(messages.into_iter().map(RuntimeQueueItem::Message));
+        remaining
+    }
 }
 
 pub(crate) struct RuntimeQueueCapability<Bridge, Message> {
     pub drain_runtime_commands_into: fn(&mut Bridge, &mut Vec<Command<Message>>),
-    pub drain_runtime_message_batch_into: fn(&mut Bridge, &mut Vec<Message>, usize) -> bool,
-    pub take_runtime_timer_wakes: fn(&mut Bridge) -> Vec<RuntimeTimerWake>,
+    pub drain_runtime_queue_item_batch_into:
+        fn(&mut Bridge, &mut Vec<RuntimeQueueItem<Message>>, usize) -> bool,
     pub map_runtime_timer_wake: fn(&mut Bridge, RuntimeTimerWake) -> Option<Message>,
 }
 
@@ -77,8 +110,7 @@ where
     pub const fn new() -> Self {
         Self {
             drain_runtime_commands_into: Bridge::drain_runtime_commands_into,
-            drain_runtime_message_batch_into: Bridge::drain_runtime_message_batch_into,
-            take_runtime_timer_wakes: Bridge::take_runtime_timer_wakes,
+            drain_runtime_queue_item_batch_into: Bridge::drain_runtime_queue_item_batch_into,
             map_runtime_timer_wake: Bridge::map_runtime_timer_wake,
         }
     }

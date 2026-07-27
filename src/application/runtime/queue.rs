@@ -2,7 +2,7 @@ use super::platform::PlatformCompletionDelivery;
 use super::subscription::WorkerSubscriptionDelivery;
 use super::timer::TimerWake;
 use crate::gui::repaint::RepaintSignal;
-use crate::runtime::{RuntimeDiagnostics, RuntimeTimerWake, TaskPriority};
+use crate::runtime::{RuntimeDiagnostics, RuntimeQueueItem, RuntimeTimerWake, TaskPriority};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -20,6 +20,7 @@ enum PendingMessage<Message> {
 pub(in crate::application::runtime) enum SharedRuntimeDelivery {
     Worker(WorkerSubscriptionDelivery),
     Platform(PlatformCompletionDelivery),
+    Timer(TimerWake),
 }
 
 /// UI-owned application runtime state.
@@ -105,13 +106,14 @@ impl<Message> AppRuntime<Message> {
 
     #[cfg(test)]
     pub(super) fn take_pending(&mut self) -> Vec<Message> {
-        self.take_pending_with_mappers(|_| None, |_| None)
+        self.take_pending_with_mappers(|_| None, |_| None, |_| None)
     }
 
     pub(super) fn take_pending_with_mappers(
         &mut self,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
         mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) -> Vec<Message> {
         self.collect_incoming();
         let frame = self.pending_frame.take();
@@ -121,7 +123,7 @@ impl<Message> AppRuntime<Message> {
             .filter_map(|message| {
                 message
                     .value
-                    .into_message(&mut map_worker, &mut map_platform)
+                    .into_message(&mut map_worker, &mut map_platform, &mut map_timer)
             })
             .collect();
         self.shared.record_messages_drained(drained);
@@ -130,7 +132,7 @@ impl<Message> AppRuntime<Message> {
 
     #[cfg(test)]
     pub(super) fn drain_pending_into(&mut self, pending: &mut Vec<Message>) {
-        self.drain_pending_into_with_mappers(pending, |_| None, |_| None);
+        self.drain_pending_into_with_mappers(pending, |_| None, |_| None, |_| None);
     }
 
     pub(super) fn drain_pending_into_with_mappers(
@@ -138,6 +140,7 @@ impl<Message> AppRuntime<Message> {
         pending: &mut Vec<Message>,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
         mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) {
         self.collect_incoming();
         let mut drained = 0;
@@ -149,7 +152,7 @@ impl<Message> AppRuntime<Message> {
         pending.extend(self.pending.drain(..).filter_map(|message| {
             message
                 .value
-                .into_message(&mut map_worker, &mut map_platform)
+                .into_message(&mut map_worker, &mut map_platform, &mut map_timer)
         }));
         self.shared.record_messages_drained(drained);
     }
@@ -160,7 +163,13 @@ impl<Message> AppRuntime<Message> {
         pending: &mut Vec<Message>,
         max_messages: usize,
     ) -> bool {
-        self.drain_pending_batch_into_with_mappers(pending, max_messages, |_| None, |_| None)
+        self.drain_pending_batch_into_with_mappers(
+            pending,
+            max_messages,
+            |_| None,
+            |_| None,
+            |_| None,
+        )
     }
 
     pub(super) fn drain_pending_batch_into_with_mappers(
@@ -169,6 +178,7 @@ impl<Message> AppRuntime<Message> {
         max_messages: usize,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
         mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) -> bool {
         self.collect_incoming();
         let max_messages = max_messages.max(1);
@@ -183,7 +193,7 @@ impl<Message> AppRuntime<Message> {
             pending.extend(self.pending.drain(..drain_count).filter_map(|message| {
                 message
                     .value
-                    .into_message(&mut map_worker, &mut map_platform)
+                    .into_message(&mut map_worker, &mut map_platform, &mut map_timer)
             }));
             drained += drain_count;
         }
@@ -209,10 +219,6 @@ impl<Message> AppRuntime<Message> {
         self.shared.is_alive()
     }
 
-    pub(super) fn take_timer_wakes(&self) -> Vec<TimerWake> {
-        self.shared.take_timer_wakes()
-    }
-
     pub(super) fn schedule_timer_wake(&self, delay: Duration, wake: RuntimeTimerWake) -> bool {
         self.shared.schedule_timer_wake(delay, wake)
     }
@@ -229,6 +235,45 @@ impl<Message> AppRuntime<Message> {
         );
         self.pending.sort_by_key(|message| message.sequence);
     }
+
+    pub(super) fn drain_pending_item_batch_into_with_mappers(
+        &mut self,
+        pending: &mut Vec<RuntimeQueueItem<Message>>,
+        max_items: usize,
+        mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_timer: impl FnMut(TimerWake) -> Option<RuntimeQueueItem<Message>>,
+    ) -> bool {
+        self.collect_incoming();
+        let max_items = max_items.max(1);
+        let mut drained = 0;
+        if let Some(frame) = self.pending_frame.take() {
+            pending.push(RuntimeQueueItem::Message(frame));
+            drained += 1;
+        }
+        let available = max_items.saturating_sub(pending.len());
+        if available > 0 {
+            let drain_count = self.pending.len().min(available);
+            pending.extend(self.pending.drain(..drain_count).filter_map(|message| {
+                match message.value {
+                    #[cfg(test)]
+                    PendingMessage::Ordinary(message) => Some(RuntimeQueueItem::Message(message)),
+                    PendingMessage::Shared(SharedRuntimeDelivery::Worker(delivery), _) => {
+                        map_worker(delivery).map(RuntimeQueueItem::Message)
+                    }
+                    PendingMessage::Shared(SharedRuntimeDelivery::Platform(delivery), _) => {
+                        map_platform(delivery).map(RuntimeQueueItem::Message)
+                    }
+                    PendingMessage::Shared(SharedRuntimeDelivery::Timer(wake), _) => {
+                        map_timer(wake)
+                    }
+                }
+            }));
+            drained += drain_count;
+        }
+        self.shared.record_messages_drained(drained);
+        !self.pending.is_empty()
+    }
 }
 
 impl<Message> PendingMessage<Message> {
@@ -236,12 +281,14 @@ impl<Message> PendingMessage<Message> {
         self,
         map_worker: &mut impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
         map_platform: &mut impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        map_timer: &mut impl FnMut(TimerWake) -> Option<Message>,
     ) -> Option<Message> {
         match self {
             #[cfg(test)]
             Self::Ordinary(message) => Some(message),
             Self::Shared(SharedRuntimeDelivery::Worker(delivery), _) => map_worker(delivery),
             Self::Shared(SharedRuntimeDelivery::Platform(delivery), _) => map_platform(delivery),
+            Self::Shared(SharedRuntimeDelivery::Timer(wake), _) => map_timer(wake),
         }
     }
 }

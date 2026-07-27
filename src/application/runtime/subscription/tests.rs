@@ -85,12 +85,11 @@ fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        for wake in runtime.take_timer_wakes() {
-            if let Some(message) = registry.map_wake(wake) {
-                let _ = runtime.enqueue(message);
-            }
-        }
-        delivered.extend(runtime.take_pending());
+        delivered.extend(runtime.take_pending_with_mappers(
+            |_| None,
+            |_| None,
+            |wake| registry.map_wake(wake),
+        ));
         if !delivered.is_empty() {
             break;
         }
@@ -147,9 +146,11 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        delivered.extend(
-            runtime.take_pending_with_mappers(|delivery| workers.map_delivery(delivery), |_| None),
-        );
+        delivered.extend(runtime.take_pending_with_mappers(
+            |delivery| workers.map_delivery(delivery),
+            |_| None,
+            |_| None,
+        ));
         if !delivered.is_empty() && Rc::strong_count(&marker) == 1 {
             break;
         }

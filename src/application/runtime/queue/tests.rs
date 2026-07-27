@@ -2,6 +2,7 @@ use super::*;
 use crate::application::runtime::subscription::{
     WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
 };
+use crate::application::runtime::timer::TimerSink;
 use crate::application::runtime::{
     PlatformCompletionDelivery, platform::PlatformCompletionIdentity,
 };
@@ -91,8 +92,39 @@ fn sequenced_sources_preserve_fifo_order() {
             WorkerSubscriptionDelivery::Disconnected { .. } => None,
         },
         |_| Some(3),
+        |_| None,
     );
     assert_eq!(mapped, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn shared_ingress_preserves_worker_before_later_timer_order() {
+    let mut runtime = AppRuntime::<u32>::default();
+    let identity = WorkerSubscriptionIdentity { id: 2, epoch: 1 };
+
+    assert!(
+        runtime
+            .shared()
+            .enqueue_worker_payload(identity, Box::new(1_u32))
+    );
+    assert!(TimerSink::enqueue_timer_wake(
+        runtime.shared().as_ref(),
+        RuntimeTimerWake::controller(1, 0, 1),
+    ));
+
+    let mut items = Vec::new();
+    assert!(!runtime.drain_pending_item_batch_into_with_mappers(
+        &mut items,
+        8,
+        map_u32_worker_delivery,
+        |_| None,
+        |_| Some(RuntimeQueueItem::Message(2)),
+    ));
+
+    assert!(matches!(
+        items.as_slice(),
+        [RuntimeQueueItem::Message(1), RuntimeQueueItem::Message(2)]
+    ));
 }
 
 #[test]
@@ -113,6 +145,7 @@ fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
         64,
         map_u32_worker_delivery,
         |_| None,
+        |_| None,
     ));
     assert_eq!(normal.len(), 64);
 
@@ -121,6 +154,7 @@ fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
         &mut interactive,
         8,
         map_u32_worker_delivery,
+        |_| None,
         |_| None,
     ));
     assert_eq!(interactive, vec![64]);
@@ -253,22 +287,35 @@ fn pending_frame_is_coalesced_until_drained() {
 
 #[test]
 fn delayed_messages_use_runtime_timer_lane() {
-    let runtime = Arc::new(SharedRuntimeIngress::default());
-    let identity = runtime.allocate_timer_identity(0);
+    let mut runtime = AppRuntime::<u32>::default();
+    let identity = runtime.shared().allocate_timer_identity(0);
 
-    assert!(runtime.schedule_timer_wake(Duration::from_millis(1), identity));
+    assert!(
+        runtime
+            .shared()
+            .schedule_timer_wake(Duration::from_millis(1), identity)
+    );
 
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        if !runtime.take_timer_wakes().is_empty() {
-            delivered.push(7);
+        runtime.drain_pending_item_batch_into_with_mappers(
+            &mut delivered,
+            8,
+            |_| None,
+            |_| None,
+            |_| Some(RuntimeQueueItem::Message(7)),
+        );
+        if !delivered.is_empty() {
             break;
         }
         thread::sleep(Duration::from_millis(1));
     }
 
-    assert_eq!(delivered, vec![7]);
+    assert!(matches!(
+        delivered.as_slice(),
+        [RuntimeQueueItem::Message(7)]
+    ));
 }
 
 #[test]
@@ -280,7 +327,7 @@ fn delayed_messages_stop_after_runtime_shutdown() {
 
     assert!(!runtime.schedule_timer_wake(Duration::ZERO, identity));
     thread::sleep(Duration::from_millis(1));
-    assert!(runtime.take_timer_wakes().is_empty());
+    assert!(runtime.drain_incoming().is_empty());
 }
 
 #[test]

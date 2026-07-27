@@ -1,8 +1,8 @@
 use super::{super::*, fixtures::QueuedCommandBridge};
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
-    DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeQueueHost, RuntimeTimerWake,
-    SurfaceNode, UiSurface,
+    DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeQueueHost, RuntimeQueueItem,
+    RuntimeTimerWake, SurfaceNode, UiSurface,
 };
 use std::sync::Arc;
 
@@ -40,6 +40,62 @@ impl RuntimeQueueHost<usize> for ExitTimerBridge {
         self.mapped += 1;
         Some(7)
     }
+}
+
+#[derive(Default)]
+struct OrderedIngressBridge {
+    items: Vec<RuntimeQueueItem<usize>>,
+    reduced: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for OrderedIngressBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.reduced.push(message);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_queues()
+    }
+}
+
+impl RuntimeQueueHost<usize> for OrderedIngressBridge {
+    fn drain_runtime_queue_item_batch_into(
+        &mut self,
+        items: &mut Vec<RuntimeQueueItem<usize>>,
+        _max_items: usize,
+    ) -> bool {
+        items.append(&mut self.items);
+        false
+    }
+
+    fn map_runtime_timer_wake(&mut self, _wake: RuntimeTimerWake) -> Option<usize> {
+        Some(2)
+    }
+}
+
+#[test]
+fn ordered_ingress_reduces_earlier_message_before_later_timer_mapping() {
+    let bridge = OrderedIngressBridge {
+        items: vec![
+            RuntimeQueueItem::Message(1),
+            RuntimeQueueItem::Timer(RuntimeTimerWake::application(1, 0, 1)),
+        ],
+        reduced: Vec::new(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+    let outcome = runtime.drain_runtime_messages();
+
+    assert_eq!(outcome.messages_dispatched, 2);
+    assert_eq!(runtime.bridge().reduced, vec![1, 2]);
 }
 
 #[test]

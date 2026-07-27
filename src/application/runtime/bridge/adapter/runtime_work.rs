@@ -2,7 +2,7 @@ use super::super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
     gui::repaint::RepaintSignal,
-    runtime::{Command, TaskPriority},
+    runtime::{Command, RuntimeQueueItem, TaskPriority},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -68,16 +68,28 @@ where
     pub(super) fn take_runtime_message_queue(&mut self) -> Vec<Message> {
         let worker_registry = &mut self.worker_registry;
         let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
         self.runtime.take_pending_with_mappers(
             |delivery| worker_registry.map_delivery(delivery),
             |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
         )
     }
 
-    pub(super) fn take_runtime_timer_wake_queue(
+    pub(super) fn drain_runtime_queue_item_batch_into(
         &mut self,
-    ) -> Vec<crate::runtime::RuntimeTimerWake> {
-        self.runtime.take_timer_wakes()
+        items: &mut Vec<RuntimeQueueItem<Message>>,
+        max_items: usize,
+    ) -> bool {
+        let worker_registry = &mut self.worker_registry;
+        let platform_registry = &mut self.platform_registry;
+        self.runtime.drain_pending_item_batch_into_with_mappers(
+            items,
+            max_items,
+            |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+            |wake| Some(RuntimeQueueItem::Timer(wake)),
+        )
     }
 
     pub(super) fn map_runtime_timer_wake(
@@ -90,10 +102,12 @@ where
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {
         let worker_registry = &mut self.worker_registry;
         let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
         self.runtime.drain_pending_into_with_mappers(
             messages,
             |delivery| worker_registry.map_delivery(delivery),
             |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
         );
     }
 
@@ -104,11 +118,13 @@ where
     ) -> bool {
         let worker_registry = &mut self.worker_registry;
         let platform_registry = &mut self.platform_registry;
+        let timer_registry = &mut self.timer_registry;
         self.runtime.drain_pending_batch_into_with_mappers(
             messages,
             max_messages,
             |delivery| worker_registry.map_delivery(delivery),
             |delivery| platform_registry.map_delivery(delivery),
+            |wake| timer_registry.map_wake(wake),
         )
     }
 }

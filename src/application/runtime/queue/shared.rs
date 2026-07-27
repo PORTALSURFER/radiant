@@ -31,7 +31,6 @@ pub(in crate::application) struct SharedRuntimeIngress {
     business: BusinessThreadPool,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     timers: OnceLock<TimerLane>,
-    timer_wakes: Mutex<Vec<TimerWake>>,
     timer_identities: Mutex<HashMap<TimerIdentity, TimerIdentity>>,
     next_timer_id: AtomicU64,
     timer_epoch: AtomicU64,
@@ -51,7 +50,6 @@ impl Default for SharedRuntimeIngress {
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
             diagnostics,
             timers: OnceLock::new(),
-            timer_wakes: Mutex::new(Vec::new()),
             timer_identities: Mutex::new(HashMap::new()),
             next_timer_id: AtomicU64::new(1),
             timer_epoch: AtomicU64::new(1),
@@ -236,7 +234,6 @@ impl SharedRuntimeIngress {
 
         self.timer_epoch.fetch_add(1, Ordering::AcqRel);
         lock_runtime_state(&self.timer_identities).clear();
-        lock_runtime_state(&self.timer_wakes).clear();
         if let Some(timers) = self.timers.get() {
             timers.close();
         }
@@ -244,10 +241,6 @@ impl SharedRuntimeIngress {
 
     pub(in crate::application::runtime) fn is_alive(&self) -> bool {
         self.alive.load(Ordering::Acquire)
-    }
-
-    pub(super) fn take_timer_wakes(&self) -> Vec<TimerWake> {
-        std::mem::take(&mut *lock_runtime_state(&self.timer_wakes))
     }
 
     #[cfg(test)]
@@ -323,7 +316,17 @@ impl TimerSink for SharedRuntimeIngress {
         if !self.admit_timer(wake) {
             return false;
         }
-        lock_runtime_state(&self.timer_wakes).push(wake);
+        let mut admission = lock_runtime_state(&self.admission);
+        if !self.admit_timer(wake) {
+            return false;
+        }
+        let sequence = next_sequence(&mut admission);
+        admission.deliveries.push(Sequenced {
+            sequence,
+            value: SharedRuntimeDelivery::Timer(wake),
+        });
+        self.record_message_added();
+        drop(admission);
         self.request_repaint();
         true
     }

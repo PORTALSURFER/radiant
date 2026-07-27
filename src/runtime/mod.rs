@@ -70,9 +70,9 @@ pub use bridge::{
     DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
     RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeAnimationHost, RuntimeBridge,
     RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeInputHost,
-    RuntimeLifecycleHost, RuntimePlatformHost, RuntimeQueueHost, RuntimeRetainedSurfaceHost,
-    RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake, RuntimeTransientOverlayHost,
-    RuntimeWindowHost, declarative_command_runtime_bridge,
+    RuntimeLifecycleHost, RuntimePlatformHost, RuntimeQueueHost, RuntimeQueueItem,
+    RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake,
+    RuntimeTransientOverlayHost, RuntimeWindowHost, declarative_command_runtime_bridge,
     declarative_owned_command_runtime_bridge, declarative_owned_runtime_bridge,
     declarative_runtime_bridge,
 };

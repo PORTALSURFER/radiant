@@ -407,15 +407,18 @@ impl<Message> WorkerEffects<Message> {
         accepted
     }
 
+    #[cfg(test)]
     pub(super) fn drain(&mut self) -> Vec<Message> {
         self.drain_at_high_water(self.ingress.high_water())
     }
 
-    pub(super) fn drain_with_diagnostics(
+    pub(super) fn drain_with_diagnostics_budget_at_high_water(
         &mut self,
         diagnostics: &crate::runtime::RuntimeDiagnosticsRecorder,
-    ) -> Vec<Message> {
-        let messages = self.drain();
+        budget: usize,
+        high_water: u64,
+    ) -> (Vec<Message>, bool, bool) {
+        let (messages, deferred, later_turn) = self.drain_at_high_water_budget(high_water, budget);
         let coalesced = self
             .ingress
             .stream_events_coalesced
@@ -433,10 +436,19 @@ impl<Message> WorkerEffects<Message> {
         for _ in 0..stale {
             diagnostics.record_stream_message_stale();
         }
-        messages
+        (messages, deferred, later_turn)
     }
 
+    #[cfg(test)]
     fn drain_at_high_water(&mut self, high_water: u64) -> Vec<Message> {
+        self.drain_at_high_water_budget(high_water, usize::MAX).0
+    }
+
+    fn drain_at_high_water_budget(
+        &mut self,
+        high_water: u64,
+        budget: usize,
+    ) -> (Vec<Message>, bool, bool) {
         let mut terminals = Vec::new();
         let mut deferred = VecDeque::new();
         while let Some(terminal) = self.deferred.pop_front() {
@@ -446,27 +458,44 @@ impl<Message> WorkerEffects<Message> {
                 deferred.push_back(terminal);
             }
         }
-        self.deferred = deferred;
         while let Ok(terminal) = self.receiver.try_recv() {
             if terminal.sequence >= high_water {
-                self.deferred.push_back(terminal);
+                deferred.push_back(terminal);
                 break;
             }
             terminals.push(terminal);
         }
         for terminal in self.ingress.take_finals() {
             if terminal.sequence >= high_water {
-                self.deferred.push_back(terminal);
+                deferred.push_back(terminal);
             } else {
                 terminals.push(terminal);
             }
         }
         terminals.sort_by_key(|terminal| terminal.sequence);
+        let deferred_for_budget = terminals.len() > budget;
+        let retained = terminals.split_off(terminals.len().min(budget));
+        deferred.extend(retained);
+        let mut deferred = deferred.into_iter().collect::<Vec<_>>();
+        deferred.sort_by_key(|terminal| terminal.sequence);
+        self.deferred = deferred.into_iter().collect();
         let mut messages = Vec::new();
         for terminal in terminals {
             self.apply_terminal(terminal, &mut messages);
         }
-        messages
+        let later_turn = self
+            .deferred
+            .iter()
+            .any(|terminal| terminal.sequence >= high_water);
+        (messages, deferred_for_budget, later_turn)
+    }
+
+    pub(super) fn high_water(&self) -> u64 {
+        self.ingress.high_water()
+    }
+
+    pub(super) fn retained_completion_count(&self) -> usize {
+        self.deferred.len()
     }
 
     fn apply_terminal(&mut self, terminal: EffectTerminal, messages: &mut Vec<Message>) {
@@ -634,8 +663,13 @@ mod tests {
     use super::*;
     use crate::layout::ContainerPolicy;
     use crate::runtime::command::{EffectGeneration, EffectId};
-    use crate::runtime::{RuntimeHostCapabilities, RuntimeTaskHost, SurfaceNode, UiSurface};
-    use crate::{gui::types::Vector2, runtime::SurfaceRuntime};
+    use crate::runtime::{
+        DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceNode, UiSurface,
+    };
+    use crate::{
+        gui::types::{Point, Vector2},
+        runtime::SurfaceRuntime,
+    };
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -668,7 +702,14 @@ mod tests {
             effects.epoch,
             EffectResult::Completed(Box::new(7_usize)),
         ));
-        assert!(effects.drain_at_high_water(high_water).is_empty());
+        let (messages, budget_deferred, later_turn) =
+            effects.drain_at_high_water_budget(high_water, 64);
+        assert!(messages.is_empty());
+        assert!(!budget_deferred);
+        assert!(
+            later_turn,
+            "post-snapshot completion must request a later turn"
+        );
         assert_eq!(effects.drain(), vec![7]);
     }
 
@@ -922,7 +963,10 @@ mod tests {
             ),
         );
 
-        runtime.drain_runtime_messages();
+        let first = runtime.drain_runtime_messages();
+        assert!(first.runtime_work_remaining);
+        let second = runtime.drain_runtime_messages();
+        assert!(!second.runtime_work_remaining);
 
         let mapped = mapped.borrow();
         assert_eq!(mapped.len(), EFFECT_INGRESS_CAPACITY + 1);
@@ -934,6 +978,41 @@ mod tests {
             runtime.diagnostics.snapshot().queue.stream_events_dropped,
             8
         );
+        let diagnostics = runtime.diagnostics.snapshot();
+        assert_eq!(diagnostics.queue.current_pending_controller_completions, 0);
+        assert_eq!(diagnostics.queue.max_pending_controller_completions, 1);
+        assert_eq!(diagnostics.queue.controller_completion_deferrals, 1);
+    }
+
+    #[test]
+    fn controller_completion_budget_is_eight_during_active_drag() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        for id in 0..16_usize {
+            let mapped = Rc::clone(&mapped);
+            runtime.execute_command(
+                crate::runtime::Command::perform_worker_effect_with_priority(
+                    "active-drag-budget",
+                    crate::runtime::TaskPriority::Background,
+                    None,
+                    id as u64,
+                    move || id,
+                    move |output| {
+                        mapped.borrow_mut().push(output);
+                        output
+                    },
+                ),
+            );
+        }
+        runtime.execute_command(crate::runtime::Command::begin_drag(DragRequest::new(
+            DragPreview::sized("dragging", Vector2::new(80.0, 20.0)),
+            Point::new(0.0, 0.0),
+        )));
+
+        let first = runtime.drain_runtime_messages();
+        assert_eq!(first.messages_dispatched, 8);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(*mapped.borrow(), (0..8).collect::<Vec<_>>());
     }
 
     #[test]

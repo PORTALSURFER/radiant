@@ -103,12 +103,33 @@ impl PlatformResultIngress {
         })
     }
 
+    #[cfg(test)]
     pub(super) fn take_pending(&mut self) -> Vec<PlatformResultDelivery> {
-        let mut pending = std::mem::take(&mut self.pending);
-        if let Some(delivery) = self.overflow.take() {
+        self.take_frozen_pending_batch(self.pending_len(), usize::MAX)
+            .0
+    }
+
+    pub(super) fn take_frozen_pending_batch(
+        &mut self,
+        frozen_count: usize,
+        max_deliveries: usize,
+    ) -> (Vec<PlatformResultDelivery>, bool) {
+        let take_count = frozen_count.min(max_deliveries);
+        if take_count == 0 {
+            return (Vec::new(), frozen_count != 0);
+        }
+        let take = self.pending.len().min(take_count);
+        let mut pending = self.pending.drain(..take).collect::<Vec<_>>();
+        if pending.len() < take_count
+            && let Some(delivery) = self.overflow.take()
+        {
             pending.push(delivery);
         }
-        pending
+        (pending, frozen_count > max_deliveries)
+    }
+
+    pub(super) fn pending_len(&self) -> usize {
+        self.pending.len() + usize::from(self.overflow.is_some())
     }
 
     pub(super) fn close(&mut self) {
@@ -255,5 +276,25 @@ mod tests {
             .expect("bounded overflow delivery");
         assert!(registry.map_delivery(delivery).is_some());
         assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn frozen_batch_excludes_arrivals_after_turn_snapshot() {
+        let identity = PlatformCompletionIdentity { id: 1, epoch: 1 };
+        let delivery = || PlatformResultDelivery::Completed {
+            identity,
+            result: Ok(PlatformResponse::Completed),
+        };
+        let mut ingress = PlatformResultIngress::default();
+        ingress.pending.push(delivery());
+        ingress.pending.push(delivery());
+        let frozen_count = ingress.pending_len();
+        ingress.pending.push(delivery());
+
+        let (batch, frozen_remainder) = ingress.take_frozen_pending_batch(frozen_count, 64);
+
+        assert_eq!(batch.len(), 2);
+        assert!(!frozen_remainder);
+        assert_eq!(ingress.pending_len(), 1);
     }
 }

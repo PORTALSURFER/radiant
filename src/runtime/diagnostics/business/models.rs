@@ -31,6 +31,12 @@ pub struct RuntimeMessageQueueDiagnostics {
     pub current_pending_stream_slots: usize,
     /// Largest coalescible stream-slot count observed since startup.
     pub max_pending_stream_slots: usize,
+    /// Number of platform and worker completions retained for a later UI turn.
+    pub current_pending_controller_completions: usize,
+    /// Largest retained platform and worker completion depth observed since startup.
+    pub max_pending_controller_completions: usize,
+    /// Number of drain passes that exhausted the controller-completion budget.
+    pub controller_completion_deferrals: usize,
     /// Number of stream events that replaced an older pending event for the same slot.
     pub stream_events_coalesced: usize,
     /// Number of stream events dropped because their stream slot was no longer live.

@@ -6,6 +6,8 @@ pub(super) const DEFAULT_RUNTIME_MESSAGES_PER_DRAIN: usize = 64;
 pub(super) const DEFAULT_RUNTIME_COMMANDS_PER_DRAIN: usize = 64;
 pub(super) const INTERACTIVE_RUNTIME_MESSAGES_PER_DRAIN: usize = 8;
 pub(super) const INTERACTIVE_RUNTIME_COMMANDS_PER_DRAIN: usize = 8;
+pub(super) const DEFAULT_CONTROLLER_COMPLETIONS_PER_DRAIN: usize = 64;
+pub(super) const INTERACTIVE_CONTROLLER_COMPLETIONS_PER_DRAIN: usize = 8;
 
 pub(in crate::runtime::controller) fn take_runtime_command_batch_into<Message>(
     commands: &mut Vec<Command<Message>>,

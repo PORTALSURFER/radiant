@@ -41,17 +41,19 @@ where
             self.host_capabilities.queues.as_ref(),
             command_budget,
         );
+        // Admit the bridge queue-item high-water snapshot before executing
+        // commands. Items produced by those commands remain for the next pass.
+        self.runtime_work.drain_bridge_queue_items(
+            &mut self.bridge,
+            self.host_capabilities.queues.as_ref(),
+            message_budget,
+        );
         let mut command_batch = self.runtime_work.take_command_batch();
         while let Some(command) = command_batch.pop() {
             self.execute_command_inner(command, &mut outcome);
         }
         self.runtime_work.restore_command_batch(command_batch);
 
-        self.runtime_work.drain_bridge_queue_items(
-            &mut self.bridge,
-            self.host_capabilities.queues.as_ref(),
-            message_budget,
-        );
         let mut item_batch = self.runtime_work.take_queue_item_batch();
         while let Some(item) = item_batch.pop() {
             let message = match item {

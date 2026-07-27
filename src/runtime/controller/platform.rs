@@ -100,11 +100,11 @@ impl PlatformResultIngress {
     }
 
     pub(super) fn enqueue_overflow(&mut self, delivery: PlatformResultDelivery) -> bool {
-        if self.overflow.is_none() {
+        if self.closed || self.overflow.is_some() {
+            false
+        } else {
             self.overflow = Some(delivery);
             true
-        } else {
-            false
         }
     }
 }

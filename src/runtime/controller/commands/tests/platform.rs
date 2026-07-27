@@ -5,7 +5,8 @@ use super::{
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
     FileDialogRequest, PlatformRequest, PlatformResponse, RuntimeBridge, RuntimeHostCapabilities,
-    RuntimePlatformResultHost, RuntimePlatformResultSink, SurfaceNode,
+    RuntimePlatformResultHost, RuntimePlatformResultSink, RuntimeQueueDelivery, RuntimeQueueHost,
+    RuntimeQueueItem, SurfaceNode,
 };
 use std::sync::Arc;
 
@@ -20,6 +21,76 @@ struct DroppingResultBridge;
 #[derive(Default)]
 struct RetainingResultBridge {
     sinks: Vec<RuntimePlatformResultSink>,
+}
+
+#[derive(Default)]
+struct ResultQueueBridge {
+    commands: Vec<crate::runtime::Command<usize>>,
+    items: Vec<RuntimeQueueItem<usize>>,
+    dispatched: Vec<usize>,
+    sinks: Vec<RuntimePlatformResultSink>,
+}
+
+impl RuntimeBridge<usize> for ResultQueueBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+        if message == 1 {
+            self.items
+                .push(RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(
+                    crate::runtime::PlatformResultDelivery::Completed {
+                        identity: crate::runtime::PlatformCompletionIdentity { id: 1, epoch: 1 },
+                        result: Ok(PlatformResponse::Completed),
+                    },
+                )));
+            crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 2)
+        } else {
+            self.reduce_message(message);
+            crate::runtime::Command::none()
+        }
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.dispatched.push(message);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new()
+            .with_queues()
+            .with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for ResultQueueBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
+impl RuntimeQueueHost<usize> for ResultQueueBridge {
+    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<crate::runtime::Command<usize>>) {
+        commands.append(&mut self.commands);
+    }
+
+    fn drain_runtime_queue_item_batch_into(
+        &mut self,
+        items: &mut Vec<RuntimeQueueItem<usize>>,
+        _max_items: usize,
+    ) -> bool {
+        items.append(&mut self.items);
+        false
+    }
 }
 
 impl RuntimeBridge<usize> for DroppingResultBridge {
@@ -321,4 +392,42 @@ fn exit_fences_late_sink_drop_from_worker_thread() {
         .expect("sink drop thread");
     assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     assert_eq!(*captures.borrow(), 0);
+}
+
+#[test]
+fn platform_request_after_exit_releases_mapper_without_delivery() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let mut runtime = SurfaceRuntime::new(
+        DroppingResultBridge,
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    assert!(
+        runtime
+            .execute_command(crate::runtime::Command::Exit)
+            .exit_requested
+    );
+    let mapper_captures = std::rc::Rc::clone(&captures);
+    let outcome = runtime.execute_command(crate::runtime::Command::platform_request(
+        PlatformRequest::ReadText,
+        move |_| {
+            *mapper_captures.borrow_mut() += 1;
+            1
+        },
+    ));
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(*captures.borrow(), 0);
+}
+
+#[test]
+fn command_produced_platform_queue_item_waits_for_next_drain() {
+    let mut bridge = ResultQueueBridge::default();
+    bridge.commands.push(crate::runtime::Command::Message(1));
+    let mut runtime = SurfaceRuntime::new(bridge, crate::gui::types::Vector2::new(100.0, 100.0));
+    assert!(runtime.drain_runtime_messages().messages_dispatched > 0);
+    assert!(runtime.bridge().dispatched.is_empty());
+    assert!(runtime.drain_runtime_messages().messages_dispatched > 0);
+    assert_eq!(runtime.bridge().dispatched, vec![2]);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
 }

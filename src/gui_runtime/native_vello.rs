@@ -25,7 +25,7 @@ pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
 pub use self::{
     embedded::{
         EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
-        EmbeddedVelloUnsupportedPrimitive,
+        EmbeddedVelloUnsupportedPrimitive, OffscreenVelloCapture,
     },
     generic_runtime::{
         GpuSurfaceOcclusionPlanningScratch, NativeGenericRunError, NativeGenericRunReport,

@@ -169,7 +169,7 @@ impl Widget for PassiveGpuWheelWidget {
 impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<GpuWheelMessage>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             TestGpuWheelWidget::new(self.capabilities),
             WidgetMessageMapper::typed(|message: GpuWheelMessage| message),
         )))
@@ -192,7 +192,7 @@ impl RuntimeFrameDiagnosticsHost for GpuWheelBridge {
 impl RuntimeBridge<String> for GpuWheelScrollBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<String>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(
+        crate::runtime::test_arc_surface(UiSurface::new(
             SurfaceNode::scroll_area(
                 70,
                 SurfaceNode::custom_widget(

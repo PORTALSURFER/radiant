@@ -1,5 +1,12 @@
 //! Public API coverage for user-defined Radiant widgets.
 
+use radiant::runtime::UiSurface;
+use std::sync::Arc;
+
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
+
 #[path = "custom_widget_public_api/builders.rs"]
 mod builders;
 #[path = "custom_widget_public_api/hover.rs"]

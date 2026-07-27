@@ -35,6 +35,10 @@ use radiant::{
 use runner::ScenarioCounters;
 use std::{env, hint::black_box, sync::Arc};
 
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
+
 const GPU_ITERATIONS: usize = 60;
 
 fn main() {

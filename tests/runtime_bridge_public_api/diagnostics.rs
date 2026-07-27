@@ -153,7 +153,7 @@ struct DiagnosticBridge {
 
 impl RuntimeBridge<()> for DiagnosticBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
+        crate::arc_surface(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {

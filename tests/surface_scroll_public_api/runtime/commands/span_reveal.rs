@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn surface_runtime_scroll_into_view_uses_actual_viewport_height_and_margins() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -47,7 +47,7 @@ fn surface_runtime_scroll_into_view_uses_actual_viewport_height_and_margins() {
 
 #[test]
 fn surface_runtime_scroll_into_view_can_snap_to_fixed_rows() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -91,7 +91,7 @@ fn surface_runtime_scroll_into_view_can_snap_to_fixed_rows() {
 
 #[test]
 fn surface_runtime_scroll_commands_support_named_parts_construction() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,

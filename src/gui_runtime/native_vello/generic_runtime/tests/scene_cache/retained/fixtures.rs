@@ -27,7 +27,7 @@ impl MultiRetainedBridge {
 
 impl RuntimeBridge<()> for RetainedBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             31,
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             crate::widgets::RetainedSurfaceDescriptor {
@@ -76,7 +76,7 @@ impl RuntimeRetainedSurfaceHost for RetainedBridge {
 
 impl RuntimeBridge<()> for MultiRetainedBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy {
                 kind: ContainerKind::Row,
@@ -152,7 +152,7 @@ impl RuntimeRetainedSurfaceHost for MultiRetainedBridge {
 
 impl RuntimeBridge<()> for MissingRetainedBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             31,
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             crate::widgets::RetainedSurfaceDescriptor {

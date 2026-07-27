@@ -159,7 +159,7 @@ mod tests {
 
     impl RuntimeBridge<()> for PaddedScrollBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-            Arc::new(UiSurface::new(SurfaceNode::container(
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
                 1,
                 ContainerPolicy {
                     kind: ContainerKind::ScrollView,

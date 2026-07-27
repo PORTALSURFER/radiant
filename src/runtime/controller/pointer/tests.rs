@@ -18,7 +18,7 @@ struct FocusTestBridge;
 
 impl RuntimeBridge<usize> for FocusTestBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
             1,
             0.0,
             vec![
@@ -54,7 +54,7 @@ struct FocusLossOutputBridge {
 
 impl RuntimeBridge<usize> for FocusLossOutputBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
             FocusLossOutputWidget::new(30),
             WidgetMessageMapper::typed(|message: usize| message),
         )))
@@ -74,7 +74,7 @@ struct PointerPolicyStackBridge;
 
 impl RuntimeBridge<u64> for PointerPolicyStackBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<u64>> {
-        Arc::new(UiSurface::new(SurfaceNode::stack(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::stack(
             1,
             vec![
                 SurfaceChild::fill(SurfaceNode::widget(
@@ -98,7 +98,7 @@ impl RuntimeBridge<u64> for PointerPolicyStackBridge {
 
 impl RuntimeBridge<()> for PointerSnapshotBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             Default::default(),
             Vec::new(),

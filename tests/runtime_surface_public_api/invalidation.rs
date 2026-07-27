@@ -10,7 +10,7 @@ struct RevisionBridge {
 
 impl RuntimeBridge<()> for RevisionBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(
+        crate::arc_surface(UiSurface::new(SurfaceNode::column(
             1,
             0.0,
             vec![SurfaceChild::new(
@@ -96,7 +96,7 @@ fn surface_stage_clears_focus_when_structural_revision_removes_identity() {
 
     impl RuntimeBridge<()> for FocusBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-            Arc::new(UiSurface::new(SurfaceNode::static_widget(
+            crate::arc_surface(UiSurface::new(SurfaceNode::static_widget(
                 TextInputWidget::new(
                     self.widget_id,
                     String::from("Focus"),
@@ -158,7 +158,7 @@ fn projection_stage_reuses_scrolled_geometry_and_scroll_state() {
 
     impl RuntimeBridge<()> for ScrollBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-            Arc::new(UiSurface::new(SurfaceNode::scroll_area(
+            crate::arc_surface(UiSurface::new(SurfaceNode::scroll_area(
                 31,
                 SurfaceNode::text(
                     32,

@@ -36,7 +36,7 @@ mod tests {
     use crate::{layout::NodeId, runtime::SurfaceNode};
 
     fn empty_surface<Message>() -> Arc<UiSurface<Message>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
             NodeId::from(1_u64),
             0.0,
             Vec::new(),

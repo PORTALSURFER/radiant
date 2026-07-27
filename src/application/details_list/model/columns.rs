@@ -1,3 +1,5 @@
+use crate::application::TextContent;
+
 /// One sortable details-list column.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetailsColumn {
@@ -293,4 +295,3 @@ mod tests {
         assert_eq!(columns, ["name", "source_folder", "rating"]);
     }
 }
-use crate::application::TextContent;

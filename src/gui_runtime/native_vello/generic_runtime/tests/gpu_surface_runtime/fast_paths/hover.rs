@@ -148,7 +148,7 @@ struct ClippedGpuHoverBridge;
 
 impl RuntimeBridge<GpuHoverExitMessage> for ClippedGpuHoverBridge {
     fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GpuHoverExitMessage>> {
-        std::sync::Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             TestGpuHoverSurface::clipped(80.0),
             WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
         )))
@@ -157,7 +157,7 @@ impl RuntimeBridge<GpuHoverExitMessage> for ClippedGpuHoverBridge {
 
 impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverExitBridge {
     fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GpuHoverExitMessage>> {
-        std::sync::Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy {
                 kind: ContainerKind::Row,
@@ -227,7 +227,7 @@ impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverCoveredBridge {
                 WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
             ),
         };
-        std::sync::Arc::new(UiSurface::new(SurfaceNode::stack(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::stack(
             1,
             vec![
                 SurfaceChild::new(

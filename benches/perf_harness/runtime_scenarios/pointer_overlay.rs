@@ -95,7 +95,7 @@ impl RuntimeBridge<()> for PointerOverlayBridge {
                 ),
             )
         });
-        Arc::new(UiSurface::new(SurfaceNode::stack(
+        crate::arc_surface(UiSurface::new(SurfaceNode::stack(
             1,
             vec![
                 SurfaceChild::fill(SurfaceNode::column(2, 0.0, rows.collect())),

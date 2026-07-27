@@ -70,7 +70,7 @@ impl AppVirtualListBridge {
 
 impl RuntimeBridge<String> for CanvasBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<String>> {
-        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::canvas_mapped(
             21,
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             |message| match message {
@@ -103,7 +103,7 @@ impl RuntimeBridge<f32> for ScrollbarBridge {
         );
         scrollbar.props.viewport_fraction = 0.25;
         scrollbar.state.offset_fraction = self.offset;
-        Arc::new(UiSurface::new(SurfaceNode::widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
             scrollbar,
             WidgetMessageMapper::scrollbar(|message| match message {
                 ScrollbarMessage::OffsetChanged { offset_fraction } => offset_fraction,
@@ -119,7 +119,7 @@ impl RuntimeBridge<f32> for ScrollbarBridge {
 impl RuntimeBridge<String> for WheelRefreshBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<String>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::canvas_mapped(
             51,
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             |message| match message {
@@ -151,7 +151,7 @@ impl RuntimeFrameDiagnosticsHost for WheelRefreshBridge {
 impl RuntimeBridge<String> for ScrollRefreshBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<String>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(
+        crate::runtime::test_arc_surface(UiSurface::new(
             SurfaceNode::scroll_area(
                 61,
                 SurfaceNode::column(
@@ -214,7 +214,7 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
         } else {
             list
         };
-        Arc::new(
+        crate::runtime::test_arc_surface(
             list.on_window_changed(|change| change)
                 .view()
                 .id(81)

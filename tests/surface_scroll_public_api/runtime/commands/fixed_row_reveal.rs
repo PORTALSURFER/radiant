@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn surface_runtime_scroll_fixed_row_into_view_anchors_directionally() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -54,7 +54,7 @@ fn surface_runtime_scroll_fixed_row_into_view_anchors_directionally() {
 #[test]
 fn surface_runtime_scroll_fixed_row_into_view_counts_partial_trailing_row() {
     const ROW_HEIGHT: f32 = 24.0;
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -93,7 +93,7 @@ fn surface_runtime_scroll_fixed_row_into_view_counts_partial_trailing_row() {
 #[test]
 fn surface_runtime_scroll_fixed_row_into_view_neutral_direction_reveals_above_and_below() {
     const ROW_HEIGHT: f32 = 24.0;
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -158,7 +158,7 @@ fn surface_runtime_scroll_fixed_row_into_view_does_not_drift_over_repeated_navig
     const VISIBLE_ROWS: usize = 11;
     let viewport_height = ROW_HEIGHT * 10.5;
     let max_offset = ROWS as f32 * ROW_HEIGHT - viewport_height;
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -214,7 +214,7 @@ fn surface_runtime_scroll_fixed_row_into_view_does_not_drift_over_repeated_navig
 
 #[test]
 fn surface_runtime_scroll_fixed_row_into_view_uses_row_stride() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,

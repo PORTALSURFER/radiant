@@ -34,6 +34,13 @@ mod resource;
 mod surface;
 mod update_snapshot;
 
+#[cfg(test)]
+pub(crate) fn test_arc_surface<Message>(
+    surface: UiSurface<Message>,
+) -> std::sync::Arc<UiSurface<Message>> {
+    std::sync::Arc::new(surface)
+}
+
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
 pub use crate::application::{
     GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RenderCanvasConfiguredParts,

@@ -21,8 +21,11 @@ fn custom_widget_contract_can_suppress_surrounding_container_hover_chrome() {
     )
     .id(10)
     .into_surface();
-    let bridge =
-        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let bridge = declarative_runtime_bridge(
+        crate::arc_surface(surface),
+        |surface| Arc::clone(surface),
+        |_, _| {},
+    );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
     let theme = ThemeTokens::default();
     let before = runtime.paint_plan(&theme);

@@ -16,7 +16,7 @@ fn custom_host_moves_only_opaque_wake_for_non_send_ui_message() {
 
     impl RuntimeBridge<UiOnlyMessage> for UiOnlyBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<UiOnlyMessage>> {
-            Arc::new(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+            crate::arc_surface(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 1,
                 "UI-only",
                 radiant::widgets::WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
@@ -140,7 +140,7 @@ fn surface_runtime_records_slow_update_handler_diagnostics() {
 
     impl RuntimeBridge<DemoMessage> for SlowUpdateBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-            Arc::new(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+            crate::arc_surface(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 1,
                 "Diagnostics",
                 radiant::widgets::WidgetSizing::fixed(Vector2::new(120.0, 24.0)),

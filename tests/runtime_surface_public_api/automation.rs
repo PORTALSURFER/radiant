@@ -10,7 +10,7 @@ fn surface_runtime_automation_snapshot_reports_common_widget_semantics() {
     let bridge = declarative_runtime_bridge(
         (),
         |_state: &mut ()| {
-            Arc::new(
+            crate::arc_surface(
                 ui::column([
                     ui::button("Save").message(DemoMessage::Increment).id(10),
                     ui::toggle("Loop", true)
@@ -64,7 +64,7 @@ fn automation_target_snapshot_flattens_semantic_targets_with_coordinates() {
     let bridge = declarative_runtime_bridge(
         (),
         |_state: &mut ()| {
-            Arc::new(
+            crate::arc_surface(
                 ui::column([
                     ui::button("Save").message(DemoMessage::Increment).id(10),
                     ui::toggle("Loop", false)

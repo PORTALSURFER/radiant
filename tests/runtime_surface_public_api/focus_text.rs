@@ -111,7 +111,7 @@ fn surface_runtime_reports_focused_widget_shortcut_preemption_opt_in() {
     let bridge = declarative_runtime_bridge(
         (),
         |_| {
-            Arc::new(UiSurface::new(SurfaceNode::row(
+            crate::arc_surface(UiSurface::new(SurfaceNode::row(
                 1,
                 8.0,
                 vec![
@@ -157,7 +157,7 @@ fn surface_runtime_keeps_disabled_widgets_out_of_focus_order() {
             disabled.common.state.disabled = true;
             let enabled =
                 ButtonWidget::new(12, "Enabled", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
-            Arc::new(UiSurface::new(SurfaceNode::row(
+            crate::arc_surface(UiSurface::new(SurfaceNode::row(
                 1,
                 8.0,
                 vec![
@@ -206,7 +206,7 @@ fn surface_runtime_clears_focus_when_refresh_removes_widget() {
                     WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
                 ))
             };
-            Arc::new(UiSurface::new(child))
+            crate::arc_surface(UiSurface::new(child))
         },
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
@@ -285,7 +285,7 @@ fn text_input_runtime(
             );
             input.common.state.disabled = disabled;
             input.common.state.read_only = read_only;
-            Arc::new(UiSurface::new(SurfaceNode::static_widget(input)))
+            crate::arc_surface(UiSurface::new(SurfaceNode::static_widget(input)))
         },
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,

@@ -88,7 +88,7 @@ mod tests {
     use crate::{application::empty, prelude::IntoView};
 
     fn empty_surface() -> Arc<UiSurface<()>> {
-        Arc::new(empty().into_surface())
+        crate::runtime::test_arc_surface(empty().into_surface())
     }
 
     #[test]

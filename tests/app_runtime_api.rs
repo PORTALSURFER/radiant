@@ -22,6 +22,10 @@ use radiant::{
 };
 use std::sync::Arc;
 
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
+
 #[path = "app_runtime_api/lifecycle.rs"]
 mod lifecycle;
 #[path = "app_runtime_api/paint_overlay.rs"]
@@ -64,7 +68,7 @@ struct DrainIntoBridge {
 
 impl RuntimeBridge<DemoMessage> for DrainIntoBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-        Arc::new(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+        arc_surface(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
             10,
             "DrainInto",
             WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
@@ -97,7 +101,7 @@ struct PaintOnlyBridge {
 impl RuntimeBridge<DemoMessage> for PaintOnlyBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+        arc_surface(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
             10,
             format!("PaintOnly ({})", self.count),
             WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),

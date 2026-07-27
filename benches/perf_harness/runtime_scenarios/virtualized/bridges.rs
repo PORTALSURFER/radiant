@@ -11,7 +11,7 @@ pub(super) struct VirtualWheelBridge;
 
 impl RuntimeBridge<()> for VirtualWheelBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+        crate::arc_surface(UiSurface::new(SurfaceNode::virtual_scroll_area(
             1,
             SurfaceNode::column(2, 4.0, virtual_button_rows(10_000)),
             VirtualizationAxis::Vertical,
@@ -24,7 +24,7 @@ pub(super) struct NestedScrollBridge;
 
 impl RuntimeBridge<()> for NestedScrollBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+        crate::arc_surface(UiSurface::new(SurfaceNode::virtual_scroll_area(
             1,
             SurfaceNode::column(2, 2.0, nested_scroll_rows(10_000)),
             VirtualizationAxis::Vertical,

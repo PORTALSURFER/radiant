@@ -243,10 +243,12 @@ where
         counters.add(bench().into());
     }
     ScenarioMetric::print(
-        name,
-        category,
-        group,
-        iterations,
+        metrics::MetricRequest {
+            name,
+            category,
+            group,
+            iterations,
+        },
         started.elapsed(),
         counters,
         output_format,

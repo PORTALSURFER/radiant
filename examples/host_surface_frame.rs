@@ -3,11 +3,17 @@
 use radiant::prelude::*;
 use radiant::{
     gui::types::{Point, Vector2},
-    runtime::{Event, SurfacePaintPlan, SurfaceRuntime, declarative_runtime_bridge},
+    runtime::{Event, SurfacePaintPlan, SurfaceRuntime, UiSurface, declarative_runtime_bridge},
     theme::ThemeTokens,
     widgets::PointerButton,
 };
 use std::sync::Arc;
+
+type SurfaceSnapshot<Message> = UiSurface<Message>;
+
+fn arc_surface<Message>(surface: SurfaceSnapshot<Message>) -> Arc<SurfaceSnapshot<Message>> {
+    Arc::new(surface)
+}
 
 fn main() {
     let report = run_host_surface_frame_demo();
@@ -47,7 +53,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
     let bridge = declarative_runtime_bridge(
         HostState::default(),
         |state: &mut HostState| {
-            Arc::new(
+            arc_surface(
                 column([
                     text(format!("Host frames: {}", state.clicks))
                         .id(10)

@@ -5,7 +5,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
     let bridge = declarative_command_runtime_bridge(
         Vec::<DragHandleMessage>::new(),
         |_| {
-            Arc::new(UiSurface::new(SurfaceNode::widget(
+            crate::arc_surface(UiSurface::new(SurfaceNode::widget(
                 DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(24.0, 24.0))),
                 WidgetMessageMapper::drag_handle(|message| message),
             )))
@@ -107,7 +107,7 @@ fn surface_runtime_preserves_badge_release_activation_across_refresh() {
     let bridge = declarative_runtime_bridge(
         ReleaseRefreshState::default(),
         |state: &mut ReleaseRefreshState| {
-            Arc::new(UiSurface::new(SurfaceNode::badge(
+            crate::arc_surface(UiSurface::new(SurfaceNode::badge(
                 20,
                 format!("Tag {}", state.refreshes),
                 WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
@@ -151,7 +151,7 @@ fn surface_runtime_preserves_toggle_release_activation_across_refresh() {
     let bridge = declarative_runtime_bridge(
         ReleaseRefreshState::default(),
         |state: &mut ReleaseRefreshState| {
-            Arc::new(UiSurface::new(SurfaceNode::toggle_with_checked(
+            crate::arc_surface(UiSurface::new(SurfaceNode::toggle_with_checked(
                 20,
                 format!("Loop {}", state.refreshes),
                 state.checked,

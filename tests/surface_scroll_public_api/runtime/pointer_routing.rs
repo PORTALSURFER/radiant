@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn surface_runtime_skips_scroll_update_when_clamped_offset_is_unchanged() {
-    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
         31,
         SurfaceNode::column(
             32,
@@ -45,7 +45,7 @@ fn surface_runtime_skips_scroll_update_when_clamped_offset_is_unchanged() {
 #[test]
 fn surface_runtime_routes_scroll_delta_to_scroll_view_under_pointer() {
     let bridge = declarative_runtime_bridge(
-        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
             31,
             SurfaceNode::column(
                 32,
@@ -80,7 +80,7 @@ fn surface_runtime_routes_scroll_delta_to_scroll_view_under_pointer() {
 #[test]
 fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
     let bridge = declarative_runtime_bridge(
-        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::column(
+        crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::column(
             1,
             8.0,
             vec![
@@ -128,7 +128,7 @@ fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
 #[test]
 fn surface_runtime_does_not_scroll_nested_view_outside_parent_clip() {
     let bridge = declarative_runtime_bridge(
-        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
             20,
             SurfaceNode::column(
                 21,

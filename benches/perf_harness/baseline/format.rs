@@ -1,4 +1,4 @@
-use super::super::metrics::{ScenarioCounters, json_counter_fields};
+use super::super::metrics::{MetricRequest, ScenarioCounters, json_counter_fields};
 
 pub(in crate::runner) fn json_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
@@ -17,10 +17,7 @@ pub(in crate::runner) fn json_escape(value: &str) -> String {
 }
 
 pub(in crate::runner) fn baseline_metric_json_line(
-    name: &str,
-    category: &str,
-    group: &str,
-    iterations: usize,
+    request: &MetricRequest<'_>,
     total_us: u128,
     avg_us: f64,
     counters: ScenarioCounters,
@@ -28,10 +25,10 @@ pub(in crate::runner) fn baseline_metric_json_line(
     let counter_fields = json_counter_fields(counters);
     format!(
         "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields}}}",
-        json_escape(name),
-        json_escape(category),
-        json_escape(group),
-        iterations,
+        json_escape(request.name),
+        json_escape(request.category),
+        json_escape(request.group),
+        request.iterations,
         total_us,
         avg_us
     )

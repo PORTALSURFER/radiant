@@ -27,7 +27,7 @@ where
         {
             return Err(Box::new((request, on_completed)));
         }
-        let runtime = std::sync::Arc::downgrade(&self.runtime);
+        let sink = self.runtime.cross_thread_message_sink();
         self.runtime
             .spawn_business_task_with_payload(
                 "radiant-platform-service",
@@ -35,9 +35,7 @@ where
                 (request, on_completed),
                 move |(request, on_completed)| {
                     let response = perform_platform_request(request);
-                    if let Some(runtime) = runtime.upgrade() {
-                        let _ = runtime.enqueue(on_completed(response));
-                    }
+                    let _ = sink.emit(on_completed(response));
                 },
             )
             .map_err(Box::new)

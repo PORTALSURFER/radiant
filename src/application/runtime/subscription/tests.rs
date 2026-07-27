@@ -1,7 +1,7 @@
 use super::{
-    AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_payload,
-    spawn_subscription_with_registry,
+    Subscription, WorkerSubscriptionEvent, receive_worker_payload, spawn_subscription_with_registry,
 };
+use crate::application::runtime::AppRuntime;
 use crate::application::runtime::timer::TimerRegistry;
 use std::{
     cell::RefCell,
@@ -72,11 +72,11 @@ fn batch_collapses_single_subscription_groups() {
 
 #[test]
 fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut runtime = AppRuntime::<u32>::default();
     let mut registry = TimerRegistry::default();
 
     spawn_subscription_with_registry(
-        Arc::downgrade(&runtime),
+        Arc::downgrade(runtime.shared()),
         &mut registry,
         &mut super::registry::WorkerSubscriptionRegistry::default(),
         Subscription::interval("tick", Duration::from_millis(1), || 1),
@@ -104,8 +104,8 @@ fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
 
 #[test]
 fn worker_receive_stops_while_sender_remains_open() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let weak = Arc::downgrade(&runtime);
+    let mut runtime = AppRuntime::<u32>::default();
+    let weak = Arc::downgrade(runtime.shared());
     let (_sender, receiver) = mpsc::channel::<u32>();
     runtime.shutdown();
 
@@ -118,7 +118,7 @@ fn worker_receive_stops_while_sender_remains_open() {
 
 #[test]
 fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut runtime = AppRuntime::<u32>::default();
     let mut timers = TimerRegistry::default();
     let mut workers = super::registry::WorkerSubscriptionRegistry::default();
     let (sender, receiver) = mpsc::channel::<u32>();
@@ -129,7 +129,7 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let mapper_marker = Rc::clone(&marker);
 
     spawn_subscription_with_registry(
-        Arc::downgrade(&runtime),
+        Arc::downgrade(runtime.shared()),
         &mut timers,
         &mut workers,
         Subscription::worker_payload("payload", receiver, move |payload| {

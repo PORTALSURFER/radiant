@@ -21,7 +21,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) state: State,
     pub(in crate::application) project: Project,
     pub(in crate::application) update: Update,
-    pub(in crate::application) runtime: Arc<AppRuntime<Message>>,
+    pub(in crate::application) runtime: AppRuntime<Message>,
     pub(in crate::application) commands: Vec<Command<Message>>,
     pub(in crate::application) timer_registry: TimerRegistry<Message>,
     pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
@@ -209,7 +209,7 @@ where
             state,
             project,
             update,
-            runtime: Arc::new(AppRuntime::default()),
+            runtime: AppRuntime::default(),
             commands: Vec::new(),
             timer_registry: TimerRegistry::default(),
             worker_registry: WorkerSubscriptionRegistry::default(),
@@ -321,7 +321,7 @@ where
         }
         if let Some(subscriptions) = self.lifecycle.subscriptions.as_mut() {
             spawn_subscription_with_registry(
-                Arc::downgrade(&self.runtime),
+                Arc::downgrade(self.runtime.shared()),
                 &mut self.timer_registry,
                 &mut self.worker_registry,
                 subscriptions(&mut self.state),

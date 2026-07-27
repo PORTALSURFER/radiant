@@ -37,7 +37,7 @@ where
         if !self.runtime.is_alive() {
             return false;
         }
-        let runtime = Arc::downgrade(&self.runtime);
+        let runtime = Arc::downgrade(self.runtime.shared());
         self.runtime
             .spawn_business_task(name, priority, is_cancelled, move || {
                 work();

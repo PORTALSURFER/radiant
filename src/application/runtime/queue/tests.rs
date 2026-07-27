@@ -3,77 +3,30 @@ use crate::application::runtime::subscription::{
     WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
 };
 use std::{
-    sync::{
-        Arc, Barrier,
-        atomic::{AtomicBool, Ordering},
-    },
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Barrier},
     thread,
     time::{Duration, Instant},
 };
 
-struct TestRepaintSignal {
-    called: Arc<AtomicBool>,
-}
-
-impl RepaintSignal for TestRepaintSignal {
-    fn request_repaint(&self) {
-        self.called.store(true, Ordering::Release);
-    }
-}
-
-#[test]
-fn pending_messages_recover_after_poisoned_queue_lock() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let poisoned = Arc::clone(&runtime);
-    let _ = thread::spawn(move || {
-        let mut pending = poisoned.pending.lock().expect("pending messages lock");
-        pending.push(PendingMessage::Ordinary(1));
-        panic!("poison pending message queue");
-    })
-    .join();
-
-    assert!(runtime.enqueue(2));
-
-    assert_eq!(runtime.take_pending(), vec![1, 2]);
-}
-
-#[test]
-fn repaint_requests_recover_after_poisoned_signal_lock() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let called = Arc::new(AtomicBool::new(false));
-    let poisoned = Arc::clone(&runtime);
-    let signal = Arc::clone(&called);
-    let _ = thread::spawn(move || {
-        let mut repaint = poisoned.repaint.lock().expect("repaint signal lock");
-        *repaint = Some(Arc::new(TestRepaintSignal { called: signal }));
-        panic!("poison repaint signal lock");
-    })
-    .join();
-
-    assert!(runtime.enqueue(1));
-
-    assert!(called.load(Ordering::Acquire));
-}
-
 #[test]
 fn pending_message_queue_retains_capacity_after_drain() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
     for message in 0..32 {
         assert!(runtime.enqueue(message));
     }
-    let capacity = runtime.pending.lock().expect("pending lock").capacity();
+    let capacity = runtime.pending.capacity();
 
     let pending = runtime.take_pending();
     assert_eq!(pending.len(), 32);
     assert_eq!(pending.capacity(), capacity);
-
-    let retained_capacity = runtime.pending.lock().expect("pending lock").capacity();
-    assert_eq!(retained_capacity, capacity);
+    assert_eq!(runtime.pending.capacity(), capacity);
 }
 
 #[test]
 fn ordinary_pending_messages_keep_full_ordering_and_depth() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
 
     for message in 0..100 {
         assert!(runtime.enqueue(message));
@@ -87,13 +40,38 @@ fn ordinary_pending_messages_keep_full_ordering_and_depth() {
 }
 
 #[test]
-fn opaque_worker_messages_preserve_fifo_with_ordinary_messages() {
-    let runtime = AppRuntime::<u32>::default();
+fn ui_queue_accepts_rc_backed_messages() {
+    let mut runtime = AppRuntime::default();
+    let state = Rc::new(RefCell::new(7_u32));
+
+    assert!(runtime.enqueue(Rc::clone(&state)));
+    let delivered = runtime.take_pending();
+
+    assert_eq!(delivered.len(), 1);
+    assert!(Rc::ptr_eq(&delivered[0], &state));
+}
+
+#[test]
+fn shared_ingress_is_send_and_sync_without_the_message_type() {
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    assert_send_sync::<SharedRuntimeIngress>();
+}
+
+#[test]
+fn sequenced_sources_preserve_fifo_order() {
+    let mut runtime = AppRuntime::<u32>::default();
     let identity = WorkerSubscriptionIdentity { id: 1, epoch: 1 };
+    let platform = runtime.cross_thread_message_sink();
 
     assert!(runtime.enqueue(1));
-    assert!(runtime.enqueue_worker_payload(identity, Box::new(2_u32)));
-    assert!(runtime.enqueue(3));
+    assert!(
+        runtime
+            .shared()
+            .enqueue_worker_payload(identity, Box::new(2_u32))
+    );
+    assert!(platform.emit(3));
+    assert!(runtime.enqueue(4));
 
     let mapped = runtime.take_pending_with_worker_mapper(|delivery| match delivery {
         WorkerSubscriptionDelivery::Payload { payload, .. } => {
@@ -101,51 +79,45 @@ fn opaque_worker_messages_preserve_fifo_with_ordinary_messages() {
         }
         WorkerSubscriptionDelivery::Disconnected { .. } => None,
     });
-    assert_eq!(mapped, vec![1, 2, 3]);
+    assert_eq!(mapped, vec![1, 2, 3, 4]);
 }
 
 #[test]
 fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
     let identity = WorkerSubscriptionIdentity { id: 2, epoch: 1 };
     for message in 0..65_u32 {
-        assert!(runtime.enqueue_worker_payload(identity, Box::new(message)));
+        assert!(
+            runtime
+                .shared()
+                .enqueue_worker_payload(identity, Box::new(message))
+        );
     }
 
     let mut normal = Vec::new();
-    assert!(
-        runtime.drain_pending_batch_into_with_worker_mapper(&mut normal, 64, |delivery| {
-            match delivery {
-                WorkerSubscriptionDelivery::Payload { payload, .. } => {
-                    Some(*payload.downcast::<u32>().expect("u32 payload"))
-                }
-                WorkerSubscriptionDelivery::Disconnected { .. } => None,
-            }
-        },)
-    );
+    assert!(runtime.drain_pending_batch_into_with_worker_mapper(
+        &mut normal,
+        64,
+        map_u32_worker_delivery,
+    ));
     assert_eq!(normal.len(), 64);
 
     let mut interactive = Vec::new();
     assert!(!runtime.drain_pending_batch_into_with_worker_mapper(
         &mut interactive,
         8,
-        |delivery| match delivery {
-            WorkerSubscriptionDelivery::Payload { payload, .. } => {
-                Some(*payload.downcast::<u32>().expect("u32 payload"))
-            }
-            WorkerSubscriptionDelivery::Disconnected { .. } => None,
-        },
+        map_u32_worker_delivery,
     ));
     assert_eq!(interactive, vec![64]);
 }
 
 #[test]
 fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let mut runtime = AppRuntime::<u32>::default();
     let identity = WorkerSubscriptionIdentity { id: 3, epoch: 1 };
     let pre_append = Arc::new(Barrier::new(2));
     let release_append = Arc::new(Barrier::new(2));
-    let worker_runtime = Arc::clone(&runtime);
+    let worker_runtime = Arc::clone(runtime.shared());
     let worker_pre_append = Arc::clone(&pre_append);
     let worker_release_append = Arc::clone(&release_append);
     let worker = thread::spawn(move || {
@@ -165,12 +137,15 @@ fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
 
     assert!(!worker.join().expect("worker should complete"));
     assert!(runtime.take_pending().is_empty());
+}
 
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+#[test]
+fn worker_disconnect_shutdown_fence_rechecks_liveness_before_append() {
+    let mut runtime = AppRuntime::<u32>::default();
     let identity = WorkerSubscriptionIdentity { id: 4, epoch: 1 };
     let pre_append = Arc::new(Barrier::new(2));
     let release_append = Arc::new(Barrier::new(2));
-    let worker_runtime = Arc::clone(&runtime);
+    let worker_runtime = Arc::clone(runtime.shared());
     let worker_pre_append = Arc::clone(&pre_append);
     let worker_release_append = Arc::clone(&release_append);
     let worker = thread::spawn(move || {
@@ -193,11 +168,11 @@ fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
 
 #[test]
 fn pending_message_queue_drains_into_reused_output_without_replacing_queue_storage() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
     for message in 0..32 {
         assert!(runtime.enqueue(message));
     }
-    let queue_capacity = runtime.pending.lock().expect("pending lock").capacity();
+    let queue_capacity = runtime.pending.capacity();
     let mut pending = Vec::with_capacity(64);
     let output_capacity = pending.capacity();
 
@@ -205,14 +180,13 @@ fn pending_message_queue_drains_into_reused_output_without_replacing_queue_stora
 
     assert_eq!(pending, (0..32).collect::<Vec<_>>());
     assert_eq!(pending.capacity(), output_capacity);
-    let queue = runtime.pending.lock().expect("pending lock");
-    assert!(queue.is_empty());
-    assert_eq!(queue.capacity(), queue_capacity);
+    assert!(runtime.pending.is_empty());
+    assert_eq!(runtime.pending.capacity(), queue_capacity);
 }
 
 #[test]
 fn budgeted_pending_drain_reports_remaining_runtime_work() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
     let mut batch = Vec::new();
 
     for message in 0..10 {
@@ -229,7 +203,7 @@ fn budgeted_pending_drain_reports_remaining_runtime_work() {
 
 #[test]
 fn pending_frame_drains_before_regular_messages() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
 
     assert!(runtime.enqueue(1));
     assert!(runtime.enqueue_frame(99));
@@ -240,7 +214,7 @@ fn pending_frame_drains_before_regular_messages() {
 
 #[test]
 fn pending_frame_drains_before_retained_backlog() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
     let mut pending = vec![10, 11];
 
     assert!(runtime.enqueue(1));
@@ -252,7 +226,7 @@ fn pending_frame_drains_before_retained_backlog() {
 
 #[test]
 fn pending_frame_is_coalesced_until_drained() {
-    let runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32>::default();
 
     assert!(runtime.enqueue_frame(1));
     assert!(!runtime.enqueue_frame(2));
@@ -264,7 +238,7 @@ fn pending_frame_is_coalesced_until_drained() {
 
 #[test]
 fn delayed_messages_use_runtime_timer_lane() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let runtime = Arc::new(SharedRuntimeIngress::default());
     let identity = runtime.allocate_timer_identity(0);
 
     assert!(runtime.schedule_timer_wake(Duration::from_millis(1), identity));
@@ -284,24 +258,20 @@ fn delayed_messages_use_runtime_timer_lane() {
 
 #[test]
 fn delayed_messages_stop_after_runtime_shutdown() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
+    let runtime = Arc::new(SharedRuntimeIngress::default());
     let identity = runtime.allocate_timer_identity(0);
 
     runtime.shutdown();
 
     assert!(!runtime.schedule_timer_wake(Duration::ZERO, identity));
     thread::sleep(Duration::from_millis(1));
-    assert!(runtime.take_pending().is_empty());
+    assert!(runtime.take_timer_wakes().is_empty());
 }
 
 #[test]
 fn controller_timer_wakes_do_not_enter_application_identity_registry() {
-    let runtime = Arc::new(AppRuntime::<u32>::default());
-    let baseline = runtime
-        .timer_identities
-        .lock()
-        .expect("timer identities lock")
-        .len();
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let baseline = runtime.application_timer_identity_count();
 
     for id in 1..=256 {
         assert!(
@@ -309,13 +279,15 @@ fn controller_timer_wakes_do_not_enter_application_identity_registry() {
         );
     }
 
-    assert_eq!(
-        runtime
-            .timer_identities
-            .lock()
-            .expect("timer identities lock")
-            .len(),
-        baseline
-    );
+    assert_eq!(runtime.application_timer_identity_count(), baseline);
     runtime.shutdown();
+}
+
+fn map_u32_worker_delivery(delivery: WorkerSubscriptionDelivery) -> Option<u32> {
+    match delivery {
+        WorkerSubscriptionDelivery::Payload { payload, .. } => {
+            Some(*payload.downcast::<u32>().expect("u32 payload"))
+        }
+        WorkerSubscriptionDelivery::Disconnected { .. } => None,
+    }
 }

@@ -1874,6 +1874,11 @@ ticks. Receiver-backed worker subscriptions use
 `Subscription::worker_payload(...)`: the dedicated thread transports only the
 owned `Send` payload while its application-message mapper stays on the UI
 owner.
+Internally, `AppBridge` owns the generic application-message and frame queues
+directly. A separate non-generic shared ingress owns worker payload deliveries,
+opaque timer wakes, liveness, repaint signaling, diagnostics, and the bounded
+business pool. Worker and timer sources receive only that shared ingress, so
+adding UI-local state to `Message` does not make those ownership paths generic.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

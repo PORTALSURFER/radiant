@@ -18,8 +18,6 @@ const SUBSCRIPTION_CANCEL_POLL: Duration = Duration::from_millis(50);
 
 /// App-level subscription sources evaluated when the native runtime starts.
 ///
-/// `WorkerPayload` is an additional exhaustive-enum variant for typed payloads;
-/// existing `worker` construction and behavior remain unchanged.
 pub enum Subscription<Message> {
     /// No subscription.
     None,
@@ -38,13 +36,6 @@ pub enum Subscription<Message> {
         every: Duration,
         /// Message factory invoked for each tick.
         message: Arc<dyn Fn() -> Message>,
-    },
-    /// Forward messages from a host-owned receiver.
-    Worker {
-        /// Human-readable subscription id.
-        id: &'static str,
-        /// Receiver drained on a background thread.
-        receiver: std::sync::mpsc::Receiver<Message>,
     },
     /// Forward owned payloads from a host-owned receiver and map them on the UI thread.
     WorkerPayload {
@@ -122,11 +113,6 @@ impl<Message> Subscription<Message> {
         }
     }
 
-    /// Build a worker-message subscription from a receiver.
-    pub const fn worker(id: &'static str, receiver: std::sync::mpsc::Receiver<Message>) -> Self {
-        Self::Worker { id, receiver }
-    }
-
     /// Build a worker subscription that transports owned payloads and maps them on the UI thread.
     pub fn worker_payload<Payload>(
         id: &'static str,
@@ -187,18 +173,6 @@ pub(super) fn spawn_subscription_with_registry<Message>(
                     "Radiant app runtime failed to start interval subscription"
                 );
             }
-        }
-        Subscription::Worker { id, receiver } => {
-            let mapper = Box::new(|payload: Box<dyn Any + Send>| {
-                payload.downcast::<Message>().ok().map(|payload| *payload)
-            });
-            spawn_worker_subscription(
-                runtime,
-                workers,
-                id,
-                Box::new(TypedWorkerSubscriptionReceiver { receiver }),
-                mapper,
-            );
         }
         Subscription::WorkerPayload {
             id,

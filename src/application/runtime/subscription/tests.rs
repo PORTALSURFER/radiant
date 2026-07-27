@@ -25,7 +25,7 @@ fn batch_flattens_nested_subscriptions_in_order() {
         Subscription::interval("first", Duration::from_millis(10), || 1),
         Subscription::batch([
             Subscription::none(),
-            Subscription::worker("second", receiver),
+            Subscription::worker_payload("second", receiver, |message| message),
             Subscription::batch([Subscription::interval(
                 "third",
                 Duration::from_millis(10),
@@ -45,7 +45,7 @@ fn batch_flattens_nested_subscriptions_in_order() {
     ));
     assert!(matches!(
         subscriptions[1],
-        Subscription::Worker { id: "second", .. }
+        Subscription::WorkerPayload { id: "second", .. }
     ));
     assert!(matches!(
         subscriptions[2],

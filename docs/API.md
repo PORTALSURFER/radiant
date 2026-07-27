@@ -1870,8 +1870,10 @@ thread per delay, so timer bursts do not monopolize the UI path or create
 unbounded background threads. The lane transports opaque timer wakes only; the
 UI runtime maps a wake to its registered message and reduces that message on
 the UI owner. Interval subscriptions use the same wake lane for recurring
-ticks; receiver-backed worker subscriptions keep a dedicated thread only when
-they must wait on a host-owned blocking receiver.
+ticks. Receiver-backed worker subscriptions use
+`Subscription::worker_payload(...)`: the dedicated thread transports only the
+owned `Send` payload while its application-message mapper stays on the UI
+owner.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

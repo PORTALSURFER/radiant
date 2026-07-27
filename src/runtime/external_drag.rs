@@ -75,12 +75,28 @@ impl ExternalDragOutcome {
 pub(crate) type ExternalDragCompletion<Message> =
     Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static>;
 
+/// Identity fencing an external drag completion to its originating session.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ExternalDragIdentity {
+    pub(crate) id: u64,
+    pub(crate) epoch: u64,
+}
+
 /// Active external drag session owned by the runtime until it is launched or cancelled.
 pub(crate) struct ExternalDragSession<Message> {
     /// Request to launch when native drag-out begins.
     pub(crate) request: ExternalDragRequest,
     /// Optional mapper used to notify the host when the native drag loop finishes.
     pub(crate) on_completed: Option<ExternalDragCompletion<Message>>,
+    /// Session identity used to reject late native completions.
+    pub(crate) identity: ExternalDragIdentity,
+}
+
+/// Native-facing external drag launch data. UI-owned completion mappers never
+/// cross this boundary.
+pub(crate) struct ExternalDragLaunch {
+    pub(crate) request: ExternalDragRequest,
+    pub(crate) identity: ExternalDragIdentity,
 }
 
 impl<Message> ExternalDragSession<Message> {
@@ -88,10 +104,19 @@ impl<Message> ExternalDragSession<Message> {
     pub(crate) fn new(
         request: ExternalDragRequest,
         on_completed: Option<ExternalDragCompletion<Message>>,
+        identity: ExternalDragIdentity,
     ) -> Self {
         Self {
             request,
             on_completed,
+            identity,
         }
     }
+}
+
+/// A native completion waiting for the next controller-owned drain pass.
+pub(crate) struct PendingExternalDragCompletion<Message> {
+    pub(crate) identity: ExternalDragIdentity,
+    pub(crate) on_completed: ExternalDragCompletion<Message>,
+    pub(crate) result: Result<ExternalDragOutcome, String>,
 }

@@ -218,6 +218,7 @@ where
 
     /// Run the optional host runtime-exit hook.
     pub fn host_on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.invalidate_external_drag();
         self.shutdown_platform_services();
         let capability = self.host_capabilities.lifecycle.as_ref()?;
         (capability.on_runtime_exit)(&mut self.bridge)

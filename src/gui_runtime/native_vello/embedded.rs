@@ -58,6 +58,8 @@ pub enum EmbeddedVelloError {
     AcquireSurface(String),
     /// Vello failed to encode or submit the scene.
     Render(String),
+    /// The rendered texture could not be copied back to CPU memory.
+    Readback(String),
 }
 
 impl fmt::Display for EmbeddedVelloError {
@@ -72,6 +74,7 @@ impl fmt::Display for EmbeddedVelloError {
             Self::ConfigureSurface(message) => write!(formatter, "configure surface: {message}"),
             Self::AcquireSurface(message) => write!(formatter, "acquire surface: {message}"),
             Self::Render(message) => write!(formatter, "render scene: {message}"),
+            Self::Readback(message) => write!(formatter, "read back rendered scene: {message}"),
         }
     }
 }
@@ -321,6 +324,208 @@ impl Renderer for EmbeddedVelloRenderer {
         let animation_time = self.animation_clock.elapsed();
         self.render_at(plan, animation_time)
     }
+}
+
+/// Headless Vello renderer that captures one Radiant paint plan as RGBA bytes.
+///
+/// The capture path uses the same scene encoder, text renderer, clipping, and DPI scene
+/// scaling as [`EmbeddedVelloRenderer`]. It intentionally rejects GPU and custom surfaces,
+/// because those require host-owned compositing resources that are not available offscreen.
+pub struct OffscreenVelloCapture {
+    render_context: RenderContext,
+    renderer: VelloRenderer,
+    scene: Scene,
+    scaled_scene: Scene,
+    text_renderer: NativeTextRenderer,
+    bridge: EmbeddedSceneBridge,
+    retained_cache: RetainedSurfaceFrameCache,
+    text_runs: SceneTextRunBuffer,
+    logical_size: Vector2,
+    dpi_scale: DpiScale,
+}
+
+impl OffscreenVelloCapture {
+    /// Create a headless capture renderer for a logical viewport and DPI scale.
+    pub fn new(logical_size: Vector2, dpi_scale: DpiScale) -> Result<Self, EmbeddedVelloError> {
+        let logical_size = sanitized_logical_size(logical_size);
+        let mut render_context = RenderContext::new();
+        let dev_id = pollster::block_on(render_context.device(None))
+            .ok_or(EmbeddedVelloError::NoCompatibleDevice)?;
+        let device = &render_context.devices[dev_id].device;
+        let renderer = VelloRenderer::new(device, startup_renderer_options())
+            .map_err(|error| EmbeddedVelloError::CreateRenderer(error.to_string()))?;
+
+        Ok(Self {
+            render_context,
+            renderer,
+            scene: Scene::new(),
+            scaled_scene: Scene::new(),
+            text_renderer: NativeTextRenderer::with_options(&NativeTextOptions::default()),
+            bridge: EmbeddedSceneBridge,
+            retained_cache: RetainedSurfaceFrameCache::with_policy(
+                RetainedSurfaceCachePolicy::default(),
+            ),
+            text_runs: SceneTextRunBuffer::new(),
+            logical_size,
+            dpi_scale,
+        })
+    }
+
+    /// Render a plan and return tightly packed RGBA8 rows at the physical DPI-scaled size.
+    pub fn capture(&mut self, plan: &SurfacePaintPlan) -> Result<Vec<u8>, EmbeddedVelloError> {
+        validate_offscreen_plan(plan)?;
+
+        encode_surface_paint_plan_to_scene(
+            plan,
+            SurfaceSceneEncodeContext {
+                scene: &mut self.scene,
+                text_renderer: &mut self.text_renderer,
+                bridge: &mut self.bridge,
+                retained_surface: None,
+                viewport: self.logical_size,
+                retained_cache: &mut self.retained_cache,
+                text_runs: &mut self.text_runs,
+                animation_time: Duration::ZERO,
+            },
+        );
+        self.scaled_scene.reset();
+        self.scaled_scene.append(
+            &self.scene,
+            Some(Affine::scale(self.dpi_scale.factor() as f64)),
+        );
+
+        let (width, height) = physical_size(self.logical_size, self.dpi_scale);
+        let dev_id = pollster::block_on(self.render_context.device(None))
+            .ok_or(EmbeddedVelloError::NoCompatibleDevice)?;
+        let device = &self.render_context.devices[dev_id].device;
+        let queue = &self.render_context.devices[dev_id].queue;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("radiant_offscreen_vello_capture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.renderer
+            .render_to_texture(
+                device,
+                queue,
+                &self.scaled_scene,
+                &view,
+                &RenderParams {
+                    base_color: super::color_from_rgba(plan.clear_color),
+                    width,
+                    height,
+                    antialiasing_method: AaConfig::Area,
+                },
+            )
+            .map_err(|error| EmbeddedVelloError::Render(error.to_string()))?;
+
+        let unpadded_bytes_per_row = width
+            .checked_mul(4)
+            .ok_or_else(|| EmbeddedVelloError::Readback("row size overflow".to_string()))?;
+        let padded_bytes_per_row = align_bytes_per_row(unpadded_bytes_per_row);
+        let buffer_size = u64::from(padded_bytes_per_row)
+            .checked_mul(u64::from(height))
+            .ok_or_else(|| EmbeddedVelloError::Readback("buffer size overflow".to_string()))?;
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("radiant_offscreen_vello_readback"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("radiant_offscreen_vello_readback_copy"),
+        });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        queue.submit(std::iter::once(encoder.finish()));
+
+        let slice = buffer.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        let _ = device.poll(wgpu::PollType::wait_indefinitely());
+        receiver
+            .recv()
+            .map_err(|error| EmbeddedVelloError::Readback(error.to_string()))?
+            .map_err(|error| EmbeddedVelloError::Readback(error.to_string()))?;
+        let mapped = slice.get_mapped_range();
+        let mut pixels = vec![
+            0_u8;
+            usize::try_from(unpadded_bytes_per_row)
+                .ok()
+                .and_then(|row| row.checked_mul(height as usize))
+                .ok_or_else(|| EmbeddedVelloError::Readback(
+                    "pixel size overflow".to_string()
+                ))?
+        ];
+        for row in 0..height as usize {
+            let source_start = row * padded_bytes_per_row as usize;
+            let target_start = row * unpadded_bytes_per_row as usize;
+            pixels[target_start..target_start + unpadded_bytes_per_row as usize].copy_from_slice(
+                &mapped[source_start..source_start + unpadded_bytes_per_row as usize],
+            );
+        }
+        drop(mapped);
+        buffer.unmap();
+        Ok(pixels)
+    }
+}
+
+fn validate_offscreen_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
+    if plan
+        .primitives
+        .iter()
+        .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
+    {
+        return Err(EmbeddedVelloError::UnsupportedPrimitive(
+            EmbeddedVelloUnsupportedPrimitive::GpuSurface,
+        ));
+    }
+    if plan
+        .primitives
+        .iter()
+        .any(|primitive| matches!(primitive, PaintPrimitive::CustomSurface(_)))
+    {
+        return Err(EmbeddedVelloError::UnsupportedPrimitive(
+            EmbeddedVelloUnsupportedPrimitive::CustomSurface,
+        ));
+    }
+    Ok(())
+}
+
+fn align_bytes_per_row(bytes_per_row: u32) -> u32 {
+    let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    bytes_per_row.div_ceil(alignment) * alignment
 }
 
 struct EmbeddedAnimationClock {
@@ -946,6 +1151,79 @@ mod tests {
             physical_size(Vector2::new(420.0, 282.0), DpiScale::new(2.0)),
             (840, 564)
         );
+    }
+
+    #[test]
+    fn offscreen_capture_physical_size_is_deterministic_at_fractional_scale() {
+        assert_eq!(
+            physical_size(Vector2::new(420.0, 282.0), DpiScale::ONE),
+            (420, 282)
+        );
+        assert_eq!(
+            physical_size(Vector2::new(420.0, 282.0), DpiScale::new(1.25)),
+            (525, 353)
+        );
+        assert_eq!(align_bytes_per_row(420 * 4), 1792);
+        assert_eq!(align_bytes_per_row(525 * 4), 2304);
+    }
+
+    #[test]
+    fn offscreen_capture_reports_unsupported_surface_primitives_explicitly() {
+        let mut gpu_plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        gpu_plan
+            .primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(
+                Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+            )));
+        assert_eq!(
+            validate_offscreen_plan(&gpu_plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::GpuSurface
+            ))
+        );
+
+        let mut custom_plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        custom_plan
+            .primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 7,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                bounds: PaintBounds::ClipToRect,
+                retained: None,
+            }));
+        assert_eq!(
+            validate_offscreen_plan(&custom_plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::CustomSurface
+            ))
+        );
+    }
+
+    #[test]
+    fn offscreen_capture_returns_rgba_at_logical_and_fractional_dpi_sizes() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 1,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                color: crate::gui::types::Rgba8::new(255, 0, 0, 255),
+            }));
+
+        for (dpi, expected_size) in [(DpiScale::ONE, (20, 12)), (DpiScale::new(1.25), (25, 15))] {
+            let Ok(mut capture) = OffscreenVelloCapture::new(Vector2::new(20.0, 12.0), dpi) else {
+                // Headless CI without an adapter still exercises deterministic sizing above.
+                return;
+            };
+            let pixels = capture
+                .capture(&plan)
+                .expect("simple vector plan should capture");
+            assert_eq!(pixels.len(), expected_size.0 * expected_size.1 * 4);
+            assert!(
+                pixels
+                    .chunks_exact(4)
+                    .any(|pixel| pixel == [255, 0, 0, 255])
+            );
+        }
     }
 
     #[test]

@@ -151,7 +151,25 @@ fn disabled_knob_reprojection_clears_pointer_gesture_state() {
             bounds,
             WidgetInput::pointer_move(Point::new(20.0, 10.0))
         ),
-        Some(WidgetDispatchResult::UnmappedOutput) | Some(WidgetDispatchResult::NoOutput)
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_double_click(Point::new(20.0, 20.0))
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::KeyPress(crate::widgets::WidgetKey::ArrowRight)
+        ),
+        Some(WidgetDispatchResult::NoOutput)
     ));
     assert!(matches!(
         current.dispatch_input_at_path(
@@ -160,7 +178,22 @@ fn disabled_knob_reprojection_clears_pointer_gesture_state() {
             bounds,
             WidgetInput::primary_release(Point::new(20.0, 10.0))
         ),
-        Some(WidgetDispatchResult::UnmappedOutput) | Some(WidgetDispatchResult::NoOutput)
+        Some(WidgetDispatchResult::Message(KnobMessage::GestureEnded {
+            value: 0.7
+        }))
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(30, &[], bounds, WidgetInput::FocusChanged(false)),
+        Some(WidgetDispatchResult::NoOutput)
     ));
     let knob = current
         .find_widget_at_path(&[])

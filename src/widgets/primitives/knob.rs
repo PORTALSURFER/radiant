@@ -111,6 +111,22 @@ impl KnobWidget {
 
     /// Route backend-neutral input and emit explicit automation messages.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<KnobMessage> {
+        match &input {
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            }
+            | WidgetInput::PointerDrop {
+                button: PointerButton::Primary,
+                ..
+            } => {
+                return self.finish_terminal_gesture(false);
+            }
+            WidgetInput::FocusChanged(false) => {
+                return self.finish_terminal_gesture(true);
+            }
+            _ => {}
+        }
         if self.common.state.disabled {
             return None;
         }
@@ -138,20 +154,6 @@ impl KnobWidget {
                 self.set_value(self.state.value + (origin.y - position.y) * self.props.sensitivity)
                     .map(|value| KnobMessage::ValueChanged { value })
             }
-            WidgetInput::PointerRelease {
-                position: _,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                if !self.common.state.pressed {
-                    return None;
-                }
-                self.common.state.pressed = false;
-                self.state.gesture_origin = None;
-                self.set_value(self.state.value)
-                    .or(Some(self.state.value))
-                    .map(|value| KnobMessage::GestureEnded { value })
-            }
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
@@ -166,16 +168,6 @@ impl KnobWidget {
             }
             WidgetInput::FocusChanged(focused) => {
                 self.common.state.focused = focused;
-                if !focused {
-                    let had_active_gesture = self.state.gesture_origin.is_some();
-                    self.common.state.pressed = false;
-                    self.state.gesture_origin = None;
-                    if had_active_gesture {
-                        return Some(KnobMessage::GestureEnded {
-                            value: self.state.value,
-                        });
-                    }
-                }
                 None
             }
             WidgetInput::KeyPress(key) if self.common.state.focused => match key {
@@ -209,6 +201,17 @@ impl KnobWidget {
             start_value,
             final_value,
         )))
+    }
+
+    fn finish_terminal_gesture(&mut self, focus_lost: bool) -> Option<KnobMessage> {
+        let had_active_gesture = self.state.gesture_origin.take().is_some();
+        self.common.state.pressed = false;
+        if focus_lost {
+            self.common.state.focused = false;
+        }
+        had_active_gesture.then_some(KnobMessage::GestureEnded {
+            value: self.state.value,
+        })
     }
 }
 
@@ -246,10 +249,6 @@ impl Widget for KnobWidget {
         self.common.state.focused = previous.common.state.focused;
         self.common.state.pressed = previous.common.state.pressed;
         self.state.gesture_origin = previous.state.gesture_origin;
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            self.state.gesture_origin = None;
-        }
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -461,6 +460,44 @@ mod tests {
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::FocusChanged(false)),
             None
+        );
+    }
+
+    #[test]
+    fn secondary_terminal_inputs_do_not_cancel_primary_knob_gesture() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureStarted { .. })
+        ));
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_release(
+                    Point::new(20.0, 20.0),
+                    PointerButton::Secondary,
+                    Default::default(),
+                )
+            ),
+            None
+        );
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_drop(
+                    Point::new(20.0, 20.0),
+                    PointerButton::Secondary,
+                    Default::default(),
+                )
+            ),
+            None
+        );
+        assert!(knob.common.state.pressed);
+        assert!(knob.state.gesture_origin.is_some());
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureEnded { value: 0.5 })
         );
     }
 

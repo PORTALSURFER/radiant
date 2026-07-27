@@ -1340,6 +1340,61 @@ mod tests {
     }
 
     #[test]
+    fn discarded_latest_worker_command_rolls_back_and_releases_mapper_capture() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bridge = ToggleBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut latest = crate::application::LatestTask::new();
+
+        let first = latest.begin_replacement();
+        let first_ticket = first.replacement();
+        let first_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(903),
+                "latest-first",
+                crate::runtime::TaskPriority::Background,
+                None,
+                first.generation(),
+                Some(first),
+                || 1_u8,
+                |_| 11_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+
+        let second = latest.begin_replacement();
+        let probe = Arc::new(AtomicUsize::new(0));
+        let probe_guard = DropProbe(Arc::clone(&probe));
+        let second_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(903),
+                "latest-discarded",
+                crate::runtime::TaskPriority::Background,
+                None,
+                second.generation(),
+                Some(second),
+                || 2_u8,
+                move |_| {
+                    let _probe = probe_guard;
+                    22_usize
+                },
+            );
+        drop(second_command);
+
+        assert_eq!(latest.active(), Some(first_ticket));
+        assert_eq!(probe.load(Ordering::Acquire), 1);
+        assert_eq!(runtime.worker_effects.pending, 1);
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(903),
+            EffectGeneration(first_ticket.id()),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(3_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![11]);
+    }
+
+    #[test]
     fn latest_worker_acceptance_fences_predecessor_terminal_mapper() {
         let accepted = Arc::new(AtomicUsize::new(0));
         let bridge = AdmissionBridge {

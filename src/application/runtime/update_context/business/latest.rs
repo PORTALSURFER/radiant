@@ -420,4 +420,25 @@ mod tests {
             assert_transaction(context.into_command(), ticket);
         }
     }
+
+    #[test]
+    fn abandoned_latest_builders_restore_the_previous_ticket() {
+        let mut latest = crate::application::LatestTask::new();
+        let predecessor = latest.begin();
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context.business().background("latest").latest(&mut latest);
+        assert_ne!(request.ticket(), predecessor);
+        drop(request);
+        assert_eq!(latest.active(), Some(predecessor));
+
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("latest")
+            .cancellable()
+            .latest(&mut latest);
+        assert_ne!(request.ticket(), predecessor);
+        drop(request);
+        assert_eq!(latest.active(), Some(predecessor));
+    }
 }

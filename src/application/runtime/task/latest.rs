@@ -1,5 +1,6 @@
 use super::{TaskCompletion, TaskTicket};
 use std::{
+    cell::Cell,
     collections::{HashMap, HashSet},
     sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex, Weak},
@@ -140,6 +141,7 @@ impl LatestTask {
             replacement,
             previous,
             state: Arc::downgrade(&state),
+            committed: Cell::new(false),
         }
     }
 
@@ -234,6 +236,7 @@ pub(crate) struct LatestTaskTransaction {
     replacement: TaskTicket,
     previous: Option<TaskTicket>,
     state: Weak<Mutex<LatestState>>,
+    committed: Cell<bool>,
 }
 
 impl LatestTaskTransaction {
@@ -260,6 +263,9 @@ impl LatestTaskTransaction {
     /// Publication already happened in [`LatestTask::begin_replacement`];
     /// once committed, its predecessor link is no longer needed for rollback.
     pub(crate) fn accept(&self) {
+        if self.committed.replace(true) {
+            return;
+        }
         let Some(state) = self.state.upgrade() else {
             return;
         };
@@ -268,7 +274,26 @@ impl LatestTaskTransaction {
         state.rejected.remove(&self.replacement);
     }
 
-    pub(crate) fn reject(self) {
+    pub(crate) fn reject(&self) {
+        if self.committed.replace(true) {
+            return;
+        }
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let mut state = lock_state(&state);
+        state.rejected.insert(self.replacement);
+        if state.active == Some(self.replacement) {
+            state.active = resolve_ticket(&state, self.previous);
+        }
+    }
+}
+
+impl Drop for LatestTaskTransaction {
+    fn drop(&mut self) {
+        if self.committed.replace(true) {
+            return;
+        }
         let Some(state) = self.state.upgrade() else {
             return;
         };

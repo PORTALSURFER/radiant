@@ -166,12 +166,39 @@ impl<Message> Command<Message> {
     where
         Output: Send + 'static,
     {
+        Self::perform_worker_effect_with_identity_and_transaction(
+            id,
+            name,
+            priority,
+            is_cancelled,
+            generation,
+            None,
+            work,
+            map,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_effect_with_identity_and_transaction<Output>(
+        id: super::EffectId,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        generation: u64,
+        transaction: Option<crate::application::LatestTaskTransaction>,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
         Self::PerformWorker(super::WorkerEffect {
             name,
             priority,
             is_cancelled,
             id,
             generation: super::EffectGeneration(generation),
+            transaction,
             work: WorkerEffectWork::Once(Box::new(move || Box::new(work()) as Box<dyn Any + Send>)),
             mapper: WorkerEffectMapper::Once(Box::new(move |output| {
                 match output.downcast::<Output>() {
@@ -225,12 +252,33 @@ impl<Message> Command<Message> {
         Event: Send + 'static,
         Output: Send + 'static,
     {
+        Self::perform_worker_stream_with_identity_and_transaction(
+            id, name, priority, options, None, work, map_event, map_final,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_stream_with_identity_and_transaction<Event, Output>(
+        id: super::EffectId,
+        name: &'static str,
+        priority: TaskPriority,
+        options: WorkerStreamOptions,
+        transaction: Option<crate::application::LatestTaskTransaction>,
+        work: impl FnOnce(WorkerEffectSink) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+    {
         Self::PerformWorker(super::WorkerEffect {
             name,
             priority,
             is_cancelled: options.is_cancelled,
             id,
             generation: super::EffectGeneration(options.generation),
+            transaction,
             work: WorkerEffectWork::Stream(Box::new(move |sink| {
                 Box::new(work(sink)) as Box<dyn Any + Send>
             })),

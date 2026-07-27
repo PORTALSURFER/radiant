@@ -36,13 +36,15 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         self,
         latest: &mut LatestTask,
     ) -> CancellableBusinessLatestRequest<'context, Message> {
+        let transaction = latest.begin_replacement();
+        let ticket = transaction.replacement();
         let effect_id = latest.effect_id();
-        let ticket = latest.begin();
         CancellableBusinessLatestRequest {
             request: self.request,
             token: self.token,
             ticket,
             effect_id,
+            transaction,
         }
     }
 

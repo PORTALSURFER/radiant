@@ -259,8 +259,12 @@ impl<Message> WorkerEffects<Message> {
         Bridge: RuntimeBridge<Message>,
     {
         if self.pending >= EFFECT_INGRESS_CAPACITY {
+            if let Some(transaction) = effect.transaction {
+                transaction.reject();
+            }
             return false;
         }
+        let transaction = effect.transaction;
         let id = effect.id;
         let generation = effect.generation;
         let epoch = self.epoch;
@@ -403,6 +407,11 @@ impl<Message> WorkerEffects<Message> {
             } else {
                 self.registry.remove(&id);
             }
+            if let Some(transaction) = transaction {
+                transaction.reject();
+            }
+        } else if let Some(transaction) = transaction {
+            transaction.accept();
         }
         accepted
     }
@@ -1221,8 +1230,172 @@ mod tests {
         );
     }
 
+    struct DropProbe(Arc<AtomicUsize>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
+    #[test]
+    fn latest_worker_capacity_rejection_rolls_back_idle_publication() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "capacity",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                move |_| id,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let mut latest = crate::application::LatestTask::new();
+        let transaction = latest.begin_replacement();
+        let probe = Arc::new(AtomicUsize::new(0));
+        let probe_guard = DropProbe(Arc::clone(&probe));
+        let command = crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+            EffectId(900),
+            "latest-capacity",
+            crate::runtime::TaskPriority::Background,
+            None,
+            transaction.generation(),
+            Some(transaction),
+            || 1_u8,
+            move |_| {
+                let _probe = probe_guard;
+                1_usize
+            },
+        );
+        let _ = runtime.execute_command(command);
+        assert_eq!(latest.active(), None);
+        assert_eq!(runtime.worker_effects.pending, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(probe.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn latest_worker_host_rejection_restores_predecessor_mapper_and_ticket() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bridge = ToggleBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut latest = crate::application::LatestTask::new();
+
+        let first = latest.begin_replacement();
+        let first_ticket = first.replacement();
+        let first_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(901),
+                "latest-first",
+                crate::runtime::TaskPriority::Background,
+                None,
+                first.generation(),
+                Some(first),
+                || 1_u8,
+                |_| 11_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+
+        let second = latest.begin_replacement();
+        let second_ticket = second.replacement();
+        let probe = Arc::new(AtomicUsize::new(0));
+        let probe_guard = DropProbe(Arc::clone(&probe));
+        let second_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(901),
+                "latest-second",
+                crate::runtime::TaskPriority::Background,
+                None,
+                second.generation(),
+                Some(second),
+                || 2_u8,
+                move |_| {
+                    let _probe = probe_guard;
+                    22_usize
+                },
+            );
+        accepted.store(false, Ordering::Release);
+        let _ = runtime.execute_command(second_command);
+
+        assert_eq!(latest.active(), Some(first_ticket));
+        assert_ne!(first_ticket, second_ticket);
+        assert_eq!(probe.load(Ordering::Acquire), 1);
+        assert_eq!(runtime.worker_effects.pending, 1);
+        assert!(runtime.worker_effects.registry.contains_key(&EffectId(901)));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(901),
+            EffectGeneration(first_ticket.id()),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(3_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![11]);
+    }
+
+    #[test]
+    fn latest_worker_acceptance_fences_predecessor_terminal_mapper() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut latest = crate::application::LatestTask::new();
+        let first = latest.begin_replacement();
+        let first_generation = first.generation();
+        let first_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(902),
+                "latest-first",
+                crate::runtime::TaskPriority::Background,
+                None,
+                first_generation,
+                Some(first),
+                || 1_u8,
+                |_| 1_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+        let second = latest.begin_replacement();
+        let second_generation = second.generation();
+        let second_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(902),
+                "latest-second",
+                crate::runtime::TaskPriority::Background,
+                None,
+                second_generation,
+                Some(second),
+                || 2_u8,
+                |_| 2_usize,
+            );
+        let _ = runtime.execute_command(second_command);
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(902),
+            EffectGeneration(first_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(1_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(902),
+            EffectGeneration(second_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(2_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![2]);
+    }
+
     struct AdmissionBridge {
         accepted: Arc<AtomicUsize>,
+    }
+
+    struct ToggleBridge {
+        accepted: Arc<std::sync::atomic::AtomicBool>,
     }
 
     #[derive(Default)]
@@ -1279,6 +1452,32 @@ mod tests {
         ) -> bool {
             self.accepted.fetch_add(1, Ordering::AcqRel);
             true
+        }
+    }
+
+    impl crate::runtime::RuntimeBridge<usize> for ToggleBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for ToggleBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            _work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            self.accepted.load(Ordering::Acquire)
         }
     }
 }

@@ -1,4 +1,12 @@
 use super::*;
+use std::{cell::RefCell, rc::Rc};
+
+fn assert_send_sync<T: Send + Sync>() {}
+
+#[test]
+fn legacy_interactive_row_actions_remain_send_sync() {
+    assert_send_sync::<InteractiveRowActions<()>>();
+}
 
 #[test]
 fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
@@ -218,4 +226,120 @@ fn interactive_row_actions_routes_tracked_drop_candidate_clear() {
         actions.route(InteractiveRowMessage::ClearDropTarget { position }),
         Some(("folder", "clear_drop", position))
     );
+}
+
+#[test]
+fn local_actions_route_full_matrix_with_non_send_key_and_release_callbacks() {
+    #[derive(Clone)]
+    struct LocalKey(Rc<RefCell<usize>>);
+
+    let state = Rc::new(RefCell::new(0usize));
+    let key = LocalKey(Rc::clone(&state));
+    let captured = Rc::clone(&state);
+    let actions = InteractiveRowLocalActions::new()
+        .hover_key(key.clone(), move |key, _| {
+            *key.0.borrow_mut() += 1;
+            "hover"
+        })
+        .primary_with_modifiers_key(key.clone(), move |key, _| {
+            *key.0.borrow_mut() += 1;
+            "activate"
+        })
+        .double_activate_key(key.clone(), move |key| {
+            *key.0.borrow_mut() += 1;
+            "double"
+        })
+        .secondary_key(key.clone(), move |key, _| {
+            *key.0.borrow_mut() += 1;
+            "secondary"
+        })
+        .drag_key(key.clone(), move |key, _| {
+            *key.0.borrow_mut() += 1;
+            "drag"
+        })
+        .tracked_drop_candidate_key(
+            key,
+            move |key| {
+                *key.0.borrow_mut() += 1;
+                "drop"
+            },
+            move |key, _| {
+                *key.0.borrow_mut() += 1;
+                "hover_drop"
+            },
+            move |key, _| {
+                *key.0.borrow_mut() += 1;
+                "clear_drop"
+            },
+        );
+
+    let position = Point::new(12.0, 24.0);
+    let messages = [
+        (InteractiveRowMessage::Hover { position }, "hover"),
+        (
+            InteractiveRowMessage::ActivateWithModifiers {
+                modifiers: PointerModifiers {
+                    shift: true,
+                    ..PointerModifiers::default()
+                },
+            },
+            "activate",
+        ),
+        (InteractiveRowMessage::DoubleActivate, "double"),
+        (
+            InteractiveRowMessage::SecondaryActivate { position },
+            "secondary",
+        ),
+        (
+            InteractiveRowMessage::Drag(DragHandleMessage::moved(position)),
+            "drag",
+        ),
+        (InteractiveRowMessage::Drop, "drop"),
+        (
+            InteractiveRowMessage::HoverDropTarget { position },
+            "hover_drop",
+        ),
+        (
+            InteractiveRowMessage::ClearDropTarget { position },
+            "clear_drop",
+        ),
+    ];
+    for (message, expected) in messages {
+        assert_eq!(actions.route(message), Some(expected));
+    }
+    assert_eq!(*captured.borrow(), messages.len());
+    assert!(Rc::strong_count(&captured) > 1);
+    drop(state);
+    drop(actions);
+    assert_eq!(Rc::strong_count(&captured), 1);
+}
+
+#[test]
+fn shared_and_local_action_routers_produce_the_same_representative_messages() {
+    let shared = InteractiveRowActions::new()
+        .primary(|| "activate")
+        .secondary(|_| "secondary")
+        .drag(|_| "drag")
+        .tracked_drop_candidate_key("row", |_| "drop", |_, _| "hover_drop", |_, _| "clear_drop");
+    let local = InteractiveRowLocalActions::new()
+        .primary(|| "activate")
+        .secondary(|_| "secondary")
+        .drag(|_| "drag")
+        .tracked_drop_candidate_key(
+            Rc::new(()),
+            |_| "drop",
+            |_, _| "hover_drop",
+            |_, _| "clear_drop",
+        );
+    let position = Point::new(12.0, 24.0);
+    for message in [
+        InteractiveRowMessage::Activate,
+        InteractiveRowMessage::SecondaryActivate { position },
+        InteractiveRowMessage::Drag(DragHandleMessage::started(position)),
+        InteractiveRowMessage::Drop,
+        InteractiveRowMessage::HoverDropTarget { position },
+        InteractiveRowMessage::ClearDropTarget { position },
+    ] {
+        assert_eq!(shared.route(message), local.route(message));
+    }
 }

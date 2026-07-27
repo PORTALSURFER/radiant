@@ -1,6 +1,6 @@
 //! Custom widget contract for app-painted rows with embedded row input.
 
-use super::{InteractiveRowActions, InteractiveRowWidget};
+use super::{InteractiveRowActions, InteractiveRowLocalActions, InteractiveRowWidget};
 use crate::{
     gui::types::Rect,
     layout::LayoutOutput,
@@ -35,9 +35,19 @@ pub trait EmbeddedInteractiveRowWidget: Clone + 'static {
         None
     }
 
+    /// Return UI-local action routing for this embedded row, when applicable.
+    fn interactive_row_local_actions(&self) -> Option<&InteractiveRowLocalActions<Self::Message>> {
+        None
+    }
+
     /// Map a generic row interaction into this custom row's message type.
     fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
-        self.interactive_row_actions()?.route(message)
+        self.interactive_row_actions()
+            .and_then(|actions| actions.route(message))
+            .or_else(|| {
+                self.interactive_row_local_actions()
+                    .and_then(|actions| actions.route(message))
+            })
     }
 
     /// Append host-specific paint for this custom row.

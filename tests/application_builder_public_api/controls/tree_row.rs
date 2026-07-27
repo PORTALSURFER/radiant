@@ -67,7 +67,7 @@ fn tree_row_builder_is_available_from_prelude() {
 
 #[test]
 fn tree_row_toggle_accepts_rc_backed_ui_message() {
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     struct UiOnlyMessage(Rc<RefCell<usize>>);
 
     let state = Rc::new(RefCell::new(13usize));
@@ -86,4 +86,30 @@ fn tree_row_toggle_accepts_rc_backed_ui_message() {
         )
         .expect("tree expander should emit its UI-local message");
     assert!(Rc::ptr_eq(&message.0, &state));
+}
+
+#[test]
+fn tree_row_local_actions_accept_ui_only_capture() {
+    #[derive(Clone, Debug)]
+    struct UiOnlyMessage(Rc<RefCell<usize>>);
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let captured = Rc::clone(&calls);
+    let message_calls = Rc::clone(&calls);
+    let surface = ui::tree_row("Folder")
+        .stable_row_identity(57, "local-folder")
+        .interactive_actions_local(ui::InteractiveRowLocalActions::new().activate(move || {
+            *captured.borrow_mut() += 1;
+            UiOnlyMessage(Rc::clone(&message_calls))
+        }))
+        .into_surface();
+    let input_id = ui::stable_widget_id(57, "local-folder");
+    let message = surface
+        .dispatch_widget_output(
+            input_id,
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+        )
+        .expect("tree row local action should dispatch");
+    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(*message.0.borrow(), 1);
 }

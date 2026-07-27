@@ -1,7 +1,7 @@
 use crate::{
     application::{MappedWidget, ViewNode, view_node_from_widget},
     runtime::WidgetMessageMapper,
-    widgets::{InteractiveRowActions, InteractiveRowMessage},
+    widgets::{InteractiveRowActions, InteractiveRowLocalActions, InteractiveRowMessage},
 };
 
 use super::InteractiveRowBuilder;
@@ -27,6 +27,14 @@ impl InteractiveRowBuilder {
     pub fn actions<Message: 'static>(
         self,
         actions: InteractiveRowActions<Message>,
+    ) -> ViewNode<Message> {
+        self.filter_mapped(move |message| actions.route(message))
+    }
+
+    /// Emit host messages for UI-local row actions.
+    pub fn actions_local<Message: 'static>(
+        self,
+        actions: InteractiveRowLocalActions<Message>,
     ) -> ViewNode<Message> {
         self.filter_mapped(move |message| actions.route(message))
     }

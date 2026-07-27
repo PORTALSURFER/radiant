@@ -13,8 +13,8 @@ use crate::{
     runtime::{PaintPrimitive, WidgetMessageMapper},
     theme::ThemeTokens,
     widgets::{
-        InteractiveRowActions, InteractiveRowMessage, InteractiveRowVisualStateParts,
-        InteractiveRowWidget, Widget, WidgetInput, WidgetOutput,
+        InteractiveRowActions, InteractiveRowLocalActions, InteractiveRowMessage,
+        InteractiveRowVisualStateParts, InteractiveRowWidget, Widget, WidgetInput, WidgetOutput,
     },
 };
 
@@ -37,6 +37,17 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
 
     /// Emit host messages for common row actions.
     pub fn actions(mut self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
+        if actions.routes_hover() {
+            self.row = self.row.hover_messages(true);
+        }
+        self.filter_mapped(move |message| actions.route(message))
+    }
+
+    /// Emit host messages for UI-local row actions.
+    pub fn actions_local(
+        mut self,
+        actions: InteractiveRowLocalActions<Message>,
+    ) -> ViewNode<Message> {
         if actions.routes_hover() {
             self.row = self.row.hover_messages(true);
         }

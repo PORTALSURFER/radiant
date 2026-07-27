@@ -39,9 +39,9 @@ pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget, RenderCanvasParts, Rend
 pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
 pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
 pub use interactive_row::{
-    EmbeddedInteractiveRowWidget, InteractiveRowActions, InteractiveRowPointerMotion,
-    InteractiveRowProps, InteractiveRowVisualStateParts, InteractiveRowWidget,
-    InteractiveRowWidgetParts,
+    EmbeddedInteractiveRowWidget, InteractiveRowActions, InteractiveRowLocalActions,
+    InteractiveRowPointerMotion, InteractiveRowProps, InteractiveRowVisualStateParts,
+    InteractiveRowWidget, InteractiveRowWidgetParts,
 };
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
 pub use marker_run::{

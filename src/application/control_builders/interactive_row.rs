@@ -6,8 +6,8 @@ mod builder;
 #[path = "interactive_row/tests/mod.rs"]
 mod tests;
 
-pub use crate::widgets::InteractiveRowActions;
+pub use crate::widgets::{InteractiveRowActions, InteractiveRowLocalActions};
 pub use builder::{
     DenseRowPolicy, InteractiveRowBuilder, InteractiveRowUnderlayBuilder, interactive_row,
-    interactive_row_underlay, row_actions,
+    interactive_row_underlay, row_actions, row_actions_local,
 };

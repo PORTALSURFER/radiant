@@ -238,6 +238,11 @@ impl EmbeddedVelloRenderer {
             &self.surface_occlusion_plan,
             &mut self.surface_visibility,
         )?;
+        // Keep the source scene independent between captures. The shared encoder also resets
+        // before encoding, but doing so here makes the offscreen lifecycle explicit and guards
+        // against stale primitives if the encoder gains an early-return path later.
+        self.scene.reset();
+        self.scaled_scene.reset();
         encode_surface_paint_plan_to_scene(
             plan,
             SurfaceSceneEncodeContext {
@@ -473,9 +478,14 @@ impl OffscreenVelloCapture {
         slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = sender.send(result);
         });
-        let _ = device.poll(wgpu::PollType::wait_indefinitely());
+        device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(5)),
+            })
+            .map_err(|error| EmbeddedVelloError::Readback(error.to_string()))?;
         receiver
-            .recv()
+            .recv_timeout(Duration::from_millis(100))
             .map_err(|error| EmbeddedVelloError::Readback(error.to_string()))?
             .map_err(|error| EmbeddedVelloError::Readback(error.to_string()))?;
         let mapped = slice.get_mapped_range();
@@ -1224,6 +1234,38 @@ mod tests {
                     .any(|pixel| pixel == [255, 0, 0, 255])
             );
         }
+    }
+
+    #[test]
+    fn offscreen_capture_does_not_retain_previous_scene_content() {
+        let mut first_plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        first_plan
+            .primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 1,
+                rect: Rect::from_xy_size(0.0, 0.0, 20.0, 12.0),
+                color: crate::gui::types::Rgba8::new(255, 0, 0, 255),
+            }));
+        let mut second_plan = first_plan.clone();
+        second_plan.primitives[0] = PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 1,
+            rect: Rect::from_xy_size(0.0, 0.0, 4.0, 4.0),
+            color: crate::gui::types::Rgba8::new(0, 0, 255, 255),
+        });
+        let Ok(mut capture) = OffscreenVelloCapture::new(Vector2::new(20.0, 12.0), DpiScale::ONE)
+        else {
+            return;
+        };
+        let first = capture
+            .capture(&first_plan)
+            .expect("first capture should succeed");
+        let second = capture
+            .capture(&second_plan)
+            .expect("second capture should succeed");
+        assert_ne!(
+            first, second,
+            "a repeated capture must not retain stale scene content"
+        );
     }
 
     #[test]

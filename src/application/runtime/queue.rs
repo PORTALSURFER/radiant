@@ -262,6 +262,9 @@ impl<Message> AppRuntime<Message> {
                         PendingMessage::Shared(SharedRuntimeDelivery::Timer(wake), _) => {
                             RuntimeQueueItem::Timer(wake)
                         }
+                        PendingMessage::Shared(SharedRuntimeDelivery::Platform(delivery), _) => {
+                            RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(delivery))
+                        }
                         PendingMessage::Shared(delivery, _) => {
                             RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(delivery))
                         }

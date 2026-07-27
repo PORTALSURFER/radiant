@@ -41,6 +41,15 @@ impl PaintSvgDocument {
     pub(crate) fn tree(&self) -> &usvg::Tree {
         &self.tree
     }
+
+    /// Return whether two retained documents share the same parsed tree.
+    ///
+    /// Cloning a retained document intentionally preserves this identity so
+    /// callers can compare cached SVG assets without reparsing or deep tree
+    /// equality.
+    pub(crate) fn same_identity(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.tree, &other.tree)
+    }
 }
 
 impl SvgParseError {
@@ -60,7 +69,7 @@ impl std::error::Error for SvgParseError {}
 
 impl PartialEq for PaintSvgDocument {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.tree, &other.tree)
+        self.same_identity(other)
     }
 }
 

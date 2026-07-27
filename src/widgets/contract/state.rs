@@ -28,6 +28,12 @@ pub struct WidgetState {
     pub disabled: bool,
     /// Widget is read-only but remains visible/focusable.
     pub read_only: bool,
+    /// Host automation currently owns or is writing this control.
+    ///
+    /// Automation is a semantic state, not merely a color variant: controls
+    /// should expose a non-color marker so the state remains distinguishable
+    /// for color-blind users and monochrome captures.
+    pub automation_active: bool,
 }
 
 impl WidgetState {
@@ -64,5 +70,10 @@ impl WidgetState {
     /// Return whether the widget is read-only but remains visible or focusable.
     pub const fn is_read_only(self) -> bool {
         self.read_only
+    }
+
+    /// Return whether host automation currently owns or writes this widget.
+    pub const fn is_automation_active(self) -> bool {
+        self.automation_active
     }
 }

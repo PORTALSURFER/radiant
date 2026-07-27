@@ -1,4 +1,4 @@
-use super::{WidgetVisualTokens, resolve_widget_visual_tokens};
+use super::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};
 use crate::{
     theme::ThemeTokens,
     widgets::{WidgetProminence, WidgetState, WidgetStyle, WidgetTone},
@@ -22,8 +22,38 @@ fn disabled_widgets_use_muted_foreground_and_disabled_fill() {
             foreground: theme.text_muted,
             border: theme.grid_soft,
             emphasis: theme.text_primary,
+            cue: WidgetVisualCue::Disabled,
         }
     );
+}
+
+#[test]
+fn automation_state_uses_distinct_token_and_non_color_cue_precedence() {
+    let theme = ThemeTokens::default();
+    let tokens = resolve_widget_visual_tokens(
+        &theme,
+        WidgetStyle::default(),
+        WidgetState {
+            automation_active: true,
+            selected: true,
+            hovered: true,
+            ..WidgetState::default()
+        },
+    );
+
+    assert_eq!(tokens.emphasis, theme.accent_copper);
+    assert_eq!(tokens.cue, WidgetVisualCue::AutomationActive);
+
+    let pressed = resolve_widget_visual_tokens(
+        &theme,
+        WidgetStyle::default(),
+        WidgetState {
+            automation_active: true,
+            pressed: true,
+            ..WidgetState::default()
+        },
+    );
+    assert_eq!(pressed.cue, WidgetVisualCue::Pressed);
 }
 
 #[test]

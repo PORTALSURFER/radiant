@@ -114,3 +114,26 @@ fn focused_slider_responds_to_keyboard_steps() {
         Some(SliderMessage::ValueChanged { value: 0.0 })
     );
 }
+
+#[test]
+fn slider_automation_marker_is_state_gated() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let slider = SliderWidget::new(11, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut active = slider.clone();
+    active.common.state.automation_active = true;
+    let mut passive_primitives = Vec::new();
+    let mut active_primitives = Vec::new();
+    slider.append_paint(
+        &mut passive_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    active.append_paint(
+        &mut active_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert_eq!(active_primitives.len(), passive_primitives.len() + 1);
+}

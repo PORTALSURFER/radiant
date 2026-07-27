@@ -23,4 +23,33 @@ pub struct WidgetVisualTokens {
     pub border: Rgba8,
     /// Optional focus ring or selected outline color.
     pub emphasis: Rgba8,
+    /// Non-color state cue for controls that need to remain distinguishable
+    /// in monochrome or for color-impaired users.
+    pub cue: WidgetVisualCue,
+}
+
+/// Precedence-resolved non-color cue for a widget's visual state.
+///
+/// Resolution order is `Disabled > Pressed > Focused > AutomationActive >
+/// Selected > Active > Hovered > None`. Hosts may use this cue for a marker,
+/// ring, hatch, or other shape treatment in addition to color tokens.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum WidgetVisualCue {
+    /// No transient or semantic cue is active.
+    #[default]
+    None,
+    /// The widget cannot currently be interacted with.
+    Disabled,
+    /// The primary action is pressed.
+    Pressed,
+    /// The widget has keyboard focus.
+    Focused,
+    /// Host automation currently owns or writes the widget.
+    AutomationActive,
+    /// The widget is selected.
+    Selected,
+    /// The widget is semantically active/on.
+    Active,
+    /// The pointer is hovering the widget.
+    Hovered,
 }

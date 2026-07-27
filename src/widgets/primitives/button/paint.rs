@@ -31,9 +31,22 @@ pub(super) fn push_button_widget_paint(
     push_button_chrome(primitives, &button.common, bounds, theme);
     let font_size = button_font_size(bounds);
     let rect = inset_rect(bounds, 8.0, 4.0);
+    let trailing_width =
+        if button.trailing_icon.is_some() || button.trailing_icon_tint_cache.is_some() {
+            font_size.max(16.0)
+        } else {
+            0.0
+        };
     let (label_rect, trailing_rect) = match button.props.trailing_label.as_ref() {
         Some(_) => {
-            let trailing_width = font_size.max(12.0);
+            let split = (rect.max.x - font_size.max(12.0)).max(rect.min.x);
+            let mut label_rect = rect;
+            label_rect.max.x = split;
+            let mut trailing_rect = rect;
+            trailing_rect.min.x = split;
+            (label_rect, Some(trailing_rect))
+        }
+        None if trailing_width > 0.0 => {
             let split = (rect.max.x - trailing_width).max(rect.min.x);
             let mut label_rect = rect;
             label_rect.max.x = split;
@@ -81,6 +94,21 @@ pub(super) fn push_button_widget_paint(
                 wrap: TextWrap::None,
                 font_size,
             },
+        );
+    }
+    if let (Some(cache), Some(trailing_rect)) = (button.trailing_icon_tint_cache, trailing_rect) {
+        cache
+            .icon(foreground)
+            .append_paint(primitives, button.common.id, trailing_rect);
+    } else if let (Some(icon), Some(trailing_rect)) = (button.trailing_icon.as_ref(), trailing_rect)
+    {
+        icon.append_paint(
+            primitives,
+            button.common.id,
+            crate::gui::types::Rect::from_min_max(
+                crate::gui::types::Point::new(trailing_rect.min.x, trailing_rect.min.y),
+                crate::gui::types::Point::new(trailing_rect.max.x, trailing_rect.max.y),
+            ),
         );
     }
 }

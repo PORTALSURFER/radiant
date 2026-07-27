@@ -13,6 +13,16 @@ pub struct SvgIcon {
     document: Option<PaintSvgDocument>,
 }
 
+impl PartialEq for SvgIcon {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.document, &other.document) {
+            (None, None) => true,
+            (Some(left), Some(right)) => left.same_identity(right),
+            _ => false,
+        }
+    }
+}
+
 impl SvgIcon {
     /// Construct an icon that emits no SVG paint primitives.
     pub fn empty() -> Self {
@@ -76,6 +86,14 @@ pub struct SvgIconTintCache {
     svg: &'static str,
     icons: OnceLock<Mutex<HashMap<u32, SvgIcon>>>,
 }
+
+impl PartialEq for SvgIconTintCache {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for SvgIconTintCache {}
 
 /// Tint colors for stateful monochrome SVG icons.
 ///
@@ -153,7 +171,16 @@ impl SvgIconTintCache {
         if let Some(icon) = icons.get(&key) {
             return Ok(icon.clone());
         }
-        let icon = SvgIcon::try_from_svg_with_current_color(self.svg, color)?;
+        let icon = if self.svg.contains("currentColor") {
+            // Some retained SVG parsers do not resolve CSS `currentColor` on
+            // stroked paths. Catalog sources therefore use a literal token
+            // replacement at cache resolution time while arbitrary sources
+            // continue through the legacy inherited-color path.
+            let color = format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b);
+            SvgIcon::try_from_svg(&self.svg.replace("currentColor", &color))?
+        } else {
+            SvgIcon::try_from_svg_with_current_color(self.svg, color)?
+        };
         icons.insert(key, icon.clone());
         Ok(icon)
     }
@@ -222,6 +249,12 @@ mod tests {
             panic!("second icon should paint svg");
         };
         assert_eq!(first_svg.document, second_svg.document);
+    }
+
+    #[test]
+    fn cloned_retained_icon_compares_equal() {
+        let icon = SvgIcon::from_svg(TEST_ICON).expect("valid icon");
+        assert_eq!(icon.clone(), icon);
     }
 
     #[test]

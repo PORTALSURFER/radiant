@@ -4,7 +4,8 @@ use crate::{
     gui::types::{Point, Rect, Vector2},
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
-        ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarWidget, WidgetInput, WidgetSizing,
+        ButtonWidget, KnobMessage, KnobWidget, PointerButton, ScrollbarAxis, ScrollbarWidget,
+        WidgetInput, WidgetSizing,
     },
 };
 use std::collections::HashMap;
@@ -38,6 +39,172 @@ fn scene_without_layers_routes_base_widget_at_transparent_path() {
             .state
             .hovered
     );
+}
+
+fn mapped_knob(value: f32, disabled: bool) -> SurfaceNode<KnobMessage> {
+    let mut knob = KnobWidget::new(30, value);
+    knob.common.state.disabled = disabled;
+    SurfaceNode::widget(
+        knob,
+        WidgetMessageMapper::typed(|message: KnobMessage| message),
+    )
+}
+
+#[test]
+fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let paths = HashMap::from([(30, WidgetPath::from_slice(&[]))]);
+    let mut previous = mapped_knob(0.5, false);
+    let mut current = mapped_knob(0.5, false);
+
+    assert!(matches!(
+        previous.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::Message(KnobMessage::GestureStarted {
+            value: 0.5
+        }))
+    ));
+    current.synchronize_widget_state_from_paths(
+        &[30],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+        ),
+        Some(WidgetDispatchResult::Message(KnobMessage::ValueChanged { value }))
+            if value > 0.5
+    ));
+
+    // The reducer's fresh projection owns the value while the active pointer
+    // gesture remains runtime-owned across this refresh.
+    previous = current;
+    current = mapped_knob(0.62, false);
+    current.synchronize_widget_state_from_paths(
+        &[30],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+    let final_value = current
+        .find_widget_at_path(&[])
+        .expect("knob exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<KnobWidget>()
+        .expect("knob type is retained")
+        .state
+        .value;
+    assert_eq!(final_value, 0.62);
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::Message(KnobMessage::GestureEnded {
+            value: 0.62
+        }))
+    ));
+}
+
+#[test]
+fn disabled_knob_reprojection_clears_pointer_gesture_state() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let paths = HashMap::from([(30, WidgetPath::from_slice(&[]))]);
+    let mut previous = mapped_knob(0.5, false);
+    assert!(matches!(
+        previous.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::Message(
+            KnobMessage::GestureStarted { .. }
+        ))
+    ));
+    let mut current = mapped_knob(0.7, true);
+    current.synchronize_widget_state_from_paths(
+        &[30],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_double_click(Point::new(20.0, 20.0))
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::KeyPress(crate::widgets::WidgetKey::ArrowRight)
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::Message(KnobMessage::GestureEnded {
+            value: 0.7
+        }))
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    assert!(matches!(
+        current.dispatch_input_at_path(30, &[], bounds, WidgetInput::FocusChanged(false)),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    let knob = current
+        .find_widget_at_path(&[])
+        .expect("disabled knob exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<KnobWidget>()
+        .expect("knob type is retained");
+    assert!(!knob.common.state.pressed);
+    assert_eq!(knob.state.gesture_origin, None);
+    assert_eq!(knob.state.value, 0.7);
 }
 
 #[test]

@@ -1,3 +1,4 @@
+use crate::gui::svg::{IconName, SvgIcon};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
 use std::sync::Arc;
@@ -321,4 +322,114 @@ fn button_text_alignment_can_be_overridden() {
     assert_eq!(button.props.text_align, TextAlign::Center);
     assert!(button.set_text_align(TextAlign::Left));
     assert_eq!(button.props.text_align, TextAlign::Left);
+}
+
+#[test]
+fn catalog_trailing_icon_follows_enabled_and_disabled_foreground() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+    let enabled = ButtonWidget::new(18, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)))
+        .with_trailing_icon_tint_cache(IconName::ChevronDown.tint_cache());
+    let mut disabled = enabled.clone();
+    disabled.common.state.disabled = true;
+    let mut enabled_primitives = Vec::new();
+    let mut disabled_primitives = Vec::new();
+
+    enabled.append_paint(
+        &mut enabled_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    disabled.append_paint(
+        &mut disabled_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    let enabled_svg = enabled_primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) => Some(svg),
+            _ => None,
+        })
+        .expect("enabled catalog icon should paint");
+    let disabled_svg = disabled_primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) => Some(svg),
+            _ => None,
+        })
+        .expect("disabled catalog icon should paint");
+    assert_ne!(enabled_svg.document, disabled_svg.document);
+}
+
+#[test]
+fn caller_owned_trailing_svg_remains_untinted() {
+    let raw = SvgIcon::from_svg(
+        r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path fill="#f00" d="M1 1h14v14H1z"/></svg>"##,
+    )
+    .expect("valid caller-owned icon");
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+    let enabled = ButtonWidget::new(19, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)))
+        .with_trailing_icon(raw.clone());
+    let mut disabled = enabled.clone();
+    disabled.common.state.disabled = true;
+    let mut enabled_primitives = Vec::new();
+    let mut disabled_primitives = Vec::new();
+    enabled.append_paint(
+        &mut enabled_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    disabled.append_paint(
+        &mut disabled_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    let enabled_svg = enabled_primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) => Some(svg),
+            _ => None,
+        })
+        .expect("enabled caller-owned icon should paint");
+    let disabled_svg = disabled_primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) => Some(svg),
+            _ => None,
+        })
+        .expect("disabled caller-owned icon should paint");
+    assert_eq!(enabled_svg.document, disabled_svg.document);
+}
+
+#[test]
+fn automation_marker_is_added_only_when_button_state_is_active() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+    let button = ButtonWidget::new(20, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let mut active = button.clone();
+    active.common.state.automation_active = true;
+    let mut passive_primitives = Vec::new();
+    let mut active_primitives = Vec::new();
+    button.append_paint(
+        &mut passive_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    active.append_paint(
+        &mut active_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert_eq!(active_primitives.len(), passive_primitives.len() + 1);
+    assert!(
+        active_primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
+    );
 }

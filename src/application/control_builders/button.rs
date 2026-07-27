@@ -3,6 +3,7 @@ use crate::{
         MappedWidget, TextContent, ViewNode, danger_style, default_button_sizing, primary_style,
         view_node_from_widget,
     },
+    gui::svg::{IconName, SvgIcon},
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{
         ButtonMessage, ButtonWidget, DragHandleMessage, WidgetOutput, WidgetProminence, WidgetStyle,
@@ -13,6 +14,8 @@ use crate::{
 pub struct ButtonBuilder {
     label: PaintText,
     trailing_label: Option<PaintText>,
+    trailing_icon: Option<SvgIcon>,
+    trailing_icon_tint_cache: Option<&'static crate::gui::svg::SvgIconTintCache>,
     style: Option<WidgetStyle>,
     secondary_click: bool,
     drag: bool,
@@ -62,8 +65,22 @@ impl ButtonBuilder {
         self
     }
 
+    #[allow(dead_code)]
     pub(in crate::application) fn trailing_label(mut self, label: impl Into<TextContent>) -> Self {
         self.trailing_label = Some(label.into().into_paint_text());
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::application) fn trailing_icon(mut self, icon: SvgIcon) -> Self {
+        self.trailing_icon = Some(icon);
+        self.trailing_icon_tint_cache = None;
+        self
+    }
+
+    pub(in crate::application) fn trailing_catalog_icon(mut self, icon: IconName) -> Self {
+        self.trailing_icon = None;
+        self.trailing_icon_tint_cache = Some(icon.tint_cache());
         self
     }
 
@@ -121,6 +138,12 @@ impl ButtonBuilder {
         if let Some(trailing_label) = self.trailing_label {
             button = button.with_trailing_label(trailing_label);
         }
+        if let Some(trailing_icon) = self.trailing_icon {
+            button = button.with_trailing_icon(trailing_icon);
+        }
+        if let Some(cache) = self.trailing_icon_tint_cache {
+            button = button.with_trailing_icon_tint_cache(cache);
+        }
         if self.secondary_click {
             button = button.with_secondary_click();
         }
@@ -141,6 +164,8 @@ pub fn button(label: impl Into<TextContent>) -> ButtonBuilder {
     ButtonBuilder {
         label: label.into().into_paint_text(),
         trailing_label: None,
+        trailing_icon: None,
+        trailing_icon_tint_cache: None,
         style: None,
         secondary_click: false,
         drag: false,

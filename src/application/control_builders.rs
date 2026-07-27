@@ -10,6 +10,7 @@ mod dropdown;
 mod feedback_overlay;
 mod icon_button;
 mod interactive_row;
+mod knob;
 mod marker_run;
 mod pointer_shield;
 mod pointer_target;
@@ -46,6 +47,7 @@ pub use interactive_row::{
     InteractiveRowUnderlayBuilder, interactive_row, interactive_row_underlay, row_actions,
     row_actions_local,
 };
+pub use knob::{KnobBuilder, knob, knob_mapped};
 pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
 pub use pointer_shield::{
     PointerShieldBuilder, pointer_drop_shield, pointer_move_shield, pointer_shield,

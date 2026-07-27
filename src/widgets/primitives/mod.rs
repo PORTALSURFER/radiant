@@ -11,6 +11,7 @@ mod gpu_surface;
 mod icon_button;
 mod image;
 mod interactive_row;
+mod knob;
 mod list_item;
 mod marker_run;
 mod pointer_shield;
@@ -43,6 +44,7 @@ pub use interactive_row::{
     InteractiveRowPointerMotion, InteractiveRowProps, InteractiveRowVisualStateParts,
     InteractiveRowWidget, InteractiveRowWidgetParts,
 };
+pub use knob::{KnobProps, KnobState, KnobWidget, KnobWidgetParts};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
 pub use marker_run::{
     ColorMarkerRunProps, ColorMarkerRunWidget, ColorMarkerRunWidgetParts, MarkerRunAlign,

@@ -1,4 +1,4 @@
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Point, Rect, Rgba8, Vector2};
 use crate::runtime::{
     PaintFillPolygon, PaintFillRect, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline,
     PaintStrokeRect, diagonal_cut_rect_points, inset_rect,
@@ -34,6 +34,7 @@ pub(in crate::widgets::primitives) fn push_button_chrome(
             width: 1.0,
         }));
     }
+    push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
 }
 
 pub(in crate::widgets::primitives) fn push_control_chrome(
@@ -62,6 +63,7 @@ pub(in crate::widgets::primitives) fn push_control_chrome(
             width: 1.0,
         }));
     }
+    push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
 }
 
 pub(in crate::widgets::primitives) fn push_checkbox_chrome(
@@ -114,4 +116,34 @@ pub(in crate::widgets::primitives) fn push_checkbox_chrome(
             width: 2.0,
         }));
     }
+    push_automation_active_marker(primitives, widget_id, bounds, state, theme.accent_copper);
+}
+
+/// Paint a compact non-color automation cue on a control's trailing edge.
+///
+/// The helper is intentionally state-gated so passive controls retain their
+/// existing paint structure. Callers supply the resolved foreground/emphasis
+/// color while the marker shape remains shared across control families.
+pub(in crate::widgets::primitives) fn push_automation_active_marker(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    state: WidgetState,
+    color: Rgba8,
+) {
+    if !state.automation_active || state.disabled {
+        return;
+    }
+    let x = bounds.max.x - 2.0;
+    let inset = (bounds.height() * 0.2).max(2.0);
+    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+        widget_id,
+        points: [
+            Point::new(x, bounds.min.y + inset),
+            Point::new(x, bounds.max.y - inset),
+        ]
+        .into(),
+        color,
+        width: 2.0,
+    }));
 }

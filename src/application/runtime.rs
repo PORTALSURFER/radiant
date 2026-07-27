@@ -13,7 +13,6 @@ use crate::{
 use std::any::Any;
 
 mod bridge;
-mod platform;
 mod queue;
 mod subscription;
 mod task;
@@ -24,7 +23,6 @@ mod update_context;
 pub(in crate::application) use bridge::{
     AppBridge, AppBridgeLifecycle, FrameMessageActivity, FrameRepaintSource, PendingFrameRepaint,
 };
-pub(in crate::application) use platform::{PlatformCompletionDelivery, PlatformCompletionRegistry};
 pub(in crate::application) use queue::{AppRuntime, SharedRuntimeIngress};
 pub use subscription::Subscription;
 pub(crate) use task::LatestTimerTransaction;

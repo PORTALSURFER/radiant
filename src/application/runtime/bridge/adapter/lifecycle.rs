@@ -11,7 +11,6 @@ where
     pub(super) fn runtime_exit_artifact(&mut self) -> Option<serde_json::Value> {
         self.timer_registry.clear();
         self.worker_registry.clear();
-        self.platform_registry.clear();
         self.clear_runtime_commands();
         self.runtime.shutdown();
         self.lifecycle

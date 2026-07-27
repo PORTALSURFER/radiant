@@ -10,6 +10,22 @@ where
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget) = self.runtime_drain_budget();
 
+        // Platform results are admitted on the previous turn's high-water
+        // snapshot. Mapping happens before commands newly admitted below, so
+        // even a synchronous host completion cannot re-enter execution.
+        let platform_results = {
+            let mut pending = self
+                .platform_results
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            pending.take_pending()
+        };
+        for delivery in platform_results {
+            if let Some(message) = self.platform_registry.map_delivery(delivery) {
+                self.dispatch_message_inner(message, &mut outcome);
+            }
+        }
+
         // Worker effects are mapped only on this UI-owned turn. The ingress
         // takes a start-of-turn high-water snapshot, so an immediate worker
         // completion is necessarily deferred to the next drain pass.
@@ -49,13 +65,19 @@ where
                         })
                 }
                 RuntimeQueueItem::Timer(wake) => self.timer_effects.map_wake(wake),
-                RuntimeQueueItem::Delivery(delivery) => self
-                    .host_capabilities
-                    .queues
-                    .as_ref()
-                    .and_then(|capability| {
-                        (capability.map_runtime_queue_delivery)(&mut self.bridge, delivery)
-                    }),
+                RuntimeQueueItem::Delivery(delivery) => match delivery
+                    .downcast::<crate::runtime::PlatformResultDelivery>(
+                ) {
+                    Ok(delivery) => self.platform_registry.map_delivery(delivery),
+                    Err(delivery) => {
+                        self.host_capabilities
+                            .queues
+                            .as_ref()
+                            .and_then(|capability| {
+                                (capability.map_runtime_queue_delivery)(&mut self.bridge, delivery)
+                            })
+                    }
+                },
             };
             if let Some(message) = message {
                 self.dispatch_message_inner(message, &mut outcome);

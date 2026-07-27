@@ -50,7 +50,7 @@ where
         let capabilities = RuntimeHostCapabilities::new()
             .with_input()
             .with_tasks()
-            .with_platform()
+            .with_platform_results()
             .with_queues()
             .with_animation()
             .with_runtime_diagnostics()

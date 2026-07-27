@@ -3,7 +3,7 @@ use crate::{
     application::{IntoView, UiUpdateContext},
     gui::repaint::RepaintSignal,
     runtime::{
-        Command, RuntimeAnimationActivity, RuntimeAnimationHost, RuntimePlatformHost,
+        Command, RuntimeAnimationActivity, RuntimeAnimationHost, RuntimePlatformResultHost,
         RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
     },
 };
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<State, Message, Project, Update, View> RuntimePlatformHost<Message>
+impl<State, Message, Project, Update, View> RuntimePlatformResultHost
     for AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&State) -> View + 'static,
@@ -46,11 +46,11 @@ where
     Message: 'static,
     State: 'static,
 {
-    fn request_platform_service(
+    fn request_platform_result(
         &mut self,
         request: crate::runtime::PlatformRequest,
-        on_completed: crate::runtime::PlatformCompletion<Message>,
-    ) -> Result<(), crate::runtime::PlatformServiceFallback<Message>> {
+        on_completed: crate::runtime::RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
         self.request_app_platform_service(request, on_completed)
     }
 }

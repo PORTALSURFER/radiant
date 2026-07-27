@@ -7,9 +7,10 @@ use crate::{
     },
     runtime::{
         AuxiliaryWindow, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
-        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformServiceFallback,
-        RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities,
-        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
+        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformResultDelivery,
+        PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
+        RuntimeHostCapabilities, RuntimePlatformResultSink, RuntimeRetainedSurfaceCapability,
+        ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -108,6 +109,42 @@ where
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
     ) -> Result<(), PlatformServiceFallback<Message>> {
+        if self.host_capabilities.platform_result.is_some() {
+            let identity = self.platform_registry.register(on_completed);
+            let Some(reservation) =
+                crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                    &self.platform_results,
+                )
+            else {
+                let accepted = self
+                    .platform_results
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .enqueue_overflow(PlatformResultDelivery {
+                        identity,
+                        result: Err(String::from("platform result ingress is saturated")),
+                    });
+                if !accepted {
+                    let _ = self.platform_registry.remove(identity);
+                }
+                return Ok(());
+            };
+            let sink = RuntimePlatformResultSink::new(identity, move |result| {
+                let _ = reservation.commit(PlatformResultDelivery { identity, result });
+            });
+            let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
+                unreachable!("platform-result capability was checked above")
+            };
+            if let Err(fallback) =
+                (capability.request_platform_result)(&mut self.bridge, request, sink)
+            {
+                let (_request, sink) = *fallback;
+                sink.send(Err(String::from(
+                    "platform service request was rejected by the runtime host",
+                )));
+            }
+            return Ok(());
+        }
         let Some(capability) = self.host_capabilities.platform.as_ref() else {
             return Err(Box::new((request, on_completed)));
         };

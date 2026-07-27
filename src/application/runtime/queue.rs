@@ -1,7 +1,7 @@
-use super::platform::PlatformCompletionDelivery;
 use super::subscription::WorkerSubscriptionDelivery;
 use super::timer::TimerWake;
 use crate::gui::repaint::RepaintSignal;
+use crate::runtime::PlatformResultDelivery;
 use crate::runtime::{
     RuntimeDiagnostics, RuntimeQueueDelivery, RuntimeQueueItem, RuntimeTimerWake, TaskPriority,
 };
@@ -21,7 +21,7 @@ enum PendingMessage<Message> {
 
 pub(in crate::application::runtime) enum SharedRuntimeDelivery {
     Worker(WorkerSubscriptionDelivery),
-    Platform(PlatformCompletionDelivery),
+    Platform(PlatformResultDelivery),
     Timer(TimerWake),
 }
 
@@ -114,7 +114,7 @@ impl<Message> AppRuntime<Message> {
     pub(super) fn take_pending_with_mappers(
         &mut self,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
-        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformResultDelivery) -> Option<Message>,
         mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) -> Vec<Message> {
         self.collect_incoming();
@@ -141,7 +141,7 @@ impl<Message> AppRuntime<Message> {
         &mut self,
         pending: &mut Vec<Message>,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
-        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformResultDelivery) -> Option<Message>,
         mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) {
         self.collect_incoming();
@@ -179,7 +179,7 @@ impl<Message> AppRuntime<Message> {
         pending: &mut Vec<Message>,
         max_messages: usize,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
-        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformResultDelivery) -> Option<Message>,
         mut map_timer: impl FnMut(TimerWake) -> Option<Message>,
     ) -> bool {
         self.collect_incoming();
@@ -278,7 +278,7 @@ impl<Message> PendingMessage<Message> {
     fn into_message(
         self,
         map_worker: &mut impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
-        map_platform: &mut impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
+        map_platform: &mut impl FnMut(PlatformResultDelivery) -> Option<Message>,
         map_timer: &mut impl FnMut(TimerWake) -> Option<Message>,
     ) -> Option<Message> {
         match self {

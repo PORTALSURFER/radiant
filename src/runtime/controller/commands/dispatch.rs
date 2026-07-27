@@ -326,15 +326,31 @@ where
             } => {
                 if let Err(fallback) = self.host_request_platform_service(request, on_completed) {
                     let (_request, on_completed) = *fallback;
-                    let message = on_completed(Err(String::from(
-                        "platform service requests are not supported by this runtime bridge",
-                    )));
-                    self.dispatch_message_inner_with_refresh_state(
-                        message,
-                        outcome,
-                        refresh_surface,
-                        deferred_surface_is_fresh,
-                    );
+                    let identity = self.platform_registry.register(on_completed);
+                    if let Some(reservation) =
+                        crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                            &self.platform_results,
+                        )
+                    {
+                        let _ = reservation.commit(crate::runtime::PlatformResultDelivery {
+                            identity,
+                            result: Err(String::from(
+                                "platform service requests are not supported by this runtime bridge",
+                            )),
+                        });
+                    } else {
+                        let accepted = self
+                            .platform_results
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .enqueue_overflow(crate::runtime::PlatformResultDelivery {
+                                identity,
+                                result: Err(String::from("platform result ingress is saturated")),
+                            });
+                        if !accepted {
+                            let _ = self.platform_registry.remove(identity);
+                        }
+                    }
                 }
             }
             Command::EndExternalDrag => {
@@ -350,6 +366,11 @@ where
                 self.worker_effects.shutdown();
                 self.timer_effects.shutdown();
                 self.runtime_work.fence_timer_wakes();
+                self.platform_registry.clear();
+                self.platform_results
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .close();
                 outcome.exit_requested = true;
                 self.exit_requested = true;
             }

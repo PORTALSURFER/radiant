@@ -130,6 +130,19 @@ impl PlatformResponse {
 /// Result returned to platform-service completion callbacks.
 pub type PlatformResult = Result<PlatformResponse, String>;
 
+/// Opaque identity for one UI-owned platform completion mapper.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct PlatformCompletionIdentity {
+    pub(crate) id: u64,
+    pub(crate) epoch: u64,
+}
+
+/// Send-safe platform result delivery awaiting UI-owned mapping.
+pub(crate) struct PlatformResultDelivery {
+    pub(crate) identity: PlatformCompletionIdentity,
+    pub(crate) result: PlatformResult,
+}
+
 /// Ergonomic decoders for platform-service callback results.
 pub trait PlatformResultExt {
     /// Consume a completion-style response, propagating platform errors.
@@ -338,6 +351,44 @@ pub enum ConfirmationResponse {
 
 /// Callback mapped into a host message when a platform service completes.
 pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message + 'static>;
+
+/// Result-only completion sink for custom platform hosts.
+///
+/// The sink carries no application message or mapper. The runtime invokes its
+/// callback only to enqueue a [`PlatformResult`] for a later UI turn.
+pub struct RuntimePlatformResultSink {
+    identity: PlatformCompletionIdentity,
+    callback: Option<Box<dyn FnOnce(PlatformResult) + Send + 'static>>,
+}
+
+impl RuntimePlatformResultSink {
+    pub(crate) fn new(
+        identity: PlatformCompletionIdentity,
+        callback: impl FnOnce(PlatformResult) + Send + 'static,
+    ) -> Self {
+        Self {
+            identity,
+            callback: Some(Box::new(callback)),
+        }
+    }
+
+    /// Deliver one result to the runtime's deferred ingress.
+    pub fn send(mut self, result: PlatformResult) {
+        if let Some(callback) = self.callback.take() {
+            callback(result);
+        }
+    }
+
+    pub(crate) fn into_delivery(self, result: PlatformResult) -> PlatformResultDelivery {
+        PlatformResultDelivery {
+            identity: self.identity,
+            result,
+        }
+    }
+}
+
+/// Boxed fallback returned when a result-only host declines a request.
+pub type PlatformResultServiceFallback = Box<(PlatformRequest, RuntimePlatformResultSink)>;
 
 /// Boxed fallback returned when a bridge declines a platform service request.
 pub type PlatformServiceFallback<Message> = Box<(PlatformRequest, PlatformCompletion<Message>)>;

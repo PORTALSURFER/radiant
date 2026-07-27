@@ -70,6 +70,7 @@ pub use crate::gui_runtime::{
     run_native_vello_runtime_with_artifacts,
 };
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
+#[allow(deprecated)]
 pub use bridge::{
     App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,
     DeclarativeCommandRuntimeBridgeParts, DeclarativeOwnedCommandRuntimeBridge,
@@ -77,9 +78,9 @@ pub use bridge::{
     DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
     RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeAnimationHost, RuntimeBridge,
     RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeInputHost,
-    RuntimeLifecycleHost, RuntimePlatformHost, RuntimeQueueDelivery, RuntimeQueueHost,
-    RuntimeQueueItem, RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner,
-    RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
+    RuntimeLifecycleHost, RuntimePlatformHost, RuntimePlatformResultHost, RuntimeQueueDelivery,
+    RuntimeQueueHost, RuntimeQueueItem, RuntimeRetainedSurfaceHost, RuntimeTaskHost,
+    RuntimeTimerOwner, RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
     declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
@@ -154,8 +155,10 @@ pub(crate) use paint::{
 pub use platform::{
     ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
     ConfirmationResponse, FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest,
-    PlatformResponse, PlatformResult, PlatformResultExt, PlatformServiceFallback,
+    PlatformResponse, PlatformResult, PlatformResultExt, PlatformResultServiceFallback,
+    PlatformServiceFallback, RuntimePlatformResultSink,
 };
+pub(crate) use platform::{PlatformCompletionIdentity, PlatformResultDelivery};
 pub use resource::{
     ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,
     ResourceRequest, ResourceSlot,

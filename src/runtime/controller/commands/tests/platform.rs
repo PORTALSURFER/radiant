@@ -2,7 +2,46 @@ use super::{
     super::*,
     fixtures::{PlatformCommandBridge, QueuedCommandBridge},
 };
-use crate::runtime::{FileDialogRequest, PlatformRequest, PlatformResponse};
+use crate::layout::ContainerPolicy;
+use crate::runtime::{
+    FileDialogRequest, PlatformRequest, PlatformResponse, RuntimeBridge, RuntimeHostCapabilities,
+    RuntimePlatformResultHost, RuntimePlatformResultSink, SurfaceNode,
+};
+use std::sync::Arc;
+
+#[derive(Default)]
+struct SynchronousResultBridge {
+    dispatched: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for SynchronousResultBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.dispatched.push(message);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for SynchronousResultBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        sink.send(Ok(PlatformResponse::Completed));
+        Ok(())
+    }
+}
 use std::path::PathBuf;
 
 #[test]
@@ -106,6 +145,28 @@ fn unsupported_platform_request_reports_error_message() {
         usize::from(result.is_err())
     }));
 
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert!(runtime.bridge().dispatched.is_empty());
+
+    let outcome = runtime.drain_runtime_messages();
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
+fn synchronous_result_host_completion_is_deferred_to_next_drain() {
+    let mut runtime = SurfaceRuntime::new(
+        SynchronousResultBridge::default(),
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    let outcome = runtime.execute_command(crate::runtime::Command::platform_request(
+        PlatformRequest::OpenUrl(String::from("https://example.invalid")),
+        |result| usize::from(result.is_ok()),
+    ));
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert!(runtime.bridge().dispatched.is_empty());
+
+    let outcome = runtime.drain_runtime_messages();
     assert_eq!(outcome.messages_dispatched, 1);
     assert_eq!(runtime.bridge().dispatched, vec![1]);
 }

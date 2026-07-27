@@ -67,11 +67,10 @@ where
 
     pub(super) fn take_runtime_message_queue(&mut self) -> Vec<Message> {
         let worker_registry = &mut self.worker_registry;
-        let platform_registry = &mut self.platform_registry;
         let timer_registry = &mut self.timer_registry;
         self.runtime.take_pending_with_mappers(
             |delivery| worker_registry.map_delivery(delivery),
-            |delivery| platform_registry.map_delivery(delivery),
+            |_| None,
             |wake| timer_registry.map_wake(wake),
         )
     }
@@ -93,9 +92,7 @@ where
         };
         match delivery {
             SharedRuntimeDelivery::Worker(delivery) => self.worker_registry.map_delivery(delivery),
-            SharedRuntimeDelivery::Platform(delivery) => {
-                self.platform_registry.map_delivery(delivery)
-            }
+            SharedRuntimeDelivery::Platform(_) => None,
             SharedRuntimeDelivery::Timer(wake) => self.timer_registry.map_wake(wake),
         }
     }
@@ -109,12 +106,11 @@ where
 
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {
         let worker_registry = &mut self.worker_registry;
-        let platform_registry = &mut self.platform_registry;
         let timer_registry = &mut self.timer_registry;
         self.runtime.drain_pending_into_with_mappers(
             messages,
             |delivery| worker_registry.map_delivery(delivery),
-            |delivery| platform_registry.map_delivery(delivery),
+            |_| None,
             |wake| timer_registry.map_wake(wake),
         );
     }
@@ -125,13 +121,12 @@ where
         max_messages: usize,
     ) -> bool {
         let worker_registry = &mut self.worker_registry;
-        let platform_registry = &mut self.platform_registry;
         let timer_registry = &mut self.timer_registry;
         self.runtime.drain_pending_batch_into_with_mappers(
             messages,
             max_messages,
             |delivery| worker_registry.map_delivery(delivery),
-            |delivery| platform_registry.map_delivery(delivery),
+            |_| None,
             |wake| timer_registry.map_wake(wake),
         )
     }

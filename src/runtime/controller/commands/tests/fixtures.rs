@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::layout::{Constraints, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams};
+#[allow(deprecated)]
 use crate::runtime::{
     PlatformCompletion, PlatformRequest, PlatformResponse, PlatformServiceFallback,
     RuntimeHostCapabilities, RuntimeInputHost, RuntimePlatformHost, RuntimeQueueHost, SurfaceChild,
@@ -62,6 +63,7 @@ impl RuntimeBridge<usize> for PlatformCommandBridge {
     }
 }
 
+#[allow(deprecated)]
 impl RuntimePlatformHost<usize> for PlatformCommandBridge {
     fn request_platform_service(
         &mut self,

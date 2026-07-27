@@ -1,4 +1,3 @@
-use super::PlatformCompletionRegistry;
 use super::subscription::{WorkerSubscriptionRegistry, spawn_subscription_with_registry};
 use super::timer::TimerRegistry;
 use super::{
@@ -26,7 +25,6 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) commands: Vec<Command<Message>>,
     pub(in crate::application) timer_registry: TimerRegistry<Message>,
     pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
-    pub(in crate::application) platform_registry: PlatformCompletionRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
@@ -215,7 +213,6 @@ where
             commands: Vec::new(),
             timer_registry: TimerRegistry::default(),
             worker_registry: WorkerSubscriptionRegistry::default(),
-            platform_registry: PlatformCompletionRegistry::default(),
             lifecycle,
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,

@@ -337,7 +337,7 @@ pub enum ConfirmationResponse {
 }
 
 /// Callback mapped into a host message when a platform service completes.
-pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message + Send + 'static>;
+pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message + 'static>;
 
 /// Boxed fallback returned when a bridge declines a platform service request.
 pub type PlatformServiceFallback<Message> = Box<(PlatformRequest, PlatformCompletion<Message>)>;

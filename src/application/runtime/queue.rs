@@ -1,9 +1,10 @@
+use super::platform::PlatformCompletionDelivery;
 use super::subscription::WorkerSubscriptionDelivery;
 use super::timer::TimerWake;
 use crate::gui::repaint::RepaintSignal;
 use crate::runtime::{RuntimeDiagnostics, RuntimeTimerWake, TaskPriority};
-use std::sync::{Arc, Weak, mpsc};
 use std::time::Duration;
+use std::{marker::PhantomData, sync::Arc};
 
 mod shared;
 
@@ -11,8 +12,14 @@ use shared::Sequenced;
 pub(in crate::application) use shared::SharedRuntimeIngress;
 
 enum PendingMessage<Message> {
+    #[cfg(test)]
     Ordinary(Message),
+    Shared(SharedRuntimeDelivery, PhantomData<fn() -> Message>),
+}
+
+pub(in crate::application::runtime) enum SharedRuntimeDelivery {
     Worker(WorkerSubscriptionDelivery),
+    Platform(PlatformCompletionDelivery),
 }
 
 /// UI-owned application runtime state.
@@ -23,19 +30,14 @@ pub(in crate::application) struct AppRuntime<Message> {
     shared: Arc<SharedRuntimeIngress>,
     pending: Vec<Sequenced<PendingMessage<Message>>>,
     pending_frame: Option<Message>,
-    platform_sender: mpsc::Sender<Sequenced<Message>>,
-    platform_receiver: mpsc::Receiver<Sequenced<Message>>,
 }
 
 impl<Message> Default for AppRuntime<Message> {
     fn default() -> Self {
-        let (platform_sender, platform_receiver) = mpsc::channel();
         Self {
             shared: Arc::new(SharedRuntimeIngress::default()),
             pending: Vec::new(),
             pending_frame: None,
-            platform_sender,
-            platform_receiver,
         }
     }
 }
@@ -56,13 +58,6 @@ impl<Message> AppRuntime<Message> {
         });
         self.shared.request_repaint();
         true
-    }
-
-    pub(super) fn cross_thread_message_sink(&self) -> CrossThreadMessageSink<Message> {
-        CrossThreadMessageSink {
-            runtime: Arc::downgrade(&self.shared),
-            sender: self.platform_sender.clone(),
-        }
     }
 
     pub(super) fn enqueue_frame(&mut self, message: Message) -> bool {
@@ -110,19 +105,24 @@ impl<Message> AppRuntime<Message> {
 
     #[cfg(test)]
     pub(super) fn take_pending(&mut self) -> Vec<Message> {
-        self.take_pending_with_worker_mapper(|_| None)
+        self.take_pending_with_mappers(|_| None, |_| None)
     }
 
-    pub(super) fn take_pending_with_worker_mapper(
+    pub(super) fn take_pending_with_mappers(
         &mut self,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
     ) -> Vec<Message> {
         self.collect_incoming();
         let frame = self.pending_frame.take();
         let drained = self.pending.len() + usize::from(frame.is_some());
         let pending = drain_runtime_vec(&mut self.pending)
             .into_iter()
-            .filter_map(|message| message.value.into_message(&mut map_worker))
+            .filter_map(|message| {
+                message
+                    .value
+                    .into_message(&mut map_worker, &mut map_platform)
+            })
             .collect();
         self.shared.record_messages_drained(drained);
         prepend_pending_frame(frame, pending)
@@ -130,13 +130,14 @@ impl<Message> AppRuntime<Message> {
 
     #[cfg(test)]
     pub(super) fn drain_pending_into(&mut self, pending: &mut Vec<Message>) {
-        self.drain_pending_into_with_worker_mapper(pending, |_| None);
+        self.drain_pending_into_with_mappers(pending, |_| None, |_| None);
     }
 
-    pub(super) fn drain_pending_into_with_worker_mapper(
+    pub(super) fn drain_pending_into_with_mappers(
         &mut self,
         pending: &mut Vec<Message>,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
     ) {
         self.collect_incoming();
         let mut drained = 0;
@@ -145,11 +146,11 @@ impl<Message> AppRuntime<Message> {
             drained += 1;
         }
         drained += self.pending.len();
-        pending.extend(
-            self.pending
-                .drain(..)
-                .filter_map(|message| message.value.into_message(&mut map_worker)),
-        );
+        pending.extend(self.pending.drain(..).filter_map(|message| {
+            message
+                .value
+                .into_message(&mut map_worker, &mut map_platform)
+        }));
         self.shared.record_messages_drained(drained);
     }
 
@@ -159,14 +160,15 @@ impl<Message> AppRuntime<Message> {
         pending: &mut Vec<Message>,
         max_messages: usize,
     ) -> bool {
-        self.drain_pending_batch_into_with_worker_mapper(pending, max_messages, |_| None)
+        self.drain_pending_batch_into_with_mappers(pending, max_messages, |_| None, |_| None)
     }
 
-    pub(super) fn drain_pending_batch_into_with_worker_mapper(
+    pub(super) fn drain_pending_batch_into_with_mappers(
         &mut self,
         pending: &mut Vec<Message>,
         max_messages: usize,
         mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
     ) -> bool {
         self.collect_incoming();
         let max_messages = max_messages.max(1);
@@ -178,11 +180,11 @@ impl<Message> AppRuntime<Message> {
         let available = max_messages.saturating_sub(pending.len());
         if available > 0 {
             let drain_count = self.pending.len().min(available);
-            pending.extend(
-                self.pending
-                    .drain(..drain_count)
-                    .filter_map(|message| message.value.into_message(&mut map_worker)),
-            );
+            pending.extend(self.pending.drain(..drain_count).filter_map(|message| {
+                message
+                    .value
+                    .into_message(&mut map_worker, &mut map_platform)
+            }));
             drained += drain_count;
         }
         self.shared.record_messages_drained(drained);
@@ -201,7 +203,6 @@ impl<Message> AppRuntime<Message> {
         self.shared.shutdown();
         self.pending_frame = None;
         self.pending.clear();
-        while self.platform_receiver.try_recv().is_ok() {}
     }
 
     pub(super) fn is_alive(&self) -> bool {
@@ -217,34 +218,16 @@ impl<Message> AppRuntime<Message> {
     }
 
     fn collect_incoming(&mut self) {
-        let (workers, platform) = self
-            .shared
-            .drain_incoming(|| self.platform_receiver.try_iter().collect::<Vec<_>>());
-        self.pending
-            .extend(workers.into_iter().map(|delivery| Sequenced {
-                sequence: delivery.sequence,
-                value: PendingMessage::Worker(delivery.value),
-            }));
-        self.pending
-            .extend(platform.into_iter().map(|message| Sequenced {
-                sequence: message.sequence,
-                value: PendingMessage::Ordinary(message.value),
-            }));
+        self.pending.extend(
+            self.shared
+                .drain_incoming()
+                .into_iter()
+                .map(|delivery| Sequenced {
+                    sequence: delivery.sequence,
+                    value: PendingMessage::Shared(delivery.value, PhantomData),
+                }),
+        );
         self.pending.sort_by_key(|message| message.sequence);
-    }
-}
-
-pub(super) struct CrossThreadMessageSink<Message> {
-    runtime: Weak<SharedRuntimeIngress>,
-    sender: mpsc::Sender<Sequenced<Message>>,
-}
-
-impl<Message> CrossThreadMessageSink<Message> {
-    pub(super) fn emit(&self, message: Message) -> bool {
-        let Some(runtime) = self.runtime.upgrade() else {
-            return false;
-        };
-        runtime.enqueue_external_message(message, |message| self.sender.send(message).is_ok())
     }
 }
 
@@ -252,10 +235,13 @@ impl<Message> PendingMessage<Message> {
     fn into_message(
         self,
         map_worker: &mut impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
+        map_platform: &mut impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
     ) -> Option<Message> {
         match self {
+            #[cfg(test)]
             Self::Ordinary(message) => Some(message),
-            Self::Worker(delivery) => map_worker(delivery),
+            Self::Shared(SharedRuntimeDelivery::Worker(delivery), _) => map_worker(delivery),
+            Self::Shared(SharedRuntimeDelivery::Platform(delivery), _) => map_platform(delivery),
         }
     }
 }

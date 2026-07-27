@@ -259,7 +259,7 @@ impl<Message> Command<Message> {
     /// Build a command that arms a native external drag session.
     pub fn begin_external_drag(
         request: ExternalDragRequest,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         Self::BeginExternalDrag {
             request,
@@ -272,7 +272,7 @@ impl<Message> Command<Message> {
     pub fn begin_drag_with_external(
         drag: DragRequest,
         external: ExternalDragRequest,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         Self::batch([
             Self::begin_drag(drag),
@@ -288,7 +288,7 @@ impl<Message> Command<Message> {
     pub fn begin_drag_session(
         drag: Option<DragRequest>,
         external: Option<ExternalDragRequest>,
-        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + 'static,
     ) -> Self {
         match (drag, external) {
             (Some(drag), Some(external)) => {
@@ -321,7 +321,7 @@ impl<Message> Command<Message> {
     /// Build a command that requests a platform service.
     pub fn platform_request(
         request: PlatformRequest,
-        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
     ) -> Self {
         Self::PlatformRequest {
             request,

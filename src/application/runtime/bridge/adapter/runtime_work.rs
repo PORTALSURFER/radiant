@@ -67,8 +67,11 @@ where
 
     pub(super) fn take_runtime_message_queue(&mut self) -> Vec<Message> {
         let worker_registry = &mut self.worker_registry;
-        self.runtime
-            .take_pending_with_worker_mapper(|delivery| worker_registry.map_delivery(delivery))
+        let platform_registry = &mut self.platform_registry;
+        self.runtime.take_pending_with_mappers(
+            |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+        )
     }
 
     pub(super) fn take_runtime_timer_wake_queue(
@@ -86,10 +89,12 @@ where
 
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {
         let worker_registry = &mut self.worker_registry;
-        self.runtime
-            .drain_pending_into_with_worker_mapper(messages, |delivery| {
-                worker_registry.map_delivery(delivery)
-            });
+        let platform_registry = &mut self.platform_registry;
+        self.runtime.drain_pending_into_with_mappers(
+            messages,
+            |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
+        );
     }
 
     pub(super) fn drain_runtime_message_queue_batch_into(
@@ -98,10 +103,12 @@ where
         max_messages: usize,
     ) -> bool {
         let worker_registry = &mut self.worker_registry;
-        self.runtime.drain_pending_batch_into_with_worker_mapper(
+        let platform_registry = &mut self.platform_registry;
+        self.runtime.drain_pending_batch_into_with_mappers(
             messages,
             max_messages,
             |delivery| worker_registry.map_delivery(delivery),
+            |delivery| platform_registry.map_delivery(delivery),
         )
     }
 }

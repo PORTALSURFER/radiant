@@ -2,6 +2,9 @@ use super::*;
 use crate::application::runtime::subscription::{
     WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
 };
+use crate::application::runtime::{
+    PlatformCompletionDelivery, platform::PlatformCompletionIdentity,
+};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -62,7 +65,7 @@ fn shared_ingress_is_send_and_sync_without_the_message_type() {
 fn sequenced_sources_preserve_fifo_order() {
     let mut runtime = AppRuntime::<u32>::default();
     let identity = WorkerSubscriptionIdentity { id: 1, epoch: 1 };
-    let platform = runtime.cross_thread_message_sink();
+    let platform = PlatformCompletionIdentity { id: 1, epoch: 1 };
 
     assert!(runtime.enqueue(1));
     assert!(
@@ -70,15 +73,25 @@ fn sequenced_sources_preserve_fifo_order() {
             .shared()
             .enqueue_worker_payload(identity, Box::new(2_u32))
     );
-    assert!(platform.emit(3));
+    assert!(
+        runtime
+            .shared()
+            .enqueue_platform_completion(PlatformCompletionDelivery {
+                identity: platform,
+                result: Ok(crate::runtime::PlatformResponse::Completed),
+            })
+    );
     assert!(runtime.enqueue(4));
 
-    let mapped = runtime.take_pending_with_worker_mapper(|delivery| match delivery {
-        WorkerSubscriptionDelivery::Payload { payload, .. } => {
-            Some(*payload.downcast::<u32>().expect("u32 payload"))
-        }
-        WorkerSubscriptionDelivery::Disconnected { .. } => None,
-    });
+    let mapped = runtime.take_pending_with_mappers(
+        |delivery| match delivery {
+            WorkerSubscriptionDelivery::Payload { payload, .. } => {
+                Some(*payload.downcast::<u32>().expect("u32 payload"))
+            }
+            WorkerSubscriptionDelivery::Disconnected { .. } => None,
+        },
+        |_| Some(3),
+    );
     assert_eq!(mapped, vec![1, 2, 3, 4]);
 }
 
@@ -95,18 +108,20 @@ fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
     }
 
     let mut normal = Vec::new();
-    assert!(runtime.drain_pending_batch_into_with_worker_mapper(
+    assert!(runtime.drain_pending_batch_into_with_mappers(
         &mut normal,
         64,
         map_u32_worker_delivery,
+        |_| None,
     ));
     assert_eq!(normal.len(), 64);
 
     let mut interactive = Vec::new();
-    assert!(!runtime.drain_pending_batch_into_with_worker_mapper(
+    assert!(!runtime.drain_pending_batch_into_with_mappers(
         &mut interactive,
         8,
         map_u32_worker_delivery,
+        |_| None,
     ));
     assert_eq!(interactive, vec![64]);
 }

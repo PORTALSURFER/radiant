@@ -599,6 +599,29 @@ fn ui_update_context_exposes_platform_service_helpers() {
 }
 
 #[test]
+fn platform_helpers_accept_ui_local_completion_capture_and_message() {
+    #[derive(Clone)]
+    struct UiOnlyMessage(std::rc::Rc<std::cell::RefCell<usize>>);
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let captured = std::rc::Rc::clone(&state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    context.read_text(move |_| {
+        *captured.borrow_mut() += 1;
+        UiOnlyMessage(std::rc::Rc::clone(&captured))
+    });
+
+    let command = context.into_command();
+    let radiant::runtime::Command::PlatformRequest { on_completed, .. } = command else {
+        panic!("read_text should queue a platform request");
+    };
+    let message = on_completed(Ok(radiant::runtime::PlatformResponse::Text(String::new())));
+
+    assert!(std::rc::Rc::ptr_eq(&message.0, &state));
+    assert_eq!(*state.borrow(), 1);
+}
+
+#[test]
 fn platform_response_helpers_cover_common_request_outcomes() {
     let path = std::path::PathBuf::from(r"C:\samples\kick.wav");
     let response = radiant::runtime::PlatformResponse::Path(path.clone());

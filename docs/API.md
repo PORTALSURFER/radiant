@@ -1233,6 +1233,12 @@ Custom bridges handle those requests via
 platform service return an explicit unsupported error through the normal
 completion callback instead of blocking the UI thread or forcing app code to
 depend on a native dialog or clipboard crate.
+Platform and external-drag completion callbacks are UI-owned and may capture
+`Rc`, `RefCell`, or other local state. The app runtime assigns each platform
+request an opaque identity, sends only the request and `PlatformResult` across
+the worker boundary, and invokes the one-shot completion mapper while draining
+the UI queue. Late, duplicate, or post-shutdown completions are rejected before
+message reduction.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can

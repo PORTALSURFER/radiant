@@ -1,6 +1,6 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UiUpdateContext},
+    application::{IntoView, UiUpdateContext, runtime::PlatformCompletionDelivery},
     runtime::{
         ConfirmationButtons, ConfirmationLevel, ConfirmationResponse, FileDialogRequest,
         PlatformCompletion, PlatformRequest, PlatformResponse, PlatformResult,
@@ -27,18 +27,33 @@ where
         {
             return Err(Box::new((request, on_completed)));
         }
-        let sink = self.runtime.cross_thread_message_sink();
-        self.runtime
-            .spawn_business_task_with_payload(
-                "radiant-platform-service",
-                TaskPriority::Interactive,
-                (request, on_completed),
-                move |(request, on_completed)| {
-                    let response = perform_platform_request(request);
-                    let _ = sink.emit(on_completed(response));
-                },
-            )
-            .map_err(Box::new)
+        let identity = self.platform_registry.register(on_completed);
+        let runtime = std::sync::Arc::downgrade(self.runtime.shared());
+        match self.runtime.spawn_business_task_with_payload(
+            "radiant-platform-service",
+            TaskPriority::Interactive,
+            (request, identity),
+            move |(request, identity)| {
+                let response = perform_platform_request(request);
+                if let Some(runtime) = runtime.upgrade() {
+                    let _ = runtime.enqueue_platform_completion(PlatformCompletionDelivery {
+                        identity,
+                        result: response,
+                    });
+                }
+            },
+        ) {
+            Ok(()) => Ok(()),
+            Err((request, identity)) => {
+                let Some(on_completed) = self.platform_registry.remove(identity) else {
+                    tracing::error!(
+                        "Radiant app runtime lost a platform completion during spawn rejection"
+                    );
+                    return Ok(());
+                };
+                Err(Box::new((request, on_completed)))
+            }
+        }
     }
 }
 

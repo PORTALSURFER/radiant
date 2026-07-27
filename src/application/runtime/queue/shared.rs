@@ -1,6 +1,8 @@
 use super::super::subscription::{WorkerSubscriptionDelivery, WorkerSubscriptionIdentity};
 use super::super::threading::BusinessThreadPool;
 use super::super::timer::{TimerIdentity, TimerLane, TimerSink, TimerWake, timer_sink};
+use super::SharedRuntimeDelivery;
+use crate::application::runtime::platform::PlatformCompletionDelivery;
 use crate::gui::repaint::RepaintSignal;
 use crate::runtime::{
     RuntimeDiagnostics, RuntimeDiagnosticsRecorder, RuntimeTimerWake, TaskPriority,
@@ -20,7 +22,7 @@ pub(super) struct Sequenced<T> {
 #[derive(Default)]
 struct RuntimeAdmission {
     next_sequence: u64,
-    workers: Vec<Sequenced<WorkerSubscriptionDelivery>>,
+    deliveries: Vec<Sequenced<SharedRuntimeDelivery>>,
 }
 
 pub(in crate::application) struct SharedRuntimeIngress {
@@ -43,7 +45,7 @@ impl Default for SharedRuntimeIngress {
         Self {
             admission: Mutex::new(RuntimeAdmission {
                 next_sequence: 1,
-                workers: Vec::new(),
+                deliveries: Vec::new(),
             }),
             repaint: Mutex::new(None),
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
@@ -69,25 +71,6 @@ impl SharedRuntimeIngress {
         let sequence = next_sequence(&mut admission);
         self.record_message_added();
         Some(sequence)
-    }
-
-    pub(super) fn enqueue_external_message<T>(
-        &self,
-        value: T,
-        send: impl FnOnce(Sequenced<T>) -> bool,
-    ) -> bool {
-        let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive() {
-            return false;
-        }
-        let sequence = next_sequence(&mut admission);
-        if !send(Sequenced { sequence, value }) {
-            return false;
-        }
-        self.record_message_added();
-        drop(admission);
-        self.request_repaint();
-        true
     }
 
     pub(in crate::application::runtime) fn enqueue_worker_payload(
@@ -124,9 +107,9 @@ impl SharedRuntimeIngress {
             return false;
         }
         let sequence = next_sequence(&mut admission);
-        admission.workers.push(Sequenced {
+        admission.deliveries.push(Sequenced {
             sequence,
-            value: delivery,
+            value: SharedRuntimeDelivery::Worker(delivery),
         });
         self.record_message_added();
         drop(admission);
@@ -144,17 +127,28 @@ impl SharedRuntimeIngress {
         )
     }
 
-    pub(super) fn drain_incoming<T>(
+    pub(in crate::application::runtime) fn enqueue_platform_completion(
         &self,
-        drain_external: impl FnOnce() -> Vec<Sequenced<T>>,
-    ) -> (
-        Vec<Sequenced<WorkerSubscriptionDelivery>>,
-        Vec<Sequenced<T>>,
-    ) {
+        delivery: PlatformCompletionDelivery,
+    ) -> bool {
         let mut admission = lock_runtime_state(&self.admission);
-        let workers = drain_runtime_vec(&mut admission.workers);
-        let external = drain_external();
-        (workers, external)
+        if !self.is_alive() {
+            return false;
+        }
+        let sequence = next_sequence(&mut admission);
+        admission.deliveries.push(Sequenced {
+            sequence,
+            value: SharedRuntimeDelivery::Platform(delivery),
+        });
+        self.record_message_added();
+        drop(admission);
+        self.request_repaint();
+        true
+    }
+
+    pub(super) fn drain_incoming(&self) -> Vec<Sequenced<SharedRuntimeDelivery>> {
+        let mut admission = lock_runtime_state(&self.admission);
+        drain_runtime_vec(&mut admission.deliveries)
     }
 
     pub(super) fn record_frame_added(&self) {
@@ -235,7 +229,7 @@ impl SharedRuntimeIngress {
     pub(in crate::application::runtime) fn shutdown(&self) {
         let mut admission = lock_runtime_state(&self.admission);
         self.alive.store(false, Ordering::Release);
-        admission.workers.clear();
+        admission.deliveries.clear();
         self.pending_messages.store(0, Ordering::Release);
         self.diagnostics.record_message_queue_depth(0, 0);
         drop(admission);

@@ -148,7 +148,7 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
         delivered.extend(
-            runtime.take_pending_with_worker_mapper(|delivery| workers.map_delivery(delivery)),
+            runtime.take_pending_with_mappers(|delivery| workers.map_delivery(delivery), |_| None),
         );
         if !delivered.is_empty() && Rc::strong_count(&marker) == 1 {
             break;

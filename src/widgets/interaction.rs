@@ -13,7 +13,7 @@ pub use cursor::WidgetCursor;
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandlePhase,
-    GpuSurfaceMessage, InteractiveRowMessage, ListItemMessage, PointerShieldMessage,
+    GpuSurfaceMessage, InteractiveRowMessage, KnobMessage, ListItemMessage, PointerShieldMessage,
     RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage,
     TextInputMessageKind, TextInputMessageParts, ToggleMessage,
 };

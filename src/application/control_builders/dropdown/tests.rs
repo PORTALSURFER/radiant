@@ -1,6 +1,7 @@
 use super::*;
 use crate::application::{IntoView, labeled_control_control_offset};
 use crate::gui::layout_core::StackedLayoutCursor;
+use crate::gui::svg::IconName;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Message {
@@ -64,6 +65,14 @@ fn dropdown_trigger_builds_external_overlay_toggle() {
 
     assert_eq!(parts.selected_label, "WASAPI");
     assert!(parts.open);
+}
+
+#[test]
+fn dropdown_trigger_chevron_uses_catalog_svg_without_text_glyph() {
+    let svg = IconName::ChevronDown.svg();
+    assert!(svg.contains("<path"));
+    assert!(!svg.contains(">v<"));
+    assert!(!svg.contains("chevron"));
 }
 
 #[test]

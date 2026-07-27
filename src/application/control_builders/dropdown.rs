@@ -1,5 +1,6 @@
 use crate::{
     application::{TextContent, ViewNode, button, stack},
+    gui::svg::IconName,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -254,7 +255,7 @@ pub fn dropdown_trigger_from_parts<Message>(
 where
     Message: Clone + 'static,
 {
-    let mut trigger = button(parts.selected_label).trailing_label("v");
+    let mut trigger = button(parts.selected_label).trailing_icon(IconName::ChevronDown.icon());
     if parts.open {
         trigger = trigger.style(WidgetStyle::new(
             WidgetTone::Accent,

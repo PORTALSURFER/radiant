@@ -6,7 +6,7 @@ use crate::{
     widgets::{WidgetProminence, WidgetState, WidgetStyle, WidgetTone},
 };
 
-use super::WidgetVisualTokens;
+use super::{WidgetVisualCue, WidgetVisualTokens};
 
 /// Resolve generic widget colors from the core theme surface.
 ///
@@ -17,7 +17,13 @@ pub fn resolve_widget_visual_tokens(
     style: WidgetStyle,
     state: WidgetState,
 ) -> WidgetVisualTokens {
-    let emphasis = tone_color(theme, style.tone);
+    let emphasis = if state.automation_active && !state.disabled {
+        // Automation gets its own warm token so it cannot be confused with
+        // the normal active/selected accent.
+        theme.accent_copper
+    } else {
+        tone_color(theme, style.tone)
+    };
     let base_fill = if state.disabled {
         theme.control_disabled_fill
     } else if matches!(style.prominence, WidgetProminence::Strong)
@@ -91,6 +97,27 @@ pub fn resolve_widget_visual_tokens(
         foreground,
         border,
         emphasis,
+        cue: visual_cue(state),
+    }
+}
+
+fn visual_cue(state: WidgetState) -> WidgetVisualCue {
+    if state.disabled {
+        WidgetVisualCue::Disabled
+    } else if state.pressed {
+        WidgetVisualCue::Pressed
+    } else if state.focused {
+        WidgetVisualCue::Focused
+    } else if state.automation_active {
+        WidgetVisualCue::AutomationActive
+    } else if state.selected {
+        WidgetVisualCue::Selected
+    } else if state.active {
+        WidgetVisualCue::Active
+    } else if state.hovered {
+        WidgetVisualCue::Hovered
+    } else {
+        WidgetVisualCue::None
     }
 }
 

@@ -13,6 +13,16 @@ pub struct SvgIcon {
     document: Option<PaintSvgDocument>,
 }
 
+impl PartialEq for SvgIcon {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.document, &other.document) {
+            (None, None) => true,
+            (Some(left), Some(right)) => left.same_identity(right),
+            _ => false,
+        }
+    }
+}
+
 impl SvgIcon {
     /// Construct an icon that emits no SVG paint primitives.
     pub fn empty() -> Self {
@@ -222,6 +232,12 @@ mod tests {
             panic!("second icon should paint svg");
         };
         assert_eq!(first_svg.document, second_svg.document);
+    }
+
+    #[test]
+    fn cloned_retained_icon_compares_equal() {
+        let icon = SvgIcon::from_svg(TEST_ICON).expect("valid icon");
+        assert_eq!(icon.clone(), icon);
     }
 
     #[test]

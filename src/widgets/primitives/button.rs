@@ -5,6 +5,7 @@ mod input;
 mod model;
 mod paint;
 
+use crate::gui::svg::SvgIcon;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
@@ -28,6 +29,8 @@ pub struct ButtonWidget {
     pub props: ButtonProps,
     /// Mutable interaction state owned by the button.
     pub state: ButtonState,
+    /// Optional retained SVG painted at the trailing edge of the button.
+    pub trailing_icon: Option<SvgIcon>,
 }
 
 /// Named construction fields for a [`ButtonWidget`].
@@ -57,6 +60,7 @@ impl ButtonWidget {
                 hover_chrome_only: false,
             },
             state: ButtonState::default(),
+            trailing_icon: None,
         }
     }
 
@@ -90,6 +94,12 @@ impl ButtonWidget {
     /// Add passive trailing text while preserving the main label storage.
     pub fn with_trailing_label(mut self, label: impl Into<PaintText>) -> Self {
         self.props.trailing_label = Some(label.into());
+        self
+    }
+
+    /// Add a retained SVG icon at the trailing edge without using a text glyph.
+    pub fn with_trailing_icon(mut self, icon: SvgIcon) -> Self {
+        self.trailing_icon = Some(icon);
         self
     }
 

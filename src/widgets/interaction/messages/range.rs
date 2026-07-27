@@ -17,3 +17,28 @@ pub enum SliderMessage {
         value: f32,
     },
 }
+
+/// Explicit host-automation lifecycle emitted by a radial knob.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnobMessage {
+    /// Pointer or keyboard gesture began at the current normalized value.
+    GestureStarted {
+        /// Value at gesture start.
+        value: f32,
+    },
+    /// The normalized value changed during an active gesture.
+    ValueChanged {
+        /// Latest normalized value.
+        value: f32,
+    },
+    /// Pointer or keyboard gesture ended at the current normalized value.
+    GestureEnded {
+        /// Value at gesture end.
+        value: f32,
+    },
+    /// The control returned to its configured default value.
+    Reset {
+        /// Default normalized value restored by the reset gesture.
+        value: f32,
+    },
+}

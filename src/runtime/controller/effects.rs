@@ -1445,6 +1445,260 @@ mod tests {
         assert_eq!(runtime.worker_effects.drain(), vec![2]);
     }
 
+    #[test]
+    fn keyed_latest_worker_acceptance_fences_stale_event_and_final() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut keyed = crate::application::KeyedLatestTasks::new();
+        let (first_ticket, first, effect_id) = keyed.begin_replacement(7_u32);
+        let first_generation = first.generation();
+        let first_command =
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction(
+                EffectId(effect_id),
+                "keyed-first",
+                crate::runtime::TaskPriority::Background,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: first_generation,
+                    latest: false,
+                },
+                Some(first),
+                |_sink| 1_u8,
+                |_: u8| 10_usize,
+                |_: u8| 11_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+
+        let (second_ticket, second, second_effect_id) = keyed.begin_replacement(7_u32);
+        assert_eq!(effect_id, second_effect_id);
+        assert_ne!(first_ticket, second_ticket);
+        let second_generation = second.generation();
+        let second_command =
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction(
+                EffectId(second_effect_id),
+                "keyed-second",
+                crate::runtime::TaskPriority::Background,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: second_generation,
+                    latest: false,
+                },
+                Some(second),
+                |_sink| 2_u8,
+                |_: u8| 20_usize,
+                |_: u8| 21_usize,
+            );
+        let _ = runtime.execute_command(second_command);
+
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(first_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Event(Box::new(1_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(first_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(1_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(second_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Event(Box::new(2_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(second_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(2_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![20, 21]);
+        assert_eq!(keyed.active(&7_u32), Some(second_ticket));
+    }
+
+    #[test]
+    fn keyed_latest_worker_host_rejection_restores_only_that_key() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bridge = ToggleBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut keyed = crate::application::KeyedLatestTasks::new();
+        let (first_ticket, first, effect_id) = keyed.begin_replacement(1_u8);
+        let first_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(effect_id),
+                "keyed-first",
+                crate::runtime::TaskPriority::Background,
+                None,
+                first.generation(),
+                Some(first),
+                || 1_u8,
+                |_| 11_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+        let (_second_ticket, second, second_effect_id) = keyed.begin_replacement(1_u8);
+        let (other_ticket, other, other_effect_id) = keyed.begin_replacement(2_u8);
+        assert_eq!(effect_id, second_effect_id);
+        assert_ne!(effect_id, other_effect_id);
+        let probe = Arc::new(AtomicUsize::new(0));
+        let probe_guard = DropProbe(Arc::clone(&probe));
+        let second_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(second_effect_id),
+                "keyed-rejected",
+                crate::runtime::TaskPriority::Background,
+                None,
+                second.generation(),
+                Some(second),
+                || 2_u8,
+                move |_| {
+                    let _probe = probe_guard;
+                    22_usize
+                },
+            );
+        let other_command =
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+                EffectId(other_effect_id),
+                "keyed-other",
+                crate::runtime::TaskPriority::Background,
+                None,
+                other.generation(),
+                Some(other),
+                || 3_u8,
+                |_| 33_usize,
+            );
+        accepted.store(false, Ordering::Release);
+        let _ = runtime.execute_command(second_command);
+        accepted.store(true, Ordering::Release);
+        let _ = runtime.execute_command(other_command);
+        assert_eq!(keyed.active(&1_u8), Some(first_ticket));
+        assert_eq!(keyed.active(&2_u8), Some(other_ticket));
+        assert_eq!(probe.load(Ordering::Acquire), 1);
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(first_ticket.id()),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(1_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![11]);
+    }
+
+    #[test]
+    fn keyed_latest_worker_capacity_rejection_rolls_back_its_key() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "keyed-capacity",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                move |_| id,
+            );
+            let _ = runtime.execute_command(command);
+        }
+        let mut keyed = crate::application::KeyedLatestTasks::new();
+        let (_ticket, transaction, effect_id) = keyed.begin_replacement(9_u8);
+        let command = crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+            EffectId(effect_id),
+            "keyed-capacity-overflow",
+            crate::runtime::TaskPriority::Background,
+            None,
+            transaction.generation(),
+            Some(transaction),
+            || 1_u8,
+            |_| 1_usize,
+        );
+        let _ = runtime.execute_command(command);
+        assert_eq!(keyed.active(&9_u8), None);
+    }
+
+    #[test]
+    fn resource_latest_worker_acceptance_fences_stale_event_and_final() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let key = crate::runtime::ResourceKey::scoped("sample", "C:/resource.wav");
+        let mut resources = crate::application::ResourceTasks::new();
+        let (first_ticket, first, effect_id) = resources.begin_latest_transaction(key.clone());
+        let first_generation = first.generation();
+        let first_command =
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction(
+                EffectId(effect_id),
+                "resource-first",
+                crate::runtime::TaskPriority::Background,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: first_generation,
+                    latest: false,
+                },
+                Some(first),
+                |_sink| 1_u8,
+                |_: u8| 10_usize,
+                |_: u8| 11_usize,
+            );
+        let _ = runtime.execute_command(first_command);
+        let (second_ticket, second, second_effect_id) =
+            resources.begin_latest_transaction(key.clone());
+        assert_eq!(effect_id, second_effect_id);
+        let second_generation = second.generation();
+        let second_command =
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction(
+                EffectId(second_effect_id),
+                "resource-second",
+                crate::runtime::TaskPriority::Background,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: second_generation,
+                    latest: false,
+                },
+                Some(second),
+                |_sink| 2_u8,
+                |_: u8| 20_usize,
+                |_: u8| 21_usize,
+            );
+        let _ = runtime.execute_command(second_command);
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(first_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Event(Box::new(1_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(first_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(1_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(second_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Event(Box::new(2_u8)),
+        ));
+        assert!(runtime.worker_effects.ingress.send(
+            EffectId(effect_id),
+            EffectGeneration(second_generation),
+            runtime.worker_effects.epoch,
+            EffectResult::Completed(Box::new(2_u8)),
+        ));
+        assert_eq!(runtime.worker_effects.drain(), vec![20, 21]);
+        assert_eq!(resources.active(&key), Some(second_ticket.ticket()));
+        assert_ne!(first_ticket.ticket(), second_ticket.ticket());
+    }
+
     struct AdmissionBridge {
         accepted: Arc<AtomicUsize>,
     }

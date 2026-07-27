@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::runtime::ResourceKey;
 
-use super::{KeyedLatestTasks, KeyedTaskCompletion, TaskTicket};
+use super::{KeyedLatestTasks, KeyedTaskCompletion, LatestTaskTransaction, TaskTicket};
 
 /// Tracks in-flight business work by generic resource key.
 ///
@@ -34,9 +34,18 @@ impl ResourceTasks {
     }
 
     /// Start replace-latest work for one resource key.
+    #[cfg(test)]
     pub(crate) fn begin_latest(&mut self, key: ResourceKey) -> ResourceTaskTicket {
         let ticket = self.latest.begin(key.clone());
         ResourceTaskTicket { key, ticket }
+    }
+
+    pub(crate) fn begin_latest_transaction(
+        &mut self,
+        key: ResourceKey,
+    ) -> (ResourceTaskTicket, LatestTaskTransaction, u64) {
+        let (ticket, transaction, effect_id) = self.latest.begin_replacement(key.clone());
+        (ResourceTaskTicket { key, ticket }, transaction, effect_id)
     }
 
     /// Start exclusive work for one resource key.

@@ -15,7 +15,8 @@ use crate::{
 };
 
 use super::{
-    keyed_latest::BusinessKeyedLatestRequest, latest::BusinessLatestRequest,
+    keyed_latest::{BusinessKeyedLatestRequest, KeyedLatestAdmission},
+    latest::BusinessLatestRequest,
     resource::BusinessResourceRequest,
 };
 use crate::application::runtime::update_context::UiUpdateContext;
@@ -57,10 +58,15 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     where
         Key: Clone + Eq + Hash,
     {
+        let (ticket, transaction, effect_id) = latest.begin_replacement(key.clone());
         BusinessKeyedLatestRequest {
             request: self,
-            ticket: latest.begin(key.clone()),
+            ticket,
             key,
+            admission: KeyedLatestAdmission::Transaction {
+                effect_id,
+                transaction,
+            },
         }
     }
 
@@ -70,12 +76,16 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         resources: &mut ResourceTasks,
         key: impl Into<ResourceKey>,
     ) -> BusinessKeyedLatestRequest<'context, Message, ResourceKey> {
-        let ticket = resources.begin_latest(key.into());
+        let (ticket, transaction, effect_id) = resources.begin_latest_transaction(key.into());
         let key = ticket.key().clone();
         BusinessKeyedLatestRequest {
             request: self,
             ticket: ticket.ticket(),
             key,
+            admission: KeyedLatestAdmission::Transaction {
+                effect_id,
+                transaction,
+            },
         }
     }
 
@@ -93,6 +103,7 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             request: self,
             ticket: ticket.ticket(),
             key,
+            admission: KeyedLatestAdmission::Legacy,
         })
     }
 

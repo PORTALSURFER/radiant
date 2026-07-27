@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use super::{KeyedTaskCompletion, LatestTask, TaskTicket};
+use super::{KeyedTaskCompletion, LatestTask, LatestTaskTransaction, TaskTicket};
 
 #[cfg(test)]
 #[path = "keyed_latest/tests.rs"]
@@ -108,5 +108,16 @@ where
     /// Start a new latest task for `key` and return its ticket.
     pub fn begin(&mut self, key: Key) -> TaskTicket {
         self.tasks.entry(key).or_default().begin()
+    }
+
+    pub(crate) fn begin_replacement(
+        &mut self,
+        key: Key,
+    ) -> (TaskTicket, LatestTaskTransaction, u64) {
+        let task = self.tasks.entry(key).or_default();
+        let transaction = task.begin_replacement();
+        let ticket = transaction.replacement();
+        let effect_id = task.effect_id();
+        (ticket, transaction, effect_id)
     }
 }

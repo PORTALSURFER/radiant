@@ -421,6 +421,32 @@ fn platform_request_after_exit_releases_mapper_without_delivery() {
 }
 
 #[test]
+fn unsupported_platform_request_after_exit_releases_mapper_without_delivery() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let mut runtime = SurfaceRuntime::new(
+        QueuedCommandBridge::default(),
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    assert!(
+        runtime
+            .execute_command(crate::runtime::Command::Exit)
+            .exit_requested
+    );
+    let mapper_captures = std::rc::Rc::clone(&captures);
+    let outcome = runtime.execute_command(crate::runtime::Command::platform_request(
+        PlatformRequest::ReadText,
+        move |_| {
+            *mapper_captures.borrow_mut() += 1;
+            1
+        },
+    ));
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(*captures.borrow(), 0);
+}
+
+#[test]
 fn command_produced_platform_queue_item_waits_for_next_drain() {
     let mut bridge = ResultQueueBridge::default();
     bridge.commands.push(crate::runtime::Command::Message(1));

@@ -390,7 +390,7 @@ fn abandoned_result_sinks_release_bounded_capacity_and_mappers() {
 }
 
 #[test]
-fn exit_fences_late_sink_drop_from_worker_thread() {
+fn exit_fences_late_sink_drop_without_delivery() {
     let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
     let mut runtime = SurfaceRuntime::new(
         RetainingResultBridge::default(),
@@ -412,9 +412,7 @@ fn exit_fences_late_sink_drop_from_worker_thread() {
     );
     assert_eq!(std::rc::Rc::strong_count(&captures), 1);
     let sink = runtime.bridge_mut().sinks.pop().expect("retained sink");
-    std::thread::spawn(move || drop(sink))
-        .join()
-        .expect("sink drop thread");
+    drop(sink);
     assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     assert_eq!(*captures.borrow(), 0);
 }

@@ -32,9 +32,10 @@ pub use scroll::ScrollUpdate;
 pub(crate) use scroll::WheelOrScrollRoute;
 
 use super::{
-    ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragSession,
-    RuntimeBridge, RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface,
-    UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath,
+    ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,
+    ExternalDragIdentity, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,
+    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
+    WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::Rect,

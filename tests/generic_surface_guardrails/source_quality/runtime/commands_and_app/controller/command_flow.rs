@@ -59,8 +59,7 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && dispatch.contains("Command::ScrollFixedRowIntoView")
             && dispatch.contains("use super::{CommandOutcome, SurfaceRuntime};")
             && dispatch.contains("gui::types::Vector2")
-            && dispatch
-                .contains("runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge}")
+            && dispatch.contains("runtime::{Command, DragSession, RuntimeBridge}")
             && !dispatch.starts_with("use super::*;")
             && !root.contains("fn execute_command_inner"),
         "command execution branches should live in commands/dispatch.rs"
@@ -68,7 +67,9 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     assert!(
         external_drag.contains("use super::{CommandOutcome, SurfaceRuntime};")
             && external_drag
-                .contains("runtime::{ExternalDragOutcome, ExternalDragSession, RuntimeBridge}")
+                .contains(
+                    "runtime::{\n    ExternalDragCompletion, ExternalDragIdentity, ExternalDragLaunch, ExternalDragOutcome,\n    ExternalDragRequest, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,\n}"
+                )
             && !external_drag.starts_with("use super::*;")
             && scrolling.contains("use super::super::{ScrollUpdate, SurfaceRuntime};")
             && scrolling.contains("gui::types::{Point, Vector2}")

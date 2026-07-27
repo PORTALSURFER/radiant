@@ -1,6 +1,9 @@
 //! Focus, hover, pointer-capture, and drag state for the surface controller.
 
-use super::{DragSession, ExternalDragSession};
+use super::{
+    DragSession, ExternalDragCompletion, ExternalDragIdentity, ExternalDragSession,
+    PendingExternalDragCompletion,
+};
 use crate::{
     gui::input::KeyPress,
     gui::types::Point,
@@ -55,6 +58,11 @@ pub(super) struct ScrollDragCapture {
 
 pub(super) struct RuntimeDragState<Message> {
     pub(super) external_session: Option<ExternalDragSession<Message>>,
+    pub(super) external_completion: Option<ExternalDragCompletion<Message>>,
+    pub(super) external_identity: Option<ExternalDragIdentity>,
+    pub(super) pending_external_completion: Option<PendingExternalDragCompletion<Message>>,
+    pub(super) next_external_drag_id: u64,
+    pub(super) external_drag_epoch: u64,
     pub(super) session: Option<DragSession>,
 }
 
@@ -62,6 +70,11 @@ impl<Message> Default for RuntimeDragState<Message> {
     fn default() -> Self {
         Self {
             external_session: None,
+            external_completion: None,
+            external_identity: None,
+            pending_external_completion: None,
+            next_external_drag_id: 1,
+            external_drag_epoch: 1,
             session: None,
         }
     }

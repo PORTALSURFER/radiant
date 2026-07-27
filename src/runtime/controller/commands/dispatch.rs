@@ -4,7 +4,7 @@ use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
 use crate::{
     gui::types::Vector2,
-    runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge},
+    runtime::{Command, DragSession, RuntimeBridge},
 };
 use std::{any::type_name, panic::panic_any, time::Instant};
 
@@ -311,8 +311,7 @@ where
                 request,
                 on_completed,
             } => {
-                self.interaction.drag.external_session =
-                    Some(ExternalDragSession::new(request, on_completed));
+                self.begin_external_drag_session(request, on_completed);
             }
             Command::BeginDrag { request } => {
                 self.interaction.drag.session = Some(DragSession::new(request));
@@ -354,7 +353,7 @@ where
                 }
             }
             Command::EndExternalDrag => {
-                self.interaction.drag.external_session = None;
+                self.invalidate_external_drag();
             }
             Command::EndDrag => {
                 self.interaction.drag.session = None;
@@ -363,6 +362,7 @@ where
                 outcome.surface_repaint_requested = true;
             }
             Command::Exit => {
+                self.invalidate_external_drag();
                 self.worker_effects.shutdown();
                 self.timer_effects.shutdown();
                 self.runtime_work.fence_timer_wakes();

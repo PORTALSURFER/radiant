@@ -24,25 +24,25 @@ where
     }
 
     pub(super) fn launch_external_drag_if_armed(&mut self) -> GenericRouteOutcome {
-        let Some(session) = self.core.runtime.take_external_drag_session() else {
+        let Some(launch) = self.core.runtime.take_external_drag_launch() else {
             return GenericRouteOutcome::default();
         };
         self.input.effective_pointer_gesture = None;
         self.core.runtime.cancel_pointer_capture();
         let preview_cleared = self.core.runtime.take_drag_preview_for_external_drag();
-        let path_count = match &session.request.payload {
+        let path_count = match &launch.request.payload {
             ExternalDragPayload::Files(paths) => paths.len(),
         };
         info!(
             path_count,
-            preview = %session.request.preview.label,
+            preview = %launch.request.preview.label,
             "radiant generic native vello: launching external drag"
         );
-        let result = platform::start_external_drag(&session.request);
+        let result = platform::start_external_drag(&launch.request);
         let outcome = self
             .core
             .runtime
-            .dispatch_external_drag_result(session, result);
+            .dispatch_external_drag_launch_result(launch.identity, result);
         let mut route_outcome = self.core.route_command_outcome(outcome);
         if preview_cleared {
             route_outcome.request_scene_rebuild(FrameWorkReason::ExternalDragPreview);

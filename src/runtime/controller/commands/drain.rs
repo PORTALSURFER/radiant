@@ -10,6 +10,13 @@ where
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget) = self.runtime_drain_budget();
 
+        // Native external-drag completion is admitted only on the next UI
+        // turn. The identity fence also makes duplicate and superseded
+        // completions harmless before the mapper is invoked.
+        if let Some(pending) = self.take_pending_external_drag_completion() {
+            self.dispatch_message_inner((pending.on_completed)(pending.result), &mut outcome);
+        }
+
         // Platform results are admitted on the previous turn's high-water
         // snapshot. Mapping happens before commands newly admitted below, so
         // even a synchronous host completion cannot re-enter execution.

@@ -92,7 +92,10 @@ fn native_external_drag_platform_selection_stays_focused() {
             )
             && orchestration.contains("use crate::runtime::{ExternalDragPayload, RuntimeBridge};")
             && orchestration.contains("use tracing::info;")
-            && orchestration.contains("platform::start_external_drag(&session.request)")
+            && orchestration.contains("platform::start_external_drag(&launch.request)")
+            && orchestration.contains("take_external_drag_launch()")
+            && orchestration
+                .contains("dispatch_external_drag_launch_result(launch.identity, result)")
             && !orchestration.starts_with("use super::*;")
             && !orchestration.contains("cfg(target_os")
             && !orchestration.contains("External drag-out is only supported on Windows"),

@@ -121,7 +121,10 @@ pub use diagnostics::{
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
-pub(crate) use external_drag::ExternalDragSession;
+pub(crate) use external_drag::{
+    ExternalDragCompletion, ExternalDragIdentity, ExternalDragLaunch, ExternalDragSession,
+    PendingExternalDragCompletion,
+};
 pub use external_drag::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,
     ExternalDragRequest,

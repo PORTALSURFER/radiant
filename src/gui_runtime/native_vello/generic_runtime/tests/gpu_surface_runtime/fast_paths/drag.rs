@@ -89,18 +89,18 @@ fn active_runtime_drag_can_transfer_to_external_drag() {
         PointerModifiers::default(),
     );
 
-    let session = runner
+    let launch = runner
         .core
         .runtime
-        .take_external_drag_session()
-        .expect("external drag session should remain armed until native launch");
+        .take_external_drag_launch()
+        .expect("external drag launch should remain armed until native launch");
     runner.core.runtime.cancel_pointer_capture();
     let preview_cleared = runner.core.runtime.take_drag_preview_for_external_drag();
 
     assert!(preview_cleared);
     assert!(!runner.core.runtime.drag_session_active());
     assert!(runner.core.runtime.pointer_capture().is_none());
-    assert_eq!(session.request.preview.label, "kick.wav");
+    assert_eq!(launch.request.preview.label, "kick.wav");
 }
 
 #[test]
@@ -145,12 +145,12 @@ fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
     assert_eq!(runner.input.last_cursor, None);
     assert!(runner.input.modifiers.is_empty());
     assert_eq!(runner.input.last_navigation_key_repeat, None);
-    let session = runner
+    let launch = runner
         .core
         .runtime
-        .take_external_drag_session()
+        .take_external_drag_launch()
         .expect("external drag should stay armed for native launch");
-    assert_eq!(session.request.preview.label, "kick.wav");
+    assert_eq!(launch.request.preview.label, "kick.wav");
     let surface = runner
         .frame
         .last_paint_plan

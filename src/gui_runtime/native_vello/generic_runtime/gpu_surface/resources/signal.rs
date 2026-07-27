@@ -14,6 +14,17 @@ use vello::wgpu;
 use wgpu::util::DeviceExt;
 
 mod summary;
+pub(crate) use summary::CachedSignalSummaryRequest;
+
+pub(crate) struct EnsureSignalBufferRequest<'a> {
+    pub(crate) device: &'a wgpu::Device,
+    pub(crate) queue: &'a wgpu::Queue,
+    pub(crate) key: u64,
+    pub(crate) cache_key: SignalBufferCacheKey,
+    pub(crate) content_owner: RenderCanvasContentOwner,
+    pub(crate) buckets: &'a [GpuSignalSummaryBucket],
+    pub(crate) uniforms: &'a SignalUniforms,
+}
 
 impl GpuSurfaceRenderer {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_signal_body_texture(
@@ -89,14 +100,17 @@ impl GpuSurfaceRenderer {
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_signal_buffer(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        key: u64,
-        cache_key: SignalBufferCacheKey,
-        content_owner: RenderCanvasContentOwner,
-        buckets: &[GpuSignalSummaryBucket],
-        uniforms: &SignalUniforms,
+        request: EnsureSignalBufferRequest<'_>,
     ) {
+        let EnsureSignalBufferRequest {
+            device,
+            queue,
+            key,
+            cache_key,
+            content_owner,
+            buckets,
+            uniforms,
+        } = request;
         let sample_count = summary_bucket_value_count(buckets);
         if let Some(buffer) = self.resources.signals.get(&key).filter(|buffer| {
             buffer.cache_key == cache_key

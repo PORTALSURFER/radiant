@@ -150,6 +150,7 @@ mod platform {
     pub(super) fn install_application_reopen_handler(
         _proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> ApplicationReopenRegistration {
+        let _ = RuntimeUserEvent::ApplicationReopenRequested;
         ApplicationReopenRegistration
     }
 }

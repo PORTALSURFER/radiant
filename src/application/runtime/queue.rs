@@ -253,18 +253,20 @@ impl<Message> AppRuntime<Message> {
         let available = max_items.saturating_sub(pending.len());
         if available > 0 {
             let drain_count = self.pending.len().min(available);
-            pending.extend(self.pending.drain(..drain_count).filter_map(|message| {
-                match message.value {
-                    #[cfg(test)]
-                    PendingMessage::Ordinary(message) => Some(RuntimeQueueItem::Message(message)),
-                    PendingMessage::Shared(SharedRuntimeDelivery::Timer(wake), _) => {
-                        Some(RuntimeQueueItem::Timer(wake))
-                    }
-                    PendingMessage::Shared(delivery, _) => Some(RuntimeQueueItem::Delivery(
-                        RuntimeQueueDelivery::new(delivery),
-                    )),
-                }
-            }));
+            pending.extend(
+                self.pending
+                    .drain(..drain_count)
+                    .map(|message| match message.value {
+                        #[cfg(test)]
+                        PendingMessage::Ordinary(message) => RuntimeQueueItem::Message(message),
+                        PendingMessage::Shared(SharedRuntimeDelivery::Timer(wake), _) => {
+                            RuntimeQueueItem::Timer(wake)
+                        }
+                        PendingMessage::Shared(delivery, _) => {
+                            RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(delivery))
+                        }
+                    }),
+            );
             drained += drain_count;
         }
         self.shared.record_messages_drained(drained);

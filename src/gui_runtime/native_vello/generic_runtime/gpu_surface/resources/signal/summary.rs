@@ -5,17 +5,30 @@ use super::super::super::stats::GpuSurfaceRenderStats;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;
 
+pub(crate) struct CachedSignalSummaryRequest<'a> {
+    pub(crate) key: u64,
+    pub(crate) revision: u64,
+    pub(crate) content_identity: RenderCanvasContentIdentity,
+    pub(crate) frames: usize,
+    pub(crate) band_count: usize,
+    pub(crate) samples: &'a Arc<[f32]>,
+    pub(crate) stats: &'a mut GpuSurfaceRenderStats,
+}
+
 impl GpuSurfaceRenderer {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn cached_signal_summary(
         &mut self,
-        key: u64,
-        revision: u64,
-        content_identity: RenderCanvasContentIdentity,
-        frames: usize,
-        band_count: usize,
-        samples: &Arc<[f32]>,
-        stats: &mut GpuSurfaceRenderStats,
+        request: CachedSignalSummaryRequest<'_>,
     ) -> Arc<GpuSignalSummary> {
+        let CachedSignalSummaryRequest {
+            key,
+            revision,
+            content_identity,
+            frames,
+            band_count,
+            samples,
+            stats,
+        } = request;
         if let Some(cached) = self.resources.signal_summaries.get(&key)
             && cached.revision == revision
             && cached.content_identity == content_identity
@@ -69,12 +82,28 @@ mod tests {
             band_count: 1,
             frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
-        let first = renderer.cached_signal_summary(7, 1, identity, 4, 1, &samples, &mut stats);
+        let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: identity,
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
 
         assert_eq!(stats.signal.summary_builds, 1);
         assert_eq!(stats.signal.summary_cache_hits, 0);
 
-        let second = renderer.cached_signal_summary(7, 1, identity, 4, 1, &samples, &mut stats);
+        let second = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: identity,
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
 
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(stats.signal.summary_builds, 1);
@@ -93,15 +122,30 @@ mod tests {
             band_count: 1,
             frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
-        let first = renderer.cached_signal_summary(7, 1, identity, 4, 1, &samples, &mut stats);
+        let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: identity,
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
         let second_identity = RenderCanvasContentIdentity::SignalBands {
             samples: Arc::as_ptr(&samples) as *const () as usize,
             frames: 2,
             band_count: 2,
             frame_range: [0.0f32.to_bits(), 2.0f32.to_bits()],
         };
-        let second =
-            renderer.cached_signal_summary(7, 1, second_identity, 2, 2, &samples, &mut stats);
+        let second = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: second_identity,
+            frames: 2,
+            band_count: 2,
+            samples: &samples,
+            stats: &mut stats,
+        });
 
         assert!(!Arc::ptr_eq(&first, &second));
         assert_eq!(stats.signal.summary_builds, 2);
@@ -120,7 +164,15 @@ mod tests {
         };
         let mut stats = GpuSurfaceRenderStats::default();
 
-        renderer.cached_signal_summary(7, 1, first_identity, 4, 1, &first_samples, &mut stats);
+        renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: first_identity,
+            frames: 4,
+            band_count: 1,
+            samples: &first_samples,
+            stats: &mut stats,
+        });
         drop(first_samples);
         assert_eq!(
             renderer
@@ -138,7 +190,15 @@ mod tests {
             band_count: 1,
             frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
-        renderer.cached_signal_summary(7, 1, second_identity, 4, 1, &second_samples, &mut stats);
+        renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            content_identity: second_identity,
+            frames: 4,
+            band_count: 1,
+            samples: &second_samples,
+            stats: &mut stats,
+        });
 
         assert_ne!(first_identity, second_identity);
         assert_eq!(stats.signal.summary_builds, 2);

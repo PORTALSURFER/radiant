@@ -17,7 +17,7 @@ fn runtime_controller_groups_work_interaction_and_traversal_state() {
     assert!(
         work.contains("pub(super) struct RuntimeWorkQueues<Message>")
             && work.contains("fn drain_bridge_commands")
-            && work.contains("fn drain_bridge_messages")
+            && work.contains("fn drain_bridge_queue_items")
             && work.contains("fn has_remaining_work"),
         "runtime work queue ownership should live in controller/work.rs"
     );

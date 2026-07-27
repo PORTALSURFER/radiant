@@ -162,11 +162,17 @@ impl BusinessThreadPool {
             queued_at: std::time::Instant::now(),
             is_cancelled: None,
             work: Box::new(move || {
-                let payload = queued_payload
+                let Some(payload) = queued_payload
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .take()
-                    .expect("accepted business payload should run exactly once");
+                else {
+                    tracing::error!(
+                        work.name = name,
+                        "Radiant business worker received a missing payload; skipping duplicate execution"
+                    );
+                    return;
+                };
                 work(payload);
             }),
         });
@@ -185,9 +191,17 @@ impl BusinessThreadPool {
                 let payload = payload
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .take()
-                    .expect("rejected business payload should remain recoverable");
-                Err(payload)
+                    .take();
+                match payload {
+                    Some(payload) => Err(payload),
+                    None => {
+                        tracing::error!(
+                            work.name = name,
+                            "Radiant rejected business work after its payload was consumed"
+                        );
+                        Ok(())
+                    }
+                }
             }
         }
     }

@@ -13,7 +13,6 @@ pub const DEFAULT_STYLED_CONTAINER_PADDING: f32 = 4.0;
 pub type Result<T = ()> = std::result::Result<T, String>;
 
 mod view_node;
-pub use view_node::ContinuityKey;
 pub(in crate::application) use view_node::ViewNodeKind;
 
 /// Application view node type used by builder functions.

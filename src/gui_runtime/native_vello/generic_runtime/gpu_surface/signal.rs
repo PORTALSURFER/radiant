@@ -68,21 +68,21 @@ impl GpuSurfaceRenderer {
         };
         self.ensure_pipeline(target.device, target.format);
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
-        self.ensure_signal_buffer(
-            target.device,
-            target.queue,
-            surface.key,
-            SignalBufferCacheKey::new(
+        self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
+            device: target.device,
+            queue: target.queue,
+            key: surface.key,
+            cache_key: SignalBufferCacheKey::new(
                 surface.revision,
                 RenderCanvasContentIdentity::from_content(&surface.content),
                 body.level_index,
                 body.bucket_start,
                 body.bucket_count,
             ),
-            RenderCanvasContentOwner::from_content(&surface.content),
-            body.buckets,
-            &body.uniforms,
-        );
+            content_owner: RenderCanvasContentOwner::from_content(&surface.content),
+            buckets: body.buckets,
+            uniforms: &body.uniforms,
+        });
         let Some(texture_view) = self.ensure_signal_body_texture(
             target.device,
             target.encoder,
@@ -117,15 +117,17 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
         let summary = match &surface.content {
-            GpuSurfaceContent::SignalBands { samples, .. } => self.cached_signal_summary(
-                surface.key,
-                surface.revision,
-                RenderCanvasContentIdentity::from_content(&surface.content),
-                shape.frames,
-                shape.band_count,
-                samples,
-                stats,
-            ),
+            GpuSurfaceContent::SignalBands { samples, .. } => {
+                self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
+                    key: surface.key,
+                    revision: surface.revision,
+                    content_identity: RenderCanvasContentIdentity::from_content(&surface.content),
+                    frames: shape.frames,
+                    band_count: shape.band_count,
+                    samples,
+                    stats,
+                })
+            }
             GpuSurfaceContent::SignalSummaryBands { summary, .. } => Arc::clone(summary),
             _ => return None,
         };

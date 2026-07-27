@@ -49,7 +49,7 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     assert!(
         drain.contains("pub fn drain_runtime_messages")
             && drain.contains(".drain_bridge_commands")
-            && drain.contains(".drain_bridge_messages")
+            && drain.contains(".drain_bridge_queue_items")
             && !root.contains("pub fn drain_runtime_messages"),
         "runtime work draining should live in commands/drain.rs"
     );

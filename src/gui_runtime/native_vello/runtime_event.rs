@@ -4,6 +4,5 @@ use std::path::PathBuf;
 pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
     OpenFiles(Vec<PathBuf>),
-    #[cfg(target_os = "macos")]
     ApplicationReopenRequested,
 }

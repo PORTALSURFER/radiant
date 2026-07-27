@@ -84,9 +84,11 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
                 effect_id,
                 self.request.name,
                 self.request.priority,
-                None,
-                ticket.id(),
-                false,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: ticket.id(),
+                    latest: false,
+                },
                 move |sink| {
                     let event_sink =
                         BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
@@ -121,9 +123,11 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
                 effect_id,
                 self.request.name,
                 self.request.priority,
-                None,
-                ticket.id(),
-                true,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: ticket.id(),
+                    latest: true,
+                },
                 move |sink| {
                     let event_sink = BusinessEventSink::new({
                         let sink = sink.clone();
@@ -237,9 +241,11 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
                 effect_id,
                 self.request.name,
                 self.request.priority,
-                is_cancelled,
-                ticket.id(),
-                false,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: ticket.id(),
+                    latest: false,
+                },
                 move |sink| {
                     let event_sink =
                         BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
@@ -282,9 +288,11 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
                 effect_id,
                 self.request.name,
                 self.request.priority,
-                is_cancelled,
-                ticket.id(),
-                true,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: ticket.id(),
+                    latest: true,
+                },
                 move |sink| {
                     let event_sink = BusinessEventSink::new({
                         let sink = sink.clone();

@@ -7,6 +7,10 @@ fn macos_activation_and_reopen_models_are_cfg_owned() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/activation.rs"),
     )
     .expect("activation source should be readable");
+    let activation_platform = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/activation/platform.rs"),
+    )
+    .expect("activation platform source should be readable");
     let runtime_event =
         fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/runtime_event.rs"))
             .expect("runtime event source should be readable");
@@ -15,30 +19,15 @@ fn macos_activation_and_reopen_models_are_cfg_owned() {
     )
     .expect("lifecycle source should be readable");
 
-    for declaration in [
-        "#[cfg(any(target_os = \"macos\", test))]\n    UserRequested,",
-        "#[cfg(target_os = \"macos\")]\n    Modern,",
-        "#[cfg(target_os = \"macos\")]\n    Compatibility,",
-        "#[cfg(target_os = \"macos\")]\n            Self::Modern => \"modern\",",
-        "#[cfg(target_os = \"macos\")]\n            Self::Compatibility => \"compatibility\",",
-        "#[cfg(any(target_os = \"macos\", test))]\n    pub(super) fn observe_user_reopen",
-        "#[cfg(target_os = \"macos\")]\n    pub(super) fn handle_application_reopen_intent",
-    ] {
-        assert!(
-            activation.contains(declaration),
-            "macOS activation declaration is missing cfg ownership: {declaration}"
-        );
-    }
-
-    let reopen_variant = "#[cfg(target_os = \"macos\")]\n    ApplicationReopenRequested,";
     assert!(
-        runtime_event.contains(reopen_variant),
-        "macOS reopen event is missing cfg ownership"
+        !activation.contains("target_os = "),
+        "backend-neutral activation policy should not own target-specific cfg branches"
     );
     assert!(
-        lifecycle.contains(
-            "#[cfg(target_os = \"macos\")]\n            RuntimeUserEvent::ApplicationReopenRequested => {"
-        ),
-        "macOS reopen event handling is missing cfg ownership"
+        activation_platform.contains("#[cfg(target_os = \"macos\")]\r\n")
+            || activation_platform.contains("#[cfg(target_os = \"macos\")]\n"),
+        "macOS activation integration should stay behind the focused platform adapter"
     );
+    assert!(runtime_event.contains("ApplicationReopenRequested,"));
+    assert!(lifecycle.contains("RuntimeUserEvent::ApplicationReopenRequested => {"));
 }

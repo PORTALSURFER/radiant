@@ -164,7 +164,7 @@ impl GenericRouteOutcome {
         });
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn request_interactive_scene_rebuild(
         &mut self,
         reason: FrameWorkReason,

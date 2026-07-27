@@ -67,6 +67,8 @@ pub(super) fn request_application_activation() -> ApplicationActivationMethod {
 
 #[cfg(not(target_os = "macos"))]
 pub(super) const fn request_application_activation() -> ApplicationActivationMethod {
+    let _ = ApplicationActivationMethod::Modern;
+    let _ = ApplicationActivationMethod::Compatibility;
     ApplicationActivationMethod::Unavailable
 }
 

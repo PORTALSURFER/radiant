@@ -82,17 +82,14 @@ pub trait RuntimeTaskHost<Message> {
 }
 
 type CancellationProbe = Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>;
+type WorkerTask = Box<dyn FnOnce() + Send + 'static>;
+type SpawnWorkerTask<Bridge> =
+    fn(&mut Bridge, &'static str, TaskPriority, CancellationProbe, WorkerTask) -> bool;
 
 pub(crate) struct RuntimeTaskCapability<Bridge, Message> {
     pub install_repaint_signal: fn(&mut Bridge, Arc<dyn RepaintSignal>),
     pub schedule_timer: fn(&mut Bridge, Duration, RuntimeTimerWake) -> bool,
-    pub spawn_worker_task: fn(
-        &mut Bridge,
-        &'static str,
-        TaskPriority,
-        CancellationProbe,
-        Box<dyn FnOnce() + Send + 'static>,
-    ) -> bool,
+    pub spawn_worker_task: SpawnWorkerTask<Bridge>,
     pub(super) _message: std::marker::PhantomData<fn() -> Message>,
 }
 

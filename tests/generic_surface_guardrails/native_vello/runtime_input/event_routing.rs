@@ -111,7 +111,8 @@ fn native_pointer_click_classification_stays_in_focused_module() {
 
     assert!(
         runtime_root.contains("mod pointer_click;")
-            && runtime_root.contains("use pointer_click::pointer_press_event;"),
+            && runtime_root.contains("use pointer_click::{")
+            && runtime_root.contains("pointer_press_event"),
         "native runtime root should expose pointer click classification through a focused helper"
     );
     assert!(

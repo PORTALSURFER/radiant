@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn auxiliary_projection_key_lookup_uses_projected_windows_without_key_clones() {
-        let surface = Arc::new(empty::<()>().into_surface());
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
         let projections = vec![
             AuxiliaryWindow::new(
                 "settings",

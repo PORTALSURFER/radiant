@@ -191,7 +191,7 @@ fn text_line_requests(count: usize, hot_set_len: usize) -> Vec<TextLineRequest> 
                 },
                 min_top_inset: (hot_index % 6) as f32 * 0.5,
                 family_id: (hot_index % 8) as u64,
-                centered: hot_index % 2 == 0,
+                centered: hot_index.is_multiple_of(2),
             }
         })
         .collect()

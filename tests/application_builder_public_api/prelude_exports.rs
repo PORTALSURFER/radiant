@@ -525,7 +525,7 @@ fn prelude_exports_auxiliary_window_projection_payloads() {
         "Settings",
         320.0,
         240.0,
-        std::sync::Arc::new(ui::empty().into_surface()),
+        crate::arc_surface(ui::empty().into_surface()),
     )
     .cache_on_close();
 

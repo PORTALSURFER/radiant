@@ -69,7 +69,7 @@ pub(in super::super) fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMes
         state.name.clone(),
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     );
-    Arc::new(UiSurface::new(SurfaceNode::container(
+    crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
         1,
         ContainerPolicy {
             kind: ContainerKind::Row,

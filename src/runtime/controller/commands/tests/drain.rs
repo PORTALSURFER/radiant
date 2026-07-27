@@ -15,7 +15,7 @@ struct ExitTimerBridge {
 
 impl RuntimeBridge<usize> for ExitTimerBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),
@@ -51,7 +51,7 @@ struct OrderedIngressBridge {
 
 impl RuntimeBridge<usize> for OrderedIngressBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),

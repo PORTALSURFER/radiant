@@ -651,7 +651,9 @@ fn scene_transient_overlay_samples_stateful_activity_once_and_falls_back_once() 
                         ui::TransientOverlay::new(707_u64)
                             .paint_only()
                             .when(move |_state: &mut DemoState| {
-                                predicate_calls.fetch_add(1, Ordering::Relaxed) % 2 == 0
+                                predicate_calls
+                                    .fetch_add(1, Ordering::Relaxed)
+                                    .is_multiple_of(2)
                             })
                             .paint(move |_state, _context, _primitives| {
                                 painter_calls.fetch_add(1, Ordering::Relaxed);

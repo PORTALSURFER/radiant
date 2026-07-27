@@ -46,7 +46,7 @@ pub(super) struct DeferredScrollFocusBridge {
 
 impl RuntimeBridge<usize> for PlatformCommandBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),
@@ -77,7 +77,7 @@ impl RuntimePlatformHost<usize> for PlatformCommandBridge {
 
 impl RuntimeBridge<usize> for QueuedCommandBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),
@@ -110,7 +110,7 @@ impl RuntimeBridge<usize> for DeferredFocusBridge {
         } else {
             SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
         };
-        Arc::new(UiSurface::new(node))
+        crate::runtime::test_arc_surface(UiSurface::new(node))
     }
 
     fn update(&mut self, message: usize) -> Command<usize> {
@@ -147,7 +147,7 @@ impl RuntimeBridge<usize> for DeferredPlatformFallbackBridge {
                 ),
             ));
         }
-        Arc::new(UiSurface::new(SurfaceNode::column(20, 0.0, children)))
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(20, 0.0, children)))
     }
 
     fn update(&mut self, message: usize) -> Command<usize> {
@@ -161,11 +161,9 @@ impl RuntimeBridge<usize> for DeferredPlatformFallbackBridge {
 impl RuntimeBridge<usize> for DeferredScrollBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(scroll_test_surface(SurfaceNode::container(
-            42,
-            ContainerPolicy::default(),
-            Vec::new(),
-        ))))
+        crate::runtime::test_arc_surface(UiSurface::new(scroll_test_surface(
+            SurfaceNode::container(42, ContainerPolicy::default(), Vec::new()),
+        )))
     }
 }
 
@@ -180,7 +178,7 @@ impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
         } else {
             SurfaceNode::container(42, ContainerPolicy::default(), Vec::new())
         };
-        Arc::new(UiSurface::new(scroll_test_surface(target)))
+        crate::runtime::test_arc_surface(UiSurface::new(scroll_test_surface(target)))
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {

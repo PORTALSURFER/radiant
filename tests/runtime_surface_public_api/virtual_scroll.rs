@@ -8,7 +8,6 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{TextWidget, Widget, WidgetCommon, WidgetInput, WidgetSizing},
 };
-use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 struct CustomWheelHitWidget {
@@ -67,7 +66,7 @@ fn wheel_routing_honors_custom_pointer_hit_policy() {
     let bridge = declarative_runtime_bridge(
         0_usize,
         |_state: &mut usize| {
-            Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            crate::arc_surface(UiSurface::new(SurfaceNode::custom_widget(
                 CustomWheelHitWidget::new(1),
                 WidgetMessageMapper::typed(|message: DemoMessage| message),
             )))
@@ -100,7 +99,7 @@ fn surface_runtime_scrolls_virtual_list_with_cached_layout_and_bounded_paint_pla
                     )))
                 })
                 .collect::<Vec<_>>();
-            Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+            crate::arc_surface(UiSurface::new(SurfaceNode::virtual_scroll_area(
                 1,
                 SurfaceNode::column(2, 4.0, rows),
                 VirtualizationAxis::Vertical,
@@ -145,7 +144,7 @@ fn surface_runtime_skips_non_wheel_widgets_before_virtual_scroll_fallback() {
                     ))
                 })
                 .collect::<Vec<_>>();
-            Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+            crate::arc_surface(UiSurface::new(SurfaceNode::virtual_scroll_area(
                 1,
                 SurfaceNode::column(2, 4.0, rows),
                 VirtualizationAxis::Vertical,

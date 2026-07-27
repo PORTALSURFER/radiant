@@ -123,7 +123,7 @@ struct PointerSnapshotShortcutBridge {
 
 impl RuntimeBridge<()> for PointerSnapshotShortcutBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),
@@ -167,7 +167,7 @@ struct FocusRegainedBridge {
 
 impl RuntimeBridge<()> for FocusRegainedBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),

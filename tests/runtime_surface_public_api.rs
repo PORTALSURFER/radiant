@@ -33,6 +33,10 @@ use radiant::{
 };
 use std::sync::{Arc, Mutex};
 
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
@@ -68,7 +72,7 @@ impl SceneBridge {
 
 impl RuntimeBridge<ScenePointerMessage> for SceneBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<ScenePointerMessage>> {
-        Arc::new(UiSurface::new(SurfaceNode::scene(
+        arc_surface(UiSurface::new(SurfaceNode::scene(
             1,
             SurfaceNode::custom_widget(
                 ScenePointerWidget::new(10),
@@ -105,7 +109,7 @@ impl SceneSurfaceBridge {
 
 impl RuntimeBridge<ScenePointerMessage> for SceneSurfaceBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<ScenePointerMessage>> {
-        Arc::new(UiSurface::new(self.root.clone()))
+        arc_surface(UiSurface::new(self.root.clone()))
     }
 
     fn update(&mut self, message: ScenePointerMessage) -> Command<ScenePointerMessage> {
@@ -292,7 +296,7 @@ fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
         |_state: &mut DemoState| {
-            Arc::new(UiSurface::new(SurfaceNode::stack(
+            arc_surface(UiSurface::new(SurfaceNode::stack(
                 70,
                 vec![
                     SurfaceChild::fill(SurfaceNode::button(
@@ -699,7 +703,7 @@ fn surface_runtime_resolves_widget_cursor_at_hit_tested_point() {
         |_state: &mut ()| {
             let mut common = WidgetCommon::new(100, WidgetSizing::fixed(Vector2::new(80.0, 40.0)));
             common.focus = radiant::widgets::FocusBehavior::Pointer;
-            Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            arc_surface(UiSurface::new(SurfaceNode::custom_widget(
                 CursorWidget { common },
                 WidgetMessageMapper::none(),
             )))
@@ -727,7 +731,7 @@ fn surface_runtime_hit_testing_skips_passive_widget_leaves() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
         |_state: &mut DemoState| {
-            Arc::new(UiSurface::new(SurfaceNode::stack(
+            arc_surface(UiSurface::new(SurfaceNode::stack(
                 70,
                 vec![
                     SurfaceChild::fill(SurfaceNode::button(
@@ -766,7 +770,7 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     );
-    Arc::new(UiSurface::new(SurfaceNode::row(
+    arc_surface(UiSurface::new(SurfaceNode::row(
         1,
         8.0,
         vec![

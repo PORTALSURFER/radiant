@@ -99,7 +99,7 @@ struct QueuedCommandDrainBridge {
 
 impl RuntimeBridge<usize> for QueuedCommandDrainBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::arc_surface(UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             Vec::new(),

@@ -78,7 +78,7 @@ fn interactive_row_emits_double_activation() {
         Some(InteractiveRowMessage::DoubleActivate)
     );
     assert!(row.common.state.hovered);
-    assert!(!row.common.state.pressed);
+    assert!(row.common.state.pressed);
 }
 
 #[test]

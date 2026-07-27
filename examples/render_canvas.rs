@@ -78,7 +78,7 @@ fn main() -> radiant::Result {
     radiant::app(DemoState::default())
         .title("Radiant GPU Surface")
         .size(440, 280)
-        .view(|state| demo_view(state))
+        .view(demo_view)
         .update(|state, message| match message {
             DemoMessage::SurfaceInput(WidgetInput::PointerPress {
                 button: PointerButton::Primary,

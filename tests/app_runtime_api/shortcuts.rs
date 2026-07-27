@@ -131,9 +131,10 @@ fn wrapped_scene_projection_preserves_shortcuts() {
                 .into_view(),
             )
         })
-        .handle_message(|state, message, _context| match message {
-            DemoMessage::Increment => state.count += 1,
-            _ => {}
+        .handle_message(|state, message, _context| {
+            if message == DemoMessage::Increment {
+                state.count += 1;
+            }
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));

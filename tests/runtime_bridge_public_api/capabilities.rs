@@ -12,7 +12,7 @@ struct MinimalHost {
 
 impl RuntimeBridge<()> for MinimalHost {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
+        crate::arc_surface(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
     }
 
     fn update(&mut self, _message: ()) -> radiant::runtime::Command<()> {
@@ -40,7 +40,7 @@ struct AdvancedHost {
 
 impl RuntimeBridge<()> for AdvancedHost {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
+        crate::arc_surface(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {

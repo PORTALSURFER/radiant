@@ -25,7 +25,7 @@ pub(crate) fn pointer_motion_bridge_with_policy(
     declarative_runtime_bridge(
         (continuous_pointer_move, paint_only_pointer_move),
         |(continuous_pointer_move, paint_only_pointer_move): &mut (bool, bool)| {
-            Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            crate::arc_surface(UiSurface::new(SurfaceNode::custom_widget(
                 PointerMotionProbeWidget::new(
                     10,
                     *continuous_pointer_move,
@@ -42,7 +42,7 @@ pub(crate) struct OverlappingPointerBridge;
 
 impl RuntimeBridge<DemoMessage> for OverlappingPointerBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-        Arc::new(UiSurface::new(SurfaceNode::stack(
+        crate::arc_surface(UiSurface::new(SurfaceNode::stack(
             1,
             vec![
                 SurfaceChild::fill(SurfaceNode::custom_widget(

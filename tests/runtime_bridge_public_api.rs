@@ -16,6 +16,10 @@ use radiant::{
 };
 use std::sync::Arc;
 
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
+
 #[path = "runtime_bridge_public_api/capabilities.rs"]
 mod capabilities;
 #[path = "runtime_bridge_public_api/command_flow.rs"]
@@ -78,7 +82,7 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     );
-    Arc::new(UiSurface::new(SurfaceNode::row(
+    arc_surface(UiSurface::new(SurfaceNode::row(
         1,
         8.0,
         vec![

@@ -5,7 +5,7 @@ use radiant::widgets::PointerButton;
 #[test]
 fn surface_runtime_drags_painted_scrollbar_thumb() {
     let bridge = declarative_runtime_bridge(
-        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
             31,
             SurfaceNode::column(
                 32,
@@ -69,7 +69,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
 #[test]
 fn surface_runtime_highlights_painted_scrollbar_thumb_on_hover() {
     let bridge = declarative_runtime_bridge(
-        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
             31,
             SurfaceNode::column(
                 32,
@@ -169,7 +169,7 @@ fn surface_runtime_clears_scrollbar_hover_when_refresh_removes_scroll_area() {
                     WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
                 )
             };
-            Arc::new(UiSurface::<DemoMessage>::new(node))
+            crate::arc_surface(UiSurface::<DemoMessage>::new(node))
         },
         |state, message| match message {
             DemoMessage::Increment => *state = state.saturating_add(1),

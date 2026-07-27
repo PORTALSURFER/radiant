@@ -61,7 +61,7 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
 
 impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-        Arc::new(UiSurface::new(SurfaceNode::row(
+        crate::arc_surface(UiSurface::new(SurfaceNode::row(
             1,
             8.0,
             vec![SurfaceChild::fill(SurfaceNode::static_widget(
@@ -135,7 +135,7 @@ pub(super) fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<Comma
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
     );
 
-    Arc::new(UiSurface::new(SurfaceNode::row(
+    crate::arc_surface(UiSurface::new(SurfaceNode::row(
         1,
         8.0,
         vec![

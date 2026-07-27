@@ -803,7 +803,7 @@ mod tests {
 
     #[test]
     fn ordered_stream_maps_events_and_final_on_ui_in_fifo_order() {
-        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
         let mapped = Rc::new(RefCell::new(Vec::new()));
         runtime.execute_command(
             crate::runtime::Command::perform_worker_stream_with_priority(
@@ -843,7 +843,7 @@ mod tests {
 
     #[test]
     fn latest_stream_coalesces_events_and_keeps_final_after_latest_event() {
-        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
         let mapped = Rc::new(RefCell::new(Vec::new()));
         runtime.execute_command(
             crate::runtime::Command::perform_worker_stream_with_priority(
@@ -888,7 +888,7 @@ mod tests {
 
     #[test]
     fn ordered_stream_pressure_drops_events_but_preserves_accepted_order_and_final() {
-        let mut runtime = SurfaceRuntime::new(ImmediateBridge::default(), Vector2::new(80.0, 40.0));
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
         let mapped = Rc::new(RefCell::new(Vec::new()));
         runtime.execute_command(
             crate::runtime::Command::perform_worker_stream_with_priority(
@@ -1042,7 +1042,7 @@ mod tests {
 
     impl crate::runtime::RuntimeBridge<usize> for ImmediateBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-            Arc::new(UiSurface::new(SurfaceNode::container(
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
                 1,
                 ContainerPolicy::default(),
                 Vec::new(),
@@ -1069,7 +1069,7 @@ mod tests {
 
     impl crate::runtime::RuntimeBridge<usize> for AdmissionBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-            Arc::new(UiSurface::new(SurfaceNode::container(
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
                 1,
                 ContainerPolicy::default(),
                 Vec::new(),

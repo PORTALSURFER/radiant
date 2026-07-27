@@ -251,7 +251,7 @@ fn project_command_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMe
             .with_scroll_message(Arc::new(|update| {
                 Some(CommandDemoMessage::ScrollReported(update.offset.y))
             }));
-        return Arc::new(UiSurface::new(SurfaceNode::column(
+        return crate::arc_surface(UiSurface::new(SurfaceNode::column(
             30,
             0.0,
             vec![SurfaceChild::new(
@@ -287,7 +287,7 @@ fn project_command_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMe
         SurfaceChild::fill(SurfaceNode::widget(input, WidgetMessageMapper::none())),
     ];
 
-    Arc::new(UiSurface::new(SurfaceNode::row(1, 8.0, children)))
+    crate::arc_surface(UiSurface::new(SurfaceNode::row(1, 8.0, children)))
 }
 
 fn project_owned_command_surface(state: &mut DemoState) -> UiSurface<CommandDemoMessage> {

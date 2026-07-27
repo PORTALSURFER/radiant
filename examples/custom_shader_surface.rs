@@ -91,7 +91,7 @@ fn main() -> radiant::Result {
     radiant::app(DemoState)
         .title("Radiant Custom Shader Surface")
         .size(440, 280)
-        .view(|state| demo_view(state))
+        .view(demo_view)
         .update(|_state, message| match message {})
         .run()
 }

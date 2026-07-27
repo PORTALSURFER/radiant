@@ -18,7 +18,7 @@ pub(super) struct DelayedDragHandleBridge;
 
 impl RuntimeBridge<()> for DelayedDragHandleBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
             DragHandleWidget::new(70, WidgetSizing::fixed(Vector2::new(8.0, 40.0)))
                 .with_hover_chrome_only()
                 .with_trailing_rail(1.0),
@@ -80,7 +80,7 @@ pub(super) struct PointerMoveBridge {
 impl RuntimeBridge<PointerMoveMessage> for PointerMoveBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<PointerMoveMessage>> {
         self.project_count += 1;
-        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             PointerMoveWidget::new(),
             WidgetMessageMapper::typed(|message: PointerMoveMessage| message),
         )))
@@ -145,7 +145,7 @@ pub(super) struct LocalPointerMoveBridge;
 
 impl RuntimeBridge<()> for LocalPointerMoveBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             LocalPointerMoveWidget::new(),
             WidgetMessageMapper::none(),
         )))
@@ -222,7 +222,7 @@ pub(super) struct PaintOnlyPointerMoveBridge;
 
 impl RuntimeBridge<()> for PaintOnlyPointerMoveBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             PaintOnlyPointerMoveWidget::new(),
             WidgetMessageMapper::none(),
         )))
@@ -237,7 +237,7 @@ impl RuntimeBridge<()> for AdjacentTreeRowsBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         use crate::application::{column, row_actions, tree_row};
 
-        Arc::new(
+        crate::runtime::test_arc_surface(
             column([
                 tree_row("One")
                     .input_id(81)
@@ -267,7 +267,7 @@ impl RuntimeBridge<()> for QuietInteractiveRowBridge {
         use crate::application::{row_actions, tree_row};
 
         self.project_count += 1;
-        Arc::new(
+        crate::runtime::test_arc_surface(
             tree_row("Quiet row")
                 .input_id(85)
                 .row_height(22.0)
@@ -288,7 +288,7 @@ impl RuntimeBridge<()> for DisclosureAndTreeRowBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         use crate::application::{disclosure_button, row, row_actions, tree_row};
 
-        Arc::new(
+        crate::runtime::test_arc_surface(
             row([
                 disclosure_button(false)
                     .subtle()
@@ -331,7 +331,7 @@ impl RuntimeBridge<()> for VirtualTreeRowsBridge {
         ];
         let labels = ["Root", "One", "Two"];
 
-        Arc::new(
+        crate::runtime::test_arc_surface(
             virtual_tree_list_window(
                 window,
                 22.0,

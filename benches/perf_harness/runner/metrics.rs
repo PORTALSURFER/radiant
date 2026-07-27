@@ -224,30 +224,32 @@ pub(super) struct ScenarioMetric {
     pub(super) baseline_jsonl: String,
 }
 
+pub(super) struct MetricRequest<'a> {
+    pub(super) name: &'a str,
+    pub(super) category: &'a str,
+    pub(super) group: &'a str,
+    pub(super) iterations: usize,
+}
+
 impl ScenarioMetric {
     pub(super) fn print(
-        name: &str,
-        category: &str,
-        group: &str,
-        iterations: usize,
+        request: MetricRequest<'_>,
         elapsed: Duration,
         counters: ScenarioCounters,
         output_format: OutputFormat,
         baseline: Option<Option<&BaselineMetric>>,
     ) -> Self {
         let total_us = elapsed.as_micros();
-        let avg_us = total_us as f64 / iterations.max(1) as f64;
+        let avg_us = total_us as f64 / request.iterations.max(1) as f64;
         let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
-        let baseline_jsonl = baseline_metric_json_line(
-            name, category, group, iterations, total_us, avg_us, counters,
-        );
+        let baseline_jsonl = baseline_metric_json_line(&request, total_us, avg_us, counters);
         match output_format {
-            OutputFormat::Text => print_text_metric(
-                name, category, group, iterations, total_us, avg_us, counters, comparison,
-            ),
-            OutputFormat::JsonLines => print_json_metric(
-                name, category, group, iterations, total_us, avg_us, counters, comparison,
-            ),
+            OutputFormat::Text => {
+                print_text_metric(&request, total_us, avg_us, counters, comparison)
+            }
+            OutputFormat::JsonLines => {
+                print_json_metric(&request, total_us, avg_us, counters, comparison)
+            }
         }
         Self {
             comparison,
@@ -257,15 +259,16 @@ impl ScenarioMetric {
 }
 
 fn print_text_metric(
-    name: &str,
-    category: &str,
-    group: &str,
-    iterations: usize,
+    request: &MetricRequest<'_>,
     total_us: u128,
     avg_us: f64,
     counters: ScenarioCounters,
     comparison: Option<MetricComparison>,
 ) {
+    let name = request.name;
+    let category = request.category;
+    let group = request.group;
+    let iterations = request.iterations;
     let counter_fields = text_counter_fields(counters);
     match comparison {
         Some(MetricComparison::Matched {
@@ -285,10 +288,7 @@ fn print_text_metric(
 }
 
 fn print_json_metric(
-    name: &str,
-    category: &str,
-    group: &str,
-    iterations: usize,
+    request: &MetricRequest<'_>,
     total_us: u128,
     avg_us: f64,
     counters: ScenarioCounters,
@@ -302,28 +302,28 @@ fn print_json_metric(
             status,
         }) => println!(
             "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
-            json_escape(name),
-            json_escape(category),
-            json_escape(group),
-            iterations,
+            json_escape(request.name),
+            json_escape(request.category),
+            json_escape(request.group),
+            request.iterations,
             total_us,
             avg_us,
         ),
         Some(MetricComparison::Missing) => println!(
             "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields},\"baseline_status\":\"missing\"}}",
-            json_escape(name),
-            json_escape(category),
-            json_escape(group),
-            iterations,
+            json_escape(request.name),
+            json_escape(request.category),
+            json_escape(request.group),
+            request.iterations,
             total_us,
             avg_us,
         ),
         None => println!(
             "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields}}}",
-            json_escape(name),
-            json_escape(category),
-            json_escape(group),
-            iterations,
+            json_escape(request.name),
+            json_escape(request.category),
+            json_escape(request.group),
+            request.iterations,
             total_us,
             avg_us
         ),

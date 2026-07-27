@@ -27,7 +27,7 @@ impl NativeDropBridge {
 
 impl RuntimeBridge<DropMessage> for NativeDropBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DropMessage>> {
-        Arc::new(UiSurface::new(
+        crate::arc_surface(UiSurface::new(
             ui::text("Drop target")
                 .id(10)
                 .size(100.0, 40.0)
@@ -72,7 +72,7 @@ fn native_file_drop_prefers_topmost_declarative_target() {
     let bridge = declarative_runtime_bridge(
         (),
         |_state: &mut ()| {
-            Arc::new(UiSurface::new(
+            crate::arc_surface(UiSurface::new(
                 ui::stack([
                     ui::text("Bottom")
                         .id(10)
@@ -117,7 +117,7 @@ fn native_file_drop_falls_back_to_app_hook_without_declarative_target() {
 
     impl RuntimeBridge<DropMessage> for FallbackBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<DropMessage>> {
-            Arc::new(UiSurface::new(
+            crate::arc_surface(UiSurface::new(
                 ui::button("Passive fallback target")
                     .message(DropMessage::Fallback { target: None })
                     .id(10)
@@ -169,7 +169,7 @@ fn native_file_drop_accepting_view_without_mapper_falls_back_with_declarative_ta
 
     impl RuntimeBridge<DropMessage> for FallbackBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<DropMessage>> {
-            Arc::new(UiSurface::new(
+            crate::arc_surface(UiSurface::new(
                 ui::text("Declarative fallback target")
                     .id(10)
                     .size(100.0, 40.0)

@@ -44,7 +44,7 @@ struct PaintOnlyPointerBridge;
 
 impl RuntimeBridge<()> for PaintOnlyPointerBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
             PaintOnlyPointerWidget::new(),
             WidgetMessageMapper::none(),
         )))

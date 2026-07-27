@@ -282,7 +282,7 @@ struct FocusRefreshCanvasBridge {
 
 impl RuntimeBridge<String> for FocusRefreshCanvasBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<String>> {
-        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::canvas_mapped(
             22,
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             |message| match message {

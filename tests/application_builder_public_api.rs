@@ -5,6 +5,11 @@ use radiant::{
     runtime::{RuntimeBridge, UiSurface},
     widgets::{ButtonMessage, ButtonWidget, TextWidget, Widget, WidgetSizing},
 };
+use std::sync::Arc;
+
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
 
 #[path = "application_builder_public_api/builder_core.rs"]
 mod builder_core;

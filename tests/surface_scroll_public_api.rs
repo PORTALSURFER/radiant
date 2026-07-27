@@ -8,6 +8,11 @@ use radiant::{
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
     widgets::WidgetSizing,
 };
+use std::sync::Arc;
+
+fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
+    Arc::new(surface)
+}
 
 #[path = "surface_scroll_public_api/paint.rs"]
 mod paint;

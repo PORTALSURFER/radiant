@@ -5,7 +5,7 @@ pub(super) struct ExclusiveCaptureHoverBridge;
 impl RuntimeBridge<()> for ExclusiveCaptureHoverBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         let source = DragHandleWidget::new(91, WidgetSizing::fixed(Vector2::new(16.0, 24.0)));
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             90,
             ContainerPolicy {
                 kind: ContainerKind::Row,
@@ -103,7 +103,7 @@ pub(super) struct DragHandlePassThroughBridge {
 impl RuntimeBridge<DropMessage> for DragHandlePassThroughBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DropMessage>> {
         let source = DragHandleWidget::new(81, WidgetSizing::fixed(Vector2::new(16.0, 24.0)));
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             80,
             ContainerPolicy {
                 kind: ContainerKind::Row,
@@ -190,7 +190,7 @@ pub(super) struct DropBridge {
 impl RuntimeBridge<DropMessage> for DropBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DropMessage>> {
         let source = ButtonWidget::new(71, "Source", WidgetSizing::fixed(Vector2::new(88.0, 24.0)));
-        Arc::new(UiSurface::new(SurfaceNode::container(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
             70,
             ContainerPolicy {
                 kind: ContainerKind::Row,

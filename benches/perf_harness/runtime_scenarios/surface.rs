@@ -206,6 +206,6 @@ struct RefreshBridge {
 impl RuntimeBridge<()> for RefreshBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         self.revision = self.revision.wrapping_add(1);
-        Arc::new(UiSurface::new(nodes::runtime_surface_node(1_000)))
+        crate::arc_surface(UiSurface::new(nodes::runtime_surface_node(1_000)))
     }
 }

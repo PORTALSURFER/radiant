@@ -51,7 +51,7 @@ fn surface_runtime_clears_hover_when_refresh_removes_widget() {
                     WidgetSizing::fixed(Vector2::new(96.0, 28.0)).with_baseline(18.0),
                 ))
             };
-            Arc::new(UiSurface::new(child))
+            crate::arc_surface(UiSurface::new(child))
         },
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,

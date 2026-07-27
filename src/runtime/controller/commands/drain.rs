@@ -49,6 +49,13 @@ where
                         })
                 }
                 RuntimeQueueItem::Timer(wake) => self.timer_effects.map_wake(wake),
+                RuntimeQueueItem::Delivery(delivery) => self
+                    .host_capabilities
+                    .queues
+                    .as_ref()
+                    .and_then(|capability| {
+                        (capability.map_runtime_queue_delivery)(&mut self.bridge, delivery)
+                    }),
             };
             if let Some(message) = message {
                 self.dispatch_message_inner(message, &mut outcome);

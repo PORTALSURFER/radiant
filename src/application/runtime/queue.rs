@@ -2,7 +2,9 @@ use super::platform::PlatformCompletionDelivery;
 use super::subscription::WorkerSubscriptionDelivery;
 use super::timer::TimerWake;
 use crate::gui::repaint::RepaintSignal;
-use crate::runtime::{RuntimeDiagnostics, RuntimeQueueItem, RuntimeTimerWake, TaskPriority};
+use crate::runtime::{
+    RuntimeDiagnostics, RuntimeQueueDelivery, RuntimeQueueItem, RuntimeTimerWake, TaskPriority,
+};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -236,13 +238,10 @@ impl<Message> AppRuntime<Message> {
         self.pending.sort_by_key(|message| message.sequence);
     }
 
-    pub(super) fn drain_pending_item_batch_into_with_mappers(
+    pub(super) fn drain_pending_item_batch_into(
         &mut self,
         pending: &mut Vec<RuntimeQueueItem<Message>>,
         max_items: usize,
-        mut map_worker: impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
-        mut map_platform: impl FnMut(PlatformCompletionDelivery) -> Option<Message>,
-        mut map_timer: impl FnMut(TimerWake) -> Option<RuntimeQueueItem<Message>>,
     ) -> bool {
         self.collect_incoming();
         let max_items = max_items.max(1);
@@ -258,15 +257,12 @@ impl<Message> AppRuntime<Message> {
                 match message.value {
                     #[cfg(test)]
                     PendingMessage::Ordinary(message) => Some(RuntimeQueueItem::Message(message)),
-                    PendingMessage::Shared(SharedRuntimeDelivery::Worker(delivery), _) => {
-                        map_worker(delivery).map(RuntimeQueueItem::Message)
-                    }
-                    PendingMessage::Shared(SharedRuntimeDelivery::Platform(delivery), _) => {
-                        map_platform(delivery).map(RuntimeQueueItem::Message)
-                    }
                     PendingMessage::Shared(SharedRuntimeDelivery::Timer(wake), _) => {
-                        map_timer(wake)
+                        Some(RuntimeQueueItem::Timer(wake))
                     }
+                    PendingMessage::Shared(delivery, _) => Some(RuntimeQueueItem::Delivery(
+                        RuntimeQueueDelivery::new(delivery),
+                    )),
                 }
             }));
             drained += drain_count;

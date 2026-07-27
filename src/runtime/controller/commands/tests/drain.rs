@@ -1,8 +1,8 @@
 use super::{super::*, fixtures::QueuedCommandBridge};
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
-    DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeQueueHost, RuntimeQueueItem,
-    RuntimeTimerWake, SurfaceNode, UiSurface,
+    DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeQueueDelivery, RuntimeQueueHost,
+    RuntimeQueueItem, RuntimeTimerWake, SurfaceNode, UiSurface,
 };
 use std::sync::Arc;
 
@@ -45,6 +45,7 @@ impl RuntimeQueueHost<usize> for ExitTimerBridge {
 #[derive(Default)]
 struct OrderedIngressBridge {
     items: Vec<RuntimeQueueItem<usize>>,
+    mapped: Vec<&'static str>,
     reduced: Vec<usize>,
 }
 
@@ -77,17 +78,24 @@ impl RuntimeQueueHost<usize> for OrderedIngressBridge {
     }
 
     fn map_runtime_timer_wake(&mut self, _wake: RuntimeTimerWake) -> Option<usize> {
+        self.mapped.push("timer");
         Some(2)
+    }
+
+    fn map_runtime_queue_delivery(&mut self, delivery: RuntimeQueueDelivery) -> Option<usize> {
+        self.mapped.push("delivery");
+        delivery.downcast::<usize>().ok()
     }
 }
 
 #[test]
-fn ordered_ingress_reduces_earlier_message_before_later_timer_mapping() {
+fn ordered_ingress_maps_and_reduces_earlier_delivery_before_later_timer() {
     let bridge = OrderedIngressBridge {
         items: vec![
-            RuntimeQueueItem::Message(1),
+            RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(1_usize)),
             RuntimeQueueItem::Timer(RuntimeTimerWake::application(1, 0, 1)),
         ],
+        mapped: Vec::new(),
         reduced: Vec::new(),
     };
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
@@ -95,7 +103,27 @@ fn ordered_ingress_reduces_earlier_message_before_later_timer_mapping() {
     let outcome = runtime.drain_runtime_messages();
 
     assert_eq!(outcome.messages_dispatched, 2);
+    assert_eq!(runtime.bridge().mapped, vec!["delivery", "timer"]);
     assert_eq!(runtime.bridge().reduced, vec![1, 2]);
+}
+
+#[test]
+fn ordered_ingress_maps_and_reduces_earlier_timer_before_later_delivery() {
+    let bridge = OrderedIngressBridge {
+        items: vec![
+            RuntimeQueueItem::Timer(RuntimeTimerWake::application(1, 0, 1)),
+            RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(1_usize)),
+        ],
+        mapped: Vec::new(),
+        reduced: Vec::new(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+    let outcome = runtime.drain_runtime_messages();
+
+    assert_eq!(outcome.messages_dispatched, 2);
+    assert_eq!(runtime.bridge().mapped, vec!["timer", "delivery"]);
+    assert_eq!(runtime.bridge().reduced, vec![2, 1]);
 }
 
 #[test]

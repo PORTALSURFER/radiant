@@ -4,7 +4,7 @@ use crate::{
     gui::repaint::RepaintSignal,
     runtime::{
         Command, RuntimeAnimationActivity, RuntimeAnimationHost, RuntimePlatformHost,
-        RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
+        RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -100,6 +100,10 @@ where
         max_items: usize,
     ) -> bool {
         AppBridge::drain_runtime_queue_item_batch_into(self, items, max_items)
+    }
+
+    fn map_runtime_queue_delivery(&mut self, delivery: RuntimeQueueDelivery) -> Option<Message> {
+        AppBridge::map_runtime_queue_delivery(self, delivery)
     }
 }
 

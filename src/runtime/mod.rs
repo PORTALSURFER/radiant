@@ -70,11 +70,11 @@ pub use bridge::{
     DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
     RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeAnimationHost, RuntimeBridge,
     RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeInputHost,
-    RuntimeLifecycleHost, RuntimePlatformHost, RuntimeQueueHost, RuntimeQueueItem,
-    RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake,
-    RuntimeTransientOverlayHost, RuntimeWindowHost, declarative_command_runtime_bridge,
-    declarative_owned_command_runtime_bridge, declarative_owned_runtime_bridge,
-    declarative_runtime_bridge,
+    RuntimeLifecycleHost, RuntimePlatformHost, RuntimeQueueDelivery, RuntimeQueueHost,
+    RuntimeQueueItem, RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner,
+    RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
+    declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+    declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub use command::{

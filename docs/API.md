@@ -665,6 +665,11 @@ legacy `take_runtime_timer_wakes(...)` default remains useful for simple hosts
 without a combined ingress. No application message crosses the timer thread,
 and controller-owned wakes must remain available to the runtime controller
 rather than being mapped by the host.
+Worker/platform payloads whose mapper must also respect that total order can be
+wrapped in `RuntimeQueueDelivery` and emitted as
+`RuntimeQueueItem::Delivery`; implement
+`RuntimeQueueHost::map_runtime_queue_delivery(...)` to downcast and map them
+only when the controller reaches that FIFO item.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or

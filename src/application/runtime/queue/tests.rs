@@ -113,17 +113,27 @@ fn shared_ingress_preserves_worker_before_later_timer_order() {
     ));
 
     let mut items = Vec::new();
-    assert!(!runtime.drain_pending_item_batch_into_with_mappers(
-        &mut items,
-        8,
-        map_u32_worker_delivery,
-        |_| None,
-        |_| Some(RuntimeQueueItem::Message(2)),
-    ));
+    assert!(!runtime.drain_pending_item_batch_into(&mut items, 8));
 
+    let first = items.remove(0);
+    let RuntimeQueueItem::Delivery(first) = first else {
+        panic!("worker delivery should remain opaque until the UI queue head");
+    };
+    let Ok(first) = first.downcast::<SharedRuntimeDelivery>() else {
+        panic!("application delivery type");
+    };
+    assert_eq!(
+        match first {
+            SharedRuntimeDelivery::Worker(delivery) =>
+                map_u32_worker_delivery(delivery).expect("worker message"),
+            _ => panic!("first item should be the worker delivery"),
+        },
+        1
+    );
     assert!(matches!(
         items.as_slice(),
-        [RuntimeQueueItem::Message(1), RuntimeQueueItem::Message(2)]
+        [RuntimeQueueItem::Timer(wake)]
+            if *wake == RuntimeTimerWake::controller(1, 0, 1)
     ));
 }
 
@@ -299,23 +309,14 @@ fn delayed_messages_use_runtime_timer_lane() {
     let started = Instant::now();
     let mut delivered = Vec::new();
     while started.elapsed() < Duration::from_secs(1) {
-        runtime.drain_pending_item_batch_into_with_mappers(
-            &mut delivered,
-            8,
-            |_| None,
-            |_| None,
-            |_| Some(RuntimeQueueItem::Message(7)),
-        );
+        delivered.extend(runtime.take_pending_with_mappers(|_| None, |_| None, |_| Some(7)));
         if !delivered.is_empty() {
             break;
         }
         thread::sleep(Duration::from_millis(1));
     }
 
-    assert!(matches!(
-        delivered.as_slice(),
-        [RuntimeQueueItem::Message(7)]
-    ));
+    assert_eq!(delivered, vec![7]);
 }
 
 #[test]

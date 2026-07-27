@@ -44,7 +44,7 @@ impl<Message> RuntimeWorkQueues<Message> {
         });
         if self.timer_ingress_closed {
             self.queue_items
-                .retain(|item| matches!(item, RuntimeQueueItem::Message(_)));
+                .retain(|item| !matches!(item, RuntimeQueueItem::Timer(_)));
         }
         take_runtime_message_batch_into(&mut self.queue_items, &mut self.queue_item_batch, budget);
     }
@@ -52,9 +52,9 @@ impl<Message> RuntimeWorkQueues<Message> {
     pub(super) fn fence_timer_wakes(&mut self) {
         self.timer_ingress_closed = true;
         self.queue_items
-            .retain(|item| matches!(item, RuntimeQueueItem::Message(_)));
+            .retain(|item| !matches!(item, RuntimeQueueItem::Timer(_)));
         self.queue_item_batch
-            .retain(|item| matches!(item, RuntimeQueueItem::Message(_)));
+            .retain(|item| !matches!(item, RuntimeQueueItem::Timer(_)));
     }
 
     pub(super) fn take_command_batch(&mut self) -> Vec<Command<Message>> {

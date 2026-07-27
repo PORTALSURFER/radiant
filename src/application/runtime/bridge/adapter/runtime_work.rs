@@ -1,8 +1,8 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UiUpdateContext},
+    application::{IntoView, UiUpdateContext, runtime::queue::SharedRuntimeDelivery},
     gui::repaint::RepaintSignal,
-    runtime::{Command, RuntimeQueueItem, TaskPriority},
+    runtime::{Command, RuntimeQueueDelivery, RuntimeQueueItem, TaskPriority},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -81,15 +81,23 @@ where
         items: &mut Vec<RuntimeQueueItem<Message>>,
         max_items: usize,
     ) -> bool {
-        let worker_registry = &mut self.worker_registry;
-        let platform_registry = &mut self.platform_registry;
-        self.runtime.drain_pending_item_batch_into_with_mappers(
-            items,
-            max_items,
-            |delivery| worker_registry.map_delivery(delivery),
-            |delivery| platform_registry.map_delivery(delivery),
-            |wake| Some(RuntimeQueueItem::Timer(wake)),
-        )
+        self.runtime.drain_pending_item_batch_into(items, max_items)
+    }
+
+    pub(super) fn map_runtime_queue_delivery(
+        &mut self,
+        delivery: RuntimeQueueDelivery,
+    ) -> Option<Message> {
+        let Ok(delivery) = delivery.downcast::<SharedRuntimeDelivery>() else {
+            return None;
+        };
+        match delivery {
+            SharedRuntimeDelivery::Worker(delivery) => self.worker_registry.map_delivery(delivery),
+            SharedRuntimeDelivery::Platform(delivery) => {
+                self.platform_registry.map_delivery(delivery)
+            }
+            SharedRuntimeDelivery::Timer(wake) => self.timer_registry.map_wake(wake),
+        }
     }
 
     pub(super) fn map_runtime_timer_wake(

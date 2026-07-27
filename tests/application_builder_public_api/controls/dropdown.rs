@@ -1,5 +1,6 @@
 use super::super::*;
 use radiant::application as app;
+use radiant::gui::svg::IconName;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, CardWidget, SelectableMessage, SelectableWidget,
 };
@@ -122,12 +123,11 @@ fn application_builder_dropdown_trigger_exports_and_routes_message() {
     let trigger = widget_ref::<ButtonWidget, _>(&surface, 1, "dropdown trigger");
     assert!(trigger.props.label.is_static());
     assert_eq!(trigger.props.label, "WASAPI");
-    assert!(
-        trigger
-            .props
-            .trailing_label
-            .as_ref()
-            .is_some_and(|label| label.is_static() && label.as_str() == "v")
+    assert!(trigger.props.trailing_label.is_none());
+    assert!(trigger.trailing_icon.is_none());
+    assert_eq!(
+        trigger.trailing_icon_tint_cache,
+        Some(IconName::ChevronDown.tint_cache())
     );
     let _parts = app::DropdownTriggerParts {
         selected_label: String::from("WASAPI").into(),

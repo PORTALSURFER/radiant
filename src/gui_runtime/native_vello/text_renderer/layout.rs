@@ -1,18 +1,15 @@
 //! Glyph-layout helpers for the native text renderer.
 
-use super::{GlyphLayout, TextCursorStop, TextLayout};
-use skrifa::{
-    MetadataProvider,
-    instance::{LocationRef, Size as FontSize},
-};
-use vello::peniko::FontData;
+use super::{GlyphLayout, TextCursorStop, TextLayout, font::NativeFontStack};
 
-pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Option<TextLayout> {
-    let font_ref = skrifa::FontRef::from_index(font.data.as_ref(), font.index).ok()?;
-    let charmap = font_ref.charmap();
-    let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
-    let fallback_glyph = charmap.map('?');
-
+pub(super) fn compute_layout(
+    font_stack: &mut NativeFontStack,
+    text: &str,
+    font_size: f32,
+) -> Option<TextLayout> {
+    if font_stack.is_empty() {
+        return None;
+    }
     let rendered_metrics = rendered_line_metrics(text);
     let mut x = 0.0_f32;
     let mut fallback_glyphs = 0_u64;
@@ -50,18 +47,16 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
             });
             continue;
         }
-        let glyph_id = match charmap.map(ch) {
-            Some(glyph_id) => Some(glyph_id),
-            None => {
-                if fallback_glyph.is_some() {
-                    fallback_glyphs = fallback_glyphs.saturating_add(1);
-                } else {
-                    missing_glyphs = missing_glyphs.saturating_add(1);
-                }
-                fallback_glyph
+        let glyph = font_stack.resolve_glyph(ch).or_else(|| {
+            let fallback = font_stack.fallback_glyph();
+            if fallback.is_some() {
+                fallback_glyphs = fallback_glyphs.saturating_add(1);
+            } else {
+                missing_glyphs = missing_glyphs.saturating_add(1);
             }
-        };
-        let Some(glyph_id) = glyph_id else {
+            fallback
+        });
+        let Some(glyph) = glyph else {
             x += font_size * 0.5;
             cursor_stops.push(TextCursorStop {
                 byte_index: byte_index + ch.len_utf8(),
@@ -70,13 +65,11 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
             continue;
         };
         glyphs.push(GlyphLayout {
-            id: glyph_id.to_u32(),
+            face_index: glyph.face_index,
+            id: glyph.glyph_id,
             x,
         });
-        let advance = metrics
-            .advance_width(glyph_id)
-            .unwrap_or(font_size * 0.55)
-            .max(0.0);
+        let advance = font_stack.glyph_advance(glyph, font_size);
         x += advance;
         cursor_stops.push(TextCursorStop {
             byte_index: byte_index + ch.len_utf8(),
@@ -165,6 +158,7 @@ fn char_requires_shaping(ch: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui_runtime::native_vello::text_renderer::font::NativeFontStack;
 
     #[test]
     fn rendered_line_capacity_hint_stops_at_line_breaks() {
@@ -228,5 +222,57 @@ mod tests {
                 requires_shaping: false,
             }
         );
+    }
+
+    #[test]
+    fn complementary_faces_resolve_each_scalar_before_question_mark_fallback() {
+        let mut stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+
+        let layout = compute_layout(&mut stack, "AΩA", 20.0).expect("fixture fonts load");
+
+        assert_eq!(
+            layout
+                .glyphs
+                .iter()
+                .map(|glyph| glyph.face_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 0]
+        );
+        assert_eq!(layout.fallback_glyphs, 0);
+        assert_eq!(layout.missing_glyphs, 0);
+        let primary_advance = layout.glyphs[1].x - layout.glyphs[0].x;
+        let secondary_advance = layout.glyphs[2].x - layout.glyphs[1].x;
+        assert!(secondary_advance > primary_advance);
+        assert!(layout.width > layout.glyphs[2].x);
+        assert_eq!(
+            layout.cursor_stops.last().map(|stop| stop.byte_index),
+            Some(4)
+        );
+    }
+
+    #[test]
+    fn absent_scalar_uses_ordered_question_mark_and_tracks_missing_only_without_one() {
+        let mut stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+        let fallback = compute_layout(&mut stack, "Ж", 20.0).expect("fixture fonts load");
+        assert_eq!(fallback.fallback_glyphs, 1);
+        assert_eq!(fallback.missing_glyphs, 0);
+
+        let mut empty_stack = NativeFontStack::from_test_bytes(&[]);
+        assert!(compute_layout(&mut empty_stack, "Ж", 20.0).is_none());
+
+        let mut no_question = NativeFontStack::from_test_bytes(&[include_bytes!(
+            "../../../../tests/fixtures/fonts/no_question.ttf"
+        )]);
+        let missing = compute_layout(&mut no_question, "Ж", 20.0).expect("fixture font loads");
+        assert_eq!(missing.fallback_glyphs, 0);
+        assert_eq!(missing.missing_glyphs, 1);
+        assert!(missing.glyphs.is_empty());
+        assert_eq!(missing.width, 10.0);
     }
 }

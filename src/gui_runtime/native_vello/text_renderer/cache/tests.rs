@@ -110,3 +110,34 @@ fn cached_layout_hits_report_glyph_diagnostics_for_current_frame() {
     assert_eq!(counters.quality.fallback_glyphs, 2);
     assert_eq!(counters.quality.missing_glyphs, 1);
 }
+
+#[test]
+fn cached_face_indices_remain_valid_when_font_stack_appends() {
+    let mut cache = TextLayoutCache::new();
+    let mut stack = super::super::font::NativeFontStack::from_test_bytes(&[include_bytes!(
+        "../../../../../tests/fixtures/fonts/primary.ttf"
+    )]);
+
+    let first_face = cache
+        .layout_for(&mut stack, "A", 20.0)
+        .expect("primary fixture loads")
+        .glyphs[0]
+        .face_index;
+    assert_eq!(first_face, 0);
+
+    let _ = cache
+        .layout_for(&mut stack, "Ω", 20.0)
+        .expect("primary-only layout uses replacement glyph");
+    stack
+        .append_test_bytes(include_bytes!(
+            "../../../../../tests/fixtures/fonts/secondary.ttf"
+        ))
+        .expect("append secondary fixture");
+
+    let cached_face = cache
+        .layout_for(&mut stack, "A", 20.0)
+        .expect("cached primary layout remains available")
+        .glyphs[0]
+        .face_index;
+    assert_eq!(cached_face, first_face);
+}

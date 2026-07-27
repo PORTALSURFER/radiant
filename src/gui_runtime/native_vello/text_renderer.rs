@@ -17,15 +17,16 @@ mod renderability;
 use cache::TextLayoutCache;
 pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
+use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
-    GlyphLayout, LoadedFont, SceneTextRun, TextCursorStop, TextLayout, TextLayoutKey,
+    GlyphLayout, SceneTextRun, TextCursorStop, TextLayout, TextLayoutKey,
 };
 pub(in crate::gui_runtime::native_vello) use renderability::font_size_is_renderable;
 use renderability::text_run_is_renderable;
 use renderability::text_run_parts_are_renderable;
 
 pub(super) struct NativeTextRenderer {
-    loaded_font: Option<LoadedFont>,
+    font_stack: NativeFontStack,
     layout_cache: TextLayoutCache,
 }
 
@@ -36,14 +37,14 @@ impl NativeTextRenderer {
     }
 
     pub(super) fn with_options(options: &NativeTextOptions) -> Self {
-        let loaded_font = font::load_native_font(options).map(|font| LoadedFont { font });
-        if loaded_font.is_none() {
+        let font_stack = NativeFontStack::with_options(options);
+        if font_stack.is_empty() {
             tracing::warn!(
                 "Native vello text renderer found no fallback font; text runs will be skipped"
             );
         }
         Self {
-            loaded_font,
+            font_stack,
             layout_cache: TextLayoutCache::new(),
         }
     }
@@ -57,10 +58,9 @@ impl NativeTextRenderer {
         scene: &mut Scene,
         text_runs: impl IntoIterator<Item = SceneTextRun>,
     ) {
-        let Some(loaded_font) = self.loaded_font.as_ref() else {
+        if self.font_stack.is_empty() {
             return;
-        };
-        let font_data = &loaded_font.font;
+        }
         let layout_cache = &mut self.layout_cache;
         for run in text_runs {
             if !text_run_is_renderable(&run) {
@@ -68,8 +68,8 @@ impl NativeTextRenderer {
             }
             draw_text_run_with_font(
                 scene,
+                &mut self.font_stack,
                 layout_cache,
-                font_data,
                 run.text.as_ref(),
                 TextRunParts {
                     position: run.position,
@@ -86,13 +86,13 @@ impl NativeTextRenderer {
         if !text_run_parts_are_renderable(text, parts.position, parts.font_size, parts.max_width) {
             return;
         }
-        let Some(loaded_font) = self.loaded_font.as_ref() else {
+        if self.font_stack.is_empty() {
             return;
-        };
+        }
         draw_text_run_with_font(
             scene,
+            &mut self.font_stack,
             &mut self.layout_cache,
-            &loaded_font.font,
             text,
             parts,
         );
@@ -102,8 +102,8 @@ impl NativeTextRenderer {
         if !font_size_is_renderable(font_size) {
             return None;
         }
-        let font = &self.loaded_font.as_ref()?.font;
-        self.layout_cache.layout_for(font, text, font_size)
+        self.layout_cache
+            .layout_for(&mut self.font_stack, text, font_size)
     }
 
     pub(super) fn take_layout_profile_counters(&mut self) -> TextLayoutProfileCounters {
@@ -122,12 +122,12 @@ pub(super) struct TextRunParts {
 
 fn draw_text_run_with_font(
     scene: &mut Scene,
+    font_stack: &mut NativeFontStack,
     layout_cache: &mut TextLayoutCache,
-    font_data: &vello::peniko::FontData,
     text: &str,
     parts: TextRunParts,
 ) {
-    let Some(layout) = layout_cache.layout_for(font_data, text, parts.font_size) else {
+    let Some(layout) = layout_cache.layout_for(font_stack, text, parts.font_size) else {
         return;
     };
     let mut origin_x = parts.position.x;
@@ -141,25 +141,51 @@ fn draw_text_run_with_font(
     }
     let clip_width = parts.max_width.unwrap_or(f32::INFINITY);
     let baseline = parts.position.y + parts.font_size;
-    let glyph_iter = layout
-        .glyphs
-        .iter()
-        .take_while(|glyph| glyph.x <= clip_width)
-        .map(|glyph| Glyph {
+    let mut start = 0;
+    while start < layout.glyphs.len() {
+        let Some((face_index, end)) = visible_face_segment(&layout.glyphs, start, clip_width)
+        else {
+            break;
+        };
+        let Some(font_data) = font_stack.face(face_index) else {
+            break;
+        };
+        let glyph_iter = layout.glyphs[start..end].iter().map(|glyph| Glyph {
             id: glyph.id,
             x: origin_x + glyph.x,
             y: baseline,
         });
-    scene
-        .draw_glyphs(font_data)
-        .font_size(parts.font_size)
-        .brush(color_from_rgba(parts.color))
-        .draw(Fill::NonZero, glyph_iter);
+        scene
+            .draw_glyphs(font_data)
+            .font_size(parts.font_size)
+            .brush(color_from_rgba(parts.color))
+            .draw(Fill::NonZero, glyph_iter);
+        start = end;
+    }
+}
+
+fn visible_face_segment(
+    glyphs: &[GlyphLayout],
+    start: usize,
+    clip_width: f32,
+) -> Option<(usize, usize)> {
+    let first = glyphs.get(start)?;
+    if first.x > clip_width {
+        return None;
+    }
+    let face_index = first.face_index;
+    let mut end = start + 1;
+    while end < glyphs.len() && glyphs[end].face_index == face_index && glyphs[end].x <= clip_width
+    {
+        end += 1;
+    }
+    Some((face_index, end))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{TextCursorStop, TextLayout};
+    use super::GlyphLayout;
+    use super::{TextCursorStop, TextLayout, visible_face_segment};
 
     #[test]
     fn empty_layout_preserves_terminal_cursor_stop() {
@@ -173,5 +199,34 @@ mod tests {
                 x: 0.0,
             }]
         );
+    }
+
+    #[test]
+    fn visible_glyph_segments_follow_face_boundaries_and_clip_width() {
+        let glyphs = vec![
+            GlyphLayout {
+                face_index: 0,
+                id: 1,
+                x: 0.0,
+            },
+            GlyphLayout {
+                face_index: 1,
+                id: 2,
+                x: 5.0,
+            },
+            GlyphLayout {
+                face_index: 0,
+                id: 3,
+                x: 10.0,
+            },
+        ];
+        let mut start = 0;
+        let mut segments = Vec::new();
+        while let Some((face, end)) = visible_face_segment(&glyphs, start, 9.0) {
+            segments.push((face, start..end));
+            start = end;
+        }
+
+        assert_eq!(segments, vec![(0, 0..1), (1, 1..2)]);
     }
 }

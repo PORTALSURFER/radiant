@@ -150,10 +150,11 @@ impl EmbeddedVelloRenderer {
 
     /// Create a Vello surface for a host-owned native view with explicit font policy.
     ///
-    /// Use this constructor when an embedded host supplies portable fonts through
-    /// [`NativeTextOptions::embedded_fonts`] or preferred font files through
-    /// [`NativeTextOptions::font_paths`]. The options are read while creating the renderer;
-    /// the host does not need to keep them alive afterward.
+    /// Use this constructor when an embedded host supplies an ordered,
+    /// per-glyph fallback stack through [`NativeTextOptions::embedded_fonts`]
+    /// or preferred font files through [`NativeTextOptions::font_paths`]. The
+    /// options are read while creating the renderer; the host does not need to
+    /// keep them alive afterward.
     ///
     /// # Safety
     ///

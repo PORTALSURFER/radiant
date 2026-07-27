@@ -3,20 +3,22 @@ use std::{fmt, path::PathBuf, sync::Arc};
 /// Native text/font policy used by backend runtime adapters.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NativeTextOptions {
-    /// Host-provided font bytes checked before file and native fallback fonts.
+    /// Ordered host-provided font faces in the per-glyph fallback stack.
     pub embedded_fonts: Vec<EmbeddedFont>,
-    /// Host-preferred font files checked before environment and system fallbacks.
+    /// Ordered host-preferred files used after embedded faces and before
+    /// environment/system candidates; the first valid path may seed an empty
+    /// stack and later paths are loaded lazily in the fallback stack.
     pub font_paths: Vec<PathBuf>,
 }
 
 impl NativeTextOptions {
-    /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
+    /// Append embedded TTF/OTF bytes to the per-glyph fallback stack.
     pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
         self.embedded_fonts.push(font.into());
         self
     }
 
-    /// Add a preferred font file checked after embedded fonts and before native fallbacks.
+    /// Append a preferred font file, loaded lazily after embedded faces.
     pub fn font_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.font_paths.push(path.into());
         self

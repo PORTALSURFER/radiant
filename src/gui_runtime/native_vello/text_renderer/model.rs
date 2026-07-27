@@ -33,7 +33,11 @@ impl From<&TextRun> for SceneTextRun {
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) struct GlyphLayout {
+    /// Stable index into the append-only native font stack.
+    pub(in crate::gui_runtime::native_vello) face_index: usize,
+    /// Glyph identifier within the selected face.
     pub(in crate::gui_runtime::native_vello) id: u32,
+    /// Logical x-position measured using the selected face's advance.
     pub(in crate::gui_runtime::native_vello) x: f32,
 }
 

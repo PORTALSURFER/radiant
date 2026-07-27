@@ -23,21 +23,6 @@ where
                 .field("delay", &effect.delay)
                 .field("transaction", &effect.transaction.is_some())
                 .finish(),
-            Self::Perform { name, priority, .. } => f
-                .debug_struct("Perform")
-                .field("name", name)
-                .field("priority", priority)
-                .finish(),
-            Self::PerformStream { name, priority, .. } => f
-                .debug_struct("PerformStream")
-                .field("name", name)
-                .field("priority", priority)
-                .finish(),
-            Self::PerformStreamLatest { name, priority, .. } => f
-                .debug_struct("PerformStreamLatest")
-                .field("name", name)
-                .field("priority", priority)
-                .finish(),
             Self::PerformWorker(effect) => f
                 .debug_struct("PerformWorker")
                 .field("name", &effect.name)

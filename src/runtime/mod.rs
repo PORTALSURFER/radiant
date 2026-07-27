@@ -78,8 +78,8 @@ pub use bridge::{
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub use command::{
-    BusinessMessageSink, Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
-    SurfaceInvalidation, SurfaceRevisions, TaskPriority,
+    Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts, SurfaceInvalidation,
+    SurfaceRevisions, TaskPriority,
 };
 pub(crate) use command::{EffectId, WorkerEffectSink};
 pub(crate) use controller::WheelOrScrollRoute;

@@ -11,7 +11,6 @@ use std::{any::Any, sync::Arc};
 mod constructors;
 mod debug;
 mod flatten;
-mod inline;
 mod query;
 mod repaint;
 mod scroll;
@@ -39,63 +38,6 @@ pub enum TaskPriority {
     BlockingIo,
     /// Opportunistic work that should yield to interaction and rendering.
     Idle,
-}
-
-/// Runtime-owned message sink passed to streaming business workers.
-pub struct BusinessMessageSink<Message> {
-    emit: Arc<dyn Fn(Message) -> bool + Send + Sync + 'static>,
-    emit_latest: Option<Arc<dyn Fn(Message) -> bool + Send + Sync + 'static>>,
-    close_latest: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
-}
-
-impl<Message> Clone for BusinessMessageSink<Message> {
-    fn clone(&self) -> Self {
-        Self {
-            emit: Arc::clone(&self.emit),
-            emit_latest: self.emit_latest.as_ref().map(Arc::clone),
-            close_latest: self.close_latest.as_ref().map(Arc::clone),
-        }
-    }
-}
-
-impl<Message> BusinessMessageSink<Message> {
-    pub(crate) fn new(emit: impl Fn(Message) -> bool + Send + Sync + 'static) -> Self {
-        Self {
-            emit: Arc::new(emit),
-            emit_latest: None,
-            close_latest: None,
-        }
-    }
-
-    pub(crate) fn new_with_latest(
-        emit: impl Fn(Message) -> bool + Send + Sync + 'static,
-        emit_latest: impl Fn(Message) -> bool + Send + Sync + 'static,
-        close_latest: impl Fn() + Send + Sync + 'static,
-    ) -> Self {
-        Self {
-            emit: Arc::new(emit),
-            emit_latest: Some(Arc::new(emit_latest)),
-            close_latest: Some(Arc::new(close_latest)),
-        }
-    }
-
-    pub(crate) fn emit(&self, message: Message) -> bool {
-        (self.emit)(message)
-    }
-
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn emit_latest(&self, message: Message) -> bool {
-        match &self.emit_latest {
-            Some(emit) => emit(message),
-            None => self.emit(message),
-        }
-    }
-
-    pub(crate) fn close_latest(&self) {
-        if let Some(close) = &self.close_latest {
-            close();
-        }
-    }
 }
 
 /// Runtime-facing command produced by host application logic.
@@ -132,44 +74,6 @@ pub enum Command<Message> {
     /// Schedule a UI-local mapper after a delay.
     #[doc(hidden)]
     Timer(TimerEffect<Message>),
-    /// Run host work on a business thread and dispatch the resulting message.
-    #[doc(hidden)]
-    Perform {
-        /// Human-readable task name for diagnostics.
-        name: &'static str,
-        /// Best-effort priority hint for the runtime-owned worker lane.
-        priority: TaskPriority,
-        /// Optional cooperative cancellation probe for diagnostics.
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        /// Background work lowered into a message-producing closure.
-        work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    },
-    /// Run host work on a business thread and allow it to dispatch
-    /// intermediate messages before it completes.
-    #[doc(hidden)]
-    PerformStream {
-        /// Human-readable task name for diagnostics.
-        name: &'static str,
-        /// Best-effort priority hint for the runtime-owned worker lane.
-        priority: TaskPriority,
-        /// Optional cooperative cancellation probe for diagnostics.
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        /// Background work lowered into a message-emitting closure.
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    },
-    /// Run host work on a business thread and coalesce intermediate stream
-    /// messages so only the latest pending event for the stream remains queued.
-    #[doc(hidden)]
-    PerformStreamLatest {
-        /// Human-readable task name for diagnostics.
-        name: &'static str,
-        /// Best-effort priority hint for the runtime-owned worker lane.
-        priority: TaskPriority,
-        /// Optional cooperative cancellation probe for diagnostics.
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        /// Background work lowered into a latest-event message-emitting closure.
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    },
     /// Run worker-only work and deliver its owned output to a UI-local mapper.
     #[doc(hidden)]
     PerformWorker(WorkerEffect<Message>),

@@ -1,13 +1,7 @@
-use crate::runtime::{BusinessMessageSink, WorkerEffectSink};
+use crate::runtime::WorkerEffectSink;
 
 pub(crate) trait CloseLatest {
     fn close_latest(&self);
-}
-
-impl<Message> CloseLatest for BusinessMessageSink<Message> {
-    fn close_latest(&self) {
-        BusinessMessageSink::close_latest(self);
-    }
 }
 
 impl CloseLatest for WorkerEffectSink {
@@ -45,7 +39,8 @@ impl<S: CloseLatest> Drop for LatestStreamCloseGuard<S> {
 #[cfg(test)]
 mod tests {
     use super::LatestStreamCloseGuard;
-    use crate::runtime::BusinessMessageSink;
+    use crate::runtime::WorkerEffectSink;
+    use std::any::Any;
     use std::{
         panic::{AssertUnwindSafe, catch_unwind},
         sync::{
@@ -58,9 +53,9 @@ mod tests {
     fn latest_stream_close_guard_closes_when_work_unwinds() {
         let close_count = Arc::new(AtomicUsize::new(0));
         let close_count_for_sink = Arc::clone(&close_count);
-        let sink = BusinessMessageSink::new_with_latest(
-            |_: ()| true,
-            |_: ()| true,
+        let sink = WorkerEffectSink::new_latest(
+            |_: Box<dyn Any + Send>| true,
+            |_: Box<dyn Any + Send>| true,
             move || {
                 close_count_for_sink.fetch_add(1, Ordering::AcqRel);
             },
@@ -79,9 +74,9 @@ mod tests {
     fn latest_stream_close_guard_explicit_close_is_not_repeated_on_drop() {
         let close_count = Arc::new(AtomicUsize::new(0));
         let close_count_for_sink = Arc::clone(&close_count);
-        let sink = BusinessMessageSink::new_with_latest(
-            |_: ()| true,
-            |_: ()| true,
+        let sink = WorkerEffectSink::new_latest(
+            |_: Box<dyn Any + Send>| true,
+            |_: Box<dyn Any + Send>| true,
             move || {
                 close_count_for_sink.fetch_add(1, Ordering::AcqRel);
             },

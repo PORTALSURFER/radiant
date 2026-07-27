@@ -1,6 +1,5 @@
 use super::{
-    BusinessMessageSink, Command, TaskPriority, TimerEffect, WorkerEffectMapper, WorkerEffectSink,
-    WorkerEffectWork,
+    Command, TaskPriority, TimerEffect, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
 };
 use crate::{
     runtime::{
@@ -122,59 +121,10 @@ impl<Message> Command<Message> {
         })
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_with_priority<Output>(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce() -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
-    ) -> Self
-    where
-        Output: Send + 'static,
-    {
-        Self::Perform {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(move || map(work())),
-        }
-    }
-
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_stream_with_priority(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
-    ) -> Self {
-        Self::PerformStream {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(work),
-        }
-    }
-
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn perform_latest_stream_with_priority(
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
-    ) -> Self {
-        Self::PerformStreamLatest {
-            name,
-            priority,
-            is_cancelled,
-            work: Box::new(work),
-        }
-    }
-
     /// Build a worker-only effect whose output is mapped on the UI owner.
     ///
-    /// Unlike [`Self::perform_with_priority`], the worker closure never
-    /// constructs or transports `Message`. The mapper remains UI-local.
+    /// The worker closure never constructs or transports `Message`. The mapper
+    /// remains UI-local.
     pub(crate) fn perform_worker_effect_with_priority<Output>(
         name: &'static str,
         priority: TaskPriority,

@@ -12,16 +12,9 @@ use std::sync::{
 };
 use std::time::Duration;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::application) struct RuntimeStreamSlot(u64);
-
 enum PendingMessage<Message> {
     Ordinary(Message),
     Worker(WorkerSubscriptionDelivery),
-    StreamLatest {
-        slot: RuntimeStreamSlot,
-        message: Message,
-    },
 }
 
 pub(in crate::application) struct AppRuntime<Message> {
@@ -36,7 +29,6 @@ pub(in crate::application) struct AppRuntime<Message> {
     next_timer_id: AtomicU64,
     timer_epoch: AtomicU64,
     alive: AtomicBool,
-    next_stream_slot: AtomicU64,
 }
 
 impl<Message> Default for AppRuntime<Message> {
@@ -54,7 +46,6 @@ impl<Message> Default for AppRuntime<Message> {
             next_timer_id: AtomicU64::new(1),
             timer_epoch: AtomicU64::new(1),
             alive: AtomicBool::new(true),
-            next_stream_slot: AtomicU64::new(1),
         }
     }
 }
@@ -119,42 +110,6 @@ impl<Message> AppRuntime<Message> {
             WorkerSubscriptionDelivery::Disconnected { identity },
             || {},
         )
-    }
-
-    pub(super) fn begin_stream_slot(&self) -> RuntimeStreamSlot {
-        RuntimeStreamSlot(self.next_stream_slot.fetch_add(1, Ordering::Relaxed))
-    }
-
-    pub(super) fn enqueue_stream_latest(&self, slot: RuntimeStreamSlot, message: Message) -> bool {
-        if !self.is_alive() {
-            self.diagnostics.record_stream_message_dropped();
-            return false;
-        }
-        {
-            let mut pending = lock_runtime_state(&self.pending);
-            if let Some(existing) = pending.iter_mut().find_map(|pending| match pending {
-                PendingMessage::StreamLatest {
-                    slot: pending_slot,
-                    message,
-                } if *pending_slot == slot => Some(message),
-                PendingMessage::Ordinary(_)
-                | PendingMessage::Worker(_)
-                | PendingMessage::StreamLatest { .. } => None,
-            }) {
-                *existing = message;
-                self.diagnostics.record_stream_message_coalesced();
-                self.record_pending_depth(&pending);
-            } else {
-                pending.push(PendingMessage::StreamLatest { slot, message });
-                self.record_pending_depth(&pending);
-            }
-        }
-        self.request_repaint();
-        true
-    }
-
-    pub(super) fn record_stale_stream_event(&self) {
-        self.diagnostics.record_stream_message_stale();
     }
 
     pub(super) fn enqueue_frame(&self, message: Message) -> bool {
@@ -324,10 +279,8 @@ impl<Message> AppRuntime<Message> {
 
     fn record_pending_depth(&self, pending: &[PendingMessage<Message>]) {
         let pending_frame = lock_runtime_state(&self.pending_frame).is_some() as usize;
-        self.diagnostics.record_message_queue_depth(
-            pending.len() + pending_frame,
-            pending.iter().filter(|message| message.is_stream()).count(),
-        );
+        self.diagnostics
+            .record_message_queue_depth(pending.len() + pending_frame, 0);
     }
 }
 
@@ -428,13 +381,9 @@ impl<Message> PendingMessage<Message> {
         map_worker: &mut impl FnMut(WorkerSubscriptionDelivery) -> Option<Message>,
     ) -> Option<Message> {
         match self {
-            Self::Ordinary(message) | Self::StreamLatest { message, .. } => Some(message),
+            Self::Ordinary(message) => Some(message),
             Self::Worker(delivery) => map_worker(delivery),
         }
-    }
-
-    fn is_stream(&self) -> bool {
-        matches!(self, Self::StreamLatest { .. })
     }
 }
 

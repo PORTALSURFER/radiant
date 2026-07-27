@@ -240,37 +240,6 @@ where
                     outcome.repaint_requested = true;
                 }
             }
-            Command::Perform {
-                name,
-                priority,
-                is_cancelled,
-                work,
-            } => {
-                if self.host_spawn_message_task(name, priority, is_cancelled, work) {
-                    outcome.repaint_requested = true;
-                }
-            }
-            Command::PerformStream {
-                name,
-                priority,
-                is_cancelled,
-                work,
-            } => {
-                if self.host_spawn_streaming_message_task(name, priority, is_cancelled, work) {
-                    outcome.repaint_requested = true;
-                }
-            }
-            Command::PerformStreamLatest {
-                name,
-                priority,
-                is_cancelled,
-                work,
-            } => {
-                if self.host_spawn_latest_streaming_message_task(name, priority, is_cancelled, work)
-                {
-                    outcome.repaint_requested = true;
-                }
-            }
             Command::PerformWorker(effect) => {
                 if self.submit_worker_effect(effect) {
                     outcome.repaint_requested = true;

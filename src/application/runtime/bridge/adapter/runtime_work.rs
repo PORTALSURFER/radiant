@@ -2,12 +2,9 @@ use super::super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
     gui::repaint::RepaintSignal,
-    runtime::{BusinessMessageSink, Command, TaskPriority},
+    runtime::{Command, TaskPriority},
 };
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
@@ -30,26 +27,6 @@ where
         self.runtime.schedule_timer_wake(delay, wake)
     }
 
-    pub(super) fn spawn_runtime_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let message = work();
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue(message);
-                }
-            })
-    }
-
     pub(super) fn spawn_runtime_worker_task(
         &mut self,
         name: &'static str,
@@ -67,82 +44,6 @@ where
                 if let Some(runtime) = runtime.upgrade() {
                     runtime.request_repaint();
                 }
-            })
-    }
-
-    pub(super) fn spawn_runtime_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let sink_runtime = runtime.clone();
-                let sink = BusinessMessageSink::new(move |message| {
-                    sink_runtime
-                        .upgrade()
-                        .is_some_and(|runtime| runtime.enqueue(message))
-                });
-                work(sink);
-            })
-    }
-
-    pub(super) fn spawn_runtime_latest_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        if !self.runtime.is_alive() {
-            return false;
-        }
-        let runtime = Arc::downgrade(&self.runtime);
-        self.runtime
-            .spawn_business_task(name, priority, is_cancelled, move || {
-                let Some(runtime) = runtime.upgrade() else {
-                    return;
-                };
-                let slot = runtime.begin_stream_slot();
-                let gate = Arc::new(LatestStreamGate::new());
-                let emit_runtime = Arc::downgrade(&runtime);
-                let emit_latest_runtime = emit_runtime.clone();
-                let stale_latest_runtime = emit_runtime.clone();
-                let close_gate = Arc::clone(&gate);
-                let latest_gate = Arc::clone(&gate);
-                drop(runtime);
-                let sink = BusinessMessageSink::new_with_latest(
-                    move |message| {
-                        emit_runtime
-                            .upgrade()
-                            .is_some_and(|runtime| runtime.enqueue(message))
-                    },
-                    move |message| {
-                        latest_gate.emit_latest(
-                            message,
-                            |message| {
-                                emit_latest_runtime.upgrade().is_some_and(|runtime| {
-                                    runtime.enqueue_stream_latest(slot, message)
-                                })
-                            },
-                            || {
-                                if let Some(runtime) = stale_latest_runtime.upgrade() {
-                                    runtime.record_stale_stream_event();
-                                }
-                            },
-                        )
-                    },
-                    move || {
-                        close_gate.close();
-                    },
-                );
-                work(sink);
             })
     }
 }
@@ -204,44 +105,3 @@ where
         )
     }
 }
-
-struct LatestStreamGate {
-    live: Mutex<bool>,
-}
-
-impl LatestStreamGate {
-    fn new() -> Self {
-        Self {
-            live: Mutex::new(true),
-        }
-    }
-
-    fn emit_latest<Message>(
-        &self,
-        message: Message,
-        enqueue: impl FnOnce(Message) -> bool,
-        stale: impl FnOnce(),
-    ) -> bool {
-        let live = self
-            .live
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !*live {
-            drop(live);
-            stale();
-            return false;
-        }
-        enqueue(message)
-    }
-
-    fn close(&self) {
-        *self
-            .live
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = false;
-    }
-}
-
-#[cfg(test)]
-#[path = "../../tests/runtime_work.rs"]
-mod tests;

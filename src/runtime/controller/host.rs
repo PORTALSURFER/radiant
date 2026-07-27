@@ -6,11 +6,10 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        AuxiliaryWindow, BusinessMessageSink, Command, NativeFileDrop, NativeFileOpen,
-        NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
-        PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
-        RuntimeHostCapabilities, RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority,
-        TransientOverlayContext,
+        AuxiliaryWindow, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
+        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformServiceFallback,
+        RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities,
+        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -89,27 +88,6 @@ where
             .is_some_and(|capability| (capability.schedule_timer)(&mut self.bridge, delay, wake))
     }
 
-    pub(crate) fn host_spawn_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    ) -> bool {
-        self.host_capabilities
-            .tasks
-            .as_ref()
-            .is_some_and(|capability| {
-                (capability.spawn_message_task)(
-                    &mut self.bridge,
-                    name,
-                    priority,
-                    is_cancelled,
-                    work,
-                )
-            })
-    }
-
     pub(crate) fn host_spawn_worker_task(
         &mut self,
         name: &'static str,
@@ -122,48 +100,6 @@ where
             .as_ref()
             .is_some_and(|capability| {
                 (capability.spawn_worker_task)(&mut self.bridge, name, priority, is_cancelled, work)
-            })
-    }
-
-    pub(crate) fn host_spawn_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        self.host_capabilities
-            .tasks
-            .as_ref()
-            .is_some_and(|capability| {
-                (capability.spawn_streaming_message_task)(
-                    &mut self.bridge,
-                    name,
-                    priority,
-                    is_cancelled,
-                    work,
-                )
-            })
-    }
-
-    pub(crate) fn host_spawn_latest_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        self.host_capabilities
-            .tasks
-            .as_ref()
-            .is_some_and(|capability| {
-                (capability.spawn_latest_streaming_message_task)(
-                    &mut self.bridge,
-                    name,
-                    priority,
-                    is_cancelled,
-                    work,
-                )
             })
     }
 

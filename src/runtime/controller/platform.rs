@@ -125,6 +125,12 @@ impl PlatformResultIngress {
         {
             pending.push(delivery);
         }
+        // Keep an older overflow delivery ahead of arrivals committed while
+        // the frozen prefix is being mapped. The remaining pending entries
+        // are older than that overflow, so appending preserves global FIFO.
+        if let Some(delivery) = self.overflow.take() {
+            self.pending.push(delivery);
+        }
         (pending, frozen_count > max_deliveries)
     }
 

@@ -4,9 +4,10 @@ use super::{
 };
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
-    FileDialogRequest, PlatformRequest, PlatformResponse, RuntimeBridge, RuntimeHostCapabilities,
-    RuntimeLifecycleHost, RuntimePlatformResultHost, RuntimePlatformResultSink,
-    RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, SurfaceNode,
+    DragPreview, DragRequest, FileDialogRequest, PlatformRequest, PlatformResponse,
+    PlatformResultDelivery, RuntimeBridge, RuntimeHostCapabilities, RuntimeLifecycleHost,
+    RuntimePlatformResultHost, RuntimePlatformResultSink, RuntimeQueueDelivery, RuntimeQueueHost,
+    RuntimeQueueItem, SurfaceNode,
 };
 use std::sync::Arc;
 
@@ -556,4 +557,66 @@ fn command_produced_platform_queue_item_waits_for_next_drain() {
     assert!(runtime.drain_runtime_messages().messages_dispatched > 0);
     assert_eq!(runtime.bridge().dispatched, vec![2]);
     assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+}
+
+#[test]
+fn frozen_platform_overflow_precedes_mapper_enqueued_arrival() {
+    let mut runtime = SurfaceRuntime::new(
+        QueuedCommandBridge::default(),
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    let ingress = std::sync::Arc::clone(&runtime.platform_results);
+    let enqueued_identity = runtime.platform_registry.register(Box::new(|_| 9));
+
+    let mapper_ingress = std::sync::Arc::clone(&ingress);
+    let first_identity = runtime.platform_registry.register(Box::new(move |_| {
+        let reservation =
+            crate::runtime::controller::platform::PlatformResultIngress::reserve(&mapper_ingress)
+                .expect("new mapper arrival should fit behind frozen work");
+        assert!(reservation.commit(PlatformResultDelivery::Completed {
+            identity: enqueued_identity,
+            result: Err(String::from("new")),
+        }));
+        0
+    }));
+    let mut pending_identities = vec![first_identity];
+    for message in 1..8 {
+        pending_identities.push(
+            runtime
+                .platform_registry
+                .register(Box::new(move |_| message)),
+        );
+    }
+    let overflow_identity = runtime.platform_registry.register(Box::new(|_| 8));
+    for identity in pending_identities {
+        let reservation =
+            crate::runtime::controller::platform::PlatformResultIngress::reserve(&ingress)
+                .expect("pending platform result reservation");
+        assert!(reservation.commit(PlatformResultDelivery::Completed {
+            identity,
+            result: Err(String::from("pending")),
+        }));
+    }
+    assert!(
+        runtime
+            .platform_results
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .enqueue_overflow(PlatformResultDelivery::Completed {
+                identity: overflow_identity,
+                result: Err(String::from("overflow")),
+            })
+    );
+
+    runtime.execute_command(Command::begin_drag(DragRequest::new(
+        DragPreview::sized("drag", crate::gui::types::Vector2::new(20.0, 20.0)),
+        crate::gui::types::Point::new(0.0, 0.0),
+    )));
+    assert!(runtime.drain_runtime_messages().runtime_work_remaining);
+    assert_eq!(runtime.bridge().dispatched, vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+    assert_eq!(
+        runtime.bridge().dispatched,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    );
 }

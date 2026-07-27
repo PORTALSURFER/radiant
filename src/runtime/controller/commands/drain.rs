@@ -16,16 +16,9 @@ where
             .pending_len();
         let worker_high_water = self.worker_effects.high_water();
 
-        // Native external-drag completion is admitted only on the next UI
-        // turn. The identity fence also makes duplicate and superseded
-        // completions harmless before the mapper is invoked.
-        if let Some(pending) = self.take_pending_external_drag_completion() {
-            self.dispatch_message_inner((pending.on_completed)(pending.result), &mut outcome);
-        }
-
-        // Platform results are admitted on the previous turn's high-water
-        // snapshot. Mapping happens before commands newly admitted below, so
-        // even a synchronous host completion cannot re-enter execution.
+        // Freeze and remove the eligible platform prefix before invoking any
+        // mapper. Older overflow is folded behind the remaining frozen queue,
+        // so arrivals produced by a mapper cannot jump ahead of it.
         let (platform_results, platform_work_remaining) = {
             let mut pending = self
                 .platform_results
@@ -34,6 +27,17 @@ where
             pending.take_frozen_pending_batch(platform_start_count, completion_budget)
         };
         completion_budget = completion_budget.saturating_sub(platform_results.len());
+
+        // Native external-drag completion is admitted only on the next UI
+        // turn. The identity fence also makes duplicate and superseded
+        // completions harmless before the mapper is invoked.
+        if let Some(pending) = self.take_pending_external_drag_completion() {
+            self.dispatch_message_inner((pending.on_completed)(pending.result), &mut outcome);
+        }
+
+        // Platform results were frozen above the mapper boundary. Mapping
+        // happens before commands newly admitted below, so even a synchronous
+        // host completion cannot re-enter execution.
         for delivery in platform_results {
             if let Some(message) = self.platform_registry.map_delivery(delivery) {
                 self.dispatch_message_inner(message, &mut outcome);

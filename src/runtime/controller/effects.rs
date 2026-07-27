@@ -461,7 +461,7 @@ impl<Message> WorkerEffects<Message> {
         while let Ok(terminal) = self.receiver.try_recv() {
             if terminal.sequence >= high_water {
                 deferred.push_back(terminal);
-                break;
+                continue;
             }
             terminals.push(terminal);
         }
@@ -664,7 +664,8 @@ mod tests {
     use crate::layout::ContainerPolicy;
     use crate::runtime::command::{EffectGeneration, EffectId};
     use crate::runtime::{
-        DragPreview, DragRequest, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceNode, UiSurface,
+        DragPreview, DragRequest, RuntimeDiagnosticsRecorder, RuntimeHostCapabilities,
+        RuntimeTaskHost, SurfaceNode, UiSurface,
     };
     use crate::{
         gui::types::{Point, Vector2},
@@ -711,6 +712,34 @@ mod tests {
             "post-snapshot completion must request a later turn"
         );
         assert_eq!(effects.drain(), vec![7]);
+    }
+
+    #[test]
+    fn post_snapshot_terminal_burst_is_deferred_without_receiver_starvation() {
+        let mut effects = WorkerEffects::<usize>::default();
+        let diagnostics = RuntimeDiagnosticsRecorder::default();
+        let high_water = effects.ingress.high_water();
+        for id in 1..=3 {
+            register(&mut effects, id, 1);
+            assert!(effects.ingress.send(
+                EffectId(id),
+                EffectGeneration(1),
+                effects.epoch,
+                EffectResult::Completed(Box::new(id as usize)),
+            ));
+        }
+
+        let (messages, budget_deferred, later_turn) =
+            effects.drain_at_high_water_budget(high_water, 64);
+        assert!(messages.is_empty());
+        assert!(!budget_deferred);
+        assert!(later_turn);
+        assert_eq!(effects.retained_completion_count(), 3);
+        diagnostics.record_controller_completion_depth(effects.retained_completion_count());
+        let snapshot = diagnostics.snapshot();
+        assert_eq!(snapshot.queue.current_pending_controller_completions, 3);
+        assert_eq!(snapshot.queue.max_pending_controller_completions, 3);
+        assert_eq!(effects.drain(), vec![1, 2, 3]);
     }
 
     #[test]

@@ -145,10 +145,7 @@ where
             }
             return Ok(());
         }
-        let Some(capability) = self.host_capabilities.platform.as_ref() else {
-            return Err(Box::new((request, on_completed)));
-        };
-        (capability.request_platform_service)(&mut self.bridge, request, on_completed)
+        Err(Box::new((request, on_completed)))
     }
 
     /// Poll the cached host animation capability.

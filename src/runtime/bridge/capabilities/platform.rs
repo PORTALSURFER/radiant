@@ -31,15 +31,9 @@ pub trait RuntimePlatformResultHost {
     }
 }
 
-type PlatformRequestFn<Bridge, Message> = fn(
-    &mut Bridge,
-    PlatformRequest,
-    PlatformCompletion<Message>,
-) -> Result<(), PlatformServiceFallback<Message>>;
-
-pub(crate) struct RuntimePlatformCapability<Bridge, Message> {
-    pub request_platform_service: PlatformRequestFn<Bridge, Message>,
-}
+pub(crate) struct RuntimePlatformCapability<Bridge, Message>(
+    std::marker::PhantomData<fn(&mut Bridge, Message)>,
+);
 
 type PlatformResultRequestFn<Bridge> = fn(
     &mut Bridge,
@@ -57,9 +51,7 @@ where
     Bridge: RuntimePlatformHost<Message>,
 {
     pub const fn new() -> Self {
-        Self {
-            request_platform_service: Bridge::request_platform_service,
-        }
+        Self(std::marker::PhantomData)
     }
 }
 

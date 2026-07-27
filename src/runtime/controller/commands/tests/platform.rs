@@ -166,7 +166,7 @@ impl RuntimePlatformResultHost for SynchronousResultBridge {
         _request: PlatformRequest,
         sink: RuntimePlatformResultSink,
     ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
-        sink.send(Ok(PlatformResponse::Completed));
+        sink.send(Ok(PlatformResponse::Canceled));
         Ok(())
     }
 }
@@ -174,27 +174,63 @@ use std::path::PathBuf;
 
 #[test]
 fn platform_request_dispatches_through_bridge_completion() {
-    let bridge = PlatformCommandBridge::default();
+    let bridge = SynchronousResultBridge::default();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
     let request = PlatformRequest::PickFolder(FileDialogRequest::new().title("Choose library"));
 
-    let outcome =
-        runtime.execute_command(Command::platform_request(
-            request.clone(),
-            |result| match result.expect("platform request should complete") {
-                PlatformResponse::Canceled => 7,
-                _ => 0,
-            },
-        ));
+    let outcome = runtime.execute_command(Command::platform_request(request.clone(), |result| {
+        usize::from(result.is_ok())
+    }));
 
     assert_eq!(outcome.messages_dispatched, 0);
-    assert_eq!(runtime.bridge().requests, vec![request]);
-    assert_eq!(runtime.bridge().dispatched, vec![7]);
+    assert!(runtime.bridge().dispatched.is_empty());
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
+fn synchronous_legacy_platform_host_is_deferred_as_rejection() {
+    let mut runtime =
+        SurfaceRuntime::new(PlatformCommandBridge::default(), Vector2::new(100.0, 100.0));
+    let outcome = runtime.execute_command(Command::platform_request(
+        PlatformRequest::ReadText,
+        |result| usize::from(result.is_err()),
+    ));
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert!(runtime.bridge().requests.is_empty());
+    assert!(runtime.bridge().dispatched.is_empty());
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+}
+
+#[test]
+fn legacy_platform_request_after_exit_releases_mapper_without_delivery() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let mut runtime =
+        SurfaceRuntime::new(PlatformCommandBridge::default(), Vector2::new(100.0, 100.0));
+    assert!(runtime.execute_command(Command::Exit).exit_requested);
+    let mapper_captures = std::rc::Rc::clone(&captures);
+    assert_eq!(
+        runtime
+            .execute_command(Command::platform_request(
+                PlatformRequest::ReadText,
+                move |_| {
+                    *mapper_captures.borrow_mut() += 1;
+                    1
+                },
+            ))
+            .messages_dispatched,
+        0
+    );
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    assert!(runtime.bridge().requests.is_empty());
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
 }
 
 #[test]
 fn platform_request_supports_shell_open_variants() {
-    let bridge = PlatformCommandBridge::default();
+    let bridge = SynchronousResultBridge::default();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
     let path = PathBuf::from(r"C:\samples");
 
@@ -248,18 +284,7 @@ fn platform_request_supports_shell_open_variants() {
         },
     ));
 
-    assert_eq!(
-        runtime.bridge().requests,
-        vec![
-            PlatformRequest::OpenPath(path.clone()),
-            PlatformRequest::OpenUrl(String::from("https://example.invalid")),
-            PlatformRequest::RevealPath(path.join("kick.wav")),
-            PlatformRequest::CopyText(String::from("C:/samples/kick.wav")),
-            PlatformRequest::CopyFilePaths(vec![path.join("kick.wav")]),
-            PlatformRequest::ReadText,
-            PlatformRequest::ReadFilePaths,
-        ]
-    );
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 7);
     assert_eq!(runtime.bridge().dispatched, vec![1, 2, 3, 4, 5, 6, 7]);
 }
 

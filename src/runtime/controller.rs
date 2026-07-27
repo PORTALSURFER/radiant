@@ -14,6 +14,7 @@ mod hit_test;
 mod host;
 mod input;
 mod interaction_state;
+mod platform;
 mod pointer;
 mod refresh;
 mod scratch;
@@ -42,6 +43,7 @@ use crate::{
 };
 use effects::WorkerEffects;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
+use platform::{PlatformCompletionRegistry, PlatformResultIngress};
 use scratch::RuntimeScratch;
 use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
@@ -85,6 +87,8 @@ where
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
+    platform_registry: PlatformCompletionRegistry<Message>,
+    platform_results: std::sync::Arc<std::sync::Mutex<PlatformResultIngress>>,
     worker_effects: WorkerEffects<Message>,
     timer_effects: TimerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,

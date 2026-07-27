@@ -7,9 +7,10 @@ use crate::{
     },
     runtime::{
         AuxiliaryWindow, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
-        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformServiceFallback,
-        RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities,
-        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
+        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformResultDelivery,
+        PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
+        RuntimeHostCapabilities, RuntimePlatformResultSink, RuntimeRetainedSurfaceCapability,
+        ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -108,10 +109,43 @@ where
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
     ) -> Result<(), PlatformServiceFallback<Message>> {
-        let Some(capability) = self.host_capabilities.platform.as_ref() else {
-            return Err(Box::new((request, on_completed)));
-        };
-        (capability.request_platform_service)(&mut self.bridge, request, on_completed)
+        if self.host_capabilities.platform_result.is_some() {
+            let identity = self.platform_registry.register(on_completed);
+            let Some(reservation) =
+                crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                    &self.platform_results,
+                )
+            else {
+                let accepted = self
+                    .platform_results
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .enqueue_overflow(PlatformResultDelivery::Completed {
+                        identity,
+                        result: Err(String::from("platform result ingress is saturated")),
+                    });
+                if !accepted {
+                    let _ = self.platform_registry.remove(identity);
+                }
+                return Ok(());
+            };
+            let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+                let _ = reservation.commit(delivery);
+            });
+            let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
+                unreachable!("platform-result capability was checked above")
+            };
+            if let Err(fallback) =
+                (capability.request_platform_result)(&mut self.bridge, request, sink)
+            {
+                let (_request, sink) = *fallback;
+                sink.send(Err(String::from(
+                    "platform service request was rejected by the runtime host",
+                )));
+            }
+            return Ok(());
+        }
+        Err(Box::new((request, on_completed)))
     }
 
     /// Poll the cached host animation capability.
@@ -184,6 +218,7 @@ where
 
     /// Run the optional host runtime-exit hook.
     pub fn host_on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.shutdown_platform_services();
         let capability = self.host_capabilities.lifecycle.as_ref()?;
         (capability.on_runtime_exit)(&mut self.bridge)
     }

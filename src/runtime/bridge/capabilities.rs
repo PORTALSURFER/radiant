@@ -15,7 +15,8 @@ pub use auxiliary::RuntimeWindowHost;
 pub use diagnostics::{RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost};
 pub use input::RuntimeInputHost;
 pub use lifecycle::RuntimeLifecycleHost;
-pub use platform::RuntimePlatformHost;
+#[allow(deprecated)]
+pub use platform::{RuntimePlatformHost, RuntimePlatformResultHost};
 pub use presentation::{RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost};
 pub use queues::{RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem};
 pub use tasks::{RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake};
@@ -33,7 +34,7 @@ pub(crate) use auxiliary::RuntimeWindowCapability;
 pub(crate) use diagnostics::{RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability};
 pub(crate) use input::RuntimeInputCapability;
 pub(crate) use lifecycle::RuntimeLifecycleCapability;
-pub(crate) use platform::RuntimePlatformCapability;
+pub(crate) use platform::{RuntimePlatformCapability, RuntimePlatformResultCapability};
 pub(crate) use presentation::{
     RuntimeRetainedSurfaceCapability, RuntimeTransientOverlayCapability,
 };
@@ -50,6 +51,7 @@ pub struct RuntimeHostCapabilities<Bridge, Message> {
     pub(crate) input: Option<RuntimeInputCapability<Bridge, Message>>,
     pub(crate) tasks: Option<RuntimeTaskCapability<Bridge, Message>>,
     pub(crate) platform: Option<RuntimePlatformCapability<Bridge, Message>>,
+    pub(crate) platform_result: Option<RuntimePlatformResultCapability<Bridge>>,
     pub(crate) queues: Option<RuntimeQueueCapability<Bridge, Message>>,
     pub(crate) animation: Option<RuntimeAnimationCapability<Bridge>>,
     pub(crate) windows: Option<RuntimeWindowCapability<Bridge, Message>>,
@@ -67,6 +69,7 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
             input: None,
             tasks: None,
             platform: None,
+            platform_result: None,
             queues: None,
             animation: None,
             windows: None,
@@ -97,11 +100,21 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
     }
 
     /// Enable typed platform-service dispatch.
+    #[allow(deprecated)]
     pub fn with_platform(mut self) -> Self
     where
         Bridge: RuntimePlatformHost<Message>,
     {
         self.platform = Some(RuntimePlatformCapability::new());
+        self
+    }
+
+    /// Enable result-only typed platform-service dispatch for custom hosts.
+    pub fn with_platform_results(mut self) -> Self
+    where
+        Bridge: RuntimePlatformResultHost,
+    {
+        self.platform_result = Some(RuntimePlatformResultCapability::new());
         self
     }
 

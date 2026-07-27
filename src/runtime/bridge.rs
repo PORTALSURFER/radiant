@@ -11,12 +11,13 @@ pub use animation::{RuntimeAnimationActivity, RuntimeAnimationDemand};
 pub use app::App;
 pub use auxiliary::AuxiliaryWindow;
 pub use auxiliary::AuxiliaryWindowClosePolicy;
+#[allow(deprecated)]
 pub use capabilities::{
     RuntimeAnimationHost, RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost,
     RuntimeHostCapabilities, RuntimeInputHost, RuntimeLifecycleHost, RuntimePlatformHost,
-    RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem, RuntimeRetainedSurfaceHost,
-    RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake, RuntimeTransientOverlayHost,
-    RuntimeWindowHost,
+    RuntimePlatformResultHost, RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem,
+    RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake,
+    RuntimeTransientOverlayHost, RuntimeWindowHost,
 };
 pub(crate) use capabilities::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub use contract::RuntimeBridge;

@@ -154,16 +154,13 @@ fn deferred_platform_fallback_preserves_freshness_for_later_followups() {
         &mut outcome,
     );
 
-    assert_eq!(
-        runtime.focused_widget(),
-        Some(43),
-        "layout-dependent commands after a fallback completion should see its projection changes"
-    );
-    assert_eq!(
-        runtime.bridge().project_count,
-        3,
-        "the fallback message should dirty the shared deferred freshness state"
-    );
+    assert_eq!(runtime.focused_widget(), Some(42));
+    assert_eq!(runtime.bridge().project_count, 2);
+
+    let outcome = runtime.drain_runtime_messages();
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert_eq!(runtime.focused_widget(), Some(42));
+    assert_eq!(runtime.bridge().project_count, 3);
 }
 
 #[test]

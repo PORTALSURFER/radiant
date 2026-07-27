@@ -3,9 +3,7 @@ use crate::application::runtime::subscription::{
     WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
 };
 use crate::application::runtime::timer::TimerSink;
-use crate::application::runtime::{
-    PlatformCompletionDelivery, platform::PlatformCompletionIdentity,
-};
+use crate::runtime::{PlatformCompletionIdentity, PlatformResultDelivery};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -80,7 +78,7 @@ fn sequenced_sources_preserve_fifo_order() {
                 .shared()
                 .reserve_delivery()
                 .expect("slot is available"),
-            PlatformCompletionDelivery {
+            PlatformResultDelivery::Completed {
                 identity: platform,
                 result: Ok(crate::runtime::PlatformResponse::Completed),
             },
@@ -99,6 +97,28 @@ fn sequenced_sources_preserve_fifo_order() {
         |_| None,
     );
     assert_eq!(mapped, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn platform_reservations_remain_bounded_until_ui_drain() {
+    let mut runtime = AppRuntime::<()>::default();
+    for id in 0..64 {
+        let reservation = runtime
+            .shared()
+            .reserve_delivery()
+            .expect("capacity should admit the bounded platform lane");
+        assert!(runtime.shared().enqueue_platform_completion_reserved(
+            reservation,
+            PlatformResultDelivery::Completed {
+                identity: PlatformCompletionIdentity { id, epoch: 1 },
+                result: Ok(crate::runtime::PlatformResponse::Completed),
+            },
+        ));
+    }
+    assert!(runtime.shared().reserve_delivery().is_none());
+
+    let _ = runtime.take_pending_with_mappers(|_| None, |_| None, |_| None);
+    assert!(runtime.shared().reserve_delivery().is_some());
 }
 
 #[test]

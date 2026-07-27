@@ -1,10 +1,10 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UiUpdateContext, runtime::PlatformCompletionDelivery},
+    application::{IntoView, UiUpdateContext},
     runtime::{
         ConfirmationButtons, ConfirmationLevel, ConfirmationResponse, FileDialogRequest,
-        PlatformCompletion, PlatformRequest, PlatformResponse, PlatformResult,
-        PlatformServiceFallback, TaskPriority,
+        PlatformRequest, PlatformResponse, PlatformResult, PlatformResultServiceFallback,
+        RuntimePlatformResultSink, TaskPriority,
     },
 };
 
@@ -18,8 +18,8 @@ where
     pub(super) fn request_app_platform_service(
         &mut self,
         request: PlatformRequest,
-        on_completed: PlatformCompletion<Message>,
-    ) -> Result<(), PlatformServiceFallback<Message>> {
+        on_completed: RuntimePlatformResultSink,
+    ) -> Result<(), PlatformResultServiceFallback> {
         if !self.runtime.is_alive()
             || !self
                 .runtime
@@ -30,35 +30,25 @@ where
         let Some(reservation) = self.runtime.shared().reserve_delivery() else {
             return Err(Box::new((request, on_completed)));
         };
-        let identity = self.platform_registry.register(on_completed);
         let runtime = std::sync::Arc::downgrade(self.runtime.shared());
         match self.runtime.spawn_business_task_with_payload(
             "radiant-platform-service",
             TaskPriority::Interactive,
-            (request, identity, reservation),
-            move |(request, identity, reservation)| {
+            (request, on_completed, reservation),
+            move |(request, on_completed, reservation)| {
                 let response = perform_platform_request(request);
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue_platform_completion_reserved(
+                if let Some(runtime) = runtime.upgrade()
+                    && runtime.enqueue_platform_completion_reserved(
                         reservation,
-                        PlatformCompletionDelivery {
-                            identity,
-                            result: response,
-                        },
-                    );
+                        on_completed.into_delivery(response),
+                    )
+                {
+                    runtime.request_repaint();
                 }
             },
         ) {
             Ok(()) => Ok(()),
-            Err((request, identity, _reservation)) => {
-                let Some(on_completed) = self.platform_registry.remove(identity) else {
-                    tracing::error!(
-                        "Radiant app runtime lost a platform completion during spawn rejection"
-                    );
-                    return Ok(());
-                };
-                Err(Box::new((request, on_completed)))
-            }
+            Err((request, on_completed, _reservation)) => Err(Box::new((request, on_completed))),
         }
     }
 }

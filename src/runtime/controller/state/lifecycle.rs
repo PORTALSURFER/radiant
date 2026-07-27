@@ -1,6 +1,6 @@
 use super::super::{
-    RuntimeInteractionState, RuntimeScratch, RuntimeTraversalState, RuntimeWorkQueues,
-    SurfaceRuntime,
+    PlatformCompletionRegistry, RuntimeInteractionState, RuntimeScratch, RuntimeTraversalState,
+    RuntimeWorkQueues, SurfaceRuntime,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -46,6 +46,10 @@ where
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
+            platform_registry: PlatformCompletionRegistry::default(),
+            platform_results: std::sync::Arc::new(std::sync::Mutex::new(
+                super::super::platform::PlatformResultIngress::default(),
+            )),
             worker_effects: super::super::effects::WorkerEffects::default(),
             timer_effects: super::super::timers::TimerEffects::default(),
             diagnostics: Default::default(),

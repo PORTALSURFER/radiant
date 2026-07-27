@@ -2,8 +2,8 @@ use super::super::subscription::{WorkerSubscriptionDelivery, WorkerSubscriptionI
 use super::super::threading::BusinessThreadPool;
 use super::super::timer::{TimerIdentity, TimerLane, TimerSink, TimerWake, timer_sink};
 use super::SharedRuntimeDelivery;
-use crate::application::runtime::platform::PlatformCompletionDelivery;
 use crate::gui::repaint::RepaintSignal;
+use crate::runtime::PlatformResultDelivery;
 use crate::runtime::{
     RuntimeDiagnostics, RuntimeDiagnosticsRecorder, RuntimeTimerWake, TaskPriority,
 };
@@ -208,7 +208,7 @@ impl SharedRuntimeIngress {
     pub(in crate::application::runtime) fn enqueue_platform_completion_reserved(
         &self,
         reservation: DeliveryReservation,
-        delivery: PlatformCompletionDelivery,
+        delivery: PlatformResultDelivery,
     ) -> bool {
         reservation.commit(SharedRuntimeDelivery::Platform(delivery))
     }

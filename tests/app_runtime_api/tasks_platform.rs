@@ -599,6 +599,53 @@ fn ui_update_context_exposes_platform_service_helpers() {
 }
 
 #[test]
+fn app_platform_completion_is_deferred_and_mapped_once_on_ui_owner() {
+    use radiant::prelude as ui;
+    use std::{
+        cell::RefCell,
+        rc::Rc,
+        thread,
+        time::{Duration, Instant},
+    };
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let mapper_calls = Rc::clone(&calls);
+    let bridge = ui::app(DemoState::default())
+        .view(|_| ui::text("Platform"))
+        .handle_message(|_, _message: DemoMessage, _context| {})
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+    let outcome = runtime.execute_command(Command::platform_request(
+        radiant::runtime::PlatformRequest::CopyFilePaths(Vec::new()),
+        move |result| {
+            assert!(
+                result.is_err(),
+                "empty file-path copy should fail deterministically"
+            );
+            *mapper_calls.borrow_mut() += 1;
+            DemoMessage::Increment
+        },
+    ));
+
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert_eq!(*calls.borrow(), 0);
+    assert_eq!(Rc::strong_count(&calls), 2);
+
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        let drained = runtime.drain_runtime_messages();
+        if drained.messages_dispatched > 0 || Instant::now() >= deadline {
+            assert_eq!(drained.messages_dispatched, 1);
+            break;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(Rc::strong_count(&calls), 1);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+}
+
+#[test]
 fn platform_helpers_accept_ui_local_completion_capture_and_message() {
     #[derive(Clone)]
     struct UiOnlyMessage(std::rc::Rc<std::cell::RefCell<usize>>);

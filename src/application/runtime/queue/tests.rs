@@ -78,7 +78,7 @@ fn sequenced_sources_preserve_fifo_order() {
                 .shared()
                 .reserve_delivery()
                 .expect("slot is available"),
-            PlatformResultDelivery {
+            PlatformResultDelivery::Completed {
                 identity: platform,
                 result: Ok(crate::runtime::PlatformResponse::Completed),
             },
@@ -109,7 +109,7 @@ fn platform_reservations_remain_bounded_until_ui_drain() {
             .expect("capacity should admit the bounded platform lane");
         assert!(runtime.shared().enqueue_platform_completion_reserved(
             reservation,
-            PlatformResultDelivery {
+            PlatformResultDelivery::Completed {
                 identity: PlatformCompletionIdentity { id, epoch: 1 },
                 result: Ok(crate::runtime::PlatformResponse::Completed),
             },

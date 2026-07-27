@@ -120,7 +120,7 @@ where
                     .platform_results
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .enqueue_overflow(PlatformResultDelivery {
+                    .enqueue_overflow(PlatformResultDelivery::Completed {
                         identity,
                         result: Err(String::from("platform result ingress is saturated")),
                     });
@@ -129,8 +129,8 @@ where
                 }
                 return Ok(());
             };
-            let sink = RuntimePlatformResultSink::new(identity, move |result| {
-                let _ = reservation.commit(PlatformResultDelivery { identity, result });
+            let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+                let _ = reservation.commit(delivery);
             });
             let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
                 unreachable!("platform-result capability was checked above")

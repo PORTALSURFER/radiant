@@ -33,8 +33,16 @@ impl<Message> PlatformCompletionRegistry<Message> {
     }
 
     pub(super) fn map_delivery(&mut self, delivery: PlatformResultDelivery) -> Option<Message> {
-        let mapper = self.entries.remove(&delivery.identity)?;
-        Some(mapper(delivery.result))
+        match delivery {
+            PlatformResultDelivery::Completed { identity, result } => {
+                let mapper = self.entries.remove(&identity)?;
+                Some(mapper(result))
+            }
+            PlatformResultDelivery::Discarded { identity } => {
+                self.entries.remove(&identity);
+                None
+            }
+        }
     }
 
     pub(super) fn remove(
@@ -159,7 +167,7 @@ mod tests {
             *marker.borrow_mut() += 1;
             1
         }));
-        let delivery = || PlatformResultDelivery {
+        let delivery = || PlatformResultDelivery::Completed {
             identity,
             result: Ok(PlatformResponse::Completed),
         };
@@ -181,7 +189,7 @@ mod tests {
         assert_eq!(Rc::strong_count(&marker), 1);
         assert!(
             registry
-                .map_delivery(PlatformResultDelivery {
+                .map_delivery(PlatformResultDelivery::Completed {
                     identity,
                     result: Ok(PlatformResponse::Completed),
                 })
@@ -205,14 +213,18 @@ mod tests {
 
         let ingress = Arc::new(Mutex::new(PlatformResultIngress::default()));
         let mut ingress_state = ingress.lock().expect("ingress lock");
-        assert!(ingress_state.enqueue_overflow(PlatformResultDelivery {
-            identity: first,
-            result: Ok(PlatformResponse::Completed),
-        }));
-        assert!(!ingress_state.enqueue_overflow(PlatformResultDelivery {
-            identity: second,
-            result: Ok(PlatformResponse::Completed),
-        }));
+        assert!(
+            ingress_state.enqueue_overflow(PlatformResultDelivery::Completed {
+                identity: first,
+                result: Ok(PlatformResponse::Completed),
+            })
+        );
+        assert!(
+            !ingress_state.enqueue_overflow(PlatformResultDelivery::Completed {
+                identity: second,
+                result: Ok(PlatformResponse::Completed),
+            })
+        );
         drop(ingress_state);
         let _ = registry.remove(second);
         assert_eq!(Rc::strong_count(&marker), 2);

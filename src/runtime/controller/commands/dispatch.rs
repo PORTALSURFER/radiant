@@ -332,7 +332,7 @@ where
                             &self.platform_results,
                         )
                     {
-                        let _ = reservation.commit(crate::runtime::PlatformResultDelivery {
+                        let _ = reservation.commit(crate::runtime::PlatformResultDelivery::Completed {
                             identity,
                             result: Err(String::from(
                                 "platform service requests are not supported by this runtime bridge",
@@ -343,7 +343,7 @@ where
                             .platform_results
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
-                            .enqueue_overflow(crate::runtime::PlatformResultDelivery {
+                            .enqueue_overflow(crate::runtime::PlatformResultDelivery::Completed {
                                 identity,
                                 result: Err(String::from("platform result ingress is saturated")),
                             });

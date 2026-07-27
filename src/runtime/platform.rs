@@ -138,9 +138,14 @@ pub(crate) struct PlatformCompletionIdentity {
 }
 
 /// Send-safe platform result delivery awaiting UI-owned mapping.
-pub(crate) struct PlatformResultDelivery {
-    pub(crate) identity: PlatformCompletionIdentity,
-    pub(crate) result: PlatformResult,
+pub(crate) enum PlatformResultDelivery {
+    Completed {
+        identity: PlatformCompletionIdentity,
+        result: PlatformResult,
+    },
+    Discarded {
+        identity: PlatformCompletionIdentity,
+    },
 }
 
 /// Ergonomic decoders for platform-service callback results.
@@ -358,13 +363,13 @@ pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message
 /// callback only to enqueue a [`PlatformResult`] for a later UI turn.
 pub struct RuntimePlatformResultSink {
     identity: PlatformCompletionIdentity,
-    callback: Option<Box<dyn FnOnce(PlatformResult) + Send + 'static>>,
+    callback: Option<Box<dyn FnOnce(PlatformResultDelivery) + Send + 'static>>,
 }
 
 impl RuntimePlatformResultSink {
     pub(crate) fn new(
         identity: PlatformCompletionIdentity,
-        callback: impl FnOnce(PlatformResult) + Send + 'static,
+        callback: impl FnOnce(PlatformResultDelivery) + Send + 'static,
     ) -> Self {
         Self {
             identity,
@@ -375,14 +380,28 @@ impl RuntimePlatformResultSink {
     /// Deliver one result to the runtime's deferred ingress.
     pub fn send(mut self, result: PlatformResult) {
         if let Some(callback) = self.callback.take() {
-            callback(result);
+            callback(PlatformResultDelivery::Completed {
+                identity: self.identity,
+                result,
+            });
         }
     }
 
-    pub(crate) fn into_delivery(self, result: PlatformResult) -> PlatformResultDelivery {
-        PlatformResultDelivery {
+    pub(crate) fn into_delivery(mut self, result: PlatformResult) -> PlatformResultDelivery {
+        self.callback.take();
+        PlatformResultDelivery::Completed {
             identity: self.identity,
             result,
+        }
+    }
+}
+
+impl Drop for RuntimePlatformResultSink {
+    fn drop(&mut self) {
+        if let Some(callback) = self.callback.take() {
+            callback(PlatformResultDelivery::Discarded {
+                identity: self.identity,
+            });
         }
     }
 }
@@ -454,6 +473,49 @@ mod tests {
         assert_eq!(
             PlatformResultExt::into_file_paths(Ok(PlatformResponse::FilePaths(paths.clone()))),
             Ok(paths)
+        );
+    }
+
+    #[test]
+    fn result_sink_send_into_delivery_and_drop_are_mutually_exclusive() {
+        use std::sync::{Arc, Mutex};
+
+        let identity = PlatformCompletionIdentity { id: 1, epoch: 1 };
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let send_events = Arc::clone(&events);
+        let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+            send_events
+                .lock()
+                .expect("events lock")
+                .push(matches!(delivery, PlatformResultDelivery::Completed { .. }));
+        });
+        sink.send(Ok(PlatformResponse::Completed));
+        assert_eq!(events.lock().expect("events lock").as_slice(), &[true]);
+
+        let into_events = Arc::clone(&events);
+        let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+            into_events
+                .lock()
+                .expect("events lock")
+                .push(matches!(delivery, PlatformResultDelivery::Completed { .. }));
+        });
+        let delivery = sink.into_delivery(Ok(PlatformResponse::Completed));
+        assert!(matches!(delivery, PlatformResultDelivery::Completed { .. }));
+        assert_eq!(events.lock().expect("events lock").len(), 1);
+
+        let drop_events = Arc::clone(&events);
+        let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+            drop_events
+                .lock()
+                .expect("events lock")
+                .push(matches!(delivery, PlatformResultDelivery::Discarded { .. }));
+        });
+        std::thread::spawn(move || drop(sink))
+            .join()
+            .expect("sink drop thread");
+        assert_eq!(
+            events.lock().expect("events lock").as_slice(),
+            &[true, true]
         );
     }
 }

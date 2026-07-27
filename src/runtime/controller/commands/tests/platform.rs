@@ -14,6 +14,63 @@ struct SynchronousResultBridge {
     dispatched: Vec<usize>,
 }
 
+#[derive(Default)]
+struct DroppingResultBridge;
+
+#[derive(Default)]
+struct RetainingResultBridge {
+    sinks: Vec<RuntimePlatformResultSink>,
+}
+
+impl RuntimeBridge<usize> for DroppingResultBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for DroppingResultBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        _sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        Ok(())
+    }
+}
+
+impl RuntimeBridge<usize> for RetainingResultBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for RetainingResultBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
 impl RuntimeBridge<usize> for SynchronousResultBridge {
     fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
         crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
@@ -169,4 +226,99 @@ fn synchronous_result_host_completion_is_deferred_to_next_drain() {
     let outcome = runtime.drain_runtime_messages();
     assert_eq!(outcome.messages_dispatched, 1);
     assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
+fn dropped_result_sinks_discard_and_release_mappers_without_dispatch() {
+    let mut runtime = SurfaceRuntime::new(
+        DroppingResultBridge,
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    for _ in 0..3 {
+        let mapper_captures = std::rc::Rc::clone(&captures);
+        let outcome = runtime.execute_command(crate::runtime::Command::platform_request(
+            PlatformRequest::ReadText,
+            move |_| {
+                *mapper_captures.borrow_mut() += 1;
+                1
+            },
+        ));
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(std::rc::Rc::strong_count(&captures), 2);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*captures.borrow(), 0);
+        assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    }
+}
+
+#[test]
+fn abandoned_result_sinks_release_bounded_capacity_and_mappers() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let mut runtime = SurfaceRuntime::new(
+        RetainingResultBridge::default(),
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    for _ in 0..64 {
+        let mapper_captures = std::rc::Rc::clone(&captures);
+        runtime.execute_command(crate::runtime::Command::platform_request(
+            PlatformRequest::ReadText,
+            move |_| {
+                *mapper_captures.borrow_mut() += 1;
+                1
+            },
+        ));
+    }
+    assert_eq!(runtime.bridge().sinks.len(), 64);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 65);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+
+    runtime.bridge_mut().sinks.clear();
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    assert_eq!(*captures.borrow(), 0);
+
+    let mapper_captures = std::rc::Rc::clone(&captures);
+    runtime.execute_command(crate::runtime::Command::platform_request(
+        PlatformRequest::ReadText,
+        move |_| {
+            *mapper_captures.borrow_mut() += 1;
+            1
+        },
+    ));
+    assert_eq!(runtime.bridge().sinks.len(), 1);
+    runtime.bridge_mut().sinks.clear();
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    assert_eq!(*captures.borrow(), 0);
+}
+
+#[test]
+fn exit_fences_late_sink_drop_from_worker_thread() {
+    let captures = std::rc::Rc::new(std::cell::RefCell::new(0usize));
+    let mut runtime = SurfaceRuntime::new(
+        RetainingResultBridge::default(),
+        crate::gui::types::Vector2::new(100.0, 100.0),
+    );
+    let mapper_captures = std::rc::Rc::clone(&captures);
+    runtime.execute_command(crate::runtime::Command::platform_request(
+        PlatformRequest::ReadText,
+        move |_| {
+            *mapper_captures.borrow_mut() += 1;
+            1
+        },
+    ));
+    assert_eq!(std::rc::Rc::strong_count(&captures), 2);
+    assert!(
+        runtime
+            .execute_command(crate::runtime::Command::Exit)
+            .exit_requested
+    );
+    assert_eq!(std::rc::Rc::strong_count(&captures), 1);
+    let sink = runtime.bridge_mut().sinks.pop().expect("retained sink");
+    std::thread::spawn(move || drop(sink))
+        .join()
+        .expect("sink drop thread");
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(*captures.borrow(), 0);
 }

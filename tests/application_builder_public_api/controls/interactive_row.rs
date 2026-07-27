@@ -1,5 +1,6 @@
 use radiant::prelude::{self as ui, IntoView};
 use radiant::{gui::list as gui_list, widgets as widget_api};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
 enum RowMessage {
@@ -81,4 +82,68 @@ fn dense_row_policy_is_available_from_prelude() {
         ),
         Some(RowMessage::Activate)
     );
+}
+
+#[test]
+fn local_interactive_row_actions_accept_ui_only_capture() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct UiOnlyMessage(Rc<RefCell<usize>>);
+
+    let calls = Rc::new(RefCell::new(0usize));
+    let captured = Rc::clone(&calls);
+    let message_calls = Rc::clone(&calls);
+    let secondary_calls = Rc::clone(&calls);
+    let drag_calls = Rc::clone(&calls);
+    let drop_calls = Rc::clone(&calls);
+    let view = ui::interactive_row_underlay(ui::text_line("Local", 22.0))
+        .input_id(46)
+        .actions_local(
+            ui::InteractiveRowLocalActions::new()
+                .activate(move || {
+                    *captured.borrow_mut() += 1;
+                    UiOnlyMessage(Rc::clone(&message_calls))
+                })
+                .secondary(move |_| {
+                    *secondary_calls.borrow_mut() += 1;
+                    UiOnlyMessage(Rc::clone(&secondary_calls))
+                })
+                .drag(move |_| {
+                    *drag_calls.borrow_mut() += 1;
+                    UiOnlyMessage(Rc::clone(&drag_calls))
+                })
+                .drop(move || {
+                    *drop_calls.borrow_mut() += 1;
+                    UiOnlyMessage(Rc::clone(&drop_calls))
+                }),
+        )
+        .size(160.0, 22.0);
+
+    let surface = view.into_surface();
+    let message = surface
+        .dispatch_widget_output(
+            46,
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+        )
+        .expect("local row action should dispatch");
+    assert_eq!(*calls.borrow(), 1);
+    assert_eq!(*message.0.borrow(), 1);
+
+    let secondary = surface.dispatch_widget_output(
+        46,
+        ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate {
+            position: ui::Point::new(8.0, 10.0),
+        }),
+    );
+    assert!(secondary.is_some());
+    let drag = surface.dispatch_widget_output(
+        46,
+        ui::WidgetOutput::typed(ui::InteractiveRowMessage::Drag(
+            ui::DragHandleMessage::moved(ui::Point::new(9.0, 11.0)),
+        )),
+    );
+    assert!(drag.is_some());
+    let drop = surface
+        .dispatch_widget_output(46, ui::WidgetOutput::typed(ui::InteractiveRowMessage::Drop));
+    assert!(drop.is_some());
+    assert_eq!(*calls.borrow(), 4);
 }

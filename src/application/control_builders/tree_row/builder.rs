@@ -9,7 +9,8 @@ use crate::{
     },
     runtime::PaintText,
     widgets::{
-        InteractiveRowActions, WidgetId, WidgetStyle, stable_widget_id, stable_widget_id_u64,
+        InteractiveRowActions, InteractiveRowLocalActions, WidgetId, WidgetStyle, stable_widget_id,
+        stable_widget_id_u64,
     },
 };
 
@@ -298,5 +299,13 @@ impl<Message: Clone + 'static> TreeRowMessageBuilder<Message> {
     /// Attach interactive row actions and build the row.
     pub fn interactive_actions(self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
         self.row.build(self.toggle, actions)
+    }
+
+    /// Attach UI-local interactive row actions and build the row.
+    pub fn interactive_actions_local(
+        self,
+        actions: InteractiveRowLocalActions<Message>,
+    ) -> ViewNode<Message> {
+        self.row.build_local(self.toggle, actions)
     }
 }

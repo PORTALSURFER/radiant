@@ -198,6 +198,35 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
 }
 
 #[test]
+fn interactive_row_actions_name_legacy_transfer_and_local_ui_boundaries() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let actions = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/mod.rs"),
+    )
+    .expect("interactive-row actions should be readable");
+    let activation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/activation.rs"),
+    )
+    .expect("interactive-row activation actions should be readable");
+
+    assert!(
+        actions.contains("legacy transfer-safe surface")
+            && actions.contains("InteractiveRowLocalActions")
+            && actions.contains("InteractiveRowActionRouter")
+            && actions.contains("Rc<dyn Fn")
+            && actions.contains("Shared(&'a SharedActionRouter"),
+        "interactive-row actions should make the legacy Send boundary and UI-local Rc boundary explicit"
+    );
+    assert!(
+        activation.contains("impl<Message> InteractiveRowActions<Message>")
+            && activation.contains("Send + Sync")
+            && activation.contains("impl<Message> InteractiveRowLocalActions<Message>")
+            && activation.contains("Key: Clone + 'static"),
+        "shared action methods should retain transfer bounds while local keyed methods only require Clone + 'static"
+    );
+}
+
+#[test]
 fn list_item_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))

@@ -4,7 +4,7 @@ use crate::{
     application::{MappedWidget, ViewNode, disclosure_button, row, spacer},
     gui::list::tree_guide_indent,
     runtime::WidgetMessageMapper,
-    widgets::InteractiveRowActions,
+    widgets::{InteractiveRowActions, InteractiveRowLocalActions},
 };
 
 use super::{
@@ -19,6 +19,14 @@ impl TreeRowBuilder {
         actions: InteractiveRowActions<Message>,
     ) -> ViewNode<Message> {
         self.build(None, actions)
+    }
+
+    /// Attach UI-local interactive row actions and build the row.
+    pub fn interactive_actions_local<Message: Clone + 'static>(
+        self,
+        actions: InteractiveRowLocalActions<Message>,
+    ) -> ViewNode<Message> {
+        self.build_local(None, actions)
     }
 
     pub(super) fn build<Message: Clone + 'static>(
@@ -39,6 +47,45 @@ impl TreeRowBuilder {
         };
         let expander = self.expander(toggle);
         let mut hit_target = self.hit_target(actions).fill_width().height(row_height);
+        if let Some(hit_key) = hit_key {
+            hit_target = hit_target.key(hit_key);
+        }
+
+        let mut row = row([
+            tree_guide_indent(depth, guide_metrics),
+            expander,
+            hit_target,
+        ])
+        .spacing(1.0)
+        .fill_width()
+        .height(row_height);
+        if let Some(row_key) = row_key {
+            row = row.key(row_key);
+        }
+        row
+    }
+
+    pub(super) fn build_local<Message: Clone + 'static>(
+        self,
+        toggle: Option<Rc<dyn Fn() -> Message + 'static>>,
+        actions: InteractiveRowLocalActions<Message>,
+    ) -> ViewNode<Message> {
+        let row_height = self.row_height;
+        let depth = self.depth;
+        let guide_metrics = self.guide_metrics;
+        let row_key = self.row_key.clone();
+        let hit_key = if self.input_id.is_none() {
+            self.hit_key
+                .clone()
+                .or_else(|| row_key.as_ref().map(|key| format!("{key}-hit")))
+        } else {
+            None
+        };
+        let expander = self.expander(toggle);
+        let mut hit_target = self
+            .hit_target_local(actions)
+            .fill_width()
+            .height(row_height);
         if let Some(hit_key) = hit_key {
             hit_target = hit_target.key(hit_key);
         }
@@ -87,6 +134,41 @@ impl TreeRowBuilder {
     fn hit_target<Message: Clone + 'static>(
         self,
         actions: InteractiveRowActions<Message>,
+    ) -> ViewNode<Message> {
+        let input_id = self.input_id;
+        let widget = TreeRowHitTarget::new(TreeRowHitTargetParts {
+            label: self.label,
+            selected: self.selected,
+            focused: self.focused,
+            drag_drop: self.drag_drop,
+            style: self.style,
+            palette: self.palette,
+            drop_target_outline: self.drop_target_outline,
+            selected_marker: self.selected_marker,
+            focus_marker: self.focus_marker,
+            pressed_focus_marker: self.pressed_focus_marker,
+            selected_trailing_marker: self.selected_trailing_marker,
+            hover_trailing_marker: self.hover_trailing_marker,
+            focus_outline: self.focus_outline,
+            selected_hover_marker: self.selected_hover_marker,
+            normal_label_color: self.normal_label_color,
+            highlighted_label_color: self.highlighted_label_color,
+            label_inset_x: self.label_inset_x,
+            trailing_icon: self.trailing_icon,
+        });
+        let mut view = crate::application::view_node_from_widget(MappedWidget::new(
+            widget,
+            WidgetMessageMapper::interactive_row_filtered(move |message| actions.route(message)),
+        ));
+        if let Some(input_id) = input_id {
+            view = view.id(input_id);
+        }
+        view
+    }
+
+    fn hit_target_local<Message: Clone + 'static>(
+        self,
+        actions: InteractiveRowLocalActions<Message>,
     ) -> ViewNode<Message> {
         let input_id = self.input_id;
         let widget = TreeRowHitTarget::new(TreeRowHitTargetParts {

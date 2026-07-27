@@ -5,7 +5,7 @@ use crate::{
 
 use super::{BadgeBuilder, badge};
 use crate::application::control_builders::interactive_row::{
-    InteractiveRowActions, InteractiveRowBuilder,
+    InteractiveRowActions, InteractiveRowBuilder, InteractiveRowLocalActions,
 };
 
 /// Builder for badge visuals with rich row-style interactions.
@@ -250,6 +250,15 @@ impl InteractiveBadgeBuilder {
     ) -> ViewNode<Message> {
         let Self { badge, row } = self;
         input_overlay(badge.passive_view(), row.actions(actions))
+    }
+
+    /// Emit host messages for UI-local badge row actions.
+    pub fn actions_local<Message: 'static>(
+        self,
+        actions: InteractiveRowLocalActions<Message>,
+    ) -> ViewNode<Message> {
+        let Self { badge, row } = self;
+        input_overlay(badge.passive_view(), row.actions_local(actions))
     }
 }
 

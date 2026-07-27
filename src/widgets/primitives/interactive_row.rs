@@ -13,7 +13,7 @@ mod input;
 mod paint;
 mod widget_impl;
 
-pub use actions::InteractiveRowActions;
+pub use actions::{InteractiveRowActions, InteractiveRowLocalActions};
 pub use embedded::EmbeddedInteractiveRowWidget;
 
 #[cfg(test)]

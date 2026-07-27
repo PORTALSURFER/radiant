@@ -1,6 +1,6 @@
 use crate::{
     layout::Vector2,
-    widgets::{InteractiveRowActions, WidgetSizing},
+    widgets::{InteractiveRowActions, InteractiveRowLocalActions, WidgetSizing},
 };
 
 use super::InteractiveRowBuilder;
@@ -33,4 +33,9 @@ pub fn interactive_row() -> InteractiveRowBuilder {
 /// Build an empty interactive row action router.
 pub fn row_actions<Message>() -> InteractiveRowActions<Message> {
     InteractiveRowActions::new()
+}
+
+/// Build an empty UI-local interactive row action router.
+pub fn row_actions_local<Message>() -> InteractiveRowLocalActions<Message> {
+    InteractiveRowLocalActions::new()
 }

@@ -13,7 +13,7 @@ mod underlay;
 #[path = "builder/widget.rs"]
 mod widget;
 
-pub use defaults::{interactive_row, row_actions};
+pub use defaults::{interactive_row, row_actions, row_actions_local};
 pub use policy::DenseRowPolicy;
 pub use underlay::{InteractiveRowUnderlayBuilder, interactive_row_underlay};
 

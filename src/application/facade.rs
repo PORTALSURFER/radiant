@@ -112,7 +112,7 @@ pub use surfaces::{
     retained_canvas_with, scrollbar, spacer, text, text_line, widget,
 };
 pub use view::{
-    IntoView, MappedWidget, MappedWidgetParts, RunnableStatefulApp, StatefulAppBuilder,
-    StatefulAppWithView, ViewNode, ViewProjection, WidgetView, WidgetViewContext, WindowBuilder,
-    app, window,
+    ContinuityKey, IntoView, MappedWidget, MappedWidgetParts, RunnableStatefulApp,
+    StatefulAppBuilder, StatefulAppWithView, ViewNode, ViewProjection, WidgetView,
+    WidgetViewContext, WindowBuilder, app, window,
 };

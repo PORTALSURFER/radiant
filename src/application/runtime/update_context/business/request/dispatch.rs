@@ -111,9 +111,11 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             .queue_command(Command::perform_worker_stream_with_priority(
                 self.name,
                 self.priority,
-                is_cancelled,
-                0,
-                false,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: 0,
+                    latest: false,
+                },
                 move |sink| {
                     let event_sink =
                         BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
@@ -146,9 +148,11 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             .queue_command(Command::perform_worker_stream_with_priority(
                 self.name,
                 self.priority,
-                is_cancelled,
-                0,
-                true,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: 0,
+                    latest: true,
+                },
                 move |sink| {
                     let event_sink = BusinessEventSink::new({
                         let sink = sink.clone();

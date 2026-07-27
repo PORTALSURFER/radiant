@@ -17,6 +17,8 @@ pub struct Presentation<State, Message> {
     transient_overlays: Vec<TransientOverlay<State>>,
 }
 
+type DynamicTargetFps<State> = Box<dyn FnMut(&mut State) -> Option<u32>>;
+
 /// Build an empty presentation descriptor.
 pub fn presentation<State: 'static, Message>() -> Presentation<State, Message> {
     Presentation::new()
@@ -117,7 +119,7 @@ pub struct FrameClock<State, Message> {
     message: AppFrameMessage<Message>,
     when: Box<dyn FnMut(&mut State) -> bool>,
     target_fps: Option<u32>,
-    dynamic_target_fps: Option<Box<dyn FnMut(&mut State) -> Option<u32>>>,
+    dynamic_target_fps: Option<DynamicTargetFps<State>>,
     repaint_policy: Option<Box<dyn AppFrameRepaintPolicy<State>>>,
 }
 

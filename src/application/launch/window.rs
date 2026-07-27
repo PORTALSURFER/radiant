@@ -2,10 +2,9 @@ use crate::{
     application::{Result, launch::IntoView},
     gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions, WindowSpec},
     runtime::{
-        Command, RuntimeBridge, declarative_command_runtime_bridge, run_native_vello_runtime,
+        Command, RuntimeBridge, declarative_owned_command_runtime_bridge, run_native_vello_runtime,
     },
 };
-use std::sync::Arc;
 
 /// Builder for no-state native windows.
 pub struct WindowBuilder {
@@ -101,10 +100,9 @@ impl WindowBuilder {
     where
         View: IntoView<()> + 'static,
     {
-        let surface = Arc::new(view.into_surface());
-        let bridge = declarative_command_runtime_bridge(
-            surface,
-            |surface| Arc::clone(surface),
+        let bridge = declarative_owned_command_runtime_bridge(
+            view.into_surface(),
+            |surface| surface.clone(),
             |_, ()| Command::none(),
         );
         run_native_vello_runtime(self.options, bridge)

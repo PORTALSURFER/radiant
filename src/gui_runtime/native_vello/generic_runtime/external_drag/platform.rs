@@ -2,6 +2,26 @@
 
 use crate::runtime::{ExternalDragOutcome, ExternalDragRequest};
 
+#[cfg(target_os = "macos")]
+pub(super) fn should_launch_before_app_switch(
+    armed: bool,
+    session_active: bool,
+    current_super: bool,
+    next_super: bool,
+) -> bool {
+    armed && session_active && !current_super && next_super
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(super) const fn should_launch_before_app_switch(
+    _armed: bool,
+    _session_active: bool,
+    _current_super: bool,
+    _next_super: bool,
+) -> bool {
+    false
+}
+
 #[cfg(target_os = "windows")]
 #[path = "windows.rs"]
 mod windows;

@@ -133,11 +133,6 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
-    #[cfg(test)]
-    pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
-        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
-    }
-
     pub(super) fn defer_surface_resize_with_reason(
         &mut self,
         size: PhysicalSize<u32>,
@@ -281,5 +276,15 @@ where
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
+        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
     }
 }

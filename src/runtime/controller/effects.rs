@@ -154,7 +154,7 @@ struct Registered<Message> {
 }
 
 enum RegisteredMapper<Message> {
-    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>),
+    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>),
     Stream {
         latest: bool,
         latest_state: Option<Arc<LatestStreamState>>,
@@ -499,10 +499,10 @@ impl<Message> WorkerEffects<Message> {
                 if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
                     return;
                 }
-                if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper {
-                    if let Some(message) = map_event(output) {
-                        messages.push(message);
-                    }
+                if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper
+                    && let Some(message) = map_event(output)
+                {
+                    messages.push(message);
                 }
             }
             EffectResult::LatestEvent => {
@@ -517,12 +517,10 @@ impl<Message> WorkerEffects<Message> {
                     map_event,
                     ..
                 } = &entry.mapper
+                    && let Some(output) = state.take_latest()
+                    && let Some(message) = map_event(output)
                 {
-                    if let Some(output) = state.take_latest() {
-                        if let Some(message) = map_event(output) {
-                            messages.push(message);
-                        }
-                    }
+                    messages.push(message);
                 }
             }
             EffectResult::Completed(output) => {
@@ -533,7 +531,11 @@ impl<Message> WorkerEffects<Message> {
                     return;
                 }
                 match entry.mapper {
-                    RegisteredMapper::Once(map) => messages.push(map(output)),
+                    RegisteredMapper::Once(map) => {
+                        if let Some(message) = map(output) {
+                            messages.push(message);
+                        }
+                    }
                     RegisteredMapper::Stream { map_final, .. } => {
                         if let Some(message) = map_final(output) {
                             messages.push(message);
@@ -648,7 +650,7 @@ mod tests {
                 epoch: effect.epoch,
                 is_cancelled: None,
                 mapper: RegisteredMapper::Once(Box::new(|output| {
-                    *output.downcast::<usize>().expect("usize output")
+                    Some(*output.downcast::<usize>().expect("usize output"))
                 })),
             },
         );
@@ -699,7 +701,7 @@ mod tests {
                     let invoked = Arc::clone(&invoked);
                     move |_| {
                         invoked.fetch_add(1, Ordering::AcqRel);
-                        1
+                        Some(1)
                     }
                 })),
             },
@@ -745,7 +747,7 @@ mod tests {
                     let invoked = Arc::clone(&invoked);
                     move |_| {
                         invoked.fetch_add(1, Ordering::AcqRel);
-                        1
+                        Some(1)
                     }
                 })),
             },
@@ -781,7 +783,7 @@ mod tests {
                     let _marker = &mapper_marker;
                     let output = *output.downcast::<usize>().expect("usize output");
                     mapper_state.borrow_mut().push(output);
-                    output + 1
+                    Some(output + 1)
                 })),
             },
         );
@@ -807,9 +809,11 @@ mod tests {
             crate::runtime::Command::perform_worker_stream_with_priority(
                 "ordered-stream",
                 crate::runtime::TaskPriority::Background,
-                None,
-                0,
-                false,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: 0,
+                    latest: false,
+                },
                 |sink| {
                     assert!(sink.emit(Box::new(1_u8)));
                     assert!(sink.emit(Box::new(2_u8)));
@@ -845,9 +849,11 @@ mod tests {
             crate::runtime::Command::perform_worker_stream_with_priority(
                 "latest-stream",
                 crate::runtime::TaskPriority::Background,
-                None,
-                0,
-                true,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: 0,
+                    latest: true,
+                },
                 |sink| {
                     assert!(sink.emit_latest(Box::new(1_u8)));
                     assert!(sink.emit_latest(Box::new(2_u8)));
@@ -888,9 +894,11 @@ mod tests {
             crate::runtime::Command::perform_worker_stream_with_priority(
                 "ordered-pressure",
                 crate::runtime::TaskPriority::Background,
-                None,
-                0,
-                false,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: 0,
+                    latest: false,
+                },
                 |sink| {
                     for event in 0..(EFFECT_INGRESS_CAPACITY + 8) {
                         let _ = sink.emit(Box::new(event as u8));

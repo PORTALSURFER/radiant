@@ -153,9 +153,11 @@ mod tests {
             Command::perform_worker_stream_with_priority(
                 "target",
                 TaskPriority::BlockingIo,
-                None,
-                0,
-                false,
+                crate::runtime::command::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: 0,
+                    latest: false,
+                },
                 |_| (),
                 |_: ()| 2,
                 |_: ()| 3,

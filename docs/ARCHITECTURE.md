@@ -255,6 +255,13 @@ Current target-specific seams are intentionally narrow:
   external drag-out platform selection. Windows delegates to the native drag
   implementation; other targets report an explicit unsupported result through
   the normal runtime command path.
+- `src/gui_runtime/native_vello/generic_runtime/activation/platform.rs` and
+  `src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs` own
+  macOS activation and application-reopen integration. The activation policy
+  remains backend-neutral while unsupported targets use explicit no-op hooks.
+- `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
+  small target-specific modifier and control-click projection differences used
+  by native pointer and keyboard mapping.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs`,

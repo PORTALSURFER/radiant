@@ -80,6 +80,7 @@ fn application_builder_custom_widget_views_support_named_parts_construction() {
 
 #[test]
 fn application_builder_custom_widget_local_parts_keep_mapper_on_ui_runtime() {
+    use radiant::application::DynamicWidgetLocalParts;
     use radiant::prelude as ui;
 
     let calls = Rc::new(RefCell::new(0usize));
@@ -87,7 +88,7 @@ fn application_builder_custom_widget_local_parts_keep_mapper_on_ui_runtime() {
     let drop_probe = DropProbe(Rc::clone(&dropped));
     let calls_for_mapper = Rc::clone(&calls);
     let surface: UiSurface<DemoMessage> = ui::widget(ui::DynamicWidget::from_local_parts(
-        ui::DynamicWidgetLocalParts {
+        DynamicWidgetLocalParts {
             widget: Box::new(CustomStatusWidget::new(3)),
             map: Rc::new(move |output| {
                 let _probe = &drop_probe;

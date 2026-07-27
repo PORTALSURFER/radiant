@@ -15,6 +15,8 @@ mod query;
 mod repaint;
 mod scroll;
 
+pub(crate) use constructors::WorkerStreamOptions;
+
 pub use repaint::RepaintScope;
 pub use repaint::{SurfaceInvalidation, SurfaceRevisions};
 pub use scroll::{ScrollFixedRowIntoViewParts, ScrollIntoViewParts};
@@ -179,7 +181,7 @@ pub(crate) enum WorkerEffectWork {
 }
 
 pub(crate) enum WorkerEffectMapper<Message> {
-    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Message + 'static>),
+    Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>),
     Stream {
         latest: bool,
         map_event: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
@@ -187,14 +189,16 @@ pub(crate) enum WorkerEffectMapper<Message> {
     },
 }
 
+type WorkerPayloadSink = Arc<dyn Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static>;
+
 /// Worker-side payload sink used by UI-owned streaming worker effects.
 ///
 /// The sink carries only opaque `Send` payloads. Event and final mappers stay
 /// in the UI-owned effect registry and are never moved onto the worker lane.
 #[derive(Clone)]
 pub(crate) struct WorkerEffectSink {
-    emit: Arc<dyn Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static>,
-    emit_latest: Option<Arc<dyn Fn(Box<dyn Any + Send>) -> bool + Send + Sync + 'static>>,
+    emit: WorkerPayloadSink,
+    emit_latest: Option<WorkerPayloadSink>,
     close_latest: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 

@@ -33,11 +33,11 @@ fn native_lifecycle_uses_explicit_imports() {
             && lifecycle.contains("GenericNativeVelloRunner")
             && lifecycle.contains("RuntimeUserEvent")
             && lifecycle.contains("TimedFrameCadence")
-            && lifecycle.contains("should_start_popup_window_drag")
+            && lifecycle.contains("should_start_native_window_drag")
             && lifecycle.contains("timed_frame_cadence")
             && lifecycle.contains("timed_frame_target_fps")
             && lifecycle.contains("use crate::runtime::RuntimeBridge;")
-            && lifecycle.contains("use std::time::Instant;")
+            && lifecycle.contains("use std::time::{Duration, Instant};")
             && lifecycle.contains("use tracing::warn;")
             && lifecycle.contains("use winit::{")
             && !lifecycle.starts_with("use super::*;"),
@@ -105,7 +105,7 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
             && runner.contains("RuntimeBridge")
             && runner.contains("NativeRunOptions")
             && runner.contains("use std::time::{Duration, Instant};")
-            && runner.contains("use winit::event_loop::ActiveEventLoop;")
+            && runner.contains("use winit::event_loop::{ActiveEventLoop")
             && !runner.starts_with("use super::*;"),
         "native runner should name runtime state, frame state, route outcome, scene rebuild, timed-frame, text renderer, runtime, timing, and event-loop dependencies"
     );

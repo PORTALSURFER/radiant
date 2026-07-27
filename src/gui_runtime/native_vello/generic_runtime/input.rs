@@ -1,6 +1,7 @@
 //! Input mapping for the generic native Vello runtime.
 
 mod key_code;
+mod platform;
 
 use crate::{
     gui::input::{KeyCode, KeyPress},
@@ -49,7 +50,7 @@ pub(super) fn native_pointer_press_gesture(
     button: Option<PointerButton>,
     modifiers: winit::keyboard::ModifiersState,
 ) -> Option<NativePointerGesture> {
-    native_pointer_press_gesture_for_platform(button, modifiers, cfg!(target_os = "macos"))
+    platform::native_pointer_press_gesture(button, modifiers)
 }
 
 fn native_pointer_press_gesture_for_platform(
@@ -83,14 +84,7 @@ pub(super) fn pointer_modifiers_for_native_gesture(
     modifiers: winit::keyboard::ModifiersState,
     consume_control: bool,
 ) -> PointerModifiers {
-    let mut projected = pointer_modifiers_from_winit(modifiers);
-    if consume_control && cfg!(target_os = "macos") {
-        // On macOS Control is folded into the generic command projection. A
-        // converted Control-click consumes only that physical modifier while
-        // retaining an independently held Command key.
-        projected.command = modifiers.super_key();
-    }
-    projected
+    platform::pointer_modifiers_for_native_gesture(modifiers, consume_control)
 }
 
 pub(super) fn keypress_from_input(
@@ -99,23 +93,11 @@ pub(super) fn keypress_from_input(
 ) -> KeyPress {
     KeyPress {
         key,
-        command: command_modifier_from_winit(modifiers),
-        control: control_modifier_from_winit(modifiers),
+        command: platform::command_modifier_from_winit(modifiers),
+        control: platform::control_modifier_from_winit(modifiers),
         shift: modifiers.shift_key(),
         alt: modifiers.alt_key(),
     }
-}
-
-fn command_modifier_from_winit(modifiers: winit::keyboard::ModifiersState) -> bool {
-    if cfg!(target_os = "macos") {
-        modifiers.super_key()
-    } else {
-        modifiers.control_key() || modifiers.super_key()
-    }
-}
-
-fn control_modifier_from_winit(modifiers: winit::keyboard::ModifiersState) -> bool {
-    cfg!(target_os = "macos") && modifiers.control_key()
 }
 
 #[cfg(test)]

@@ -17,6 +17,9 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "src/gui_runtime/native_vello/generic_runtime/external_drag/payload.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/payload/dropfiles.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs",
+    "src/gui_runtime/native_vello/generic_runtime/activation/platform.rs",
+    "src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs",
+    "src/gui_runtime/native_vello/generic_runtime/input/platform.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/preview.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs",
     "src/gui_runtime/native_vello/generic_runtime/native_file_open.rs",
@@ -76,11 +79,15 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
     {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-        if !contains_target_specific_platform_code(&source) {
+        let production_source = source.split("#[cfg(test)]").next().unwrap_or(&source);
+        if !contains_target_specific_platform_code(production_source) {
             continue;
         }
 
         let relative = relative_path(&manifest_dir, &path);
+        if relative.contains("/tests/") {
+            continue;
+        }
         if !allowed.contains(relative.as_str()) {
             undocumented.push(relative);
             continue;

@@ -7,13 +7,31 @@ use std::sync::Arc;
 /// Ownership token retained with each cache entry whose identity uses an Arc
 /// allocation address. Holding the immutable source keeps the address unique
 /// for the lifetime of the cached resource and prevents allocator ABA reuse.
-#[allow(dead_code)]
 #[derive(Clone)]
 pub(super) enum RenderCanvasContentOwner {
     RgbaAtlas(Arc<ImageRgba>),
     SignalBands(Arc<[f32]>),
     SignalSummaryBands(Arc<GpuSignalSummary>),
     CustomShader(Arc<GpuShaderSurfaceDescriptor>),
+}
+
+impl Drop for RenderCanvasContentOwner {
+    fn drop(&mut self) {
+        match self {
+            Self::RgbaAtlas(source) => {
+                let _ = source;
+            }
+            Self::SignalBands(source) => {
+                let _ = source;
+            }
+            Self::SignalSummaryBands(source) => {
+                let _ = source;
+            }
+            Self::CustomShader(source) => {
+                let _ = source;
+            }
+        }
+    }
 }
 
 /// Exact immutable identity used to authorize retained render-canvas reuse.

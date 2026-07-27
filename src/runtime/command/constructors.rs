@@ -1,6 +1,12 @@
 use super::{
     Command, TaskPriority, TimerEffect, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
 };
+
+pub(crate) struct WorkerStreamOptions {
+    pub(crate) is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+    pub(crate) generation: u64,
+    pub(crate) latest: bool,
+}
 use crate::{
     runtime::{
         DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResult,
@@ -168,10 +174,16 @@ impl<Message> Command<Message> {
             generation: super::EffectGeneration(generation),
             work: WorkerEffectWork::Once(Box::new(move || Box::new(work()) as Box<dyn Any + Send>)),
             mapper: WorkerEffectMapper::Once(Box::new(move |output| {
-                let output = output
-                    .downcast::<Output>()
-                    .expect("worker effect output type must match its mapper");
-                map(*output)
+                match output.downcast::<Output>() {
+                    Ok(output) => Some(map(*output)),
+                    Err(_) => {
+                        tracing::error!(
+                            effect_name = name,
+                            "Radiant worker effect output type did not match its mapper"
+                        );
+                        None
+                    }
+                }
             })),
         })
     }
@@ -179,9 +191,7 @@ impl<Message> Command<Message> {
     pub(crate) fn perform_worker_stream_with_priority<Event, Output>(
         name: &'static str,
         priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        generation: u64,
-        latest: bool,
+        options: WorkerStreamOptions,
         work: impl FnOnce(WorkerEffectSink) -> Output + Send + 'static,
         map_event: impl Fn(Event) -> Message + 'static,
         map_final: impl FnOnce(Output) -> Message + 'static,
@@ -195,9 +205,7 @@ impl<Message> Command<Message> {
             super::EffectId(id),
             name,
             priority,
-            is_cancelled,
-            generation,
-            latest,
+            options,
             work,
             map_event,
             map_final,
@@ -208,9 +216,7 @@ impl<Message> Command<Message> {
         id: super::EffectId,
         name: &'static str,
         priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        generation: u64,
-        latest: bool,
+        options: WorkerStreamOptions,
         work: impl FnOnce(WorkerEffectSink) -> Output + Send + 'static,
         map_event: impl Fn(Event) -> Message + 'static,
         map_final: impl FnOnce(Output) -> Message + 'static,
@@ -222,14 +228,14 @@ impl<Message> Command<Message> {
         Self::PerformWorker(super::WorkerEffect {
             name,
             priority,
-            is_cancelled,
+            is_cancelled: options.is_cancelled,
             id,
-            generation: super::EffectGeneration(generation),
+            generation: super::EffectGeneration(options.generation),
             work: WorkerEffectWork::Stream(Box::new(move |sink| {
                 Box::new(work(sink)) as Box<dyn Any + Send>
             })),
             mapper: WorkerEffectMapper::Stream {
-                latest,
+                latest: options.latest,
                 map_event: Box::new(move |event| {
                     event
                         .downcast::<Event>()

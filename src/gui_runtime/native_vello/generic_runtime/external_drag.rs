@@ -15,11 +15,12 @@ where
         &self,
         modifiers: ModifiersState,
     ) -> bool {
-        cfg!(target_os = "macos")
-            && self.core.runtime.external_drag_armed()
-            && self.core.runtime.drag_session_active()
-            && !self.input.modifiers.super_key()
-            && modifiers.super_key()
+        platform::should_launch_before_app_switch(
+            self.core.runtime.external_drag_armed(),
+            self.core.runtime.drag_session_active(),
+            self.input.modifiers.super_key(),
+            modifiers.super_key(),
+        )
     }
 
     pub(super) fn launch_external_drag_if_armed(&mut self) -> GenericRouteOutcome {

@@ -506,7 +506,7 @@ fn application_tree_row_builder_keeps_defaults_state_and_composition_focused() {
             && composition.contains("fn hit_target<")
             && composition.contains("TreeRowHitTarget::new")
             && hit_target.contains("pub(super) struct TreeRowHitTarget")
-            && hit_target.contains("impl<Message> EmbeddedInteractiveRowWidget"),
+            && hit_target.contains("impl EmbeddedInteractiveRowWidget for TreeRowHitTarget"),
         "tree-row composition should own row/expander assembly and delegate custom hit-target painting to hit_target.rs"
     );
 }

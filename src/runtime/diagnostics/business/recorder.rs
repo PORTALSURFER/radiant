@@ -63,6 +63,21 @@ impl RuntimeDiagnosticsRecorder {
             .max(stream_slots);
     }
 
+    pub(crate) fn record_controller_completion_depth(&self, pending_completions: usize) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.current_pending_controller_completions = pending_completions;
+        state.snapshot.queue.max_pending_controller_completions = state
+            .snapshot
+            .queue
+            .max_pending_controller_completions
+            .max(pending_completions);
+    }
+
+    pub(crate) fn record_controller_completion_deferral(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.controller_completion_deferrals += 1;
+    }
+
     pub(crate) fn record_stream_message_coalesced(&self) {
         let mut state = lock_diagnostics_state(&self.state);
         state.snapshot.queue.stream_events_coalesced += 1;

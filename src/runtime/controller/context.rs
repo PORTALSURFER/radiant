@@ -67,7 +67,39 @@ where
     /// Return a generic runtime diagnostics snapshot for tests and debug panels.
     pub fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
         let mut snapshot = self.host_runtime_diagnostics();
-        snapshot.ui = self.diagnostics.snapshot().ui;
+        let controller = self.diagnostics.snapshot();
+        let host_current_messages = snapshot.queue.current_pending_messages;
+        let controller_current_completions =
+            controller.queue.current_pending_controller_completions;
+        snapshot.queue.current_pending_messages =
+            host_current_messages.saturating_add(controller_current_completions);
+        snapshot.queue.max_pending_messages = snapshot
+            .queue
+            .max_pending_messages
+            .max(controller.queue.max_pending_controller_completions)
+            .max(snapshot.queue.current_pending_messages);
+        snapshot.queue.current_pending_controller_completions = controller_current_completions;
+        snapshot.queue.max_pending_controller_completions = snapshot
+            .queue
+            .max_pending_controller_completions
+            .max(controller.queue.max_pending_controller_completions);
+        snapshot.queue.controller_completion_deferrals = snapshot
+            .queue
+            .controller_completion_deferrals
+            .saturating_add(controller.queue.controller_completion_deferrals);
+        snapshot.queue.stream_events_coalesced = snapshot
+            .queue
+            .stream_events_coalesced
+            .saturating_add(controller.queue.stream_events_coalesced);
+        snapshot.queue.stream_events_stale = snapshot
+            .queue
+            .stream_events_stale
+            .saturating_add(controller.queue.stream_events_stale);
+        snapshot.queue.stream_events_dropped = snapshot
+            .queue
+            .stream_events_dropped
+            .saturating_add(controller.queue.stream_events_dropped);
+        snapshot.ui = controller.ui;
         snapshot
     }
 

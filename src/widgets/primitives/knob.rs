@@ -235,6 +235,23 @@ impl Widget for KnobWidget {
         KnobWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        // The fresh projection remains authoritative for value, default,
+        // sizing, style, and semantic state. Only runtime-owned interaction
+        // details survive a refresh.
+        self.common.state.hovered = previous.common.state.hovered;
+        self.common.state.focused = previous.common.state.focused;
+        self.common.state.pressed = previous.common.state.pressed;
+        self.state.gesture_origin = previous.state.gesture_origin;
+        if self.common.state.disabled {
+            self.common.state.pressed = false;
+            self.state.gesture_origin = None;
+        }
+    }
+
     fn accepts_pointer_move(&self) -> bool {
         true
     }

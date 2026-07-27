@@ -17,7 +17,7 @@ use radiant::{
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{cell::RefCell, fmt::Debug, rc::Rc, sync::Arc};
 
 #[path = "widgets_public_api/composition.rs"]
 mod composition;
@@ -55,6 +55,19 @@ fn widget_output_exposes_typed_and_custom_value_helpers() {
         cloned.custom_cloned::<String>(),
         Some(String::from("activated"))
     );
+}
+
+#[test]
+fn widget_output_supports_ui_local_payloads_and_clone_identity() {
+    let payload = Rc::new(RefCell::new(3usize));
+    let output = WidgetOutput::typed(Rc::clone(&payload));
+
+    assert_eq!(output, output.clone());
+    assert_ne!(output, WidgetOutput::typed(Rc::clone(&payload)));
+    assert!(Rc::ptr_eq(
+        output.typed_ref::<Rc<RefCell<usize>>>().expect("payload"),
+        &payload,
+    ));
 }
 
 #[test]

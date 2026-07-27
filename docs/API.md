@@ -1696,11 +1696,13 @@ Widget values and their optional `WidgetSemantics` are owned by the window/UI
 runtime. They may contain `Rc`, `RefCell`, or other UI-local state and do not
 need to be `Send` or `Sync`; consequently `Box<dyn Widget>` does not imply
 thread-safe transfer. `EmbeddedInteractiveRowWidget` follows the same local
-ownership rule for the custom row value, while its associated `Message` remains
-`Send + Sync` because row output crosses the transferable `WidgetOutput`
-boundary. Keep worker requests, results, and typed `WidgetOutput` payloads
-explicitly `Send` (and `Sync` where required); their completion/output mappers
-run later on the owning UI thread and may produce ordinary UI-local messages.
+ownership rule for the custom row value and its associated `Message`. A
+`WidgetOutput` is a synchronous UI-local erased envelope: its typed payload may
+contain `Rc`/`RefCell` and is routed, cloned, and downcast only on the owning UI
+runtime. Keep worker requests, results, and platform/subscription transfer
+payloads explicitly `Send` (and `Sync` where required); their completion/output
+mappers run later on the owning UI thread and may produce ordinary UI-local
+messages.
 
 The application builder uses the same ownership model through `WidgetView`.
 Any `Widget + Clone + 'static` is a non-emitting `WidgetView`, so it can be
@@ -1854,10 +1856,11 @@ surface core.
 Constant-message controls, menus, overlays, lists, and tree composition keep
 their application messages on the UI owner and therefore require only
 `Message: Clone + 'static`; those messages may contain `Rc`, `RefCell`, or other
-UI-local state. Typed widget output payloads still require `Send + Sync`
-because `WidgetOutput` is the transferable primitive boundary. Composite tree
-rows emit `InteractiveRowMessage` at that boundary and apply their
-application-action mapper afterward on the UI owner.
+UI-local state. Typed widget output payloads follow the same UI-local ownership
+model: `WidgetOutput` is a synchronous routing envelope, not a transferable
+worker boundary. Composite tree rows emit `InteractiveRowMessage` through that
+same local envelope and apply their application-action mapper afterward on the
+UI owner.
 `WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
 and `WidgetOutput::typed_cloned::<T>()`, `typed_copied::<T>()`,
 `custom_cloned::<T>()`, and `custom_copied::<T>()` provide owned payload

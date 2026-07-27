@@ -1,19 +1,23 @@
-use std::{any::Any, sync::Arc};
+use std::{any::Any, rc::Rc};
 
-/// Type-erased widget output payload.
+/// Type-erased widget output payload stored on the owning UI runtime.
+///
+/// Widget outputs are synchronous UI-local values. They may contain `Rc`,
+/// `RefCell`, or other non-thread-safe state and must not be transferred to a
+/// worker or subscription lane.
 #[derive(Clone)]
 pub struct CustomWidgetOutput {
-    payload: Arc<dyn Any + Send + Sync>,
+    payload: Rc<dyn Any>,
 }
 
 impl CustomWidgetOutput {
-    /// Build a custom widget output from any cloneable, thread-safe payload.
+    /// Build a custom widget output from any `'static` UI-local payload.
     pub fn new<T>(payload: T) -> Self
     where
-        T: Send + Sync + 'static,
+        T: 'static,
     {
         Self {
-            payload: Arc::new(payload),
+            payload: Rc::new(payload),
         }
     }
 
@@ -31,11 +35,11 @@ impl std::fmt::Debug for CustomWidgetOutput {
 
 impl PartialEq for CustomWidgetOutput {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.payload, &other.payload)
+        Rc::ptr_eq(&self.payload, &other.payload)
     }
 }
 
-/// Typed widget output payload.
+/// Typed widget output payload owned by the synchronous UI runtime.
 ///
 /// Outputs are intentionally open: a widget emits its own message type with
 /// [`WidgetOutput::typed`], and message mappers downcast only the payload types
@@ -50,7 +54,7 @@ impl WidgetOutput {
     /// Build a typed widget output payload.
     pub fn typed<T>(payload: T) -> Self
     where
-        T: Send + Sync + 'static,
+        T: 'static,
     {
         Self {
             payload: CustomWidgetOutput::new(payload),
@@ -81,7 +85,7 @@ impl WidgetOutput {
     /// Build a user-defined widget output payload.
     pub fn custom<T>(payload: T) -> Self
     where
-        T: Send + Sync + 'static,
+        T: 'static,
     {
         Self::typed(payload)
     }

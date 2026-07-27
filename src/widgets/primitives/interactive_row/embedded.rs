@@ -22,7 +22,7 @@ use crate::{
 /// wrappers focused on domain action routing and paint.
 pub trait EmbeddedInteractiveRowWidget: Clone + 'static {
     /// Host-specific message emitted by the custom row.
-    type Message: Send + Sync + 'static;
+    type Message: 'static;
 
     /// Return the embedded generic interactive row.
     fn interactive_row(&self) -> &InteractiveRowWidget;

@@ -142,7 +142,7 @@ fn automation_node<'a>(
 }
 
 #[test]
-fn ui_local_widget_builder_dispatches_transferable_output_to_local_message() {
+fn ui_local_widget_builder_dispatches_ui_local_output_to_local_message() {
     use radiant::prelude as ui;
 
     let local = Rc::new(RefCell::new(LocalState { activations: 0 }));
@@ -167,7 +167,7 @@ fn ui_local_widget_builder_dispatches_transferable_output_to_local_message() {
                 modifiers: Default::default(),
             },
         )
-        .expect("local widget should emit transferable output");
+        .expect("local widget should emit UI-local output");
     let message = surface
         .dispatch_widget_output(30, output)
         .expect("local widget output should map to host message");
@@ -175,6 +175,29 @@ fn ui_local_widget_builder_dispatches_transferable_output_to_local_message() {
 
     assert_eq!(*host_events.borrow(), 1);
     assert_eq!(local.borrow().activations, 1);
+}
+
+#[test]
+fn ui_local_widget_output_payload_round_trips_through_clone_and_dispatch() {
+    use radiant::prelude as ui;
+
+    let local = Rc::new(RefCell::new(LocalState { activations: 0 }));
+    let surface: UiSurface<Rc<RefCell<usize>>> =
+        ui::custom_widget(LocalWidget::new(30, local), |output| {
+            output.custom_ref::<Rc<RefCell<usize>>>().cloned()
+        })
+        .id(30)
+        .into_surface();
+    let payload = Rc::new(RefCell::new(5usize));
+    let output = WidgetOutput::typed(Rc::clone(&payload));
+
+    assert_eq!(output, output.clone());
+    let message = surface
+        .dispatch_widget_output(30, output.clone())
+        .expect("local output should map to a local message");
+    assert!(Rc::ptr_eq(&message, &payload));
+    *message.borrow_mut() += 1;
+    assert_eq!(*payload.borrow(), 6);
 }
 
 #[test]

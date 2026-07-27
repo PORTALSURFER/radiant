@@ -338,6 +338,7 @@ impl Renderer for EmbeddedVelloRenderer {
 /// because those require host-owned compositing resources that are not available offscreen.
 pub struct OffscreenVelloCapture {
     render_context: RenderContext,
+    device_id: usize,
     renderer: VelloRenderer,
     scene: Scene,
     scaled_scene: Scene,
@@ -362,6 +363,7 @@ impl OffscreenVelloCapture {
 
         Ok(Self {
             render_context,
+            device_id: dev_id,
             renderer,
             scene: Scene::new(),
             scaled_scene: Scene::new(),
@@ -400,10 +402,8 @@ impl OffscreenVelloCapture {
         );
 
         let (width, height) = physical_size(self.logical_size, self.dpi_scale);
-        let dev_id = pollster::block_on(self.render_context.device(None))
-            .ok_or(EmbeddedVelloError::NoCompatibleDevice)?;
-        let device = &self.render_context.devices[dev_id].device;
-        let queue = &self.render_context.devices[dev_id].queue;
+        let device = &self.render_context.devices[self.device_id].device;
+        let queue = &self.render_context.devices[self.device_id].queue;
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_offscreen_vello_capture"),
             size: wgpu::Extent3d {

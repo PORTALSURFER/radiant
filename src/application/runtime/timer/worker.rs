@@ -45,11 +45,12 @@ fn deliver_timer_wake(state: &TimerState, entry: TimerEntry) {
         TimerPayload::Interval { every, identity } => (identity, true, every),
     };
     if !runtime.admit_timer(identity) {
+        // Give one-shot admission a chance to retire its reservation even
+        // when the identity was invalidated before the timer became due.
+        let _ = runtime.enqueue_timer_wake(identity);
         return;
     }
-    if !runtime.enqueue_timer_wake(identity) {
-        return;
-    }
+    let _accepted = runtime.enqueue_timer_wake(identity);
     if recurring && runtime.timer_is_current(identity) {
         let _ = state.schedule_interval(
             Arc::downgrade(&runtime),

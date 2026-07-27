@@ -75,12 +75,16 @@ fn sequenced_sources_preserve_fifo_order() {
             .enqueue_worker_payload(identity, Box::new(2_u32))
     );
     assert!(
-        runtime
-            .shared()
-            .enqueue_platform_completion(PlatformCompletionDelivery {
+        runtime.shared().enqueue_platform_completion_reserved(
+            runtime
+                .shared()
+                .reserve_delivery()
+                .expect("slot is available"),
+            PlatformCompletionDelivery {
                 identity: platform,
                 result: Ok(crate::runtime::PlatformResponse::Completed),
-            })
+            },
+        )
     );
     assert!(runtime.enqueue(4));
 
@@ -139,7 +143,11 @@ fn shared_ingress_preserves_worker_before_later_timer_order() {
 
 #[test]
 fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
-    let mut runtime = AppRuntime::<u32>::default();
+    let mut runtime = AppRuntime::<u32> {
+        shared: Arc::new(SharedRuntimeIngress::with_capacity_for_test(128)),
+        pending: Vec::new(),
+        pending_frame: None,
+    };
     let identity = WorkerSubscriptionIdentity { id: 2, epoch: 1 };
     for message in 0..65_u32 {
         assert!(
@@ -168,6 +176,161 @@ fn opaque_worker_messages_obey_normal_and_interactive_budgets() {
         |_| None,
     ));
     assert_eq!(interactive, vec![64]);
+}
+
+#[test]
+fn shared_ingress_rejects_newest_at_capacity_and_keeps_fifo() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let identity = WorkerSubscriptionIdentity { id: 11, epoch: 1 };
+    for message in 0..64_u32 {
+        assert!(runtime.enqueue_worker_payload(identity, Box::new(message)));
+    }
+    assert!(!runtime.enqueue_worker_payload(identity, Box::new(64_u32)));
+
+    let queued = runtime.drain_incoming();
+    assert_eq!(queued.len(), 64);
+    let values = queued
+        .into_iter()
+        .map(|delivery| match delivery.value {
+            SharedRuntimeDelivery::Worker(WorkerSubscriptionDelivery::Payload {
+                payload, ..
+            }) => *payload.downcast::<u32>().expect("u32 payload"),
+            _ => panic!("worker payload expected"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(values, (0..64).collect::<Vec<_>>());
+    assert_eq!(
+        runtime.diagnostics_snapshot().queue.shared_ingress_rejected,
+        1
+    );
+}
+
+#[test]
+fn one_shot_timer_reservation_rejects_without_registration_leak() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let identity = WorkerSubscriptionIdentity { id: 12, epoch: 1 };
+    for message in 0..64_u32 {
+        assert!(runtime.enqueue_worker_payload(identity, Box::new(message)));
+    }
+    let timer = runtime.allocate_timer_identity(0);
+    assert!(!runtime.schedule_timer_wake(Duration::ZERO, timer));
+    assert_eq!(runtime.application_timer_identity_count(), 0);
+}
+
+#[test]
+fn invalidated_one_shot_timer_releases_reservation_when_due() {
+    let runtime = Arc::new(SharedRuntimeIngress::with_capacity_for_test(1));
+    let stale = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_millis(5), stale, false));
+    runtime.invalidate_timer_for_test(stale);
+
+    let replacement = runtime.allocate_timer_identity(0);
+    let deadline = Instant::now() + Duration::from_secs(1);
+    while !runtime.schedule_timer(Duration::from_secs(60), replacement, false)
+        && Instant::now() < deadline
+    {
+        thread::yield_now();
+    }
+    assert!(
+        Instant::now() < deadline,
+        "stale timer reservation was not released"
+    );
+}
+
+#[test]
+fn duplicate_one_shot_wake_coalescing_releases_extra_reservation() {
+    let runtime = Arc::new(SharedRuntimeIngress::with_capacity_for_test(2));
+    let identity = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_secs(60), identity, false));
+    assert!(runtime.schedule_timer(Duration::from_secs(60), identity, false));
+
+    assert!(TimerSink::enqueue_timer_wake(runtime.as_ref(), identity));
+    assert!(!TimerSink::enqueue_timer_wake(runtime.as_ref(), identity));
+
+    let replacement = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_secs(60), replacement, false));
+    assert_eq!(
+        runtime
+            .diagnostics_snapshot()
+            .queue
+            .shared_ingress_coalesced,
+        1
+    );
+}
+
+#[test]
+fn recurring_wake_rejects_when_terminal_reservation_uses_last_slot() {
+    let runtime = Arc::new(SharedRuntimeIngress::with_capacity_for_test(1));
+    let delayed = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_secs(60), delayed, false));
+
+    let recurring = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_secs(60), recurring, true));
+    assert!(!TimerSink::enqueue_timer_wake(runtime.as_ref(), recurring));
+
+    assert!(TimerSink::enqueue_timer_wake(runtime.as_ref(), delayed));
+}
+
+#[test]
+fn shared_terminal_reservation_rolls_back_without_leaking_capacity() {
+    let runtime = Arc::new(SharedRuntimeIngress::with_capacity_for_test(1));
+    let reservation = runtime.reserve_delivery().expect("slot is available");
+    assert!(!runtime.enqueue_worker_payload(
+        WorkerSubscriptionIdentity { id: 13, epoch: 1 },
+        Box::new(1_u32),
+    ));
+    drop(reservation);
+    assert!(runtime.enqueue_worker_payload(
+        WorkerSubscriptionIdentity { id: 13, epoch: 1 },
+        Box::new(1_u32),
+    ));
+}
+
+#[test]
+fn delivery_reservation_does_not_retain_runtime_ingress() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let weak = Arc::downgrade(&runtime);
+    let reservation = runtime.reserve_delivery().expect("slot is available");
+
+    drop(runtime);
+    assert!(weak.upgrade().is_none());
+    drop(reservation);
+}
+
+#[test]
+fn blocked_reservation_closure_does_not_retain_runtime_ingress() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let weak = Arc::downgrade(&runtime);
+    let reservation = runtime.reserve_delivery().expect("slot is available");
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let closure = thread::spawn(move || {
+        started_tx.send(()).expect("closure starts");
+        release_rx.recv().expect("closure release");
+        drop(reservation);
+    });
+
+    started_rx.recv().expect("closure started");
+    drop(runtime);
+    assert!(weak.upgrade().is_none());
+    release_tx.send(()).expect("release closure");
+    closure.join().expect("closure exits");
+}
+
+#[test]
+fn recurring_timer_wakes_coalesce_and_continue_after_saturation() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let identity = runtime.allocate_timer_identity(0);
+    assert!(runtime.schedule_timer(Duration::from_secs(60), identity, true));
+    assert!(TimerSink::enqueue_timer_wake(runtime.as_ref(), identity));
+    assert!(!TimerSink::enqueue_timer_wake(runtime.as_ref(), identity));
+    assert_eq!(
+        runtime
+            .diagnostics_snapshot()
+            .queue
+            .shared_ingress_coalesced,
+        1
+    );
 }
 
 #[test]
@@ -333,7 +496,7 @@ fn delayed_messages_stop_after_runtime_shutdown() {
 
 #[test]
 fn controller_timer_wakes_do_not_enter_application_identity_registry() {
-    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let runtime = Arc::new(SharedRuntimeIngress::with_capacity_for_test(256));
     let baseline = runtime.application_timer_identity_count();
 
     for id in 1..=256 {

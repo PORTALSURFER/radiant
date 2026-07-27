@@ -189,9 +189,20 @@ fn spawn_worker_subscription<Message>(
     receiver: Box<dyn WorkerSubscriptionReceiver>,
     mapper: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
 ) {
+    let Some(runtime_owner) = runtime.upgrade() else {
+        return;
+    };
+    let Some(terminal_reservation) = runtime_owner.reserve_delivery() else {
+        tracing::warn!(
+            subscription.id = id,
+            "Radiant worker subscription rejected because shared ingress is saturated"
+        );
+        return;
+    };
     let identity = workers.register(mapper);
     let worker_identity = identity;
     if !spawn_business_thread(format!("worker-subscription-{id}"), move || {
+        let mut terminal_reservation = Some(terminal_reservation);
         loop {
             match receive_worker_payload(&runtime, receiver.as_ref()) {
                 WorkerSubscriptionEvent::Payload(payload) => {
@@ -199,12 +210,19 @@ fn spawn_worker_subscription<Message>(
                         break;
                     };
                     if !runtime.enqueue_worker_payload(worker_identity, payload) {
+                        if let Some(reservation) = terminal_reservation.take() {
+                            let _ = runtime
+                                .enqueue_worker_disconnect_reserved(reservation, worker_identity);
+                        }
                         break;
                     }
                 }
                 WorkerSubscriptionEvent::Disconnected => {
-                    if let Some(runtime) = runtime.upgrade() {
-                        let _ = runtime.enqueue_worker_disconnect(worker_identity);
+                    if let Some(runtime) = runtime.upgrade()
+                        && let Some(reservation) = terminal_reservation.take()
+                    {
+                        let _ = runtime
+                            .enqueue_worker_disconnect_reserved(reservation, worker_identity);
                     }
                     break;
                 }

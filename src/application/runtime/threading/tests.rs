@@ -204,6 +204,40 @@ fn business_thread_pool_rejects_work_when_no_workers_are_available() {
 }
 
 #[test]
+fn business_lane_rejects_newest_without_waiting_when_full() {
+    let diagnostics = Arc::new(crate::runtime::RuntimeDiagnosticsRecorder::default());
+    let pool = BusinessThreadPool::with_diagnostics_and_worker_count_and_capacity(
+        Arc::clone(&diagnostics),
+        1,
+        2,
+    );
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    assert!(
+        pool.spawn("blocked", TaskPriority::Background, None, move || {
+            started_tx.send(()).expect("worker starts");
+            release_rx.recv().expect("worker releases");
+        })
+    );
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("blocked work starts");
+
+    assert!(pool.spawn("queued-1", TaskPriority::Background, None, || {}));
+    assert!(pool.spawn("queued-2", TaskPriority::Background, None, || {}));
+    let started = Instant::now();
+    assert!(!pool.spawn("rejected", TaskPriority::Background, None, || {}));
+    assert!(started.elapsed() < Duration::from_millis(50));
+
+    release_tx.send(()).expect("release blocked work");
+    let deadline = Instant::now() + Duration::from_secs(1);
+    while diagnostics.snapshot().business.completed < 3 && Instant::now() < deadline {
+        thread::yield_now();
+    }
+    assert_eq!(diagnostics.snapshot().business.rejected, 1);
+}
+
+#[test]
 fn business_lane_availability_is_priority_specific() {
     let pool = BusinessThreadPool::without_interactive_workers_for_test();
 

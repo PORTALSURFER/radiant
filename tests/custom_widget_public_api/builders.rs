@@ -175,6 +175,27 @@ fn application_builder_routes_direct_custom_widget_messages() {
     assert_eq!(message, Some(DemoMessage::SetActive(true)));
 }
 
+#[test]
+fn application_builders_accept_ui_local_typed_outputs_and_messages() {
+    use radiant::prelude as ui;
+
+    let payload = Rc::new(RefCell::new(11usize));
+    let mapped = ui::custom_widget_mapped(DirectDemoWidget::new(), |value: Rc<RefCell<usize>>| {
+        Rc::clone(&value)
+    })
+    .id(30)
+    .view_dispatch_widget_output(30, WidgetOutput::typed(Rc::clone(&payload)));
+    let mapped = mapped.expect("mapped local output should dispatch");
+    assert!(Rc::ptr_eq(&mapped, &payload));
+
+    let direct_payload = Rc::new(RefCell::new(12usize));
+    let direct = ui::custom_widget_direct(DirectDemoWidget::new())
+        .id(31)
+        .view_dispatch_widget_output(31, WidgetOutput::typed(Rc::clone(&direct_payload)));
+    let direct = direct.expect("direct local output should dispatch");
+    assert!(Rc::ptr_eq(&direct, &direct_payload));
+}
+
 #[derive(Clone)]
 struct DirectDemoWidget {
     common: radiant::widgets::WidgetCommon,

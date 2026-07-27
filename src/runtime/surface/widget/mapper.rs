@@ -120,10 +120,14 @@ impl<Message> WidgetMessageMapper<Message> {
         }
     }
 
-    /// Build a mapper for any typed widget output payload.
+    /// Build a mapper for any typed, UI-local widget output payload.
+    ///
+    /// The payload is cloned and downcast synchronously on the owning UI
+    /// runtime, so it may contain non-thread-safe state such as `Rc` or
+    /// `RefCell`.
     pub fn typed<Output>(map: impl Fn(Output) -> Message + 'static) -> Self
     where
-        Output: Clone + Send + Sync + 'static,
+        Output: Clone + 'static,
     {
         Self::dynamic(move |output| output.typed_cloned::<Output>().map(&map))
     }
@@ -357,6 +361,25 @@ mod tests {
             *dropped.borrow(),
             "local mapper capture should drop on the UI runtime"
         );
+    }
+
+    #[test]
+    fn typed_mapper_round_trips_ui_local_payloads_and_preserves_output_identity() {
+        let payload = Rc::new(RefCell::new(7usize));
+        let output = WidgetOutput::typed(Rc::clone(&payload));
+        let cloned = output.clone();
+
+        assert_eq!(output, cloned);
+        assert_ne!(output, WidgetOutput::typed(Rc::clone(&payload)));
+        assert_eq!(output.typed_ref::<Rc<RefCell<usize>>>(), Some(&payload));
+
+        let mapper = WidgetMessageMapper::typed(|value: Rc<RefCell<usize>>| {
+            *value.borrow_mut() += 1;
+            value
+        });
+        let mapped = mapper.map_output(cloned).expect("local payload should map");
+        assert!(Rc::ptr_eq(&mapped, &payload));
+        assert_eq!(*payload.borrow(), 8);
     }
 
     struct UiDropProbe(Rc<RefCell<bool>>);

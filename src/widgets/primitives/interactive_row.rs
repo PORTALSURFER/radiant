@@ -262,7 +262,7 @@ impl InteractiveRowWidget {
     /// Custom-painted row widgets can use this when they compose an
     /// `InteractiveRowWidget` for generic row behavior but expose a
     /// host-specific message type from their own [`Widget`] implementation.
-    pub fn handle_input_mapped<Message: Send + Sync + 'static>(
+    pub fn handle_input_mapped<Message: 'static>(
         &mut self,
         bounds: Rect,
         input: WidgetInput,

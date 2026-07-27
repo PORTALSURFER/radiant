@@ -30,7 +30,7 @@ pub fn custom_widget_mapped<Output, Message>(
     map: impl Fn(Output) -> Message + 'static,
 ) -> ViewNode<Message>
 where
-    Output: Clone + Send + Sync + 'static,
+    Output: Clone + 'static,
     Message: 'static,
 {
     view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)))
@@ -43,7 +43,7 @@ where
 /// identity mapper at every call site.
 pub fn custom_widget_direct<Message>(widget: impl Widget + Clone + 'static) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     view_node_from_widget(MappedWidget::new(
         widget,

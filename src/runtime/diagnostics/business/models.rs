@@ -37,6 +37,10 @@ pub struct RuntimeMessageQueueDiagnostics {
     pub stream_events_stale: usize,
     /// Number of stream events dropped because the runtime was no longer accepting messages.
     pub stream_events_dropped: usize,
+    /// Number of worker, timer, or platform deliveries rejected at shared-ingress capacity.
+    pub shared_ingress_rejected: usize,
+    /// Number of recurring timer wakes coalesced while an identity was already pending.
+    pub shared_ingress_coalesced: usize,
 }
 
 /// Counters and recent events for runtime-managed business work.

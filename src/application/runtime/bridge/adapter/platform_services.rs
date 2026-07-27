@@ -27,24 +27,30 @@ where
         {
             return Err(Box::new((request, on_completed)));
         }
+        let Some(reservation) = self.runtime.shared().reserve_delivery() else {
+            return Err(Box::new((request, on_completed)));
+        };
         let identity = self.platform_registry.register(on_completed);
         let runtime = std::sync::Arc::downgrade(self.runtime.shared());
         match self.runtime.spawn_business_task_with_payload(
             "radiant-platform-service",
             TaskPriority::Interactive,
-            (request, identity),
-            move |(request, identity)| {
+            (request, identity, reservation),
+            move |(request, identity, reservation)| {
                 let response = perform_platform_request(request);
                 if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue_platform_completion(PlatformCompletionDelivery {
-                        identity,
-                        result: response,
-                    });
+                    let _ = runtime.enqueue_platform_completion_reserved(
+                        reservation,
+                        PlatformCompletionDelivery {
+                            identity,
+                            result: response,
+                        },
+                    );
                 }
             },
         ) {
             Ok(()) => Ok(()),
-            Err((request, identity)) => {
+            Err((request, identity, _reservation)) => {
                 let Some(on_completed) = self.platform_registry.remove(identity) else {
                     tracing::error!(
                         "Radiant app runtime lost a platform completion during spawn rejection"

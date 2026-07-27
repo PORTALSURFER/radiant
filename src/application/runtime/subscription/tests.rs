@@ -116,6 +116,25 @@ fn worker_receive_stops_while_sender_remains_open() {
 }
 
 #[test]
+fn blocked_worker_subscription_does_not_retain_runtime_ingress() {
+    let runtime = AppRuntime::<u32>::default();
+    let weak = Arc::downgrade(runtime.shared());
+    let mut timers = TimerRegistry::default();
+    let mut workers = super::registry::WorkerSubscriptionRegistry::default();
+    let (_sender, receiver) = mpsc::channel::<u32>();
+
+    spawn_subscription_with_registry(
+        weak.clone(),
+        &mut timers,
+        &mut workers,
+        Subscription::worker_payload("blocked", receiver, |payload| payload),
+    );
+    drop(runtime);
+
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
 fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     let mut runtime = AppRuntime::<u32>::default();
     let mut timers = TimerRegistry::default();
@@ -161,4 +180,64 @@ fn worker_payload_mapper_runs_on_ui_thread_and_drops_after_disconnect() {
     assert_eq!(delivered, vec![42]);
     assert_eq!(mapped.borrow().as_slice(), &[(41, ui_thread)]);
     assert_eq!(Rc::strong_count(&marker), 1);
+}
+
+#[test]
+fn saturated_worker_subscription_commits_terminal_without_retry_spin() {
+    let mut runtime = AppRuntime::<u32>::default();
+    let mut timers = TimerRegistry::default();
+    let mut workers = super::registry::WorkerSubscriptionRegistry::default();
+    let (sender, receiver) = mpsc::channel::<u32>();
+
+    spawn_subscription_with_registry(
+        Arc::downgrade(runtime.shared()),
+        &mut timers,
+        &mut workers,
+        Subscription::worker_payload("saturated", receiver, |payload| payload),
+    );
+    for payload in 0..64_u32 {
+        sender
+            .send(payload)
+            .expect("worker receiver should be live");
+    }
+    drop(sender);
+
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(1)
+        && runtime
+            .diagnostics_snapshot()
+            .queue
+            .current_pending_messages
+            < 64
+    {
+        thread::yield_now();
+    }
+    assert!(
+        runtime
+            .diagnostics_snapshot()
+            .queue
+            .current_pending_messages
+            >= 64,
+        "terminal disconnect was not admitted after payload saturation"
+    );
+
+    let mut disconnected = false;
+    let delivered = runtime.take_pending_with_mappers(
+        |delivery| match delivery {
+            super::WorkerSubscriptionDelivery::Payload { payload, .. } => {
+                Some(*payload.downcast::<u32>().expect("u32 payload"))
+            }
+            super::WorkerSubscriptionDelivery::Disconnected { .. } => {
+                disconnected = true;
+                None
+            }
+        },
+        |_| None,
+        |_| None,
+    );
+    runtime.shutdown();
+
+    assert!(disconnected);
+    assert_eq!(delivered.len(), 63);
+    assert_eq!(delivered, (0..63).collect::<Vec<_>>());
 }

@@ -8,7 +8,7 @@ use std::{
     panic::{self, AssertUnwindSafe},
     sync::{
         Arc, Mutex, Weak,
-        mpsc::{self, Sender},
+        mpsc::{self, SyncSender, TrySendError},
     },
 };
 
@@ -21,6 +21,7 @@ const DEFAULT_BUSINESS_WORKERS: usize = 2;
 const INTERACTIVE_BUSINESS_WORKERS: usize = 2;
 const BLOCKING_IO_BUSINESS_WORKERS: usize = 1;
 const IDLE_BUSINESS_WORKERS: usize = 1;
+const BUSINESS_LANE_CAPACITY: usize = 64;
 const INTERACTIVE_CHECKPOINT_WARNING: std::time::Duration = std::time::Duration::from_millis(250);
 const STREAM_EVENT_WARNING: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -53,40 +54,50 @@ impl Default for BusinessThreadPool {
 
 impl BusinessThreadPool {
     fn new(worker_count: usize) -> Self {
-        Self::with_diagnostics_and_worker_count(
+        Self::with_diagnostics_and_worker_count_and_capacity(
             Arc::new(RuntimeDiagnosticsRecorder::default()),
             worker_count,
+            BUSINESS_LANE_CAPACITY,
         )
     }
 
     pub(super) fn new_with_diagnostics(diagnostics: Arc<RuntimeDiagnosticsRecorder>) -> Self {
-        Self::with_diagnostics_and_worker_count(diagnostics, default_business_worker_count())
+        Self::with_diagnostics_and_worker_count_and_capacity(
+            diagnostics,
+            default_business_worker_count(),
+            BUSINESS_LANE_CAPACITY,
+        )
     }
 
-    fn with_diagnostics_and_worker_count(
+    fn with_diagnostics_and_worker_count_and_capacity(
         diagnostics: Arc<RuntimeDiagnosticsRecorder>,
         worker_count: usize,
+        lane_capacity: usize,
     ) -> Self {
         let background_count = worker_count.max(1);
         let interactive = BusinessLane::spawn(
             TaskPriority::Interactive,
             INTERACTIVE_BUSINESS_WORKERS,
             Arc::clone(&diagnostics),
+            lane_capacity,
         );
         let background = BusinessLane::spawn(
             TaskPriority::Background,
             background_count,
             Arc::clone(&diagnostics),
+            lane_capacity,
         );
         let blocking_io = BusinessLane::spawn(
             TaskPriority::BlockingIo,
             BLOCKING_IO_BUSINESS_WORKERS,
             Arc::clone(&diagnostics),
+            lane_capacity,
         );
         let idle = BusinessLane::spawn(
             TaskPriority::Idle,
             IDLE_BUSINESS_WORKERS,
             Arc::clone(&diagnostics),
+            lane_capacity,
         );
         Self {
             interactive,
@@ -113,7 +124,7 @@ impl BusinessThreadPool {
             );
             return false;
         };
-        match sender.send(BusinessJob {
+        match sender.try_send(BusinessJob {
             priority,
             name,
             queued_at: std::time::Instant::now(),
@@ -124,7 +135,8 @@ impl BusinessThreadPool {
                 self.diagnostics.record_business_queued(name, priority);
                 true
             }
-            Err(_) => {
+            Err(TrySendError::Full(job)) | Err(TrySendError::Disconnected(job)) => {
+                drop(job);
                 self.diagnostics.record_business_rejected(name, priority);
                 tracing::warn!(
                     work.name = name,
@@ -156,7 +168,7 @@ impl BusinessThreadPool {
         };
         let payload = Arc::new(Mutex::new(Some(payload)));
         let queued_payload = Arc::clone(&payload);
-        let submission = sender.send(BusinessJob {
+        let submission = sender.try_send(BusinessJob {
             priority,
             name,
             queued_at: std::time::Instant::now(),
@@ -181,8 +193,8 @@ impl BusinessThreadPool {
                 self.diagnostics.record_business_queued(name, priority);
                 Ok(())
             }
-            Err(error) => {
-                drop(error.0);
+            Err(TrySendError::Full(job)) | Err(TrySendError::Disconnected(job)) => {
+                drop(job);
                 self.diagnostics.record_business_rejected(name, priority);
                 tracing::warn!(
                     work.name = name,
@@ -235,7 +247,12 @@ impl BusinessThreadPool {
         let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
         Self {
             interactive: BusinessLane::empty(),
-            background: BusinessLane::spawn(TaskPriority::Background, 1, Arc::clone(&diagnostics)),
+            background: BusinessLane::spawn(
+                TaskPriority::Background,
+                1,
+                Arc::clone(&diagnostics),
+                BUSINESS_LANE_CAPACITY,
+            ),
             blocking_io: BusinessLane::empty(),
             idle: BusinessLane::empty(),
             diagnostics,
@@ -255,7 +272,7 @@ impl BusinessThreadPool {
 }
 
 struct BusinessLane {
-    sender: Option<Sender<BusinessJob>>,
+    sender: Option<SyncSender<BusinessJob>>,
     _workers: Vec<thread::JoinHandle<()>>,
 }
 
@@ -270,7 +287,7 @@ impl BusinessLane {
 
     #[cfg(test)]
     fn disconnected() -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(1);
         drop(receiver);
         Self {
             sender: Some(sender),
@@ -282,9 +299,10 @@ impl BusinessLane {
         priority: TaskPriority,
         worker_count: usize,
         diagnostics: Arc<RuntimeDiagnosticsRecorder>,
+        lane_capacity: usize,
     ) -> Self {
         let worker_count = worker_count.max(1);
-        let (sender, receiver) = mpsc::channel::<BusinessJob>();
+        let (sender, receiver) = mpsc::sync_channel::<BusinessJob>(lane_capacity.max(1));
         let receiver = Arc::new(Mutex::new(receiver));
         let mut workers = Vec::with_capacity(worker_count);
         for worker_index in 0..worker_count {

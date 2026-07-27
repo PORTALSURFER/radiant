@@ -78,6 +78,16 @@ impl RuntimeDiagnosticsRecorder {
         state.snapshot.queue.stream_events_dropped += 1;
     }
 
+    pub(crate) fn record_shared_ingress_rejected(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.shared_ingress_rejected += 1;
+    }
+
+    pub(crate) fn record_shared_ingress_coalesced(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.shared_ingress_coalesced += 1;
+    }
+
     pub(crate) fn record_business_queued(
         &self,
         name: &'static str,

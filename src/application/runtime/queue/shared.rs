@@ -9,10 +9,12 @@ use crate::runtime::{
 };
 use std::collections::HashMap;
 use std::sync::{
-    Arc, Mutex, OnceLock,
+    Arc, Mutex, OnceLock, Weak,
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
+
+const SHARED_INGRESS_CAPACITY: usize = 64;
 
 pub(super) struct Sequenced<T> {
     pub(super) sequence: u64,
@@ -23,9 +25,46 @@ pub(super) struct Sequenced<T> {
 struct RuntimeAdmission {
     next_sequence: u64,
     deliveries: Vec<Sequenced<SharedRuntimeDelivery>>,
+    reservations: usize,
+    timer_reservations: HashMap<TimerIdentity, usize>,
+}
+
+/// A reserved shared-ingress slot held by an accepted terminal operation.
+///
+/// Dropping an uncommitted reservation returns the slot without waiting. This
+/// lets platform and one-shot timer admission roll back cleanly on shutdown
+/// or worker startup failure.
+pub(in crate::application::runtime) struct DeliveryReservation {
+    runtime: Weak<SharedRuntimeIngress>,
+    committed: bool,
+}
+
+impl DeliveryReservation {
+    fn commit(mut self, delivery: SharedRuntimeDelivery) -> bool {
+        let Some(runtime) = self.runtime.upgrade() else {
+            self.committed = true;
+            return false;
+        };
+        let accepted = runtime.enqueue_reserved_delivery(delivery);
+        if accepted {
+            self.committed = true;
+        }
+        accepted
+    }
+}
+
+impl Drop for DeliveryReservation {
+    fn drop(&mut self) {
+        if !self.committed {
+            if let Some(runtime) = self.runtime.upgrade() {
+                runtime.release_reservation();
+            }
+        }
+    }
 }
 
 pub(in crate::application) struct SharedRuntimeIngress {
+    capacity: usize,
     admission: Mutex<RuntimeAdmission>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
     business: BusinessThreadPool,
@@ -42,9 +81,12 @@ impl Default for SharedRuntimeIngress {
     fn default() -> Self {
         let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
         Self {
+            capacity: SHARED_INGRESS_CAPACITY,
             admission: Mutex::new(RuntimeAdmission {
                 next_sequence: 1,
                 deliveries: Vec::new(),
+                reservations: 0,
+                timer_reservations: HashMap::new(),
             }),
             repaint: Mutex::new(None),
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
@@ -61,6 +103,13 @@ impl Default for SharedRuntimeIngress {
 
 impl SharedRuntimeIngress {
     #[cfg(test)]
+    pub(super) fn with_capacity_for_test(capacity: usize) -> Self {
+        let mut runtime = Self::default();
+        runtime.capacity = capacity.max(1);
+        runtime
+    }
+
+    #[cfg(test)]
     pub(super) fn reserve_ui_message(&self) -> Option<u64> {
         let mut admission = lock_runtime_state(&self.admission);
         if !self.is_alive() {
@@ -69,6 +118,27 @@ impl SharedRuntimeIngress {
         let sequence = next_sequence(&mut admission);
         self.record_message_added();
         Some(sequence)
+    }
+
+    pub(in crate::application::runtime) fn reserve_delivery(
+        self: &Arc<Self>,
+    ) -> Option<DeliveryReservation> {
+        let mut admission = lock_runtime_state(&self.admission);
+        if !self.is_alive()
+            || admission
+                .deliveries
+                .len()
+                .saturating_add(admission.reservations)
+                >= self.capacity
+        {
+            self.record_shared_ingress_rejected();
+            return None;
+        }
+        admission.reservations += 1;
+        Some(DeliveryReservation {
+            runtime: Arc::downgrade(self),
+            committed: false,
+        })
     }
 
     pub(in crate::application::runtime) fn enqueue_worker_payload(
@@ -104,6 +174,15 @@ impl SharedRuntimeIngress {
         if !self.is_alive() {
             return false;
         }
+        if admission
+            .deliveries
+            .len()
+            .saturating_add(admission.reservations)
+            >= self.capacity
+        {
+            self.record_shared_ingress_rejected();
+            return false;
+        }
         let sequence = next_sequence(&mut admission);
         admission.deliveries.push(Sequenced {
             sequence,
@@ -115,33 +194,70 @@ impl SharedRuntimeIngress {
         true
     }
 
-    pub(in crate::application::runtime) fn enqueue_worker_disconnect(
+    pub(in crate::application::runtime) fn enqueue_worker_disconnect_reserved(
         &self,
+        reservation: DeliveryReservation,
         identity: WorkerSubscriptionIdentity,
     ) -> bool {
-        self.enqueue_worker_delivery_with_pre_append_hook(
+        reservation.commit(SharedRuntimeDelivery::Worker(
             WorkerSubscriptionDelivery::Disconnected { identity },
-            || {},
-        )
+        ))
     }
 
     pub(in crate::application::runtime) fn enqueue_platform_completion(
         &self,
         delivery: PlatformCompletionDelivery,
     ) -> bool {
+        self.enqueue_unreserved_delivery(SharedRuntimeDelivery::Platform(delivery))
+    }
+
+    pub(in crate::application::runtime) fn enqueue_platform_completion_reserved(
+        &self,
+        reservation: DeliveryReservation,
+        delivery: PlatformCompletionDelivery,
+    ) -> bool {
+        reservation.commit(SharedRuntimeDelivery::Platform(delivery))
+    }
+
+    fn enqueue_unreserved_delivery(&self, value: SharedRuntimeDelivery) -> bool {
         let mut admission = lock_runtime_state(&self.admission);
         if !self.is_alive() {
             return false;
         }
+        if admission
+            .deliveries
+            .len()
+            .saturating_add(admission.reservations)
+            >= self.capacity
+        {
+            self.record_shared_ingress_rejected();
+            return false;
+        }
         let sequence = next_sequence(&mut admission);
-        admission.deliveries.push(Sequenced {
-            sequence,
-            value: SharedRuntimeDelivery::Platform(delivery),
-        });
+        admission.deliveries.push(Sequenced { sequence, value });
         self.record_message_added();
         drop(admission);
         self.request_repaint();
         true
+    }
+
+    fn enqueue_reserved_delivery(&self, value: SharedRuntimeDelivery) -> bool {
+        let mut admission = lock_runtime_state(&self.admission);
+        if !self.is_alive() || admission.reservations == 0 {
+            return false;
+        }
+        admission.reservations -= 1;
+        let sequence = next_sequence(&mut admission);
+        admission.deliveries.push(Sequenced { sequence, value });
+        self.record_message_added();
+        drop(admission);
+        self.request_repaint();
+        true
+    }
+
+    fn release_reservation(&self) {
+        let mut admission = lock_runtime_state(&self.admission);
+        admission.reservations = admission.reservations.saturating_sub(1);
     }
 
     pub(super) fn drain_incoming(&self) -> Vec<Sequenced<SharedRuntimeDelivery>> {
@@ -228,6 +344,8 @@ impl SharedRuntimeIngress {
         let mut admission = lock_runtime_state(&self.admission);
         self.alive.store(false, Ordering::Release);
         admission.deliveries.clear();
+        admission.reservations = 0;
+        admission.timer_reservations.clear();
         self.pending_messages.store(0, Ordering::Release);
         self.diagnostics.record_message_queue_depth(0, 0);
         drop(admission);
@@ -246,6 +364,11 @@ impl SharedRuntimeIngress {
     #[cfg(test)]
     pub(super) fn application_timer_identity_count(&self) -> usize {
         lock_runtime_state(&self.timer_identities).len()
+    }
+
+    #[cfg(test)]
+    pub(super) fn invalidate_timer_for_test(&self, identity: TimerIdentity) {
+        lock_runtime_state(&self.timer_identities).remove(&identity);
     }
 
     pub(in crate::application::runtime) fn allocate_timer_identity(
@@ -268,6 +391,9 @@ impl SharedRuntimeIngress {
         if !self.is_alive() {
             return false;
         }
+        if !recurring && !self.reserve_timer_slot(identity) {
+            return false;
+        }
         if identity.owner == crate::runtime::RuntimeTimerOwner::Application {
             lock_runtime_state(&self.timer_identities).insert(identity, identity);
         }
@@ -280,6 +406,9 @@ impl SharedRuntimeIngress {
         };
         if !accepted && identity.owner == crate::runtime::RuntimeTimerOwner::Application {
             lock_runtime_state(&self.timer_identities).remove(&identity);
+        }
+        if !accepted && !recurring {
+            self.release_timer_slot(identity);
         }
         accepted
     }
@@ -295,6 +424,32 @@ impl SharedRuntimeIngress {
     fn record_message_added(&self) {
         let depth = self.pending_messages.fetch_add(1, Ordering::AcqRel) + 1;
         self.diagnostics.record_message_queue_depth(depth, 0);
+    }
+
+    fn record_shared_ingress_rejected(&self) {
+        self.diagnostics.record_shared_ingress_rejected();
+    }
+
+    fn reserve_timer_slot(&self, identity: TimerIdentity) -> bool {
+        let mut admission = lock_runtime_state(&self.admission);
+        if !self.is_alive()
+            || admission
+                .deliveries
+                .len()
+                .saturating_add(admission.reservations)
+                >= self.capacity
+        {
+            self.record_shared_ingress_rejected();
+            return false;
+        }
+        admission.reservations += 1;
+        *admission.timer_reservations.entry(identity).or_default() += 1;
+        true
+    }
+
+    fn release_timer_slot(&self, identity: TimerIdentity) {
+        let mut admission = lock_runtime_state(&self.admission);
+        release_timer_slot_locked(&mut admission, identity);
     }
 }
 
@@ -314,10 +469,32 @@ impl TimerSink for SharedRuntimeIngress {
 
     fn enqueue_timer_wake(&self, wake: TimerWake) -> bool {
         if !self.admit_timer(wake) {
+            self.release_timer_slot(wake);
             return false;
         }
         let mut admission = lock_runtime_state(&self.admission);
         if !self.admit_timer(wake) {
+            drop(admission);
+            self.release_timer_slot(wake);
+            return false;
+        }
+        if admission.deliveries.iter().any(|delivery| {
+            matches!(&delivery.value, SharedRuntimeDelivery::Timer(identity) if *identity == wake)
+        }) {
+            release_timer_slot_locked(&mut admission, wake);
+            self.diagnostics.record_shared_ingress_coalesced();
+            drop(admission);
+            return false;
+        }
+        release_timer_slot_locked(&mut admission, wake);
+        if admission
+            .deliveries
+            .len()
+            .saturating_add(admission.reservations)
+            >= self.capacity
+        {
+            self.record_shared_ingress_rejected();
+            drop(admission);
             return false;
         }
         let sequence = next_sequence(&mut admission);
@@ -340,6 +517,16 @@ fn next_sequence(admission: &mut RuntimeAdmission) -> u64 {
     let sequence = admission.next_sequence;
     admission.next_sequence = admission.next_sequence.wrapping_add(1).max(1);
     sequence
+}
+
+fn release_timer_slot_locked(admission: &mut RuntimeAdmission, identity: TimerIdentity) {
+    if let Some(count) = admission.timer_reservations.get_mut(&identity) {
+        *count = count.saturating_sub(1);
+        if *count == 0 {
+            admission.timer_reservations.remove(&identity);
+        }
+        admission.reservations = admission.reservations.saturating_sub(1);
+    }
 }
 
 fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

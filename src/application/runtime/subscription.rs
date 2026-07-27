@@ -218,11 +218,11 @@ fn spawn_worker_subscription<Message>(
                     }
                 }
                 WorkerSubscriptionEvent::Disconnected => {
-                    if let Some(runtime) = runtime.upgrade() {
-                        if let Some(reservation) = terminal_reservation.take() {
-                            let _ = runtime
-                                .enqueue_worker_disconnect_reserved(reservation, worker_identity);
-                        }
+                    if let Some(runtime) = runtime.upgrade()
+                        && let Some(reservation) = terminal_reservation.take()
+                    {
+                        let _ = runtime
+                            .enqueue_worker_disconnect_reserved(reservation, worker_identity);
                     }
                     break;
                 }

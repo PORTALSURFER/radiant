@@ -55,10 +55,10 @@ impl DeliveryReservation {
 
 impl Drop for DeliveryReservation {
     fn drop(&mut self) {
-        if !self.committed {
-            if let Some(runtime) = self.runtime.upgrade() {
-                runtime.release_reservation();
-            }
+        if !self.committed
+            && let Some(runtime) = self.runtime.upgrade()
+        {
+            runtime.release_reservation();
         }
     }
 }
@@ -104,9 +104,10 @@ impl Default for SharedRuntimeIngress {
 impl SharedRuntimeIngress {
     #[cfg(test)]
     pub(super) fn with_capacity_for_test(capacity: usize) -> Self {
-        let mut runtime = Self::default();
-        runtime.capacity = capacity.max(1);
-        runtime
+        Self {
+            capacity: capacity.max(1),
+            ..Self::default()
+        }
     }
 
     #[cfg(test)]

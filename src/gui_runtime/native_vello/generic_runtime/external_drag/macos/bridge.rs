@@ -239,6 +239,10 @@ pub(super) unsafe fn msg_id_usize(receiver: Id, selector: Sel, arg: usize) -> Id
     unsafe { msg(receiver, selector, arg) }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The fixed-shape Objective-C message-send shim preserves the NSEvent ABI signature."
+)]
 unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
     receiver: Id,
     selector: Sel,

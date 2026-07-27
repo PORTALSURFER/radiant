@@ -86,7 +86,7 @@ impl PointerShieldBuilder {
     /// Emit a cloned host message only when the shield receives a pointer drop.
     pub fn on_drop<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         view_node_from_widget(MappedWidget::new(
             self.widget,

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::{
     application::{TextContent, ViewNode},
@@ -246,11 +246,11 @@ impl TreeRowBuilder {
     /// Attach a toggle action for the disclosure/expander slot.
     pub fn on_toggle<Message>(
         self,
-        message: impl Fn() -> Message + Send + Sync + 'static,
+        message: impl Fn() -> Message + 'static,
     ) -> TreeRowMessageBuilder<Message> {
         TreeRowMessageBuilder {
             row: self,
-            toggle: Some(Arc::new(message)),
+            toggle: Some(Rc::new(message)),
         }
     }
 }
@@ -258,7 +258,7 @@ impl TreeRowBuilder {
 /// Builder returned after a tree row receives a toggle action.
 pub struct TreeRowMessageBuilder<Message> {
     pub(super) row: TreeRowBuilder,
-    pub(super) toggle: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    pub(super) toggle: Option<Rc<dyn Fn() -> Message + 'static>>,
 }
 
 /// Build a generic compact tree row.
@@ -294,7 +294,7 @@ pub fn tree_row(label: impl Into<TextContent>) -> TreeRowBuilder {
     }
 }
 
-impl<Message: Clone + Send + Sync + 'static> TreeRowMessageBuilder<Message> {
+impl<Message: Clone + 'static> TreeRowMessageBuilder<Message> {
     /// Attach interactive row actions and build the row.
     pub fn interactive_actions(self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
         self.row.build(self.toggle, actions)

@@ -1821,6 +1821,13 @@ route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
 provide typed convenience mappers such as `WidgetMessageMapper::button`, but
 those mappers are also owned by the primitive module rather than the runtime
 surface core.
+Constant-message controls, menus, overlays, lists, and tree composition keep
+their application messages on the UI owner and therefore require only
+`Message: Clone + 'static`; those messages may contain `Rc`, `RefCell`, or other
+UI-local state. Typed widget output payloads still require `Send + Sync`
+because `WidgetOutput` is the transferable primitive boundary. Composite tree
+rows emit `InteractiveRowMessage` at that boundary and apply their
+application-action mapper afterward on the UI owner.
 `WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
 and `WidgetOutput::typed_cloned::<T>()`, `typed_copied::<T>()`,
 `custom_cloned::<T>()`, and `custom_copied::<T>()` provide owned payload

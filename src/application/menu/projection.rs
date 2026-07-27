@@ -39,7 +39,7 @@ pub(super) fn menu_command_row<Message>(
     text_columns: MenuCommandTextColumns,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let label_color = menu_command_label_color(command.style);
     let hint_color = menu_command_hotkey_hint_color(command.style);

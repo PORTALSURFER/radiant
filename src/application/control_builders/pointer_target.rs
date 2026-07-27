@@ -73,7 +73,7 @@ impl PointerTargetBuilder {
     /// Emit a cloned host message only when the target receives a pointer drop.
     pub fn on_drop<Message>(self, message: Message) -> PointerTarget<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         PointerTarget::new(self.shield.on_drop(message).input_only().fill())
     }

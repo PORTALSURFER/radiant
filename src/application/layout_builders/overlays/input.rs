@@ -6,7 +6,7 @@ use crate::application::{ViewNode, button, stack};
 /// close when the user clicks outside the foreground content.
 pub fn dismiss_layer<Message>(message: Message) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     button("")
         .message(message)
@@ -27,7 +27,7 @@ pub fn dismissible_overlay<Message>(
     dismiss_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     stack([base, dismiss_layer(dismiss_message), overlay]).fill()
 }
@@ -44,7 +44,7 @@ pub fn dismissible_overlay_with_interactive_base<Message>(
     dismiss_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     stack([dismiss_layer(dismiss_message), base, overlay]).fill()
 }

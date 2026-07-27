@@ -29,6 +29,25 @@ fn mapped_control_accepts_ui_local_capture() {
 }
 
 #[test]
+fn constant_button_message_accepts_rc_backed_ui_message() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    #[derive(Clone)]
+    struct UiOnlyMessage(Rc<RefCell<usize>>);
+
+    let state = Rc::new(RefCell::new(7usize));
+    let surface: UiSurface<UiOnlyMessage> = ui::button("Local")
+        .message(UiOnlyMessage(Rc::clone(&state)))
+        .id(29)
+        .into_surface();
+
+    let message = surface
+        .dispatch_widget_output(29, WidgetOutput::typed(ButtonMessage::Activate))
+        .expect("button should emit its UI-local message");
+    assert!(Rc::ptr_eq(&message.0, &state));
+}
+
+#[test]
 fn application_text_builders_accept_static_owned_and_shared_content() {
     use radiant::prelude::{self as ui, IntoView};
 

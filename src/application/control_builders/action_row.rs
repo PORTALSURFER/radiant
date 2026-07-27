@@ -38,7 +38,7 @@ impl ActionRowBuilder {
     /// Emit one cloned host message when the row is activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         let label = self.label.clone();
         stack([

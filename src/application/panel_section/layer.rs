@@ -174,7 +174,7 @@ pub fn closeable_panel_section_layer_from_parts<Message>(
     close_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let size = sanitized_layer_size(parts.size);
     let panel = closeable_panel_section_from_parts(parts.panel.height(size.y), close_message)
@@ -203,7 +203,7 @@ pub fn closeable_dialog_layer<Message>(
     close_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     closeable_dialog_layer_from_parts(
         DialogLayerParts::new(title, content, tone, size),
@@ -217,7 +217,7 @@ pub fn closeable_dialog_layer_from_parts<Message>(
     close_message: Message,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     closeable_panel_section_layer_from_parts(parts.into_panel_layer_parts(), close_message)
 }

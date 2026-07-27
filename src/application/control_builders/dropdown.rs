@@ -170,7 +170,7 @@ impl<Message> DropdownBuilder<Message> {
     /// Build this dropdown from the accumulated fields.
     pub fn build(self) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         dropdown_from_parts(self.state.into_parts(self.toggle_message))
     }
@@ -191,7 +191,7 @@ impl<Message> DropdownTriggerBuilder<Message> {
     /// Build this standalone dropdown trigger.
     pub fn build(self) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         dropdown_trigger_from_parts(DropdownTriggerParts {
             selected_label: self.selected_label,
@@ -226,7 +226,7 @@ pub fn dropdown_trigger(
 /// Build a generic dropdown from named parts.
 pub fn dropdown_from_parts<Message>(parts: DropdownParts<Message>) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let toggle = dropdown_trigger_from_parts(DropdownTriggerParts {
         selected_label: parts.selected_label,
@@ -252,7 +252,7 @@ pub fn dropdown_trigger_from_parts<Message>(
     parts: DropdownTriggerParts<Message>,
 ) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     let mut trigger = button(parts.selected_label).trailing_label("v");
     if parts.open {

@@ -12,7 +12,7 @@ impl BadgeBuilder {
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         let sizing = default_badge_sizing(&self.label);
         let badge = BadgeWidget::new(0, self.label, sizing).with_active(self.active);
@@ -41,7 +41,7 @@ impl BadgeBuilder {
 /// Build a badge that emits one cloned host message when activated.
 pub fn badge_message<Message>(label: impl Into<TextContent>, message: Message) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     badge(label).message(message)
 }

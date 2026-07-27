@@ -70,7 +70,7 @@ impl ButtonBuilder {
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         self.with_message_mapper(WidgetMessageMapper::button_message(message))
     }
@@ -100,7 +100,7 @@ impl ButtonBuilder {
         drag: impl Fn(DragHandleMessage) -> Message + 'static,
     ) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         self.draggable()
             .filter_mapped(move |message| match message {
@@ -151,7 +151,7 @@ pub fn button(label: impl Into<TextContent>) -> ButtonBuilder {
 /// Build a button that emits one cloned host message when activated.
 pub fn button_message<Message>(label: impl Into<TextContent>, message: Message) -> ViewNode<Message>
 where
-    Message: Clone + Send + Sync + 'static,
+    Message: Clone + 'static,
 {
     button(label).message(message)
 }

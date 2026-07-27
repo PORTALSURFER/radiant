@@ -48,7 +48,7 @@ impl ProgressBarBuilder {
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         let (progress, style) = self.into_widget_and_style();
         view_node_with_style(

@@ -48,7 +48,7 @@ fn tree_row_routes_interactive_actions() {
     );
 
     assert_eq!(
-        output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
+        output.and_then(|output| surface.dispatch_widget_output(91, output)),
         Some(TreeRowMessage::Activate)
     );
 }
@@ -121,7 +121,7 @@ fn tree_row_stable_row_identity_keys_row_and_hit_target() {
     );
 
     assert_eq!(
-        output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
+        output.and_then(|output| surface.dispatch_widget_output(input_id, output)),
         Some(TreeRowMessage::Activate)
     );
     let layout = keyed_row(row_key).view_layout_at_size(Vector2::new(160.0, 22.0));
@@ -166,7 +166,7 @@ fn tree_row_routes_modifier_aware_activation() {
     );
 
     assert_eq!(
-        output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
+        output.and_then(|output| surface.dispatch_widget_output(92, output)),
         Some(TreeRowMessage::ActivateWithModifiers(modifiers))
     );
 }
@@ -261,7 +261,6 @@ fn selected_hover_tree_row_paints_configured_fill_and_marker() {
         normal_label_color: None,
         highlighted_label_color: Rgba8::new(255, 255, 255, 255),
         trailing_icon: None,
-        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
     });
     let bounds = Rect::from_size(160.0, 22.0);
 
@@ -307,7 +306,6 @@ fn selected_idle_tree_row_keeps_normal_label_color() {
         normal_label_color: Some(normal),
         highlighted_label_color: highlighted,
         trailing_icon: None,
-        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
     });
     let bounds = Rect::from_size(160.0, 22.0);
 
@@ -343,7 +341,6 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
         normal_label_color: Some(normal),
         highlighted_label_color: highlighted,
         trailing_icon: None,
-        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
     });
     let bounds = Rect::from_size(160.0, 22.0);
 
@@ -380,7 +377,6 @@ fn focused_tree_row_paints_focus_outline_without_selected_fill() {
         normal_label_color: None,
         highlighted_label_color: Rgba8::new(255, 255, 255, 255),
         trailing_icon: None,
-        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
     });
     let bounds = Rect::from_size(160.0, 22.0);
 
@@ -425,7 +421,6 @@ fn selected_focused_tree_row_paints_selected_fill_without_marker() {
         normal_label_color: None,
         highlighted_label_color: Rgba8::new(255, 255, 255, 255),
         trailing_icon: None,
-        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
     });
     let bounds = Rect::from_size(160.0, 22.0);
 

@@ -93,7 +93,7 @@ impl IconButtonBuilder {
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
-        Message: Clone + Send + Sync + 'static,
+        Message: Clone + 'static,
     {
         let (widget, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(

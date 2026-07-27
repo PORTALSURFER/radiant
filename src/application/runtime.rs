@@ -25,11 +25,11 @@ pub(in crate::application) use bridge::{
 };
 pub(in crate::application) use queue::{AppRuntime, SharedRuntimeIngress};
 pub use subscription::Subscription;
-pub(crate) use task::LatestTimerTransaction;
 pub use task::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, ResourceTaskTicket,
     ResourceTasks, TaskCompletion, TaskTicket,
 };
+pub(crate) use task::{LatestTaskTransaction, LatestTimerTransaction};
 pub use update_context::{BusinessEventSink, BusinessWorkContext, UiUpdateContext};
 
 pub(in crate::application) type RetainedPainter<State> =

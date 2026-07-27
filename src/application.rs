@@ -21,7 +21,7 @@ pub type View<Message = ()> = view_node::ViewNode<Message>;
 mod state;
 pub(in crate::application) use state::OptionalBaseline;
 pub(crate) mod runtime;
-pub(crate) use runtime::LatestTimerTransaction;
+pub(crate) use runtime::{LatestTaskTransaction, LatestTimerTransaction};
 mod text_content;
 pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, FrameMessageActivity, FrameRepaintSource,

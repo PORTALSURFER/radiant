@@ -38,9 +38,12 @@ impl<'context, Message> BusinessRequest<'context, Message> {
 
     /// Start replace-latest work for one host-owned task slot.
     pub fn latest(self, latest: &mut LatestTask) -> BusinessLatestRequest<'context, Message> {
+        let transaction = latest.begin_replacement();
+        let ticket = transaction.replacement();
         BusinessLatestRequest {
             request: self,
-            ticket: latest.begin(),
+            transaction,
+            ticket,
             effect_id: latest.effect_id(),
         }
     }

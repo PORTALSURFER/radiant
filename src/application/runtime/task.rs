@@ -10,5 +10,5 @@ pub use cancellation::CancellationToken;
 pub use completion::{KeyedTaskCompletion, TaskCompletion, TaskTicket};
 pub use keyed_latest::KeyedLatestTasks;
 pub use latest::LatestTask;
-pub(crate) use latest::LatestTimerTransaction;
+pub(crate) use latest::{LatestTaskTransaction, LatestTimerTransaction};
 pub use resource_tasks::{ResourceTaskTicket, ResourceTasks};

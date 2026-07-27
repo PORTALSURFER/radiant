@@ -3,7 +3,7 @@
 use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
-use crate::application::LatestTimerTransaction;
+use crate::application::LatestTaskTransaction;
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
 use std::time::Duration;
 use std::{any::Any, sync::Arc};
@@ -155,7 +155,7 @@ pub enum Command<Message> {
 #[doc(hidden)]
 pub struct TimerEffect<Message> {
     pub(crate) delay: Duration,
-    pub(crate) transaction: Option<LatestTimerTransaction>,
+    pub(crate) transaction: Option<LatestTaskTransaction>,
     pub(crate) map: Box<dyn FnOnce() -> Message + 'static>,
 }
 
@@ -171,6 +171,7 @@ pub struct WorkerEffect<Message> {
     pub(crate) is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
+    pub(crate) transaction: Option<LatestTaskTransaction>,
     pub(crate) work: WorkerEffectWork,
     pub(crate) mapper: WorkerEffectMapper<Message>,
 }

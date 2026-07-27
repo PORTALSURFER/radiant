@@ -1,5 +1,6 @@
 use super::{TaskCompletion, TaskTicket};
 use std::{
+    cell::Cell,
     collections::{HashMap, HashSet},
     sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex, Weak},
@@ -109,8 +110,8 @@ impl LatestTask {
         }
     }
 
-    /// Reserve a timer replacement and publish its ticket transactionally.
-    pub(crate) fn begin_timer_replacement(&mut self) -> LatestTimerTransaction {
+    /// Reserve a replacement and publish its ticket transactionally.
+    pub(crate) fn begin_replacement(&mut self) -> LatestTaskTransaction {
         let (slot, state) = match &mut self.storage {
             LatestStorage::Inline { next_id, active } => {
                 let shared = Arc::new(Mutex::new(LatestState {
@@ -135,12 +136,18 @@ impl LatestTask {
         state_guard.active = Some(replacement);
         state_guard.predecessors.insert(replacement, previous);
         state_guard.rejected.remove(&replacement);
-        LatestTimerTransaction {
+        LatestTaskTransaction {
             slot,
             replacement,
             previous,
             state: Arc::downgrade(&state),
+            committed: Cell::new(false),
         }
+    }
+
+    /// Reserve a timer replacement and publish its ticket transactionally.
+    pub(crate) fn begin_timer_replacement(&mut self) -> LatestTaskTransaction {
+        self.begin_replacement()
     }
 
     /// Return the currently active latest task, if any.
@@ -223,15 +230,16 @@ impl Drop for LatestTask {
     }
 }
 
-/// A timer replacement that can be committed or rolled back by the controller.
-pub(crate) struct LatestTimerTransaction {
+/// A latest-task replacement that can be committed or rolled back by the controller.
+pub(crate) struct LatestTaskTransaction {
     slot: u64,
     replacement: TaskTicket,
     previous: Option<TaskTicket>,
     state: Weak<Mutex<LatestState>>,
+    committed: Cell<bool>,
 }
 
-impl LatestTimerTransaction {
+impl LatestTaskTransaction {
     pub(crate) fn replacement(&self) -> TaskTicket {
         self.replacement
     }
@@ -251,10 +259,13 @@ impl LatestTimerTransaction {
         })
     }
 
-    /// Commit the replacement after the host accepts its timer registration.
-    /// Publication already happened in [`LatestTask::begin_timer_replacement`];
+    /// Commit the replacement after the host accepts its timer registration or worker admission.
+    /// Publication already happened in [`LatestTask::begin_replacement`];
     /// once committed, its predecessor link is no longer needed for rollback.
     pub(crate) fn accept(&self) {
+        if self.committed.replace(true) {
+            return;
+        }
         let Some(state) = self.state.upgrade() else {
             return;
         };
@@ -263,7 +274,10 @@ impl LatestTimerTransaction {
         state.rejected.remove(&self.replacement);
     }
 
-    pub(crate) fn reject(self) {
+    pub(crate) fn reject(&self) {
+        if self.committed.replace(true) {
+            return;
+        }
         let Some(state) = self.state.upgrade() else {
             return;
         };
@@ -274,6 +288,24 @@ impl LatestTimerTransaction {
         }
     }
 }
+
+impl Drop for LatestTaskTransaction {
+    fn drop(&mut self) {
+        if self.committed.replace(true) {
+            return;
+        }
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let mut state = lock_state(&state);
+        state.rejected.insert(self.replacement);
+        if state.active == Some(self.replacement) {
+            state.active = resolve_ticket(&state, self.previous);
+        }
+    }
+}
+
+pub(crate) type LatestTimerTransaction = LatestTaskTransaction;
 
 fn resolve_active(state: &LatestState) -> Option<TaskTicket> {
     resolve_ticket(state, state.active)

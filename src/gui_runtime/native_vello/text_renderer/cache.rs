@@ -2,12 +2,11 @@
 
 mod atom;
 
-use super::{TextLayout, TextLayoutKey, layout::compute_layout};
+use super::{TextLayout, TextLayoutKey, font::NativeFontStack, layout::compute_layout};
 use atom::TextAtomCache;
 use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::mem;
 use std::sync::Arc;
-use vello::peniko::FontData;
 
 const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
 
@@ -62,10 +61,12 @@ impl TextLayoutCache {
 
     pub(super) fn layout_for<'a>(
         &'a mut self,
-        font: &FontData,
+        font_stack: &mut NativeFontStack,
         text: &str,
         font_size: f32,
     ) -> Option<&'a TextLayout> {
+        // The cache key intentionally remains (text, size): font-stack faces
+        // are append-only, so previously selected face indices never move.
         let text_atom = self.intern_text(text);
         let key = TextLayoutKey {
             text: text_atom,
@@ -91,7 +92,7 @@ impl TextLayoutCache {
             }
             Entry::Vacant(vacant) => {
                 self.layout_profile.misses = self.layout_profile.misses.saturating_add(1);
-                let layout = compute_layout(font, text, font_size)?;
+                let layout = compute_layout(font_stack, text, font_size)?;
                 self.quality_profile.record_layout(&layout);
                 let stamp = record_layout_cache_access(
                     &mut self.layout_cache_clock,

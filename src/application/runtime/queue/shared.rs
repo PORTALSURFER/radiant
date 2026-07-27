@@ -204,41 +204,12 @@ impl SharedRuntimeIngress {
         ))
     }
 
-    pub(in crate::application::runtime) fn enqueue_platform_completion(
-        &self,
-        delivery: PlatformCompletionDelivery,
-    ) -> bool {
-        self.enqueue_unreserved_delivery(SharedRuntimeDelivery::Platform(delivery))
-    }
-
     pub(in crate::application::runtime) fn enqueue_platform_completion_reserved(
         &self,
         reservation: DeliveryReservation,
         delivery: PlatformCompletionDelivery,
     ) -> bool {
         reservation.commit(SharedRuntimeDelivery::Platform(delivery))
-    }
-
-    fn enqueue_unreserved_delivery(&self, value: SharedRuntimeDelivery) -> bool {
-        let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive() {
-            return false;
-        }
-        if admission
-            .deliveries
-            .len()
-            .saturating_add(admission.reservations)
-            >= self.capacity
-        {
-            self.record_shared_ingress_rejected();
-            return false;
-        }
-        let sequence = next_sequence(&mut admission);
-        admission.deliveries.push(Sequenced { sequence, value });
-        self.record_message_added();
-        drop(admission);
-        self.request_repaint();
-        true
     }
 
     fn enqueue_reserved_delivery(&self, value: SharedRuntimeDelivery) -> bool {

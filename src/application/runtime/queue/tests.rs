@@ -75,12 +75,16 @@ fn sequenced_sources_preserve_fifo_order() {
             .enqueue_worker_payload(identity, Box::new(2_u32))
     );
     assert!(
-        runtime
-            .shared()
-            .enqueue_platform_completion(PlatformCompletionDelivery {
+        runtime.shared().enqueue_platform_completion_reserved(
+            runtime
+                .shared()
+                .reserve_delivery()
+                .expect("slot is available"),
+            PlatformCompletionDelivery {
                 identity: platform,
                 result: Ok(crate::runtime::PlatformResponse::Completed),
-            })
+            },
+        )
     );
     assert!(runtime.enqueue(4));
 

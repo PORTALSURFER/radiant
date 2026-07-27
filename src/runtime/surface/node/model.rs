@@ -198,19 +198,21 @@ impl<Message> SurfaceNode<Message> {
                 changed
             }
             Self::Container(container) => {
-                container.children.iter_mut().fold(false, |changed, child| {
-                    child.child.advance_timed_repaints(now) || changed
-                })
+                let mut changed = false;
+                for child in &mut container.children {
+                    changed |= child.child.advance_timed_repaints(now);
+                }
+                changed
             }
             Self::Widget(widget) => widget.widget_mut().advance_timed_repaint(now),
             Self::Overlay(_) => false,
-            Self::FloatingLayer(layer) => layer
-                .container
-                .children
-                .iter_mut()
-                .fold(false, |changed, child| {
-                    child.child.advance_timed_repaints(now) || changed
-                }),
+            Self::FloatingLayer(layer) => {
+                let mut changed = false;
+                for child in &mut layer.container.children {
+                    changed |= child.child.advance_timed_repaints(now);
+                }
+                changed
+            }
         }
     }
 

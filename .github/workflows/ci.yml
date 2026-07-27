@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  quality:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install stable Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal \
+            --component rustfmt \
+            --component clippy \
+            --target x86_64-unknown-linux-gnu \
+            --target x86_64-apple-darwin
+          rustup default stable
+
+      - name: Print Rust versions
+        run: |
+          rustc -Vv
+          cargo -V
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Test library and integration tests
+        run: cargo test --locked --lib --tests
+
+      - name: Test examples
+        run: cargo test --locked --examples
+
+      - name: Build documentation
+        run: cargo doc --locked --no-deps
+
+      - name: Run doctests
+        run: cargo test --locked --doc
+
+      - name: Check Linux no-default-features library
+        run: cargo check --locked --target x86_64-unknown-linux-gnu --no-default-features --lib
+
+      - name: Check macOS no-default-features library
+        run: cargo check --locked --target x86_64-apple-darwin --no-default-features --lib
+
+      - name: List performance scenarios
+        run: cargo bench --locked --bench perf_harness -- --list
+
+      - name: Write performance JSONL baseline
+        run: cargo bench --locked --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl ./target/perf-baseline.jsonl
+
+      - name: Compare performance against JSONL baseline
+        run: cargo bench --locked --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl ./target/perf-baseline.jsonl --fail-on-missing-baseline
+
+  windows-compile:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install stable Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Print Rust versions
+        run: |
+          rustc -Vv
+          cargo -V
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Check all targets and features
+        run: cargo check --locked --all-targets --all-features

@@ -53,7 +53,7 @@ impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project,
 where
     Project: FnMut(&State) -> View + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     /// Attach a simple app message handler that mutates app state and requests a repaint.

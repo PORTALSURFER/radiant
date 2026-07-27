@@ -13,7 +13,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn observe_frame_diagnostics(&mut self, diagnostics: crate::runtime::NativeFrameDiagnostics) {
@@ -29,7 +29,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
@@ -43,7 +43,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {

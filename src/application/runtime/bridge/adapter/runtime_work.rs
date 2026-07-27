@@ -11,7 +11,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
 {
     pub(super) fn install_runtime_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.runtime.install_repaint(signal);

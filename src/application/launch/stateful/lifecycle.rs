@@ -9,7 +9,7 @@ impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project,
 where
     Project: FnMut(&State) -> View + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     /// Advanced lifecycle hook for animation-driven native frames.

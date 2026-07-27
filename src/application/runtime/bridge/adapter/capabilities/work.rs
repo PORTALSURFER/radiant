@@ -15,7 +15,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
@@ -43,7 +43,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn request_platform_service(
@@ -105,7 +105,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
     State: 'static,
 {
     fn needs_animation(&mut self) -> bool {

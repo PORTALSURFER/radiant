@@ -158,6 +158,12 @@ messages, or request runtime exit. Reducer-style aliases remain available for
 advanced lifecycle control during the breaking migration, but ordinary
 application code should stay message-first.
 
+Ordinary application `Message` values are owned and reduced on the UI thread, so
+they do not need to implement `Send` or `Sync` and may contain UI-local `Rc` or
+`RefCell` state. Cross-thread APIs instead require their request, payload, or
+worker result to implement `Send`; their completion mapper stays on the UI owner
+and may produce a UI-only application message.
+
 Immutable application labels use `TextContent`, which normal builders accept
 through `Into<TextContent>`. Literals such as `text("Ready")` and
 `button("Play")` remain in static storage through paint-plan construction.

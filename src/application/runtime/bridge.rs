@@ -317,7 +317,7 @@ where
 
     fn start_subscriptions_once(&mut self)
     where
-        Message: Send + 'static,
+        Message: 'static,
     {
         if self.runtime_flags.subscriptions_started {
             return;

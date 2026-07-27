@@ -13,7 +13,7 @@ where
     Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
-    Message: Send + 'static,
+    Message: 'static,
 {
     pub(super) fn request_app_platform_service(
         &mut self,

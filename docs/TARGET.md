@@ -1294,7 +1294,7 @@ A reasonable milestone order is:
 7. Build and maintain core examples and sandboxes.
 8. Add diagnostics, profiling tools, and performance validation.
 9. Improve advanced rendering, multi-threading, caching, and GPU-backed features where they clearly help.
-10. Extend platform support beyond Windows when the core architecture is ready.
+10. Extend platform support across the remaining desktop targets when the core architecture is ready.
 
 Each milestone should leave the codebase in a better, working state.
 
@@ -1330,7 +1330,7 @@ The following decisions do not need to be finalized immediately, but should rema
 
 - Exact windowing/event-loop strategy.
 - Exact text shaping/rendering stack.
-- Exact Linux and macOS support timeline.
+- Exact Linux and Windows support timeline beyond the macOS-first implementation.
 - Exact plugin-host integration adapter design.
 - Whether any optional accessibility foundation should be added later.
 - Which performance benchmarks should become formal release gates.

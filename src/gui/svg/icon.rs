@@ -87,6 +87,14 @@ pub struct SvgIconTintCache {
     icons: OnceLock<Mutex<HashMap<u32, SvgIcon>>>,
 }
 
+impl PartialEq for SvgIconTintCache {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for SvgIconTintCache {}
+
 /// Tint colors for stateful monochrome SVG icons.
 ///
 /// This keeps common enabled/active/disabled color selection near Radiant's
@@ -163,7 +171,16 @@ impl SvgIconTintCache {
         if let Some(icon) = icons.get(&key) {
             return Ok(icon.clone());
         }
-        let icon = SvgIcon::try_from_svg_with_current_color(self.svg, color)?;
+        let icon = if self.svg.contains("currentColor") {
+            // Some retained SVG parsers do not resolve CSS `currentColor` on
+            // stroked paths. Catalog sources therefore use a literal token
+            // replacement at cache resolution time while arbitrary sources
+            // continue through the legacy inherited-color path.
+            let color = format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b);
+            SvgIcon::try_from_svg(&self.svg.replace("currentColor", &color))?
+        } else {
+            SvgIcon::try_from_svg_with_current_color(self.svg, color)?
+        };
         icons.insert(key, icon.clone());
         Ok(icon)
     }

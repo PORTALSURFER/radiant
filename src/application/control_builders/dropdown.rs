@@ -255,7 +255,7 @@ pub fn dropdown_trigger_from_parts<Message>(
 where
     Message: Clone + 'static,
 {
-    let mut trigger = button(parts.selected_label).trailing_icon(IconName::ChevronDown.icon());
+    let mut trigger = button(parts.selected_label).trailing_catalog_icon(IconName::ChevronDown);
     if parts.open {
         trigger = trigger.style(WidgetStyle::new(
             WidgetTone::Accent,

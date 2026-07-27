@@ -270,6 +270,26 @@ impl Widget for KnobWidget {
             color: tokens.emphasis,
             width: 3.0,
         }));
+        if self.common.state.selected && !self.common.state.disabled {
+            // Selection gets a shape cue independent from the resolved color
+            // precedence: a short top tick remains visible alongside focus or
+            // automation markers.
+            let marker_angle = -TAU * 0.25;
+            let outer = Point::new(
+                center.x + radius * marker_angle.cos(),
+                center.y + radius * marker_angle.sin(),
+            );
+            let inner = Point::new(
+                center.x + (radius - 4.0) * marker_angle.cos(),
+                center.y + (radius - 4.0) * marker_angle.sin(),
+            );
+            primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+                widget_id: self.common.id,
+                points: [inner, outer].into(),
+                color: tokens.emphasis,
+                width: 2.0,
+            }));
+        }
         if self.common.state.automation_active && !self.common.state.disabled {
             // A second, dashed-like marker (short radial tick) keeps
             // automation visible without relying on color alone.
@@ -432,5 +452,32 @@ mod tests {
             .cue,
             WidgetVisualCue::Focused
         );
+    }
+
+    #[test]
+    fn selected_knob_has_distinct_structure_from_default_neutral_knob() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let default_knob = KnobWidget::new(1, 0.5);
+        let mut selected_knob = KnobWidget::new(1, 0.5);
+        selected_knob.common.state.selected = true;
+        let mut default_primitives = Vec::new();
+        let mut selected_primitives = Vec::new();
+
+        default_knob.append_paint(
+            &mut default_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        selected_knob.append_paint(
+            &mut selected_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert_eq!(default_primitives.len(), 2);
+        assert_eq!(selected_primitives.len(), 3);
+        assert_ne!(default_primitives, selected_primitives);
     }
 }

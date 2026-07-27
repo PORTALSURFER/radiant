@@ -19,7 +19,8 @@
 //! ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 //! IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::SvgIcon;
+use super::{SvgIcon, SvgIconTintCache};
+use crate::gui::types::Rgba8;
 
 /// Shared retained icon names used by Pump and other application controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -72,7 +73,25 @@ impl IconName {
     /// Parse the retained icon, returning an empty icon only if the embedded
     /// source is ever made invalid.
     pub fn icon(self) -> SvgIcon {
-        SvgIcon::from_svg(self.svg()).unwrap_or_else(SvgIcon::empty)
+        self.tint_cache().icon(Rgba8::new(238, 238, 238, u8::MAX))
+    }
+
+    /// Return the retained tint cache for this monochrome catalog icon.
+    pub const fn tint_cache(self) -> &'static SvgIconTintCache {
+        match self {
+            Self::History => &HISTORY_CACHE,
+            Self::CompareAb => &COMPARE_AB_CACHE,
+            Self::Copy => &COPY_CACHE,
+            Self::Settings => &SETTINGS_CACHE,
+            Self::Favorite => &FAVORITE_CACHE,
+            Self::ChevronLeft => &CHEVRON_LEFT_CACHE,
+            Self::ChevronRight => &CHEVRON_RIGHT_CACHE,
+            Self::ChevronDown => &CHEVRON_DOWN_CACHE,
+            Self::ChevronUp => &CHEVRON_UP_CACHE,
+            Self::Trigger => &TRIGGER_CACHE,
+            Self::Pattern => &PATTERN_CACHE,
+            Self::Power => &POWER_CACHE,
+        }
     }
 
     /// Return all catalog entries in stable order for tests and palette UIs.
@@ -96,7 +115,7 @@ impl IconName {
 
 macro_rules! svg {
     ($body:literal) => {
-        concat!(r##"<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#eeeeee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"##, $body, "</svg>")
+        concat!(r##"<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"##, $body, "</svg>")
     };
 }
 
@@ -122,6 +141,19 @@ const PATTERN: &str = svg!(
     r#"<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>"#
 );
 const POWER: &str = svg!(r#"<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/>"#);
+
+static HISTORY_CACHE: SvgIconTintCache = SvgIconTintCache::new(HISTORY);
+static COMPARE_AB_CACHE: SvgIconTintCache = SvgIconTintCache::new(COMPARE_AB);
+static COPY_CACHE: SvgIconTintCache = SvgIconTintCache::new(COPY);
+static SETTINGS_CACHE: SvgIconTintCache = SvgIconTintCache::new(SETTINGS);
+static FAVORITE_CACHE: SvgIconTintCache = SvgIconTintCache::new(FAVORITE);
+static CHEVRON_LEFT_CACHE: SvgIconTintCache = SvgIconTintCache::new(CHEVRON_LEFT);
+static CHEVRON_RIGHT_CACHE: SvgIconTintCache = SvgIconTintCache::new(CHEVRON_RIGHT);
+static CHEVRON_DOWN_CACHE: SvgIconTintCache = SvgIconTintCache::new(CHEVRON_DOWN);
+static CHEVRON_UP_CACHE: SvgIconTintCache = SvgIconTintCache::new(CHEVRON_UP);
+static TRIGGER_CACHE: SvgIconTintCache = SvgIconTintCache::new(TRIGGER);
+static PATTERN_CACHE: SvgIconTintCache = SvgIconTintCache::new(PATTERN);
+static POWER_CACHE: SvgIconTintCache = SvgIconTintCache::new(POWER);
 
 #[cfg(test)]
 mod tests {

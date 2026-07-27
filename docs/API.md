@@ -1692,6 +1692,16 @@ combination of built-in widgets. `SurfaceNode::widget` and
 `SurfaceNode::static_widget` accept any owned widget implementation, including
 Radiant's built-in primitives, without requiring an enum wrapper.
 
+Widget values and their optional `WidgetSemantics` are owned by the window/UI
+runtime. They may contain `Rc`, `RefCell`, or other UI-local state and do not
+need to be `Send` or `Sync`; consequently `Box<dyn Widget>` does not imply
+thread-safe transfer. `EmbeddedInteractiveRowWidget` follows the same local
+ownership rule for the custom row value, while its associated `Message` remains
+`Send + Sync` because row output crosses the transferable `WidgetOutput`
+boundary. Keep worker requests, results, and typed `WidgetOutput` payloads
+explicitly `Send` (and `Sync` where required); their completion/output mappers
+run later on the owning UI thread and may produce ordinary UI-local messages.
+
 The application builder uses the same ownership model through `WidgetView`.
 Any `Widget + Clone + 'static` is a non-emitting `WidgetView`, so it can be
 placed directly with prelude `widget(my_widget)`. Interactive application

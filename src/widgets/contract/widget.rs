@@ -61,7 +61,7 @@ impl Clone for Box<dyn Widget> {
 /// Built-in primitives and custom widgets implement this same trait and travel
 /// through the runtime, input, message, paint, and application-builder paths
 /// without adding a new Radiant enum variant.
-pub trait Widget: WidgetClone + Send + Sync + Any {
+pub trait Widget: WidgetClone + Any {
     /// Return the shared identity, sizing, focus, state, and style contract.
     fn common(&self) -> &WidgetCommon;
 

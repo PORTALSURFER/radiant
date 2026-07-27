@@ -20,7 +20,7 @@ use crate::{
 /// contract delegation, but the host still owns the row's visual content and
 /// message type. The blanket [`Widget`] implementation keeps application row
 /// wrappers focused on domain action routing and paint.
-pub trait EmbeddedInteractiveRowWidget: Clone + Send + Sync + 'static {
+pub trait EmbeddedInteractiveRowWidget: Clone + 'static {
     /// Host-specific message emitted by the custom row.
     type Message: Send + Sync + 'static;
 

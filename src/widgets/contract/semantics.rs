@@ -33,7 +33,7 @@ pub(super) fn fallback_automation_semantics(common: &WidgetCommon) -> Automation
 }
 
 /// Object-safe semantic capability exported by an interactive widget.
-pub trait WidgetSemantics: Send + Sync {
+pub trait WidgetSemantics {
     /// Return the default automation role for this widget.
     fn automation_role(&self) -> AutomationRole {
         AutomationRole::Custom

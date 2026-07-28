@@ -934,16 +934,18 @@ one-time `Keyed` implementation or explicit `for_each_by` escape hatch. Static
 container constructors never request a key. The advanced state-continuity API is
 named `preserve_state(key, view)` so its purpose is visible at the call site,
 rather than presenting a mysterious mandatory ID option on every primitive.
-Duplicate or unstable inferred keys include the collection path and corrective
-action in their diagnostic.
+Duplicate or ambiguous inferred keys are rejected at the infallible projection
+boundary with the stable `ambiguous keyed identity` failure; callers must make
+the key unique or apply an explicit `.id(...)`/`.key(...)` override.
 
 Identity mistakes are caught at the earliest useful stage:
 
 1. **Compile time:** `for_each` rejects an item type without `Keyed`, with a
    targeted trait-bound error. This prevents an unkeyed dynamic collection from
    reaching a running application.
-2. **Development runtime:** duplicate sibling keys, incompatible keyed-node
-   replacement, and discarded widget runtime state emit structured
+2. **Projection boundary:** duplicate or ambiguous keyed candidates are
+   rejected before lowering, while incompatible keyed-node replacement and
+   discarded widget runtime state emit structured
    `IdentityDiagnostic` events with the resolved tree path, previous/new node
    kind, and affected focus/capture/state. The inspector highlights the node.
 3. **Tests and CI:** `IdentityAudit::strict()` promotes those diagnostics to
@@ -1166,7 +1168,7 @@ All children use one slot-sizing vocabulary: `fixed`, `fill`, `grow`, `shrink`,
 `min_size`, `max_size`, `aspect_ratio`, and cross-axis alignment. `spacer()`
 and `divider()` are standard content primitives. Repeated and conditional
 content uses `for_each`, `optional`, and `when`; `for_each` infers identity from
-`Keyed` domain values. `for_each_keyed` is the explicit escape hatch for data
+`Keyed` domain values. `for_each_by` is the explicit escape hatch for data
 whose stable identity is not represented by its type.
 
 `tabs` is a generic keyed editor container, separate from workspace docking. It

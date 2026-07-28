@@ -22,6 +22,13 @@ where
         let mut reserved = Vec::new();
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
+        let mut keyed_candidates = std::collections::HashSet::new();
+        if self
+            .collect_keyed_collisions(ROOT_KEY_SCOPE, &mut keyed_candidates)
+            .is_err()
+        {
+            panic!("ambiguous keyed identity");
+        }
         let mut scene = SceneProjection::default();
         let root = ViewLowering::new(&mut ids, &mut scene).lower_node(
             self,
@@ -51,6 +58,14 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         if let Some(id) = node.resolved_id(scope) {
             self.ids.claim_explicit(id);
             return crate::application::ids::StructuralIdentity { id, scope: id };
+        }
+        if let Some(keyed) = node.keyed_identity {
+            return self.ids.next_keyed_structural(
+                scope,
+                node.structural_kind(),
+                keyed.key_type,
+                keyed.key_fingerprint,
+            );
         }
         self.ids
             .next_structural(scope, node.structural_kind(), role)

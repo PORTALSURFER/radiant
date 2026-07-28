@@ -6,6 +6,7 @@ impl<Message> ViewNode<Message> {
     pub fn id(mut self, id: NodeId) -> Self {
         self.id = Some(id);
         self.key = None;
+        self.keyed_identity = None;
         self.has_reserved_identity = true;
         self
     }
@@ -20,6 +21,7 @@ impl<Message> ViewNode<Message> {
     pub fn key(mut self, key: impl ToString) -> Self {
         self.id = None;
         self.key = Some(ContinuityKey::new(key.to_string()));
+        self.keyed_identity = None;
         self.has_reserved_identity = true;
         self
     }

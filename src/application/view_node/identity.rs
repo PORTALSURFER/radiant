@@ -4,7 +4,59 @@ use crate::application::{
     scoped_key_id,
 };
 use crate::layout::NodeId;
-use std::fmt;
+use std::collections::HashSet;
+use std::{
+    any::type_name,
+    fmt,
+    hash::{Hash, Hasher},
+};
+
+/// Typed identity metadata attached to a root produced by a keyed collection.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(in crate::application) struct KeyedIdentity {
+    pub(in crate::application) key_type: u64,
+    pub(in crate::application) key_fingerprint: u64,
+}
+
+impl KeyedIdentity {
+    pub(in crate::application) fn from_key<Key: Hash + ?Sized + 'static>(key: &Key) -> Self {
+        Self {
+            key_type: fingerprint(type_name::<Key>()),
+            key_fingerprint: fingerprint_value(key),
+        }
+    }
+}
+
+fn fingerprint(value: &str) -> u64 {
+    let mut hasher = FnvHasher::default();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn fingerprint_value<Key: Hash + ?Sized>(value: &Key) -> u64 {
+    let mut hasher = FnvHasher::default();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[derive(Default)]
+struct FnvHasher(u64);
+
+impl Hasher for FnvHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        if self.0 == 0 {
+            self.0 = 0xcbf2_9ce4_8422_2325;
+        }
+        for byte in bytes {
+            self.0 ^= u64::from(*byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+}
 
 /// Owned application-facing identity for declarative view continuity.
 ///
@@ -56,6 +108,124 @@ impl From<String> for ContinuityKey {
 mod tests;
 
 impl<Message> ViewNode<Message> {
+    pub(super) fn collect_keyed_collisions(
+        &self,
+        scope: u64,
+        candidates: &mut HashSet<NodeId>,
+    ) -> Result<(), ()> {
+        self.collect_keyed_collisions_at(scope, StructuralRole::Root, candidates, true)
+    }
+
+    fn collect_keyed_collisions_at(
+        &self,
+        scope: u64,
+        role: StructuralRole,
+        candidates: &mut HashSet<NodeId>,
+        include_overlays: bool,
+    ) -> Result<(), ()> {
+        if let Some(identity) = self.keyed_identity {
+            let candidate = crate::application::ids::keyed_structural_id(
+                scope,
+                self.structural_kind(),
+                identity.key_type,
+                identity.key_fingerprint,
+            );
+            if !candidates.insert(candidate) {
+                return Err(());
+            }
+        }
+        let child_scope = self.child_scope(scope, role);
+        match &self.kind {
+            ViewNodeKind::Scene { base, layers, .. } => {
+                base.collect_keyed_collisions_at(
+                    child_scope,
+                    StructuralRole::SceneBase,
+                    candidates,
+                    false,
+                )?;
+                let mut overlay_layers = Vec::new();
+                base.collect_overlay_layers(&mut overlay_layers);
+                for (index, layer) in overlay_layers.into_iter().chain(layers.iter()).enumerate() {
+                    if let Some(input) = layer.input.as_ref() {
+                        input.collect_keyed_collisions_at(
+                            child_scope,
+                            StructuralRole::SceneInput(index),
+                            candidates,
+                            true,
+                        )?;
+                    }
+                    layer.view.collect_keyed_collisions_at(
+                        child_scope,
+                        StructuralRole::SceneLayer(index),
+                        candidates,
+                        true,
+                    )?;
+                }
+            }
+            ViewNodeKind::Container { children, .. } => {
+                for (index, child) in children.iter().enumerate() {
+                    child.collect_keyed_collisions_at(
+                        child_scope,
+                        StructuralRole::ContainerChild(index),
+                        candidates,
+                        include_overlays,
+                    )?;
+                }
+            }
+            ViewNodeKind::Scroll { child } => child.collect_keyed_collisions_at(
+                child_scope,
+                StructuralRole::ScrollChild,
+                candidates,
+                include_overlays,
+            )?,
+            ViewNodeKind::VirtualScroll { child, .. } => child.collect_keyed_collisions_at(
+                child_scope,
+                StructuralRole::VirtualScrollChild,
+                candidates,
+                include_overlays,
+            )?,
+            ViewNodeKind::FloatingLayer { child, .. } => child.collect_keyed_collisions_at(
+                child_scope,
+                StructuralRole::FloatingLayerChild,
+                candidates,
+                include_overlays,
+            )?,
+            ViewNodeKind::Runtime(_)
+            | ViewNodeKind::Widget(_)
+            | ViewNodeKind::OverlayPanel { .. } => {}
+        }
+        if include_overlays && !matches!(self.kind, ViewNodeKind::Scene { .. }) {
+            for (index, layer) in self.overlay_layers.iter().enumerate() {
+                if let Some(input) = layer.input.as_ref() {
+                    input.collect_keyed_collisions_at(
+                        child_scope,
+                        StructuralRole::SceneInput(index),
+                        candidates,
+                        true,
+                    )?;
+                }
+                layer.view.collect_keyed_collisions_at(
+                    child_scope,
+                    StructuralRole::SceneLayer(index),
+                    candidates,
+                    true,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(in crate::application) fn with_inferred_keyed_identity(
+        mut self,
+        identity: KeyedIdentity,
+    ) -> Self {
+        if self.id.is_none() && self.key.is_none() {
+            self.keyed_identity = Some(identity);
+            self.has_reserved_identity = true;
+        }
+        self
+    }
+
     pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut Vec<NodeId>) {
         self.collect_reserved_ids_at(scope, StructuralRole::Root, ids, true);
     }
@@ -202,6 +372,16 @@ impl<Message> ViewNode<Message> {
 
     fn child_scope(&self, parent_scope: u64, role: StructuralRole) -> u64 {
         self.resolved_id(parent_scope)
+            .or_else(|| {
+                self.keyed_identity.map(|identity| {
+                    crate::application::ids::keyed_structural_id(
+                        parent_scope,
+                        self.structural_kind(),
+                        identity.key_type,
+                        identity.key_fingerprint,
+                    )
+                })
+            })
             .unwrap_or_else(|| structural_id(parent_scope, self.structural_kind(), role))
     }
 

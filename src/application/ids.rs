@@ -151,6 +151,21 @@ impl IdGenerator {
         role: StructuralRole,
     ) -> StructuralIdentity {
         let structural_scope = structural_id(scope, kind, role);
+        self.next_candidate(structural_scope)
+    }
+
+    pub(in crate::application) fn next_keyed_structural(
+        &mut self,
+        scope: NodeId,
+        kind: StructuralKind,
+        key_type: u64,
+        key_fingerprint: u64,
+    ) -> StructuralIdentity {
+        let structural_scope = keyed_structural_id(scope, kind, key_type, key_fingerprint);
+        self.next_candidate(structural_scope)
+    }
+
+    fn next_candidate(&mut self, structural_scope: NodeId) -> StructuralIdentity {
         let mut id = structural_scope;
         let mut probe = 0_u64;
         while id == 0 || self.is_reserved(id) || !self.claimed.insert(id) {
@@ -240,6 +255,20 @@ pub(in crate::application) fn structural_id(
     hash = hash_bytes(hash, &kind.tag().to_le_bytes());
     hash = hash_bytes(hash, &role.tag().to_le_bytes());
     hash = hash_bytes(hash, &role.index().to_le_bytes());
+    if hash == 0 { 1 } else { hash }
+}
+
+pub(in crate::application) fn keyed_structural_id(
+    scope: NodeId,
+    kind: StructuralKind,
+    key_type: u64,
+    key_fingerprint: u64,
+) -> NodeId {
+    let mut hash = super::ROOT_KEY_SCOPE;
+    hash = hash_bytes(hash, &scope.to_le_bytes());
+    hash = hash_bytes(hash, &kind.tag().to_le_bytes());
+    hash = hash_bytes(hash, &key_type.to_le_bytes());
+    hash = hash_bytes(hash, &key_fingerprint.to_le_bytes());
     if hash == 0 { 1 } else { hash }
 }
 

@@ -10,6 +10,7 @@ mod modifiers;
 mod slot;
 
 pub use identity::ContinuityKey;
+pub(in crate::application) use identity::KeyedIdentity;
 
 use slot::SlotBehavior;
 
@@ -66,6 +67,7 @@ pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
     key: Option<identity::ContinuityKey>,
+    keyed_identity: Option<identity::KeyedIdentity>,
     has_reserved_identity: bool,
     has_reserved_descendant_identity: bool,
     sizing: Option<WidgetSizing>,
@@ -134,6 +136,7 @@ impl<Message> ViewNode<Message> {
             kind,
             id: None,
             key: None,
+            keyed_identity: None,
             has_reserved_identity: false,
             has_reserved_descendant_identity: false,
             sizing: None,

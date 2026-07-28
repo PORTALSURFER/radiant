@@ -353,6 +353,14 @@ Theme changes are classified as paint or geometry changes only when the changed
 token can affect sizing. Applications compose styles from named typed values
 rather than exposing raw colors, fonts, and border recipes throughout view code.
 
+At the native surface boundary, `AppearancePolicy::FollowEnvironment` resolves
+the six scheme/contrast cases (light, dark, or unknown crossed with standard or
+high contrast). Unknown falls back to dark tokens for rendering only; the
+underlying environment remains lossless. `AppearancePolicy::Fixed(ThemeTokens)`
+is an explicit byte-for-byte override. Resolution is performed once per native
+paint pass and shared by clear, base, clipped, and transient overlay output;
+display scale and reduced-motion preferences remain separate policies.
+
 ## Locale and System Environment
 
 Radiant exposes immutable, testable environment snapshots at two scopes.

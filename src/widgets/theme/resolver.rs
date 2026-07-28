@@ -57,18 +57,13 @@ pub fn resolve_widget_visual_tokens(
     };
     let foreground = if state.disabled {
         theme.text_muted
-    } else if matches!(
-        (style.prominence, style.tone),
-        (WidgetProminence::Strong, WidgetTone::Warning)
-    ) {
-        theme.bg_primary
     } else if state.pressed
         || state.active
         || state.selected
         || (matches!(style.prominence, WidgetProminence::Strong)
             && !matches!(style.tone, WidgetTone::Neutral))
     {
-        theme.text_primary
+        theme.on_fill(fill)
     } else if matches!(
         (style.prominence, style.tone),
         (WidgetProminence::Subtle, WidgetTone::Neutral)

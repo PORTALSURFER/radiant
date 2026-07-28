@@ -150,6 +150,7 @@ fn child_is_past_ordered_clip_for(
         hovered_container: None,
         active_scroll_affordance: None,
         environment: crate::runtime::ResolvedEnvironment::default(),
+        appearance: crate::theme::ResolvedAppearance::fixed(theme),
         clip_rect: Some(clip_rect),
     };
     let container = SurfaceContainer::<()>::new(

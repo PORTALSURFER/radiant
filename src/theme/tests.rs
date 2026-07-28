@@ -78,3 +78,45 @@ fn dark_theme_resolves_viewport_tier_motion_without_compatibility_shell() {
     assert!(compact.motion_speed_transport < wide.motion_speed_transport);
     assert!(compact.scrim_modal_alpha < wide.scrim_modal_alpha);
 }
+
+#[test]
+fn light_and_high_contrast_palettes_preserve_the_token_schema() {
+    let light = ThemeTokens::light();
+    let light_high = ThemeTokens::light_high_contrast();
+    let dark_high = ThemeTokens::dark_high_contrast();
+    assert_ne!(light.clear_color, ThemeTokens::dark().clear_color);
+    assert_ne!(light_high.border_emphasis, light.border_emphasis);
+    assert_ne!(dark_high.text_primary, ThemeTokens::dark().text_primary);
+    assert_eq!(light_high.motion_speed_idle, light.motion_speed_idle);
+    assert_eq!(
+        light_high.motion_focus_wave_amp,
+        light.motion_focus_wave_amp
+    );
+    assert_eq!(
+        dark_high.motion_speed_transport,
+        ThemeTokens::dark().motion_speed_transport
+    );
+    assert_eq!(
+        dark_high.motion_focus_text_wave_amp,
+        ThemeTokens::dark().motion_focus_text_wave_amp
+    );
+    assert_eq!(
+        light.motion_speed_transport,
+        ThemeTokens::dark().motion_speed_transport
+    );
+}
+
+#[test]
+fn on_fill_selects_a_readable_foreground_for_bright_warning_surfaces() {
+    let dark = ThemeTokens::dark();
+    let light = ThemeTokens::light();
+    assert_eq!(dark.on_fill(dark.accent_warning), dark.bg_primary);
+    assert_eq!(light.on_fill(light.accent_warning), light.bg_primary);
+}
+
+#[test]
+fn on_fill_uses_gamma_correct_wcag_contrast() {
+    let theme = ThemeTokens::light();
+    let foreground = theme.on_fill(Rgba8::new(120, 120, 120, 255));
+    assert!(super::contrast_ratio(foreground, Rgba8::new(120, 120, 120, 255)) >= 4.5);
+}

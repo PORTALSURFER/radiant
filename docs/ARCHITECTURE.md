@@ -192,6 +192,15 @@ one projection per plan and preserves it through clipped descendants and
 runtime overlays. Context-aware hooks default to one-call delegation to the
 legacy hooks, preserving object safety and existing callers.
 
+Appearance policy is layered above that environment projection. The
+backend-neutral `AppearancePolicy` either follows the snapshot or fixes an
+explicit `ThemeTokens` value; `ResolvedAppearance` is immutable frame data
+carried additively beside the unchanged theme reference. Native rendering
+resolves it once per paint pass and reuses it for clear color, base traversal,
+clips, and runtime overlays. Unknown scheme values use dark tokens only for
+appearance selection, while `ResolvedEnvironment::color_scheme()` remains
+`None`; scale and reduced-motion values never affect token selection.
+
 The native compositor preprocesses each paint plan's clip state and opaque
 suffix coverage once into a reusable spatial index. GPU rendering,
 interaction-region projection, post-GPU overlay visibility, and embedded

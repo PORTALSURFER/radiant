@@ -64,13 +64,7 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn enqueue_frame(&mut self, message: Message) -> bool {
-        if !self.shared.is_alive() || self.pending_frame.is_some() {
-            return false;
-        }
-        self.pending_frame = Some(message);
-        self.shared.record_frame_added();
-        self.shared.request_repaint();
-        true
+        self.shared.enqueue_frame(&mut self.pending_frame, message)
     }
 
     pub(super) fn spawn_business_task(
@@ -212,9 +206,14 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn shutdown(&mut self) {
-        self.shared.shutdown();
+        self.shared.begin_closing();
         self.pending_frame = None;
         self.pending.clear();
+        self.shared.stop();
+    }
+
+    pub(super) fn begin_closing(&self) -> bool {
+        self.shared.begin_closing()
     }
 
     pub(super) fn is_alive(&self) -> bool {

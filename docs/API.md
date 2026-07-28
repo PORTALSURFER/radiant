@@ -1909,8 +1909,15 @@ owned `Send` payload while its application-message mapper stays on the UI
 owner.
 Internally, `AppBridge` owns the generic application-message and frame queues
 directly. A separate non-generic shared ingress owns worker payload deliveries,
-opaque timer wakes, liveness, repaint signaling, diagnostics, and the bounded
-business pool. Worker and timer sources receive only that shared ingress, so
+opaque timer wakes, lifecycle admission, repaint signaling, diagnostics, and
+the bounded business pool. The ingress has a private monotonic
+`Accepting -> Closing -> Stopped` lifecycle and closes before application
+teardown; it publishes `Stopped` only after queued UI/shared work,
+reservations, timers, and registries have been cleared.
+`RuntimeLifecycleHost::on_runtime_closing` is an additive, non-vetoing callback
+with a default implementation, cached and invoked at most once on the UI owner
+immediately after the controller enters `Closing` and before controller
+teardown. Worker and timer sources receive only that shared ingress, so
 adding UI-local state to `Message` does not make those ownership paths generic.
 Worker payloads, platform results, and timer wakes receive one admission
 sequence there and are mapped or reduced in that order on the UI owner.

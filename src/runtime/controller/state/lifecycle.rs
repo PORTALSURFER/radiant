@@ -43,6 +43,7 @@ where
             scratch: RuntimeScratch::default(),
             interaction: RuntimeInteractionState::default(),
             phase: RuntimePhase::Starting,
+            host_closing_hook_called: false,
             host_exit_hook_called: false,
             repaint_requested: false,
             exit_requested: false,
@@ -71,6 +72,7 @@ where
         if !self.phase.begin_closing() {
             return false;
         }
+        self.host_on_runtime_closing();
         self.invalidate_external_drag();
         self.worker_effects.shutdown();
         self.timer_effects.shutdown();
@@ -236,12 +238,19 @@ fn layout_effective_viewport(viewport: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::layout::ContainerPolicy;
-    use crate::runtime::{Command, RuntimeHostCapabilities, RuntimeLifecycleHost, SurfaceNode};
-    use std::sync::Arc;
+    use crate::runtime::{
+        Command, ExternalDragRequest, RuntimeHostCapabilities, RuntimeLifecycleHost, SurfaceNode,
+    };
+    use std::{
+        path::PathBuf,
+        sync::{Arc, Mutex},
+    };
 
     #[derive(Default)]
     struct LifecycleBridge {
+        closing_calls: usize,
         hook_calls: usize,
+        event_log: Option<Arc<Mutex<Vec<&'static str>>>>,
     }
 
     impl RuntimeBridge<usize> for LifecycleBridge {
@@ -259,6 +268,16 @@ mod tests {
     }
 
     impl RuntimeLifecycleHost for LifecycleBridge {
+        fn on_runtime_closing(&mut self) {
+            self.closing_calls += 1;
+            if let Some(event_log) = self.event_log.as_ref() {
+                event_log
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push("closing");
+            }
+        }
+
         fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
             self.hook_calls += 1;
             Some(serde_json::json!({ "hook_calls": self.hook_calls }))
@@ -276,6 +295,7 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
         assert!(runtime.execute_command(Command::Exit).exit_requested);
         assert_eq!(runtime.phase, RuntimePhase::Closing);
+        assert_eq!(runtime.bridge().closing_calls, 1);
         assert!(!runtime.execute_command(Command::Exit).exit_requested);
         assert_eq!(runtime.phase, RuntimePhase::Closing);
     }
@@ -289,7 +309,47 @@ mod tests {
         );
         assert_eq!(runtime.phase, RuntimePhase::Stopped);
         assert_eq!(runtime.bridge().hook_calls, 1);
+        assert_eq!(runtime.bridge().closing_calls, 1);
         assert_eq!(runtime.host_on_runtime_exit(), None);
         assert_eq!(runtime.bridge().hook_calls, 1);
+    }
+
+    #[test]
+    fn closing_callback_precedes_external_drag_teardown_and_runs_once() {
+        struct TeardownProbe(Arc<Mutex<Vec<&'static str>>>);
+        impl Drop for TeardownProbe {
+            fn drop(&mut self) {
+                self.0
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push("teardown");
+            }
+        }
+
+        let event_log = Arc::new(Mutex::new(Vec::new()));
+        let bridge = LifecycleBridge {
+            event_log: Some(Arc::clone(&event_log)),
+            ..LifecycleBridge::default()
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let probe = TeardownProbe(Arc::clone(&event_log));
+        runtime.execute_command(Command::begin_external_drag(
+            ExternalDragRequest::files([PathBuf::from("kick.wav")], "kick.wav"),
+            move |_| {
+                drop(probe);
+                0
+            },
+        ));
+        let _ = runtime.take_external_drag_launch();
+
+        assert!(runtime.execute_command(Command::Exit).exit_requested);
+        assert!(!runtime.execute_command(Command::Exit).exit_requested);
+        assert_eq!(runtime.bridge().closing_calls, 1);
+        assert_eq!(
+            *event_log
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec!["closing", "teardown"]
+        );
     }
 }

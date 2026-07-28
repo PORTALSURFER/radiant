@@ -72,6 +72,9 @@ where
 
     /// Install the host repaint signal when task hosting is enabled.
     pub fn host_install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        if !self.phase.accepts_work() {
+            return;
+        }
         if let Some(capability) = self.host_capabilities.tasks.as_ref() {
             (capability.install_repaint_signal)(&mut self.bridge, signal);
         }
@@ -83,6 +86,9 @@ where
         delay: Duration,
         wake: crate::runtime::RuntimeTimerWake,
     ) -> bool {
+        if !self.phase.accepts_work() {
+            return false;
+        }
         self.host_capabilities
             .tasks
             .as_ref()
@@ -96,6 +102,9 @@ where
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: Box<dyn FnOnce() + Send + 'static>,
     ) -> bool {
+        if !self.phase.accepts_work() {
+            return false;
+        }
         self.host_capabilities
             .tasks
             .as_ref()
@@ -109,6 +118,9 @@ where
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
     ) -> Result<(), PlatformServiceFallback<Message>> {
+        if !self.phase.accepts_work() {
+            return Err(Box::new((request, on_completed)));
+        }
         if self.host_capabilities.platform_result.is_some() {
             let identity = self.platform_registry.register(on_completed);
             let Some(reservation) =
@@ -150,6 +162,9 @@ where
 
     /// Poll the cached host animation capability.
     pub fn host_animation_activity(&mut self) -> RuntimeAnimationActivity {
+        if !self.phase.accepts_work() {
+            return RuntimeAnimationActivity::idle();
+        }
         self.host_capabilities
             .animation
             .as_ref()
@@ -160,6 +175,9 @@ where
 
     /// Queue one host animation-frame message when enabled.
     pub fn host_queue_animation_frame(&mut self) -> bool {
+        if !self.phase.accepts_work() {
+            return false;
+        }
         self.host_capabilities
             .animation
             .as_ref()
@@ -230,6 +248,16 @@ where
             .and_then(|capability| (capability.on_runtime_exit)(&mut self.bridge));
         self.phase = super::RuntimePhase::Stopped;
         artifact
+    }
+
+    pub(crate) fn host_on_runtime_closing(&mut self) {
+        if self.host_closing_hook_called {
+            return;
+        }
+        self.host_closing_hook_called = true;
+        if let Some(capability) = self.host_capabilities.lifecycle.as_ref() {
+            (capability.on_runtime_closing)(&mut self.bridge);
+        }
     }
 
     pub(crate) fn host_close_requested(&mut self) -> bool {

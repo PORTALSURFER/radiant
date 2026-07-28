@@ -159,6 +159,7 @@ where
                 self.handle_application_reopen_intent();
                 self.observe_pending_window_activation();
             }
+            #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();
                 self.queue_accessibility_display_snapshot(snapshot);

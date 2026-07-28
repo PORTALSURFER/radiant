@@ -104,6 +104,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    #[cfg(target_os = "macos")]
     pub(super) fn queue_accessibility_display_snapshot(
         &mut self,
         snapshot: super::window_environment::AccessibilityDisplaySnapshot,

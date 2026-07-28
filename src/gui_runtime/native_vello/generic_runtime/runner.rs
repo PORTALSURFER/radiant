@@ -434,6 +434,7 @@ where
         );
     }
 
+    #[cfg(target_os = "macos")]
     pub(super) fn queue_accessibility_display_snapshot(
         &mut self,
         next: super::window_environment::AccessibilityDisplaySnapshot,

@@ -39,6 +39,7 @@ fn dpi_change_updates_native_scale_but_defers_environment_rebuild() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn accessibility_snapshot_updates_are_routed_only_for_changed_causes() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

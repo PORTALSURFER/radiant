@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use crate::runtime::WindowEnvironmentChange;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -51,6 +52,7 @@ pub(super) struct AccessibilityDisplaySnapshot {
 }
 
 /// Return the semantic causes represented by an accessibility snapshot delta.
+#[cfg(target_os = "macos")]
 pub(super) fn accessibility_display_changes(
     previous: AccessibilityDisplaySnapshot,
     next: AccessibilityDisplaySnapshot,
@@ -106,6 +108,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn accessibility_snapshot_delta_only_reports_changed_causes() {
         let previous = AccessibilityDisplaySnapshot {

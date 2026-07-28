@@ -522,6 +522,7 @@ fn automation_marker_is_added_only_when_button_state_is_active() {
 #[test]
 fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(96.0, 28.0));
+    let theme = ThemeTokens::default();
     let mut selected = ButtonWidget::new(21, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
     selected.common.state.selected = true;
     let mut selected_primitives = Vec::new();
@@ -529,7 +530,7 @@ fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
         &mut selected_primitives,
         bounds,
         &LayoutOutput::default(),
-        &ThemeTokens::default(),
+        &theme,
     );
     assert!(selected_primitives.iter().any(|primitive| {
         matches!(primitive, PaintPrimitive::StrokePolyline(marker)
@@ -542,11 +543,26 @@ fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
     selected.common.state.focused = true;
     selected.common.state.automation_active = true;
     let mut combined = Vec::new();
-    selected.append_paint(
-        &mut combined,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
+    selected.append_paint(&mut combined, bounds, &LayoutOutput::default(), &theme);
+    let tokens = crate::widgets::resolve_widget_visual_tokens(
+        &theme,
+        selected.common.style,
+        selected.common.state,
+    );
+    let expected_focus_points =
+        crate::runtime::diagonal_cut_rect_points(crate::runtime::inset_rect(bounds, 1.0, 1.0));
+    assert_eq!(
+        combined
+            .iter()
+            .filter(|primitive| {
+                matches!(primitive, PaintPrimitive::StrokePolygon(stroke)
+                    if stroke.points == expected_focus_points
+                        && stroke.color == tokens.foreground
+                        && (stroke.width - 2.0).abs() < f32::EPSILON)
+            })
+            .count(),
+        1,
+        "focused button should paint one in-bounds contrasting focus polygon"
     );
     let vertical_markers = combined
         .iter()
@@ -554,6 +570,7 @@ fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
             PaintPrimitive::StrokePolyline(marker)
                 if marker.points.len() == 2
                     && (marker.points[0].x - marker.points[1].x).abs() < f32::EPSILON
+                    && marker.color == tokens.foreground
                     && (marker.width - 2.0).abs() < f32::EPSILON =>
             {
                 Some(marker.points[0].x)
@@ -566,12 +583,7 @@ fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
 
     selected.common.state.disabled = true;
     let mut disabled = Vec::new();
-    selected.append_paint(
-        &mut disabled,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    selected.append_paint(&mut disabled, bounds, &LayoutOutput::default(), &theme);
     assert!(!disabled.iter().any(|primitive| {
         matches!(primitive, PaintPrimitive::StrokePolyline(marker)
             if marker.points.len() == 2

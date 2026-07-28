@@ -155,21 +155,21 @@ impl Widget for IconButtonWidget {
         );
         if !standard_chrome {
             if self.common.state.focused && self.common.paint.paints_focus {
-                push_button_focus_ring(primitives, self.common.id, bounds, tokens.emphasis);
+                push_button_focus_ring(primitives, self.common.id, bounds, tokens.foreground);
             }
             push_selected_active_marker(
                 primitives,
                 self.common.id,
                 bounds,
                 self.common.state,
-                tokens.emphasis,
+                tokens.foreground,
             );
             push_automation_active_marker(
                 primitives,
                 self.common.id,
                 bounds,
                 self.common.state,
-                tokens.emphasis,
+                tokens.foreground,
             );
         }
     }
@@ -470,14 +470,21 @@ mod tests {
                 "icon {id}"
             );
             let expected_focus_points = crate::runtime::diagonal_cut_rect_points(
-                crate::runtime::inset_rect(bounds, -1.0, -1.0),
+                crate::runtime::inset_rect(bounds, 1.0, 1.0),
+            );
+            let tokens = crate::widgets::resolve_widget_visual_tokens(
+                &ThemeTokens::default(),
+                widget.common.style,
+                widget.common.state,
             );
             assert_eq!(
                 primitives
                     .iter()
                     .filter(|primitive| {
                         matches!(primitive, PaintPrimitive::StrokePolygon(stroke)
-                            if stroke.points == expected_focus_points)
+                            if stroke.points == expected_focus_points
+                                && stroke.color == tokens.foreground
+                                && (stroke.width - 2.0).abs() < f32::EPSILON)
                     })
                     .count(),
                 1,
@@ -490,6 +497,7 @@ mod tests {
                     matches!(primitive, PaintPrimitive::StrokePolyline(marker)
                         if marker.points.len() == 2
                             && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                            && marker.color == tokens.foreground
                             && (marker.width - 2.0).abs() < f32::EPSILON)
                 })
                 .count();
@@ -499,6 +507,7 @@ mod tests {
                     matches!(primitive, PaintPrimitive::StrokePolyline(marker)
                         if marker.points.len() == 2
                             && (marker.points[0].x - (bounds.max.x - 2.0)).abs() < f32::EPSILON
+                            && marker.color == tokens.foreground
                             && (marker.width - 2.0).abs() < f32::EPSILON)
                 })
                 .count();

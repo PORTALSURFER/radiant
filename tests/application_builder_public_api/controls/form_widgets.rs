@@ -1,5 +1,4 @@
 use super::super::*;
-use radiant::application::IntoView;
 use radiant::runtime::SurfaceRuntime;
 use radiant::widgets::{
     IconButtonWidget, InteractiveRowWidget, PointerShieldMessage, PointerShieldWidget,
@@ -8,7 +7,7 @@ use radiant::widgets::{
 
 #[test]
 fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact_slider() {
-    use radiant::prelude as ui;
+    use radiant::prelude::{self as ui, IntoView};
 
     let icon = ui::SvgIcon::from_svg(
         r##"<svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg"><path d="M1 0 L4 2 L1 4 Z"/></svg>"##,

@@ -99,14 +99,17 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         resources: &mut ResourceTasks,
         key: impl Into<ResourceKey>,
     ) -> Option<CancellableBusinessKeyedLatestRequest<'context, Message, ResourceKey>> {
-        let ticket = resources.begin_exclusive(key.into())?;
+        let (ticket, transaction, effect_id) = resources.begin_exclusive_transaction(key.into())?;
         let key = ticket.key().clone();
         Some(CancellableBusinessKeyedLatestRequest {
             request: self.request,
             token: self.token,
             ticket: ticket.ticket(),
             key,
-            admission: KeyedLatestAdmission::Legacy,
+            admission: KeyedLatestAdmission::Transaction {
+                effect_id,
+                transaction,
+            },
         })
     }
 

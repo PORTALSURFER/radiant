@@ -9,7 +9,6 @@ pub(super) enum KeyedLatestAdmission {
         effect_id: u64,
         transaction: LatestTaskTransaction,
     },
-    Legacy,
 }
 
 /// Builder for one keyed-latest business request.
@@ -66,15 +65,11 @@ where
             ticket,
             output: work(context),
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.run_with_latest_transaction(effect_id, transaction, None, work, map);
-        } else {
-            request.run(work, map);
-        }
+        } = admission;
+        request.run_with_latest_transaction(effect_id, transaction, None, work, map);
     }
 
     /// Run keyed latest worker-only work and map its output on the UI runtime.
@@ -120,23 +115,19 @@ where
                 output,
             })
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.stream_with_latest_transaction(
-                effect_id,
-                transaction,
-                None,
-                work,
-                event_map,
-                final_map,
-                false,
-            );
-        } else {
-            request.stream(work, event_map, final_map);
-        }
+        } = admission;
+        request.stream_with_latest_transaction(
+            effect_id,
+            transaction,
+            None,
+            work,
+            event_map,
+            final_map,
+            false,
+        );
     }
 
     /// Run keyed latest work with coalesced intermediate events tagged with its key and task ticket.
@@ -171,23 +162,19 @@ where
                 output,
             })
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.stream_with_latest_transaction(
-                effect_id,
-                transaction,
-                None,
-                work,
-                event_map,
-                final_map,
-                true,
-            );
-        } else {
-            request.stream_latest(work, event_map, final_map);
-        }
+        } = admission;
+        request.stream_with_latest_transaction(
+            effect_id,
+            transaction,
+            None,
+            work,
+            event_map,
+            final_map,
+            true,
+        );
     }
 }
 
@@ -243,21 +230,11 @@ where
             ticket,
             output: work(context),
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.run_with_latest_transaction(
-                effect_id,
-                transaction,
-                Some(worker_token),
-                work,
-                map,
-            );
-        } else {
-            request.run_with_optional_cancellation(Some(worker_token), work, map);
-        }
+        } = admission;
+        request.run_with_latest_transaction(effect_id, transaction, Some(worker_token), work, map);
         token
     }
 
@@ -308,28 +285,19 @@ where
                 output,
             })
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.stream_with_latest_transaction(
-                effect_id,
-                transaction,
-                Some(worker_token),
-                work,
-                event_map,
-                final_map,
-                false,
-            );
-        } else {
-            request.stream_with_optional_cancellation(
-                Some(worker_token),
-                work,
-                event_map,
-                final_map,
-            );
-        }
+        } = admission;
+        request.stream_with_latest_transaction(
+            effect_id,
+            transaction,
+            Some(worker_token),
+            work,
+            event_map,
+            final_map,
+            false,
+        );
         token
     }
 
@@ -368,28 +336,19 @@ where
                 output,
             })
         };
-        if let KeyedLatestAdmission::Transaction {
+        let KeyedLatestAdmission::Transaction {
             effect_id,
             transaction,
-        } = admission
-        {
-            request.stream_with_latest_transaction(
-                effect_id,
-                transaction,
-                Some(worker_token),
-                work,
-                event_map,
-                final_map,
-                true,
-            );
-        } else {
-            request.latest_stream_with_optional_cancellation(
-                Some(worker_token),
-                work,
-                event_map,
-                final_map,
-            );
-        }
+        } = admission;
+        request.stream_with_latest_transaction(
+            effect_id,
+            transaction,
+            Some(worker_token),
+            work,
+            event_map,
+            final_map,
+            true,
+        );
         token
     }
 }
@@ -448,6 +407,101 @@ mod tests {
             command.business_task_priority("keyed-latest-stream-test"),
             Some(TaskPriority::Interactive)
         );
+    }
+
+    #[test]
+    fn every_exclusive_builder_form_carries_transactional_admission() {
+        let mut context = UiUpdateContext::<()>::default();
+        let mut resources = crate::application::ResourceTasks::new();
+        let key = |name| ResourceKey::scoped("sample", format!("C:/{name}.wav"));
+
+        context
+            .business()
+            .background("exclusive-run")
+            .exclusive_for(&mut resources, key("run"))
+            .expect("run admission")
+            .run(|_| (), |_| ());
+        context
+            .business()
+            .background("exclusive-run-ui")
+            .exclusive_for(&mut resources, key("run-ui"))
+            .expect("run_on_ui admission")
+            .run_on_ui(|_| (), |_| ());
+        context
+            .business()
+            .background("exclusive-stream")
+            .exclusive_for(&mut resources, key("stream"))
+            .expect("stream admission")
+            .stream(
+                |_context, events| {
+                    assert!(events.emit(()));
+                },
+                |_| (),
+                |_| (),
+            );
+        context
+            .business()
+            .background("exclusive-stream-latest")
+            .exclusive_for(&mut resources, key("stream-latest"))
+            .expect("stream_latest admission")
+            .stream_latest(
+                |_context, events| {
+                    assert!(events.emit(()));
+                },
+                |_| (),
+                |_| (),
+            );
+        context
+            .business()
+            .background("exclusive-cancellable-run")
+            .cancellable()
+            .exclusive_for(&mut resources, key("cancellable-run"))
+            .expect("cancellable run admission")
+            .run(|_| (), |_| ());
+        context
+            .business()
+            .background("exclusive-cancellable-run-ui")
+            .cancellable()
+            .exclusive_for(&mut resources, key("cancellable-run-ui"))
+            .expect("cancellable run_on_ui admission")
+            .run_on_ui(|_| (), |_| ());
+        context
+            .business()
+            .background("exclusive-cancellable-stream")
+            .cancellable()
+            .exclusive_for(&mut resources, key("cancellable-stream"))
+            .expect("cancellable stream admission")
+            .stream(
+                |_context, events| {
+                    assert!(events.emit(()));
+                },
+                |_| (),
+                |_| (),
+            );
+        context
+            .business()
+            .background("exclusive-cancellable-stream-latest")
+            .cancellable()
+            .exclusive_for(&mut resources, key("cancellable-stream-latest"))
+            .expect("cancellable stream_latest admission")
+            .stream_latest(
+                |_context, events| {
+                    assert!(events.emit(()));
+                },
+                |_| (),
+                |_| (),
+            );
+
+        let Command::Batch(commands) = context.into_command() else {
+            panic!("all exclusive forms should remain in a command batch");
+        };
+        assert_eq!(commands.len(), 8);
+        for command in commands {
+            let Command::PerformWorker(effect) = command else {
+                panic!("exclusive forms should queue worker effects");
+            };
+            assert!(effect.transaction.is_some());
+        }
     }
 
     #[test]
@@ -522,9 +576,10 @@ mod tests {
         assert_eq!(keyed.active(&key), Some(predecessor));
 
         let mut resources = crate::application::ResourceTasks::new();
-        let predecessor = resources
-            .begin_exclusive(key.clone())
+        let (predecessor, predecessor_transaction, _) = resources
+            .begin_exclusive_transaction(key.clone())
             .expect("resource predecessor");
+        predecessor_transaction.accept();
         let mut context = UiUpdateContext::<()>::default();
         let request = context
             .business()
@@ -540,5 +595,23 @@ mod tests {
             .latest_for_resource(&mut resources, key.clone());
         drop(request);
         assert_eq!(resources.active(&key), Some(predecessor.ticket()));
+
+        let exclusive_key = ResourceKey::scoped("sample", "C:/abandoned-exclusive.wav");
+        let mut resources = crate::application::ResourceTasks::new();
+        let request = context
+            .business()
+            .background("abandoned-exclusive")
+            .exclusive_for(&mut resources, exclusive_key.clone());
+        assert!(resources.active(&exclusive_key).is_some());
+        drop(request);
+        assert_eq!(resources.active(&exclusive_key), None);
+        let request = context
+            .business()
+            .background("abandoned-exclusive")
+            .cancellable()
+            .exclusive_for(&mut resources, exclusive_key.clone());
+        assert!(resources.active(&exclusive_key).is_some());
+        drop(request);
+        assert_eq!(resources.active(&exclusive_key), None);
     }
 }

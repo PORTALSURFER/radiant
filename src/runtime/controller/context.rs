@@ -1,5 +1,6 @@
 use super::SurfaceRuntime;
 use crate::gui::types::Point;
+use crate::runtime::ResolvedEnvironment;
 use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
     gui::types::{Rect, Vector2},
@@ -31,6 +32,11 @@ impl<'a, Message> RuntimeContext<'a, Message> {
     /// Return the current immutable native environment for this window.
     pub const fn window_environment(&self) -> WindowEnvironment {
         self.surface.window_environment()
+    }
+
+    /// Return the current widget-facing environment projection.
+    pub const fn resolved_environment(&self) -> ResolvedEnvironment {
+        self.surface.window_environment().resolved()
     }
 }
 
@@ -214,6 +220,9 @@ mod tests {
         layout::ContainerPolicy,
         runtime::{RuntimeBridge, SurfaceNode, WindowColorScheme},
         theme::DpiScale,
+        widgets::{
+            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetPaintContext, WidgetSizing,
+        },
     };
     use std::sync::{Arc, Mutex};
 
@@ -256,8 +265,152 @@ mod tests {
         assert_eq!(runtime.window_environment(), environment);
         assert_eq!(runtime.context().window_environment(), environment);
         assert_eq!(
+            runtime.context().resolved_environment(),
+            environment.resolved()
+        );
+        assert_eq!(
             *changes.lock().unwrap(),
             vec![WindowEnvironment::default(), environment]
         );
+    }
+
+    #[test]
+    fn environment_snapshot_survives_refresh_and_stays_independent_per_runtime() {
+        let mut first = SurfaceRuntime::new(
+            EnvironmentBridge {
+                changes: Arc::new(Mutex::new(Vec::new())),
+            },
+            Vector2::new(100.0, 60.0),
+        );
+        let mut second = SurfaceRuntime::new(
+            EnvironmentBridge {
+                changes: Arc::new(Mutex::new(Vec::new())),
+            },
+            Vector2::new(100.0, 60.0),
+        );
+        let first_environment = WindowEnvironment::new(
+            DpiScale::new(1.25),
+            Some(WindowColorScheme::Dark),
+            false,
+            true,
+        );
+        let second_environment = WindowEnvironment::new(
+            DpiScale::new(2.0),
+            Some(WindowColorScheme::Light),
+            true,
+            false,
+        );
+
+        assert!(first.set_window_environment(first_environment));
+        assert!(second.set_window_environment(second_environment));
+        first.refresh();
+
+        assert_eq!(
+            first.context().resolved_environment(),
+            first_environment.resolved()
+        );
+        assert_eq!(
+            second.context().resolved_environment(),
+            second_environment.resolved()
+        );
+        assert_ne!(
+            first.context().resolved_environment(),
+            second.context().resolved_environment()
+        );
+    }
+
+    #[derive(Clone)]
+    struct OverlayProbe {
+        common: WidgetCommon,
+        base: Arc<Mutex<Option<ResolvedEnvironment>>>,
+        overlay: Arc<Mutex<Option<ResolvedEnvironment>>>,
+    }
+
+    impl OverlayProbe {
+        fn new(
+            base: Arc<Mutex<Option<ResolvedEnvironment>>>,
+            overlay: Arc<Mutex<Option<ResolvedEnvironment>>>,
+        ) -> Self {
+            Self {
+                common: WidgetCommon::new(9, WidgetSizing::fixed(Vector2::new(80.0, 24.0))),
+                base,
+                overlay,
+            }
+        }
+    }
+
+    impl Widget for OverlayProbe {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+
+        fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+            *self.base.lock().unwrap() = Some(context.environment());
+        }
+
+        fn append_runtime_overlay_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+            *self.overlay.lock().unwrap() = Some(context.environment());
+        }
+    }
+
+    struct OverlayBridge {
+        probe: OverlayProbe,
+    }
+
+    impl RuntimeBridge<()> for OverlayBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::custom_widget(
+                self.probe.clone(),
+                crate::runtime::WidgetMessageMapper::none(),
+            )))
+        }
+    }
+
+    #[test]
+    fn base_and_runtime_overlay_paint_receive_the_same_environment() {
+        let base = Arc::new(Mutex::new(None));
+        let overlay = Arc::new(Mutex::new(None));
+        let mut runtime = SurfaceRuntime::new(
+            OverlayBridge {
+                probe: OverlayProbe::new(Arc::clone(&base), Arc::clone(&overlay)),
+            },
+            Vector2::new(100.0, 60.0),
+        );
+        let environment = WindowEnvironment::new(
+            DpiScale::new(1.5),
+            Some(WindowColorScheme::Dark),
+            true,
+            true,
+        );
+        assert!(runtime.set_window_environment(environment));
+        let mut base_plan =
+            crate::runtime::SurfacePaintPlan::empty(&crate::theme::ThemeTokens::default());
+        runtime.base_paint_plan_into(&crate::theme::ThemeTokens::default(), &mut base_plan);
+        runtime.interaction.hover.widget = Some(9);
+        let mut overlay_primitives = Vec::new();
+        runtime.runtime_overlay_paint_into(
+            &crate::theme::ThemeTokens::default(),
+            &mut overlay_primitives,
+        );
+
+        assert_eq!(*base.lock().unwrap(), Some(environment.resolved()));
+        assert_eq!(*overlay.lock().unwrap(), Some(environment.resolved()));
     }
 }

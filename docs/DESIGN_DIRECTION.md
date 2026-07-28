@@ -381,6 +381,14 @@ without changing semantic bindings. Environment changes are delivered as owned
 events, replayable in the deterministic host, and profiled like other
 invalidation causes.
 
+The shipped window subset is available to widget paint as a lossless,
+copyable `ResolvedEnvironment` derived from `WindowEnvironment`. It carries
+display scale, optional color scheme, contrast, and reduced-motion preference;
+the projection does not select fallbacks or apply theme, layout, or animation
+policy. Base and runtime-overlay paint receive it through `WidgetPaintContext`,
+while existing legacy paint hooks remain valid through additive default
+delegation.
+
 ## Components and Workspace Composition
 
 Application components are ordinary Rust functions that accept owned or

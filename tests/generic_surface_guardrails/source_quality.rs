@@ -16,9 +16,9 @@ const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
     ("application", 236),
     ("gui", 102),
     ("layout", 1),
-    ("runtime", 30),
+    ("runtime", 31),
     ("theme", 1),
-    ("widgets", 43),
+    ("widgets", 44),
 ];
 
 const SPECIALIST_DETAILS_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[

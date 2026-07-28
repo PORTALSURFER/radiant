@@ -3,7 +3,7 @@
 use crate::{
     gui::types::Rect,
     layout::{ContainerKind, LayoutOutput, NodeId},
-    runtime::SurfaceContainer,
+    runtime::{ResolvedEnvironment, SurfaceContainer},
     theme::ThemeTokens,
     widgets::WidgetState,
 };
@@ -13,6 +13,7 @@ pub(in crate::runtime::surface) struct SurfacePaintContext<'a> {
     pub(super) theme: &'a ThemeTokens,
     pub(super) hovered_container: Option<NodeId>,
     pub(super) active_scroll_affordance: Option<NodeId>,
+    pub(super) environment: ResolvedEnvironment,
     pub(super) clip_rect: Option<Rect>,
 }
 
@@ -22,12 +23,14 @@ impl<'a> SurfacePaintContext<'a> {
         theme: &'a ThemeTokens,
         hovered_container: Option<NodeId>,
         active_scroll_affordance: Option<NodeId>,
+        environment: ResolvedEnvironment,
     ) -> Self {
         Self {
             layout,
             theme,
             hovered_container,
             active_scroll_affordance,
+            environment,
             clip_rect: None,
         }
     }
@@ -49,6 +52,7 @@ impl<'a> SurfacePaintContext<'a> {
             theme: self.theme,
             hovered_container: self.hovered_container,
             active_scroll_affordance: self.active_scroll_affordance,
+            environment: self.environment,
             clip_rect: Some(clip_rect),
         }
     }

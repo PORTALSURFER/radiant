@@ -7,8 +7,133 @@ use crate::{
     },
     runtime::{PaintPrimitive, SurfaceChild, SurfaceContainer, SurfaceNode, UiSurface},
     theme::ThemeTokens,
-    widgets::{TextWidget, WidgetSizing},
+    widgets::{
+        TextWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetPaintContext,
+        WidgetSizing,
+    },
 };
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct PaintProbeRecord {
+    bounds: Option<Rect>,
+    environment: Option<crate::runtime::ResolvedEnvironment>,
+    base_calls: usize,
+    overlay_calls: usize,
+}
+
+#[derive(Clone)]
+struct PaintProbe {
+    common: WidgetCommon,
+    record: Arc<Mutex<PaintProbeRecord>>,
+}
+
+impl PaintProbe {
+    fn new(id: u64, record: Arc<Mutex<PaintProbeRecord>>) -> Self {
+        Self {
+            common: WidgetCommon::fixed(id, 80.0, 20.0).without_default_chrome(),
+            record,
+        }
+    }
+}
+
+impl Widget for PaintProbe {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        self.record.lock().unwrap().base_calls += 1;
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        let mut record = self.record.lock().unwrap();
+        record.bounds = Some(context.bounds());
+        record.environment = Some(context.environment());
+        record.base_calls += 1;
+        drop(record);
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        self.record.lock().unwrap().overlay_calls += 1;
+    }
+
+    fn append_runtime_overlay_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        let mut record = self.record.lock().unwrap();
+        record.bounds = Some(context.bounds());
+        record.environment = Some(context.environment());
+        record.overlay_calls += 1;
+    }
+}
+
+#[derive(Clone)]
+struct LegacyPaintProbe {
+    common: WidgetCommon,
+    record: Arc<Mutex<PaintProbeRecord>>,
+}
+
+impl LegacyPaintProbe {
+    fn new(id: u64, record: Arc<Mutex<PaintProbeRecord>>) -> Self {
+        Self {
+            common: WidgetCommon::fixed(id, 80.0, 20.0).without_default_chrome(),
+            record,
+        }
+    }
+}
+
+impl Widget for LegacyPaintProbe {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        self.record.lock().unwrap().base_calls += 1;
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        self.record.lock().unwrap().overlay_calls += 1;
+    }
+}
 
 fn child_is_past_ordered_clip_for(
     kind: ContainerKind,
@@ -24,6 +149,7 @@ fn child_is_past_ordered_clip_for(
         theme: &theme,
         hovered_container: None,
         active_scroll_affordance: None,
+        environment: crate::runtime::ResolvedEnvironment::default(),
         clip_rect: Some(clip_rect),
     };
     let container = SurfaceContainer::<()>::new(
@@ -171,4 +297,52 @@ fn layout_debug_strokes_for_children_stay_inside_parent_clip_scope() {
 
     assert!(parent_clip_start < child_debug_stroke);
     assert!(child_debug_stroke < parent_clip_end);
+}
+
+#[test]
+fn base_paint_context_receives_window_environment_without_changing_bounds() {
+    let record = Arc::new(Mutex::new(PaintProbeRecord::default()));
+    let probe = PaintProbe::new(2, Arc::clone(&record));
+    let mut surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(probe));
+    let environment = crate::runtime::WindowEnvironment::new(
+        crate::theme::DpiScale::new(1.5),
+        Some(crate::runtime::WindowColorScheme::Dark),
+        true,
+        true,
+    );
+    surface.set_window_environment(environment);
+    let bounds = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(80.0, 20.0));
+    let mut layout = LayoutOutput::default();
+    layout.rects.insert(2, bounds);
+
+    let _ = surface.paint_plan(&layout, &ThemeTokens::default());
+    let record = record.lock().unwrap().clone();
+    assert_eq!(record.bounds, Some(bounds));
+    assert_eq!(record.environment, Some(environment.resolved()));
+    assert_eq!(record.base_calls, 1);
+    assert_eq!(record.overlay_calls, 0);
+    assert_eq!(layout.rects.get(&2), Some(&bounds));
+}
+
+#[test]
+fn legacy_context_defaults_delegate_once_for_base_and_overlay() {
+    let record = Arc::new(Mutex::new(PaintProbeRecord::default()));
+    let probe = LegacyPaintProbe::new(4, Arc::clone(&record));
+    let layout = LayoutOutput::default();
+    let theme = ThemeTokens::default();
+    let mut primitives = Vec::new();
+    let context = WidgetPaintContext::new(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 20.0)),
+        &layout,
+        &theme,
+        crate::runtime::ResolvedEnvironment::default(),
+    );
+    let mut context = context;
+    probe.append_paint_with_context(&mut context);
+    probe.append_runtime_overlay_paint_with_context(&mut context);
+
+    let record = record.lock().unwrap();
+    assert_eq!(record.base_calls, 1);
+    assert_eq!(record.overlay_calls, 1);
 }

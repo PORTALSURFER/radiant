@@ -13,7 +13,10 @@ use crate::{
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     runtime::{Command, RepaintScope},
 };
-use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc, time::Instant};
+use std::{
+    any::Any, cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc,
+    time::Instant,
+};
 
 mod adapter;
 
@@ -26,6 +29,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) timer_registry: TimerRegistry<Message>,
     pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
+    pub(in crate::application) window_environment: Rc<RefCell<crate::runtime::WindowEnvironment>>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
 }
@@ -198,12 +202,14 @@ where
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>),
     View: IntoView<Message>,
 {
-    /// Build an app bridge from host state, projection, reducer, and lifecycle hooks.
-    pub(in crate::application) fn new(
+    /// Build an app bridge from host state, projection, reducer, lifecycle hooks,
+    /// and an optional context projection environment cell.
+    pub(in crate::application) fn new_with_window_environment(
         state: State,
         project: Project,
         update: Update,
         lifecycle: AppBridgeLifecycle<State, Message>,
+        window_environment: Option<Rc<RefCell<crate::runtime::WindowEnvironment>>>,
     ) -> Self {
         Self {
             state,
@@ -214,6 +220,7 @@ where
             timer_registry: TimerRegistry::default(),
             worker_registry: WorkerSubscriptionRegistry::default(),
             lifecycle,
+            window_environment: window_environment.unwrap_or_default(),
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,
         }

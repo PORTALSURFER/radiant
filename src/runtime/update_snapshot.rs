@@ -1,4 +1,5 @@
 use crate::gui::types::Point;
+use crate::runtime::WindowEnvironment;
 
 /// Runtime-owned input snapshot attached to one host update.
 ///
@@ -8,6 +9,7 @@ use crate::gui::types::Point;
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct RuntimeUpdateSnapshot {
     current_pointer_position: Option<Point>,
+    window_environment: WindowEnvironment,
 }
 
 impl RuntimeUpdateSnapshot {
@@ -15,11 +17,22 @@ impl RuntimeUpdateSnapshot {
     pub fn with_current_pointer_position(current_pointer_position: Option<Point>) -> Self {
         Self {
             current_pointer_position,
+            window_environment: WindowEnvironment::default(),
         }
     }
 
     /// Latest logical pointer position known to the runtime, in surface space.
     pub fn current_pointer_position(self) -> Option<Point> {
         self.current_pointer_position
+    }
+
+    /// Current immutable native environment for the window receiving the update.
+    pub const fn window_environment(self) -> WindowEnvironment {
+        self.window_environment
+    }
+
+    pub(crate) fn with_window_environment(mut self, window_environment: WindowEnvironment) -> Self {
+        self.window_environment = window_environment;
+        self
     }
 }

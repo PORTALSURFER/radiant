@@ -14,6 +14,8 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     pub(super) project: Project,
     pub(super) update: Update,
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
+    pub(super) window_environment:
+        Option<std::rc::Rc<std::cell::RefCell<crate::runtime::WindowEnvironment>>>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
 }
@@ -41,7 +43,13 @@ where
 
     /// Lower this app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<Message> {
-        AppBridge::new(self.state, self.project, self.update, self.lifecycle)
+        AppBridge::new_with_window_environment(
+            self.state,
+            self.project,
+            self.update,
+            self.lifecycle,
+            self.window_environment,
+        )
     }
 
     /// Apply an automatic repaint policy to ordinary app messages.

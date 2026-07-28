@@ -5,7 +5,12 @@ use super::{
     configure_created_top_level_window, generic_window_attributes,
     reveal_window_after_surface_setup,
 };
-use super::{accessibility, window_environment::current_monitor_fingerprint};
+use super::{
+    accessibility,
+    window_environment::{
+        current_monitor_fingerprint, environment_for_native_state, window_color_scheme,
+    },
+};
 use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::{select_present_mode, startup_renderer_options},
@@ -48,7 +53,22 @@ where
         self.window.dpi_scale = self.active_dpi_scale();
         self.window.monitor_fingerprint = current_monitor_fingerprint(&window);
         self.window.accessibility_display = accessibility::current_snapshot();
+        self.window.environment = environment_for_native_state(
+            self.window.dpi_scale,
+            window_color_scheme(window.theme()),
+            self.window.accessibility_display,
+        );
         self.window.window = Some(Arc::clone(&window));
+        if self
+            .core
+            .runtime
+            .set_window_environment(self.window.environment)
+        {
+            // Startup is the one non-deferred environment transition: the
+            // first scene must be projected with the native values already
+            // known from the created window.
+            self.core.refresh_surface();
+        }
 
         let mut render_ctx = render_context_for_options(&self.options);
         let size = window.inner_size();
@@ -197,21 +217,40 @@ where
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
         self.window.native_dpi_scale = DpiScale::new(scale_factor);
-        self.apply_active_dpi_scale_to_viewport();
+        let scale_changed = self.apply_active_dpi_scale_to_viewport();
         if let Some(window) = self.window.window.as_ref()
             && let Some(fingerprint) = current_monitor_fingerprint(window)
         {
             self.window.monitor_fingerprint = Some(fingerprint);
         }
-        self.queue_window_environment_change_with_reason(
-            crate::runtime::WindowEnvironmentChange::DisplayScaleOrMonitor,
-            FrameWorkReason::NativeDpiScale,
+        let environment = environment_for_native_state(
+            self.window.dpi_scale,
+            self.window.environment.color_scheme(),
+            self.window.accessibility_display,
         );
+        let environment_changed = self.update_window_environment(environment);
+        if scale_changed || environment_changed {
+            self.queue_window_environment_change_with_reason(
+                crate::runtime::WindowEnvironmentChange::DisplayScaleOrMonitor,
+                FrameWorkReason::NativeDpiScale,
+            );
+        }
     }
 
     pub(super) fn set_dpi_scale_override(&mut self, scale: DpiScale) {
         self.window.dpi_scale_override = Some(scale);
-        let _ = self.apply_active_dpi_scale_to_viewport();
+        let scale_changed = self.apply_active_dpi_scale_to_viewport();
+        let environment = environment_for_native_state(
+            self.window.dpi_scale,
+            self.window.environment.color_scheme(),
+            self.window.accessibility_display,
+        );
+        if self.update_window_environment(environment) || scale_changed {
+            self.queue_window_environment_change_with_reason(
+                crate::runtime::WindowEnvironmentChange::DisplayScaleOrMonitor,
+                FrameWorkReason::NativeDpiScale,
+            );
+        }
     }
 
     pub(super) fn set_window_logical_size(&mut self, size: Vector2) {

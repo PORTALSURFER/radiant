@@ -5,6 +5,7 @@ impl<Message> Clone for UiSurface<Message> {
     fn clone(&self) -> Self {
         Self {
             root: self.root.clone(),
+            window_environment: self.window_environment,
         }
     }
 }
@@ -12,7 +13,21 @@ impl<Message> Clone for UiSurface<Message> {
 impl<Message> UiSurface<Message> {
     /// Build a top-level UI surface from one declarative root node.
     pub fn new(root: SurfaceNode<Message>) -> Self {
-        Self { root }
+        Self {
+            root,
+            window_environment: crate::runtime::WindowEnvironment::default(),
+        }
+    }
+
+    pub(in crate::runtime) fn set_window_environment(
+        &mut self,
+        environment: crate::runtime::WindowEnvironment,
+    ) {
+        self.window_environment = environment;
+    }
+
+    pub(in crate::runtime) const fn window_environment(&self) -> crate::runtime::WindowEnvironment {
+        self.window_environment
     }
 
     /// Return the root declarative node.

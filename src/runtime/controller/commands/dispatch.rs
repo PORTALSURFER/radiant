@@ -128,7 +128,8 @@ where
 
     fn run_update_handler_with_snapshot(&mut self, message: Message) -> Command<Message> {
         let snapshot =
-            RuntimeUpdateSnapshot::with_current_pointer_position(self.current_pointer_position());
+            RuntimeUpdateSnapshot::with_current_pointer_position(self.current_pointer_position())
+                .with_window_environment(self.window_environment());
         self.bridge.update_with_runtime(message, snapshot)
     }
 

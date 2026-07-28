@@ -1,5 +1,5 @@
 use super::RuntimeHostCapabilities;
-use crate::runtime::{Command, RuntimeUpdateSnapshot, UiSurface};
+use crate::runtime::{Command, RuntimeUpdateSnapshot, UiSurface, WindowEnvironment};
 use std::sync::Arc;
 
 /// Minimal host/runtime bridge for declarative message-driven surfaces.
@@ -34,6 +34,27 @@ pub trait RuntimeBridge<Message>: Sized {
         _snapshot: RuntimeUpdateSnapshot,
     ) -> Command<Message> {
         self.update(message)
+    }
+
+    /// Observe a changed native environment before the next deferred projection.
+    ///
+    /// The default is intentionally a no-op so existing custom bridges remain
+    /// source-compatible. Hosts that project environment-aware views can retain
+    /// this immutable value and use it from their next `project_surface` call.
+    fn window_environment_changed(&mut self, _environment: WindowEnvironment) {}
+
+    /// Observe a changed native environment before the next deferred projection.
+    ///
+    /// This is the primary additive hook for custom bridges. It is a default
+    /// no-op so existing implementations remain source-compatible.
+    fn set_window_environment(&mut self, environment: WindowEnvironment) {
+        self.on_window_environment_changed(environment);
+    }
+
+    /// Compatibility spelling for hosts that group lifecycle observers under
+    /// `on_*` hooks. The runtime calls this forwarding hook.
+    fn on_window_environment_changed(&mut self, environment: WindowEnvironment) {
+        self.window_environment_changed(environment);
     }
 
     /// Declare the optional host capabilities owned by this bridge.

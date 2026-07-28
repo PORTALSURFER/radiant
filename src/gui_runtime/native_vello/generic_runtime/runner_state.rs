@@ -36,6 +36,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) native_focus_lost: bool,
     pub(super) monitor_fingerprint: Option<MonitorFingerprint>,
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,
+    pub(super) environment: crate::runtime::WindowEnvironment,
 }
 
 pub(super) struct NativeRunnerInputState {

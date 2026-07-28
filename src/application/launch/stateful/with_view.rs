@@ -7,6 +7,7 @@ use crate::{
     runtime::{RuntimeBridge, run_native_vello_runtime},
 };
 use std::marker::PhantomData;
+use std::{cell::RefCell, rc::Rc};
 
 /// Stateful app builder after a view projection has been supplied.
 pub struct StatefulAppWithView<State, Message, Project, View> {
@@ -14,6 +15,7 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     pub(super) options: NativeRunOptions,
     pub(super) project: Project,
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
+    pub(super) window_environment: Option<Rc<RefCell<crate::runtime::WindowEnvironment>>>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
 }
@@ -38,13 +40,14 @@ where
 
     /// Lower this static-message app into the runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<()> {
-        AppBridge::new(
+        AppBridge::new_with_window_environment(
             self.state,
             self.project,
             |_: &mut State, (): (), context: &mut UiUpdateContext<()>| {
                 context.request_repaint();
             },
             self.lifecycle,
+            self.window_environment,
         )
     }
 }
@@ -84,6 +87,7 @@ where
             project: self.project,
             update,
             lifecycle: self.lifecycle,
+            window_environment: self.window_environment,
             _message: PhantomData,
             _view: PhantomData,
         }

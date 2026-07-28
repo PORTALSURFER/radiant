@@ -14,7 +14,7 @@ mod style;
 mod widget;
 
 pub use identity::{stable_widget_id, stable_widget_id_u64};
-pub use paint::{PaintBounds, PaintContract};
+pub use paint::{PaintBounds, PaintContract, WidgetPaintContext};
 pub use semantics::{WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, WidgetSemantics};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};

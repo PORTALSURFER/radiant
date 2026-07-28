@@ -13,8 +13,11 @@ use crate::{
 use std::any::Any;
 use std::time::Instant;
 
-use super::semantics::{
-    WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, fallback_automation_semantics,
+use super::{
+    paint::WidgetPaintContext,
+    semantics::{
+        WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, fallback_automation_semantics,
+    },
 };
 use crate::gui::automation::AutomationNodeSemantics;
 
@@ -266,6 +269,19 @@ pub trait Widget: WidgetClone + Any {
         theme: &ThemeTokens,
     );
 
+    /// Append paint using one immutable context-aware view of layout, theme,
+    /// bounds, and window environment.
+    ///
+    /// The default delegates exactly once to the required legacy hook so
+    /// existing widgets and trait objects retain their behavior unchanged.
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        let bounds = context.bounds();
+        let layout = context.layout();
+        let theme = context.theme();
+        let primitives = context.primitives();
+        self.append_paint(primitives, bounds, layout, theme);
+    }
+
     /// Return this widget's paint primitives for the given bounds.
     ///
     /// This is a convenience for tests, automation, previews, and embedded
@@ -329,6 +345,18 @@ pub trait Widget: WidgetClone + Any {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+    }
+
+    /// Append runtime-overlay paint using one immutable context-aware view.
+    ///
+    /// The default delegates exactly once to the legacy overlay hook for
+    /// compatibility with existing widgets.
+    fn append_runtime_overlay_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        let bounds = context.bounds();
+        let layout = context.layout();
+        let theme = context.theme();
+        let primitives = context.primitives();
+        self.append_runtime_overlay_paint(primitives, bounds, layout, theme);
     }
 }
 

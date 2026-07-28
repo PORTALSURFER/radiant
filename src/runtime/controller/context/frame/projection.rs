@@ -25,8 +25,9 @@ where
     /// This avoids reallocating primitive storage for renderers that rebuild a
     /// paint plan every frame.
     pub fn paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
-        self.base_paint_plan_into(theme, plan);
-        self.runtime_overlay_paint_into(theme, &mut plan.primitives);
+        let environment = self.surface.window_environment().resolved();
+        self.base_paint_plan_with_environment_into(theme, environment, plan);
+        self.runtime_overlay_paint_with_environment_into(theme, environment, &mut plan.primitives);
     }
 
     /// Project the current declarative surface into an existing plan buffer.
@@ -35,9 +36,23 @@ where
     /// runtime-owned overlays separately so pointer-local affordances can move
     /// without leaving stale copies in the base frame.
     pub fn base_paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
-        self.surface.paint_plan_with_hover_into(
+        self.base_paint_plan_with_environment_into(
+            theme,
+            self.surface.window_environment().resolved(),
+            plan,
+        );
+    }
+
+    fn base_paint_plan_with_environment_into(
+        &self,
+        theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        self.surface.paint_plan_with_hover_and_environment_into(
             &self.layout,
             theme,
+            environment,
             self.interaction.hover.container,
             self.interaction.hover.scroll_affordance,
             plan,
@@ -54,9 +69,32 @@ where
         theme: &ThemeTokens,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        self.append_widget_runtime_overlay(self.interaction.hover.widget, theme, primitives);
+        self.runtime_overlay_paint_with_environment_into(
+            theme,
+            self.surface.window_environment().resolved(),
+            primitives,
+        );
+    }
+
+    fn runtime_overlay_paint_with_environment_into(
+        &self,
+        theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        self.append_widget_runtime_overlay(
+            self.interaction.hover.widget,
+            theme,
+            environment,
+            primitives,
+        );
         if self.interaction.pointer.capture != self.interaction.hover.widget {
-            self.append_widget_runtime_overlay(self.interaction.pointer.capture, theme, primitives);
+            self.append_widget_runtime_overlay(
+                self.interaction.pointer.capture,
+                theme,
+                environment,
+                primitives,
+            );
         }
         self.append_widget_tooltip_overlay(theme, primitives);
         self.append_drag_preview_overlay(theme, primitives);
@@ -136,6 +174,7 @@ where
         &self,
         widget_id: Option<WidgetId>,
         theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
         let Some(widget_id) = widget_id else {
@@ -153,12 +192,16 @@ where
                 rect: bounds,
             }));
         }
-        widget.widget_object().append_runtime_overlay_paint(
+        let mut widget_context = crate::widgets::WidgetPaintContext::new(
             primitives,
             bounds,
             &self.layout,
             theme,
+            environment,
         );
+        widget
+            .widget_object()
+            .append_runtime_overlay_paint_with_context(&mut widget_context);
         if widget.widget_object().common().paint.bounds == crate::widgets::PaintBounds::ClipToRect {
             primitives.push(PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd {
                 node_id: widget_id,

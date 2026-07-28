@@ -24,6 +24,112 @@ pub struct WindowEnvironment {
     reduced_motion: bool,
 }
 
+/// Immutable widget-facing environment resolved from one window snapshot.
+///
+/// This is a lossless, copyable projection of [`WindowEnvironment`] for paint
+/// and other widget contexts. It deliberately does not select fallbacks or
+/// apply theme, layout, or animation policy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResolvedEnvironment {
+    display_scale: DpiScale,
+    color_scheme: Option<WindowColorScheme>,
+    contrast: bool,
+    reduced_motion: bool,
+}
+
+impl ResolvedEnvironment {
+    /// Construct a widget-facing environment from backend-neutral values.
+    const fn new(
+        display_scale: DpiScale,
+        color_scheme: Option<WindowColorScheme>,
+        contrast: bool,
+        reduced_motion: bool,
+    ) -> Self {
+        Self {
+            display_scale,
+            color_scheme,
+            contrast,
+            reduced_motion,
+        }
+    }
+
+    /// Build a widget-facing environment from one window snapshot.
+    pub const fn from_window_environment(environment: WindowEnvironment) -> Self {
+        Self::new(
+            environment.display_scale,
+            environment.color_scheme,
+            environment.contrast,
+            environment.reduced_motion,
+        )
+    }
+
+    /// Return the effective display scale.
+    pub const fn display_scale(self) -> DpiScale {
+        self.display_scale
+    }
+
+    /// Alias for [`Self::display_scale`].
+    pub const fn scale(self) -> DpiScale {
+        self.display_scale
+    }
+
+    /// Return the system color scheme, when known.
+    pub const fn color_scheme(self) -> Option<WindowColorScheme> {
+        self.color_scheme
+    }
+
+    /// Return whether higher contrast is enabled.
+    pub const fn contrast(self) -> bool {
+        self.contrast
+    }
+
+    /// Alias for [`Self::contrast`].
+    pub const fn high_contrast(self) -> bool {
+        self.contrast
+    }
+
+    /// Return whether nonessential motion should be reduced.
+    pub const fn reduced_motion(self) -> bool {
+        self.reduced_motion
+    }
+}
+
+impl From<WindowEnvironment> for ResolvedEnvironment {
+    fn from(environment: WindowEnvironment) -> Self {
+        Self::from_window_environment(environment)
+    }
+}
+
+impl From<&WindowEnvironment> for ResolvedEnvironment {
+    fn from(environment: &WindowEnvironment) -> Self {
+        (*environment).into()
+    }
+}
+
+impl Default for ResolvedEnvironment {
+    fn default() -> Self {
+        WindowEnvironment::default().resolved()
+    }
+}
+
+impl WindowEnvironment {
+    /// Resolve this window snapshot for widget-facing contexts without applying
+    /// any fallback or presentation policy.
+    pub const fn resolved(self) -> ResolvedEnvironment {
+        ResolvedEnvironment::new(
+            self.display_scale,
+            self.color_scheme,
+            self.contrast,
+            self.reduced_motion,
+        )
+    }
+
+    /// Alias for [`Self::resolved`].
+    pub const fn resolved_environment(self) -> ResolvedEnvironment {
+        self.resolved()
+    }
+}
+
 impl WindowEnvironment {
     /// Construct a window environment from backend-neutral values.
     pub const fn new(
@@ -142,7 +248,9 @@ impl WindowEnvironmentChange {
 
 #[cfg(test)]
 mod tests {
-    use super::{WindowColorScheme, WindowEnvironment, WindowEnvironmentChange};
+    use super::{
+        ResolvedEnvironment, WindowColorScheme, WindowEnvironment, WindowEnvironmentChange,
+    };
     use crate::{
         runtime::{RepaintScope, SurfaceInvalidation},
         theme::DpiScale,
@@ -172,6 +280,34 @@ mod tests {
         assert!(environment.high_contrast());
         assert!(environment.reduced_motion());
         assert_eq!(environment, environment);
+    }
+
+    #[test]
+    fn resolved_environment_is_lossless_and_copyable() {
+        let window = WindowEnvironment::new(
+            DpiScale::new(1.75),
+            Some(WindowColorScheme::Light),
+            true,
+            true,
+        );
+
+        let resolved = window.resolved();
+        let copied: ResolvedEnvironment = resolved;
+        assert_eq!(copied.display_scale().factor(), 1.75);
+        assert_eq!(copied.scale().factor(), 1.75);
+        assert_eq!(copied.color_scheme(), Some(WindowColorScheme::Light));
+        assert!(copied.contrast());
+        assert!(copied.high_contrast());
+        assert!(copied.reduced_motion());
+        assert_eq!(ResolvedEnvironment::from(window), copied);
+    }
+
+    #[test]
+    fn resolved_environment_defaults_match_window_environment_defaults() {
+        assert_eq!(
+            ResolvedEnvironment::default(),
+            WindowEnvironment::default().resolved()
+        );
     }
 
     const MAPPINGS: &[(WindowEnvironmentChange, RepaintScope, SurfaceInvalidation)] = &[

@@ -33,10 +33,30 @@ impl<Message> UiSurface<Message> {
         active_scroll_affordance: Option<crate::layout::NodeId>,
         plan: &mut SurfacePaintPlan,
     ) {
+        self.paint_plan_with_hover_and_environment_into(
+            layout,
+            theme,
+            self.window_environment().resolved(),
+            hovered_container,
+            active_scroll_affordance,
+            plan,
+        );
+    }
+
+    pub(in crate::runtime) fn paint_plan_with_hover_and_environment_into(
+        &self,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
+        hovered_container: Option<crate::layout::NodeId>,
+        active_scroll_affordance: Option<crate::layout::NodeId>,
+        plan: &mut SurfacePaintPlan,
+    ) {
         clear_paint_plan_for_layout(plan, layout, theme);
         self.root.append_paint(
             layout,
             theme,
+            environment,
             plan,
             hovered_container,
             active_scroll_affordance,

@@ -371,19 +371,19 @@ explicit imports from their owning modules.
 Advanced host-control APIs, renderer or windowing implementation details, and
 platform-specific adapters never enter the common wildcard surface.
 
-The reviewed inventory currently contains 395 named exports. The guardrail cap
-is 475, leaving 80 exports (20.3% of the current surface) for genuinely common
+The reviewed inventory currently contains 415 named exports. The guardrail cap
+is 475, leaving 60 exports (14.5% of the current surface) for genuinely common
 future API without forcing local reshuffles. Source-quality tests compute and
 verify both the aggregate and this per-subsystem inventory:
 
 | Prelude subsystem | Named exports | Ordinary caller role |
 | --- | ---: | --- |
-| Application | 227 | Canonical app/view/control builders and required signature types |
-| GUI | 101 | Common state/update models, geometry, input, text, and list policies |
+| Application | 236 | Canonical app/view/control builders and required signature types |
+| GUI | 102 | Common state/update models, geometry, input, text, and list policies |
 | Layout | 1 | Layout signature output |
-| Runtime | 27 | Common commands, resources, platform-service inputs/results, and callback signature types |
+| Runtime | 31 | Common commands, resources, platform-service inputs/results, and callback signature types |
 | Theme | 1 | Theme signature tokens |
-| Widgets | 38 | Common widget contracts, messages, sizing, and style models |
+| Widgets | 44 | Common widget contracts, messages, sizing, and style models |
 
 | API family | Prelude disposition | Explicit owner when excluded |
 | --- | --- | --- |
@@ -417,7 +417,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
 | Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
@@ -1542,6 +1542,17 @@ preference. Unknown platform values use `None` or `false`; the default scale is
 Auxiliary windows update their runtime snapshot but do not run a separate
 high-level application projection.
 
+Widget paint receives the same snapshot through the copyable
+`ResolvedEnvironment` projection. `WidgetPaintContext` exposes the assigned
+logical bounds, layout, theme, and environment to additive
+`Widget::append_paint_with_context(...)` and
+`Widget::append_runtime_overlay_paint_with_context(...)` hooks. Their defaults
+delegate once to the existing required paint hooks, so legacy widgets and
+object-safe trait callers keep the same behavior. The projection is lossless:
+it carries display scale, optional color scheme, contrast, and reduced-motion
+preference without choosing fallbacks or changing layout, theme, or animation
+semantics.
+
 `RuntimeBridge` is the minimal projection and update contract for custom hosts.
 Optional host behavior is declared through `RuntimeHostCapabilities` and focused
 traits for input policy, task scheduling, platform services, runtime queues,
@@ -2379,8 +2390,16 @@ Runtime context is split deliberately:
 - Style context is the active `ThemeTokens`.
 - Runtime context is exposed as `RuntimeContext`, a borrowed view over
   `SurfaceRuntime` containing the current viewport, surface, and resolved
-  layout. `SurfaceRuntime` owns focus target, widget hit testing, and message
-  dispatch.
+  layout. `RuntimeContext::resolved_environment()` exposes the same copyable
+  widget-facing environment projection used by paint traversal.
+  `SurfaceRuntime` owns focus target, widget hit testing, and message dispatch.
+
+Paint traversal derives one `ResolvedEnvironment` from the current
+`UiSurface` snapshot per plan and carries it through clipped base traversal and
+runtime overlays. `WidgetPaintContext` borrows layout/theme data and stores
+only that copyable value, keeping environment-aware widget paint allocation-free
+per widget while preserving the legacy `Widget` hooks through default
+delegation.
 
 ## Event And Focus
 

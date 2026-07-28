@@ -76,12 +76,18 @@ impl<Message> SurfaceNode<Message> {
         &self,
         layout: &LayoutOutput,
         theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
         plan: &mut SurfacePaintPlan,
         hovered_container: Option<NodeId>,
         active_scroll_affordance: Option<NodeId>,
     ) {
-        let context =
-            SurfacePaintContext::new(layout, theme, hovered_container, active_scroll_affordance);
+        let context = SurfacePaintContext::new(
+            layout,
+            theme,
+            hovered_container,
+            active_scroll_affordance,
+            environment,
+        );
         self.append_paint_with_context(&context, plan);
     }
 
@@ -176,12 +182,16 @@ impl<Message> SurfaceNode<Message> {
                             rect: bounds,
                         }));
                 }
-                widget.widget_object().append_paint(
+                let mut widget_context = crate::widgets::WidgetPaintContext::new(
                     &mut plan.primitives,
                     bounds,
                     context.layout,
                     context.theme,
+                    context.environment,
                 );
+                widget
+                    .widget_object()
+                    .append_paint_with_context(&mut widget_context);
                 push_layout_debug_overlay_for_node(context.layout, plan, widget.id());
                 if widget.widget_object().common().paint.bounds == PaintBounds::ClipToRect {
                     plan.primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd {

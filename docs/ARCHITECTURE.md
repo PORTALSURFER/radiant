@@ -184,6 +184,14 @@ and frame presentation live under
 stay there or behind explicit GPU-surface contracts, not leak into normal
 application-builder code.
 
+Environment-aware widget paint is additive and remains in the core contract:
+`ResolvedEnvironment` is a lossless copyable projection of the current
+`WindowEnvironment`, and `WidgetPaintContext` borrows the existing bounds,
+layout, and theme inputs while carrying that value. Surface traversal derives
+one projection per plan and preserves it through clipped descendants and
+runtime overlays. Context-aware hooks default to one-call delegation to the
+legacy hooks, preserving object safety and existing callers.
+
 The native compositor preprocesses each paint plan's clip state and opaque
 suffix coverage once into a reusable spatial index. GPU rendering,
 interaction-region projection, post-GPU overlay visibility, and embedded

@@ -19,6 +19,7 @@ const DEFAULT_DIAMETER: f32 = 40.0;
 const DEFAULT_SENSITIVITY: f32 = 0.006;
 const ARC_START: f32 = -5.0 * std::f32::consts::PI / 4.0;
 const ARC_SWEEP: f32 = 3.0 * std::f32::consts::PI / 2.0;
+const ARC_SEGMENTS: usize = 40;
 
 /// Immutable radial knob configuration.
 #[derive(Clone, Debug, PartialEq)]
@@ -38,6 +39,8 @@ pub struct KnobState {
     pub value: f32,
     /// Pointer position at the beginning of the active gesture.
     pub gesture_origin: Option<Point>,
+    /// Whether Shift fine-adjustment mode is latched for the active gesture.
+    pub fine_adjustment: bool,
 }
 
 /// Named construction fields for [`KnobWidget`].
@@ -78,6 +81,7 @@ impl KnobWidget {
             state: KnobState {
                 value: clamp_fraction(parts.value),
                 gesture_origin: None,
+                fine_adjustment: false,
             },
         }
     }
@@ -131,14 +135,21 @@ impl KnobWidget {
             return None;
         }
         match input {
+            WidgetInput::PointerModifiersChanged { modifiers } => {
+                if self.common.state.pressed {
+                    self.state.fine_adjustment = modifiers.shift;
+                }
+                None
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
-                ..
+                modifiers,
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;
                 self.common.state.focused = true;
+                self.state.fine_adjustment = modifiers.shift;
                 self.state.gesture_origin = Some(position);
                 Some(KnobMessage::GestureStarted {
                     value: self.state.value,
@@ -151,7 +162,12 @@ impl KnobWidget {
                 }
                 let origin = self.state.gesture_origin.unwrap_or(position);
                 self.state.gesture_origin = Some(position);
-                self.set_value(self.state.value + (origin.y - position.y) * self.props.sensitivity)
+                let sensitivity = if self.state.fine_adjustment {
+                    self.props.sensitivity * 0.1
+                } else {
+                    self.props.sensitivity
+                };
+                self.set_value(self.state.value + (origin.y - position.y) * sensitivity)
                     .map(|value| KnobMessage::ValueChanged { value })
             }
             WidgetInput::PointerDoubleClick {
@@ -160,6 +176,7 @@ impl KnobWidget {
                 ..
             } if self.props.reset_on_double_click && bounds.contains(position) => {
                 self.common.state.pressed = false;
+                self.state.fine_adjustment = false;
                 self.state.gesture_origin = None;
                 self.state.value = self.props.default_value;
                 Some(KnobMessage::Reset {
@@ -206,6 +223,7 @@ impl KnobWidget {
     fn finish_terminal_gesture(&mut self, focus_lost: bool) -> Option<KnobMessage> {
         let had_active_gesture = self.state.gesture_origin.take().is_some();
         self.common.state.pressed = false;
+        self.state.fine_adjustment = false;
         if focus_lost {
             self.common.state.focused = false;
         }
@@ -248,6 +266,7 @@ impl Widget for KnobWidget {
         self.common.state.hovered = previous.common.state.hovered;
         self.common.state.focused = previous.common.state.focused;
         self.common.state.pressed = previous.common.state.pressed;
+        self.state.fine_adjustment = previous.state.fine_adjustment;
         self.state.gesture_origin = previous.state.gesture_origin;
     }
 
@@ -276,7 +295,7 @@ impl Widget for KnobWidget {
             (bounds.min.y + bounds.max.y) * 0.5,
         );
         let radius = bounds.width().min(bounds.height()) * 0.5 - 2.0;
-        let ring = circle_points(center, radius.max(1.0), 40);
+        let ring = arc_points(center, radius.max(1.0), ARC_START, ARC_SWEEP, ARC_SEGMENTS);
         primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
             widget_id: self.common.id,
             points: ring.into(),
@@ -287,14 +306,16 @@ impl Widget for KnobWidget {
                 1.0
             },
         }));
-        let value_angle = ARC_START + ARC_SWEEP * self.state.value.clamp(0.0, 1.0);
-        let indicator_end = Point::new(
-            center.x + (radius - 4.0) * value_angle.cos(),
-            center.y + (radius - 4.0) * value_angle.sin(),
+        let value_arc = arc_points(
+            center,
+            (radius - 1.0).max(1.0),
+            ARC_START,
+            ARC_SWEEP * self.state.value.clamp(0.0, 1.0),
+            ARC_SEGMENTS,
         );
         primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
             widget_id: self.common.id,
-            points: [center, indicator_end].into(),
+            points: value_arc.into(),
             color: tokens.emphasis,
             width: 3.0,
         }));
@@ -349,12 +370,26 @@ fn circle_points(center: Point, radius: f32, segments: usize) -> Vec<Point> {
         .collect()
 }
 
+fn arc_points(center: Point, radius: f32, start: f32, sweep: f32, segments: usize) -> Vec<Point> {
+    (0..=segments)
+        .map(|index| {
+            let fraction = index as f32 / segments as f32;
+            let angle = start + sweep * fraction;
+            Point::new(
+                center.x + radius * angle.cos(),
+                center.y + radius * angle.sin(),
+            )
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         gui::types::Point,
         runtime::PaintPrimitive,
+        widgets::interaction::PointerModifiers,
         widgets::{WidgetState, WidgetVisualCue},
     };
 
@@ -389,6 +424,79 @@ mod tests {
             ),
             Some(KnobMessage::Reset { value: 0.25 })
         );
+    }
+
+    #[test]
+    fn knob_shift_fine_drag_tracks_modifier_changes_without_restarting_gesture() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5).with_sensitivity(0.01);
+        knob.common.state.active = true;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_press(
+                    Point::new(20.0, 20.0),
+                    PointerButton::Primary,
+                    PointerModifiers::default(),
+                ),
+            ),
+            Some(KnobMessage::GestureStarted { value: 0.5 })
+        );
+        assert!(knob.common.state.active);
+
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 10.0))),
+            Some(KnobMessage::ValueChanged { .. })
+        ));
+        assert!((knob.state.value - 0.6).abs() < 0.0001);
+
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::PointerModifiersChanged {
+                    modifiers: PointerModifiers {
+                        shift: true,
+                        ..PointerModifiers::default()
+                    },
+                },
+            ),
+            None
+        );
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 0.0))),
+            Some(KnobMessage::ValueChanged { .. })
+        ));
+        assert!((knob.state.value - 0.61).abs() < 0.0001);
+        assert!(knob.common.state.active);
+
+        let mut refreshed = KnobWidget::new(1, knob.state.value).with_sensitivity(0.01);
+        refreshed.common.state.active = true;
+        refreshed.synchronize_from_previous(&knob);
+        assert!(refreshed.common.state.active);
+        assert!(refreshed.state.fine_adjustment);
+        assert!(refreshed.state.gesture_origin.is_some());
+        knob = refreshed;
+
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::PointerModifiersChanged {
+                    modifiers: PointerModifiers::default(),
+                },
+            ),
+            None
+        );
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, -10.0))),
+            Some(KnobMessage::ValueChanged { .. })
+        ));
+        assert!((knob.state.value - 0.71).abs() < 0.0001);
+        assert!(knob.common.state.active);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, -10.0))),
+            Some(KnobMessage::GestureEnded { value }) if (value - 0.71).abs() < 0.0001
+        ));
+        assert!(knob.common.state.active);
     }
 
     #[test]
@@ -586,6 +694,53 @@ mod tests {
             .cue,
             WidgetVisualCue::Focused
         );
+    }
+
+    #[test]
+    fn knob_paints_270_degree_track_and_value_arc() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let knob = KnobWidget::new(1, 0.5);
+        let mut primitives = Vec::new();
+
+        knob.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let polylines: Vec<_> = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::StrokePolyline(polyline) => Some(polyline),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(polylines.len(), 2);
+        assert_eq!(polylines[0].points.len(), ARC_SEGMENTS + 1);
+        assert_eq!(polylines[1].points.len(), ARC_SEGMENTS + 1);
+        assert_eq!(polylines[0].width, 1.0);
+        assert_eq!(polylines[1].width, 3.0);
+
+        let center = Point::new(20.0, 20.0);
+        let track_start = polylines[0].points.first().expect("track has a start");
+        let track_end = polylines[0].points.last().expect("track has an end");
+        assert!((track_start.x - (center.x - 18.0 * 2.0_f32.sqrt() / 2.0)).abs() < 0.001);
+        assert!((track_start.y - (center.y + 18.0 * 2.0_f32.sqrt() / 2.0)).abs() < 0.001);
+        assert!((track_end.x - (center.x + 18.0 * 2.0_f32.sqrt() / 2.0)).abs() < 0.001);
+        assert!((track_end.y - (center.y + 18.0 * 2.0_f32.sqrt() / 2.0)).abs() < 0.001);
+
+        let value_end = polylines[1].points.last().expect("value arc has an end");
+        assert!((value_end.x - center.x).abs() < 0.001);
+        assert!((value_end.y - 3.0).abs() < 0.001);
+
+        let tokens = crate::widgets::resolve_widget_visual_tokens(
+            &ThemeTokens::default(),
+            knob.common.style,
+            knob.common.state,
+        );
+        assert_eq!(polylines[0].color, tokens.border);
+        assert_eq!(polylines[1].color, tokens.emphasis);
     }
 
     #[test]

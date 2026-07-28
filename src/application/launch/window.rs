@@ -1,6 +1,6 @@
 use crate::{
     application::{Result, launch::IntoView},
-    gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions, WindowSpec},
+    gui_runtime::{EmbeddedFont, FrameRate, NativePopupOptions, NativeRunOptions, WindowSpec},
     runtime::{
         Command, RuntimeBridge, declarative_owned_command_runtime_bridge, run_native_vello_runtime,
     },
@@ -32,6 +32,12 @@ impl WindowBuilder {
     /// Set the initial logical window size using floating-point logical pixels.
     pub fn logical_size(mut self, width: f32, height: f32) -> Self {
         self.options.window.geometry.inner_size = Some([width, height]);
+        self
+    }
+
+    /// Set the maximum native animation and presentation cadence.
+    pub fn frame_rate(mut self, frame_rate: FrameRate) -> Self {
+        self.options.frame.target_fps = frame_rate.as_u32();
         self
     }
 

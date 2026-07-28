@@ -60,13 +60,13 @@ pub use crate::gui::automation::{
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, EmbeddedVelloError, EmbeddedVelloRenderer,
-    EmbeddedVelloSurfaceHandle, EmbeddedVelloUnsupportedPrimitive, MAX_NATIVE_TARGET_FPS,
-    MIN_NATIVE_TARGET_FPS, NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
-    NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
-    NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, NativeTextOptions,
-    NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode, NativeWindowOptions,
-    RuntimeRunReport, WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec,
-    WindowSpecError, WindowSpecParts, run_native_vello_runtime,
+    EmbeddedVelloSurfaceHandle, EmbeddedVelloUnsupportedPrimitive, FrameRate,
+    MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS, NativeFrameOptions, NativeGenericRunError,
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions,
+    NativePopupOptions, NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact,
+    NativeTextOptions, NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode,
+    NativeWindowOptions, RuntimeRunReport, WindowIconRgba, WindowManifest, WindowManifestError,
+    WindowSpec, WindowSpecError, WindowSpecParts, run_native_vello_runtime,
     run_native_vello_runtime_with_artifacts,
 };
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};

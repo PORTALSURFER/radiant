@@ -1,11 +1,13 @@
 //! Platform-neutral native runtime policy types.
 
+mod frame_rate;
 mod gpu;
 mod icon;
 mod popup;
 mod run;
 mod text;
 
+pub use frame_rate::FrameRate;
 pub use gpu::{NativeGpuBackend, NativeGpuOptions};
 pub use icon::WindowIconRgba;
 pub use popup::{NativePopupOptions, NativeWindowMode};

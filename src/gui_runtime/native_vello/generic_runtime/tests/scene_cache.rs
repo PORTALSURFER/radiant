@@ -2,7 +2,8 @@ use super::*;
 use crate::{
     gui::types::ImageRgba,
     runtime::{
-        GpuSurfaceRuntimeOverlays, PaintFillRect, PaintTextAlign, PaintTextRun, SurfacePaintPlan,
+        GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintTextAlign,
+        PaintTextRun, SurfacePaintPlan,
     },
     theme::ThemeTokens,
     widgets::TextWrap,
@@ -48,6 +49,56 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     assert!(stats.text_run_count >= expected_text_primitives);
     assert!(text_runs.is_empty());
     assert_eq!(text_runs.overflow_capacity(), 0);
+}
+
+#[test]
+fn scene_encoding_elides_containing_nested_clip_but_keeps_draw_content() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let ancestor = Rect::from_min_size(Point::new(10.0, 10.0), Vector2::new(10.0, 10.0));
+    let containing = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(30.0, 30.0));
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: ancestor,
+            }),
+            PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 2,
+                rect: containing,
+            }),
+            PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 3,
+                rect: ancestor,
+                color: Rgba8 {
+                    r: 255,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+            }),
+            PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 2 }),
+            PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }),
+        ],
+    };
+
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+
+    assert_eq!(stats.clip_layer_count, 1);
+    assert_eq!(scene.encoding().n_clips, 2);
+    assert!(!scene.encoding().is_empty());
 }
 
 #[test]

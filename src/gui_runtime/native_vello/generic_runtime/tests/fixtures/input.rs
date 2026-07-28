@@ -1,8 +1,8 @@
 use super::super::*;
-use crate::application::IntoView;
+use crate::application::{IntoView, ViewNode};
 use crate::gui::list::{
-    VirtualListWindow, VirtualListWindowChange, VirtualListWindowRequest,
-    resolve_virtual_list_window,
+    TreeGuideRow, TreeGuideStyle, VirtualListWindow, VirtualListWindowChange,
+    VirtualListWindowRequest, resolve_virtual_list_window,
 };
 use crate::layout::{SizeModeCross, SizeModeMain};
 use crate::runtime::{
@@ -38,6 +38,32 @@ pub(in super::super) struct AppVirtualListBridge {
     pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
     retain_materialized_window: bool,
+    include_coalescing_gpu_surface: bool,
+}
+
+/// Long virtualized list whose rows retain the normal tree-row hover chrome.
+///
+/// This fixture is intentionally app-owned: a wheel crossing the materialized
+/// window must project a new row set before the native runner re-evaluates the
+/// pointer hover target.
+pub(in super::super) struct HoverVirtualListBridge {
+    pub(in super::super) window: VirtualListWindow,
+}
+
+impl Default for HoverVirtualListBridge {
+    fn default() -> Self {
+        Self {
+            window: resolve_virtual_list_window(VirtualListWindowRequest {
+                total_items: 100,
+                viewport_len: 4,
+                requested_start: 0,
+                overscan: 1,
+                focused_index: None,
+                previous_start: None,
+                guard_band: 0,
+            }),
+        }
+    }
 }
 
 impl Default for AppVirtualListBridge {
@@ -55,6 +81,7 @@ impl Default for AppVirtualListBridge {
             scroll_count: 0,
             project_count: 0,
             retain_materialized_window: false,
+            include_coalescing_gpu_surface: false,
         }
     }
 }
@@ -65,6 +92,11 @@ impl AppVirtualListBridge {
             retain_materialized_window: true,
             ..Self::default()
         }
+    }
+
+    pub(in super::super) fn with_coalescing_gpu_surface(mut self) -> Self {
+        self.include_coalescing_gpu_surface = true;
+        self
     }
 }
 
@@ -201,10 +233,20 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<VirtualListWindowChange>> {
         self.project_count += 1;
         let window = self.window;
+        let include_coalescing_gpu_surface = self.include_coalescing_gpu_surface;
         let list = crate::application::virtual_list_windowed(|index| {
-            crate::application::text(format!("Row {index}"))
+            if include_coalescing_gpu_surface && index == 0 {
+                ViewNode::from(SurfaceNode::custom_widget(
+                    super::gpu_wheel::PassiveGpuWheelWidget::new(),
+                    WidgetMessageMapper::none(),
+                ))
                 .height(20.0)
                 .fill_width()
+            } else {
+                crate::application::text(format!("Row {index}"))
+                    .height(20.0)
+                    .fill_width()
+            }
         })
         .row_height(20.0)
         .window(window)
@@ -234,5 +276,46 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
 }
 
 impl RuntimeFrameDiagnosticsHost for AppVirtualListBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
+}
+
+impl RuntimeBridge<VirtualListWindowChange> for HoverVirtualListBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<VirtualListWindowChange>> {
+        use crate::{
+            application::{row_actions, tree_row, virtual_tree_list_windowed},
+            gui::types::Rgba8,
+        };
+
+        let window = self.window;
+        let guide_rows = vec![TreeGuideRow::new(0, false); window.total_items];
+        crate::runtime::test_arc_surface(
+            virtual_tree_list_windowed(
+                window,
+                20.0,
+                &guide_rows,
+                TreeGuideStyle::new(12.0, 20.0, Rgba8::new(90, 120, 160, 255)),
+                |index| {
+                    tree_row(format!("Row {index}"))
+                        .row_key(format!("hover-row-{index}"))
+                        .hit_key(format!("hover-row-hit-{index}"))
+                        .row_height(20.0)
+                        .interactive_actions(row_actions())
+                },
+            )
+            .overscan_px(20.0)
+            .on_window_changed(|change| change)
+            .view()
+            .id(181)
+            .fill()
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, message: VirtualListWindowChange) {
+        self.window = message.window;
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for HoverVirtualListBridge {
     fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }

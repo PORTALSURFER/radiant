@@ -267,6 +267,7 @@ mod tests {
                     widget_state_sync: Duration::from_micros(5),
                     layout: Duration::from_micros(7),
                 },
+                identity: Default::default(),
             },
             surface_refresh_total: Duration::from_micros(23),
         });

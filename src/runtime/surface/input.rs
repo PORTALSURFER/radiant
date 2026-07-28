@@ -14,6 +14,14 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(super) fn widget_compatibility_kind_at_path(
+        &self,
+        child_path: &[usize],
+    ) -> Option<&'static str> {
+        self.find_widget_at_path(child_path)
+            .map(SurfaceWidget::compatibility_kind)
+    }
+
     pub(super) fn synchronize_widget_state_from_paths(
         &mut self,
         stateful_widget_order: &[WidgetId],
@@ -41,6 +49,9 @@ impl<Message> SurfaceNode<Message> {
             else {
                 continue;
             };
+            if current_widget.compatibility_kind() != previous_widget.compatibility_kind() {
+                continue;
+            }
             current_widget
                 .widget_object_mut()
                 .synchronize_from_previous(previous_widget.widget_object());

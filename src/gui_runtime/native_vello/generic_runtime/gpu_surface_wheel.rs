@@ -154,10 +154,12 @@ where
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
                 outcome.surface_refresh_scope_or_surface(),
             );
+            self.refresh_pointer_hover_after_scroll();
             return;
         }
         if outcome.is_interactive_scene_rebuild() {
             self.rebuild_scene_for_interactive_route_now();
+            self.refresh_pointer_hover_after_scroll();
             return;
         }
         if outcome.is_deferred_surface_refresh() {
@@ -165,7 +167,20 @@ where
         }
         if outcome.needs_scene_rebuild() {
             self.rebuild_scene_for_interactive_route_now();
+            self.refresh_pointer_hover_after_scroll();
         }
+    }
+
+    /// Re-hit-test the native pointer after a coalesced scroll commits a new
+    /// materialized layout. Pointer motion can arrive while the wheel is still
+    /// pending, so the interaction's retained hover target may refer to a row
+    /// that is no longer in the current virtual window.
+    fn refresh_pointer_hover_after_scroll(&mut self) {
+        let Some(position) = self.input.last_cursor else {
+            return;
+        };
+        let outcome = self.core.route_pointer_move(position);
+        self.handle_gpu_surface_pointer_move_outcome(outcome, Some(position), position);
     }
 
     pub(super) fn can_fast_path_gpu_surface_route(&self, position: Point, delta: Vector2) -> bool {

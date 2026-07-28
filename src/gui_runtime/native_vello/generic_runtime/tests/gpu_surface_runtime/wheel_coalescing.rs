@@ -208,3 +208,94 @@ fn queued_gpu_surface_wheel_refreshes_scroll_fallback_immediately() {
         "coalesced wheel diagnostics should report the frame work discovered while flushing input"
     );
 }
+
+#[test]
+fn coalesced_wheel_then_pointer_move_retargets_hover_after_virtual_rows_refresh() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        HoverVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let pointer = Point::new(40.0, 30.0);
+
+    runner.handle_cursor_moved(winit::dpi::PhysicalPosition::new(
+        pointer.x as f64,
+        pointer.y as f64,
+    ));
+    let first_hover = runner
+        .core
+        .runtime
+        .hovered_widget()
+        .expect("initial virtual row should be hovered");
+    assert!(
+        runner
+            .core
+            .runtime
+            .surface()
+            .find_widget(first_hover)
+            .expect("initial hovered row")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    let queued =
+        runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -100.0));
+    assert_eq!(
+        queued.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+
+    runner.handle_cursor_moved(winit::dpi::PhysicalPosition::new(
+        pointer.x as f64 + 1.0,
+        pointer.y as f64,
+    ));
+    runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
+    let hovered = runner
+        .core
+        .runtime
+        .hovered_widget()
+        .expect("post-scroll pointer should target a current virtual row");
+    assert_ne!(hovered, first_hover);
+    assert!(
+        runner
+            .core
+            .runtime
+            .surface()
+            .find_widget(hovered)
+            .expect("current hovered row")
+            .widget()
+            .common()
+            .state
+            .hovered,
+        "hover state must follow the current materialized row"
+    );
+    assert!(
+        runner
+            .frame
+            .last_paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(fill)
+                        if fill.widget_id == hovered && fill.rect.has_finite_positive_area()
+                )
+            }),
+        "presented paint plan must expose hover chrome for the current row"
+    );
+    assert!(
+        runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99"),
+        "coalesced wheel must present current virtual-list rows"
+    );
+}

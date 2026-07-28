@@ -31,6 +31,15 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
 }
 
 #[test]
+fn window_specs_expose_typed_frame_rate_and_preserve_custom_target_fps() {
+    let standard = WindowSpec::new("main", "Main").frame_rate(FrameRate::Hz120);
+    let custom = WindowSpec::new("preview", "Preview").target_fps(48);
+
+    assert_eq!(standard.target_frame_rate(), 120);
+    assert_eq!(custom.target_frame_rate(), 48);
+}
+
+#[test]
 fn window_specs_support_named_parts_construction() {
     let spec = WindowSpec::from_parts(WindowSpecParts {
         key: "main".to_owned(),

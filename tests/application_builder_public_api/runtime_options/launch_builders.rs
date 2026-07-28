@@ -22,6 +22,15 @@ fn launch_builders_expose_embedded_font_policy() {
 }
 
 #[test]
+fn window_builder_exposes_typed_frame_rate_policy() {
+    let spec = radiant::window("Main")
+        .frame_rate(FrameRate::Hz60)
+        .spec("main");
+
+    assert_eq!(spec.target_frame_rate(), 60);
+}
+
+#[test]
 fn launch_builders_expose_prewarmed_popup_policy() {
     let no_state = radiant::window("Popup")
         .prewarmed_popup(-32_000.0, -32_000.0)

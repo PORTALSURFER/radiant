@@ -1,7 +1,7 @@
 use super::{WindowSpec, WindowSpecParts};
 use crate::gui_runtime::{
-    EmbeddedFont, NativeGpuBackend, NativePopupOptions, NativeRunOptions, NativeWindowOptions,
-    WindowIconRgba,
+    EmbeddedFont, FrameRate, NativeGpuBackend, NativePopupOptions, NativeRunOptions,
+    NativeWindowOptions, WindowIconRgba,
 };
 use std::path::PathBuf;
 
@@ -144,6 +144,12 @@ impl WindowSpec {
     /// Set the target animation frame rate for this window.
     pub fn target_fps(mut self, target_fps: u32) -> Self {
         self.options.frame.target_fps = target_fps;
+        self
+    }
+
+    /// Set the maximum native animation and presentation cadence.
+    pub fn frame_rate(mut self, frame_rate: FrameRate) -> Self {
+        self.options.frame.target_fps = frame_rate.as_u32();
         self
     }
 

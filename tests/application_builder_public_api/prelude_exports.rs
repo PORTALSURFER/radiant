@@ -23,6 +23,14 @@ fn prelude_exports_renderer_neutral_render_canvas_builder() {
 }
 
 #[test]
+fn prelude_exports_typed_frame_rate() {
+    use radiant::prelude::*;
+
+    assert_eq!(FrameRate::Hz30.as_u32(), 30);
+    assert_eq!(FrameRate::from_u32(60), Some(FrameRate::Hz60));
+}
+
+#[test]
 fn prelude_supports_hello_world_imports() {
     use radiant::prelude::*;
 

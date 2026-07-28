@@ -1224,6 +1224,12 @@ without making the window visible after setup. Window launch and manifest
 builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
+Ordinary window launches should use the typed `FrameRate` choices
+`FrameRate::Hz30`, `FrameRate::Hz60`, or `FrameRate::Hz120` with
+`radiant::window(...).frame_rate(...)`. `WindowSpec::frame_rate(...)` provides
+the same typed policy for host-managed manifests; the existing raw
+`WindowSpec::target_fps(...)` builder remains available as an advanced escape
+hatch for custom cadences.
 On macOS, hosts that need direct development builds to appear as normal
 LaunchServices applications can use `scripts/dev_app_bundle.sh` after building
 their binary. The helper stages a minimal `.app` wrapper, writes `Info.plist`,

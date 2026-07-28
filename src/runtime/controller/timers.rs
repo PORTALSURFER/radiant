@@ -1,3 +1,4 @@
+use super::owner::{LifecycleDescriptor, RuntimeOwner};
 use crate::application::LatestTimerTransaction;
 use crate::runtime::{RuntimeTimerWake, command::TimerEffect};
 use std::{collections::HashMap, time::Duration};
@@ -6,9 +7,11 @@ struct Registered<Message> {
     wake: RuntimeTimerWake,
     transaction: Option<LatestTimerTransaction>,
     map: Option<Box<dyn FnOnce() -> Message + 'static>>,
+    lifecycle: LifecycleDescriptor,
 }
 
 pub(super) struct TimerEffects<Message> {
+    owner: RuntimeOwner,
     registry: HashMap<u64, Registered<Message>>,
     latest: HashMap<u64, u64>,
     epoch: u64,
@@ -17,16 +20,20 @@ pub(super) struct TimerEffects<Message> {
 
 impl<Message> Default for TimerEffects<Message> {
     fn default() -> Self {
+        Self::new(RuntimeOwner::new())
+    }
+}
+
+impl<Message> TimerEffects<Message> {
+    pub(super) fn new(owner: RuntimeOwner) -> Self {
         Self {
+            owner,
             registry: HashMap::new(),
             latest: HashMap::new(),
             epoch: 1,
             next_id: 1,
         }
     }
-}
-
-impl<Message> TimerEffects<Message> {
     pub(super) fn schedule(
         &mut self,
         effect: TimerEffect<Message>,
@@ -39,6 +46,9 @@ impl<Message> TimerEffects<Message> {
         let generation = transaction
             .as_ref()
             .map_or(0, LatestTimerTransaction::generation);
+        let cancellation = transaction
+            .as_ref()
+            .map(LatestTimerTransaction::cancellation_probe);
         let wake = RuntimeTimerWake::controller(id, generation, self.epoch);
         let previous = slot.and_then(|slot| {
             let old = self.latest.insert(slot, id);
@@ -50,6 +60,13 @@ impl<Message> TimerEffects<Message> {
                 wake,
                 transaction,
                 map: Some(effect.map),
+                lifecycle: LifecycleDescriptor::new(
+                    self.owner.clone(),
+                    id,
+                    slot,
+                    generation,
+                    cancellation,
+                ),
             },
         );
         if host_schedule(effect.delay, wake) {
@@ -84,6 +101,21 @@ impl<Message> TimerEffects<Message> {
     pub(super) fn map_wake(&mut self, wake: RuntimeTimerWake) -> Option<Message> {
         let registered = self.registry.get(&wake.id)?;
         if registered.wake != wake {
+            return None;
+        }
+        if !registered.lifecycle.admits(
+            &self.owner,
+            wake.id,
+            wake.generation,
+            wake.epoch == self.epoch,
+        ) {
+            let slot = registered.lifecycle.slot();
+            self.registry.remove(&wake.id);
+            if let Some(slot) = slot
+                && self.latest.get(&slot).copied() == Some(wake.id)
+            {
+                self.latest.remove(&slot);
+            }
             return None;
         }
         let stale_slot = registered

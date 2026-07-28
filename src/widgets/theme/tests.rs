@@ -1,6 +1,6 @@
 use super::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};
 use crate::{
-    theme::ThemeTokens,
+    theme::{ThemeTokens, contrast_ratio},
     widgets::{WidgetProminence, WidgetState, WidgetStyle, WidgetTone},
 };
 
@@ -135,6 +135,58 @@ fn hover_and_press_states_change_control_chrome() {
     assert_ne!(hovered.border, base.border);
     assert_ne!(pressed.fill, hovered.fill);
     assert_ne!(pressed.border, base.border);
+}
+
+#[test]
+fn strong_interactive_semantic_states_meet_normal_text_contrast_in_all_palettes() {
+    let themes = [
+        ThemeTokens::dark(),
+        ThemeTokens::dark_high_contrast(),
+        ThemeTokens::light(),
+        ThemeTokens::light_high_contrast(),
+    ];
+    let tones = [
+        WidgetTone::Neutral,
+        WidgetTone::Accent,
+        WidgetTone::Success,
+        WidgetTone::Warning,
+        WidgetTone::Danger,
+    ];
+    let states = [
+        WidgetState {
+            active: true,
+            ..WidgetState::default()
+        },
+        WidgetState {
+            pressed: true,
+            ..WidgetState::default()
+        },
+        WidgetState {
+            selected: true,
+            ..WidgetState::default()
+        },
+    ];
+    for theme in themes {
+        for tone in tones {
+            for state in states {
+                let tokens = resolve_widget_visual_tokens(
+                    &theme,
+                    WidgetStyle {
+                        tone,
+                        prominence: WidgetProminence::Strong,
+                    },
+                    state,
+                );
+                assert!(
+                    contrast_ratio(tokens.foreground, tokens.fill) >= 4.5,
+                    "foreground {:?} on fill {:?} for {:?} lacks contrast",
+                    tokens.foreground,
+                    tokens.fill,
+                    tone
+                );
+            }
+        }
+    }
 }
 
 #[test]

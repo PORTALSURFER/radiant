@@ -11,7 +11,7 @@ use crate::{
             push_layout_debug_overlay_for_node, push_overlay_panel,
         },
     },
-    theme::ThemeTokens,
+    theme::{ResolvedAppearance, ThemeTokens},
     widgets::PaintBounds,
 };
 
@@ -72,11 +72,15 @@ impl SurfaceOverlay {
 }
 
 impl<Message> SurfaceNode<Message> {
+    // Keep the existing traversal call shape explicit; the added appearance
+    // snapshot is the only new pass-wide input.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::runtime::surface) fn append_paint(
         &self,
         layout: &LayoutOutput,
         theme: &ThemeTokens,
         environment: crate::runtime::ResolvedEnvironment,
+        appearance: ResolvedAppearance,
         plan: &mut SurfacePaintPlan,
         hovered_container: Option<NodeId>,
         active_scroll_affordance: Option<NodeId>,
@@ -87,6 +91,7 @@ impl<Message> SurfaceNode<Message> {
             hovered_container,
             active_scroll_affordance,
             environment,
+            appearance,
         );
         self.append_paint_with_context(&context, plan);
     }
@@ -182,12 +187,13 @@ impl<Message> SurfaceNode<Message> {
                             rect: bounds,
                         }));
                 }
-                let mut widget_context = crate::widgets::WidgetPaintContext::new(
+                let mut widget_context = crate::widgets::WidgetPaintContext::new_with_appearance(
                     &mut plan.primitives,
                     bounds,
                     context.layout,
                     context.theme,
                     context.environment,
+                    context.appearance,
                 );
                 widget
                     .widget_object()

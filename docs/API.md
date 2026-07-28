@@ -1553,6 +1553,17 @@ it carries display scale, optional color scheme, contrast, and reduced-motion
 preference without choosing fallbacks or changing layout, theme, or animation
 semantics.
 
+Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
+resolves light, dark, and high-contrast tokens from the current window snapshot;
+an unknown color scheme conservatively selects the dark palette while the
+lossless environment remains `None`. `AppearancePolicy::Fixed(theme)` preserves
+explicit `ThemeTokens` byte-for-byte and ignores system appearance, scale, and
+motion preferences. `ResolvedAppearance` is immutable and `Copy`; its
+`tokens()` accessor is available through `WidgetPaintContext::appearance()`.
+Native system-follow rendering resolves one snapshot per paint pass so clear,
+base, clipped, and runtime-overlay primitives cannot diverge. Reduced motion
+remains an independent environment policy and does not select a palette.
+
 `RuntimeBridge` is the minimal projection and update contract for custom hosts.
 Optional host behavior is declared through `RuntimeHostCapabilities` and focused
 traits for input policy, task scheduling, platform services, runtime queues,

@@ -5,7 +5,7 @@ use crate::gui::types::{Point, Vector2};
 use crate::runtime::{
     CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
 };
-use crate::theme::ThemeTokens;
+use crate::theme::{AppearancePolicy, ResolvedAppearance};
 use crate::widgets::{PointerButton, WidgetKey};
 use std::time::Instant;
 
@@ -15,7 +15,8 @@ where
 {
     pub(in crate::gui_runtime::native_vello) runtime: SurfaceRuntime<Bridge, Message>,
     pub(in crate::gui_runtime::native_vello) last_pointer_press: Option<PointerPressStamp>,
-    theme: ThemeTokens,
+    appearance_policy: AppearancePolicy,
+    resolved_appearance: ResolvedAppearance,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -70,7 +71,8 @@ where
         Self {
             runtime,
             last_pointer_press: None,
-            theme: ThemeTokens::default(),
+            appearance_policy: AppearancePolicy::FollowEnvironment,
+            resolved_appearance: ResolvedAppearance::fixed(crate::theme::ThemeTokens::dark()),
         }
     }
 
@@ -84,11 +86,18 @@ where
 
     #[cfg(test)]
     pub(super) fn paint_plan(&self) -> crate::runtime::SurfacePaintPlan {
-        self.runtime.paint_plan(&self.theme)
+        self.runtime.paint_plan_with_policy(self.appearance_policy)
     }
 
-    pub(super) fn paint_plan_into(&self, plan: &mut crate::runtime::SurfacePaintPlan) {
-        self.runtime.base_paint_plan_into(&self.theme, plan);
+    pub(super) fn paint_plan_into(&mut self, plan: &mut crate::runtime::SurfacePaintPlan) {
+        let environment = self.runtime.context().resolved_environment();
+        let appearance = self.appearance_policy.resolve(environment);
+        // The caller owns the mutable frame preparation boundary; cache the
+        // pass snapshot so runtime overlays cannot drift from the base scene.
+        self.resolved_appearance = appearance;
+        let theme = appearance.tokens();
+        self.runtime
+            .base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
     }
 
     pub(super) fn paint_transient_overlay(
@@ -112,8 +121,15 @@ where
         &self,
         primitives: &mut Vec<crate::runtime::PaintPrimitive>,
     ) {
-        self.runtime
-            .runtime_overlay_paint_into(&self.theme, primitives);
+        let appearance = self.resolved_appearance;
+        let theme = appearance.tokens();
+        let environment = self.runtime.context().resolved_environment();
+        self.runtime.runtime_overlay_paint_with_appearance_into(
+            &theme,
+            appearance,
+            environment,
+            primitives,
+        );
     }
 
     pub(super) fn has_runtime_overlay_paint(&self) -> bool {

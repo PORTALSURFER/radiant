@@ -70,6 +70,7 @@ pub use crate::gui_runtime::{
     WindowSpec, WindowSpecError, WindowSpecParts, run_native_vello_runtime,
     run_native_vello_runtime_with_artifacts,
 };
+pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
 #[allow(deprecated)]
 pub use bridge::{

@@ -6,6 +6,7 @@ use crate::{
         PaintPrimitive, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, empty_paint_plan_for_layout,
     },
     theme::ThemeTokens,
+    theme::{AppearancePolicy, ResolvedAppearance},
     widgets::WidgetId,
 };
 
@@ -13,6 +14,16 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Resolve one appearance policy against this window's current snapshot.
+    pub fn resolved_appearance(&self, policy: AppearancePolicy) -> ResolvedAppearance {
+        policy.resolve(self.surface.window_environment().resolved())
+    }
+
+    /// Alias for [`Self::resolved_appearance`].
+    pub fn appearance(&self, policy: AppearancePolicy) -> ResolvedAppearance {
+        self.resolved_appearance(policy)
+    }
+
     /// Project the current surface and layout into backend-neutral paint data.
     pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
         let mut plan = empty_paint_plan_for_layout(&self.layout, theme);
@@ -26,8 +37,49 @@ where
     /// paint plan every frame.
     pub fn paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
         let environment = self.surface.window_environment().resolved();
-        self.base_paint_plan_with_environment_into(theme, environment, plan);
-        self.runtime_overlay_paint_with_environment_into(theme, environment, &mut plan.primitives);
+        self.paint_plan_with_appearance_into(
+            ResolvedAppearance::resolve(AppearancePolicy::fixed(*theme), environment),
+            environment,
+            plan,
+        );
+    }
+
+    /// Resolve and project one appearance policy across base content and all
+    /// runtime overlays in a single paint pass.
+    pub fn paint_plan_with_policy(&self, policy: AppearancePolicy) -> SurfacePaintPlan {
+        let environment = self.surface.window_environment().resolved();
+        let appearance = policy.resolve(environment);
+        let theme = appearance.tokens();
+        let mut plan = empty_paint_plan_for_layout(&self.layout, &theme);
+        self.paint_plan_with_appearance_into(appearance, environment, &mut plan);
+        plan
+    }
+
+    /// Fill a reusable plan using one resolved appearance policy snapshot.
+    pub fn paint_plan_with_policy_into(
+        &self,
+        policy: AppearancePolicy,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        let environment = self.surface.window_environment().resolved();
+        let appearance = policy.resolve(environment);
+        self.paint_plan_with_appearance_into(appearance, environment, plan);
+    }
+
+    fn paint_plan_with_appearance_into(
+        &self,
+        appearance: ResolvedAppearance,
+        environment: crate::runtime::ResolvedEnvironment,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        let theme = appearance.tokens();
+        self.base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
+        self.runtime_overlay_paint_with_appearance_into(
+            &theme,
+            appearance,
+            environment,
+            &mut plan.primitives,
+        );
     }
 
     /// Project the current declarative surface into an existing plan buffer.
@@ -41,6 +93,37 @@ where
             self.surface.window_environment().resolved(),
             plan,
         );
+    }
+
+    /// Fill the retained base scene using one environment-following policy.
+    pub fn base_paint_plan_with_policy_into(
+        &self,
+        policy: AppearancePolicy,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        let environment = self.surface.window_environment().resolved();
+        let appearance = policy.resolve(environment);
+        let theme = appearance.tokens();
+        self.base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
+    }
+
+    pub(crate) fn base_paint_plan_with_appearance_into(
+        &self,
+        theme: &ThemeTokens,
+        appearance: ResolvedAppearance,
+        environment: crate::runtime::ResolvedEnvironment,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        self.surface
+            .paint_plan_with_hover_and_environment_and_appearance_into(
+                &self.layout,
+                theme,
+                environment,
+                appearance,
+                self.interaction.hover.container,
+                self.interaction.hover.scroll_affordance,
+                plan,
+            );
     }
 
     fn base_paint_plan_with_environment_into(
@@ -76,15 +159,48 @@ where
         );
     }
 
+    /// Append runtime overlays using one resolved appearance policy.
+    pub fn runtime_overlay_paint_with_policy_into(
+        &self,
+        policy: AppearancePolicy,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        let environment = self.surface.window_environment().resolved();
+        let appearance = policy.resolve(environment);
+        let theme = appearance.tokens();
+        self.runtime_overlay_paint_with_appearance_into(
+            &theme,
+            appearance,
+            environment,
+            primitives,
+        );
+    }
+
     fn runtime_overlay_paint_with_environment_into(
         &self,
         theme: &ThemeTokens,
         environment: crate::runtime::ResolvedEnvironment,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
+        self.runtime_overlay_paint_with_appearance_into(
+            theme,
+            ResolvedAppearance::fixed(*theme),
+            environment,
+            primitives,
+        );
+    }
+
+    pub(crate) fn runtime_overlay_paint_with_appearance_into(
+        &self,
+        theme: &ThemeTokens,
+        appearance: ResolvedAppearance,
+        environment: crate::runtime::ResolvedEnvironment,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
         self.append_widget_runtime_overlay(
             self.interaction.hover.widget,
             theme,
+            appearance,
             environment,
             primitives,
         );
@@ -92,6 +208,7 @@ where
             self.append_widget_runtime_overlay(
                 self.interaction.pointer.capture,
                 theme,
+                appearance,
                 environment,
                 primitives,
             );
@@ -128,6 +245,15 @@ where
             viewport: self.viewport,
             layout: self.layout.clone(),
             paint_plan: self.paint_plan(theme),
+        }
+    }
+
+    /// Package the current runtime frame using one appearance policy.
+    pub fn frame_with_policy(&self, policy: AppearancePolicy) -> SurfaceFrame {
+        SurfaceFrame {
+            viewport: self.viewport,
+            layout: self.layout.clone(),
+            paint_plan: self.paint_plan_with_policy(policy),
         }
     }
 
@@ -174,6 +300,7 @@ where
         &self,
         widget_id: Option<WidgetId>,
         theme: &ThemeTokens,
+        appearance: ResolvedAppearance,
         environment: crate::runtime::ResolvedEnvironment,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
@@ -192,12 +319,13 @@ where
                 rect: bounds,
             }));
         }
-        let mut widget_context = crate::widgets::WidgetPaintContext::new(
+        let mut widget_context = crate::widgets::WidgetPaintContext::new_with_appearance(
             primitives,
             bounds,
             &self.layout,
             theme,
             environment,
+            appearance,
         );
         widget
             .widget_object()

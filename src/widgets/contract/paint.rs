@@ -4,7 +4,7 @@ use crate::{
     gui::types::Rect,
     layout::LayoutOutput,
     runtime::{PaintPrimitive, ResolvedEnvironment},
-    theme::ThemeTokens,
+    theme::{ResolvedAppearance, ThemeTokens},
 };
 
 /// Shared layout, theme, bounds, output, and window-environment inputs for one
@@ -19,6 +19,7 @@ pub struct WidgetPaintContext<'a> {
     layout: &'a LayoutOutput,
     theme: &'a ThemeTokens,
     environment: ResolvedEnvironment,
+    appearance: ResolvedAppearance,
 }
 
 impl<'a> WidgetPaintContext<'a> {
@@ -36,6 +37,26 @@ impl<'a> WidgetPaintContext<'a> {
             layout,
             theme,
             environment,
+            appearance: ResolvedAppearance::fixed(*theme),
+        }
+    }
+
+    /// Build a paint context with one appearance resolved for the whole pass.
+    pub fn new_with_appearance(
+        primitives: &'a mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        layout: &'a LayoutOutput,
+        theme: &'a ThemeTokens,
+        environment: ResolvedEnvironment,
+        appearance: ResolvedAppearance,
+    ) -> Self {
+        Self {
+            primitives,
+            bounds,
+            layout,
+            theme,
+            environment,
+            appearance,
         }
     }
 
@@ -62,6 +83,11 @@ impl<'a> WidgetPaintContext<'a> {
     /// Return the active theme tokens for this paint pass.
     pub const fn theme(&self) -> &'a ThemeTokens {
         self.theme
+    }
+
+    /// Return the immutable appearance selected for this paint pass.
+    pub const fn appearance(&self) -> ResolvedAppearance {
+        self.appearance
     }
 
     /// Return the copyable environment resolved from the current window.

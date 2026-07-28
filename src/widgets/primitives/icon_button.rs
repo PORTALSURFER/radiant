@@ -115,7 +115,11 @@ impl Widget for IconButtonWidget {
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
-            self.common.state = previous.common.state;
+            // Runtime-owned pointer/focus state follows the retained widget;
+            // fresh semantic state remains authoritative on `self`.
+            self.common.state.hovered = previous.common.state.hovered;
+            self.common.state.pressed = previous.common.state.pressed;
+            self.common.state.focused = previous.common.state.focused;
         }
     }
 

@@ -1,4 +1,6 @@
 use super::super::*;
+use radiant::application::IntoView;
+use radiant::runtime::SurfaceRuntime;
 use radiant::widgets::{
     IconButtonWidget, InteractiveRowWidget, PointerShieldMessage, PointerShieldWidget,
     ProgressBarMessage, ProgressBarWidget, SliderWidget, TextInputMessage, TextInputWidget,
@@ -6,7 +8,7 @@ use radiant::widgets::{
 
 #[test]
 fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact_slider() {
-    use radiant::prelude::{self as ui, IntoView};
+    use radiant::prelude as ui;
 
     let icon = ui::SvgIcon::from_svg(
         r##"<svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg"><path d="M1 0 L4 2 L1 4 Z"/></svg>"##,
@@ -220,6 +222,101 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         ),
         None
     );
+}
+
+#[derive(Default)]
+struct RuntimeIconButtonState {
+    active: bool,
+    enabled: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RuntimeIconButtonMessage {
+    ToggleActive,
+    ToggleEnabled,
+}
+
+#[test]
+fn keyed_runtime_icon_buttons_reproject_active_and_disabled_markers() {
+    use radiant::prelude as ui;
+
+    let icon = ui::SvgIcon::from_svg(
+        r##"<svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg"><path d="M1 0 L4 2 L1 4 Z"/></svg>"##,
+    )
+    .expect("icon");
+    let bridge = ui::app(RuntimeIconButtonState {
+        active: false,
+        enabled: true,
+    })
+    .view(move |state| {
+        ui::column([
+            ui::icon_button(icon.clone())
+                .active(state.active)
+                .enabled(state.enabled)
+                .message(RuntimeIconButtonMessage::ToggleActive)
+                .id(501),
+            ui::icon_button(icon.clone())
+                .active(state.active)
+                .enabled(state.enabled)
+                .bare()
+                .message(RuntimeIconButtonMessage::ToggleEnabled)
+                .id(502),
+        ])
+    })
+    .update(|state, message| match message {
+        RuntimeIconButtonMessage::ToggleActive => state.active = !state.active,
+        RuntimeIconButtonMessage::ToggleEnabled => state.enabled = !state.enabled,
+    })
+    .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, ui::Vector2::new(180.0, 64.0));
+
+    let marker_count = |runtime: &SurfaceRuntime<_, RuntimeIconButtonMessage>, id| {
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .stroke_polylines()
+            .filter(|marker| marker.widget_id == id)
+            .count()
+    };
+    let dispatch = |runtime: &mut SurfaceRuntime<_, RuntimeIconButtonMessage>, id, message| {
+        let message = runtime
+            .surface()
+            .dispatch_widget_output(id, radiant::widgets::WidgetOutput::typed(message))
+            .expect("icon button should map activation");
+        runtime.dispatch_message(message);
+    };
+
+    for id in [501, 502] {
+        let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
+        assert!(!button.common.state.active);
+        assert!(!button.common.state.disabled);
+        assert_eq!(marker_count(&runtime, id), 0);
+    }
+
+    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
+    for id in [501, 502] {
+        let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
+        assert!(button.common.state.active);
+        assert!(!button.common.state.disabled);
+        assert_eq!(marker_count(&runtime, id), 1);
+    }
+
+    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
+    for id in [501, 502] {
+        let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
+        assert!(!button.common.state.active);
+        assert!(!button.common.state.disabled);
+        assert_eq!(marker_count(&runtime, id), 0);
+    }
+
+    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
+    dispatch(&mut runtime, 502, radiant::widgets::ButtonMessage::Activate);
+    for id in [501, 502] {
+        let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
+        assert!(button.common.state.active);
+        assert!(button.common.state.disabled);
+        assert_eq!(marker_count(&runtime, id), 0);
+    }
 }
 
 #[test]

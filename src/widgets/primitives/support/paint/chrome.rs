@@ -34,6 +34,7 @@ pub(in crate::widgets::primitives) fn push_button_chrome(
             width: 1.0,
         }));
     }
+    push_selected_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
     push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
 }
 
@@ -63,7 +64,36 @@ pub(in crate::widgets::primitives) fn push_control_chrome(
             width: 1.0,
         }));
     }
+    push_selected_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
     push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
+}
+
+/// Paint a compact non-color selected/active cue on a control's leading edge.
+///
+/// This reads the raw semantic state directly so selection remains visible
+/// alongside focus and automation, whose resolved color cue has precedence.
+pub(in crate::widgets::primitives) fn push_selected_active_marker(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    state: WidgetState,
+    color: Rgba8,
+) {
+    if state.disabled || !(state.selected || state.active) {
+        return;
+    }
+    let x = bounds.min.x + 2.0;
+    let inset = (bounds.height() * 0.2).max(2.0);
+    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+        widget_id,
+        points: [
+            Point::new(x, bounds.min.y + inset),
+            Point::new(x, bounds.max.y - inset),
+        ]
+        .into(),
+        color,
+        width: 2.0,
+    }));
 }
 
 pub(in crate::widgets::primitives) fn push_checkbox_chrome(

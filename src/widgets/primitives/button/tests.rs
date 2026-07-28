@@ -433,3 +433,65 @@ fn automation_marker_is_added_only_when_button_state_is_active() {
             .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
     );
 }
+
+#[test]
+fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(96.0, 28.0));
+    let mut selected = ButtonWidget::new(21, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    selected.common.state.selected = true;
+    let mut selected_primitives = Vec::new();
+    selected.append_paint(
+        &mut selected_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert!(selected_primitives.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+            if marker.points.len() == 2
+                && (marker.points[0].x - marker.points[1].x).abs() < f32::EPSILON
+                && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                && (marker.width - 2.0).abs() < f32::EPSILON)
+    }));
+
+    selected.common.state.focused = true;
+    selected.common.state.automation_active = true;
+    let mut combined = Vec::new();
+    selected.append_paint(
+        &mut combined,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    let vertical_markers = combined
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::StrokePolyline(marker)
+                if marker.points.len() == 2
+                    && (marker.points[0].x - marker.points[1].x).abs() < f32::EPSILON
+                    && (marker.width - 2.0).abs() < f32::EPSILON =>
+            {
+                Some(marker.points[0].x)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(vertical_markers.contains(&2.0));
+    assert!(vertical_markers.contains(&(bounds.max.x - 2.0)));
+
+    selected.common.state.disabled = true;
+    let mut disabled = Vec::new();
+    selected.append_paint(
+        &mut disabled,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert!(!disabled.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+            if marker.points.len() == 2
+                && (marker.width - 2.0).abs() < f32::EPSILON
+                && ((marker.points[0].x - 2.0).abs() < f32::EPSILON
+                    || (marker.points[0].x - (bounds.max.x - 2.0)).abs() < f32::EPSILON))
+    }));
+}

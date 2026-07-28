@@ -10,7 +10,7 @@ use crate::widgets::interaction::{
     handle_activation_input,
 };
 use crate::widgets::primitives::support::{
-    WidgetCommon, push_automation_active_marker, push_button_chrome,
+    WidgetCommon, push_automation_active_marker, push_button_chrome, push_selected_active_marker,
 };
 
 mod builders;
@@ -126,7 +126,8 @@ impl Widget for IconButtonWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        if self.chrome == IconButtonChrome::Standard {
+        let standard_chrome = self.chrome == IconButtonChrome::Standard;
+        if standard_chrome {
             push_button_chrome(primitives, &self.common, bounds, theme);
         }
         let side = bounds.width().min(bounds.height()).clamp(8.0, 16.0);
@@ -148,13 +149,22 @@ impl Widget for IconButtonWidget {
             self.common.style,
             self.common.state,
         );
-        push_automation_active_marker(
-            primitives,
-            self.common.id,
-            bounds,
-            self.common.state,
-            tokens.emphasis,
-        );
+        if !standard_chrome {
+            push_selected_active_marker(
+                primitives,
+                self.common.id,
+                bounds,
+                self.common.state,
+                tokens.emphasis,
+            );
+            push_automation_active_marker(
+                primitives,
+                self.common.id,
+                bounds,
+                self.common.state,
+                tokens.emphasis,
+            );
+        }
     }
 }
 
@@ -362,6 +372,43 @@ mod tests {
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
         );
+    }
+
+    #[test]
+    fn selected_icon_button_marker_is_present_for_standard_and_bare_chrome() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect fill="#fff" x="4" y="4" width="8" height="8"/></svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(Point::default(), crate::layout::Vector2::new(28.0, 24.0));
+        for mut widget in [
+            IconButtonWidget::new(
+                105,
+                icon.clone(),
+                WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+            ),
+            IconButtonWidget::new(
+                106,
+                icon,
+                WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+            )
+            .bare(),
+        ] {
+            widget.common.state.selected = true;
+            let mut primitives = Vec::new();
+            widget.append_paint(
+                &mut primitives,
+                bounds,
+                &Default::default(),
+                &ThemeTokens::default(),
+            );
+            assert!(primitives.iter().any(|primitive| {
+                matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+                    if marker.points.len() == 2
+                        && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                        && (marker.width - 2.0).abs() < f32::EPSILON)
+            }));
+        }
     }
 
     fn chrome_colors(

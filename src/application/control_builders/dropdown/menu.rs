@@ -250,6 +250,7 @@ where
     Message: Clone + 'static,
 {
     button(option.label)
+        .selected(option.selected)
         .message(option.message)
         .key(format!("dropdown-option-{index}"))
         .style(WidgetStyle {

@@ -76,6 +76,24 @@ fn dropdown_trigger_chevron_uses_catalog_svg_without_text_glyph() {
 }
 
 #[test]
+fn dropdown_projects_open_and_selected_states_into_shared_markers() {
+    let frame = dropdown("WASAPI", true)
+        .toggle_message(Message::Toggle)
+        .option("System default", false, Message::Select("default"))
+        .option("WASAPI", true, Message::Select("wasapi"))
+        .build()
+        .view_frame_at_size_with_default_theme(crate::gui::types::Vector2::new(240.0, 160.0));
+
+    let markers = frame.paint_plan.stroke_polylines().collect::<Vec<_>>();
+    assert!(markers.iter().any(|marker| {
+        marker.width == 2.0 && marker.points.first().is_some_and(|point| point.x == 2.0)
+    }));
+    assert!(markers.iter().any(|marker| {
+        marker.width == 2.0 && marker.points.first().is_some_and(|point| point.x == 10.0)
+    }));
+}
+
+#[test]
 fn dropdown_option_compatibility_constructor_delegates_to_named_parts() {
     let from_parts = DropdownOption::from_parts(DropdownOptionParts {
         label: "WASAPI".into(),

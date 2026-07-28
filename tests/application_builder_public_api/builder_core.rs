@@ -86,7 +86,10 @@ fn application_view_builders_lower_into_runtime_surface_nodes() {
     .into_surface();
 
     assert_eq!(surface.root().id(), 1);
-    assert!(surface.find_widget(2).is_some());
+    let radiant::layout::LayoutNode::Container(container) = surface.layout_node() else {
+        panic!("row should lower to a container");
+    };
+    assert_eq!(container.children.len(), 2);
     assert!(surface.find_widget(42).is_some());
 
     let message = surface

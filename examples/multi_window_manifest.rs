@@ -96,6 +96,16 @@ mod tests {
             Some([320.0, 220.0])
         );
         let first_view = views.into_iter().next().expect("main view exists");
-        assert!(first_view.into_surface().find_widget(3).is_some());
+        let surface = first_view.into_surface();
+        let layout = surface.layout_node();
+        let radiant::layout::LayoutNode::Container(root) = layout else {
+            panic!("main view should lower to a container");
+        };
+        let Some(radiant::layout::LayoutNode::Widget(button)) =
+            root.children.get(1).map(|child| &child.child)
+        else {
+            panic!("main view button should lower to a widget");
+        };
+        assert!(surface.find_widget(button.id).is_some());
     }
 }

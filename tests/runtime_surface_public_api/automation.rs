@@ -78,6 +78,7 @@ fn automation_target_snapshot_flattens_semantic_targets_with_coordinates() {
     );
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 96.0));
 
+    let root_id = runtime.automation_snapshot().root.id;
     let target_snapshot = runtime.automation_target_snapshot();
     let save = automation_target(&target_snapshot.targets, "10").expect("save target");
     let loop_toggle = automation_target(&target_snapshot.targets, "11").expect("loop target");
@@ -86,7 +87,7 @@ fn automation_target_snapshot_flattens_semantic_targets_with_coordinates() {
     assert_eq!(target_snapshot.viewport_width, 320);
     assert_eq!(save.tree_index + 1, loop_toggle.tree_index);
     assert_eq!(save.depth, save.path.len() - 1);
-    assert_eq!(save.path.first().map(|id| id.0.as_str()), Some("1"));
+    assert_eq!(save.path.first(), Some(&root_id));
     assert_eq!(save.path.last().map(|id| id.0.as_str()), Some("10"));
     assert_eq!(save.role, AutomationRole::Button);
     assert_eq!(save.display_text(), Some("Save"));

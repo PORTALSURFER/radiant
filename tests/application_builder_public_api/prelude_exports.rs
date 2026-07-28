@@ -40,7 +40,7 @@ fn prelude_supports_hello_world_imports() {
 
     let surface = hello_body().into_surface();
 
-    assert!(surface.find_widget(1).is_some());
+    assert!(surface.find_widget(surface.root().id()).is_some());
 }
 
 #[test]
@@ -66,7 +66,8 @@ fn prelude_views_can_resolve_layout_directly() {
 
     let layout = ready_view().view_layout_at_size(Vector2::new(120.0, 40.0));
 
-    assert!(layout.rects.contains_key(&1));
+    let ready_surface = ready_view().into_surface();
+    assert!(layout.rects.contains_key(&ready_surface.root().id()));
 }
 
 #[test]
@@ -106,18 +107,18 @@ fn view_node_tooltip_opt_is_available_from_prelude_views() {
     let without_tooltip = button("Plain")
         .message(())
         .tooltip_opt(None::<&'static str>);
+    let with_tooltip = with_tooltip.into_surface();
+    let without_tooltip = without_tooltip.into_surface();
 
     assert_eq!(
         with_tooltip
-            .into_surface()
-            .find_widget(1)
+            .find_widget(with_tooltip.root().id())
             .and_then(|widget| widget.widget_object().common().tooltip.as_deref()),
         Some("Helpful")
     );
     assert_eq!(
         without_tooltip
-            .into_surface()
-            .find_widget(1)
+            .find_widget(without_tooltip.root().id())
             .and_then(|widget| widget.widget_object().common().tooltip.as_deref()),
         None
     );
@@ -405,7 +406,7 @@ fn prelude_exports_custom_widget_authoring_contract() {
     let surface: ui::View<()> = ui::widget(widget);
     let surface = surface.into_surface();
 
-    assert!(surface.find_widget(1).is_some());
+    assert!(surface.find_widget(surface.root().id()).is_some());
 }
 
 #[test]

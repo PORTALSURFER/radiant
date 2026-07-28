@@ -1,5 +1,8 @@
 use super::{ViewNode, ViewNodeKind};
-use crate::application::scoped_key_id;
+use crate::application::{
+    ids::{StructuralKind, StructuralRole, structural_id},
+    scoped_key_id,
+};
 use crate::layout::NodeId;
 use std::fmt;
 
@@ -54,6 +57,16 @@ mod tests;
 
 impl<Message> ViewNode<Message> {
     pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut Vec<NodeId>) {
+        self.collect_reserved_ids_at(scope, StructuralRole::Root, ids, true);
+    }
+
+    fn collect_reserved_ids_at(
+        &self,
+        scope: u64,
+        role: StructuralRole,
+        ids: &mut Vec<NodeId>,
+        include_overlays: bool,
+    ) {
         if !self.has_reserved_identity_in_subtree() {
             return;
         }
@@ -75,37 +88,108 @@ impl<Message> ViewNode<Message> {
         if !self.has_reserved_descendant_identity {
             return;
         }
-        let child_scope = self.child_scope(scope);
+        let child_scope = self.child_scope(scope, role);
         match &self.kind {
             ViewNodeKind::Scene { base, layers, .. } => {
-                base.collect_reserved_ids(child_scope, ids);
-                for layer in layers {
+                base.collect_reserved_ids_at(child_scope, StructuralRole::SceneBase, ids, false);
+                let mut overlay_layers = Vec::new();
+                base.collect_overlay_layers(&mut overlay_layers);
+                for (index, layer) in overlay_layers.into_iter().chain(layers.iter()).enumerate() {
                     if let Some(input) = layer.input.as_ref() {
-                        input.collect_reserved_ids(child_scope, ids);
+                        input.collect_reserved_ids_at(
+                            child_scope,
+                            StructuralRole::SceneInput(index),
+                            ids,
+                            true,
+                        );
                     }
-                    layer.view.collect_reserved_ids(child_scope, ids);
+                    layer.view.collect_reserved_ids_at(
+                        child_scope,
+                        StructuralRole::SceneLayer(index),
+                        ids,
+                        true,
+                    );
                 }
             }
             ViewNodeKind::Container { children, .. } => {
                 reserve_child_identity_capacity(children, ids);
-                for child in children {
-                    child.collect_reserved_ids(child_scope, ids);
+                for (index, child) in children.iter().enumerate() {
+                    child.collect_reserved_ids_at(
+                        child_scope,
+                        StructuralRole::ContainerChild(index),
+                        ids,
+                        include_overlays,
+                    );
                 }
             }
-            ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
-                child.collect_reserved_ids(child_scope, ids)
-            }
-            ViewNodeKind::FloatingLayer { child, .. } => {
-                child.collect_reserved_ids(child_scope, ids)
-            }
+            ViewNodeKind::Scroll { child } => child.collect_reserved_ids_at(
+                child_scope,
+                StructuralRole::ScrollChild,
+                ids,
+                include_overlays,
+            ),
+            ViewNodeKind::VirtualScroll { child, .. } => child.collect_reserved_ids_at(
+                child_scope,
+                StructuralRole::VirtualScrollChild,
+                ids,
+                include_overlays,
+            ),
+            ViewNodeKind::FloatingLayer { child, .. } => child.collect_reserved_ids_at(
+                child_scope,
+                StructuralRole::FloatingLayerChild,
+                ids,
+                include_overlays,
+            ),
             _ => {}
         }
-        for layer in &self.overlay_layers {
-            if let Some(input) = layer.input.as_ref() {
-                input.collect_reserved_ids(child_scope, ids);
+        if include_overlays && !matches!(self.kind, ViewNodeKind::Scene { .. }) {
+            for (index, layer) in self.overlay_layers.iter().enumerate() {
+                if let Some(input) = layer.input.as_ref() {
+                    input.collect_reserved_ids_at(
+                        child_scope,
+                        StructuralRole::SceneInput(index),
+                        ids,
+                        true,
+                    );
+                }
+                layer.view.collect_reserved_ids_at(
+                    child_scope,
+                    StructuralRole::SceneLayer(index),
+                    ids,
+                    true,
+                );
             }
-            layer.view.collect_reserved_ids(child_scope, ids);
         }
+    }
+
+    fn collect_overlay_layers<'a>(&'a self, layers: &mut Vec<&'a super::Layer<Message>>) {
+        match &self.kind {
+            ViewNodeKind::Scene {
+                base,
+                layers: scene_layers,
+                ..
+            } => {
+                base.collect_overlay_layers(layers);
+                for layer in scene_layers {
+                    if let Some(input) = layer.input.as_ref() {
+                        input.collect_overlay_layers(layers);
+                    }
+                    layer.view.collect_overlay_layers(layers);
+                }
+            }
+            ViewNodeKind::Container { children, .. } => {
+                for child in children {
+                    child.collect_overlay_layers(layers);
+                }
+            }
+            ViewNodeKind::Scroll { child }
+            | ViewNodeKind::VirtualScroll { child, .. }
+            | ViewNodeKind::FloatingLayer { child, .. } => child.collect_overlay_layers(layers),
+            ViewNodeKind::Runtime(_)
+            | ViewNodeKind::Widget(_)
+            | ViewNodeKind::OverlayPanel { .. } => {}
+        }
+        layers.extend(self.overlay_layers.iter());
     }
 
     pub(super) fn resolved_id(&self, scope: u64) -> Option<NodeId> {
@@ -116,8 +200,22 @@ impl<Message> ViewNode<Message> {
         })
     }
 
-    fn child_scope(&self, parent_scope: u64) -> u64 {
-        self.resolved_id(parent_scope).unwrap_or(parent_scope)
+    fn child_scope(&self, parent_scope: u64, role: StructuralRole) -> u64 {
+        self.resolved_id(parent_scope)
+            .unwrap_or_else(|| structural_id(parent_scope, self.structural_kind(), role))
+    }
+
+    pub(super) fn structural_kind(&self) -> StructuralKind {
+        match &self.kind {
+            ViewNodeKind::Scene { .. } => StructuralKind::Scene,
+            ViewNodeKind::Runtime(_) => StructuralKind::Runtime,
+            ViewNodeKind::Widget(_) => StructuralKind::Widget,
+            ViewNodeKind::Container { .. } => StructuralKind::Container,
+            ViewNodeKind::Scroll { .. } => StructuralKind::Scroll,
+            ViewNodeKind::VirtualScroll { .. } => StructuralKind::VirtualScroll,
+            ViewNodeKind::OverlayPanel { .. } => StructuralKind::Overlay,
+            ViewNodeKind::FloatingLayer { .. } => StructuralKind::FloatingLayer,
+        }
     }
 }
 

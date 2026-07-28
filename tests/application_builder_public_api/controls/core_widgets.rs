@@ -20,9 +20,10 @@ fn mapped_control_accepts_ui_local_capture() {
         })
         .into_surface();
 
+    let widget_id = surface.root().id();
     assert!(
         surface
-            .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+            .dispatch_widget_output(widget_id, WidgetOutput::typed(ButtonMessage::Activate))
             .is_some()
     );
     assert_eq!(*calls.borrow(), 1);

@@ -1,5 +1,6 @@
 use crate::gui::svg::{IconName, SvgIcon};
 use crate::gui::types::{Point, Vector2};
+use crate::widgets::contract::WidgetState;
 use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
 use std::sync::Arc;
 
@@ -308,10 +309,94 @@ fn hover_chrome_only_button_paints_only_when_hovered() {
 }
 
 #[test]
+fn hover_chrome_only_button_keeps_idle_selected_and_active_chrome() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(80.0, 28.0));
+    let neutral = ButtonWidget::new(22, "", WidgetSizing::fixed(Vector2::new(80.0, 28.0)))
+        .with_hover_chrome_only();
+    let mut primitives = Vec::new();
+    neutral.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert!(primitives.is_empty());
+
+    for state in ["selected", "active"] {
+        let mut button = neutral.clone();
+        if state == "selected" {
+            button.common.state.selected = true;
+        } else {
+            button.common.state.active = true;
+        }
+        let mut primitives = Vec::new();
+        button.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_))),
+            "idle {state} button should retain shared chrome"
+        );
+    }
+}
+
+#[test]
 fn button_opts_into_state_synchronization() {
     let button = ButtonWidget::new(14, "Drag", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
 
     assert!(button.needs_state_synchronization());
+}
+
+#[test]
+fn button_state_synchronization_separates_runtime_and_declarative_state() {
+    let mut previous = ButtonWidget::new(
+        23,
+        "Previous",
+        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+    );
+    previous.common.state = WidgetState {
+        hovered: true,
+        pressed: true,
+        focused: true,
+        selected: false,
+        active: false,
+        disabled: false,
+        read_only: false,
+        automation_active: true,
+    };
+    previous.state = ButtonState {
+        armed: true,
+        dragged: true,
+        press_position: Some(Point::new(4.0, 5.0)),
+    };
+
+    let mut current =
+        ButtonWidget::new(23, "Current", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    current.common.state.selected = true;
+    current.common.state.active = true;
+    current.common.state.disabled = true;
+    current.common.state.read_only = true;
+    current.common.state.automation_active = false;
+    current.props.text_align = TextAlign::Left;
+
+    current.synchronize_from_previous(&previous);
+
+    assert!(current.common.state.hovered);
+    assert!(current.common.state.pressed);
+    assert!(current.common.state.focused);
+    assert!(current.common.state.selected);
+    assert!(current.common.state.active);
+    assert!(current.common.state.disabled);
+    assert!(current.common.state.read_only);
+    assert!(!current.common.state.automation_active);
+    assert_eq!(current.state, previous.state);
+    assert_eq!(current.props.label, "Current");
+    assert_eq!(current.props.text_align, TextAlign::Left);
 }
 
 #[test]
@@ -432,4 +517,78 @@ fn automation_marker_is_added_only_when_button_state_is_active() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_)))
     );
+}
+
+#[test]
+fn selected_button_has_leading_marker_and_combined_states_keep_both_cues() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(96.0, 28.0));
+    let theme = ThemeTokens::default();
+    let mut selected = ButtonWidget::new(21, "Menu", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    selected.common.state.selected = true;
+    let mut selected_primitives = Vec::new();
+    selected.append_paint(
+        &mut selected_primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &theme,
+    );
+    assert!(selected_primitives.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+            if marker.points.len() == 2
+                && (marker.points[0].x - marker.points[1].x).abs() < f32::EPSILON
+                && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                && (marker.width - 2.0).abs() < f32::EPSILON)
+    }));
+
+    selected.common.state.focused = true;
+    selected.common.state.automation_active = true;
+    let mut combined = Vec::new();
+    selected.append_paint(&mut combined, bounds, &LayoutOutput::default(), &theme);
+    let tokens = crate::widgets::resolve_widget_visual_tokens(
+        &theme,
+        selected.common.style,
+        selected.common.state,
+    );
+    let expected_focus_points =
+        crate::runtime::diagonal_cut_rect_points(crate::runtime::inset_rect(bounds, 1.0, 1.0));
+    assert_eq!(
+        combined
+            .iter()
+            .filter(|primitive| {
+                matches!(primitive, PaintPrimitive::StrokePolygon(stroke)
+                    if stroke.points == expected_focus_points
+                        && stroke.color == tokens.foreground
+                        && (stroke.width - 2.0).abs() < f32::EPSILON)
+            })
+            .count(),
+        1,
+        "focused button should paint one in-bounds contrasting focus polygon"
+    );
+    let vertical_markers = combined
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::StrokePolyline(marker)
+                if marker.points.len() == 2
+                    && (marker.points[0].x - marker.points[1].x).abs() < f32::EPSILON
+                    && marker.color == tokens.foreground
+                    && (marker.width - 2.0).abs() < f32::EPSILON =>
+            {
+                Some(marker.points[0].x)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(vertical_markers.contains(&2.0));
+    assert!(vertical_markers.contains(&(bounds.max.x - 2.0)));
+
+    selected.common.state.disabled = true;
+    let mut disabled = Vec::new();
+    selected.append_paint(&mut disabled, bounds, &LayoutOutput::default(), &theme);
+    assert!(!disabled.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+            if marker.points.len() == 2
+                && (marker.width - 2.0).abs() < f32::EPSILON
+                && ((marker.points[0].x - 2.0).abs() < f32::EPSILON
+                    || (marker.points[0].x - (bounds.max.x - 2.0)).abs() < f32::EPSILON))
+    }));
 }

@@ -2,6 +2,8 @@ use super::*;
 
 #[path = "paint_projection/advanced_surfaces.rs"]
 mod advanced_surfaces;
+#[path = "paint_projection/button_focus.rs"]
+mod button_focus;
 #[path = "paint_projection/gpu_surfaces.rs"]
 mod gpu_surfaces;
 #[path = "paint_projection/layout_frames.rs"]

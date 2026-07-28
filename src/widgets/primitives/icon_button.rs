@@ -10,7 +10,8 @@ use crate::widgets::interaction::{
     handle_activation_input,
 };
 use crate::widgets::primitives::support::{
-    WidgetCommon, push_automation_active_marker, push_button_chrome,
+    WidgetCommon, push_automation_active_marker, push_button_chrome, push_button_focus_ring,
+    push_selected_active_marker,
 };
 
 mod builders;
@@ -54,7 +55,6 @@ impl IconButtonWidget {
         let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
         Self {
             common,
             icon: parts.icon,
@@ -115,7 +115,11 @@ impl Widget for IconButtonWidget {
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
-            self.common.state = previous.common.state;
+            // Runtime-owned pointer/focus state follows the retained widget;
+            // fresh semantic state remains authoritative on `self`.
+            self.common.state.hovered = previous.common.state.hovered;
+            self.common.state.pressed = previous.common.state.pressed;
+            self.common.state.focused = previous.common.state.focused;
         }
     }
 
@@ -126,7 +130,8 @@ impl Widget for IconButtonWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        if self.chrome == IconButtonChrome::Standard {
+        let standard_chrome = self.chrome == IconButtonChrome::Standard;
+        if standard_chrome {
             push_button_chrome(primitives, &self.common, bounds, theme);
         }
         let side = bounds.width().min(bounds.height()).clamp(8.0, 16.0);
@@ -148,13 +153,25 @@ impl Widget for IconButtonWidget {
             self.common.style,
             self.common.state,
         );
-        push_automation_active_marker(
-            primitives,
-            self.common.id,
-            bounds,
-            self.common.state,
-            tokens.emphasis,
-        );
+        if !standard_chrome {
+            if self.common.state.focused && self.common.paint.paints_focus {
+                push_button_focus_ring(primitives, self.common.id, bounds, tokens.foreground);
+            }
+            push_selected_active_marker(
+                primitives,
+                self.common.id,
+                bounds,
+                self.common.state,
+                tokens.foreground,
+            );
+            push_automation_active_marker(
+                primitives,
+                self.common.id,
+                bounds,
+                self.common.state,
+                tokens.foreground,
+            );
+        }
     }
 }
 
@@ -364,6 +381,141 @@ mod tests {
         );
     }
 
+    #[test]
+    fn selected_icon_button_marker_is_present_for_standard_and_bare_chrome() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect fill="#fff" x="4" y="4" width="8" height="8"/></svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(Point::default(), crate::layout::Vector2::new(28.0, 24.0));
+        for mut widget in [
+            IconButtonWidget::new(
+                105,
+                icon.clone(),
+                WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+            ),
+            IconButtonWidget::new(
+                106,
+                icon,
+                WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+            )
+            .bare(),
+        ] {
+            widget.common.state.selected = true;
+            let mut primitives = Vec::new();
+            widget.append_paint(
+                &mut primitives,
+                bounds,
+                &Default::default(),
+                &ThemeTokens::default(),
+            );
+            assert!(primitives.iter().any(|primitive| {
+                matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+                    if marker.points.len() == 2
+                        && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                        && (marker.width - 2.0).abs() < f32::EPSILON)
+            }));
+        }
+    }
+
+    #[test]
+    fn selected_focused_automation_icon_buttons_keep_each_structural_cue() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect fill="#fff" x="4" y="4" width="8" height="8"/></svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(Point::default(), crate::layout::Vector2::new(28.0, 24.0));
+        for (id, widget) in [
+            (
+                107,
+                IconButtonWidget::new(
+                    107,
+                    icon.clone(),
+                    WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+                ),
+            ),
+            (
+                108,
+                IconButtonWidget::new(
+                    108,
+                    icon.clone(),
+                    WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+                )
+                .bare(),
+            ),
+        ] {
+            let mut widget = widget;
+            widget.common.state.selected = true;
+            widget.common.state.focused = true;
+            widget.common.state.automation_active = true;
+            let mut primitives = Vec::new();
+            widget.append_paint(
+                &mut primitives,
+                bounds,
+                &Default::default(),
+                &ThemeTokens::default(),
+            );
+
+            let focus_rings = primitives
+                .iter()
+                .filter(|primitive| matches!(primitive, PaintPrimitive::StrokePolygon(_)))
+                .count();
+            assert_eq!(
+                focus_rings,
+                if widget.chrome == IconButtonChrome::Standard {
+                    2
+                } else {
+                    1
+                },
+                "icon {id}"
+            );
+            let expected_focus_points = crate::runtime::diagonal_cut_rect_points(
+                crate::runtime::inset_rect(bounds, 1.0, 1.0),
+            );
+            let tokens = crate::widgets::resolve_widget_visual_tokens(
+                &ThemeTokens::default(),
+                widget.common.style,
+                widget.common.state,
+            );
+            assert_eq!(
+                primitives
+                    .iter()
+                    .filter(|primitive| {
+                        matches!(primitive, PaintPrimitive::StrokePolygon(stroke)
+                            if stroke.points == expected_focus_points
+                                && stroke.color == tokens.foreground
+                                && (stroke.width - 2.0).abs() < f32::EPSILON)
+                    })
+                    .count(),
+                1,
+                "icon {id} focus ring geometry"
+            );
+
+            let leading_markers = primitives
+                .iter()
+                .filter(|primitive| {
+                    matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+                        if marker.points.len() == 2
+                            && (marker.points[0].x - 2.0).abs() < f32::EPSILON
+                            && marker.color == tokens.foreground
+                            && (marker.width - 2.0).abs() < f32::EPSILON)
+                })
+                .count();
+            let trailing_markers = primitives
+                .iter()
+                .filter(|primitive| {
+                    matches!(primitive, PaintPrimitive::StrokePolyline(marker)
+                        if marker.points.len() == 2
+                            && (marker.points[0].x - (bounds.max.x - 2.0)).abs() < f32::EPSILON
+                            && marker.color == tokens.foreground
+                            && (marker.width - 2.0).abs() < f32::EPSILON)
+                })
+                .count();
+            assert_eq!(leading_markers, 1, "icon {id} leading marker");
+            assert_eq!(trailing_markers, 1, "icon {id} trailing marker");
+        }
+    }
+
     fn chrome_colors(
         primitives: &[PaintPrimitive],
     ) -> (crate::gui::types::Rgba8, crate::gui::types::Rgba8) {
@@ -382,10 +534,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(fills.len(), 1, "icon button should paint one chrome fill");
-        assert_eq!(
-            strokes.len(),
-            1,
-            "icon button should paint one chrome border"
+        assert!(
+            !strokes.is_empty(),
+            "icon button should paint a chrome border"
         );
         (fills[0], strokes[0])
     }

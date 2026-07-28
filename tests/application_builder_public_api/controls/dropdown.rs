@@ -1,6 +1,7 @@
 use super::super::*;
 use radiant::application as app;
 use radiant::gui::svg::IconName;
+use radiant::runtime::SurfaceRuntime;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, CardWidget, SelectableMessage, SelectableWidget,
 };
@@ -11,6 +12,16 @@ enum GalleryMessage {
     Selected(bool),
     ToggleDropdown,
     Pick(&'static str),
+}
+
+#[derive(Default)]
+struct RuntimeDropdownState {
+    open: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RuntimeDropdownMessage {
+    Toggle,
 }
 
 #[test]
@@ -134,4 +145,80 @@ fn application_builder_dropdown_trigger_exports_and_routes_message() {
         open: true,
         toggle_message: GalleryMessage::ToggleDropdown,
     };
+}
+
+#[test]
+fn keyed_runtime_dropdown_reprojects_active_state_false_true_false() {
+    use radiant::prelude as ui;
+
+    let bridge = radiant::app(RuntimeDropdownState::default())
+        .view(|state| {
+            ui::dropdown_trigger("WASAPI", state.open)
+                .toggle_message(RuntimeDropdownMessage::Toggle)
+                .build()
+                .key("runtime-dropdown")
+        })
+        .update(|state, RuntimeDropdownMessage::Toggle| state.open = !state.open)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, ui::Vector2::new(180.0, 120.0));
+    let trigger_id = runtime.surface().keyboard_focus_order()[0];
+    assert!(
+        !widget_ref::<ButtonWidget, _>(runtime.surface(), trigger_id, "dropdown trigger")
+            .common
+            .state
+            .active
+    );
+    assert_eq!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .stroke_polylines()
+            .filter(|marker| marker.widget_id == trigger_id)
+            .count(),
+        0
+    );
+
+    let trigger_point = ui::Point::new(8.0, 8.0);
+    assert_eq!(
+        runtime.dispatch_primary_click(trigger_point).press_target,
+        Some(trigger_id)
+    );
+    let trigger_id = runtime.surface().keyboard_focus_order()[0];
+    assert!(
+        widget_ref::<ButtonWidget, _>(runtime.surface(), trigger_id, "dropdown trigger")
+            .common
+            .state
+            .active
+    );
+    assert_eq!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .stroke_polylines()
+            .filter(|marker| marker.widget_id == trigger_id)
+            .count(),
+        1
+    );
+
+    let trigger_id = runtime.surface().keyboard_focus_order()[0];
+    let trigger_point = ui::Point::new(8.0, 8.0);
+    assert_eq!(
+        runtime.dispatch_primary_click(trigger_point).press_target,
+        Some(trigger_id)
+    );
+    assert!(
+        !widget_ref::<ButtonWidget, _>(runtime.surface(), trigger_id, "dropdown trigger")
+            .common
+            .state
+            .active
+    );
+    assert_eq!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .stroke_polylines()
+            .filter(|marker| marker.widget_id == trigger_id)
+            .count(),
+        0
+    );
 }

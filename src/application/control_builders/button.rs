@@ -20,6 +20,8 @@ pub struct ButtonBuilder {
     secondary_click: bool,
     drag: bool,
     hover_chrome_only: bool,
+    active: bool,
+    selected: bool,
 }
 
 impl ButtonBuilder {
@@ -62,6 +64,18 @@ impl ButtonBuilder {
     /// Paint button chrome only while the control is hovered, pressed, or focused.
     pub fn hover_chrome_only(mut self) -> Self {
         self.hover_chrome_only = true;
+        self
+    }
+
+    /// Paint this generic button as semantically active/on.
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
+    /// Paint this generic button as semantically selected.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
         self
     }
 
@@ -153,6 +167,8 @@ impl ButtonBuilder {
         if self.hover_chrome_only {
             button = button.with_hover_chrome_only();
         }
+        button.common.state.active = self.active;
+        button.common.state.selected = self.selected;
         let mut node = view_node_from_widget(MappedWidget::new(button, messages));
         node.style = self.style;
         node
@@ -170,6 +186,8 @@ pub fn button(label: impl Into<TextContent>) -> ButtonBuilder {
         secondary_click: false,
         drag: false,
         hover_chrome_only: false,
+        active: false,
+        selected: false,
     }
 }
 

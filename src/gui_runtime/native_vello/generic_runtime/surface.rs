@@ -5,6 +5,7 @@ use super::{
     configure_created_top_level_window, generic_window_attributes,
     reveal_window_after_surface_setup,
 };
+use super::{accessibility, window_environment::current_monitor_fingerprint};
 use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::{select_present_mode, startup_renderer_options},
@@ -45,6 +46,8 @@ where
         self.window.id = Some(window.id());
         self.window.native_dpi_scale = DpiScale::new(window.scale_factor());
         self.window.dpi_scale = self.active_dpi_scale();
+        self.window.monitor_fingerprint = current_monitor_fingerprint(&window);
+        self.window.accessibility_display = accessibility::current_snapshot();
         self.window.window = Some(Arc::clone(&window));
 
         let mut render_ctx = render_context_for_options(&self.options);
@@ -194,19 +197,16 @@ where
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
         self.window.native_dpi_scale = DpiScale::new(scale_factor);
-        let active_scale_changed = self.apply_active_dpi_scale_to_viewport();
-        let frame_work = if active_scale_changed {
-            self.rebuild_scene();
-            FrameWork::RebuildScene {
-                reason: FrameWorkReason::NativeDpiScale,
-                mode: SceneRebuildMode::Immediate,
-            }
-        } else {
-            FrameWork::PaintOnly {
-                reason: FrameWorkReason::NativeDpiScale,
-            }
-        };
-        self.request_redraw_for_frame_work(frame_work);
+        self.apply_active_dpi_scale_to_viewport();
+        if let Some(window) = self.window.window.as_ref()
+            && let Some(fingerprint) = current_monitor_fingerprint(window)
+        {
+            self.window.monitor_fingerprint = Some(fingerprint);
+        }
+        self.queue_window_environment_change_with_reason(
+            crate::runtime::WindowEnvironmentChange::DisplayScaleOrMonitor,
+            FrameWorkReason::NativeDpiScale,
+        );
     }
 
     pub(super) fn set_dpi_scale_override(&mut self, scale: DpiScale) {

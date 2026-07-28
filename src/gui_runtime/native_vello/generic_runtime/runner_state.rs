@@ -3,6 +3,7 @@
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
+use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{FrameWork, FrameWorkReason};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
@@ -33,6 +34,8 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
     pub(super) native_focus_lost: bool,
+    pub(super) monitor_fingerprint: Option<MonitorFingerprint>,
+    pub(super) accessibility_display: AccessibilityDisplaySnapshot,
 }
 
 pub(super) struct NativeRunnerInputState {

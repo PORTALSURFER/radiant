@@ -65,6 +65,10 @@ where
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.update_native_dpi_scale(scale_factor);
             }
+            WindowEvent::Moved(_) => self.observe_monitor_move(),
+            WindowEvent::ThemeChanged(_) => self.queue_window_environment_change(
+                crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
+            ),
             WindowEvent::Focused(false) => {
                 let routed = self.handle_focus_lost_before_external_drag();
                 self.handle_route_outcome(event_loop, routed);
@@ -154,6 +158,13 @@ where
             RuntimeUserEvent::ApplicationReopenRequested => {
                 self.handle_application_reopen_intent();
                 self.observe_pending_window_activation();
+            }
+            RuntimeUserEvent::AccessibilityDisplayChanged => {
+                let snapshot = super::accessibility::current_snapshot();
+                self.queue_accessibility_display_snapshot(snapshot);
+                for window in &mut self.auxiliary_windows {
+                    window.queue_accessibility_display_snapshot(snapshot);
+                }
             }
         }
     }

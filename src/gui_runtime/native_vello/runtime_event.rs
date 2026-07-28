@@ -5,4 +5,5 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
     OpenFiles(Vec<PathBuf>),
     ApplicationReopenRequested,
+    AccessibilityDisplayChanged,
 }

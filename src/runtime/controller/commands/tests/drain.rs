@@ -47,6 +47,7 @@ struct OrderedIngressBridge {
     items: Vec<RuntimeQueueItem<usize>>,
     mapped: Vec<&'static str>,
     reduced: Vec<usize>,
+    exit_on_message: Option<usize>,
 }
 
 impl RuntimeBridge<usize> for OrderedIngressBridge {
@@ -60,6 +61,15 @@ impl RuntimeBridge<usize> for OrderedIngressBridge {
 
     fn reduce_message(&mut self, message: usize) {
         self.reduced.push(message);
+    }
+
+    fn update(&mut self, message: usize) -> Command<usize> {
+        self.reduce_message(message);
+        if self.exit_on_message == Some(message) {
+            Command::exit()
+        } else {
+            Command::none()
+        }
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
@@ -97,6 +107,7 @@ fn ordered_ingress_maps_and_reduces_earlier_delivery_before_later_timer() {
         ],
         mapped: Vec::new(),
         reduced: Vec::new(),
+        exit_on_message: None,
     };
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
 
@@ -116,6 +127,7 @@ fn ordered_ingress_maps_and_reduces_earlier_timer_before_later_delivery() {
         ],
         mapped: Vec::new(),
         reduced: Vec::new(),
+        exit_on_message: None,
     };
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
 
@@ -124,6 +136,31 @@ fn ordered_ingress_maps_and_reduces_earlier_timer_before_later_delivery() {
     assert_eq!(outcome.messages_dispatched, 2);
     assert_eq!(runtime.bridge().mapped, vec!["timer", "delivery"]);
     assert_eq!(runtime.bridge().reduced, vec![2, 1]);
+}
+
+#[test]
+fn closing_item_drops_detached_queue_remainder_without_mapping() {
+    let bridge = OrderedIngressBridge {
+        items: vec![
+            RuntimeQueueItem::Message(1),
+            RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(2_usize)),
+            RuntimeQueueItem::Timer(RuntimeTimerWake::application(1, 0, 1)),
+        ],
+        mapped: Vec::new(),
+        reduced: Vec::new(),
+        exit_on_message: Some(1),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+    let outcome = runtime.drain_runtime_messages();
+
+    assert!(outcome.exit_requested);
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().reduced, vec![1]);
+    assert!(runtime.bridge().mapped.is_empty());
+
+    let second = runtime.drain_runtime_messages();
+    assert_eq!(second, CommandOutcome::default());
 }
 
 #[test]

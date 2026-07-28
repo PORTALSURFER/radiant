@@ -7,6 +7,9 @@ where
 {
     /// Dispatch any messages queued by bridge-owned runtime work.
     pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
+        if !self.phase.accepts_work() {
+            return CommandOutcome::default();
+        }
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget, mut completion_budget) = self.runtime_drain_budget();
         let worker_high_water = self.worker_effects.high_water();
@@ -70,7 +73,7 @@ where
 
         // Preserve the precedence fence: bridge commands/items are admitted
         // only after both controller-owned completion lanes are clear.
-        if !platform_work_remaining && !worker_work_remaining {
+        if self.phase.accepts_work() && !platform_work_remaining && !worker_work_remaining {
             self.runtime_work.drain_bridge_commands(
                 &mut self.bridge,
                 self.host_capabilities.queues.as_ref(),
@@ -84,13 +87,21 @@ where
                 message_budget,
             );
             let mut command_batch = self.runtime_work.take_command_batch();
-            while let Some(command) = command_batch.pop() {
+            while self.phase.accepts_work() {
+                let Some(command) = command_batch.pop() else {
+                    break;
+                };
                 self.execute_command_inner(command, &mut outcome);
             }
-            self.runtime_work.restore_command_batch(command_batch);
+            if self.phase.accepts_work() {
+                self.runtime_work.restore_command_batch(command_batch);
+            }
 
             let mut item_batch = self.runtime_work.take_queue_item_batch();
-            while let Some(item) = item_batch.pop() {
+            while self.phase.accepts_work() {
+                let Some(item) = item_batch.pop() else {
+                    break;
+                };
                 let message = match item {
                     RuntimeQueueItem::Message(message) => Some(message),
                     RuntimeQueueItem::Timer(wake)
@@ -125,7 +136,9 @@ where
                     self.dispatch_message_inner(message, &mut outcome);
                 }
             }
-            self.runtime_work.restore_queue_item_batch(item_batch);
+            if self.phase.accepts_work() {
+                self.runtime_work.restore_queue_item_batch(item_batch);
+            }
         }
 
         let controller_work_remaining = platform_work_remaining || worker_work_remaining;

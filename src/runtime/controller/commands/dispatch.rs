@@ -61,6 +61,9 @@ where
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
     ) {
+        if !self.phase.accepts_work() {
+            return;
+        }
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
         let command = self.run_update_handler(message);
@@ -134,6 +137,9 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
+        if !self.phase.accepts_work() {
+            return;
+        }
         if command.requests_paint_only() {
             self.refresh_with_scope(RepaintScope::PaintOnly);
         }
@@ -151,6 +157,9 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
+        if !self.phase.accepts_work() {
+            return;
+        }
         if command.requests_paint_only() {
             self.refresh_with_scope(RepaintScope::PaintOnly);
         }
@@ -170,6 +179,9 @@ where
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
     ) {
+        if !self.phase.accepts_work() {
+            return;
+        }
         if !refresh_surface
             && outcome.surface_refresh_requested
             && !*deferred_surface_is_fresh
@@ -362,13 +374,10 @@ where
                 outcome.surface_repaint_requested = true;
             }
             Command::Exit => {
-                self.invalidate_external_drag();
-                self.worker_effects.shutdown();
-                self.timer_effects.shutdown();
-                self.runtime_work.fence_timer_wakes();
-                self.shutdown_platform_services();
-                outcome.exit_requested = true;
-                self.exit_requested = true;
+                if self.begin_closing() {
+                    outcome.exit_requested = true;
+                    self.exit_requested = true;
+                }
             }
         }
     }

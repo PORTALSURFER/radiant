@@ -57,6 +57,7 @@ where
         }
         match event {
             WindowEvent::CloseRequested if self.core.runtime.host_close_requested() => {
+                self.core.runtime.begin_closing();
                 event_loop.exit();
             }
             WindowEvent::CloseRequested => {}

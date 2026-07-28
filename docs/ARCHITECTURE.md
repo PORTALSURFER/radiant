@@ -262,6 +262,14 @@ Current target-specific seams are intentionally narrow:
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.
+- `src/gui_runtime/native_vello/generic_runtime/accessibility.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/auxiliary.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/lifecycle.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/window_environment.rs`, and
+  `src/gui_runtime/native_vello/runtime_event.rs` own the native window
+  environment event boundary. The runtime keeps monitor, accessibility, and
+  theme changes behind the backend-neutral invalidation contract, while
+  unsupported targets retain the same no-op or fallback behavior.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs`,

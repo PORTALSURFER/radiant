@@ -18,7 +18,7 @@ mod subscription;
 mod task;
 mod threading;
 mod timer;
-mod update_context;
+pub(crate) mod update_context;
 
 pub(in crate::application) use bridge::{
     AppBridge, AppBridgeLifecycle, FrameMessageActivity, FrameRepaintSource, PendingFrameRepaint,
@@ -31,6 +31,9 @@ pub use task::{
 };
 pub(crate) use task::{LatestTaskTransaction, LatestTimerTransaction};
 pub use update_context::{BusinessEventSink, BusinessWorkContext, UiUpdateContext};
+pub use update_context::{
+    BusinessTaskAdmission, BusinessTaskAdmissionReceipt, BusinessTaskAdmissionReceiptState,
+};
 
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;

@@ -41,6 +41,52 @@ fn business_run_accepts_ui_local_mapper_capture() {
 }
 
 #[test]
+fn business_admission_receipt_is_pending_until_controller_admission() {
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let receipt = context
+        .business()
+        .background("receipt")
+        .run_with_receipt(|_| 7_u32, |_| DemoMessage::Increment);
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+}
+
+#[test]
+fn latest_admission_receipt_preserves_ticket_ordering() {
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("latest-receipt")
+        .latest(&mut latest);
+    let ticket = request.ticket();
+    let receipt = request.run_with_receipt(
+        |_| 9_u32,
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            DemoMessage::Increment
+        },
+    );
+    assert_eq!(ticket.id(), 1);
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "latest-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+}
+
+#[test]
 fn one_shot_business_families_accept_ui_local_mappers() {
     let mut ordinary = radiant::prelude::UiUpdateContext::default();
     let ordinary_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));

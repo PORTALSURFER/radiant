@@ -1,6 +1,7 @@
 use super::{BusinessRequest, stream_guard::LatestStreamCloseGuard};
 use crate::application::runtime::update_context::business::{
     BusinessEventSink, BusinessWorkContext,
+    admission::{AdmissionReceiptGuard, BusinessTaskAdmissionReceipt},
 };
 use crate::{
     application::{CancellationToken, LatestTaskTransaction},
@@ -17,6 +18,33 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         Output: Send + 'static,
     {
         self.run_with_optional_cancellation(None, work, map);
+    }
+
+    /// Run this business request and return a UI-local receipt for host admission.
+    ///
+    /// The receipt is resolved by the controller after it attempts actual host
+    /// admission. It does not dispatch a callback or enqueue a retry.
+    pub fn run_with_receipt<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        self.context
+            .queue_command(Command::perform_worker_effect_with_priority_and_receipt(
+                self.name,
+                self.priority,
+                None,
+                0,
+                Some(guard),
+                move || work(BusinessWorkContext::new(None)),
+                map,
+            ));
+        receipt
     }
 
     /// Run worker-only work and map its owned output on the UI runtime.

@@ -2,6 +2,9 @@
 
 use super::SurfaceRuntime;
 use super::owner::{CancellationProbe, LifecycleDescriptor, RuntimeOwner};
+use crate::application::runtime::update_context::business::admission::{
+    BusinessTaskAdmission, resolve as resolve_admission,
+};
 use crate::runtime::RuntimeBridge;
 use crate::runtime::command::{
     EffectGeneration, EffectId, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
@@ -275,6 +278,9 @@ impl<Message> WorkerEffects<Message> {
             if let Some(transaction) = effect.transaction {
                 transaction.reject();
             }
+            if let Some(receipt) = effect.admission_receipt.as_ref() {
+                resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
+            }
             return false;
         }
         let transaction = effect.transaction;
@@ -435,8 +441,16 @@ impl<Message> WorkerEffects<Message> {
             if let Some(transaction) = transaction {
                 transaction.reject();
             }
+            if let Some(receipt) = effect.admission_receipt.as_ref() {
+                resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
+            }
         } else if let Some(transaction) = transaction {
             transaction.accept();
+            if let Some(receipt) = effect.admission_receipt.as_ref() {
+                resolve_admission(&receipt.0, BusinessTaskAdmission::Accepted);
+            }
+        } else if let Some(receipt) = effect.admission_receipt.as_ref() {
+            resolve_admission(&receipt.0, BusinessTaskAdmission::Accepted);
         }
         accepted
     }
@@ -982,6 +996,116 @@ mod tests {
         runtime.drain_runtime_messages();
 
         assert_eq!(*mapped.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn admission_receipt_resolves_after_inline_host_acceptance_before_output() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let receipt = crate::application::runtime::BusinessTaskAdmissionReceipt::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_effect_with_priority_and_receipt(
+                "receipt-inline",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                Some(crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard(receipt.weak())),
+                || 7_u8,
+                move |output| {
+                    mapped_state.borrow_mut().push(output);
+                    usize::from(output)
+                },
+            ),
+        );
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(mapped.borrow().is_empty());
+        runtime.drain_runtime_messages();
+        assert_eq!(*mapped.borrow(), vec![7]);
+    }
+
+    #[test]
+    fn admission_receipt_resolves_rejected_without_retrying() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut runtime = SurfaceRuntime::new(
+            ToggleBridge {
+                accepted: Arc::clone(&accepted),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let receipt = crate::application::runtime::BusinessTaskAdmissionReceipt::new();
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_effect_with_priority_and_receipt(
+                "receipt-rejected",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                Some(crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard(receipt.weak())),
+                || 7_u8,
+                |_| 7_usize,
+            ),
+        );
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert!(!runtime.drain_runtime_messages().runtime_work_remaining);
+    }
+
+    #[test]
+    fn fenced_command_closes_pending_admission_receipt() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let receipt = crate::application::runtime::BusinessTaskAdmissionReceipt::new();
+        let effect = crate::runtime::Command::perform_worker_effect_with_priority_and_receipt(
+            "receipt-closed",
+            crate::runtime::TaskPriority::Background,
+            None,
+            0,
+            Some(crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard(receipt.weak())),
+            || 7_u8,
+            |_| 7_usize,
+        );
+        runtime.execute_command(crate::runtime::Command::batch(vec![
+            crate::runtime::Command::exit(),
+            effect,
+        ]));
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Closed
+        );
+    }
+
+    #[test]
+    fn repeated_host_rejections_do_not_consume_admission_capacity() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut runtime = SurfaceRuntime::new(
+            ToggleBridge {
+                accepted: Arc::clone(&accepted),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        for _ in 0..(EFFECT_INGRESS_CAPACITY + 16) {
+            let receipt = crate::application::runtime::BusinessTaskAdmissionReceipt::new();
+            runtime.execute_command(
+                crate::runtime::Command::perform_worker_effect_with_priority_and_receipt(
+                    "receipt-rejected-burst",
+                    crate::runtime::TaskPriority::Background,
+                    None,
+                    0,
+                    Some(crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard(receipt.weak())),
+                    || 7_u8,
+                    |_| 7_usize,
+                ),
+            );
+            assert_eq!(
+                receipt.poll(),
+                crate::application::runtime::BusinessTaskAdmission::Rejected
+            );
+        }
+        assert_eq!(runtime.worker_effects.pending, 0);
     }
 
     #[test]

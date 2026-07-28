@@ -154,6 +154,35 @@ impl<Message> Command<Message> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_effect_with_priority_and_receipt<Output>(
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        generation: u64,
+        admission_receipt: Option<
+            crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+        >,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
+        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+        Self::perform_worker_effect_with_identity_and_transaction_and_receipt(
+            super::EffectId(id),
+            name,
+            priority,
+            is_cancelled,
+            generation,
+            None,
+            admission_receipt,
+            work,
+            map,
+        )
+    }
+
     pub(crate) fn perform_worker_effect_with_identity<Output>(
         id: super::EffectId,
         name: &'static str,
@@ -192,6 +221,36 @@ impl<Message> Command<Message> {
     where
         Output: Send + 'static,
     {
+        Self::perform_worker_effect_with_identity_and_transaction_and_receipt(
+            id,
+            name,
+            priority,
+            is_cancelled,
+            generation,
+            transaction,
+            None,
+            work,
+            map,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_effect_with_identity_and_transaction_and_receipt<Output>(
+        id: super::EffectId,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        generation: u64,
+        transaction: Option<crate::application::LatestTaskTransaction>,
+        admission_receipt: Option<
+            crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+        >,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
         Self::PerformWorker(super::WorkerEffect {
             name,
             priority,
@@ -199,6 +258,7 @@ impl<Message> Command<Message> {
             id,
             generation: super::EffectGeneration(generation),
             transaction,
+            admission_receipt,
             work: WorkerEffectWork::Once(Box::new(move || Box::new(work()) as Box<dyn Any + Send>)),
             mapper: WorkerEffectMapper::Once(Box::new(move |output| {
                 match output.downcast::<Output>() {
@@ -279,6 +339,7 @@ impl<Message> Command<Message> {
             id,
             generation: super::EffectGeneration(options.generation),
             transaction,
+            admission_receipt: None,
             work: WorkerEffectWork::Stream(Box::new(move |sink| {
                 Box::new(work(sink)) as Box<dyn Any + Send>
             })),

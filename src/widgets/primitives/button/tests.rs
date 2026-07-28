@@ -1,5 +1,6 @@
 use crate::gui::svg::{IconName, SvgIcon};
 use crate::gui::types::{Point, Vector2};
+use crate::widgets::contract::WidgetState;
 use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
 use std::sync::Arc;
 
@@ -308,10 +309,94 @@ fn hover_chrome_only_button_paints_only_when_hovered() {
 }
 
 #[test]
+fn hover_chrome_only_button_keeps_idle_selected_and_active_chrome() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(80.0, 28.0));
+    let neutral = ButtonWidget::new(22, "", WidgetSizing::fixed(Vector2::new(80.0, 28.0)))
+        .with_hover_chrome_only();
+    let mut primitives = Vec::new();
+    neutral.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert!(primitives.is_empty());
+
+    for state in ["selected", "active"] {
+        let mut button = neutral.clone();
+        if state == "selected" {
+            button.common.state.selected = true;
+        } else {
+            button.common.state.active = true;
+        }
+        let mut primitives = Vec::new();
+        button.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_))),
+            "idle {state} button should retain shared chrome"
+        );
+    }
+}
+
+#[test]
 fn button_opts_into_state_synchronization() {
     let button = ButtonWidget::new(14, "Drag", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
 
     assert!(button.needs_state_synchronization());
+}
+
+#[test]
+fn button_state_synchronization_separates_runtime_and_declarative_state() {
+    let mut previous = ButtonWidget::new(
+        23,
+        "Previous",
+        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+    );
+    previous.common.state = WidgetState {
+        hovered: true,
+        pressed: true,
+        focused: true,
+        selected: false,
+        active: false,
+        disabled: false,
+        read_only: false,
+        automation_active: true,
+    };
+    previous.state = ButtonState {
+        armed: true,
+        dragged: true,
+        press_position: Some(Point::new(4.0, 5.0)),
+    };
+
+    let mut current =
+        ButtonWidget::new(23, "Current", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    current.common.state.selected = true;
+    current.common.state.active = true;
+    current.common.state.disabled = true;
+    current.common.state.read_only = true;
+    current.common.state.automation_active = false;
+    current.props.text_align = TextAlign::Left;
+
+    current.synchronize_from_previous(&previous);
+
+    assert!(current.common.state.hovered);
+    assert!(current.common.state.pressed);
+    assert!(current.common.state.focused);
+    assert!(current.common.state.selected);
+    assert!(current.common.state.active);
+    assert!(current.common.state.disabled);
+    assert!(current.common.state.read_only);
+    assert!(!current.common.state.automation_active);
+    assert_eq!(current.state, previous.state);
+    assert_eq!(current.props.label, "Current");
+    assert_eq!(current.props.text_align, TextAlign::Left);
 }
 
 #[test]

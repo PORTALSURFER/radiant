@@ -153,8 +153,16 @@ impl Widget for ButtonWidget {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;
         };
-        self.common.state = previous.common.state;
-        self.state = previous.state;
+
+        // Runtime-owned interaction state follows the retained widget across
+        // declarative projections; fresh semantic state and props remain
+        // authoritative on `self`.
+        self.common.state.hovered = previous.common.state.hovered;
+        self.common.state.pressed = previous.common.state.pressed;
+        self.common.state.focused = previous.common.state.focused;
+        self.state.armed = previous.state.armed;
+        self.state.dragged = previous.state.dragged;
+        self.state.press_position = previous.state.press_position;
     }
 
     fn accepts_pointer_move(&self) -> bool {

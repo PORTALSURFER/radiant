@@ -25,6 +25,8 @@ pub(super) fn push_button_widget_paint(
         && !button.common.state.hovered
         && !button.common.state.pressed
         && !button.common.state.focused
+        && !button.common.state.selected
+        && !button.common.state.active
     {
         return;
     }

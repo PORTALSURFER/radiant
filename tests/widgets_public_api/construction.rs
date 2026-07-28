@@ -120,7 +120,7 @@ fn control_and_media_widgets_support_named_parts_construction() {
     assert_eq!(image.common().id, 39);
     assert!(Arc::ptr_eq(&image.props.image, &image_payload));
     assert_eq!(icon_button.common().id, 40);
-    assert!(!icon_button.common().paint.paints_focus);
+    assert!(icon_button.common().paint.paints_focus);
 }
 
 #[test]

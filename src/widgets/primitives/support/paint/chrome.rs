@@ -27,15 +27,24 @@ pub(in crate::widgets::primitives) fn push_button_chrome(
         width: 1.0,
     }));
     if common.state.focused && common.paint.paints_focus {
-        primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
-            widget_id: common.id,
-            points: diagonal_cut_rect_points(inset_rect(bounds, -1.0, -1.0)),
-            color: tokens.emphasis,
-            width: 1.0,
-        }));
+        push_button_focus_ring(primitives, common.id, bounds, tokens.emphasis);
     }
     push_selected_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
     push_automation_active_marker(primitives, common.id, bounds, common.state, tokens.emphasis);
+}
+
+pub(in crate::widgets::primitives) fn push_button_focus_ring(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    color: Rgba8,
+) {
+    primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
+        widget_id,
+        points: diagonal_cut_rect_points(inset_rect(bounds, -1.0, -1.0)),
+        color,
+        width: 1.0,
+    }));
 }
 
 pub(in crate::widgets::primitives) fn push_control_chrome(

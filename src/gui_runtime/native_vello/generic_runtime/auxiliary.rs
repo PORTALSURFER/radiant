@@ -104,6 +104,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    pub(super) fn queue_accessibility_display_snapshot(
+        &mut self,
+        snapshot: super::window_environment::AccessibilityDisplaySnapshot,
+    ) {
+        self.runner.queue_accessibility_display_snapshot(snapshot);
+    }
+
     pub(super) fn route_window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -127,6 +135,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.update_native_dpi_scale(scale_factor);
             }
+            WindowEvent::Moved(_) => self.runner.observe_monitor_move(),
+            WindowEvent::ThemeChanged(_) => self.runner.queue_window_environment_change(
+                crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
+            ),
             WindowEvent::Focused(false) => {
                 let routed = self.runner.handle_focus_lost_before_external_drag();
                 self.runner.handle_route_outcome(event_loop, routed);

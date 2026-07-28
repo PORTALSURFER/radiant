@@ -19,6 +19,7 @@ use std::time::Duration;
 #[cfg(test)]
 use vello::Scene;
 
+mod accessibility;
 mod activation;
 mod automation_export;
 mod auxiliary;
@@ -59,6 +60,7 @@ mod scene_texture;
 mod surface;
 mod surface_size;
 mod window;
+mod window_environment;
 
 use activation::{ActivationRevealController, ApplicationReopenRegistration};
 use automation_export::NativeAutomationTargetExporter;
@@ -182,6 +184,7 @@ where
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
     runner.application_reopen_proxy = application_reopen_proxy;
     let proxy = event_loop.create_proxy();
+    let accessibility_display_observer = accessibility::install(proxy.clone());
     let repaint_signal: Arc<dyn RepaintSignal> = runner.runtime_wakeup.install_proxy(proxy);
     runner
         .core
@@ -190,6 +193,7 @@ where
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| NativeGenericRunError::EventLoopRun(err.to_string()));
+    drop(accessibility_display_observer);
     drop(native_file_open_events);
     let elapsed = run_started.elapsed();
     match &run_result {

@@ -396,6 +396,56 @@ where
         self.defer_scene_rebuild();
     }
 
+    pub(super) fn queue_window_environment_change(
+        &mut self,
+        change: crate::runtime::WindowEnvironmentChange,
+    ) {
+        self.queue_window_environment_change_with_reason(
+            change,
+            FrameWorkReason::NativeWindowEnvironment,
+        );
+    }
+
+    pub(super) fn queue_window_environment_change_with_reason(
+        &mut self,
+        change: crate::runtime::WindowEnvironmentChange,
+        reason: FrameWorkReason,
+    ) {
+        self.defer_interactive_scene_rebuild_with_scope(change.repaint_scope());
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason,
+            mode: SceneRebuildMode::Interactive,
+        });
+    }
+
+    pub(super) fn observe_monitor_move(&mut self) {
+        let Some(window) = self.window.window.as_ref() else {
+            return;
+        };
+        let Some(next) = super::window_environment::current_monitor_fingerprint(window) else {
+            return;
+        };
+        if self.window.monitor_fingerprint.as_ref() == Some(&next) {
+            return;
+        }
+        self.window.monitor_fingerprint = Some(next);
+        self.queue_window_environment_change(
+            crate::runtime::WindowEnvironmentChange::DisplayScaleOrMonitor,
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(super) fn queue_accessibility_display_snapshot(
+        &mut self,
+        next: super::window_environment::AccessibilityDisplaySnapshot,
+    ) {
+        let previous = self.window.accessibility_display;
+        self.window.accessibility_display = next;
+        for change in super::window_environment::accessibility_display_changes(previous, next) {
+            self.queue_window_environment_change(change);
+        }
+    }
+
     fn restore_native_hover_cursor_overlay(&mut self) {
         let Some(position) = self.input.last_cursor else {
             return;

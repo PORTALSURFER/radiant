@@ -34,6 +34,8 @@ mod runtime_core;
 mod scene_cache;
 #[path = "tests/timing.rs"]
 mod timing;
+#[path = "tests/window_environment.rs"]
+mod window_environment;
 #[path = "tests/window_policy.rs"]
 mod window_policy;
 use fixtures::*;

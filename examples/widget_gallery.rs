@@ -155,16 +155,27 @@ mod tests {
     fn widget_gallery_lowers_public_widgets() {
         let mut state = GalleryState::default();
         let surface = project_surface(&mut state).into_surface();
+        let layout_node = surface.layout_node();
+        let first_child_id = match &layout_node {
+            radiant::layout::LayoutNode::Container(root) => root
+                .children
+                .first()
+                .map(|child| child.child.id())
+                .expect("gallery root has a first child"),
+            radiant::layout::LayoutNode::Widget(_) => {
+                panic!("gallery root should lower to a container")
+            }
+        };
         let layout = radiant::layout::layout_tree(
-            &surface.layout_node(),
+            &layout_node,
             radiant::gui::types::Rect::from_min_size(
                 radiant::gui::types::Point::new(0.0, 0.0),
                 radiant::gui::types::Vector2::new(640.0, 380.0),
             ),
         );
 
-        assert_eq!(surface.root().id(), 1);
-        assert!(layout.rects.contains_key(&2));
+        assert_eq!(surface.root().id(), layout_node.id());
+        assert!(layout.rects.contains_key(&first_child_id));
         assert!(surface.keyboard_focus_order().len() >= 6);
     }
 }

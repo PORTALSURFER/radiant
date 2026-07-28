@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::runtime::ResourceKey;
 
@@ -10,10 +11,19 @@ use super::{KeyedLatestTasks, KeyedTaskCompletion, LatestTaskTransaction, TaskTi
 /// document, file, cache entry, device, or viewport. Latest work replaces older
 /// work for the same key, while exclusive work refuses duplicate submissions
 /// until the active request finishes or is cancelled.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct ResourceTasks {
     latest: KeyedLatestTasks<ResourceKey>,
-    exclusive: HashMap<ResourceKey, TaskTicket>,
+    exclusive: Arc<Mutex<HashMap<ResourceKey, TaskTicket>>>,
+}
+
+impl Clone for ResourceTasks {
+    fn clone(&self) -> Self {
+        Self {
+            latest: self.latest.clone(),
+            exclusive: Arc::new(Mutex::new(lock_exclusive(&self.exclusive).clone())),
+        }
+    }
 }
 
 impl ResourceTasks {
@@ -24,13 +34,13 @@ impl ResourceTasks {
 
     /// Return whether no resource keys are currently tracked.
     pub fn is_empty(&self) -> bool {
-        self.latest.is_empty() && self.exclusive.is_empty()
+        self.latest.is_empty() && lock_exclusive(&self.exclusive).is_empty()
     }
 
     /// Clear all latest and exclusive resource work.
     pub fn clear(&mut self) {
         self.latest.clear();
-        self.exclusive.clear();
+        lock_exclusive(&self.exclusive).clear();
     }
 
     /// Start replace-latest work for one resource key.
@@ -48,21 +58,36 @@ impl ResourceTasks {
         (ResourceTaskTicket { key, ticket }, transaction, effect_id)
     }
 
-    /// Start exclusive work for one resource key.
-    ///
-    /// Returns `None` when the same key already has an active exclusive task.
-    pub(crate) fn begin_exclusive(&mut self, key: ResourceKey) -> Option<ResourceTaskTicket> {
-        if self.exclusive.contains_key(&key) {
+    /// Reserve exclusive work transactionally so abandoned or rejected work
+    /// restores the previous task and releases only this key's reservation.
+    pub(crate) fn begin_exclusive_transaction(
+        &mut self,
+        key: ResourceKey,
+    ) -> Option<(ResourceTaskTicket, LatestTaskTransaction, u64)> {
+        let mut exclusive = lock_exclusive(&self.exclusive);
+        if exclusive.contains_key(&key) {
             return None;
         }
-        let ticket = self.latest.begin(key.clone());
-        self.exclusive.insert(key.clone(), ticket);
-        Some(ResourceTaskTicket { key, ticket })
+        let (ticket, transaction, effect_id) = self.latest.begin_replacement(key.clone());
+        exclusive.insert(key.clone(), ticket);
+        let reservations = Arc::clone(&self.exclusive);
+        let reservation_key = key.clone();
+        let release = Arc::new(move || {
+            let mut reservations = lock_exclusive(&reservations);
+            if reservations.get(&reservation_key).copied() == Some(ticket) {
+                reservations.remove(&reservation_key);
+            }
+        });
+        Some((
+            ResourceTaskTicket { key, ticket },
+            transaction.with_rejection_hook(release),
+            effect_id,
+        ))
     }
 
     /// Return the active task for a resource key, if any.
     pub fn active(&self, key: &ResourceKey) -> Option<TaskTicket> {
-        self.exclusive
+        lock_exclusive(&self.exclusive)
             .get(key)
             .copied()
             .or_else(|| self.latest.active(key))
@@ -75,7 +100,8 @@ impl ResourceTasks {
 
     /// Return whether a resource key and task ticket are still current.
     pub fn is_active_key(&self, key: &ResourceKey, ticket: TaskTicket) -> bool {
-        self.latest.is_active(key, ticket) || self.exclusive.get(key).copied() == Some(ticket)
+        self.latest.is_active(key, ticket)
+            || lock_exclusive(&self.exclusive).get(key).copied() == Some(ticket)
     }
 
     /// Return whether this resource completion still belongs to active work.
@@ -94,9 +120,9 @@ impl ResourceTasks {
     /// Finish a resource task by key and ticket only when it is still current.
     pub fn finish_key(&mut self, key: &ResourceKey, ticket: TaskTicket) -> bool {
         let latest_finished = self.latest.finish(key, ticket);
-        let exclusive_finished = self.exclusive.get(key).copied() == Some(ticket);
+        let exclusive_finished = lock_exclusive(&self.exclusive).get(key).copied() == Some(ticket);
         if exclusive_finished {
-            self.exclusive.remove(key);
+            lock_exclusive(&self.exclusive).remove(key);
         }
         latest_finished || exclusive_finished
     }
@@ -113,9 +139,17 @@ impl ResourceTasks {
     /// Cancel all active latest and exclusive work for one resource key.
     pub fn cancel(&mut self, key: &ResourceKey) -> bool {
         let latest_cancelled = self.latest.cancel(key);
-        let exclusive_cancelled = self.exclusive.remove(key).is_some();
+        let exclusive_cancelled = lock_exclusive(&self.exclusive).remove(key).is_some();
         latest_cancelled || exclusive_cancelled
     }
+}
+
+fn lock_exclusive(
+    exclusive: &Mutex<HashMap<ResourceKey, TaskTicket>>,
+) -> std::sync::MutexGuard<'_, HashMap<ResourceKey, TaskTicket>> {
+    exclusive
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Ticket assigned to one resource-keyed business task.
@@ -151,13 +185,17 @@ mod tests {
         let mut tasks = ResourceTasks::new();
         let key = ResourceKey::scoped("sample", "C:/kick.wav");
 
-        let first = tasks
-            .begin_exclusive(key.clone())
+        let (first, first_transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
             .expect("first task starts");
-        assert!(tasks.begin_exclusive(key.clone()).is_none());
+        first_transaction.accept();
+        assert!(tasks.begin_exclusive_transaction(key.clone()).is_none());
 
         assert!(tasks.finish(&first));
-        assert!(tasks.begin_exclusive(key).is_some());
+        let (_, second_transaction, _) = tasks
+            .begin_exclusive_transaction(key)
+            .expect("finished task releases reservation");
+        second_transaction.reject();
     }
 
     #[test]
@@ -178,9 +216,10 @@ mod tests {
         let key = ResourceKey::scoped("sample", "C:/kick.wav");
 
         let stale = tasks.begin_latest(key.clone());
-        let current = tasks
-            .begin_exclusive(key.clone())
+        let (current, current_transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
             .expect("exclusive task starts");
+        current_transaction.accept();
 
         let stale_completion = KeyedTaskCompletion {
             key: key.clone(),
@@ -199,6 +238,102 @@ mod tests {
             Some("current")
         );
         assert_eq!(tasks.active(&key), None);
-        assert!(tasks.begin_exclusive(key).is_some());
+        let (_, transaction, _) = tasks
+            .begin_exclusive_transaction(key)
+            .expect("finished task releases reservation");
+        transaction.reject();
+    }
+
+    #[test]
+    fn exclusive_transactions_rollback_only_the_rejected_key() {
+        let key_a = ResourceKey::scoped("sample", "C:/a.wav");
+        let key_b = ResourceKey::scoped("sample", "C:/b.wav");
+        let mut tasks = ResourceTasks::new();
+        let (_ticket_a, transaction_a, _) = tasks
+            .begin_exclusive_transaction(key_a.clone())
+            .expect("key A reservation");
+        let (ticket_b, transaction_b, _) = tasks
+            .begin_exclusive_transaction(key_b.clone())
+            .expect("key B reservation");
+
+        transaction_a.reject();
+        assert_eq!(tasks.active(&key_a), None);
+        assert_eq!(tasks.active(&key_b), Some(ticket_b.ticket()));
+        let (_, replacement_a, _) = tasks
+            .begin_exclusive_transaction(key_a.clone())
+            .expect("rejected key can be reserved again");
+        replacement_a.accept();
+        assert!(tasks.begin_exclusive_transaction(key_b).is_none());
+
+        transaction_b.accept();
+        assert!(tasks.active(&key_a).is_some());
+    }
+
+    #[test]
+    fn accepted_exclusive_transaction_persists_until_finish_or_cancel() {
+        let key = ResourceKey::scoped("sample", "C:/accepted.wav");
+        let mut tasks = ResourceTasks::new();
+        let (ticket, transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
+            .expect("exclusive reservation");
+        transaction.accept();
+        drop(transaction);
+
+        assert_eq!(tasks.active(&key), Some(ticket.ticket()));
+        assert!(tasks.begin_exclusive_transaction(key.clone()).is_none());
+        assert!(tasks.finish(&ticket));
+        let (_, replacement_transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
+            .expect("finish releases reservation");
+        replacement_transaction.accept();
+        assert!(tasks.cancel(&key));
+        let (_, replacement_transaction, _) = tasks
+            .begin_exclusive_transaction(key)
+            .expect("cancel releases reservation");
+        replacement_transaction.reject();
+    }
+
+    #[test]
+    fn rejected_exclusive_completion_is_stale_and_reservation_is_released() {
+        let key = ResourceKey::scoped("sample", "C:/rejected.wav");
+        let mut tasks = ResourceTasks::new();
+        let (predecessor, predecessor_transaction, _) = tasks.begin_latest_transaction(key.clone());
+        predecessor_transaction.accept();
+
+        let (rejected, transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
+            .expect("exclusive reservation");
+        assert_eq!(tasks.active(&key), Some(rejected.ticket()));
+
+        transaction.reject();
+        assert_eq!(tasks.active(&key), Some(predecessor.ticket()));
+        assert!(!tasks.is_active_key(&key, rejected.ticket()));
+        assert!(!tasks.finish(&rejected));
+
+        let (_replacement, replacement_transaction, _) = tasks
+            .begin_exclusive_transaction(key)
+            .expect("rejected key reservation should be released");
+        replacement_transaction.reject();
+    }
+
+    #[test]
+    fn cloned_resource_tasks_keep_exclusive_reservations_isolated() {
+        let key = ResourceKey::scoped("sample", "C:/cloned.wav");
+        let mut tasks = ResourceTasks::new();
+        let (ticket, transaction, _) = tasks
+            .begin_exclusive_transaction(key.clone())
+            .expect("exclusive reservation");
+        transaction.accept();
+        drop(transaction);
+
+        let mut clone = tasks.clone();
+        assert_eq!(tasks.active(&key), Some(ticket.ticket()));
+        assert_eq!(clone.active(&key), Some(ticket.ticket()));
+
+        assert!(tasks.finish(&ticket));
+        assert_eq!(tasks.active(&key), None);
+        assert_eq!(clone.active(&key), Some(ticket.ticket()));
+        assert!(clone.finish(&ticket));
+        assert_eq!(clone.active(&key), None);
     }
 }

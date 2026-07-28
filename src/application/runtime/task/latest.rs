@@ -142,6 +142,7 @@ impl LatestTask {
             previous,
             state: Arc::downgrade(&state),
             committed: Cell::new(false),
+            rejection_hook: None,
         }
     }
 
@@ -237,9 +238,18 @@ pub(crate) struct LatestTaskTransaction {
     previous: Option<TaskTicket>,
     state: Weak<Mutex<LatestState>>,
     committed: Cell<bool>,
+    rejection_hook: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl LatestTaskTransaction {
+    pub(crate) fn with_rejection_hook(
+        mut self,
+        hook: Arc<dyn Fn() + Send + Sync + 'static>,
+    ) -> Self {
+        self.rejection_hook = Some(hook);
+        self
+    }
+
     pub(crate) fn replacement(&self) -> TaskTicket {
         self.replacement
     }
@@ -278,6 +288,7 @@ impl LatestTaskTransaction {
         if self.committed.replace(true) {
             return;
         }
+        self.release_rejection_hook();
         let Some(state) = self.state.upgrade() else {
             return;
         };
@@ -287,6 +298,12 @@ impl LatestTaskTransaction {
             state.active = resolve_ticket(&state, self.previous);
         }
     }
+
+    fn release_rejection_hook(&self) {
+        if let Some(hook) = &self.rejection_hook {
+            hook();
+        }
+    }
 }
 
 impl Drop for LatestTaskTransaction {
@@ -294,6 +311,7 @@ impl Drop for LatestTaskTransaction {
         if self.committed.replace(true) {
             return;
         }
+        self.release_rejection_hook();
         let Some(state) = self.state.upgrade() else {
             return;
         };

@@ -1624,6 +1624,92 @@ mod tests {
     }
 
     #[test]
+    fn resource_exclusive_worker_host_rejection_releases_only_that_reservation() {
+        let accepted = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bridge = ToggleBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let key = crate::runtime::ResourceKey::scoped("sample", "C:/rejected-exclusive.wav");
+        let mut resources = crate::application::ResourceTasks::new();
+        let (ticket, transaction, effect_id) = resources
+            .begin_exclusive_transaction(key.clone())
+            .expect("exclusive admission");
+        let generation = transaction.generation();
+        let mapper_dropped = Arc::new(AtomicUsize::new(0));
+        let mapper_guard = DropProbe(Arc::clone(&mapper_dropped));
+        let command = crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+            EffectId(effect_id),
+            "resource-exclusive-rejected",
+            crate::runtime::TaskPriority::Background,
+            None,
+            generation,
+            Some(transaction),
+            || 1_u8,
+            move |_| {
+                let _mapper_guard = mapper_guard;
+                1_usize
+            },
+        );
+
+        accepted.store(false, Ordering::Release);
+        let _ = runtime.execute_command(command);
+
+        assert_eq!(resources.active(&key), None);
+        assert!(!resources.is_active_key(&key, ticket.ticket()));
+        assert_eq!(mapper_dropped.load(Ordering::Acquire), 1);
+        let (_replacement, replacement_transaction, _) = resources
+            .begin_exclusive_transaction(key)
+            .expect("host rejection should release this key");
+        replacement_transaction.reject();
+    }
+
+    #[test]
+    fn resource_exclusive_worker_capacity_rejection_releases_only_that_reservation() {
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let bridge = AdmissionBridge {
+            accepted: Arc::clone(&accepted),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "resource-exclusive-capacity",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                move |_| id,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let key = crate::runtime::ResourceKey::scoped("sample", "C:/capacity-exclusive.wav");
+        let mut resources = crate::application::ResourceTasks::new();
+        let (ticket, transaction, effect_id) = resources
+            .begin_exclusive_transaction(key.clone())
+            .expect("exclusive admission");
+        let command = crate::runtime::Command::perform_worker_effect_with_identity_and_transaction(
+            EffectId(effect_id),
+            "resource-exclusive-capacity-overflow",
+            crate::runtime::TaskPriority::Background,
+            None,
+            transaction.generation(),
+            Some(transaction),
+            || 1_u8,
+            |_| 1_usize,
+        );
+
+        let _ = runtime.execute_command(command);
+
+        assert_eq!(resources.active(&key), None);
+        assert!(!resources.is_active_key(&key, ticket.ticket()));
+        let (_replacement, replacement_transaction, _) = resources
+            .begin_exclusive_transaction(key)
+            .expect("capacity rejection should release this key");
+        replacement_transaction.reject();
+    }
+
+    #[test]
     fn resource_latest_worker_acceptance_fences_stale_event_and_final() {
         let accepted = Arc::new(AtomicUsize::new(0));
         let bridge = AdmissionBridge {

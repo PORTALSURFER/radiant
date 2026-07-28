@@ -625,11 +625,15 @@ Use `.stream(work, map_event, map_final)` when one worker should report
 progressive results, such as progress, preview-ready, and final-ready states,
 without exposing UI state to the worker or using an app-local message channel.
 Streaming workers receive a `BusinessEventSink<Event>` and emitted events are
-mapped back through the normal message queue. `latest(...).stream(...)` tags
-both intermediate events and the final output with the same `TaskCompletion`
-ticket; keyed/latest resource streams tag events and final output with a
-`KeyedTaskCompletion<Key, Output>` so hosts can keep stale-result protection
-while adopting staged loading designs.
+mapped back through the normal message queue in FIFO order. Use the explicit
+`.stream_latest(...)` variant only when intermediate visual/progress events are
+safe to discard: its bounded ingress is latest-wins and replaces retained
+intermediate work while the UI catches up. The final completion is never
+coalesced and remains ordered after all retained events. `latest(...).stream(...)`
+tags both intermediate events and the final output with the same
+`TaskCompletion` ticket; keyed/latest resource streams tag events and final
+output with a `KeyedTaskCompletion<Key, Output>` so hosts can keep stale-result
+protection while adopting staged loading designs.
 Long-running workers should use `BusinessWorkContext::checkpoint()` when a
 chunk completes, `check_cancelled()` when they can stop promptly,
 `yield_if_elapsed(duration)` when CPU work should periodically yield, and

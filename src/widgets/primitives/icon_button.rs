@@ -465,6 +465,20 @@ mod tests {
                 },
                 "icon {id}"
             );
+            let expected_focus_points = crate::runtime::diagonal_cut_rect_points(
+                crate::runtime::inset_rect(bounds, -1.0, -1.0),
+            );
+            assert_eq!(
+                primitives
+                    .iter()
+                    .filter(|primitive| {
+                        matches!(primitive, PaintPrimitive::StrokePolygon(stroke)
+                            if stroke.points == expected_focus_points)
+                    })
+                    .count(),
+                1,
+                "icon {id} focus ring geometry"
+            );
 
             let leading_markers = primitives
                 .iter()

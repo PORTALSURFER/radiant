@@ -418,6 +418,17 @@ where
         });
     }
 
+    pub(super) fn update_window_environment(
+        &mut self,
+        environment: crate::runtime::WindowEnvironment,
+    ) -> bool {
+        if self.window.environment == environment {
+            return false;
+        }
+        self.window.environment = environment;
+        self.core.runtime.set_window_environment(environment)
+    }
+
     pub(super) fn observe_monitor_move(&mut self) {
         let Some(window) = self.window.window.as_ref() else {
             return;
@@ -434,6 +445,19 @@ where
         );
     }
 
+    pub(super) fn observe_theme_change(&mut self, theme: Option<winit::window::Theme>) {
+        let environment = super::window_environment::environment_for_native_state(
+            self.window.dpi_scale,
+            super::window_environment::window_color_scheme(theme),
+            self.window.accessibility_display,
+        );
+        if self.update_window_environment(environment) {
+            self.queue_window_environment_change(
+                crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
+            );
+        }
+    }
+
     #[cfg(target_os = "macos")]
     pub(super) fn queue_accessibility_display_snapshot(
         &mut self,
@@ -441,8 +465,16 @@ where
     ) {
         let previous = self.window.accessibility_display;
         self.window.accessibility_display = next;
+        let environment = super::window_environment::environment_for_native_state(
+            self.window.dpi_scale,
+            self.window.environment.color_scheme(),
+            next,
+        );
+        let changed = self.update_window_environment(environment);
         for change in super::window_environment::accessibility_display_changes(previous, next) {
-            self.queue_window_environment_change(change);
+            if changed {
+                self.queue_window_environment_change(change);
+            }
         }
     }
 

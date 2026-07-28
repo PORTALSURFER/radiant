@@ -136,9 +136,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 self.runner.update_native_dpi_scale(scale_factor);
             }
             WindowEvent::Moved(_) => self.runner.observe_monitor_move(),
-            WindowEvent::ThemeChanged(_) => self.runner.queue_window_environment_change(
-                crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
-            ),
+            WindowEvent::ThemeChanged(theme) => self.runner.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
                 let routed = self.runner.handle_focus_lost_before_external_drag();
                 self.runner.handle_route_outcome(event_loop, routed);

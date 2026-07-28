@@ -1531,6 +1531,17 @@ host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding
 Radiant outside the application builder.
 
+`radiant::app(state).view_with_context(...)` is an additive opt-in projection
+for the main window. Its closure receives `(&State, &WindowEnvironment)` while
+the existing `.view(|state| ...)` closure remains unchanged. The snapshot is
+backend-neutral and immutable: it contains the effective `DpiScale`, an
+optional `WindowColorScheme`, contrast preference, and reduced-motion
+preference. Unknown platform values use `None` or `false`; the default scale is
+`DpiScale::ONE`. `UiUpdateContext::window_environment()` and
+`RuntimeContext::window_environment()` expose the same per-window snapshot.
+Auxiliary windows update their runtime snapshot but do not run a separate
+high-level application projection.
+
 `RuntimeBridge` is the minimal projection and update contract for custom hosts.
 Optional host behavior is declared through `RuntimeHostCapabilities` and focused
 traits for input policy, task scheduling, platform services, runtime queues,

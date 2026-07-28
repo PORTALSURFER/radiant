@@ -270,6 +270,9 @@ Current target-specific seams are intentionally narrow:
   environment event boundary. The runtime keeps monitor, accessibility, and
   theme changes behind the backend-neutral invalidation contract, while
   unsupported targets retain the same no-op or fallback behavior.
+  `SurfaceRuntime` now owns the immutable per-window `WindowEnvironment`
+  snapshot and updates it before deferred projection; custom bridges may opt in
+  through the default-no-op `RuntimeBridge::set_window_environment` hook.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs`,

@@ -1,6 +1,6 @@
 use crate::{
     gui::types::Point,
-    runtime::{Command, RuntimeUpdateSnapshot},
+    runtime::{Command, RuntimeUpdateSnapshot, WindowEnvironment},
 };
 
 mod business;
@@ -49,6 +49,16 @@ impl<Message> UiUpdateContext<Message> {
     /// Latest logical pointer position known to the runtime for this update.
     pub fn current_pointer_position(&self) -> Option<Point> {
         self.runtime_snapshot.current_pointer_position()
+    }
+
+    /// Current immutable native environment for the window receiving this update.
+    pub fn window_environment(&self) -> WindowEnvironment {
+        self.runtime_snapshot.window_environment()
+    }
+
+    /// Alias for [`Self::window_environment`].
+    pub fn environment(&self) -> WindowEnvironment {
+        self.window_environment()
     }
 
     /// Access Radiant's business-work submission API.

@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 use crate::runtime::WindowEnvironmentChange;
+use crate::runtime::{WindowColorScheme, WindowEnvironment};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     window::Window,
@@ -42,6 +43,28 @@ pub(super) fn current_monitor_fingerprint(window: &Window) -> Option<MonitorFing
         monitor.size(),
         monitor.scale_factor(),
     ))
+}
+
+pub(super) fn window_color_scheme(
+    theme: Option<winit::window::Theme>,
+) -> Option<WindowColorScheme> {
+    theme.map(|theme| match theme {
+        winit::window::Theme::Light => WindowColorScheme::Light,
+        winit::window::Theme::Dark => WindowColorScheme::Dark,
+    })
+}
+
+pub(super) fn environment_for_native_state(
+    display_scale: crate::theme::DpiScale,
+    color_scheme: Option<WindowColorScheme>,
+    accessibility: AccessibilityDisplaySnapshot,
+) -> WindowEnvironment {
+    WindowEnvironment::new(
+        display_scale,
+        color_scheme,
+        accessibility.increase_contrast,
+        accessibility.reduce_motion,
+    )
 }
 
 /// The process-global accessibility display facts that affect a window.

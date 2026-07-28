@@ -131,6 +131,7 @@ where
 
         let application_projection_started = Instant::now();
         let mut next_surface = self.bridge.pull_surface();
+        next_surface.set_window_environment(self.window_environment);
         let application_projection = application_projection_started.elapsed();
         self.refresh_counters.application_projection = self
             .refresh_counters

@@ -122,7 +122,7 @@ pub use diagnostics::{
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
-pub use environment::WindowEnvironmentChange;
+pub use environment::{WindowColorScheme, WindowEnvironment, WindowEnvironmentChange};
 pub(crate) use external_drag::{
     ExternalDragCompletion, ExternalDragIdentity, ExternalDragLaunch, ExternalDragSession,
     PendingExternalDragCompletion,

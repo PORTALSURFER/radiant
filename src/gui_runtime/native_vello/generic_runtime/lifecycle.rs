@@ -66,9 +66,7 @@ where
                 self.update_native_dpi_scale(scale_factor);
             }
             WindowEvent::Moved(_) => self.observe_monitor_move(),
-            WindowEvent::ThemeChanged(_) => self.queue_window_environment_change(
-                crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
-            ),
+            WindowEvent::ThemeChanged(theme) => self.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
                 let routed = self.handle_focus_lost_before_external_drag();
                 self.handle_route_outcome(event_loop, routed);

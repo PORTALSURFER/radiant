@@ -1,4 +1,81 @@
 use super::command::{RepaintScope, SurfaceInvalidation};
+use crate::theme::DpiScale;
+
+/// The system color scheme resolved for one native presentation surface.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WindowColorScheme {
+    /// A light system appearance.
+    Light,
+    /// A dark system appearance.
+    Dark,
+}
+
+/// Immutable, backend-neutral native environment for one window.
+///
+/// The snapshot is deliberately small and copyable. `display_scale` is the
+/// effective [`DpiScale`] used by Radiant after any host override; an unknown
+/// native color scheme remains `None`. Contrast and reduced motion default to
+/// `false` when the platform does not report an accessibility preference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowEnvironment {
+    display_scale: DpiScale,
+    color_scheme: Option<WindowColorScheme>,
+    contrast: bool,
+    reduced_motion: bool,
+}
+
+impl WindowEnvironment {
+    /// Construct a window environment from backend-neutral values.
+    pub const fn new(
+        display_scale: DpiScale,
+        color_scheme: Option<WindowColorScheme>,
+        contrast: bool,
+        reduced_motion: bool,
+    ) -> Self {
+        Self {
+            display_scale,
+            color_scheme,
+            contrast,
+            reduced_motion,
+        }
+    }
+
+    /// Return the effective display scale used by the runtime.
+    pub const fn display_scale(self) -> DpiScale {
+        self.display_scale
+    }
+
+    /// Alias for [`Self::display_scale`] for callers that use scale wording.
+    pub const fn scale(self) -> DpiScale {
+        self.display_scale
+    }
+
+    /// Return the resolved system color scheme, when known.
+    pub const fn color_scheme(self) -> Option<WindowColorScheme> {
+        self.color_scheme
+    }
+
+    /// Return whether the window is using a higher-contrast accessibility mode.
+    pub const fn contrast(self) -> bool {
+        self.contrast
+    }
+
+    /// Alias for [`Self::contrast`].
+    pub const fn high_contrast(self) -> bool {
+        self.contrast
+    }
+
+    /// Return whether nonessential motion should be reduced or disabled.
+    pub const fn reduced_motion(self) -> bool {
+        self.reduced_motion
+    }
+}
+
+impl Default for WindowEnvironment {
+    fn default() -> Self {
+        Self::new(DpiScale::ONE, None, false, false)
+    }
+}
 
 /// A change to the native environment observed by one window.
 ///
@@ -65,8 +142,37 @@ impl WindowEnvironmentChange {
 
 #[cfg(test)]
 mod tests {
-    use super::WindowEnvironmentChange;
-    use crate::runtime::{RepaintScope, SurfaceInvalidation};
+    use super::{WindowColorScheme, WindowEnvironment, WindowEnvironmentChange};
+    use crate::{
+        runtime::{RepaintScope, SurfaceInvalidation},
+        theme::DpiScale,
+    };
+
+    #[test]
+    fn window_environment_defaults_are_backend_neutral() {
+        let environment = WindowEnvironment::default();
+
+        assert_eq!(environment.display_scale(), DpiScale::ONE);
+        assert_eq!(environment.color_scheme(), None);
+        assert!(!environment.contrast());
+        assert!(!environment.reduced_motion());
+    }
+
+    #[test]
+    fn window_environment_preserves_values_and_equality() {
+        let environment = WindowEnvironment::new(
+            DpiScale::new(2.0),
+            Some(WindowColorScheme::Dark),
+            true,
+            true,
+        );
+
+        assert_eq!(environment.display_scale().factor(), 2.0);
+        assert_eq!(environment.color_scheme(), Some(WindowColorScheme::Dark));
+        assert!(environment.high_contrast());
+        assert!(environment.reduced_motion());
+        assert_eq!(environment, environment);
+    }
 
     const MAPPINGS: &[(WindowEnvironmentChange, RepaintScope, SurfaceInvalidation)] = &[
         (

@@ -40,6 +40,7 @@ pub(in crate::runtime) use crate::widgets::WidgetId;
 /// Top-level immutable UI surface projected by a generic Radiant host.
 pub struct UiSurface<Message> {
     root: SurfaceNode<Message>,
+    window_environment: crate::runtime::WindowEnvironment,
 }
 
 impl<Message> UiSurface<Message> {

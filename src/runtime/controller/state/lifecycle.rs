@@ -21,6 +21,10 @@ where
     /// Build a generic runtime controller for the provided viewport.
     pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
         let viewport = normalized_viewport(viewport);
+        let initial_environment = crate::runtime::WindowEnvironment::default();
+        // Give environment-aware bridges a deterministic value before their
+        // first projection, matching the runtime-owned default snapshot.
+        bridge.set_window_environment(initial_environment);
         let surface = bridge.pull_surface();
         // The initial projection lets declarative hosts discover scene-provided
         // capabilities before this immutable dispatch table is cached.
@@ -33,6 +37,7 @@ where
             bridge,
             host_capabilities,
             viewport,
+            window_environment: initial_environment,
             surface,
             layout_root,
             layout_engine: LayoutEngine::default(),
@@ -66,6 +71,30 @@ where
         runtime.relayout_with_traversal(traversal);
         runtime.phase = RuntimePhase::Running;
         runtime
+    }
+
+    /// Return the current immutable native environment snapshot for this window.
+    pub fn window_environment(&self) -> crate::runtime::WindowEnvironment {
+        self.window_environment
+    }
+
+    /// Replace the native environment snapshot and notify the bridge once.
+    ///
+    /// Native adapters should call this before queueing the corresponding
+    /// [`WindowEnvironmentChange`](crate::runtime::WindowEnvironmentChange).
+    /// Equal snapshots are ignored so duplicate platform notifications do not
+    /// invoke application hooks or trigger redundant projections.
+    pub fn set_window_environment(
+        &mut self,
+        environment: crate::runtime::WindowEnvironment,
+    ) -> bool {
+        if self.window_environment == environment {
+            return false;
+        }
+        self.window_environment = environment;
+        self.surface.set_window_environment(environment);
+        self.bridge.set_window_environment(environment);
+        true
     }
 
     pub(crate) fn begin_closing(&mut self) -> bool {

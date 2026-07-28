@@ -4,7 +4,7 @@ use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
-    runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface},
+    runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface, WindowEnvironment},
     widgets::WidgetId,
 };
 
@@ -25,6 +25,13 @@ pub struct RuntimeContext<'a, Message> {
     pub surface: &'a UiSurface<Message>,
     /// Current resolved layout output for the surface.
     pub layout: &'a LayoutOutput,
+}
+
+impl<'a, Message> RuntimeContext<'a, Message> {
+    /// Return the current immutable native environment for this window.
+    pub const fn window_environment(&self) -> WindowEnvironment {
+        self.surface.window_environment()
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -197,5 +204,60 @@ where
     /// Consume the runtime controller and return the owned bridge.
     pub fn into_bridge(self) -> Bridge {
         self.bridge
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        layout::ContainerPolicy,
+        runtime::{RuntimeBridge, SurfaceNode, WindowColorScheme},
+        theme::DpiScale,
+    };
+    use std::sync::{Arc, Mutex};
+
+    struct EnvironmentBridge {
+        changes: Arc<Mutex<Vec<WindowEnvironment>>>,
+    }
+
+    impl RuntimeBridge<()> for EnvironmentBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn set_window_environment(&mut self, environment: WindowEnvironment) {
+            self.changes.lock().unwrap().push(environment);
+        }
+    }
+
+    #[test]
+    fn environment_snapshot_updates_context_and_notifies_only_on_delta() {
+        let changes = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            EnvironmentBridge {
+                changes: Arc::clone(&changes),
+            },
+            Vector2::new(100.0, 60.0),
+        );
+        let environment = WindowEnvironment::new(
+            DpiScale::new(2.0),
+            Some(WindowColorScheme::Light),
+            true,
+            false,
+        );
+
+        assert!(runtime.set_window_environment(environment));
+        assert!(!runtime.set_window_environment(environment));
+        assert_eq!(runtime.window_environment(), environment);
+        assert_eq!(runtime.context().window_environment(), environment);
+        assert_eq!(
+            *changes.lock().unwrap(),
+            vec![WindowEnvironment::default(), environment]
+        );
     }
 }

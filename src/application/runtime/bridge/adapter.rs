@@ -43,6 +43,10 @@ where
         self.update_message_with_runtime(message, snapshot)
     }
 
+    fn set_window_environment(&mut self, environment: crate::runtime::WindowEnvironment) {
+        *self.window_environment.borrow_mut() = environment;
+    }
+
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
         // App views can introduce scene-scoped overlays after any state
         // refresh, so this capability must remain stable for the bridge

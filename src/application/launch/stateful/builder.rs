@@ -4,6 +4,7 @@ use crate::{
     application::launch::IntoView,
     gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions},
 };
+use std::{cell::RefCell, rc::Rc};
 use std::{marker::PhantomData, path::PathBuf};
 
 /// Initial builder for simple stateful Radiant apps.
@@ -106,8 +107,76 @@ impl<State> StatefulAppBuilder<State> {
             options: self.options,
             project,
             lifecycle: AppBridgeLifecycle::default(),
+            window_environment: None,
             _message: PhantomData,
             _view: PhantomData,
         }
+    }
+
+    /// Attach a projection that can opt into the current window environment.
+    ///
+    /// The existing [`Self::view`] closure remains unchanged; this additive
+    /// method is for applications whose main surface needs scale, appearance,
+    /// contrast, or motion preference during projection.
+    pub fn view_with_context<Message, Project, View>(
+        self,
+        mut project: Project,
+    ) -> StatefulAppWithView<State, Message, impl FnMut(&State) -> View, View>
+    where
+        Project: FnMut(&State, &crate::runtime::WindowEnvironment) -> View,
+        View: IntoView<Message>,
+    {
+        let environment = Rc::new(RefCell::new(crate::runtime::WindowEnvironment::default()));
+        let projection_environment = Rc::clone(&environment);
+        let project = move |state: &State| {
+            let environment = *projection_environment.borrow();
+            project(state, &environment)
+        };
+        StatefulAppWithView {
+            state: self.state,
+            options: self.options,
+            project,
+            lifecycle: AppBridgeLifecycle::default(),
+            window_environment: Some(environment),
+            _message: PhantomData,
+            _view: PhantomData,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::text,
+        runtime::{SurfaceRuntime, WindowColorScheme},
+        theme::DpiScale,
+    };
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn context_aware_projection_receives_updated_window_environment() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let seen_by_projection = Arc::clone(&seen);
+        let app = StatefulAppBuilder::new(())
+            .view_with_context(move |_, environment| {
+                seen_by_projection
+                    .lock()
+                    .unwrap()
+                    .push(environment.display_scale().factor());
+                text::<()>("environment")
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(app, crate::gui::types::Vector2::new(100.0, 60.0));
+        let environment = crate::runtime::WindowEnvironment::new(
+            DpiScale::new(2.0),
+            Some(WindowColorScheme::Dark),
+            false,
+            true,
+        );
+        assert!(runtime.set_window_environment(environment));
+        runtime.refresh();
+
+        assert_eq!(*seen.lock().unwrap(), vec![1.0, 2.0]);
     }
 }

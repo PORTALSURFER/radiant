@@ -35,7 +35,7 @@ use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,
     ExternalDragIdentity, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,
     RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
-    WidgetDispatchResult, WidgetPath,
+    WidgetDispatchResult, WidgetPath, WindowEnvironment,
 };
 use crate::{
     gui::types::Rect,
@@ -99,6 +99,7 @@ where
     bridge: Bridge,
     host_capabilities: super::RuntimeHostCapabilities<Bridge, Message>,
     viewport: Rect,
+    window_environment: WindowEnvironment,
     surface: UiSurface<Message>,
     layout_root: crate::layout::LayoutNode,
     layout_engine: LayoutEngine,

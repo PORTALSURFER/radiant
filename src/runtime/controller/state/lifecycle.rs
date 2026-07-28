@@ -237,13 +237,19 @@ fn layout_effective_viewport(viewport: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::Point;
     use crate::layout::ContainerPolicy;
     use crate::runtime::{
-        Command, ExternalDragRequest, RuntimeHostCapabilities, RuntimeLifecycleHost, SurfaceNode,
+        Command, ExternalDragRequest, RuntimeAnimationActivity, RuntimeAnimationHost,
+        RuntimeHostCapabilities, RuntimeLifecycleHost, SurfaceNode, WidgetMessageMapper,
     };
+    use crate::widgets::{DragHandleWidget, WidgetInput, WidgetSizing};
     use std::{
         path::PathBuf,
-        sync::{Arc, Mutex},
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
+        },
     };
 
     #[derive(Default)]
@@ -281,6 +287,38 @@ mod tests {
         fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
             self.hook_calls += 1;
             Some(serde_json::json!({ "hook_calls": self.hook_calls }))
+        }
+    }
+
+    #[derive(Default)]
+    struct ClosingGateBridge {
+        animation_polls: Arc<AtomicUsize>,
+        frame_queues: Arc<AtomicUsize>,
+    }
+
+    impl RuntimeBridge<()> for ClosingGateBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+                DragHandleWidget::new(7, WidgetSizing::fixed(Vector2::new(24.0, 80.0)))
+                    .with_hover_chrome_only(),
+                WidgetMessageMapper::none(),
+            )))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_animation()
+        }
+    }
+
+    impl RuntimeAnimationHost for ClosingGateBridge {
+        fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+            self.animation_polls.fetch_add(1, Ordering::AcqRel);
+            RuntimeAnimationActivity::frame_messages()
+        }
+
+        fn queue_animation_frame(&mut self) -> bool {
+            self.frame_queues.fetch_add(1, Ordering::AcqRel);
+            true
         }
     }
 
@@ -350,6 +388,63 @@ mod tests {
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
             vec!["closing", "teardown"]
+        );
+    }
+
+    #[test]
+    fn closing_stops_animation_and_timed_repaint_admission() {
+        let mut runtime =
+            SurfaceRuntime::new(ClosingGateBridge::default(), Vector2::new(80.0, 80.0));
+        assert_eq!(
+            runtime.host_animation_activity(),
+            RuntimeAnimationActivity::frame_messages()
+        );
+        assert!(runtime.host_queue_animation_frame());
+        assert_eq!(runtime.bridge().animation_polls.load(Ordering::Acquire), 1);
+        assert_eq!(runtime.bridge().frame_queues.load(Ordering::Acquire), 1);
+
+        assert_eq!(
+            runtime.dispatch_input_at(
+                Point::new(4.0, 4.0),
+                WidgetInput::pointer_move(Point::new(4.0, 4.0))
+            ),
+            Some(7)
+        );
+        let deadline = runtime
+            .timed_repaint_deadline()
+            .expect("hover should arm a finite timed repaint");
+        assert!(
+            !runtime
+                .surface()
+                .find_widget(7)
+                .expect("drag handle")
+                .widget()
+                .as_any()
+                .downcast_ref::<DragHandleWidget>()
+                .expect("drag handle type")
+                .hover_highlight_revealed
+        );
+
+        assert!(runtime.begin_closing());
+        assert_eq!(
+            runtime.host_animation_activity(),
+            RuntimeAnimationActivity::idle()
+        );
+        assert!(!runtime.host_queue_animation_frame());
+        assert_eq!(runtime.bridge().animation_polls.load(Ordering::Acquire), 1);
+        assert_eq!(runtime.bridge().frame_queues.load(Ordering::Acquire), 1);
+        assert_eq!(runtime.timed_repaint_deadline(), None);
+        assert!(!runtime.advance_timed_repaints(deadline));
+        assert!(
+            !runtime
+                .surface()
+                .find_widget(7)
+                .expect("drag handle")
+                .widget()
+                .as_any()
+                .downcast_ref::<DragHandleWidget>()
+                .expect("drag handle type")
+                .hover_highlight_revealed
         );
     }
 }

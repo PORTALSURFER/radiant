@@ -172,6 +172,9 @@ pub struct WorkerEffect<Message> {
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
     pub(crate) transaction: Option<LatestTaskTransaction>,
+    pub(crate) admission_receipt: Option<
+        crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+    >,
     pub(crate) work: WorkerEffectWork,
     pub(crate) mapper: WorkerEffectMapper<Message>,
 }

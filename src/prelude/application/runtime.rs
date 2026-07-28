@@ -1,6 +1,9 @@
 //! Stateful-application runtime prelude exports.
 
 pub use crate::Result;
+pub use crate::application::runtime::{
+    BusinessTaskAdmission, BusinessTaskAdmissionReceipt, BusinessTaskAdmissionReceiptState,
+};
 pub use crate::application::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, RepaintPolicy,
     ResourceTaskTicket, ResourceTasks, RunnableStatefulApp, StatefulAppBuilder,

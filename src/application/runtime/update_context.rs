@@ -3,12 +3,15 @@ use crate::{
     runtime::{Command, RuntimeUpdateSnapshot, WindowEnvironment},
 };
 
-mod business;
+pub(crate) mod business;
 mod commands;
 mod platform;
 mod surface;
 
-pub use business::{BusinessEventSink, BusinessRuntime, BusinessWorkContext};
+pub use business::{
+    BusinessEventSink, BusinessRuntime, BusinessTaskAdmission, BusinessTaskAdmissionReceipt,
+    BusinessTaskAdmissionReceiptState, BusinessWorkContext,
+};
 pub(in crate::application) use business::{
     BusinessWorkDiagnosticSummary, with_business_work_diagnostics,
 };

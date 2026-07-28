@@ -621,6 +621,14 @@ has already selected the lane, then optional policies such as
 `exclusive_for(&mut ResourceTasks, ResourceKey)`,
 `resource(&mut ResourceSlot<_>)`, and `cancellable()` before
 `.run(work, map)`.
+When a host needs to observe bounded admission without adding a callback or
+retry queue, use `.run_with_receipt(work, map)`. It returns a UI-local
+`BusinessTaskAdmissionReceipt`; poll it for `BusinessTaskAdmission::Pending`,
+`Accepted`, `Rejected`, or `Closed`. The receipt is resolved only after the
+controller has attempted actual host admission, and dropping it releases the
+weak controller-side state. The additive `latest(...).run_with_receipt(...)`
+variant preserves the latest transaction and output ordering; existing
+`.run(...)` behavior is unchanged.
 Use `.stream(work, map_event, map_final)` when one worker should report
 progressive results, such as progress, preview-ready, and final-ready states,
 without exposing UI state to the worker or using an app-local message channel.

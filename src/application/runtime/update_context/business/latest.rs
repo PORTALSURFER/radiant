@@ -2,6 +2,7 @@ use crate::application::{CancellationToken, LatestTaskTransaction, TaskCompletio
 
 use super::{
     BusinessEventSink, BusinessWorkContext,
+    admission::{AdmissionReceiptGuard, BusinessTaskAdmissionReceipt},
     request::{BusinessRequest, LatestStreamCloseGuard},
 };
 
@@ -57,6 +58,38 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
                 map,
             ),
         );
+    }
+
+    /// Run latest work and return a UI-local receipt for host admission.
+    pub fn run_with_receipt<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let ticket = self.ticket;
+        let transaction = self.transaction;
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction_and_receipt(
+                crate::runtime::EffectId(self.effect_id),
+                self.request.name,
+                self.request.priority,
+                None,
+                ticket.id(),
+                Some(transaction),
+                Some(guard),
+                move || TaskCompletion {
+                    ticket,
+                    output: work(BusinessWorkContext::new(None)),
+                },
+                map,
+            ),
+        );
+        receipt
     }
 
     /// Run latest worker-only work and map its output on the UI runtime.

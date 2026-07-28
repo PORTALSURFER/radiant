@@ -1,3 +1,4 @@
+pub(crate) mod admission;
 mod keyed_latest;
 mod latest;
 mod request;
@@ -11,6 +12,9 @@ use request::BusinessRequest;
 
 use super::UiUpdateContext;
 
+pub use admission::{
+    BusinessTaskAdmission, BusinessTaskAdmissionReceipt, BusinessTaskAdmissionReceiptState,
+};
 pub use sink::BusinessEventSink;
 pub use work_context::BusinessWorkContext;
 pub(in crate::application) use work_context::{

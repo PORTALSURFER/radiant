@@ -1,14 +1,96 @@
 use super::*;
 use crate::{
     application::{
-        ContinuityKey, Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key,
-        scoped_key_id, text,
+        ContinuityKey, IntoView, Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key,
+        scene, scoped_key_id, text,
     },
     gui::types::Point,
-    layout::Vector2,
+    layout::{LayoutNode, Vector2},
     runtime::{SurfaceNode, WidgetMessageMapper},
     widgets::{ButtonWidget, WidgetSizing},
 };
+
+fn layout_ids(node: &LayoutNode, ids: &mut Vec<crate::layout::NodeId>) {
+    ids.push(node.id());
+    if let LayoutNode::Container(container) = node {
+        for child in &container.children {
+            layout_ids(&child.child, ids);
+        }
+    }
+}
+
+fn projected_ids(view: ViewNode<()>) -> Vec<crate::layout::NodeId> {
+    let layout = view.into_surface().layout_node();
+    let mut ids = Vec::new();
+    layout_ids(&layout, &mut ids);
+    ids
+}
+
+#[test]
+fn structural_fallback_ids_are_stable_across_repeated_projection() {
+    let first = projected_ids(column([row([text("A"), text("B")]), text("C")]));
+    let second = projected_ids(column([row([text("A"), text("B")]), text("C")]));
+
+    assert_eq!(first, second);
+}
+
+#[test]
+fn nested_insertion_does_not_change_unrelated_branch_identity() {
+    let before = projected_ids(column([column([text("left")]), column([text("right")])]));
+    let after = projected_ids(column([
+        column([text("left"), text("inserted")]),
+        column([text("right")]),
+    ]));
+
+    assert_eq!(before[3], after[4], "right branch should retain its id");
+    assert_eq!(before[4], after[5], "right leaf should retain its id");
+}
+
+#[test]
+fn same_position_kind_change_changes_structural_identity() {
+    let text_id = projected_ids(column([text("value")]))[1];
+    let container_id = projected_ids(column([row([text("value")])]))[1];
+
+    assert_ne!(text_id, container_id);
+}
+
+#[test]
+fn same_kind_property_change_keeps_structural_identity() {
+    let before = projected_ids(column([text("value").size(20.0, 10.0)]))[1];
+    let after = projected_ids(column([text("changed").size(80.0, 40.0)]))[1];
+
+    assert_eq!(before, after);
+}
+
+#[test]
+fn static_sibling_insertion_remains_positional() {
+    let before = projected_ids(row([text("first"), text("second")]));
+    let after = projected_ids(row([text("first"), text("inserted"), text("second")]));
+
+    assert_eq!(before[1], after[1]);
+    assert_eq!(before[2], after[2]);
+    assert_ne!(before[2], after[3]);
+}
+
+#[test]
+fn scene_layer_and_input_roles_have_distinct_generated_ids() {
+    let layout = scene::<()>(text("base"))
+        .layer(Layer::modal(text("layer")).block_input())
+        .into_view()
+        .into_surface()
+        .layout_node();
+    let mut ids = Vec::new();
+    layout_ids(&layout, &mut ids);
+
+    assert_eq!(ids.len(), 4, "scene, base, input, and foreground");
+    assert_eq!(
+        ids.len(),
+        ids.iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+    );
+}
 
 #[test]
 fn reserved_id_collection_presizes_for_large_child_groups() {

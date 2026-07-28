@@ -2,9 +2,10 @@ use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{
         IdGenerator, IntoView, ROOT_KEY_SCOPE, ViewProjection, WidgetViewContext,
-        launch::SceneProjection, view_node::lowering_defaults::ViewNodeContainerDefaults,
+        ids::StructuralRole, launch::SceneProjection,
+        view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
-    layout::{ContainerKind, ContainerPolicy, NodeId, VirtualizationAxis, VirtualizationPolicy},
+    layout::{ContainerKind, ContainerPolicy, VirtualizationAxis, VirtualizationPolicy},
     runtime::{SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
 };
 
@@ -22,7 +23,11 @@ where
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
         let mut scene = SceneProjection::default();
-        let root = ViewLowering::new(&mut ids, &mut scene).lower_node(self, ROOT_KEY_SCOPE);
+        let root = ViewLowering::new(&mut ids, &mut scene).lower_node(
+            self,
+            ROOT_KEY_SCOPE,
+            StructuralRole::Root,
+        );
         ViewProjection::with_scene(UiSurface::new(root), scene)
     }
 }
@@ -37,13 +42,29 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         Self { ids, scene }
     }
 
-    fn next_node_id(&mut self, node: &ViewNode<Message>, scope: u64) -> NodeId {
-        node.resolved_id(scope).unwrap_or_else(|| self.ids.next())
+    fn next_node_identity(
+        &mut self,
+        node: &ViewNode<Message>,
+        scope: u64,
+        role: StructuralRole,
+    ) -> crate::application::ids::StructuralIdentity {
+        if let Some(id) = node.resolved_id(scope) {
+            self.ids.claim_explicit(id);
+            return crate::application::ids::StructuralIdentity { id, scope: id };
+        }
+        self.ids
+            .next_structural(scope, node.structural_kind(), role)
     }
 
-    fn lower_node(&mut self, node: ViewNode<Message>, scope: u64) -> SurfaceNode<Message> {
-        let id = self.next_node_id(&node, scope);
-        let child_scope = id;
+    fn lower_node(
+        &mut self,
+        node: ViewNode<Message>,
+        scope: u64,
+        role: StructuralRole,
+    ) -> SurfaceNode<Message> {
+        let identity = self.next_node_identity(&node, scope, role);
+        let id = identity.id;
+        let child_scope = identity.scope;
         let style = node.style;
         let hoverable = node.hoverable;
         let scroll_message = node.scroll_message;
@@ -74,12 +95,19 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 let mut collected_layers = Vec::new();
                 base.drain_overlay_layers_in_declaration_order(&mut collected_layers);
                 collected_layers.extend(layers);
-                let base = self.lower_node(base, child_scope);
+                let base = self.lower_node(base, child_scope, StructuralRole::SceneBase);
                 let layers = collected_layers
                     .into_iter()
-                    .map(|layer| {
-                        let input = layer.input.map(|input| self.lower_node(input, child_scope));
-                        let foreground = self.lower_node(layer.view, child_scope);
+                    .enumerate()
+                    .map(|(index, layer)| {
+                        let input = layer.input.map(|input| {
+                            self.lower_node(input, child_scope, StructuralRole::SceneInput(index))
+                        });
+                        let foreground = self.lower_node(
+                            layer.view,
+                            child_scope,
+                            StructuralRole::SceneLayer(index),
+                        );
                         SurfaceLayer::with_input(layer.kind, input, foreground)
                     })
                     .collect();
@@ -121,7 +149,8 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     overflow: crate::layout::OverflowPolicy::Scroll,
                     ..base_policy()
                 };
-                let children = vec![self.lower_fill_child(*child, child_scope)];
+                let children =
+                    vec![self.lower_fill_child(*child, child_scope, StructuralRole::ScrollChild)];
                 styled_container(self, policy, children)
             }
             ViewNodeKind::VirtualScroll { child, overscan_px } => {
@@ -135,7 +164,11 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     }),
                     ..base_policy()
                 };
-                let children = vec![self.lower_fill_child(*child, child_scope)];
+                let children = vec![self.lower_fill_child(
+                    *child,
+                    child_scope,
+                    StructuralRole::VirtualScrollChild,
+                )];
                 styled_container(self, policy, children)
             }
             ViewNodeKind::OverlayPanel { rect, label } => {
@@ -158,7 +191,8 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 horizontal_overflow,
                 vertical_overflow,
             } => {
-                let child = self.lower_node(*child, child_scope);
+                let child =
+                    self.lower_node(*child, child_scope, StructuralRole::FloatingLayerChild);
                 SurfaceNode::floating_layer_with_vertical_overflow(
                     id,
                     offset,

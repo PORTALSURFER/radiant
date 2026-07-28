@@ -22,9 +22,14 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
         .into_bridge();
 
     let before = bridge.project_surface();
+    let radiant::layout::LayoutNode::Container(container) = before.layout_node() else {
+        panic!("counter view should lower to a container");
+    };
+    let text_id = container.children[0].child.id();
+    let button_id = container.children[1].child.id();
     let increment = before
         .dispatch_widget_output(
-            3,
+            button_id,
             radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
         .expect("generated button should route through the same surface mapper");
@@ -34,7 +39,7 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
     assert!(command.requests_repaint());
     let after = bridge.project_surface();
     assert_eq!(
-        widget_ref::<TextWidget, _>(&after, 2, "text").text,
+        widget_ref::<TextWidget, _>(&after, text_id, "text").text,
         "Count: 1"
     );
 }
@@ -113,8 +118,9 @@ fn handle_message_exposes_ui_update_context_with_clear_app_api_name() {
 
     assert!(command.requests_repaint());
     let after = bridge.project_surface();
+    let text_id = after.root().id();
     assert_eq!(
-        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        widget_ref::<TextWidget, _>(&after, text_id, "text").text,
         "Count: 1"
     );
 }
@@ -137,8 +143,9 @@ fn handle_message_is_the_only_context_aware_app_handler_name() {
 
     assert!(command.requests_repaint());
     let after = bridge.project_surface();
+    let text_id = after.root().id();
     assert_eq!(
-        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        widget_ref::<TextWidget, _>(&after, text_id, "text").text,
         "Count: 1"
     );
 }
@@ -244,8 +251,9 @@ fn repaint_policy_can_skip_frame_messages() {
     assert!(!frame_command.requests_repaint());
     assert!(user_command.requests_repaint());
     let after = bridge.project_surface();
+    let text_id = after.root().id();
     assert_eq!(
-        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        widget_ref::<TextWidget, _>(&after, text_id, "text").text,
         "Count: 11"
     );
 }

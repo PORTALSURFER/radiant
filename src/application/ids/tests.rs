@@ -72,3 +72,47 @@ fn id_generator_skips_probing_after_reserved_range_is_exhausted() {
     assert_eq!(ids.next(), 513);
     assert_eq!(ids.next(), 514);
 }
+
+#[test]
+fn structural_identity_is_deterministic_and_role_typed() {
+    let first = structural_id(
+        super::super::ROOT_KEY_SCOPE,
+        StructuralKind::Widget,
+        StructuralRole::ContainerChild(2),
+    );
+    let second = structural_id(
+        super::super::ROOT_KEY_SCOPE,
+        StructuralKind::Widget,
+        StructuralRole::ContainerChild(2),
+    );
+    let different_role = structural_id(
+        super::super::ROOT_KEY_SCOPE,
+        StructuralKind::Widget,
+        StructuralRole::SceneLayer(2),
+    );
+
+    assert_eq!(first, second);
+    assert_ne!(first, different_role);
+}
+
+#[test]
+fn structural_generation_skips_reserved_and_duplicate_ids() {
+    let scope = super::super::ROOT_KEY_SCOPE;
+    let candidate = structural_id(scope, StructuralKind::Widget, StructuralRole::Root);
+    let mut ids = IdGenerator::new(vec![candidate]);
+
+    let first = ids.next_structural(scope, StructuralKind::Widget, StructuralRole::Root);
+    let second = ids.next_structural(scope, StructuralKind::Widget, StructuralRole::Root);
+
+    assert_ne!(first.id, candidate);
+    assert_ne!(first.id, second.id);
+    assert_eq!(first.scope, candidate);
+}
+
+#[test]
+fn explicit_identity_claim_audits_duplicates() {
+    let mut ids = IdGenerator::new(Vec::new());
+
+    assert!(ids.claim_explicit(17));
+    assert!(!ids.claim_explicit(17));
+}

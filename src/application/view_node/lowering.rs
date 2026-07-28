@@ -8,6 +8,7 @@ use crate::{
     layout::{ContainerKind, ContainerPolicy, VirtualizationAxis, VirtualizationPolicy},
     runtime::{SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
 };
+use std::panic::panic_any;
 
 #[path = "lowering/children.rs"]
 mod children;
@@ -27,7 +28,7 @@ where
             .collect_keyed_collisions(ROOT_KEY_SCOPE, &mut keyed_candidates)
             .is_err()
         {
-            panic!("ambiguous keyed identity");
+            panic_any("ambiguous keyed identity");
         }
         let mut scene = SceneProjection::default();
         let root = ViewLowering::new(&mut ids, &mut scene).lower_node(

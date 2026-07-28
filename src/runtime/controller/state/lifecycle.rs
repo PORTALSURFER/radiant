@@ -33,6 +33,7 @@ where
             layout_root,
             traversal,
         } = surface.runtime_projection();
+        let effect_owner = super::super::owner::RuntimeOwner::new();
         let mut runtime = Self {
             bridge,
             host_capabilities,
@@ -53,13 +54,14 @@ where
             repaint_requested: false,
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
+            effect_owner: effect_owner.clone(),
             runtime_work: RuntimeWorkQueues::default(),
-            platform_registry: PlatformCompletionRegistry::default(),
+            platform_registry: PlatformCompletionRegistry::new(effect_owner.clone()),
             platform_results: std::sync::Arc::new(std::sync::Mutex::new(
                 super::super::platform::PlatformResultIngress::default(),
             )),
-            worker_effects: super::super::effects::WorkerEffects::default(),
-            timer_effects: super::super::timers::TimerEffects::default(),
+            worker_effects: super::super::effects::WorkerEffects::new(effect_owner.clone()),
+            timer_effects: super::super::timers::TimerEffects::new(effect_owner),
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
             pending_frame_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
@@ -103,6 +105,7 @@ where
         }
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
+        self.effect_owner.cancel();
         self.worker_effects.shutdown();
         self.timer_effects.shutdown();
         self.runtime_work.fence_all();

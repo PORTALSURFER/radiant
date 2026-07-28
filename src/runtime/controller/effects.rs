@@ -1,6 +1,7 @@
 //! UI-owned worker-effect completion routing.
 
 use super::SurfaceRuntime;
+use super::owner::{CancellationProbe, LifecycleDescriptor, RuntimeOwner};
 use crate::runtime::RuntimeBridge;
 use crate::runtime::command::{
     EffectGeneration, EffectId, WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
@@ -24,6 +25,7 @@ struct EffectTerminal {
     generation: EffectGeneration,
     epoch: u64,
     result: EffectResult,
+    owner: RuntimeOwner,
 }
 
 enum EffectResult {
@@ -35,6 +37,7 @@ enum EffectResult {
 }
 
 struct EffectIngress {
+    owner: RuntimeOwner,
     sender: SyncSender<EffectTerminal>,
     sequence: Arc<Mutex<u64>>,
     finals: Arc<Mutex<VecDeque<EffectTerminal>>>,
@@ -61,6 +64,7 @@ impl EffectIngress {
             generation,
             epoch,
             result,
+            owner: self.owner.clone(),
         };
         match self.sender.try_send(terminal) {
             Ok(()) => {
@@ -102,6 +106,7 @@ impl EffectIngress {
             generation,
             epoch,
             result,
+            owner: self.owner.clone(),
         };
         *sequence = sequence.saturating_add(1);
         self.finals
@@ -137,6 +142,7 @@ impl EffectIngress {
     fn clone_handle(&self) -> Self {
         Self {
             sender: self.sender.clone(),
+            owner: self.owner.clone(),
             sequence: Arc::clone(&self.sequence),
             finals: Arc::clone(&self.finals),
             stream_events_coalesced: Arc::clone(&self.stream_events_coalesced),
@@ -151,6 +157,7 @@ struct Registered<Message> {
     epoch: u64,
     is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
     mapper: RegisteredMapper<Message>,
+    lifecycle: LifecycleDescriptor,
 }
 
 enum RegisteredMapper<Message> {
@@ -225,6 +232,7 @@ impl LatestStreamState {
 }
 
 pub(super) struct WorkerEffects<Message> {
+    owner: RuntimeOwner,
     ingress: EffectIngress,
     receiver: std::sync::mpsc::Receiver<EffectTerminal>,
     deferred: VecDeque<EffectTerminal>,
@@ -236,8 +244,15 @@ pub(super) struct WorkerEffects<Message> {
 
 impl<Message> Default for WorkerEffects<Message> {
     fn default() -> Self {
-        let (ingress, receiver) = new_ingress();
+        Self::new(RuntimeOwner::new())
+    }
+}
+
+impl<Message> WorkerEffects<Message> {
+    pub(super) fn new(owner: RuntimeOwner) -> Self {
+        let (ingress, receiver) = new_ingress(owner.clone());
         Self {
+            owner,
             ingress,
             receiver,
             deferred: VecDeque::new(),
@@ -247,9 +262,7 @@ impl<Message> Default for WorkerEffects<Message> {
             stream_events_stale: 0,
         }
     }
-}
 
-impl<Message> WorkerEffects<Message> {
     pub(super) fn submit<Bridge>(
         &mut self,
         runtime: &mut SurfaceRuntime<Bridge, Message>,
@@ -268,8 +281,19 @@ impl<Message> WorkerEffects<Message> {
         let id = effect.id;
         let generation = effect.generation;
         let epoch = self.epoch;
-        let is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>> =
-            effect.is_cancelled.map(Arc::from);
+        let transaction_probe = transaction
+            .as_ref()
+            .map(crate::application::LatestTaskTransaction::cancellation_probe);
+        let token_probe: Option<CancellationProbe> = effect.is_cancelled.map(Arc::from);
+        let is_cancelled = combine_cancellation_probes(token_probe, transaction_probe);
+        let slot = transaction.as_ref().map(|transaction| transaction.slot());
+        let lifecycle = LifecycleDescriptor::new(
+            self.owner.clone(),
+            id.0,
+            slot,
+            generation.0,
+            is_cancelled.clone().map(|probe| probe as CancellationProbe),
+        );
         let (mapper, stream_latest) = match effect.mapper {
             WorkerEffectMapper::Once(map) => (RegisteredMapper::Once(map), None),
             WorkerEffectMapper::Stream {
@@ -320,6 +344,7 @@ impl<Message> WorkerEffects<Message> {
                 epoch,
                 is_cancelled: is_cancelled.clone(),
                 mapper,
+                lifecycle,
             },
         );
         self.pending += 1;
@@ -518,9 +543,25 @@ impl<Message> WorkerEffects<Message> {
             self.pending = self.pending.saturating_sub(1);
         }
         let current = self.registry.get(&terminal.id).is_some_and(|entry| {
-            entry.generation == terminal.generation && entry.epoch == terminal.epoch
+            entry.generation == terminal.generation
+                && entry.epoch == terminal.epoch
+                && entry.lifecycle.admits(
+                    &self.owner,
+                    terminal.id.0,
+                    terminal.generation.0,
+                    terminal.owner.is_same(&self.owner),
+                )
         });
         if !current {
+            if !self.owner.is_open()
+                && let Some(entry) = self.registry.remove(&terminal.id)
+                && let RegisteredMapper::Stream {
+                    latest_state: Some(state),
+                    ..
+                } = entry.mapper
+            {
+                state.close();
+            }
             if matches!(
                 terminal.result,
                 EffectResult::Event(_) | EffectResult::LatestEvent
@@ -613,7 +654,7 @@ impl<Message> WorkerEffects<Message> {
         self.epoch = self.epoch.saturating_add(1);
         self.registry.clear();
         self.deferred.clear();
-        let (ingress, receiver) = new_ingress();
+        let (ingress, receiver) = new_ingress(self.owner.clone());
         self.ingress = ingress;
         self.receiver = receiver;
         self.pending = 0;
@@ -621,11 +662,12 @@ impl<Message> WorkerEffects<Message> {
     }
 }
 
-fn new_ingress() -> (EffectIngress, std::sync::mpsc::Receiver<EffectTerminal>) {
+fn new_ingress(owner: RuntimeOwner) -> (EffectIngress, std::sync::mpsc::Receiver<EffectTerminal>) {
     let (sender, receiver) = std::sync::mpsc::sync_channel(EFFECT_INGRESS_CAPACITY);
     let finals = Arc::new(Mutex::new(VecDeque::new()));
     (
         EffectIngress {
+            owner,
             sender,
             sequence: Arc::new(Mutex::new(0)),
             finals,
@@ -635,6 +677,17 @@ fn new_ingress() -> (EffectIngress, std::sync::mpsc::Receiver<EffectTerminal>) {
         },
         receiver,
     )
+}
+
+fn combine_cancellation_probes(
+    first: Option<CancellationProbe>,
+    second: Option<CancellationProbe>,
+) -> Option<CancellationProbe> {
+    match (first, second) {
+        (None, None) => None,
+        (Some(probe), None) | (None, Some(probe)) => Some(probe),
+        (Some(first), Some(second)) => Some(Arc::new(move || first() || second())),
+    }
 }
 
 impl<Message> Drop for WorkerEffects<Message> {
@@ -694,6 +747,13 @@ mod tests {
                 generation: EffectGeneration(generation),
                 epoch: effect.epoch,
                 is_cancelled: None,
+                lifecycle: LifecycleDescriptor::new(
+                    effect.owner.clone(),
+                    id,
+                    None,
+                    generation,
+                    None,
+                ),
                 mapper: RegisteredMapper::Once(Box::new(|output| {
                     Some(*output.downcast::<usize>().expect("usize output"))
                 })),
@@ -777,6 +837,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 epoch: effects.epoch,
                 is_cancelled: None,
+                lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 3, None, 1, None),
                 mapper: RegisteredMapper::Once(Box::new({
                     let invoked = Arc::clone(&invoked);
                     move |_| {
@@ -823,6 +884,7 @@ mod tests {
                     let cancelled = Arc::clone(&cancelled);
                     Some(Arc::new(move || cancelled.load(Ordering::Acquire)))
                 },
+                lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 6, None, 1, None),
                 mapper: RegisteredMapper::Once(Box::new({
                     let invoked = Arc::clone(&invoked);
                     move |_| {
@@ -859,6 +921,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 epoch: effects.epoch,
                 is_cancelled: None,
+                lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 8, None, 1, None),
                 mapper: RegisteredMapper::Once(Box::new(move |output| {
                     let _marker = &mapper_marker;
                     let output = *output.downcast::<usize>().expect("usize output");
@@ -1156,6 +1219,7 @@ mod tests {
         let mut effects = WorkerEffects::<usize>::default();
         let old_epoch = effects.epoch;
         let old_ingress = EffectIngress {
+            owner: effects.owner.clone(),
             sender: effects.ingress.sender.clone(),
             sequence: Arc::clone(&effects.ingress.sequence),
             finals: Arc::clone(&effects.ingress.finals),
@@ -1178,6 +1242,7 @@ mod tests {
             generation: EffectGeneration(1),
             epoch: old_epoch,
             result: EffectResult::Completed(Box::new(70_usize)),
+            owner: effects.owner.clone(),
         });
         assert!(effects.ingress.send(
             EffectId(7),

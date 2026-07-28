@@ -3,25 +3,31 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use super::SurfaceRuntime;
+use super::owner::{LifecycleDescriptor, RuntimeOwner};
 use crate::runtime::RuntimeBridge;
 
 pub(super) struct PlatformCompletionRegistry<Message> {
-    entries: HashMap<PlatformCompletionIdentity, PlatformCompletion<Message>>,
+    owner: RuntimeOwner,
+    entries: HashMap<PlatformCompletionIdentity, RegisteredPlatformCompletion<Message>>,
     next_id: u64,
     epoch: u64,
 }
 
 impl<Message> Default for PlatformCompletionRegistry<Message> {
     fn default() -> Self {
+        Self::new(RuntimeOwner::new())
+    }
+}
+
+impl<Message> PlatformCompletionRegistry<Message> {
+    pub(super) fn new(owner: RuntimeOwner) -> Self {
         Self {
+            owner,
             entries: HashMap::new(),
             next_id: 1,
             epoch: 1,
         }
     }
-}
-
-impl<Message> PlatformCompletionRegistry<Message> {
     pub(super) fn register(
         &mut self,
         completion: PlatformCompletion<Message>,
@@ -31,15 +37,37 @@ impl<Message> PlatformCompletionRegistry<Message> {
             epoch: self.epoch,
         };
         self.next_id = self.next_id.saturating_add(1);
-        self.entries.insert(identity, completion);
+        self.entries.insert(
+            identity,
+            RegisteredPlatformCompletion {
+                completion,
+                lifecycle: LifecycleDescriptor::new(
+                    self.owner.clone(),
+                    identity.id,
+                    None,
+                    identity.epoch,
+                    None,
+                ),
+            },
+        );
         identity
     }
 
     pub(super) fn map_delivery(&mut self, delivery: PlatformResultDelivery) -> Option<Message> {
         match delivery {
             PlatformResultDelivery::Completed { identity, result } => {
+                let mapper = self.entries.get(&identity)?;
+                if !mapper.lifecycle.admits(
+                    &self.owner,
+                    identity.id,
+                    identity.epoch,
+                    mapper.lifecycle.slot().is_none(),
+                ) {
+                    self.entries.remove(&identity);
+                    return None;
+                }
                 let mapper = self.entries.remove(&identity)?;
-                Some(mapper(result))
+                Some((mapper.completion)(result))
             }
             PlatformResultDelivery::Discarded { identity } => {
                 self.entries.remove(&identity);
@@ -52,13 +80,18 @@ impl<Message> PlatformCompletionRegistry<Message> {
         &mut self,
         identity: PlatformCompletionIdentity,
     ) -> Option<PlatformCompletion<Message>> {
-        self.entries.remove(&identity)
+        self.entries.remove(&identity).map(|entry| entry.completion)
     }
 
     pub(super) fn clear(&mut self) {
         self.entries.clear();
         self.epoch = self.epoch.saturating_add(1);
     }
+}
+
+struct RegisteredPlatformCompletion<Message> {
+    completion: PlatformCompletion<Message>,
+    lifecycle: LifecycleDescriptor,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>

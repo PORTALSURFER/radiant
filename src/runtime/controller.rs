@@ -50,6 +50,30 @@ use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
 
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimePhase {
+    Starting,
+    Running,
+    Closing,
+    Recovering,
+    Stopped,
+}
+
+impl RuntimePhase {
+    fn accepts_work(self) -> bool {
+        matches!(self, Self::Starting | Self::Running | Self::Recovering)
+    }
+
+    fn begin_closing(&mut self) -> bool {
+        if !self.accepts_work() {
+            return false;
+        }
+        *self = Self::Closing;
+        true
+    }
+}
+
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FocusTraversal {
@@ -84,6 +108,8 @@ where
     traversal: RuntimeTraversalState,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
+    phase: RuntimePhase,
+    host_exit_hook_called: bool,
     pub(in crate::runtime) repaint_requested: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
@@ -150,6 +176,9 @@ where
         input: WidgetInput,
         refresh_after_message: bool,
     ) -> Option<bool> {
+        if !self.phase.accepts_work() {
+            return None;
+        }
         let bounds = self.layout.rects.get(&widget_id).copied()?;
         let result = self.dispatch_surface_input(widget_id, bounds, input)?;
         self.capture_pointer_capture_state(widget_id);

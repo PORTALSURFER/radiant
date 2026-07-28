@@ -218,10 +218,18 @@ where
 
     /// Run the optional host runtime-exit hook.
     pub fn host_on_runtime_exit(&mut self) -> Option<serde_json::Value> {
-        self.invalidate_external_drag();
-        self.shutdown_platform_services();
-        let capability = self.host_capabilities.lifecycle.as_ref()?;
-        (capability.on_runtime_exit)(&mut self.bridge)
+        if self.phase == super::RuntimePhase::Stopped || self.host_exit_hook_called {
+            return None;
+        }
+        self.begin_closing();
+        self.host_exit_hook_called = true;
+        let artifact = self
+            .host_capabilities
+            .lifecycle
+            .as_ref()
+            .and_then(|capability| (capability.on_runtime_exit)(&mut self.bridge));
+        self.phase = super::RuntimePhase::Stopped;
+        artifact
     }
 
     pub(crate) fn host_close_requested(&mut self) -> bool {

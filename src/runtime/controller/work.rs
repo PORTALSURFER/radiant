@@ -57,6 +57,16 @@ impl<Message> RuntimeWorkQueues<Message> {
             .retain(|item| !matches!(item, RuntimeQueueItem::Timer(_)));
     }
 
+    pub(super) fn fence_all(&mut self) {
+        self.commands.clear();
+        self.command_batch.clear();
+        self.command_pending.clear();
+        self.queue_items.clear();
+        self.queue_item_batch.clear();
+        self.bridge_queue_items_remaining = false;
+        self.fence_timer_wakes();
+    }
+
     pub(super) fn take_command_batch(&mut self) -> Vec<Command<Message>> {
         std::mem::take(&mut self.command_batch)
     }

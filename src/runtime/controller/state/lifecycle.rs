@@ -1,6 +1,6 @@
 use super::super::{
-    PlatformCompletionRegistry, RuntimeInteractionState, RuntimeScratch, RuntimeTraversalState,
-    RuntimeWorkQueues, SurfaceRuntime,
+    PlatformCompletionRegistry, RuntimeInteractionState, RuntimePhase, RuntimeScratch,
+    RuntimeTraversalState, RuntimeWorkQueues, SurfaceRuntime,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -42,6 +42,8 @@ where
             traversal: RuntimeTraversalState::default(),
             scratch: RuntimeScratch::default(),
             interaction: RuntimeInteractionState::default(),
+            phase: RuntimePhase::Starting,
+            host_exit_hook_called: false,
             repaint_requested: false,
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
@@ -61,7 +63,20 @@ where
             devtools_overlay: DevtoolsOverlayOptions::default(),
         };
         runtime.relayout_with_traversal(traversal);
+        runtime.phase = RuntimePhase::Running;
         runtime
+    }
+
+    pub(crate) fn begin_closing(&mut self) -> bool {
+        if !self.phase.begin_closing() {
+            return false;
+        }
+        self.invalidate_external_drag();
+        self.worker_effects.shutdown();
+        self.timer_effects.shutdown();
+        self.runtime_work.fence_all();
+        self.shutdown_platform_services();
+        true
     }
 
     /// Replace the viewport and recompute layout for the current surface.
@@ -215,4 +230,66 @@ fn layout_effective_viewport(viewport: Rect) -> Rect {
             viewport.height().round().max(0.0),
         ),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::ContainerPolicy;
+    use crate::runtime::{Command, RuntimeHostCapabilities, RuntimeLifecycleHost, SurfaceNode};
+    use std::sync::Arc;
+
+    #[derive(Default)]
+    struct LifecycleBridge {
+        hook_calls: usize,
+    }
+
+    impl RuntimeBridge<usize> for LifecycleBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_lifecycle()
+        }
+    }
+
+    impl RuntimeLifecycleHost for LifecycleBridge {
+        fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+            self.hook_calls += 1;
+            Some(serde_json::json!({ "hook_calls": self.hook_calls }))
+        }
+    }
+
+    #[test]
+    fn construction_enters_running_phase() {
+        let runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
+        assert_eq!(runtime.phase, RuntimePhase::Running);
+    }
+
+    #[test]
+    fn command_exit_closes_once_and_fences_late_commands() {
+        let mut runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
+        assert!(runtime.execute_command(Command::Exit).exit_requested);
+        assert_eq!(runtime.phase, RuntimePhase::Closing);
+        assert!(!runtime.execute_command(Command::Exit).exit_requested);
+        assert_eq!(runtime.phase, RuntimePhase::Closing);
+    }
+
+    #[test]
+    fn host_exit_hook_runs_once_and_stops_runtime() {
+        let mut runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
+        assert_eq!(
+            runtime.host_on_runtime_exit(),
+            Some(serde_json::json!({ "hook_calls": 1 }))
+        );
+        assert_eq!(runtime.phase, RuntimePhase::Stopped);
+        assert_eq!(runtime.bridge().hook_calls, 1);
+        assert_eq!(runtime.host_on_runtime_exit(), None);
+        assert_eq!(runtime.bridge().hook_calls, 1);
+    }
 }

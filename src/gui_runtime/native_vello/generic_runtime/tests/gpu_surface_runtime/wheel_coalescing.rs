@@ -210,6 +210,54 @@ fn queued_gpu_surface_wheel_refreshes_scroll_fallback_immediately() {
 }
 
 #[test]
+fn queued_gpu_surface_wheel_commits_ordinary_virtual_scroll_scene_before_present() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::retaining_materialized_window().with_coalescing_gpu_surface(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 10.0);
+    let initial_scene_transforms = runner.frame.scene.encoding().transforms.clone();
+    assert!(!runner.frame.last_paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "Row 0")
+    ));
+
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, 10.0), Default::default());
+    runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+
+    assert_ne!(
+        runner.frame.scene.encoding().transforms,
+        initial_scene_transforms,
+        "ordinary virtual-list scroll fallback must re-encode the committed Vello scene"
+    );
+
+    let committed_row_rect = runner
+        .frame
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == "Row 1" => Some(text.rect),
+            _ => None,
+        })
+        .expect("scroll fallback should retain the first row in the paint plan");
+    assert!(
+        committed_row_rect.min.y >= 0.0,
+        "ordinary virtual-list scroll fallback must encode the moved scene before presentation"
+    );
+    assert_eq!(committed_row_rect.min.y, 14.0);
+    assert!(!runner.timing.deferred_surface_refresh);
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        }
+    );
+}
+
+#[test]
 fn coalesced_wheel_then_pointer_move_retargets_hover_after_virtual_rows_refresh() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

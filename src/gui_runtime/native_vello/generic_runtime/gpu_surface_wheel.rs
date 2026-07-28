@@ -1,9 +1,6 @@
 //! Wheel coalescing fast paths for retained GPU surface primitives.
 
-use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, RenderFrameProfile,
-    maybe_log_route_profile,
-};
+use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
@@ -111,25 +108,35 @@ where
         });
         profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
+        self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
-            self.record_frame_work(outcome.frame_work());
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
                 outcome.surface_refresh_scope_or_surface(),
             );
             return;
         }
         if outcome.is_interactive_scene_rebuild() {
-            self.record_frame_work(outcome.frame_work());
             self.rebuild_scene_for_interactive_route_now();
             return;
         }
-        if outcome.needs_redraw() {
+        if outcome.needs_scene_rebuild() {
+            if matches!(
+                outcome.frame_work(),
+                FrameWork::RebuildScene {
+                    mode: super::SceneRebuildMode::ImmediateWithSurfaceRefresh,
+                    ..
+                }
+            ) {
+                self.refresh_and_rebuild_scene_now_with_scope(
+                    outcome.surface_refresh_scope_or_surface(),
+                );
+            } else {
+                self.rebuild_scene();
+            }
+            return;
+        }
+        if outcome.is_deferred_surface_refresh() {
             self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
-            self.record_frame_work(FrameWork::RefreshSurface {
-                reason: FrameWorkReason::DeferredSurfaceRefresh,
-            });
-        } else {
-            self.record_frame_work(outcome.frame_work());
         }
     }
 

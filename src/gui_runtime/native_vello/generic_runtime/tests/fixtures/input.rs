@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::application::IntoView;
+use crate::application::{IntoView, ViewNode};
 use crate::gui::list::{
     TreeGuideRow, TreeGuideStyle, VirtualListWindow, VirtualListWindowChange,
     VirtualListWindowRequest, resolve_virtual_list_window,
@@ -38,6 +38,7 @@ pub(in super::super) struct AppVirtualListBridge {
     pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
     retain_materialized_window: bool,
+    include_coalescing_gpu_surface: bool,
 }
 
 /// Long virtualized list whose rows retain the normal tree-row hover chrome.
@@ -80,6 +81,7 @@ impl Default for AppVirtualListBridge {
             scroll_count: 0,
             project_count: 0,
             retain_materialized_window: false,
+            include_coalescing_gpu_surface: false,
         }
     }
 }
@@ -90,6 +92,11 @@ impl AppVirtualListBridge {
             retain_materialized_window: true,
             ..Self::default()
         }
+    }
+
+    pub(in super::super) fn with_coalescing_gpu_surface(mut self) -> Self {
+        self.include_coalescing_gpu_surface = true;
+        self
     }
 }
 
@@ -226,10 +233,20 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<VirtualListWindowChange>> {
         self.project_count += 1;
         let window = self.window;
+        let include_coalescing_gpu_surface = self.include_coalescing_gpu_surface;
         let list = crate::application::virtual_list_windowed(|index| {
-            crate::application::text(format!("Row {index}"))
+            if include_coalescing_gpu_surface && index == 0 {
+                ViewNode::from(SurfaceNode::custom_widget(
+                    super::gpu_wheel::PassiveGpuWheelWidget::new(),
+                    WidgetMessageMapper::none(),
+                ))
                 .height(20.0)
                 .fill_width()
+            } else {
+                crate::application::text(format!("Row {index}"))
+                    .height(20.0)
+                    .fill_width()
+            }
         })
         .row_height(20.0)
         .window(window)

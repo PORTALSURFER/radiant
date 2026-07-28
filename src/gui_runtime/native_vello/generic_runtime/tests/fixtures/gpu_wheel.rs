@@ -112,12 +112,12 @@ impl Widget for TestGpuWheelWidget {
 }
 
 #[derive(Clone, Debug)]
-struct PassiveGpuWheelWidget {
+pub(in super::super) struct PassiveGpuWheelWidget {
     common: WidgetCommon,
 }
 
 impl PassiveGpuWheelWidget {
-    fn new() -> Self {
+    pub(in super::super) fn new() -> Self {
         let mut common = WidgetCommon::new(71, WidgetSizing::fixed(Vector2::new(200.0, 80.0)));
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;

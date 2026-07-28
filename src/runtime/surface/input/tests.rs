@@ -356,6 +356,55 @@ fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
 }
 
 #[test]
+fn synchronize_widget_state_from_paths_skips_incompatible_replacement() {
+    let mut previous: SurfaceNode<()> = SurfaceNode::widget(
+        ButtonWidget::new(
+            20,
+            "Previous",
+            WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+        ),
+        WidgetMessageMapper::none(),
+    );
+    let mut current: SurfaceNode<()> = SurfaceNode::widget(
+        ScrollbarWidget::new(
+            20,
+            ScrollbarAxis::Vertical,
+            WidgetSizing::fixed(Vector2::new(16.0, 100.0)),
+        ),
+        WidgetMessageMapper::none(),
+    );
+    let _ = previous.dispatch_input_at_path(
+        20,
+        &[],
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerPress {
+            position: Point::new(8.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+    );
+    let paths = HashMap::from([(20, WidgetPath::from_slice(&[]))]);
+
+    current.synchronize_widget_state_from_paths(
+        &[20],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+
+    assert!(
+        !current
+            .find_widget_at_path(&[])
+            .expect("replacement exists")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+}
+
+#[test]
 fn scene_widget_state_sync_finds_widgets_inside_layers() {
     let mut previous: SurfaceNode<()> = SurfaceNode::scene(
         1,

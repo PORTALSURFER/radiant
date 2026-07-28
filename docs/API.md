@@ -1799,6 +1799,14 @@ ID and calls `Widget::synchronize_from_previous(...)`. Built-in widgets use that
 hook for transient interaction state such as text-input caret/selection and
 scrollbar drag grip state, and custom widgets can use the same hook for their
 own retained state without adding runtime downcasts or central widget cases.
+Retained synchronization is compatibility-aware: the additive default
+`Widget::compatibility_kind()` descriptor is derived from the concrete custom
+widget type, so an ID reused by a different widget kind is treated as a safe
+replacement rather than receiving cross-type state. Replacement refreshes clear
+controller-owned focus, pointer capture, and hover ownership before restoration
+and expose bounded `SurfaceIdentityReplacement` entries through
+`SurfaceRefreshDiagnostics`. Existing custom widgets remain source-compatible;
+same-kind keyed reorders keep the normal retained-state behavior.
 Pointer-driven custom widgets should keep transient hover and cursor state local
 when the state is only paint chrome. Leave `Widget::accepts_pointer_move()`
 enabled for widgets such as timelines, canvases, and editors that need stable

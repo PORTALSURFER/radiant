@@ -89,6 +89,10 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.as_mut()
     }
 
+    pub(in crate::runtime) fn compatibility_kind(&self) -> &'static str {
+        self.widget.compatibility_kind()
+    }
+
     /// Return whether this widget participates in runtime focus management.
     pub fn is_focusable(&self) -> bool {
         self.widget.common().focus != FocusBehavior::None && !self.widget.common().state.disabled

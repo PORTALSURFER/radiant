@@ -97,8 +97,9 @@ pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
     FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
-    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
-    SurfaceRefreshTimings, SurfaceRuntime,
+    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership,
+    SurfaceIdentityPath, SurfaceIdentityReplacement, SurfaceRefreshCounters,
+    SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
 pub use devtools::{
     DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,

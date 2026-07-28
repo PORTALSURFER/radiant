@@ -65,6 +65,15 @@ impl Clone for Box<dyn Widget> {
 /// through the runtime, input, message, paint, and application-builder paths
 /// without adding a new Radiant enum variant.
 pub trait Widget: WidgetClone + Any {
+    /// Return the concrete compatibility kind used for retained-state reuse.
+    ///
+    /// The default is derived from the implementing type, so existing custom
+    /// widgets remain source-compatible while incompatible replacements can be
+    /// detected without exposing a `TypeId` contract to callers.
+    fn compatibility_kind(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     /// Return the shared identity, sizing, focus, state, and style contract.
     fn common(&self) -> &WidgetCommon;
 

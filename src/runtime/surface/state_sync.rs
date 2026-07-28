@@ -32,6 +32,13 @@ impl WidgetStateSyncPolicy {
 }
 
 impl<Message> UiSurface<Message> {
+    pub(in crate::runtime) fn widget_compatibility_kind_at_path(
+        &self,
+        path: &[usize],
+    ) -> Option<&'static str> {
+        self.root.widget_compatibility_kind_at_path(path)
+    }
+
     pub(in crate::runtime) fn synchronize_widget_state_from_paths(
         &mut self,
         previous: &Self,

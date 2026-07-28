@@ -19,6 +19,10 @@ where
             .and_then(|shutdown| shutdown(&mut self.state))
     }
 
+    pub(super) fn runtime_begin_closing(&mut self) {
+        self.runtime.begin_closing();
+    }
+
     pub(super) fn allow_close_requested(&mut self) -> bool {
         self.lifecycle
             .close_requested

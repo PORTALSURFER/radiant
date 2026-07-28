@@ -10,11 +10,29 @@ use crate::runtime::{
 use std::collections::HashMap;
 use std::sync::{
     Arc, Mutex, OnceLock, Weak,
-    atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+    atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
 
 const SHARED_INGRESS_CAPACITY: usize = 64;
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuntimeIngressPhase {
+    Accepting = 0,
+    Closing = 1,
+    Stopped = 2,
+}
+
+impl RuntimeIngressPhase {
+    fn from_raw(raw: u8) -> Self {
+        match raw {
+            0 => Self::Accepting,
+            1 => Self::Closing,
+            _ => Self::Stopped,
+        }
+    }
+}
 
 pub(super) struct Sequenced<T> {
     pub(super) sequence: u64,
@@ -74,7 +92,7 @@ pub(in crate::application) struct SharedRuntimeIngress {
     next_timer_id: AtomicU64,
     timer_epoch: AtomicU64,
     pending_messages: AtomicUsize,
-    alive: AtomicBool,
+    phase: AtomicU8,
 }
 
 impl Default for SharedRuntimeIngress {
@@ -96,7 +114,7 @@ impl Default for SharedRuntimeIngress {
             next_timer_id: AtomicU64::new(1),
             timer_epoch: AtomicU64::new(1),
             pending_messages: AtomicUsize::new(0),
-            alive: AtomicBool::new(true),
+            phase: AtomicU8::new(RuntimeIngressPhase::Accepting as u8),
         }
     }
 }
@@ -113,7 +131,7 @@ impl SharedRuntimeIngress {
     #[cfg(test)]
     pub(super) fn reserve_ui_message(&self) -> Option<u64> {
         let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive() {
+        if !self.is_accepting() {
             return None;
         }
         let sequence = next_sequence(&mut admission);
@@ -125,7 +143,7 @@ impl SharedRuntimeIngress {
         self: &Arc<Self>,
     ) -> Option<DeliveryReservation> {
         let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive()
+        if !self.is_accepting()
             || admission
                 .deliveries
                 .len()
@@ -167,12 +185,12 @@ impl SharedRuntimeIngress {
         delivery: WorkerSubscriptionDelivery,
         before_pending_lock: impl FnOnce(),
     ) -> bool {
-        if !self.is_alive() {
+        if !self.is_accepting() {
             return false;
         }
         before_pending_lock();
         let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive() {
+        if !self.is_accepting() {
             return false;
         }
         if admission
@@ -215,7 +233,7 @@ impl SharedRuntimeIngress {
 
     fn enqueue_reserved_delivery(&self, value: SharedRuntimeDelivery) -> bool {
         let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive() || admission.reservations == 0 {
+        if !self.is_accepting() || admission.reservations == 0 {
             return false;
         }
         admission.reservations -= 1;
@@ -235,10 +253,6 @@ impl SharedRuntimeIngress {
     pub(super) fn drain_incoming(&self) -> Vec<Sequenced<SharedRuntimeDelivery>> {
         let mut admission = lock_runtime_state(&self.admission);
         drain_runtime_vec(&mut admission.deliveries)
-    }
-
-    pub(super) fn record_frame_added(&self) {
-        self.record_message_added();
     }
 
     pub(super) fn record_messages_drained(&self, count: usize) {
@@ -270,10 +284,13 @@ impl SharedRuntimeIngress {
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: impl FnOnce() + Send + 'static,
     ) -> bool {
-        if !self.is_alive() {
+        let admission = lock_runtime_state(&self.admission);
+        if !self.is_accepting() {
             return false;
         }
-        self.business.spawn(name, priority, is_cancelled, work)
+        let accepted = self.business.spawn(name, priority, is_cancelled, work);
+        drop(admission);
+        accepted
     }
 
     pub(super) fn spawn_business_task_with_payload<Payload>(
@@ -286,15 +303,20 @@ impl SharedRuntimeIngress {
     where
         Payload: Send + 'static,
     {
-        if !self.is_alive() {
+        let admission = lock_runtime_state(&self.admission);
+        if !self.is_accepting() {
             return Err(payload);
         }
-        self.business
-            .spawn_with_payload(name, priority, payload, work)
+        let result = self
+            .business
+            .spawn_with_payload(name, priority, payload, work);
+        drop(admission);
+        result
     }
 
     pub(super) fn can_spawn_business_tasks(&self, priority: TaskPriority) -> bool {
-        self.business.is_available(priority)
+        let _admission = lock_runtime_state(&self.admission);
+        self.is_accepting() && self.business.is_available(priority)
     }
 
     pub(super) fn diagnostics_snapshot(&self) -> RuntimeDiagnostics {
@@ -306,31 +328,94 @@ impl SharedRuntimeIngress {
     }
 
     pub(in crate::application::runtime) fn request_repaint(&self) {
-        let signal = lock_runtime_state(&self.repaint).as_ref().map(Arc::clone);
+        if !self.is_accepting() {
+            return;
+        }
+        let signal = {
+            let _admission = lock_runtime_state(&self.admission);
+            if !self.is_accepting() {
+                return;
+            }
+            lock_runtime_state(&self.repaint).as_ref().map(Arc::clone)
+        };
         if let Some(signal) = signal {
             signal.request_repaint();
         }
     }
 
-    pub(in crate::application::runtime) fn shutdown(&self) {
+    pub(in crate::application::runtime) fn begin_closing(&self) -> bool {
+        let _admission = lock_runtime_state(&self.admission);
+        self.phase
+            .compare_exchange(
+                RuntimeIngressPhase::Accepting as u8,
+                RuntimeIngressPhase::Closing as u8,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+    }
+
+    pub(in crate::application::runtime) fn stop(&self) {
         let mut admission = lock_runtime_state(&self.admission);
-        self.alive.store(false, Ordering::Release);
+        if RuntimeIngressPhase::from_raw(self.phase.load(Ordering::Acquire))
+            == RuntimeIngressPhase::Accepting
+        {
+            let _ = self.phase.compare_exchange(
+                RuntimeIngressPhase::Accepting as u8,
+                RuntimeIngressPhase::Closing as u8,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+        }
+        if RuntimeIngressPhase::from_raw(self.phase.load(Ordering::Acquire))
+            != RuntimeIngressPhase::Closing
+        {
+            return;
+        }
         admission.deliveries.clear();
         admission.reservations = 0;
         admission.timer_reservations.clear();
         self.pending_messages.store(0, Ordering::Release);
         self.diagnostics.record_message_queue_depth(0, 0);
-        drop(admission);
-
         self.timer_epoch.fetch_add(1, Ordering::AcqRel);
         lock_runtime_state(&self.timer_identities).clear();
         if let Some(timers) = self.timers.get() {
             timers.close();
         }
+        self.phase
+            .store(RuntimeIngressPhase::Stopped as u8, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(in crate::application::runtime) fn shutdown(&self) {
+        self.begin_closing();
+        self.stop();
     }
 
     pub(in crate::application::runtime) fn is_alive(&self) -> bool {
-        self.alive.load(Ordering::Acquire)
+        let _admission = lock_runtime_state(&self.admission);
+        self.is_accepting()
+    }
+
+    fn is_accepting(&self) -> bool {
+        RuntimeIngressPhase::from_raw(self.phase.load(Ordering::Acquire))
+            == RuntimeIngressPhase::Accepting
+    }
+
+    pub(super) fn enqueue_frame<Message>(
+        &self,
+        pending_frame: &mut Option<Message>,
+        message: Message,
+    ) -> bool {
+        let admission = lock_runtime_state(&self.admission);
+        if !self.is_accepting() || pending_frame.is_some() {
+            return false;
+        }
+        *pending_frame = Some(message);
+        self.record_message_added();
+        drop(admission);
+        self.request_repaint();
+        true
     }
 
     #[cfg(test)]
@@ -360,11 +445,22 @@ impl SharedRuntimeIngress {
         identity: TimerIdentity,
         recurring: bool,
     ) -> bool {
-        if !self.is_alive() {
+        let mut admission = lock_runtime_state(&self.admission);
+        if !self.is_accepting() {
             return false;
         }
-        if !recurring && !self.reserve_timer_slot(identity) {
-            return false;
+        if !recurring {
+            if admission
+                .deliveries
+                .len()
+                .saturating_add(admission.reservations)
+                >= self.capacity
+            {
+                self.record_shared_ingress_rejected();
+                return false;
+            }
+            admission.reservations += 1;
+            *admission.timer_reservations.entry(identity).or_default() += 1;
         }
         if identity.owner == crate::runtime::RuntimeTimerOwner::Application {
             lock_runtime_state(&self.timer_identities).insert(identity, identity);
@@ -380,8 +476,9 @@ impl SharedRuntimeIngress {
             lock_runtime_state(&self.timer_identities).remove(&identity);
         }
         if !accepted && !recurring {
-            self.release_timer_slot(identity);
+            release_timer_slot_locked(&mut admission, identity);
         }
+        drop(admission);
         accepted
     }
 
@@ -401,53 +498,18 @@ impl SharedRuntimeIngress {
     fn record_shared_ingress_rejected(&self) {
         self.diagnostics.record_shared_ingress_rejected();
     }
-
-    fn reserve_timer_slot(&self, identity: TimerIdentity) -> bool {
-        let mut admission = lock_runtime_state(&self.admission);
-        if !self.is_alive()
-            || admission
-                .deliveries
-                .len()
-                .saturating_add(admission.reservations)
-                >= self.capacity
-        {
-            self.record_shared_ingress_rejected();
-            return false;
-        }
-        admission.reservations += 1;
-        *admission.timer_reservations.entry(identity).or_default() += 1;
-        true
-    }
-
-    fn release_timer_slot(&self, identity: TimerIdentity) {
-        let mut admission = lock_runtime_state(&self.admission);
-        release_timer_slot_locked(&mut admission, identity);
-    }
 }
 
 impl TimerSink for SharedRuntimeIngress {
     fn admit_timer(&self, identity: TimerIdentity) -> bool {
-        if !self.is_alive() {
-            return false;
-        }
-        if identity.owner == crate::runtime::RuntimeTimerOwner::Controller {
-            return true;
-        }
-        self.timer_epoch.load(Ordering::Acquire) == identity.epoch
-            && lock_runtime_state(&self.timer_identities)
-                .get(&identity)
-                .is_some_and(|current| *current == identity)
+        let _admission = lock_runtime_state(&self.admission);
+        self.is_accepting() && self.timer_is_current_locked(identity)
     }
 
     fn enqueue_timer_wake(&self, wake: TimerWake) -> bool {
-        if !self.admit_timer(wake) {
-            self.release_timer_slot(wake);
-            return false;
-        }
         let mut admission = lock_runtime_state(&self.admission);
-        if !self.admit_timer(wake) {
-            drop(admission);
-            self.release_timer_slot(wake);
+        if !self.is_accepting() || !self.timer_is_current_locked(wake) {
+            release_timer_slot_locked(&mut admission, wake);
             return false;
         }
         if admission.deliveries.iter().any(|delivery| {
@@ -481,7 +543,18 @@ impl TimerSink for SharedRuntimeIngress {
     }
 
     fn timer_is_current(&self, identity: TimerIdentity) -> bool {
-        self.admit_timer(identity)
+        let _admission = lock_runtime_state(&self.admission);
+        self.is_accepting() && self.timer_is_current_locked(identity)
+    }
+}
+
+impl SharedRuntimeIngress {
+    fn timer_is_current_locked(&self, identity: TimerIdentity) -> bool {
+        identity.owner == crate::runtime::RuntimeTimerOwner::Controller
+            || (self.timer_epoch.load(Ordering::Acquire) == identity.epoch
+                && lock_runtime_state(&self.timer_identities)
+                    .get(&identity)
+                    .is_some_and(|current| *current == identity))
     }
 }
 

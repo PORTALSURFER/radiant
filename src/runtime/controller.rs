@@ -109,6 +109,7 @@ where
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
     phase: RuntimePhase,
+    host_closing_hook_called: bool,
     host_exit_hook_called: bool,
     pub(in crate::runtime) repaint_requested: bool,
     exit_requested: bool,
@@ -147,10 +148,16 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(crate) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {
+        if !self.phase.accepts_work() {
+            return None;
+        }
         self.surface.timed_repaint_deadline()
     }
 
     pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
+        if !self.phase.accepts_work() {
+            return false;
+        }
         self.surface.advance_timed_repaints(now)
     }
 

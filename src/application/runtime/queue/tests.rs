@@ -3,11 +3,15 @@ use crate::application::runtime::subscription::{
     WorkerSubscriptionDelivery, WorkerSubscriptionIdentity,
 };
 use crate::application::runtime::timer::TimerSink;
-use crate::runtime::{PlatformCompletionIdentity, PlatformResultDelivery};
+use crate::gui::repaint::RepaintSignal;
+use crate::runtime::{PlatformCompletionIdentity, PlatformResultDelivery, TaskPriority};
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::{Arc, Barrier},
+    sync::{
+        Arc, Barrier,
+        atomic::{AtomicUsize, Ordering},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -58,6 +62,60 @@ fn shared_ingress_is_send_and_sync_without_the_message_type() {
     fn assert_send_sync<T: Send + Sync>() {}
 
     assert_send_sync::<SharedRuntimeIngress>();
+}
+
+#[test]
+fn shared_ingress_closing_is_monotonic_and_rejects_late_admission() {
+    let runtime = Arc::new(SharedRuntimeIngress::default());
+    let reservation = runtime.reserve_delivery().expect("initial admission");
+    let platform_reservation = runtime.reserve_delivery().expect("platform admission");
+    let identity = WorkerSubscriptionIdentity { id: 7, epoch: 1 };
+    let timer = runtime.allocate_timer_identity(0);
+    let repaint_count = Arc::new(AtomicUsize::new(0));
+    struct Probe(Arc<AtomicUsize>);
+    impl RepaintSignal for Probe {
+        fn request_repaint(&self) {
+            self.0.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+    runtime.install_repaint(Arc::new(Probe(Arc::clone(&repaint_count))));
+
+    assert!(runtime.begin_closing());
+    assert!(!runtime.begin_closing());
+    assert!(!runtime.is_alive());
+    assert!(!runtime.enqueue_worker_disconnect_reserved(reservation, identity));
+    assert!(!runtime.enqueue_platform_completion_reserved(
+        platform_reservation,
+        PlatformResultDelivery::Completed {
+            identity: PlatformCompletionIdentity { id: 8, epoch: 1 },
+            result: Ok(crate::runtime::PlatformResponse::Canceled),
+        },
+    ));
+    assert!(!runtime.enqueue_worker_payload(identity, Box::new(1_u32)));
+    assert!(!runtime.enqueue_frame(&mut None::<u32>, 1));
+    assert!(!runtime.schedule_timer(Duration::from_millis(1), timer, false));
+    assert!(!TimerSink::enqueue_timer_wake(
+        runtime.as_ref(),
+        RuntimeTimerWake::controller(8, 0, 1),
+    ));
+    assert!(!runtime.spawn_business_task("closing", TaskPriority::Interactive, None, || {}));
+    runtime.request_repaint();
+    assert_eq!(repaint_count.load(Ordering::Acquire), 0);
+
+    runtime.stop();
+    assert!(!runtime.begin_closing());
+    assert!(!runtime.is_alive());
+}
+
+#[test]
+fn app_runtime_shutdown_is_idempotent_and_publishes_stopped_after_cleanup() {
+    let mut runtime = AppRuntime::<u32>::default();
+    assert!(runtime.enqueue(1));
+    runtime.shutdown();
+    runtime.shutdown();
+
+    assert!(!runtime.is_alive());
+    assert!(runtime.take_pending().is_empty());
 }
 
 #[test]
@@ -374,7 +432,7 @@ fn worker_payload_shutdown_fence_rechecks_liveness_before_append() {
     });
 
     pre_append.wait();
-    runtime.shutdown();
+    runtime.shared().begin_closing();
     release_append.wait();
 
     assert!(!worker.join().expect("worker should complete"));
@@ -401,7 +459,7 @@ fn worker_disconnect_shutdown_fence_rechecks_liveness_before_append() {
     });
 
     pre_append.wait();
-    runtime.shutdown();
+    runtime.shared().begin_closing();
     release_append.wait();
 
     assert!(!worker.join().expect("disconnect worker should complete"));

@@ -46,6 +46,10 @@ where
     Message: 'static,
     State: 'static,
 {
+    fn on_runtime_closing(&mut self) {
+        self.runtime_begin_closing();
+    }
+
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
         self.runtime_exit_artifact()
     }

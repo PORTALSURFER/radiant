@@ -14,7 +14,13 @@ where
     Message: 'static,
 {
     pub(super) fn install_runtime_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        if !self.runtime.is_alive() {
+            return;
+        }
         self.runtime.install_repaint(signal);
+        if !self.runtime.is_alive() {
+            return;
+        }
         self.run_startup_once();
         self.start_subscriptions_once();
     }

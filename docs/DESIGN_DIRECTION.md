@@ -953,6 +953,12 @@ Identity mistakes are caught at the earliest useful stage:
    sort, and reorder collections while asserting that focus, selection, scroll
    anchor, and retained state remain attached to the intended key.
 
+`IdentityAudit` is an additive runtime policy: observational mode remains the
+default for production hosts, while strict mode is configured on
+`SurfaceRuntime` by tests. Strict failures happen only after incompatible
+replacement cleanup and bounded diagnostics have been committed, so a caught
+failure still exposes the recovered runtime state and its last diagnostics.
+
 Production builds recover safely by discarding incompatible runtime state rather
 than reusing it, while emitting bounded diagnostics according to the configured
 diagnostic level.

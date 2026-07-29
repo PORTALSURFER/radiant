@@ -3,10 +3,42 @@
 use super::SurfaceRuntime;
 use crate::runtime::{RepaintScope, RuntimeBridge, SurfaceInvalidation};
 use crate::widgets::WidgetId;
+use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 const MAX_IDENTITY_REPLACEMENTS_PER_REFRESH: usize = 4;
 const MAX_IDENTITY_PATH_COMPONENTS: usize = 8;
+
+/// Runtime policy for incompatible same-ID widget replacements.
+///
+/// The default observational policy completes the safe replacement cleanup and
+/// records bounded diagnostics without interrupting the host. [`Self::strict`]
+/// is intended for deterministic tests and fails after that cleanup and
+/// diagnostics commit whenever a refresh observes one or more replacements.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum IdentityAudit {
+    /// Recover safely and leave the replacement available through diagnostics.
+    #[default]
+    Observational,
+    /// Recover safely, commit diagnostics, then fail the completed refresh.
+    Strict,
+}
+
+impl IdentityAudit {
+    /// Return the strict identity-audit policy.
+    pub const fn strict() -> Self {
+        Self::Strict
+    }
+
+    /// Return the observational identity-audit policy.
+    pub const fn observational() -> Self {
+        Self::Observational
+    }
+
+    const fn is_strict(self) -> bool {
+        matches!(self, Self::Strict)
+    }
+}
 
 /// A bounded, resolved widget path retained in an identity diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,7 +56,7 @@ mod tests {
     use super::*;
     use crate::{
         gui::types::Vector2,
-        runtime::{RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper},
+        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
         widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
     };
     use std::sync::Arc;
@@ -32,10 +64,31 @@ mod tests {
     #[derive(Default)]
     struct ReplacementBridge {
         replace: bool,
+        replacement_count: usize,
+        deep: bool,
     }
 
     impl RuntimeBridge<()> for ReplacementBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            if self.replacement_count != 0 {
+                return crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+                    1,
+                    0.0,
+                    (0..self.replacement_count)
+                        .map(|index| {
+                            SurfaceChild::fill(replacement_widget(index as u64 + 20, self.replace))
+                        })
+                        .collect(),
+                )));
+            }
+            if self.deep {
+                let mut node = replacement_widget(20, self.replace);
+                for id in 0..(MAX_IDENTITY_PATH_COMPONENTS + 2) {
+                    node =
+                        SurfaceNode::column(id as u64 + 100, 0.0, vec![SurfaceChild::fill(node)]);
+                }
+                return crate::runtime::test_arc_surface(UiSurface::new(node));
+            }
             let node = if self.replace {
                 SurfaceNode::widget(
                     ScrollbarWidget::new(
@@ -56,6 +109,28 @@ mod tests {
                 )
             };
             crate::runtime::test_arc_surface(UiSurface::new(node))
+        }
+    }
+
+    fn replacement_widget(id: u64, replace: bool) -> SurfaceNode<()> {
+        if replace {
+            SurfaceNode::widget(
+                ScrollbarWidget::new(
+                    id,
+                    ScrollbarAxis::Vertical,
+                    WidgetSizing::fixed(Vector2::new(16.0, 80.0)),
+                ),
+                WidgetMessageMapper::none(),
+            )
+        } else {
+            SurfaceNode::widget(
+                ButtonWidget::new(
+                    id,
+                    "Previous",
+                    WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                ),
+                WidgetMessageMapper::none(),
+            )
         }
     }
 
@@ -91,6 +166,103 @@ mod tests {
                 widget_state: true,
             }
         );
+    }
+
+    #[test]
+    fn strict_identity_audit_panics_after_committing_cleanup_and_diagnostics() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        runtime.set_identity_audit(IdentityAudit::strict());
+        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.pointer.capture = Some(20);
+        runtime.interaction.pointer.capture_state = Some((20, Default::default()));
+        runtime.interaction.hover.widget = Some(20);
+        runtime.bridge_mut().replace = true;
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.refresh()));
+        let payload = result.expect_err("strict identity audit should fail");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("strict identity audit should use a String payload");
+        assert!(message.starts_with("radiant identity audit: strict mode"));
+        assert!(message.contains("replacement_count=1"));
+        assert!(message.contains("id=20"));
+        assert_eq!(runtime.focused_widget(), None);
+        assert_eq!(runtime.pointer_capture(), None);
+        assert_eq!(runtime.hovered_widget(), None);
+        assert_eq!(
+            runtime
+                .last_refresh_diagnostics()
+                .identity
+                .replacement_count,
+            1
+        );
+        assert_eq!(
+            runtime
+                .take_frame_refresh_diagnostics()
+                .0
+                .identity
+                .replacement_count,
+            1
+        );
+    }
+
+    #[test]
+    fn strict_identity_audit_reports_total_count_and_bounded_records() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                replacement_count: 6,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(800.0, 80.0),
+        );
+        runtime.set_identity_audit(IdentityAudit::strict());
+        runtime.bridge_mut().replace = true;
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.refresh()));
+        let payload = result.expect_err("strict identity audit should fail");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("strict identity audit should use a String payload");
+        assert!(message.contains("replacement_count=6"));
+        assert!(message.contains("stored_count=4"));
+        assert!(message.contains("omitted_records=2"));
+        assert_eq!(
+            runtime
+                .last_refresh_diagnostics()
+                .identity
+                .replacement_count,
+            6
+        );
+        assert!(runtime.last_refresh_diagnostics().identity.replacements[3].is_some());
+        assert!(
+            runtime.last_refresh_diagnostics().identity.replacements[0]
+                .is_some_and(|replacement| replacement.widget_id == 20)
+        );
+    }
+
+    #[test]
+    fn strict_identity_audit_marks_deep_paths_as_truncated() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                deep: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        runtime.set_identity_audit(IdentityAudit::strict());
+        runtime.bridge_mut().replace = true;
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.refresh()));
+        let payload = result.expect_err("strict identity audit should fail");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("strict identity audit should use a String payload");
+        assert!(message.contains("truncated"));
+        let replacement = runtime.last_refresh_diagnostics().identity.replacements[0]
+            .expect("deep replacement diagnostic");
+        assert!(replacement.previous_path.truncated);
+        assert!(replacement.current_path.truncated);
     }
 }
 
@@ -398,6 +570,7 @@ where
             },
             refresh_started.elapsed(),
         );
+        self.enforce_identity_audit(identity);
     }
 
     /// Return diagnostics for the most recent typed invalidation stage.
@@ -427,6 +600,37 @@ where
     /// Return cumulative refresh-stage counts for this runtime.
     pub const fn refresh_counters(&self) -> SurfaceRefreshCounters {
         self.refresh_counters
+    }
+
+    fn enforce_identity_audit(&self, identity: SurfaceIdentityDiagnostics) {
+        if !self.identity_audit.is_strict() || identity.replacement_count == 0 {
+            return;
+        }
+
+        let stored_count = identity.replacements.iter().flatten().count() as u32;
+        let omitted_count = identity.replacement_count.saturating_sub(stored_count);
+        let mut message = String::from(
+            "radiant identity audit: strict mode detected incompatible widget replacements; ",
+        );
+        let _ = write!(
+            message,
+            "replacement_count={}; stored_count={}; omitted_records={}; records=",
+            identity.replacement_count, stored_count, omitted_count
+        );
+        message.push('[');
+        for (index, replacement) in identity.replacements.iter().flatten().enumerate() {
+            if index != 0 {
+                message.push_str(", ");
+            }
+            let _ = write!(message, "{{index={}, id=", index);
+            let _ = write!(message, "{}; previous_path=", replacement.widget_id);
+            append_identity_path(&mut message, replacement.previous_path);
+            message.push_str("; current_path=");
+            append_identity_path(&mut message, replacement.current_path);
+            message.push('}');
+        }
+        message.push(']');
+        std::panic::panic_any(message);
     }
 
     fn discard_incompatible_widget_ownership(
@@ -496,5 +700,19 @@ where
             hover,
             widget_state: true,
         }
+    }
+}
+
+fn append_identity_path(message: &mut String, path: SurfaceIdentityPath) {
+    message.push('[');
+    for (index, component) in path.as_slice().iter().enumerate() {
+        if index != 0 {
+            message.push(',');
+        }
+        let _ = write!(message, "{component}");
+    }
+    message.push(']');
+    if path.truncated {
+        message.push_str(" (truncated)");
     }
 }

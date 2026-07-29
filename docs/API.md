@@ -1815,6 +1815,16 @@ controller-owned focus, pointer capture, and hover ownership before restoration
 and expose bounded `SurfaceIdentityReplacement` entries through
 `SurfaceRefreshDiagnostics`. Existing custom widgets remain source-compatible;
 same-kind keyed reorders keep the normal retained-state behavior.
+Hosts that want deterministic test failures can configure
+`SurfaceRuntime::set_identity_audit(IdentityAudit::strict())`. The default
+`IdentityAudit` policy is observational: every replacement completes cleanup and
+commits `last_refresh_diagnostics()` plus the pending frame aggregate before
+returning. Strict mode performs the same work, then uses a deliberate
+`panic_any` failure for a non-paint refresh with one or more replacements. The
+failure message reports the total replacement count, the bounded records in
+paint order, omitted records, and truncated paths without formatting concrete
+widget type names. `IdentityAudit` is available from `radiant::runtime`, not the
+common prelude.
 Pointer-driven custom widgets should keep transient hover and cursor state local
 when the state is only paint chrome. Leave `Widget::accepts_pointer_move()`
 enabled for widgets such as timelines, canvases, and editors that need stable

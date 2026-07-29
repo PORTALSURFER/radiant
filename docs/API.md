@@ -1815,6 +1815,14 @@ controller-owned focus, pointer capture, and hover ownership before restoration
 and expose bounded `SurfaceIdentityReplacement` entries through
 `SurfaceRefreshDiagnostics`. Existing custom widgets remain source-compatible;
 same-kind keyed reorders keep the normal retained-state behavior.
+Custom widgets also expose an additive `Widget::revision()` hook. Its
+`WidgetRevision::conservative()` default is correct for existing custom widgets
+and for any widget that cannot prove exact immutable-input changes. The public
+revision value is intentionally opaque: exact structure, geometry, paint, and
+interaction components are not arbitrary hash/u64 constructors, and this
+foundation hook does not enable refresh or repaint optimization yet. Advanced
+hosts should keep using the conservative default until the classified delta
+contract is published.
 Hosts that want deterministic test failures can configure
 `SurfaceRuntime::set_identity_audit(IdentityAudit::strict())`. The default
 `IdentityAudit` policy is observational: every replacement completes cleanup and

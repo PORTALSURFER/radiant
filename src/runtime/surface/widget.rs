@@ -3,7 +3,7 @@ use crate::{
     layout::LayoutNode,
     widgets::{
         FocusBehavior, PointerCapturePolicy, Widget, WidgetCursor, WidgetId, WidgetInput,
-        WidgetOutput,
+        WidgetOutput, WidgetRevision,
     },
 };
 
@@ -91,6 +91,11 @@ impl<Message> SurfaceWidget<Message> {
 
     pub(in crate::runtime) fn compatibility_kind(&self) -> &'static str {
         self.widget.compatibility_kind()
+    }
+
+    /// Return the declarative revision metadata supplied by the widget.
+    pub fn revision(&self) -> WidgetRevision {
+        self.widget.revision()
     }
 
     /// Return whether this widget participates in runtime focus management.

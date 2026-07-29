@@ -7,6 +7,7 @@
 
 mod identity;
 mod paint;
+mod revision;
 mod semantics;
 mod sizing;
 mod state;
@@ -15,6 +16,8 @@ mod widget;
 
 pub use identity::{stable_widget_id, stable_widget_id_u64};
 pub use paint::{PaintBounds, PaintContract, WidgetPaintContext};
+pub use revision::WidgetRevision;
+pub(crate) use revision::WidgetRevisionComponents;
 pub use semantics::{WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, WidgetSemantics};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};

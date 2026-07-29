@@ -2,5 +2,5 @@
 
 pub use crate::application::{
     ContinuityKey, IntoView, MappedWidget, View, ViewNode, ViewProjection, WidgetView,
-    WidgetViewContext,
+    WidgetViewContext, preserve_state,
 };

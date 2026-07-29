@@ -9,8 +9,8 @@ mod modifiers;
 #[path = "view_node/slot.rs"]
 mod slot;
 
-pub use identity::ContinuityKey;
 pub(in crate::application) use identity::KeyedIdentity;
+pub use identity::{ContinuityKey, preserve_state};
 
 use slot::SlotBehavior;
 

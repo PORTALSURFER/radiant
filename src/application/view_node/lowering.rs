@@ -30,6 +30,18 @@ where
         {
             panic_any("ambiguous keyed identity");
         }
+        let mut continuity_keys = std::collections::HashSet::new();
+        let mut explicit_ids = std::collections::HashSet::new();
+        if self
+            .collect_explicit_identity_collisions(
+                ROOT_KEY_SCOPE,
+                &mut continuity_keys,
+                &mut explicit_ids,
+            )
+            .is_err()
+        {
+            panic_any("ambiguous keyed identity");
+        }
         let mut scene = SceneProjection::default();
         let root = ViewLowering::new(&mut ids, &mut scene).lower_node(
             self,
@@ -81,6 +93,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let identity = self.next_node_identity(&node, scope, role);
         let id = identity.id;
         let child_scope = identity.scope;
+        let reidentify_runtime_root = node.id.is_some() || node.key.is_some();
         let style = node.style;
         let hoverable = node.hoverable;
         let scroll_message = node.scroll_message;
@@ -129,6 +142,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     .collect();
                 SurfaceNode::scene(id, base, layers)
             }
+            ViewNodeKind::Runtime(node) if reidentify_runtime_root => node.with_id(id),
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
                 id,

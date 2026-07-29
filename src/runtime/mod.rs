@@ -96,10 +96,10 @@ pub(crate) use command::{EffectId, WorkerEffectSink};
 pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
-    FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
-    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership,
-    SurfaceIdentityPath, SurfaceIdentityReplacement, SurfaceRefreshCounters,
-    SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
+    FocusTraversal, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
+    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceIdentityDiagnostics,
+    SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
+    SurfaceRefreshCounters, SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
 pub use devtools::{
     DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,

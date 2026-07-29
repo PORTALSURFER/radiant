@@ -29,7 +29,7 @@ pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use refresh::{
-    SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
+    IdentityAudit, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
     SurfaceRefreshTimings,
 };
@@ -132,6 +132,7 @@ where
     pending_frame_refresh_diagnostics: SurfaceRefreshDiagnostics,
     pending_frame_refresh_total: std::time::Duration,
     refresh_counters: SurfaceRefreshCounters,
+    identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
 }
@@ -175,6 +176,17 @@ where
     /// that interaction did not emit a host-defined message.
     pub fn dispatch_input(&mut self, widget_id: WidgetId, input: WidgetInput) -> bool {
         self.dispatch_input_output(widget_id, input).is_some()
+    }
+
+    /// Configure whether incompatible same-ID replacements are observational
+    /// or fail after safe cleanup and diagnostics recording.
+    pub fn set_identity_audit(&mut self, audit: IdentityAudit) {
+        self.identity_audit = audit;
+    }
+
+    /// Return the active incompatible-replacement audit policy.
+    pub const fn identity_audit(&self) -> IdentityAudit {
+        self.identity_audit
     }
 
     pub(super) fn dispatch_input_output(

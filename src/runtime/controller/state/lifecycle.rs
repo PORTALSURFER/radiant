@@ -67,6 +67,7 @@ where
             pending_frame_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
             pending_frame_refresh_total: std::time::Duration::ZERO,
             refresh_counters: super::super::SurfaceRefreshCounters::startup(),
+            identity_audit: super::super::IdentityAudit::default(),
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
         };

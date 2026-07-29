@@ -1,6 +1,32 @@
 use super::*;
-use radiant::runtime::{SurfaceInvalidation, SurfaceRefreshCounters};
+use radiant::runtime::{IdentityAudit, SurfaceInvalidation, SurfaceRefreshCounters};
 use std::time::Duration;
+
+#[test]
+fn identity_audit_is_a_runtime_only_copyable_policy() {
+    let mut runtime = SurfaceRuntime::new(
+        RevisionBridge {
+            label: "Audit",
+            height: 24.0,
+            widget_id: 10,
+        },
+        Vector2::new(180.0, 80.0),
+    );
+    assert_eq!(runtime.identity_audit(), IdentityAudit::default());
+    let strict = IdentityAudit::strict();
+    let copied = strict;
+    runtime.set_identity_audit(copied);
+    assert_eq!(runtime.identity_audit(), strict);
+
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .identity
+            .replacement_count,
+        0
+    );
+}
 
 struct RevisionBridge {
     label: &'static str,

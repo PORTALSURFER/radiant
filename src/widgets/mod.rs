@@ -61,11 +61,12 @@ mod interaction;
 mod primitives;
 mod theme;
 
+pub(crate) use contract::WidgetRevisionComponents;
 pub use contract::{
     FocusBehavior, PaintBounds, PaintContract, PointerCapturePolicy,
     WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext,
-    WidgetProminence, WidgetSemantics, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,
-    WidgetTone, stable_widget_id, stable_widget_id_u64,
+    WidgetProminence, WidgetRevision, WidgetSemantics, WidgetSizing, WidgetSizingParts,
+    WidgetState, WidgetStyle, WidgetTone, stable_widget_id, stable_widget_id_u64,
 };
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,

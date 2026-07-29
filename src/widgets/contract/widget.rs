@@ -6,6 +6,7 @@ use crate::{
     runtime::{PaintPrimitive, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
+        WidgetRevision,
         interaction::{WidgetCursor, WidgetInput, WidgetKey, WidgetOutput},
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
@@ -72,6 +73,17 @@ pub trait Widget: WidgetClone + Any {
     /// detected without exposing a `TypeId` contract to callers.
     fn compatibility_kind(&self) -> &'static str {
         std::any::type_name::<Self>()
+    }
+
+    /// Return declarative revision metadata for this widget's immutable inputs.
+    ///
+    /// The conservative default is always correct and keeps existing custom
+    /// widgets source-compatible. Exact structure, geometry, paint, and
+    /// interaction revisions are intentionally not a public construction API
+    /// yet; no refresh optimization is enabled by this hook in the current
+    /// runtime.
+    fn revision(&self) -> WidgetRevision {
+        WidgetRevision::conservative()
     }
 
     /// Return the shared identity, sizing, focus, state, and style contract.

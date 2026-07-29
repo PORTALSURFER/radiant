@@ -11,6 +11,7 @@ mod node;
 mod paint;
 mod path;
 mod projection;
+mod revision;
 mod state_sync;
 mod traversal;
 mod view;

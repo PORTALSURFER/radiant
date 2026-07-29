@@ -196,8 +196,7 @@ where
             AnchoredPopoverAnchor::pointer(Point::new(x, y)),
             Vector2::new(width, menu_height),
             options,
-        )
-        .key("dropdown-menu-overlay");
+        );
     }
 
     let mut menu = dropdown_menu(options).height(menu_height);
@@ -213,7 +212,6 @@ where
         .height(menu_height),
         dropdown_overlay_gap().fill_height().fill_width(),
     ])
-    .key("dropdown-menu-overlay")
     .fill()
 }
 

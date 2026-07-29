@@ -44,6 +44,18 @@ fn prelude_supports_hello_world_imports() {
 }
 
 #[test]
+fn prelude_exports_typed_state_continuity_helper() {
+    use radiant::prelude::*;
+
+    let key = ContinuityKey::from("status");
+    let view: View<()> = preserve_state(key.clone(), text("Status"));
+    let expected_view: View<()> = text("Status").key(key);
+    let expected = expected_view.into_surface().root().id();
+
+    assert_eq!(view.into_surface().root().id(), expected);
+}
+
+#[test]
 fn prelude_views_can_prepare_test_frames_directly() {
     use radiant::prelude::*;
 

@@ -1,13 +1,13 @@
 use super::*;
 use crate::{
     application::{
-        ContinuityKey, IntoView, Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key,
-        scene, scoped_key_id, text,
+        ContinuityKey, IntoView, Layer, ROOT_KEY_SCOPE, column, floating_layer, grid,
+        preserve_state, row, row_key, scene, scoped_key_id, text,
     },
     gui::types::Point,
     layout::{LayoutNode, Vector2},
     runtime::{SurfaceNode, WidgetMessageMapper},
-    widgets::{ButtonWidget, WidgetSizing},
+    widgets::{ButtonWidget, TextWidget, WidgetSizing},
 };
 
 fn layout_ids(node: &LayoutNode, ids: &mut Vec<crate::layout::NodeId>) {
@@ -132,6 +132,19 @@ fn identity_modifiers_use_last_call_wins() {
 }
 
 #[test]
+fn preserve_state_obeys_later_identity_modifiers() {
+    let id_override = preserve_state(ContinuityKey::from("status"), text::<()>("Status")).id(42);
+    let key_override =
+        preserve_state(ContinuityKey::from("status"), text::<()>("Status")).key("next");
+
+    assert_eq!(id_override.resolved_id(ROOT_KEY_SCOPE), Some(42));
+    assert_eq!(
+        key_override.resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "next"))
+    );
+}
+
+#[test]
 fn continuity_key_preserves_string_compatibility_and_same_scope_identity() {
     let borrowed = ContinuityKey::from("title");
     let owned = ContinuityKey::new(String::from("title"));
@@ -198,6 +211,100 @@ fn continuity_key_identity_is_isolated_by_parent_scope() {
         "child key should be scoped by its parent"
     );
     assert_ne!(first_ids[1], second_ids[1]);
+}
+
+fn assert_ambiguous(view: ViewNode<()>) {
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = view.into_surface();
+    }))
+    .expect_err("ambiguous keyed identity should reject projection");
+    let message = panic
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str));
+    assert_eq!(message, Some("ambiguous keyed identity"));
+}
+
+#[test]
+fn duplicate_explicit_continuity_keys_reject_projection() {
+    assert_ambiguous(column([
+        text::<()>("First").key("same"),
+        text("Second").key("same"),
+    ]));
+}
+
+#[test]
+fn explicit_continuity_key_collision_with_numeric_id_rejects_projection() {
+    let parent_scope = scoped_key_id(ROOT_KEY_SCOPE, "parent");
+    let key_id = scoped_key_id(parent_scope, "same");
+    assert_ambiguous(
+        column([text::<()>("Keyed").key("same"), text("Numeric").id(key_id)]).key("parent"),
+    );
+}
+
+#[test]
+fn duplicate_numeric_ids_reject_projection() {
+    assert_ambiguous(column([text::<()>("First").id(17), text("Second").id(17)]));
+}
+
+#[test]
+fn duplicate_runtime_ids_reject_projection() {
+    let first: ViewNode<()> = SurfaceNode::static_widget(TextWidget::new(
+        17,
+        "First",
+        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+    ))
+    .into();
+    let second: ViewNode<()> = SurfaceNode::static_widget(TextWidget::new(
+        17,
+        "Second",
+        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+    ))
+    .into();
+
+    assert_ambiguous(column([first, second]));
+}
+
+#[test]
+fn numeric_and_runtime_ids_reject_projection() {
+    let runtime: ViewNode<()> = SurfaceNode::static_widget(TextWidget::new(
+        17,
+        "Runtime",
+        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+    ))
+    .into();
+
+    assert_ambiguous(column([text::<()>("Numeric").id(17), runtime]));
+}
+
+#[test]
+fn preserve_state_reidentifies_runtime_backed_roots() {
+    let key = ContinuityKey::from("runtime-root");
+    let expected_id = scoped_key_id(ROOT_KEY_SCOPE, key.as_str());
+    let runtime: ViewNode<()> = ViewNode::from(SurfaceNode::static_widget(TextWidget::new(
+        7,
+        "Runtime",
+        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+    )));
+
+    let surface = preserve_state(key, runtime).into_surface();
+
+    assert_eq!(surface.root().id(), expected_id);
+}
+
+#[test]
+fn explicit_runtime_reidentification_does_not_conflict_with_original_id() {
+    let key = ContinuityKey::from("runtime-root");
+    let runtime: ViewNode<()> = SurfaceNode::static_widget(TextWidget::new(
+        7,
+        "Runtime",
+        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+    ))
+    .into();
+
+    let surface = preserve_state(key, runtime).into_surface();
+
+    assert_ne!(surface.root().id(), 7);
 }
 
 #[test]

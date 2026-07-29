@@ -142,6 +142,18 @@ pub enum SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    /// Replace this node's root identity while retaining its descendants.
+    pub(crate) fn with_id(mut self, id: NodeId) -> Self {
+        match &mut self {
+            Self::Scene(scene) => scene.id = id,
+            Self::Container(container) => container.id = id,
+            Self::Widget(widget) => widget.widget_mut().common_mut().id = id,
+            Self::Overlay(overlay) => overlay.id = id,
+            Self::FloatingLayer(layer) => layer.container.id = id,
+        }
+        self
+    }
+
     pub(in crate::runtime) fn timed_repaint_deadline(&self) -> Option<Instant> {
         fn earlier(current: Option<Instant>, candidate: Option<Instant>) -> Option<Instant> {
             match (current, candidate) {

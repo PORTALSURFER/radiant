@@ -1,4 +1,63 @@
 use super::*;
+use radiant::widgets::Widget;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ContinuityMessage {
+    Reorder,
+    Replace,
+    Hide,
+    Show,
+}
+
+#[derive(Default)]
+struct ContinuityState {
+    reordered: bool,
+    incompatible: bool,
+    visible: bool,
+}
+
+fn continuity_view(state: &ContinuityState) -> radiant::prelude::View<ContinuityMessage> {
+    use radiant::prelude as ui;
+
+    let tracked: ui::View<ContinuityMessage> = if state.incompatible {
+        ui::text("Replacement")
+    } else {
+        ui::button("Tracked").message(ContinuityMessage::Reorder)
+    };
+    let tracked = ui::preserve_state(ui::ContinuityKey::from("tracked"), tracked);
+    if !state.visible {
+        return ui::column([]);
+    }
+    if state.reordered {
+        ui::column([ui::text("Inserted"), tracked])
+    } else {
+        ui::column([tracked, ui::text("Sibling")])
+    }
+}
+
+fn continuity_bridge() -> impl radiant::runtime::RuntimeBridge<ContinuityMessage> {
+    use radiant::prelude as ui;
+
+    ui::app(ContinuityState {
+        visible: true,
+        ..ContinuityState::default()
+    })
+    .view(continuity_view)
+    .handle_message(|state, message, _context| match message {
+        ContinuityMessage::Reorder => state.reordered = true,
+        ContinuityMessage::Replace => state.incompatible = true,
+        ContinuityMessage::Hide => state.visible = false,
+        ContinuityMessage::Show => state.visible = true,
+    })
+    .into_bridge()
+}
+
+fn first_child_id<Message>(surface: &radiant::runtime::UiSurface<Message>) -> u64 {
+    let radiant::layout::LayoutNode::Container(container) = surface.layout_node() else {
+        panic!("continuity view should lower to a column");
+    };
+    container.children[0].child.id()
+}
 
 #[test]
 fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
@@ -41,6 +100,119 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
     assert_eq!(
         widget_ref::<TextWidget, _>(&after, text_id, "text").text,
         "Count: 1"
+    );
+}
+
+#[test]
+fn preserve_state_keeps_compatible_button_state_through_sibling_reorder() {
+    use radiant::{
+        gui::types::Point,
+        runtime::SurfaceRuntime,
+        widgets::{ButtonWidget, PointerButton, PointerModifiers, WidgetInput},
+    };
+
+    let mut runtime = SurfaceRuntime::new(continuity_bridge(), Vector2::new(180.0, 64.0));
+    let tracked_id = first_child_id(runtime.surface());
+    assert!(runtime.dispatch_input(
+        tracked_id,
+        WidgetInput::PointerPress {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        }
+    ));
+    assert!(
+        widget_ref::<ButtonWidget, _>(runtime.surface(), tracked_id, "tracked button")
+            .common()
+            .state
+            .pressed
+    );
+
+    runtime.dispatch_message(ContinuityMessage::Reorder);
+
+    let after_id = {
+        let radiant::layout::LayoutNode::Container(container) = runtime.surface().layout_node()
+        else {
+            panic!("continuity view should lower to a column");
+        };
+        container.children[1].child.id()
+    };
+    assert_eq!(after_id, tracked_id);
+    assert!(
+        widget_ref::<ButtonWidget, _>(runtime.surface(), tracked_id, "tracked button")
+            .common()
+            .state
+            .pressed
+    );
+}
+
+#[test]
+fn preserve_state_cleans_incompatible_replacement_before_strict_audit() {
+    use radiant::{
+        runtime::{IdentityAudit, SurfaceRuntime},
+        widgets::TextWidget,
+    };
+
+    let mut runtime = SurfaceRuntime::new(continuity_bridge(), Vector2::new(180.0, 64.0));
+    let tracked_id = first_child_id(runtime.surface());
+    assert!(runtime.focus_widget(tracked_id));
+    runtime.set_identity_audit(IdentityAudit::strict());
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        runtime.dispatch_message(ContinuityMessage::Replace);
+    }));
+    assert!(result.is_err());
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .identity
+            .replacement_count,
+        1
+    );
+    assert!(
+        widget_ref::<TextWidget, _>(runtime.surface(), tracked_id, "replacement text")
+            .text
+            .contains("Replacement")
+    );
+}
+
+#[test]
+fn preserve_state_reappearance_starts_widget_state_fresh_after_disappearance() {
+    use radiant::{
+        gui::types::Point,
+        runtime::SurfaceRuntime,
+        widgets::{ButtonWidget, PointerButton, PointerModifiers, WidgetInput},
+    };
+
+    let mut runtime = SurfaceRuntime::new(continuity_bridge(), Vector2::new(180.0, 64.0));
+    let tracked_id = first_child_id(runtime.surface());
+    assert!(runtime.dispatch_input(
+        tracked_id,
+        WidgetInput::PointerPress {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        }
+    ));
+    assert!(
+        widget_ref::<ButtonWidget, _>(runtime.surface(), tracked_id, "tracked button")
+            .common()
+            .state
+            .pressed
+    );
+
+    runtime.dispatch_message(ContinuityMessage::Hide);
+    assert!(runtime.surface().find_widget(tracked_id).is_none());
+    runtime.dispatch_message(ContinuityMessage::Show);
+
+    let reappeared_id = first_child_id(runtime.surface());
+    assert_eq!(reappeared_id, tracked_id);
+    assert!(
+        !widget_ref::<ButtonWidget, _>(runtime.surface(), tracked_id, "tracked button")
+            .common()
+            .state
+            .pressed
     );
 }
 

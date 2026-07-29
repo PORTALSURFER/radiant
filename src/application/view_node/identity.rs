@@ -103,11 +103,155 @@ impl From<String> for ContinuityKey {
     }
 }
 
+/// Apply an explicit continuity key to the root of a view subtree.
+///
+/// This is the opt-in escape hatch for a conditional replacement or another
+/// structural change whose compatible transient state should remain attached to
+/// the view. It has the same last-modifier-wins behavior as [`ViewNode::key`]:
+/// a later `.id(...)` or `.key(...)` call replaces this identity.
+pub fn preserve_state<Message>(key: ContinuityKey, view: ViewNode<Message>) -> ViewNode<Message> {
+    view.key(key)
+}
+
 #[cfg(test)]
 #[path = "identity/tests.rs"]
 mod tests;
 
 impl<Message> ViewNode<Message> {
+    pub(super) fn collect_explicit_identity_collisions(
+        &self,
+        scope: u64,
+        key_ids: &mut HashSet<NodeId>,
+        explicit_ids: &mut HashSet<NodeId>,
+    ) -> Result<(), ()> {
+        self.collect_explicit_identity_collisions_at(
+            scope,
+            StructuralRole::Root,
+            key_ids,
+            explicit_ids,
+            true,
+        )
+    }
+
+    fn collect_explicit_identity_collisions_at(
+        &self,
+        scope: u64,
+        role: StructuralRole,
+        key_ids: &mut HashSet<NodeId>,
+        explicit_ids: &mut HashSet<NodeId>,
+        include_overlays: bool,
+    ) -> Result<(), ()> {
+        if let Some(key) = self.key.as_ref() {
+            let id = scoped_key_id(scope, key.as_str());
+            if explicit_ids.contains(&id) || !key_ids.insert(id) {
+                return Err(());
+            }
+        }
+        if let Some(id) = self.id
+            && (key_ids.contains(&id) || !explicit_ids.insert(id))
+        {
+            return Err(());
+        }
+        if let ViewNodeKind::Runtime(node) = &self.kind
+            && self.id.is_none()
+            && self.key.is_none()
+            && (key_ids.contains(&node.id()) || !explicit_ids.insert(node.id()))
+        {
+            return Err(());
+        }
+
+        let child_scope = self.child_scope(scope, role);
+        match &self.kind {
+            ViewNodeKind::Scene { base, layers, .. } => {
+                base.collect_explicit_identity_collisions_at(
+                    child_scope,
+                    StructuralRole::SceneBase,
+                    key_ids,
+                    explicit_ids,
+                    false,
+                )?;
+                let mut overlay_layers = Vec::new();
+                base.collect_overlay_layers(&mut overlay_layers);
+                for (index, layer) in overlay_layers.into_iter().chain(layers.iter()).enumerate() {
+                    if let Some(input) = layer.input.as_ref() {
+                        input.collect_explicit_identity_collisions_at(
+                            child_scope,
+                            StructuralRole::SceneInput(index),
+                            key_ids,
+                            explicit_ids,
+                            true,
+                        )?;
+                    }
+                    layer.view.collect_explicit_identity_collisions_at(
+                        child_scope,
+                        StructuralRole::SceneLayer(index),
+                        key_ids,
+                        explicit_ids,
+                        true,
+                    )?;
+                }
+            }
+            ViewNodeKind::Container { children, .. } => {
+                for (index, child) in children.iter().enumerate() {
+                    child.collect_explicit_identity_collisions_at(
+                        child_scope,
+                        StructuralRole::ContainerChild(index),
+                        key_ids,
+                        explicit_ids,
+                        include_overlays,
+                    )?;
+                }
+            }
+            ViewNodeKind::Scroll { child } => child.collect_explicit_identity_collisions_at(
+                child_scope,
+                StructuralRole::ScrollChild,
+                key_ids,
+                explicit_ids,
+                include_overlays,
+            )?,
+            ViewNodeKind::VirtualScroll { child, .. } => child
+                .collect_explicit_identity_collisions_at(
+                    child_scope,
+                    StructuralRole::VirtualScrollChild,
+                    key_ids,
+                    explicit_ids,
+                    include_overlays,
+                )?,
+            ViewNodeKind::FloatingLayer { child, .. } => child
+                .collect_explicit_identity_collisions_at(
+                    child_scope,
+                    StructuralRole::FloatingLayerChild,
+                    key_ids,
+                    explicit_ids,
+                    include_overlays,
+                )?,
+            ViewNodeKind::Runtime(_)
+            | ViewNodeKind::Widget(_)
+            | ViewNodeKind::OverlayPanel { .. } => {}
+        }
+        if include_overlays && !matches!(self.kind, ViewNodeKind::Scene { .. }) {
+            for (index, layer) in self.overlay_layers.iter().enumerate() {
+                if let Some(input) = layer.input.as_ref() {
+                    input.collect_explicit_identity_collisions_at(
+                        child_scope,
+                        StructuralRole::SceneInput(index),
+                        key_ids,
+                        explicit_ids,
+                        true,
+                    )?;
+                }
+                layer.view.collect_explicit_identity_collisions_at(
+                    child_scope,
+                    StructuralRole::SceneLayer(index),
+                    key_ids,
+                    explicit_ids,
+                    true,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn collect_keyed_collisions(
         &self,
         scope: u64,

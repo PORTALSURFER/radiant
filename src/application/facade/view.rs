@@ -4,8 +4,8 @@ pub use super::super::launch::{
     IntoView, RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView, ViewProjection,
     WindowBuilder, app, window,
 };
-pub use super::super::view_node::ContinuityKey;
 pub use super::super::view_node::ViewNode;
+pub use super::super::view_node::{ContinuityKey, preserve_state};
 pub use super::super::widget_view::{
     MappedWidget, MappedWidgetParts, WidgetView, WidgetViewContext,
 };

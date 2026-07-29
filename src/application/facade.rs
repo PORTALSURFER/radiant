@@ -115,5 +115,5 @@ pub use surfaces::{
 pub use view::{
     ContinuityKey, IntoView, MappedWidget, MappedWidgetParts, RunnableStatefulApp,
     StatefulAppBuilder, StatefulAppWithView, ViewNode, ViewProjection, WidgetView,
-    WidgetViewContext, WindowBuilder, app, window,
+    WidgetViewContext, WindowBuilder, app, preserve_state, window,
 };

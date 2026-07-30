@@ -62,7 +62,7 @@ fn runtime_surface_nodes_keep_parts_internal_and_public_constructors_explicit() 
             && overlay_builders.contains("pub fn overlay_marker(")
             && widget.contains("mod mapper;")
             && widget.contains(
-                "MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, WidgetMessageMapper"
+                "EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,\n    WidgetMessageMapper"
             )
             && widget_mapper.contains("pub struct WidgetMessageMapper<Message>")
             && widget_mapper.contains("pub type MessageMapper<Input, Message>")

@@ -32,7 +32,7 @@ pub(in crate::runtime) use traversal::{
     SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 pub use widget::{
-    MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceWidget,
+    EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceWidget,
     WidgetMessageMapper,
 };
 

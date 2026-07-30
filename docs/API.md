@@ -1946,6 +1946,15 @@ manual downcast chains. `WidgetMessageMapper::dynamic(...)` is available when a
 host needs manual downcast or filtering behavior. Adding a widget should not
 require adding a central output enum variant.
 
+Advanced UI-local event paths may opt into `runtime::EventMapper::with_revision`
+when an `Eq + 'static` value exactly describes a mapper's captured behavior.
+`EventMapper::new` remains the conservative default. Exact mappers can be passed
+to `WidgetMessageMapper::dynamic_mapped`, or the corresponding
+`SurfaceNode`/`SurfaceContainer` scroll entry points. The atomic
+`SurfaceNode::with_native_file_drop_mapped` entry point combines exact mapper
+evidence with native-drop target acceptance; existing closure aliases and
+builders retain conservative behavior.
+
 Asynchronous business work remains host-owned, but normal apps use Radiant's
 app runtime to wire it into the UI. `UiUpdateContext::business()`,
 `UiUpdateContext::after(...)`, typed platform-service helpers, and

@@ -4,10 +4,12 @@ use crate::{
     runtime::{NativeFileDrop, ScrollUpdate},
     widgets::WidgetOutput,
 };
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
-type DynamicOutputMapper<Message> = Rc<dyn Fn(WidgetOutput) -> Option<Message>>;
+type DynamicOutputMapper<Message> = EventMapper<WidgetOutput, Option<Message>>;
 
 enum OutputMapper<Message> {
     Dynamic(DynamicOutputMapper<Message>),
@@ -34,7 +36,7 @@ enum ConstantMessage<Message> {
 impl<Message> Clone for OutputMapper<Message> {
     fn clone(&self) -> Self {
         match self {
-            Self::Dynamic(map) => Self::Dynamic(Rc::clone(map)),
+            Self::Dynamic(map) => Self::Dynamic(map.clone()),
             Self::Constant(map) => Self::Constant(map.clone()),
         }
     }
@@ -85,6 +87,164 @@ impl<Message> ConstantOutputMapper<Message> {
 /// Mappers are invoked and dropped on the UI runtime; they are not `Send` or `Sync`.
 pub type MessageMapper<Input, Message> = Rc<dyn Fn(Input) -> Message>;
 
+/// A UI-local event mapper with optional exact, typed equality evidence.
+///
+/// `EventMapper::new` is conservative: its callback is intentionally opaque to
+/// reconciliation. `EventMapper::with_revision` is an explicit opt-in for a
+/// caller that can prove that the mapper's captured behavior is represented by
+/// an `Eq` value. The mapper remains UI-local and is deliberately not
+/// `Send`/`Sync`.
+pub struct EventMapper<Input, Message> {
+    map: MapperCallback<Input, Message>,
+    evidence: MapperEvidence,
+}
+
+impl<Input, Message> Clone for EventMapper<Input, Message> {
+    fn clone(&self) -> Self {
+        Self {
+            map: self.map.clone(),
+            evidence: self.evidence.clone(),
+        }
+    }
+}
+
+impl<Input, Message> EventMapper<Input, Message> {
+    pub(crate) fn from_rc(map: Rc<dyn Fn(Input) -> Message>) -> Self {
+        Self {
+            map: MapperCallback::Rc(map),
+            evidence: MapperEvidence::Conservative,
+        }
+    }
+
+    pub(crate) fn from_arc(map: Arc<dyn Fn(Input) -> Message + Send + Sync>) -> Self {
+        Self {
+            map: MapperCallback::Arc(map),
+            evidence: MapperEvidence::Conservative,
+        }
+    }
+
+    /// Build a conservative mapper from an ordinary UI-local callback.
+    pub fn new(map: impl Fn(Input) -> Message + 'static) -> Self {
+        Self {
+            map: MapperCallback::Rc(Rc::new(map)),
+            evidence: MapperEvidence::Conservative,
+        }
+    }
+
+    /// Build a mapper with exact equality evidence for its captured behavior.
+    pub fn with_revision<Revision>(
+        revision: Revision,
+        map: impl Fn(Input) -> Message + 'static,
+    ) -> Self
+    where
+        Revision: Eq + 'static,
+    {
+        Self {
+            map: MapperCallback::Rc(Rc::new(map)),
+            evidence: MapperEvidence::Exact(Rc::new(RevisionEvidenceValue(revision))),
+        }
+    }
+
+    /// Invoke the mapper with one event payload.
+    pub fn invoke(&self, input: Input) -> Message {
+        self.map.invoke(input)
+    }
+
+    /// Alias for [`EventMapper::invoke`].
+    pub fn map(&self, input: Input) -> Message {
+        self.invoke(input)
+    }
+
+    pub(crate) fn descriptor(&self) -> MapperDescriptor {
+        match &self.evidence {
+            MapperEvidence::Conservative => MapperDescriptor::Conservative,
+            MapperEvidence::Exact(revision) => MapperDescriptor::Exact(Rc::clone(revision)),
+        }
+    }
+}
+
+enum MapperCallback<Input, Message> {
+    Rc(Rc<dyn Fn(Input) -> Message>),
+    Arc(Arc<dyn Fn(Input) -> Message + Send + Sync>),
+}
+
+impl<Input, Message> Clone for MapperCallback<Input, Message> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Rc(map) => Self::Rc(Rc::clone(map)),
+            Self::Arc(map) => Self::Arc(Arc::clone(map)),
+        }
+    }
+}
+
+impl<Input, Message> MapperCallback<Input, Message> {
+    fn invoke(&self, input: Input) -> Message {
+        match self {
+            Self::Rc(map) => map(input),
+            Self::Arc(map) => map(input),
+        }
+    }
+}
+
+pub(crate) trait RevisionEvidence: Any {
+    fn equals(&self, other: &dyn RevisionEvidence) -> bool;
+}
+
+struct RevisionEvidenceValue<Revision>(Revision);
+
+impl<Revision> RevisionEvidence for RevisionEvidenceValue<Revision>
+where
+    Revision: Eq + 'static,
+{
+    fn equals(&self, other: &dyn RevisionEvidence) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<Self>()
+            .is_some_and(|other| self.0 == other.0)
+    }
+}
+
+impl dyn RevisionEvidence {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Clone)]
+enum MapperEvidence {
+    Conservative,
+    Exact(Rc<dyn RevisionEvidence>),
+}
+
+#[derive(Clone)]
+pub(crate) enum MapperDescriptor {
+    Absent,
+    Conservative,
+    Exact(Rc<dyn RevisionEvidence>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MapperRelation {
+    Unchanged,
+    Interaction,
+    Structural,
+}
+
+impl MapperDescriptor {
+    pub(crate) fn relation(&self, other: &Self) -> MapperRelation {
+        match (self, other) {
+            (Self::Absent, Self::Absent) => MapperRelation::Unchanged,
+            (Self::Exact(left), Self::Exact(right)) if left.equals(right.as_ref()) => {
+                MapperRelation::Unchanged
+            }
+            (Self::Exact(_), Self::Exact(_))
+            | (Self::Absent, Self::Exact(_))
+            | (Self::Exact(_), Self::Absent) => MapperRelation::Interaction,
+            _ => MapperRelation::Structural,
+        }
+    }
+}
+
 /// UI-local mapper type that turns scroll movement into optional host-defined messages.
 ///
 /// Scroll containers may update local runtime offset for sub-row or otherwise
@@ -99,14 +259,14 @@ pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Me
 #[derive(Default)]
 pub struct WidgetMessageMapper<Message> {
     map: Option<OutputMapper<Message>>,
-    native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
+    native_file_drop: Option<EventMapper<NativeFileDrop, Message>>,
 }
 
 impl<Message> Clone for WidgetMessageMapper<Message> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
-            native_file_drop: self.native_file_drop.as_ref().map(Rc::clone),
+            native_file_drop: self.native_file_drop.clone(),
         }
     }
 }
@@ -152,8 +312,13 @@ impl<Message> WidgetMessageMapper<Message> {
 
     /// Build a dynamic output mapper for custom widgets.
     pub fn dynamic(map: impl Fn(WidgetOutput) -> Option<Message> + 'static) -> Self {
+        Self::dynamic_mapped(EventMapper::new(map))
+    }
+
+    /// Build a dynamic output mapper with optional exact equality evidence.
+    pub fn dynamic_mapped(map: EventMapper<WidgetOutput, Option<Message>>) -> Self {
         Self {
-            map: Some(OutputMapper::Dynamic(Rc::new(map))),
+            map: Some(OutputMapper::Dynamic(map)),
             native_file_drop: None,
         }
     }
@@ -163,7 +328,17 @@ impl<Message> WidgetMessageMapper<Message> {
         mut self,
         map: impl Fn(NativeFileDrop) -> Message + 'static,
     ) -> Self {
-        self.native_file_drop = Some(Rc::new(map));
+        self.native_file_drop = Some(EventMapper::new(map));
+        self
+    }
+
+    /// Return this mapper with a native file-drop mapper carrying optional
+    /// exact equality evidence.
+    pub(super) fn with_native_file_drop_mapped(
+        mut self,
+        map: EventMapper<NativeFileDrop, Message>,
+    ) -> Self {
+        self.native_file_drop = Some(map);
         self
     }
 
@@ -179,19 +354,32 @@ impl<Message> WidgetMessageMapper<Message> {
     ///
     /// Reconciliation cannot compare callback identity or captured state, so
     /// any message binding is conservatively treated as structural.
-    pub(in crate::runtime::surface) fn has_opaque_behavior(&self) -> bool {
-        self.map.is_some() || self.native_file_drop.is_some()
+    pub(in crate::runtime::surface) fn output_mapper_descriptor(&self) -> MapperDescriptor {
+        match self.map.as_ref() {
+            Some(OutputMapper::Dynamic(map)) => map.descriptor(),
+            Some(OutputMapper::Constant(_)) => MapperDescriptor::Conservative,
+            None => MapperDescriptor::Absent,
+        }
+    }
+
+    pub(in crate::runtime::surface) fn native_file_drop_mapper_descriptor(
+        &self,
+    ) -> MapperDescriptor {
+        self.native_file_drop
+            .as_ref()
+            .map(EventMapper::descriptor)
+            .unwrap_or(MapperDescriptor::Absent)
     }
 
     pub(super) fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match self.map.as_ref()? {
-            OutputMapper::Dynamic(map) => map(output),
+            OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
         }
     }
 
     pub(super) fn map_native_file_drop(&self, drop: NativeFileDrop) -> Option<Message> {
-        self.native_file_drop.as_ref().map(|map| map(drop))
+        self.native_file_drop.as_ref().map(|map| map.invoke(drop))
     }
 }
 
@@ -388,6 +576,61 @@ mod tests {
         let mapped = mapper.map_output(cloned).expect("local payload should map");
         assert!(Rc::ptr_eq(&mapped, &payload));
         assert_eq!(*payload.borrow(), 8);
+    }
+
+    #[derive(PartialEq, Eq)]
+    struct Revision(u32);
+
+    #[test]
+    fn event_mapper_equality_is_typed_conservative_and_cloneable() {
+        let exact = EventMapper::with_revision(Revision(7), |value: u32| value + 1);
+        let equal = EventMapper::with_revision(Revision(7), |value: u32| value + 2);
+        let changed = EventMapper::with_revision(Revision(8), |value: u32| value + 3);
+        let different_type = EventMapper::with_revision(7u32, |value: u32| value + 4);
+        let conservative = EventMapper::new(|value: u32| value + 5);
+
+        assert_eq!(
+            exact.descriptor().relation(&equal.descriptor()),
+            MapperRelation::Unchanged
+        );
+        assert_eq!(
+            exact.descriptor().relation(&changed.descriptor()),
+            MapperRelation::Interaction
+        );
+        assert_eq!(
+            exact.descriptor().relation(&different_type.descriptor()),
+            MapperRelation::Interaction
+        );
+        assert_eq!(
+            exact.descriptor().relation(&conservative.descriptor()),
+            MapperRelation::Structural
+        );
+        assert_eq!(
+            exact.descriptor().relation(&MapperDescriptor::Absent),
+            MapperRelation::Interaction
+        );
+
+        let cloned = exact.clone();
+        assert_eq!(cloned.invoke(4), 5);
+    }
+
+    #[test]
+    fn event_mapper_does_not_execute_during_equality() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let calls_for_mapper = Rc::clone(&calls);
+        let mapper = EventMapper::with_revision(Revision(1), move |value: u32| {
+            *calls_for_mapper.borrow_mut() += 1;
+            value + 1
+        });
+        let same = EventMapper::with_revision(Revision(1), |value: u32| value + 9);
+
+        assert_eq!(
+            mapper.descriptor().relation(&same.descriptor()),
+            MapperRelation::Unchanged
+        );
+        assert_eq!(*calls.borrow(), 0);
+        assert_eq!(mapper.invoke(1), 2);
+        assert_eq!(*calls.borrow(), 1);
     }
 
     struct UiDropProbe(Rc<RefCell<bool>>);

@@ -17,7 +17,7 @@ impl<Message> SurfaceContainer<Message> {
         if self.id == update.node_id
             && let Some(message) = &self.scroll_message
         {
-            return message(update);
+            return message.invoke(update);
         }
         self.children
             .iter()

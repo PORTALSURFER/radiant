@@ -10,8 +10,10 @@ use crate::{
 mod mapper;
 
 pub use mapper::{
-    MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, WidgetMessageMapper,
+    EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,
+    WidgetMessageMapper,
 };
+pub(crate) use mapper::{MapperDescriptor, MapperRelation};
 
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
 pub struct SurfaceWidget<Message> {
@@ -130,8 +132,19 @@ impl<Message> SurfaceWidget<Message> {
         self.messages.uses_dynamic_output_callback()
     }
 
-    pub(in crate::runtime::surface) fn has_opaque_message_behavior(&self) -> bool {
-        self.messages.has_opaque_behavior() || self.accepts_native_file_drop
+    pub(in crate::runtime::surface) fn output_mapper_descriptor(&self) -> MapperDescriptor {
+        self.messages.output_mapper_descriptor()
+    }
+
+    pub(in crate::runtime::surface) fn native_file_drop_mapper_descriptor(
+        &self,
+    ) -> MapperDescriptor {
+        let descriptor = self.messages.native_file_drop_mapper_descriptor();
+        if matches!(descriptor, MapperDescriptor::Absent) && self.accepts_native_file_drop {
+            MapperDescriptor::Conservative
+        } else {
+            descriptor
+        }
     }
 
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
@@ -235,6 +248,15 @@ impl<Message> SurfaceWidget<Message> {
     ) -> Self {
         self.accepts_native_file_drop = true;
         self.messages = self.messages.with_native_file_drop(map);
+        self
+    }
+
+    pub(crate) fn with_native_file_drop_mapped(
+        mut self,
+        map: EventMapper<crate::runtime::NativeFileDrop, Message>,
+    ) -> Self {
+        self.accepts_native_file_drop = true;
+        self.messages = self.messages.with_native_file_drop_mapped(map);
         self
     }
 

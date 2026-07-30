@@ -122,6 +122,28 @@ fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() 
 }
 
 #[test]
+fn mapped_knob_routes_hover_wheel_to_a_distinct_automation_gesture() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let mut root = mapped_knob(0.5, false);
+
+    assert!(matches!(
+        root.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(0.0, -120.0)),
+        ),
+        Some(WidgetDispatchResult::Message(KnobMessage::WheelGesture(batch)))
+            if batch.events
+                == [
+                    crate::widgets::KnobAutomationEvent::GestureStarted { value: 0.5 },
+                    crate::widgets::KnobAutomationEvent::ValueChanged { value: 0.52 },
+                    crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.52 },
+                ]
+    ));
+}
+
+#[test]
 fn disabled_knob_reprojection_clears_pointer_gesture_state() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
     let paths = HashMap::from([(30, WidgetPath::from_slice(&[]))]);

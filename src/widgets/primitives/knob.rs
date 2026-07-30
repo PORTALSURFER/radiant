@@ -10,13 +10,16 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    KnobKeyboardGesture, KnobMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, PointerButton, WidgetInput, WidgetKey,
+    WidgetOutput,
 };
 
 use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker};
 
 const DEFAULT_DIAMETER: f32 = 40.0;
 const DEFAULT_SENSITIVITY: f32 = 0.006;
+const WHEEL_STEP: f32 = 0.02;
+const WHEEL_FINE_STEP: f32 = 0.002;
 const ARC_START: f32 = -5.0 * std::f32::consts::PI / 4.0;
 const ARC_SWEEP: f32 = 3.0 * std::f32::consts::PI / 2.0;
 const ARC_SEGMENTS: usize = 40;
@@ -170,6 +173,40 @@ impl KnobWidget {
                 self.set_value(self.state.value + (origin.y - position.y) * sensitivity)
                     .map(|value| KnobMessage::ValueChanged { value })
             }
+            WidgetInput::Wheel {
+                position,
+                delta,
+                modifiers,
+            } => {
+                // Wheel input is an independent hover gesture. Do not let it
+                // alter or terminate an active captured pointer drag.
+                if self.common.state.pressed
+                    || self.state.gesture_origin.is_some()
+                    || !bounds.contains(position)
+                {
+                    return None;
+                }
+                let direction = if delta.y < 0.0 {
+                    1.0
+                } else if delta.y > 0.0 {
+                    -1.0
+                } else {
+                    // Horizontal-only, zero, and unsigned vertical deltas
+                    // remain available to the surrounding scroll surface.
+                    return None;
+                };
+                let step = if modifiers.shift {
+                    WHEEL_FINE_STEP
+                } else {
+                    WHEEL_STEP
+                };
+                let start_value = self.state.value;
+                let final_value = self.set_value(start_value + direction * step)?;
+                Some(KnobMessage::WheelGesture(KnobWheelGesture::new(
+                    start_value,
+                    final_value,
+                )))
+            }
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
@@ -271,6 +308,10 @@ impl Widget for KnobWidget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
         true
     }
 
@@ -390,7 +431,7 @@ mod tests {
         gui::types::Point,
         runtime::PaintPrimitive,
         widgets::interaction::PointerModifiers,
-        widgets::{WidgetState, WidgetVisualCue},
+        widgets::{KnobAutomationEvent, WidgetState, WidgetVisualCue},
     };
 
     #[test]
@@ -527,6 +568,114 @@ mod tests {
             knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowLeft)),
             None
         );
+    }
+
+    #[test]
+    fn knob_wheel_gesture_uses_vertical_sign_and_shift_fine_step() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+
+        let Some(KnobMessage::WheelGesture(batch)) = knob.handle_input(
+            bounds,
+            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(18.0, -120.0)),
+        ) else {
+            panic!("negative vertical wheel should emit a wheel lifecycle batch");
+        };
+        assert_eq!(
+            batch.events[0],
+            KnobAutomationEvent::GestureStarted { value: 0.5 }
+        );
+        assert_eq!(
+            batch.events[1],
+            KnobAutomationEvent::ValueChanged { value: 0.52 }
+        );
+        assert_eq!(
+            batch.events[2],
+            KnobAutomationEvent::GestureEnded { value: 0.52 }
+        );
+
+        let Some(KnobMessage::WheelGesture(batch)) = knob.handle_input(
+            bounds,
+            WidgetInput::wheel(
+                Point::new(20.0, 20.0),
+                Vector2::new(-32.0, 900.0),
+                PointerModifiers {
+                    shift: true,
+                    command: true,
+                    alt: true,
+                },
+            ),
+        ) else {
+            panic!("positive vertical wheel should emit a wheel lifecycle batch");
+        };
+        assert_eq!(
+            batch.events[0],
+            KnobAutomationEvent::GestureStarted { value: 0.52 }
+        );
+        assert_eq!(
+            batch.events[1],
+            KnobAutomationEvent::ValueChanged { value: 0.518 }
+        );
+        assert_eq!(
+            batch.events[2],
+            KnobAutomationEvent::GestureEnded { value: 0.518 }
+        );
+        assert!((knob.state.value - 0.518).abs() < 0.00001);
+    }
+
+    #[test]
+    fn knob_ignores_ineffective_wheel_inputs_and_preserves_pointer_drag() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let outside = Point::new(80.0, 20.0);
+        let inside = Point::new(20.0, 20.0);
+        let mut knob = KnobWidget::new(1, 0.0);
+
+        for input in [
+            WidgetInput::plain_wheel(inside, Vector2::new(0.0, 0.0)),
+            WidgetInput::plain_wheel(inside, Vector2::new(20.0, 0.0)),
+            WidgetInput::plain_wheel(outside, Vector2::new(0.0, -120.0)),
+        ] {
+            assert_eq!(knob.handle_input(bounds, input), None);
+            assert_eq!(knob.state.value, 0.0);
+        }
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::wheel(
+                    inside,
+                    Vector2::new(0.0, 120.0),
+                    PointerModifiers::default()
+                )
+            ),
+            None,
+        );
+        assert_eq!(knob.state.value, 0.0);
+
+        knob.state.value = 1.0;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::plain_wheel(inside, Vector2::new(0.0, -120.0)),
+            ),
+            None,
+        );
+        assert_eq!(knob.state.value, 1.0);
+
+        knob.state.value = 0.5;
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_press(inside)),
+            Some(KnobMessage::GestureStarted { .. })
+        ));
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::plain_wheel(inside, Vector2::new(0.0, -120.0)),
+            ),
+            None,
+        );
+        assert_eq!(knob.state.value, 0.5);
+        assert!(knob.common.state.pressed);
+        assert!(knob.state.gesture_origin.is_some());
     }
 
     #[test]

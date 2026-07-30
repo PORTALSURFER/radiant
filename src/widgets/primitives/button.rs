@@ -11,10 +11,17 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
-use super::support::WidgetCommon;
+use super::support::{
+    WidgetCommon,
+    revision::{
+        CommonInteractionRevision, CommonPaintRevision, common_geometry, common_interaction,
+        common_paint, exact_revision,
+    },
+};
 use crate::widgets::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics,
+    WidgetSemanticsRevision, WidgetSizing,
 };
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
 
@@ -124,6 +131,16 @@ impl ButtonWidget {
 }
 
 impl WidgetSemantics for ButtonWidget {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact((
+            self.props.label.clone(),
+            self.props.trailing_label.clone(),
+            self.common.state.selected,
+            self.common.state.disabled,
+            self.common.state.read_only,
+        ))
+    }
+
     fn automation_role(&self) -> crate::gui::automation::AutomationRole {
         crate::gui::automation::AutomationRole::Button
     }
@@ -136,7 +153,73 @@ impl WidgetSemantics for ButtonWidget {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ButtonPaintRevision {
+    common: CommonPaintRevision,
+    label: PaintText,
+    trailing_label: Option<PaintText>,
+    text_align: TextAlign,
+    hover_chrome_only: bool,
+    active: bool,
+    selected: bool,
+    disabled: bool,
+    automation_active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ButtonInteractionRevision {
+    common: CommonInteractionRevision,
+    secondary_click: bool,
+    drag: bool,
+    active: bool,
+    paints_state_layers: bool,
+    suppresses_container_hover: bool,
+    disabled: bool,
+    read_only: bool,
+}
+
+impl ButtonWidget {
+    fn exact_revision(&self) -> Option<WidgetRevision> {
+        // Retained SVGs may contain backend-owned or opaque paint state. Keep
+        // ordinary icon buttons conservative until their representation has a
+        // typed equality contract of its own.
+        if self.trailing_icon.is_some() || self.trailing_icon_tint_cache.is_some() {
+            return None;
+        }
+
+        exact_revision(
+            common_geometry(&self.common),
+            ButtonPaintRevision {
+                common: common_paint(&self.common),
+                label: self.props.label.clone(),
+                trailing_label: self.props.trailing_label.clone(),
+                text_align: self.props.text_align,
+                hover_chrome_only: self.props.hover_chrome_only,
+                active: self.common.state.active,
+                selected: self.common.state.selected,
+                disabled: self.common.state.disabled,
+                automation_active: self.common.state.automation_active,
+            },
+            ButtonInteractionRevision {
+                common: common_interaction(&self.common),
+                secondary_click: self.props.secondary_click,
+                drag: self.props.drag,
+                active: self.common.state.active,
+                paints_state_layers: self.common.paint.paints_state_layers,
+                suppresses_container_hover: self.common.paint.suppresses_container_hover,
+                disabled: self.common.state.disabled,
+                read_only: self.common.state.read_only,
+            },
+        )
+    }
+}
+
 impl Widget for ButtonWidget {
+    fn revision(&self) -> WidgetRevision {
+        self.exact_revision()
+            .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

@@ -66,14 +66,15 @@ pub(in crate::widgets::primitives) fn common_interaction(
     }
 }
 
-pub(in crate::widgets::primitives) fn exact_revision<G, P>(
+pub(in crate::widgets::primitives) fn exact_revision<G, P, I>(
     geometry: Option<G>,
     paint: P,
-    interaction: CommonInteractionRevision,
+    interaction: I,
 ) -> Option<WidgetRevision>
 where
     G: Eq + 'static,
     P: Eq + 'static,
+    I: Eq + 'static,
 {
     Some(WidgetRevision::exact((), geometry?, paint, interaction))
 }

@@ -3,7 +3,7 @@ use crate::{
         MappedWidget, TextContent, ViewNode, danger_style, default_toggle_sizing, primary_style,
         view_node_from_widget,
     },
-    runtime::{PaintText, WidgetMessageMapper},
+    runtime::{EventMapper, PaintText, WidgetMessageMapper},
     widgets::{ToggleMessage, ToggleWidget, WidgetProminence, WidgetStyle},
 };
 
@@ -55,6 +55,30 @@ impl ToggleBuilder {
         node.style = self.style;
         node
     }
+
+    /// Emit a host message with explicit typed equality evidence for the
+    /// captured mapper behavior.
+    pub fn message_with<Message: 'static>(
+        self,
+        map: EventMapper<ToggleMessage, Message>,
+    ) -> ViewNode<Message> {
+        let sizing = default_toggle_sizing(&self.label, self.compact);
+        let mut node = view_node_from_widget(MappedWidget::new(
+            ToggleWidget::new(0, self.label, sizing).with_checked(self.checked),
+            WidgetMessageMapper::toggle_mapped(map),
+        ));
+        node.style = self.style;
+        node
+    }
+
+    /// Alias for [`Self::message_with`] using the same naming as button
+    /// builders while retaining the historical `message` entry point.
+    pub fn mapped_with<Message: 'static>(
+        self,
+        map: EventMapper<ToggleMessage, Message>,
+    ) -> ViewNode<Message> {
+        self.message_with(map)
+    }
 }
 
 /// Build a toggle.
@@ -84,4 +108,13 @@ pub fn toggle_mapped<Message: 'static>(
     map: impl Fn(bool) -> Message + 'static,
 ) -> ViewNode<Message> {
     toggle(label, checked).message(map)
+}
+
+/// Build a toggle with an explicitly revisioned typed event mapper.
+pub fn toggle_mapped_with<Message: 'static>(
+    label: impl Into<TextContent>,
+    checked: bool,
+    map: EventMapper<ToggleMessage, Message>,
+) -> ViewNode<Message> {
+    toggle(label, checked).message_with(map)
 }

@@ -10,9 +10,16 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
-use super::support::WidgetCommon;
+use super::support::{
+    WidgetCommon,
+    revision::{
+        CommonInteractionRevision, CommonPaintRevision, common_geometry, common_interaction,
+        common_paint, exact_revision,
+    },
+};
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics,
+    WidgetSemanticsRevision, WidgetSizing,
 };
 use crate::widgets::interaction::{ToggleMessage, WidgetInput, WidgetOutput};
 
@@ -85,6 +92,16 @@ impl ToggleWidget {
 }
 
 impl WidgetSemantics for ToggleWidget {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact((
+            self.props.label.clone(),
+            self.state.checked,
+            self.common.state.selected,
+            self.common.state.disabled,
+            self.common.state.read_only,
+        ))
+    }
+
     fn automation_role(&self) -> crate::gui::automation::AutomationRole {
         crate::gui::automation::AutomationRole::Toggle
     }
@@ -98,7 +115,58 @@ impl WidgetSemantics for ToggleWidget {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TogglePaintRevision {
+    common: CommonPaintRevision,
+    label: PaintText,
+    checked: bool,
+    active: bool,
+    selected: bool,
+    disabled: bool,
+    automation_active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ToggleInteractionRevision {
+    common: CommonInteractionRevision,
+    checked: bool,
+    paints_state_layers: bool,
+    suppresses_container_hover: bool,
+    disabled: bool,
+    read_only: bool,
+}
+
+impl ToggleWidget {
+    fn exact_revision(&self) -> Option<WidgetRevision> {
+        exact_revision(
+            common_geometry(&self.common),
+            TogglePaintRevision {
+                common: common_paint(&self.common),
+                label: self.props.label.clone(),
+                checked: self.state.checked,
+                active: self.common.state.active,
+                selected: self.common.state.selected,
+                disabled: self.common.state.disabled,
+                automation_active: self.common.state.automation_active,
+            },
+            ToggleInteractionRevision {
+                common: common_interaction(&self.common),
+                checked: self.state.checked,
+                paints_state_layers: self.common.paint.paints_state_layers,
+                suppresses_container_hover: self.common.paint.suppresses_container_hover,
+                disabled: self.common.state.disabled,
+                read_only: self.common.state.read_only,
+            },
+        )
+    }
+}
+
 impl Widget for ToggleWidget {
+    fn revision(&self) -> WidgetRevision {
+        self.exact_revision()
+            .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

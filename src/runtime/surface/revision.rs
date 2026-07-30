@@ -1226,8 +1226,9 @@ mod tests {
 #[cfg(test)]
 mod view_delta_tests {
     use super::{
-        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch,
-        classify_view_delta as classify_with_scratch,
+        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch, WidgetRevisionEffect,
+        WidgetRevisionSnapshot, classify_view_delta as classify_with_scratch,
+        classify_widget_revision,
     };
     use crate::{
         gui::types::{Point, Rect, Vector2},
@@ -1237,8 +1238,9 @@ mod view_delta_tests {
             WidgetMessageMapper,
         },
         widgets::{
-            ColorMarkerRunWidget, ColorMarkerWidget, FeedbackOverlayWidget, MarkerRunWidget,
-            Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
+            ButtonMessage, ButtonWidget, ColorMarkerRunWidget, ColorMarkerWidget,
+            FeedbackOverlayWidget, MarkerRunWidget, ToggleMessage, ToggleWidget, Widget,
+            WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
             WidgetSemantics, WidgetSemanticsRevision, WidgetSizing, WidgetStyle, WidgetTone,
         },
     };
@@ -1251,6 +1253,23 @@ mod view_delta_tests {
     fn classify_view_delta(previous: &UiSurface<()>, current: &UiSurface<()>) -> super::ViewDelta {
         let mut scratch = ViewDeltaScratch::with_capacity(4096);
         classify_with_scratch(previous, current, &mut scratch)
+    }
+
+    fn component_changes(previous: &dyn Widget, current: &dyn Widget) -> (bool, bool, bool, bool) {
+        let previous_revision = Widget::revision(previous);
+        let Some(previous) = previous_revision.exact_components() else {
+            return (true, true, true, true);
+        };
+        let current_revision = Widget::revision(current);
+        let Some(current) = current_revision.exact_components() else {
+            return (true, true, true, true);
+        };
+        (
+            !previous.structure_equal(current),
+            !previous.geometry_equal(current),
+            !previous.paint_equal(current),
+            !previous.interaction_equal(current),
+        )
     }
 
     #[test]
@@ -1462,6 +1481,427 @@ mod view_delta_tests {
             classify_view_delta(&previous, &interaction).effect,
             ViewDeltaEffect::Interaction
         );
+    }
+
+    #[test]
+    fn button_and_toggle_revisioned_mappers_preserve_typed_relations() {
+        let sizing = WidgetSizing::fixed(Vector2::new(80.0, 28.0));
+        let button = |mapper| {
+            surface(SurfaceNode::widget(
+                ButtonWidget::new(1, "Run", sizing),
+                WidgetMessageMapper::button_mapped(mapper),
+            ))
+        };
+        let toggle = |mapper| {
+            surface(SurfaceNode::widget(
+                ToggleWidget::new(1, "Snap", sizing),
+                WidgetMessageMapper::toggle_mapped(mapper),
+            ))
+        };
+
+        let button_equal = button(EventMapper::with_revision(
+            1_u32,
+            |_message: ButtonMessage| (),
+        ))
+        .clone();
+        let button_same = button(EventMapper::with_revision(
+            1_u32,
+            |_message: ButtonMessage| (),
+        ));
+        assert_eq!(
+            classify_view_delta(&button_equal, &button_same).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        let button_changed = button(EventMapper::with_revision(
+            2_u32,
+            |_message: ButtonMessage| (),
+        ));
+        assert_eq!(
+            classify_view_delta(&button_equal, &button_changed).effect,
+            ViewDeltaEffect::Interaction
+        );
+        let button_opaque = button(EventMapper::new(|_message: ButtonMessage| ()));
+        assert_eq!(
+            classify_view_delta(&button_equal, &button_opaque).effect,
+            ViewDeltaEffect::Structural
+        );
+
+        let toggle_equal = toggle(EventMapper::with_revision(
+            1_u32,
+            |_message: ToggleMessage| (),
+        ))
+        .clone();
+        let toggle_same = toggle(EventMapper::with_revision(
+            1_u32,
+            |_message: ToggleMessage| (),
+        ));
+        assert_eq!(
+            classify_view_delta(&toggle_equal, &toggle_same).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        let toggle_changed = toggle(EventMapper::with_revision(
+            2_u32,
+            |_message: ToggleMessage| (),
+        ));
+        assert_eq!(
+            classify_view_delta(&toggle_equal, &toggle_changed).effect,
+            ViewDeltaEffect::Interaction
+        );
+        let toggle_opaque = toggle(EventMapper::new(|_message: ToggleMessage| ()));
+        assert_eq!(
+            classify_view_delta(&toggle_equal, &toggle_opaque).effect,
+            ViewDeltaEffect::Structural
+        );
+    }
+
+    #[test]
+    fn button_and_toggle_revisions_partition_geometry_paint_and_safe_fallbacks() {
+        let sizing = WidgetSizing::fixed(Vector2::new(80.0, 28.0));
+        let base_button = ButtonWidget::new(1, "Run", sizing);
+        let mut geometry_button = base_button.clone();
+        geometry_button.common.sizing.preferred.x = 90.0;
+        let mut paint_button = base_button.clone();
+        paint_button.props.text_align = crate::widgets::TextAlign::Left;
+        let mut disabled_button = base_button.clone();
+        disabled_button.common.state.disabled = true;
+        let mut interaction_button = base_button.clone();
+        interaction_button.common.tooltip = Some("hint".to_owned());
+        let snapshot = |widget: &dyn Widget| WidgetRevisionSnapshot {
+            id: widget.common().id,
+            compatibility_kind: widget.compatibility_kind(),
+            revision: Widget::revision(widget),
+            valid: true,
+        };
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_button)),
+                Some(snapshot(&geometry_button))
+            ),
+            WidgetRevisionEffect::Geometry
+        );
+        assert_eq!(
+            classify_widget_revision(Some(snapshot(&base_button)), Some(snapshot(&paint_button))),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_button)),
+                Some(snapshot(&disabled_button)),
+            ),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_button)),
+                Some(snapshot(&interaction_button)),
+            ),
+            WidgetRevisionEffect::Interaction
+        );
+        let mut invalid_button = base_button.clone();
+        invalid_button.common.sizing.preferred.x = f32::NAN;
+        assert_eq!(
+            Widget::revision(&invalid_button),
+            WidgetRevision::conservative()
+        );
+        assert_eq!(
+            Widget::revision(
+                &base_button
+                    .clone()
+                    .with_trailing_icon(crate::gui::svg::SvgIcon::empty())
+            ),
+            WidgetRevision::conservative()
+        );
+
+        let base_toggle = ToggleWidget::new(1, "Snap", sizing);
+        let mut geometry_toggle = base_toggle.clone();
+        geometry_toggle.common.sizing.preferred.x = 90.0;
+        let mut paint_toggle = base_toggle.clone();
+        paint_toggle.state.checked = true;
+        paint_toggle.common.state.active = true;
+        let mut selected_toggle = base_toggle.clone();
+        selected_toggle.common.state.selected = true;
+        let mut disabled_toggle = base_toggle.clone();
+        disabled_toggle.common.state.disabled = true;
+        let mut interaction_toggle = base_toggle.clone();
+        interaction_toggle.common.tooltip = Some("hint".to_owned());
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_toggle)),
+                Some(snapshot(&geometry_toggle))
+            ),
+            WidgetRevisionEffect::Geometry
+        );
+        assert_eq!(
+            classify_widget_revision(Some(snapshot(&base_toggle)), Some(snapshot(&paint_toggle))),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_toggle)),
+                Some(snapshot(&selected_toggle)),
+            ),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_toggle)),
+                Some(snapshot(&disabled_toggle)),
+            ),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(
+                Some(snapshot(&base_toggle)),
+                Some(snapshot(&interaction_toggle))
+            ),
+            WidgetRevisionEffect::Interaction
+        );
+        let mut invalid_toggle = base_toggle;
+        invalid_toggle.common.sizing.baseline = Some(f32::INFINITY);
+        assert_eq!(
+            Widget::revision(&invalid_toggle),
+            WidgetRevision::conservative()
+        );
+    }
+
+    #[test]
+    fn button_and_toggle_component_matrices_cover_paint_interaction_and_transient_inputs() {
+        let sizing = WidgetSizing::fixed(Vector2::new(80.0, 28.0));
+        let button = ButtonWidget::new(1, "Run", sizing);
+        let mut button_automation = button.clone();
+        button_automation.common.state.automation_active = true;
+        assert_eq!(
+            component_changes(&button, &button_automation),
+            (false, false, true, false)
+        );
+        let mut button_active = button.clone();
+        button_active.common.state.active = true;
+        assert_eq!(
+            component_changes(&button, &button_active),
+            (false, false, true, true)
+        );
+        let mut button_selected = button.clone();
+        button_selected.common.state.selected = true;
+        assert_eq!(
+            component_changes(&button, &button_selected),
+            (false, false, true, false)
+        );
+        let mut button_disabled = button.clone();
+        button_disabled.common.state.disabled = true;
+        assert_eq!(
+            component_changes(&button, &button_disabled),
+            (false, false, true, true)
+        );
+        let mut button_style = button.clone();
+        button_style.common.style = WidgetStyle::strong(WidgetTone::Accent);
+        assert_eq!(
+            component_changes(&button, &button_style),
+            (false, false, true, false)
+        );
+        let mut button_bounds = button.clone();
+        button_bounds.common.paint.bounds = crate::widgets::PaintBounds::AllowOverflow;
+        assert_eq!(
+            component_changes(&button, &button_bounds),
+            (false, false, true, false)
+        );
+        let mut button_focus_paint = button.clone();
+        button_focus_paint.common.paint.paints_focus = false;
+        assert_eq!(
+            component_changes(&button, &button_focus_paint),
+            (false, false, true, false)
+        );
+        let mut button_state_layers = button.clone();
+        button_state_layers.common.paint.paints_state_layers = false;
+        assert_eq!(
+            component_changes(&button, &button_state_layers),
+            (false, false, true, true)
+        );
+        let mut button_parent_hover = button.clone();
+        button_parent_hover.common.paint.suppresses_container_hover = true;
+        assert_eq!(
+            component_changes(&button, &button_parent_hover),
+            (false, false, true, true)
+        );
+        let mut button_label = button.clone();
+        button_label.props.label = "Stop".into();
+        let mut button_trailing = button.clone();
+        button_trailing.props.trailing_label = Some("⌘R".into());
+        let mut button_alignment = button.clone();
+        button_alignment.props.text_align = crate::widgets::TextAlign::Right;
+        for changed in [
+            &button_label as &dyn Widget,
+            &button_trailing,
+            &button_alignment,
+        ] {
+            assert_eq!(
+                component_changes(&button, changed),
+                (false, false, true, false)
+            );
+        }
+        let mut button_focus = button.clone();
+        button_focus.common.focus = crate::widgets::FocusBehavior::Pointer;
+        let mut button_tooltip = button.clone();
+        button_tooltip.common.tooltip = Some("hint".into());
+        let mut button_policy = button.clone().with_secondary_click().with_drag();
+        button_policy.common.state.read_only = true;
+        assert_eq!(
+            component_changes(&button, &button_focus),
+            (false, false, false, true)
+        );
+        assert_eq!(
+            component_changes(&button, &button_tooltip),
+            (false, false, false, true)
+        );
+        assert_eq!(
+            component_changes(&button, &button_policy),
+            (false, false, false, true)
+        );
+        let mut button_transient = button.clone();
+        button_transient.common.state.hovered = true;
+        button_transient.common.state.pressed = true;
+        button_transient.common.state.focused = true;
+        button_transient.state.armed = true;
+        button_transient.state.dragged = true;
+        button_transient.state.press_position = Some(Point::new(4.0, 5.0));
+        assert_eq!(
+            component_changes(&button, &button_transient),
+            (false, false, false, false)
+        );
+
+        let mut button_semantic_label = button.clone();
+        button_semantic_label.props.label = "Stop".into();
+        let mut button_semantic_trailing = button.clone();
+        button_semantic_trailing.props.trailing_label = Some("⌘R".into());
+        let mut button_semantic_selected = button.clone();
+        button_semantic_selected.common.state.selected = true;
+        let mut button_semantic_disabled = button.clone();
+        button_semantic_disabled.common.state.disabled = true;
+        let mut button_semantic_read_only = button.clone();
+        button_semantic_read_only.common.state.read_only = true;
+        for changed in [
+            &button_semantic_label,
+            &button_semantic_trailing,
+            &button_semantic_selected,
+            &button_semantic_disabled,
+            &button_semantic_read_only,
+        ] {
+            assert_ne!(
+                WidgetSemantics::revision(&button),
+                WidgetSemantics::revision(changed)
+            );
+        }
+
+        let toggle = ToggleWidget::new(2, "Snap", sizing);
+        let mut toggle_automation = toggle.clone();
+        toggle_automation.common.state.automation_active = true;
+        assert_eq!(
+            component_changes(&toggle, &toggle_automation),
+            (false, false, true, false)
+        );
+        let toggle_checked = toggle.clone().with_checked(true);
+        assert_eq!(
+            component_changes(&toggle, &toggle_checked),
+            (false, false, true, true)
+        );
+        let mut toggle_active = toggle.clone();
+        toggle_active.common.state.active = true;
+        assert_eq!(
+            component_changes(&toggle, &toggle_active),
+            (false, false, true, false)
+        );
+        let mut toggle_disabled = toggle.clone();
+        toggle_disabled.common.state.disabled = true;
+        assert_eq!(
+            component_changes(&toggle, &toggle_disabled),
+            (false, false, true, true)
+        );
+        let mut toggle_style = toggle.clone();
+        toggle_style.common.style = WidgetStyle::strong(WidgetTone::Accent);
+        assert_eq!(
+            component_changes(&toggle, &toggle_style),
+            (false, false, true, false)
+        );
+        let mut toggle_state_layers = toggle.clone();
+        toggle_state_layers.common.paint.paints_state_layers = false;
+        let mut toggle_parent_hover = toggle.clone();
+        toggle_parent_hover.common.paint.suppresses_container_hover = true;
+        for changed in [&toggle_state_layers as &dyn Widget, &toggle_parent_hover] {
+            assert_eq!(
+                component_changes(&toggle, changed),
+                (false, false, true, true)
+            );
+        }
+        let mut toggle_bounds = toggle.clone();
+        toggle_bounds.common.paint.bounds = crate::widgets::PaintBounds::AllowOverflow;
+        let mut toggle_focus_paint = toggle.clone();
+        toggle_focus_paint.common.paint.paints_focus = false;
+        assert_eq!(
+            component_changes(&toggle, &toggle_bounds),
+            (false, false, true, false)
+        );
+        assert_eq!(
+            component_changes(&toggle, &toggle_focus_paint),
+            (false, false, true, false)
+        );
+        let mut toggle_label = toggle.clone();
+        toggle_label.props.label = "Latch".into();
+        let mut toggle_selected = toggle.clone();
+        toggle_selected.common.state.selected = true;
+        for changed in [&toggle_label as &dyn Widget, &toggle_selected] {
+            assert_eq!(
+                component_changes(&toggle, changed),
+                (false, false, true, false)
+            );
+        }
+        let mut toggle_focus = toggle.clone();
+        toggle_focus.common.focus = crate::widgets::FocusBehavior::Pointer;
+        let mut toggle_tooltip = toggle.clone();
+        toggle_tooltip.common.tooltip = Some("hint".into());
+        let mut toggle_read_only = toggle.clone();
+        toggle_read_only.common.state.read_only = true;
+        assert_eq!(
+            component_changes(&toggle, &toggle_focus),
+            (false, false, false, true)
+        );
+        assert_eq!(
+            component_changes(&toggle, &toggle_tooltip),
+            (false, false, false, true)
+        );
+        assert_eq!(
+            component_changes(&toggle, &toggle_read_only),
+            (false, false, false, true)
+        );
+        let mut toggle_transient = toggle.clone();
+        toggle_transient.common.state.hovered = true;
+        toggle_transient.common.state.pressed = true;
+        toggle_transient.common.state.focused = true;
+        toggle_transient.state.armed = true;
+        assert_eq!(
+            component_changes(&toggle, &toggle_transient),
+            (false, false, false, false)
+        );
+
+        let mut toggle_semantic_label = toggle.clone();
+        toggle_semantic_label.props.label = "Latch".into();
+        let toggle_semantic_checked = toggle.clone().with_checked(true);
+        let mut toggle_semantic_selected = toggle.clone();
+        toggle_semantic_selected.common.state.selected = true;
+        let mut toggle_semantic_disabled = toggle.clone();
+        toggle_semantic_disabled.common.state.disabled = true;
+        let mut toggle_semantic_read_only = toggle.clone();
+        toggle_semantic_read_only.common.state.read_only = true;
+        for changed in [
+            &toggle_semantic_label,
+            &toggle_semantic_checked,
+            &toggle_semantic_selected,
+            &toggle_semantic_disabled,
+            &toggle_semantic_read_only,
+        ] {
+            assert_ne!(
+                WidgetSemantics::revision(&toggle),
+                WidgetSemantics::revision(changed)
+            );
+        }
     }
 
     #[test]

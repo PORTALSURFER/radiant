@@ -4,7 +4,7 @@ use crate::{
         view_node_from_widget,
     },
     gui::svg::{IconName, SvgIcon},
-    runtime::{PaintText, WidgetMessageMapper},
+    runtime::{EventMapper, PaintText, WidgetMessageMapper},
     widgets::{
         ButtonMessage, ButtonWidget, DragHandleMessage, WidgetOutput, WidgetProminence, WidgetStyle,
     },
@@ -114,6 +114,14 @@ impl ButtonBuilder {
         self.with_message_mapper(WidgetMessageMapper::button(map))
     }
 
+    /// Emit mapped button messages with explicit typed equality evidence.
+    pub fn mapped_with<Message: 'static>(
+        self,
+        map: EventMapper<ButtonMessage, Message>,
+    ) -> ViewNode<Message> {
+        self.with_message_mapper(WidgetMessageMapper::button_mapped(map))
+    }
+
     /// Emit a host message for selected button outputs.
     pub fn filter_mapped<Message: 'static>(
         self,
@@ -205,4 +213,12 @@ pub fn button_mapped<Message: 'static>(
     map: impl Fn(ButtonMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)
+}
+
+/// Build a button with an explicitly revisioned typed event mapper.
+pub fn button_mapped_with<Message: 'static>(
+    label: impl Into<TextContent>,
+    map: EventMapper<ButtonMessage, Message>,
+) -> ViewNode<Message> {
+    button(label).mapped_with(map)
 }

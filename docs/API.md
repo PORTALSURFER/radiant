@@ -1969,7 +1969,13 @@ to `WidgetMessageMapper::dynamic_mapped`, or the corresponding
 `SurfaceNode`/`SurfaceContainer` scroll entry points. The atomic
 `SurfaceNode::with_native_file_drop_mapped` entry point combines exact mapper
 evidence with native-drop target acceptance; existing closure aliases and
-builders retain conservative behavior.
+builders retain conservative behavior. For the smallest interactive controls,
+`WidgetMessageMapper::button_mapped`/`toggle_mapped` and the builder
+`button(...).mapped_with(...)`/`toggle(...).message_with(...)` adapters preserve
+the typed evidence while adapting the callback to `WidgetOutput`. Reconciliation
+compares only the explicit `Eq` evidence; it never inspects or invokes the
+callback, so callers must assert that the evidence covers every captured
+behavior that can affect the mapped message.
 
 Asynchronous business work remains host-owned, but normal apps use Radiant's
 app runtime to wire it into the UI. `UiUpdateContext::business()`,

@@ -577,9 +577,9 @@ mod tests {
 
         let Some(KnobMessage::WheelGesture(batch)) = knob.handle_input(
             bounds,
-            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(18.0, -120.0)),
+            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(18.0, 120.0)),
         ) else {
-            panic!("negative logical vertical wheel should emit a wheel lifecycle batch");
+            panic!("positive logical vertical wheel should emit a wheel lifecycle batch");
         };
         assert_eq!(
             batch.events[0],
@@ -598,7 +598,7 @@ mod tests {
             bounds,
             WidgetInput::wheel(
                 Point::new(20.0, 20.0),
-                Vector2::new(-32.0, 900.0),
+                Vector2::new(-32.0, -900.0),
                 PointerModifiers {
                     shift: true,
                     command: true,
@@ -606,7 +606,7 @@ mod tests {
                 },
             ),
         ) else {
-            panic!("positive logical vertical wheel should emit a wheel lifecycle batch");
+            panic!("negative logical vertical wheel should emit a wheel lifecycle batch");
         };
         assert_eq!(
             batch.events[0],

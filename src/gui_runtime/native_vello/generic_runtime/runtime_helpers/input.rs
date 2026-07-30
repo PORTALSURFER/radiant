@@ -49,10 +49,10 @@ mod tests {
     }
 
     #[test]
-    fn positive_native_wheel_raises_knob_after_logical_conversion() {
+    fn negative_native_wheel_raises_knob_after_logical_conversion() {
         let logical_delta =
-            scroll_delta_to_logical(MouseScrollDelta::LineDelta(0.0, 1.0), DpiScale::new(1.0));
-        assert_eq!(logical_delta, Vector2::new(0.0, -40.0));
+            scroll_delta_to_logical(MouseScrollDelta::LineDelta(0.0, -1.0), DpiScale::new(1.0));
+        assert_eq!(logical_delta, Vector2::new(0.0, 40.0));
 
         let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
         let mut knob = KnobWidget::new(1, 0.5);

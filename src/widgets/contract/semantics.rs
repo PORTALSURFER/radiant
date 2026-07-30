@@ -2,7 +2,7 @@
 
 use crate::gui::automation::{AutomationLiveRegion, AutomationNodeSemantics, AutomationRole};
 use crate::widgets::{WidgetCommon, contract::FocusBehavior};
-use std::collections::BTreeMap;
+use std::{any::Any, collections::BTreeMap, fmt, rc::Rc};
 
 /// Contract revision for [`WidgetCapabilities`].
 ///
@@ -32,8 +32,126 @@ pub(super) fn fallback_automation_semantics(common: &WidgetCommon) -> Automation
     }
 }
 
+/// Typed revision evidence for one exported [`WidgetSemantics`] capability.
+///
+/// Exact values are compared by their `Eq` implementations and concrete
+/// types. The value is UI-local, so it may retain arbitrary `Rc`-owned state;
+/// hashes and caller-provided fingerprints are intentionally not part of this
+/// contract. The conservative default is used when a capability cannot prove
+/// that its semantic output is unchanged.
+#[derive(Clone)]
+pub struct WidgetSemanticsRevision {
+    representation: SemanticsRevisionRepresentation,
+}
+
+#[derive(Clone, Default)]
+enum SemanticsRevisionRepresentation {
+    #[default]
+    Conservative,
+    Exact(Rc<dyn SemanticsRevisionValue>),
+}
+
+impl Default for WidgetSemanticsRevision {
+    fn default() -> Self {
+        Self::conservative()
+    }
+}
+
+impl fmt::Debug for WidgetSemanticsRevision {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WidgetSemanticsRevision")
+            .field(
+                "representation",
+                &match self.representation {
+                    SemanticsRevisionRepresentation::Conservative => "conservative",
+                    SemanticsRevisionRepresentation::Exact(_) => "exact",
+                },
+            )
+            .finish()
+    }
+}
+
+impl PartialEq for WidgetSemanticsRevision {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.representation, &other.representation) {
+            (
+                SemanticsRevisionRepresentation::Conservative,
+                SemanticsRevisionRepresentation::Conservative,
+            ) => true,
+            (
+                SemanticsRevisionRepresentation::Exact(previous),
+                SemanticsRevisionRepresentation::Exact(current),
+            ) => previous.equals(&**current),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for WidgetSemanticsRevision {}
+
+trait SemanticsRevisionValue: Any {
+    fn equals(&self, other: &dyn SemanticsRevisionValue) -> bool;
+}
+
+impl<T> SemanticsRevisionValue for T
+where
+    T: Eq + 'static,
+{
+    fn equals(&self, other: &dyn SemanticsRevisionValue) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<T>()
+            .is_some_and(|candidate| self == candidate)
+    }
+}
+
+impl dyn SemanticsRevisionValue {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl WidgetSemanticsRevision {
+    /// Return the safe fallback for semantic capabilities that cannot prove
+    /// exact changes.
+    #[must_use]
+    pub const fn conservative() -> Self {
+        Self {
+            representation: SemanticsRevisionRepresentation::Conservative,
+        }
+    }
+
+    /// Build exact typed evidence for the capability's semantic output.
+    #[must_use]
+    pub fn exact<T>(value: T) -> Self
+    where
+        T: Eq + 'static,
+    {
+        Self {
+            representation: SemanticsRevisionRepresentation::Exact(Rc::new(value)),
+        }
+    }
+
+    pub(crate) fn is_exact(&self) -> bool {
+        matches!(
+            self.representation,
+            SemanticsRevisionRepresentation::Exact(_)
+        )
+    }
+}
+
 /// Object-safe semantic capability exported by an interactive widget.
 pub trait WidgetSemantics {
+    /// Return typed revision evidence for this capability's semantic output.
+    ///
+    /// Existing implementations inherit the conservative default. A custom
+    /// capability may return [`WidgetSemanticsRevision::exact`] when all
+    /// semantic output changes are represented by an `Eq + 'static` value.
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::conservative()
+    }
+
     /// Return the default automation role for this widget.
     fn automation_role(&self) -> AutomationRole {
         AutomationRole::Custom
@@ -128,6 +246,14 @@ impl<'a> WidgetCapabilities<'a> {
     pub const fn has_semantics(&self) -> bool {
         self.semantics.is_some()
     }
+
+    /// Return revision evidence for the optional semantics capability.
+    ///
+    /// The revision hook is queried without evaluating any semantic-output
+    /// methods such as role, label, value, or metadata accessors.
+    pub fn semantics_revision(&self) -> Option<WidgetSemanticsRevision> {
+        self.semantics.map(WidgetSemantics::revision)
+    }
 }
 
 impl Default for WidgetCapabilities<'_> {
@@ -143,5 +269,30 @@ impl std::fmt::Debug for WidgetCapabilities<'_> {
             .field("contract_version", &self.contract_version)
             .field("semantics", &self.semantics.is_some())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WidgetSemanticsRevision;
+
+    #[test]
+    fn semantic_revision_is_typed_and_conservative_by_default() {
+        assert_eq!(
+            WidgetSemanticsRevision::default(),
+            WidgetSemanticsRevision::conservative()
+        );
+        assert_eq!(
+            WidgetSemanticsRevision::exact("label"),
+            WidgetSemanticsRevision::exact("label")
+        );
+        assert_ne!(
+            WidgetSemanticsRevision::exact("label"),
+            WidgetSemanticsRevision::exact("other")
+        );
+        assert_ne!(
+            WidgetSemanticsRevision::exact(1_u32),
+            WidgetSemanticsRevision::exact(1_u64)
+        );
     }
 }

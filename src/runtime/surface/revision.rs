@@ -53,6 +53,43 @@ pub(crate) fn classify_widget_revision(
     classify_exact_components(previous, current)
 }
 
+/// Classify the optional semantic capability without evaluating semantic
+/// output methods such as role, label, value, or metadata accessors.
+///
+/// Capability presence and unsupported descriptor contracts are structural.
+/// A conservative or unavailable revision is also structural; two exact
+/// revisions compare by typed equality, with a changed or type-mismatched
+/// value taking the interaction path.
+fn classify_widget_capabilities(
+    previous: crate::widgets::WidgetCapabilities<'_>,
+    current: crate::widgets::WidgetCapabilities<'_>,
+) -> WidgetRevisionEffect {
+    if previous.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+        || current.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+    {
+        return WidgetRevisionEffect::Structural;
+    }
+    if previous.has_semantics() != current.has_semantics() {
+        return WidgetRevisionEffect::Structural;
+    }
+    if !previous.has_semantics() {
+        return WidgetRevisionEffect::Unchanged;
+    }
+
+    let (Some(previous), Some(current)) =
+        (previous.semantics_revision(), current.semantics_revision())
+    else {
+        return WidgetRevisionEffect::Structural;
+    };
+    if !previous.is_exact() || !current.is_exact() {
+        WidgetRevisionEffect::Structural
+    } else if previous == current {
+        WidgetRevisionEffect::Unchanged
+    } else {
+        WidgetRevisionEffect::Interaction
+    }
+}
+
 fn classify_exact_components(
     previous: &WidgetRevisionComponents,
     current: &WidgetRevisionComponents,
@@ -90,6 +127,7 @@ pub(crate) enum ViewDeltaCause {
     Removed,
     Reordered,
     IncompatibleWidget,
+    WidgetCapabilities,
     OpaqueWidgetMapper,
     WidgetRevision,
     ContainerPolicy,
@@ -331,6 +369,17 @@ fn compare_widget<Message>(
         );
         return;
     }
+    let capability_effect = classify_widget_capabilities(
+        previous.widget().capabilities(),
+        current.widget().capabilities(),
+    );
+    if capability_effect != WidgetRevisionEffect::Unchanged {
+        delta.record(
+            capability_effect.into(),
+            ViewDeltaCause::WidgetCapabilities,
+            path.path,
+        );
+    }
     for relation in [
         previous
             .output_mapper_descriptor()
@@ -523,9 +572,15 @@ fn compare_scene<Message>(
 
 #[cfg(test)]
 mod tests {
-    use super::{WidgetRevisionEffect, WidgetRevisionSnapshot, classify_widget_revision};
+    use super::{
+        WidgetRevisionEffect, WidgetRevisionSnapshot, classify_widget_capabilities,
+        classify_widget_revision,
+    };
     use crate::layout::Vector2;
-    use crate::widgets::{TextWidget, Widget, WidgetRevision, WidgetSizing};
+    use crate::widgets::{
+        TextWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities,
+        WidgetRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
+    };
 
     const KIND: &str = "test::Widget";
 
@@ -626,6 +681,92 @@ mod tests {
         );
     }
 
+    struct TestSemantics {
+        revision: WidgetSemanticsRevision,
+    }
+
+    impl WidgetSemantics for TestSemantics {
+        fn revision(&self) -> WidgetSemanticsRevision {
+            self.revision.clone()
+        }
+
+        fn automation_label(&self) -> Option<String> {
+            std::panic::panic_any("semantic output must not be evaluated by the classifier")
+        }
+    }
+
+    fn capabilities(semantics: Option<&TestSemantics>) -> WidgetCapabilities<'_> {
+        semantics.map_or_else(WidgetCapabilities::none, |semantics| {
+            WidgetCapabilities::new().semantics(semantics)
+        })
+    }
+
+    #[test]
+    fn semantic_capability_classifier_is_conservative_for_presence_contract_and_unavailable() {
+        let exact = TestSemantics {
+            revision: WidgetSemanticsRevision::exact("label"),
+        };
+        assert_eq!(
+            classify_widget_capabilities(capabilities(None), capabilities(Some(&exact))),
+            WidgetRevisionEffect::Structural
+        );
+        assert_eq!(
+            classify_widget_capabilities(
+                WidgetCapabilities {
+                    contract_version: WIDGET_CAPABILITIES_CONTRACT_VERSION + 1,
+                    semantics: None,
+                },
+                WidgetCapabilities::none(),
+            ),
+            WidgetRevisionEffect::Structural
+        );
+        let conservative = TestSemantics {
+            revision: WidgetSemanticsRevision::conservative(),
+        };
+        assert_eq!(
+            classify_widget_capabilities(
+                capabilities(Some(&conservative)),
+                capabilities(Some(&exact)),
+            ),
+            WidgetRevisionEffect::Structural
+        );
+    }
+
+    #[test]
+    fn exact_semantic_capability_evidence_is_interaction_scoped_and_does_not_call_outputs() {
+        let previous = TestSemantics {
+            revision: WidgetSemanticsRevision::exact("label"),
+        };
+        let equal = TestSemantics {
+            revision: WidgetSemanticsRevision::exact("label"),
+        };
+        let changed = TestSemantics {
+            revision: WidgetSemanticsRevision::exact("changed"),
+        };
+        let mismatched = TestSemantics {
+            revision: WidgetSemanticsRevision::exact(1_u32),
+        };
+
+        assert_eq!(
+            classify_widget_capabilities(capabilities(Some(&previous)), capabilities(Some(&equal)),),
+            WidgetRevisionEffect::Unchanged
+        );
+        assert_eq!(
+            classify_widget_capabilities(
+                capabilities(Some(&previous)),
+                capabilities(Some(&changed)),
+            ),
+            WidgetRevisionEffect::Interaction
+        );
+        assert_eq!(
+            classify_widget_capabilities(
+                capabilities(Some(&previous)),
+                capabilities(Some(&mismatched)),
+            ),
+            WidgetRevisionEffect::Interaction
+        );
+    }
+
     #[test]
     fn text_widget_revisions_reach_the_classifier_with_safe_effects() {
         let base = TextWidget::new(7, "hello", WidgetSizing::fixed(Vector2::new(80.0, 20.0)));
@@ -669,8 +810,8 @@ mod view_delta_tests {
         layout::{ContainerKind, ContainerPolicy},
         runtime::{EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
         widgets::{
-            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetStyle,
-            WidgetTone,
+            Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
+            WidgetSemantics, WidgetSemanticsRevision, WidgetStyle, WidgetTone,
         },
     };
 
@@ -1001,6 +1142,93 @@ mod view_delta_tests {
         assert_eq!(
             classify_view_delta(&previous, &mapped_widget_surface(None)).effect,
             ViewDeltaEffect::Interaction
+        );
+    }
+
+    #[derive(Clone)]
+    struct SemanticRevisionWidget {
+        common: WidgetCommon,
+        semantics_revision: WidgetSemanticsRevision,
+    }
+
+    impl SemanticRevisionWidget {
+        fn new(id: u64, semantics_revision: WidgetSemanticsRevision) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, 40.0, 20.0),
+                semantics_revision,
+            }
+        }
+    }
+
+    impl WidgetSemantics for SemanticRevisionWidget {
+        fn revision(&self) -> WidgetSemanticsRevision {
+            self.semantics_revision.clone()
+        }
+
+        fn automation_label(&self) -> Option<String> {
+            std::panic::panic_any("semantic output must not be evaluated by ViewDelta")
+        }
+    }
+
+    impl Widget for SemanticRevisionWidget {
+        fn revision(&self) -> WidgetRevision {
+            WidgetRevision::exact((), (), (), ())
+        }
+
+        fn capabilities(&self) -> WidgetCapabilities<'_> {
+            WidgetCapabilities::new().semantics(self)
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    fn semantic_revision_surface(revision: WidgetSemanticsRevision) -> UiSurface<()> {
+        surface(SurfaceNode::widget(
+            SemanticRevisionWidget::new(1, revision),
+            crate::runtime::WidgetMessageMapper::none(),
+        ))
+    }
+
+    #[test]
+    fn view_delta_classifies_exact_semantic_changes_as_interaction() {
+        let previous = semantic_revision_surface(WidgetSemanticsRevision::exact("before"));
+        let equal = semantic_revision_surface(WidgetSemanticsRevision::exact("before"));
+        let changed = semantic_revision_surface(WidgetSemanticsRevision::exact("after"));
+
+        assert_eq!(
+            classify_view_delta(&previous, &equal).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        let delta = classify_view_delta(&previous, &changed);
+        assert_eq!(delta.effect, ViewDeltaEffect::Interaction);
+        assert!(
+            delta.events[..usize::from(delta.event_count)]
+                .iter()
+                .flatten()
+                .any(|event| event.cause == ViewDeltaCause::WidgetCapabilities)
         );
     }
 

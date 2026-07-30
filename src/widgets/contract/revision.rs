@@ -19,16 +19,11 @@ pub struct WidgetRevision {
     representation: Representation,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 enum Representation {
+    #[default]
     Conservative,
     Exact(WidgetRevisionComponents),
-}
-
-impl Default for Representation {
-    fn default() -> Self {
-        Self::Conservative
-    }
 }
 
 impl Default for WidgetRevision {

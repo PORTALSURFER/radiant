@@ -18,20 +18,20 @@ pub enum SliderMessage {
     },
 }
 
-/// One ordered event in a keyboard knob automation gesture.
+/// One ordered event in a knob automation gesture.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum KnobAutomationEvent {
-    /// Keyboard gesture began at the pre-edit value.
+    /// Gesture began at the pre-edit value.
     GestureStarted {
         /// Value before the key edit.
         value: f32,
     },
-    /// Keyboard gesture's final clamped value.
+    /// Gesture's final clamped value.
     ValueChanged {
         /// Final normalized value after clamping.
         value: f32,
     },
-    /// Keyboard gesture ended at the final value.
+    /// Gesture ended at the final value.
     GestureEnded {
         /// Final normalized value after clamping.
         value: f32,
@@ -47,6 +47,26 @@ pub struct KnobKeyboardGesture {
 
 impl KnobKeyboardGesture {
     /// Build a complete keyboard lifecycle batch.
+    pub const fn new(start_value: f32, final_value: f32) -> Self {
+        Self {
+            events: [
+                KnobAutomationEvent::GestureStarted { value: start_value },
+                KnobAutomationEvent::ValueChanged { value: final_value },
+                KnobAutomationEvent::GestureEnded { value: final_value },
+            ],
+        }
+    }
+}
+
+/// Compound wheel automation lifecycle preserving event ordering.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KnobWheelGesture {
+    /// Exactly three ordered events: start, value, end.
+    pub events: [KnobAutomationEvent; 3],
+}
+
+impl KnobWheelGesture {
+    /// Build a complete wheel lifecycle batch.
     pub const fn new(start_value: f32, final_value: f32) -> Self {
         Self {
             events: [
@@ -83,4 +103,6 @@ pub enum KnobMessage {
     },
     /// Ordered keyboard lifecycle batch for host automation.
     KeyboardGesture(KnobKeyboardGesture),
+    /// Ordered wheel lifecycle batch for host automation.
+    WheelGesture(KnobWheelGesture),
 }

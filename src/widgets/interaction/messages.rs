@@ -10,7 +10,8 @@ pub use activation::{BadgeMessage, ButtonMessage, InteractiveRowMessage, ListIte
 pub use drag::{DragHandleMessage, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{
-    KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, ScrollbarMessage, SliderMessage,
+    KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ScrollbarMessage,
+    SliderMessage,
 };
 pub use selection::{SelectableMessage, ToggleMessage};
 pub use surface::{CanvasMessage, GpuSurfaceMessage, RenderCanvasMessage};

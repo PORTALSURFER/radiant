@@ -37,6 +37,12 @@ pub use widget::{
 };
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
+pub(in crate::runtime) use revision::{
+    DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, ViewDeltaDiagnostics, ViewDeltaScratch,
+    classify_view_delta,
+};
+#[cfg(test)]
+pub(in crate::runtime) use revision::{ViewDeltaCause, ViewDeltaEffect};
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
 pub struct UiSurface<Message> {

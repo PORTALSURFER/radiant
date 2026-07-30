@@ -18,35 +18,35 @@ fn frame_refresh_diagnostics_accumulate_eager_refreshes_until_consumed() {
     runtime.refresh_with_scope(RepaintScope::Layout);
     let layout = runtime.last_refresh_diagnostics();
 
-    let (frame, total) = runtime.take_frame_refresh_diagnostics();
-    assert_eq!(frame.invalidation, SurfaceInvalidation::Layout);
+    let frame = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(frame.refresh.invalidation, SurfaceInvalidation::Layout);
     assert_eq!(
-        frame.timings.application_projection,
+        frame.refresh.timings.application_projection,
         projection
             .timings
             .application_projection
             .saturating_add(layout.timings.application_projection)
     );
     assert_eq!(
-        frame.timings.runtime_projection,
+        frame.refresh.timings.runtime_projection,
         projection
             .timings
             .runtime_projection
             .saturating_add(layout.timings.runtime_projection)
     );
     assert_eq!(
-        frame.timings.widget_state_sync,
+        frame.refresh.timings.widget_state_sync,
         projection
             .timings
             .widget_state_sync
             .saturating_add(layout.timings.widget_state_sync)
     );
-    assert_eq!(frame.timings.layout, layout.timings.layout);
-    assert!(total >= frame.timings.total());
+    assert_eq!(frame.refresh.timings.layout, layout.timings.layout);
+    assert!(frame.total >= frame.refresh.timings.total());
 
-    let (consumed, consumed_total) = runtime.take_frame_refresh_diagnostics();
-    assert_eq!(consumed.invalidation, SurfaceInvalidation::None);
-    assert_eq!(consumed_total, std::time::Duration::ZERO);
+    let consumed = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(consumed.refresh.invalidation, SurfaceInvalidation::None);
+    assert_eq!(consumed.total, std::time::Duration::ZERO);
 }
 
 #[test]

@@ -175,6 +175,14 @@ impl<Message> WidgetMessageMapper<Message> {
         matches!(self.map, Some(OutputMapper::Dynamic(_)))
     }
 
+    /// Return whether this mapper carries opaque host or native-drop behavior.
+    ///
+    /// Reconciliation cannot compare callback identity or captured state, so
+    /// any message binding is conservatively treated as structural.
+    pub(in crate::runtime::surface) fn has_opaque_behavior(&self) -> bool {
+        self.map.is_some() || self.native_file_drop.is_some()
+    }
+
     pub(super) fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match self.map.as_ref()? {
             OutputMapper::Dynamic(map) => map(output),

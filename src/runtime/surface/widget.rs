@@ -130,6 +130,10 @@ impl<Message> SurfaceWidget<Message> {
         self.messages.uses_dynamic_output_callback()
     }
 
+    pub(in crate::runtime::surface) fn has_opaque_message_behavior(&self) -> bool {
+        self.messages.has_opaque_behavior() || self.accepts_native_file_drop
+    }
+
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
     }

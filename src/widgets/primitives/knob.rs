@@ -18,7 +18,7 @@ use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker
 
 const DEFAULT_DIAMETER: f32 = 40.0;
 const DEFAULT_SENSITIVITY: f32 = 0.006;
-const WHEEL_STEP: f32 = 0.02;
+const WHEEL_STEP: f32 = 0.05;
 const WHEEL_FINE_STEP: f32 = 0.002;
 const ARC_START: f32 = -5.0 * std::f32::consts::PI / 4.0;
 const ARC_SWEEP: f32 = 3.0 * std::f32::consts::PI / 2.0;
@@ -571,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn knob_wheel_gesture_uses_vertical_sign_and_shift_fine_step() {
+    fn knob_wheel_gesture_uses_logical_vertical_sign_and_shift_fine_step() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
         let mut knob = KnobWidget::new(1, 0.5);
 
@@ -579,7 +579,7 @@ mod tests {
             bounds,
             WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(18.0, -120.0)),
         ) else {
-            panic!("negative vertical wheel should emit a wheel lifecycle batch");
+            panic!("negative logical vertical wheel should emit a wheel lifecycle batch");
         };
         assert_eq!(
             batch.events[0],
@@ -587,11 +587,11 @@ mod tests {
         );
         assert_eq!(
             batch.events[1],
-            KnobAutomationEvent::ValueChanged { value: 0.52 }
+            KnobAutomationEvent::ValueChanged { value: 0.55 }
         );
         assert_eq!(
             batch.events[2],
-            KnobAutomationEvent::GestureEnded { value: 0.52 }
+            KnobAutomationEvent::GestureEnded { value: 0.55 }
         );
 
         let Some(KnobMessage::WheelGesture(batch)) = knob.handle_input(
@@ -606,21 +606,21 @@ mod tests {
                 },
             ),
         ) else {
-            panic!("positive vertical wheel should emit a wheel lifecycle batch");
+            panic!("positive logical vertical wheel should emit a wheel lifecycle batch");
         };
         assert_eq!(
             batch.events[0],
-            KnobAutomationEvent::GestureStarted { value: 0.52 }
+            KnobAutomationEvent::GestureStarted { value: 0.55 }
         );
-        assert_eq!(
+        assert!(matches!(
             batch.events[1],
-            KnobAutomationEvent::ValueChanged { value: 0.518 }
-        );
-        assert_eq!(
+            KnobAutomationEvent::ValueChanged { value } if (value - 0.548).abs() < 0.00001
+        ));
+        assert!(matches!(
             batch.events[2],
-            KnobAutomationEvent::GestureEnded { value: 0.518 }
-        );
-        assert!((knob.state.value - 0.518).abs() < 0.00001);
+            KnobAutomationEvent::GestureEnded { value } if (value - 0.548).abs() < 0.00001
+        ));
+        assert!((knob.state.value - 0.548).abs() < 0.00001);
     }
 
     #[test]

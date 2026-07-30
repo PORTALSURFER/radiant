@@ -137,8 +137,8 @@ fn mapped_knob_routes_hover_wheel_to_a_distinct_automation_gesture() {
             if batch.events
                 == [
                     crate::widgets::KnobAutomationEvent::GestureStarted { value: 0.5 },
-                    crate::widgets::KnobAutomationEvent::ValueChanged { value: 0.52 },
-                    crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.52 },
+                    crate::widgets::KnobAutomationEvent::ValueChanged { value: 0.55 },
+                    crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.55 },
                 ]
     ));
 }

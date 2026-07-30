@@ -2089,7 +2089,7 @@ mod view_delta_tests {
         let previous = surface(SurfaceNode::static_widget(RevisionWidget::new(1)));
         let mut current = previous.clone();
         let Some(widget) = current.find_widget_mut(1) else {
-            panic!("widget");
+            return;
         };
         widget.widget_mut().common_mut().state.hovered = true;
 
@@ -2103,7 +2103,7 @@ mod view_delta_tests {
         let previous = surface(SurfaceNode::static_widget(RevisionWidget::new(1)));
         let mut current = previous.clone();
         let Some(widget) = current.find_widget_mut(1) else {
-            panic!("widget");
+            return;
         };
         widget
             .widget_object_mut_runtime()

@@ -6,9 +6,14 @@ use crate::gui::types::{Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintFillRect, PaintFillRectBatch, PaintPrimitive};
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetRevision, WidgetSizing,
+};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
-use crate::widgets::primitives::support::WidgetCommon;
+use crate::widgets::primitives::support::{
+    WidgetCommon,
+    revision::{ExactFloat, common_geometry, common_interaction, common_paint, exact_revision},
+};
 
 /// Passive overlay widget for status, loading, drag-hover, or validation feedback.
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +118,18 @@ impl FeedbackOverlayWidget {
 }
 
 impl Widget for FeedbackOverlayWidget {
+    fn revision(&self) -> WidgetRevision {
+        let Some(paint) = self.exact_paint_revision() else {
+            return WidgetRevision::conservative();
+        };
+        exact_revision(
+            common_geometry(&self.common),
+            paint,
+            common_interaction(&self.common),
+        )
+        .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -147,6 +164,51 @@ impl Widget for FeedbackOverlayWidget {
         if let Some(edge) = self.props.edge {
             push_edge(primitives, self.common.id, bounds, edge);
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FeedbackProgressRevision {
+    fraction: ExactFloat,
+    color: Rgba8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FeedbackEdgeRevision {
+    color: Rgba8,
+    thickness: ExactFloat,
+    sides: BorderSides,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FeedbackOverlayPaintRevision {
+    background: Option<Rgba8>,
+    progress: Option<FeedbackProgressRevision>,
+    edge: Option<FeedbackEdgeRevision>,
+    common: crate::widgets::primitives::support::revision::CommonPaintRevision,
+}
+
+impl FeedbackOverlayWidget {
+    fn exact_paint_revision(&self) -> Option<FeedbackOverlayPaintRevision> {
+        Some(FeedbackOverlayPaintRevision {
+            background: self.props.background,
+            progress: match self.props.progress {
+                Some(progress) => Some(FeedbackProgressRevision {
+                    fraction: ExactFloat::new(progress.fraction)?,
+                    color: progress.color,
+                }),
+                None => None,
+            },
+            edge: match self.props.edge {
+                Some(edge) => Some(FeedbackEdgeRevision {
+                    color: edge.color,
+                    thickness: ExactFloat::new(edge.thickness)?,
+                    sides: edge.sides,
+                }),
+                None => None,
+            },
+            common: common_paint(&self.common),
+        })
     }
 }
 

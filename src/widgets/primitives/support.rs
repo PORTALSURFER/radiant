@@ -3,6 +3,7 @@
 mod common;
 mod input;
 mod paint;
+pub(super) mod revision;
 
 pub use common::WidgetCommon;
 pub(super) use input::{activate_on_keyboard, clamp_fraction};

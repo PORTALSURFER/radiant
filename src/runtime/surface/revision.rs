@@ -1999,9 +1999,7 @@ mod view_delta_tests {
         assert!(!damage.full_viewport);
         assert_eq!(damage.candidate_count, 1);
         assert_eq!(
-            damage.candidates[0]
-                .expect("overlay damage candidate")
-                .old_bounds,
+            damage.candidates[0].and_then(|candidate| candidate.old_bounds),
             Some(Rect::from_min_size(
                 Point::new(0.0, 0.0),
                 Vector2::new(2.0, 2.0)
@@ -2015,9 +2013,7 @@ mod view_delta_tests {
         );
         let damage = damage.finish(&current, &new_layout);
         assert_eq!(
-            damage.candidates[0]
-                .expect("finished overlay damage")
-                .new_bounds,
+            damage.candidates[0].and_then(|candidate| candidate.new_bounds),
             Some(Rect::from_min_size(
                 Point::new(0.0, 0.0),
                 Vector2::new(3.0, 3.0)
@@ -2082,16 +2078,21 @@ mod view_delta_tests {
             effect: ViewDeltaEffect::Geometry,
         }));
         first.merge(second);
-        let merged = first.candidates[0].expect("coalesced candidate");
-        assert_eq!(merged.old_bounds, Some(rect));
         assert_eq!(
-            merged.new_bounds,
+            first.candidates[0].and_then(|candidate| candidate.old_bounds),
+            Some(rect)
+        );
+        assert_eq!(
+            first.candidates[0].and_then(|candidate| candidate.new_bounds),
             Some(Rect::from_min_size(
                 Point::new(9.0, 9.0),
                 Vector2::new(4.0, 4.0),
             ))
         );
-        assert_eq!(merged.effect, ViewDeltaEffect::Geometry);
+        assert_eq!(
+            first.candidates[0].map(|candidate| candidate.effect),
+            Some(ViewDeltaEffect::Geometry)
+        );
 
         let mut many = SurfaceDamage::empty(viewport);
         for node_id in 2..11 {

@@ -186,9 +186,9 @@ impl KnobWidget {
                 {
                     return None;
                 }
-                let direction = if delta.y < 0.0 {
+                let direction = if delta.y > 0.0 {
                     1.0
-                } else if delta.y > 0.0 {
+                } else if delta.y < 0.0 {
                     -1.0
                 } else {
                     // Horizontal-only, zero, and unsigned vertical deltas

@@ -4,10 +4,10 @@ use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow, FrameWork,
     FrameWorkReason, GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
     NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
-    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
+    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -233,11 +233,38 @@ where
     }
 
     pub(super) fn rebuild_scene(&mut self) {
+        self.rebuild_scene_with_refresh_evidence(false);
+    }
+
+    pub(super) fn rebuild_scene_after_surface_refresh(&mut self) {
+        self.rebuild_scene_with_refresh_evidence(true);
+    }
+
+    fn rebuild_scene_with_refresh_evidence(&mut self, freshly_refreshed: bool) {
         self.timing.deferred_scene_rebuild = false;
         self.timing.deferred_scene_rebuild_requires_encode = false;
         let _ = self.apply_pending_viewport_resize_if_needed();
-        self.core.paint_plan_into(&mut self.frame.last_paint_plan);
+        let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         let viewport = self.core.runtime.viewport();
+        let scene_validity = self.frame.native_scene_validity_fingerprint(
+            self.core.base_paint_plan_context(),
+            self.core.resolved_appearance(),
+            self.window.dpi_scale,
+        );
+        if freshly_refreshed
+            && matches!(paint_plan_decision, PaintPlanCacheDecision::Reused)
+            && self.frame.can_reuse_native_scene(scene_validity)
+            && !self.timing.surface_resize_applied_this_frame
+        {
+            // The scene remains valid, but this refresh still has visible work:
+            // make the cached base texture/composited frame available for the
+            // presentation pass and continue transient/native overlays below.
+            self.frame.mark_scene_texture_dirty();
+            self.frame.record_scene_reuse();
+            self.restore_native_hover_cursor_overlay();
+            self.export_automation_targets();
+            return;
+        }
         let retained_surface = self.core.runtime.retained_surface_capability();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.frame.last_paint_plan,
@@ -252,6 +279,7 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
+        self.frame.record_scene_encode(scene_validity);
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();
@@ -298,6 +326,12 @@ where
         self.rebuild_scene();
     }
 
+    pub(super) fn rebuild_scene_for_interactive_route_now_after_surface_refresh(&mut self) {
+        self.timing.deferred_scene_rebuild = false;
+        self.timing.last_interactive_scene_rebuild = Instant::now();
+        self.rebuild_scene_after_surface_refresh();
+    }
+
     pub(super) fn refresh_and_rebuild_scene_now_with_scope(
         &mut self,
         scope: crate::runtime::RepaintScope,
@@ -306,7 +340,7 @@ where
             .take_deferred_surface_refresh_scope()
             .map_or(scope, |pending| pending.merge(scope));
         self.core.refresh_surface_with_scope(scope);
-        self.rebuild_scene();
+        self.rebuild_scene_after_surface_refresh();
     }
 
     pub(super) fn refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
@@ -317,7 +351,7 @@ where
             .take_deferred_surface_refresh_scope()
             .map_or(scope, |pending| pending.merge(scope));
         self.core.refresh_surface_with_scope(scope);
-        self.rebuild_scene_for_interactive_route_now();
+        self.rebuild_scene_for_interactive_route_now_after_surface_refresh();
     }
 
     pub(super) fn defer_surface_refresh_with_scope(&mut self, scope: crate::runtime::RepaintScope) {

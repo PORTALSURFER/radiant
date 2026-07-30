@@ -18,14 +18,15 @@ where
         let (_, elapsed) = profile.measure(|| self.core.refresh_surface_with_scope(scope));
         profile.refresh_surface = elapsed;
 
-        let (_, elapsed) = profile.measure(|| {
-            self.core.paint_plan_into(&mut self.frame.last_paint_plan);
-        });
+        let (paint_plan_decision, elapsed) =
+            profile.measure(|| self.core.paint_plan_into(&mut self.frame.last_paint_plan));
         profile.paint_plan = elapsed;
 
         self.frame.mark_scene_texture_dirty();
-        self.frame.refresh_gpu_surface_interaction_regions();
-        self.frame.refresh_post_gpu_overlay_cache();
+        if matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt) {
+            self.frame.refresh_gpu_surface_interaction_regions();
+            self.frame.refresh_post_gpu_overlay_cache();
+        }
         self.export_automation_targets();
         self.record_frame_work(FrameWork::RefreshSurface {
             reason: FrameWorkReason::DeferredSurfaceRefresh,
@@ -57,7 +58,11 @@ where
                 skipped_rebuild = true;
                 return;
             }
-            self.rebuild_scene_for_interactive_route_now();
+            if refreshed_surface {
+                self.rebuild_scene_for_interactive_route_now_after_surface_refresh();
+            } else {
+                self.rebuild_scene_for_interactive_route_now();
+            }
         });
         if skipped_rebuild {
             return;

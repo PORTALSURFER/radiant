@@ -203,6 +203,7 @@ where
                 return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
+            self.frame.invalidate_native_scene_context();
             self.defer_viewport_resize_with_reason(
                 logical_viewport_for_size(size, self.window.dpi_scale),
                 reason,
@@ -299,7 +300,12 @@ where
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 let window = self.window.window.as_ref()?;
                 let size = window.inner_size();
-                let _ = self.resize_surface_now(size, true, FrameWorkReason::NativeResize);
+                let resized = self.resize_surface_now(size, true, FrameWorkReason::NativeResize);
+                if !resized {
+                    // A lost/outdated surface is a native target fence even
+                    // when its dimensions did not change.
+                    self.frame.invalidate_native_scene_context();
+                }
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {

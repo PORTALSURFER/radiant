@@ -4,6 +4,7 @@ use crate::runtime::{
     RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeQueueHost,
     RuntimeTransientOverlayHost, TransientOverlayContext,
 };
+use crate::widgets::TextWidget;
 use std::cell::Cell;
 
 #[derive(Default)]
@@ -59,6 +60,64 @@ impl RuntimeAnimationHost for CountingAnimationActivityBridge {
 #[derive(Default)]
 pub(super) struct NoTransientOverlayBridge {
     pub(super) paint_calls: usize,
+}
+
+#[derive(Default)]
+pub(super) struct ExactTransientOverlayBridge {
+    pub(super) paint_calls: usize,
+}
+
+#[derive(Default)]
+pub(super) struct LargeExactBridge;
+
+impl RuntimeBridge<DemoMessage> for LargeExactBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        let rows = (0..3_000_u64)
+            .map(|index| {
+                SurfaceChild::fill(SurfaceNode::static_widget(TextWidget::new(
+                    10_000 + index,
+                    format!("Row {index}"),
+                    WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                )))
+            })
+            .collect();
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: crate::layout::ContainerKind::Column,
+                spacing: 2.0,
+                ..ContainerPolicy::default()
+            },
+            rows,
+        )))
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for ExactTransientOverlayBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            TextWidget::new(
+                101,
+                "Stable",
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            ),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_transient_overlays()
+    }
+}
+
+impl RuntimeTransientOverlayHost for ExactTransientOverlayBridge {
+    fn paint_transient_overlay(
+        &mut self,
+        _context: TransientOverlayContext<'_>,
+        _primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        self.paint_calls += 1;
+    }
 }
 
 impl RuntimeBridge<DemoMessage> for NoTransientOverlayBridge {

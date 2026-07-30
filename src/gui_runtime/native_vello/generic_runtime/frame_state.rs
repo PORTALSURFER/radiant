@@ -16,8 +16,8 @@ use crate::theme::DpiScale;
 use crate::{
     gui::types::Rect as UiRect,
     gui_runtime::native_vello::NativeTextRenderer,
-    runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
-    theme::ThemeTokens,
+    runtime::{BasePaintPlanContext, PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
+    theme::{ResolvedAppearance, ThemeTokens},
 };
 use vello::Scene;
 use vello::kurbo::Affine;
@@ -45,6 +45,26 @@ pub(super) struct NativeVelloFrameState {
     pub(super) post_gpu_overlay_suffix_start: Option<usize>,
     pub(super) post_gpu_overlay_has_replayable_suffix: bool,
     pub(super) scene_texture_dirty: bool,
+    pub(super) scene_encode_count: u64,
+    pub(super) scene_reuse_count: u64,
+    native_scene_context_generation: u64,
+    native_scene_invalidated: bool,
+    last_scene_validity: Option<NativeSceneValidityFingerprint>,
+}
+
+/// Native-only context required for reusing an already encoded Vello scene.
+///
+/// This intentionally includes the backend-neutral paint context as well as
+/// native target/cache generations. A plan cache hit alone is insufficient:
+/// device loss, resize, DPI, appearance, layout-debug, text, retained-surface,
+/// or GPU target changes must all take the conservative encode path.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct NativeSceneValidityFingerprint {
+    pub(super) base_paint_plan_context: BasePaintPlanContext,
+    pub(super) appearance: ResolvedAppearance,
+    pub(super) dpi_scale: DpiScale,
+    pub(super) native_scene_context_generation: u64,
+    pub(super) retained_cache_policy: RetainedSurfaceCachePolicy,
 }
 
 impl NativeVelloFrameState {
@@ -75,7 +95,51 @@ impl NativeVelloFrameState {
             post_gpu_overlay_suffix_start: None,
             post_gpu_overlay_has_replayable_suffix: false,
             scene_texture_dirty: true,
+            scene_encode_count: 0,
+            scene_reuse_count: 0,
+            native_scene_context_generation: 0,
+            native_scene_invalidated: true,
+            last_scene_validity: None,
         }
+    }
+
+    pub(super) fn native_scene_validity_fingerprint(
+        &self,
+        base_paint_plan_context: BasePaintPlanContext,
+        appearance: ResolvedAppearance,
+        dpi_scale: DpiScale,
+    ) -> NativeSceneValidityFingerprint {
+        NativeSceneValidityFingerprint {
+            base_paint_plan_context,
+            appearance,
+            dpi_scale,
+            native_scene_context_generation: self.native_scene_context_generation,
+            retained_cache_policy: self.retained_surface_cache.policy(),
+        }
+    }
+
+    pub(super) fn can_reuse_native_scene(
+        &self,
+        fingerprint: NativeSceneValidityFingerprint,
+    ) -> bool {
+        !self.native_scene_invalidated && self.last_scene_validity == Some(fingerprint)
+    }
+
+    pub(super) fn record_scene_encode(&mut self, fingerprint: NativeSceneValidityFingerprint) {
+        self.scene_encode_count = self.scene_encode_count.saturating_add(1);
+        self.native_scene_invalidated = false;
+        self.last_scene_validity = Some(fingerprint);
+    }
+
+    pub(super) fn record_scene_reuse(&mut self) {
+        self.scene_reuse_count = self.scene_reuse_count.saturating_add(1);
+    }
+
+    pub(super) fn invalidate_native_scene_context(&mut self) {
+        self.native_scene_context_generation =
+            self.native_scene_context_generation.saturating_add(1);
+        self.native_scene_invalidated = true;
+        self.last_scene_validity = None;
     }
 
     pub(super) fn mark_scene_texture_dirty(&mut self) {

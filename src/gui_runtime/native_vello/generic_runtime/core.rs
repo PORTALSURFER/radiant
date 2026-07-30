@@ -21,6 +21,17 @@ where
     base_paint_plan_context: Option<(BasePaintPlanContext, ResolvedAppearance)>,
 }
 
+/// Result of one backend-neutral base paint-plan preparation pass.
+///
+/// The native runner uses this private decision to distinguish an exact plan
+/// cache hit from a newly materialized plan. Runtime projection, traversal,
+/// interaction, and state work still run for both cases.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) enum PaintPlanCacheDecision {
+    Rebuilt,
+    Reused,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(in crate::gui_runtime::native_vello) struct PointerPressStamp {
     pub(in crate::gui_runtime::native_vello) at: Instant,
@@ -92,7 +103,10 @@ where
         self.runtime.paint_plan_with_policy(self.appearance_policy)
     }
 
-    pub(super) fn paint_plan_into(&mut self, plan: &mut crate::runtime::SurfacePaintPlan) {
+    pub(super) fn paint_plan_into(
+        &mut self,
+        plan: &mut crate::runtime::SurfacePaintPlan,
+    ) -> PaintPlanCacheDecision {
         let environment = self.runtime.context().resolved_environment();
         let appearance = self.appearance_policy.resolve(environment);
         let context = self.runtime.base_paint_plan_context();
@@ -104,7 +118,7 @@ where
                 })
         {
             self.resolved_appearance = appearance;
-            return;
+            return PaintPlanCacheDecision::Reused;
         }
         // The caller owns the mutable frame preparation boundary; cache the
         // pass snapshot so runtime overlays cannot drift from the base scene.
@@ -114,6 +128,15 @@ where
             .base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
         self.base_paint_plan_context = Some((context, appearance));
         self.runtime.record_base_paint_plan_rebuild();
+        PaintPlanCacheDecision::Rebuilt
+    }
+
+    pub(super) fn base_paint_plan_context(&self) -> crate::runtime::BasePaintPlanContext {
+        self.runtime.base_paint_plan_context()
+    }
+
+    pub(super) fn resolved_appearance(&self) -> ResolvedAppearance {
+        self.resolved_appearance
     }
 
     pub(super) fn paint_transient_overlay(

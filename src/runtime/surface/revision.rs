@@ -289,6 +289,218 @@ pub(crate) enum ViewDeltaCause {
     FloatingInteractive,
 }
 
+/// Whether existing identity and revision evidence is sufficient for a future
+/// medium-grained whole-node reconciliation pass.
+///
+/// This is an observational result only. It does not execute reconciliation or
+/// authorize any retained-node reuse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReconciliationPlanOutcome {
+    /// All compared nodes have a stable, exact topology relationship.
+    ExactTopology,
+    /// The relationship is known to require structural reconciliation work.
+    RequiresStructural,
+    /// Evidence is missing, opaque, invalid, or bounded out; do not reconcile.
+    Conservative,
+}
+
+/// Bounded reason why a future reconciliation plan cannot use exact topology.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReconciliationMismatch {
+    RootIdentity,
+    NodeIdentity,
+    NodeKind,
+    Added,
+    Removed,
+    Reordered,
+    AmbiguousPairing,
+    IncompatibleWidget,
+    OpaqueWidgetMapper,
+    InvalidEvidence,
+    InsufficientIdentityEvidence,
+    GeometryEvidence,
+    PaintEvidence,
+    InteractionEvidence,
+}
+
+const MAX_RECONCILIATION_MISMATCHES: usize = 8;
+
+/// Bounded observational feasibility plan for a future node reconciliation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ReconciliationPlan {
+    pub(crate) outcome: ReconciliationPlanOutcome,
+    pub(crate) effect: ViewDeltaEffect,
+    pub(crate) matched_nodes: u32,
+    pub(crate) mismatches: [Option<ReconciliationMismatch>; MAX_RECONCILIATION_MISMATCHES],
+    pub(crate) mismatch_count: u32,
+    pub(crate) omitted_mismatches: u32,
+}
+
+impl ReconciliationPlan {
+    const fn startup() -> Self {
+        Self {
+            outcome: ReconciliationPlanOutcome::Conservative,
+            effect: ViewDeltaEffect::Structural,
+            matched_nodes: 0,
+            mismatches: [None; MAX_RECONCILIATION_MISMATCHES],
+            mismatch_count: 0,
+            omitted_mismatches: 0,
+        }
+    }
+
+    fn from_delta(delta: &ViewDelta) -> Self {
+        let mut plan = Self {
+            outcome: if delta.conservative {
+                ReconciliationPlanOutcome::Conservative
+            } else {
+                ReconciliationPlanOutcome::ExactTopology
+            },
+            effect: delta.effect,
+            matched_nodes: delta.matched_nodes,
+            mismatches: [None; MAX_RECONCILIATION_MISMATCHES],
+            mismatch_count: 0,
+            omitted_mismatches: 0,
+        };
+
+        if delta.omitted_events != 0 || delta.truncated_paths {
+            plan.outcome = ReconciliationPlanOutcome::Conservative;
+            plan.record_mismatch(ReconciliationMismatch::InsufficientIdentityEvidence);
+        }
+        for event in delta.events.iter().flatten() {
+            let Some(mismatch) = mismatch_for_event(*event, delta.conservative) else {
+                continue;
+            };
+            if matches!(
+                mismatch,
+                ReconciliationMismatch::InvalidEvidence
+                    | ReconciliationMismatch::OpaqueWidgetMapper
+                    | ReconciliationMismatch::InsufficientIdentityEvidence
+                    | ReconciliationMismatch::AmbiguousPairing
+                    | ReconciliationMismatch::RootIdentity
+                    | ReconciliationMismatch::NodeIdentity
+                    | ReconciliationMismatch::NodeKind
+                    | ReconciliationMismatch::Reordered
+            ) {
+                plan.outcome = ReconciliationPlanOutcome::Conservative;
+            } else if matches!(plan.outcome, ReconciliationPlanOutcome::ExactTopology)
+                && event.effect == ViewDeltaEffect::Structural
+            {
+                plan.outcome = ReconciliationPlanOutcome::RequiresStructural;
+            }
+            plan.record_mismatch(mismatch);
+        }
+        plan
+    }
+
+    fn record_mismatch(&mut self, mismatch: ReconciliationMismatch) {
+        self.mismatch_count = self.mismatch_count.saturating_add(1);
+        let index = self.mismatch_count.saturating_sub(1) as usize;
+        if index < self.mismatches.len() {
+            self.mismatches[index] = Some(mismatch);
+        } else {
+            self.omitted_mismatches = self.omitted_mismatches.saturating_add(1);
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.effect = broader_effect(self.effect, other.effect);
+        self.matched_nodes = self.matched_nodes.saturating_add(other.matched_nodes);
+        self.mismatch_count = self.mismatch_count.saturating_add(other.mismatch_count);
+        self.omitted_mismatches = self
+            .omitted_mismatches
+            .saturating_add(other.omitted_mismatches);
+
+        let self_recorded = (self.mismatch_count.saturating_sub(other.mismatch_count) as usize)
+            .min(self.mismatches.len());
+        let other_recorded = other
+            .mismatches
+            .iter()
+            .flatten()
+            .count()
+            .min(other.mismatches.len());
+        let available = self.mismatches.len().saturating_sub(self_recorded);
+        let mut copied = 0_usize;
+        for reason in other.mismatches.iter().flatten().take(other_recorded) {
+            if copied >= available {
+                break;
+            }
+            self.mismatches[self_recorded + copied] = Some(*reason);
+            copied += 1;
+        }
+        self.omitted_mismatches = self
+            .omitted_mismatches
+            .saturating_add((other_recorded.saturating_sub(copied)) as u32);
+
+        self.outcome = match (self.outcome, other.outcome) {
+            (ReconciliationPlanOutcome::Conservative, _)
+            | (_, ReconciliationPlanOutcome::Conservative) => {
+                ReconciliationPlanOutcome::Conservative
+            }
+            (ReconciliationPlanOutcome::RequiresStructural, _)
+            | (_, ReconciliationPlanOutcome::RequiresStructural) => {
+                ReconciliationPlanOutcome::RequiresStructural
+            }
+            _ => ReconciliationPlanOutcome::ExactTopology,
+        };
+    }
+}
+
+fn mismatch_for_event(
+    event: ViewDeltaEvent,
+    conservative_evidence: bool,
+) -> Option<ReconciliationMismatch> {
+    Some(match event.cause {
+        ViewDeltaCause::RootIdentity => ReconciliationMismatch::RootIdentity,
+        ViewDeltaCause::NodeKind => ReconciliationMismatch::NodeKind,
+        ViewDeltaCause::NodeIdentity => ReconciliationMismatch::NodeIdentity,
+        ViewDeltaCause::Replaced => ReconciliationMismatch::NodeKind,
+        ViewDeltaCause::Added => ReconciliationMismatch::Added,
+        ViewDeltaCause::Removed => ReconciliationMismatch::Removed,
+        ViewDeltaCause::Reordered => ReconciliationMismatch::Reordered,
+        ViewDeltaCause::AmbiguousPairing => ReconciliationMismatch::AmbiguousPairing,
+        ViewDeltaCause::IncompatibleWidget => ReconciliationMismatch::IncompatibleWidget,
+        ViewDeltaCause::OpaqueWidgetMapper => ReconciliationMismatch::OpaqueWidgetMapper,
+        ViewDeltaCause::InsufficientIdentityEvidence => {
+            ReconciliationMismatch::InsufficientIdentityEvidence
+        }
+        ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities
+            if conservative_evidence && event.effect == ViewDeltaEffect::Structural =>
+        {
+            ReconciliationMismatch::InvalidEvidence
+        }
+        ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities
+            if event.effect == ViewDeltaEffect::Geometry =>
+        {
+            ReconciliationMismatch::GeometryEvidence
+        }
+        ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities
+            if event.effect == ViewDeltaEffect::Paint =>
+        {
+            ReconciliationMismatch::PaintEvidence
+        }
+        ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities
+            if event.effect == ViewDeltaEffect::Interaction =>
+        {
+            ReconciliationMismatch::InteractionEvidence
+        }
+        ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities => {
+            return None;
+        }
+        ViewDeltaCause::ContainerPolicy
+        | ViewDeltaCause::ChildSlot
+        | ViewDeltaCause::OverlayRect => ReconciliationMismatch::GeometryEvidence,
+        ViewDeltaCause::ContainerStyle
+        | ViewDeltaCause::OverlayLabel
+        | ViewDeltaCause::OverlayStyle => ReconciliationMismatch::PaintEvidence,
+        ViewDeltaCause::ContainerHover
+        | ViewDeltaCause::ScrollMapper
+        | ViewDeltaCause::FloatingInteractive => ReconciliationMismatch::InteractionEvidence,
+        ViewDeltaCause::SceneLayerKind
+        | ViewDeltaCause::SceneLayerCount
+        | ViewDeltaCause::SceneLayerInput => ReconciliationMismatch::NodeKind,
+    })
+}
+
 /// One bounded semantic change record.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ViewDeltaEvent {
@@ -334,6 +546,8 @@ pub(crate) struct ViewDelta {
     pub(crate) event_count: u8,
     pub(crate) omitted_events: u32,
     pub(crate) truncated_paths: bool,
+    pub(crate) matched_nodes: u32,
+    pub(crate) conservative: bool,
 }
 
 /// Bounded summary retained by refresh diagnostics for one classifier pass.
@@ -353,6 +567,7 @@ pub(crate) struct ViewDeltaDiagnostics {
     /// Whether every recorded change is safe for backend-neutral base paint
     /// plan reuse. This is private evidence, not a public refresh policy API.
     pub(crate) base_paint_reuse_safe: bool,
+    pub(crate) reconciliation: ReconciliationPlan,
 }
 
 impl Default for ViewDeltaDiagnostics {
@@ -373,6 +588,7 @@ impl ViewDeltaDiagnostics {
             truncated_paths: false,
             structural_cause: None,
             base_paint_reuse_safe: true,
+            reconciliation: ReconciliationPlan::startup(),
         }
     }
 
@@ -391,6 +607,7 @@ impl ViewDeltaDiagnostics {
         self.omitted_events = self.omitted_events.saturating_add(other.omitted_events);
         self.truncated_paths |= other.truncated_paths;
         self.base_paint_reuse_safe &= other.base_paint_reuse_safe;
+        self.reconciliation.merge(other.reconciliation);
         if self.structural_cause.is_none() {
             self.structural_cause = other.structural_cause;
         }
@@ -444,6 +661,8 @@ impl ViewDelta {
             event_count: 0,
             omitted_events: 0,
             truncated_paths: false,
+            matched_nodes: 0,
+            conservative: false,
         }
     }
 
@@ -463,6 +682,15 @@ impl ViewDelta {
         }
     }
 
+    fn record_conservative(&mut self) {
+        self.conservative = true;
+    }
+
+    /// Derive bounded future-reconciliation evidence without applying it.
+    pub(crate) fn reconciliation_plan(&self) -> ReconciliationPlan {
+        ReconciliationPlan::from_delta(self)
+    }
+
     pub(crate) fn diagnostics(self, duration: Duration) -> ViewDeltaDiagnostics {
         let structural_cause = self
             .events
@@ -478,6 +706,7 @@ impl ViewDelta {
                     | ViewDeltaCause::WidgetRevision
             )
         });
+        let reconciliation = self.reconciliation_plan();
         ViewDeltaDiagnostics {
             classified: true,
             duration,
@@ -488,6 +717,7 @@ impl ViewDelta {
             truncated_paths: self.truncated_paths,
             structural_cause,
             base_paint_reuse_safe,
+            reconciliation,
         }
     }
 }
@@ -579,6 +809,7 @@ fn compare_node<Message>(
         path.pop();
         return;
     }
+    delta.matched_nodes = delta.matched_nodes.saturating_add(1);
     match (previous, current) {
         (super::SurfaceNode::Scene(previous), super::SurfaceNode::Scene(current)) => {
             compare_scene(previous, current, path, delta, scratch)
@@ -648,6 +879,17 @@ fn compare_widget<Message>(
 ) {
     let previous_evidence = previous.revision_evidence();
     let current_evidence = current.revision_evidence();
+    if !previous_evidence.valid
+        || !current_evidence.valid
+        || previous_evidence.revision.exact_components().is_none()
+        || current_evidence.revision.exact_components().is_none()
+        || previous_evidence.capabilities.contract_version
+            != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+        || current_evidence.capabilities.contract_version
+            != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+    {
+        delta.record_conservative();
+    }
     if previous_evidence.compatibility_kind != current_evidence.compatibility_kind {
         delta.record(
             ViewDeltaEffect::Structural,
@@ -676,16 +918,22 @@ fn compare_widget<Message>(
             .relation(&current.native_file_drop_mapper_descriptor()),
     ] {
         match relation {
-            MapperRelation::Structural => delta.record(
-                ViewDeltaEffect::Structural,
-                ViewDeltaCause::OpaqueWidgetMapper,
-                path.path,
-            ),
-            MapperRelation::Interaction => delta.record(
-                ViewDeltaEffect::Interaction,
-                ViewDeltaCause::OpaqueWidgetMapper,
-                path.path,
-            ),
+            MapperRelation::Structural => {
+                delta.record_conservative();
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::OpaqueWidgetMapper,
+                    path.path,
+                )
+            }
+            MapperRelation::Interaction => {
+                delta.record_conservative();
+                delta.record(
+                    ViewDeltaEffect::Interaction,
+                    ViewDeltaCause::OpaqueWidgetMapper,
+                    path.path,
+                )
+            }
             MapperRelation::Unchanged => {}
         }
     }
@@ -738,11 +986,14 @@ fn compare_container<Message>(
         );
     }
     match previous_revision.scroll_mapper_relation(&current_revision) {
-        MapperRelation::Structural => delta.record(
-            ViewDeltaEffect::Structural,
-            ViewDeltaCause::ScrollMapper,
-            path.path,
-        ),
+        MapperRelation::Structural => {
+            delta.record_conservative();
+            delta.record(
+                ViewDeltaEffect::Structural,
+                ViewDeltaCause::ScrollMapper,
+                path.path,
+            )
+        }
         MapperRelation::Interaction => delta.record(
             ViewDeltaEffect::Interaction,
             ViewDeltaCause::ScrollMapper,
@@ -763,6 +1014,7 @@ fn compare_container_children<Message>(
     let previous_duplicates = has_duplicate_child_ids(previous.children, scratch);
     let current_duplicates = has_duplicate_child_ids(current.children, scratch);
     if previous_duplicates.is_none() || current_duplicates.is_none() {
+        delta.record_conservative();
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::InsufficientIdentityEvidence,
@@ -771,6 +1023,7 @@ fn compare_container_children<Message>(
         return;
     }
     if previous_duplicates == Some(true) || current_duplicates == Some(true) {
+        delta.record_conservative();
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::AmbiguousPairing,
@@ -856,6 +1109,7 @@ fn compare_scene<Message>(
     let previous_duplicates = has_duplicate_scene_node_ids(&previous_revision, scratch);
     let current_duplicates = has_duplicate_scene_node_ids(&current_revision, scratch);
     if previous_duplicates.is_none() || current_duplicates.is_none() {
+        delta.record_conservative();
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::InsufficientIdentityEvidence,
@@ -864,6 +1118,7 @@ fn compare_scene<Message>(
         return;
     }
     if previous_duplicates == Some(true) || current_duplicates == Some(true) {
+        delta.record_conservative();
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::AmbiguousPairing,
@@ -1244,9 +1499,9 @@ mod tests {
 #[cfg(test)]
 mod view_delta_tests {
     use super::{
-        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch, WidgetRevisionEffect,
-        WidgetRevisionSnapshot, classify_view_delta as classify_with_scratch,
-        classify_widget_revision,
+        ReconciliationMismatch, ReconciliationPlanOutcome, ViewDeltaCause, ViewDeltaEffect,
+        ViewDeltaScratch, WidgetRevisionEffect, WidgetRevisionSnapshot,
+        classify_view_delta as classify_with_scratch, classify_widget_revision,
     };
     use crate::{
         gui::types::{Point, Rect, Vector2},
@@ -1262,7 +1517,12 @@ mod view_delta_tests {
             WidgetSemantics, WidgetSemanticsRevision, WidgetSizing, WidgetStyle, WidgetTone,
         },
     };
-    use std::{cell::Cell, hint::black_box, rc::Rc, time::Instant};
+    use std::{
+        cell::Cell,
+        hint::black_box,
+        rc::Rc,
+        time::{Duration, Instant},
+    };
 
     fn surface(root: SurfaceNode<()>) -> UiSurface<()> {
         UiSurface::new(root)
@@ -1320,7 +1580,8 @@ mod view_delta_tests {
     fn benchmark_tree(size: usize, variant: &str) -> SurfaceNode<()> {
         let mut children = (0..size)
             .map(|id| {
-                let style = if variant == "last_paint" && id + 1 == size {
+                let style = if variant == "all_paint" || (variant == "last_paint" && id + 1 == size)
+                {
                     WidgetStyle::strong(WidgetTone::Accent)
                 } else {
                     WidgetStyle::normal(WidgetTone::Neutral)
@@ -1366,6 +1627,79 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Unchanged);
         assert_eq!(delta.total_events, 0);
         assert_eq!(delta.event_count, 0);
+        let plan = delta.reconciliation_plan();
+        assert_eq!(plan.outcome, ReconciliationPlanOutcome::ExactTopology);
+        assert_eq!(plan.matched_nodes, 2);
+        assert_eq!(plan.mismatch_count, 0);
+    }
+
+    #[test]
+    fn reconciliation_diagnostics_merge_changes_and_conservative_fallbacks() {
+        let previous = surface(benchmark_tree(2, "base"));
+        let painted = surface(benchmark_tree(2, "last_paint"));
+        let added = surface(benchmark_tree(3, "base"));
+
+        let first = classify_view_delta(&previous, &painted).diagnostics(Duration::ZERO);
+        assert_eq!(
+            first.reconciliation.outcome,
+            ReconciliationPlanOutcome::ExactTopology
+        );
+        let second = classify_view_delta(&painted, &added).diagnostics(Duration::ZERO);
+        assert_eq!(
+            second.reconciliation.outcome,
+            ReconciliationPlanOutcome::RequiresStructural
+        );
+
+        let mut aggregate = first;
+        aggregate.merge(second);
+        assert_eq!(aggregate.effect, ViewDeltaEffect::Structural);
+        assert_eq!(aggregate.reconciliation.effect, ViewDeltaEffect::Structural);
+        assert_eq!(
+            aggregate.reconciliation.outcome,
+            ReconciliationPlanOutcome::RequiresStructural
+        );
+        assert!(
+            aggregate
+                .reconciliation
+                .mismatches
+                .iter()
+                .flatten()
+                .any(|reason| *reason == ReconciliationMismatch::PaintEvidence)
+        );
+        assert!(
+            aggregate
+                .reconciliation
+                .mismatches
+                .iter()
+                .flatten()
+                .any(|reason| *reason == ReconciliationMismatch::Added)
+        );
+
+        for _ in 0..8 {
+            aggregate.merge(second);
+        }
+        assert_eq!(aggregate.reconciliation.mismatch_count, 10);
+        assert_eq!(aggregate.reconciliation.omitted_mismatches, 2);
+        assert_eq!(
+            aggregate.reconciliation.mismatches[0],
+            Some(ReconciliationMismatch::PaintEvidence)
+        );
+        assert!(
+            aggregate.reconciliation.mismatches[1..]
+                .iter()
+                .all(|reason| *reason == Some(ReconciliationMismatch::Added))
+        );
+
+        let mut zero_scratch = ViewDeltaScratch::with_capacity(0);
+        let conservative =
+            classify_with_scratch(&added, &previous, &mut zero_scratch).diagnostics(Duration::ZERO);
+        aggregate.merge(conservative);
+        assert_eq!(
+            aggregate.reconciliation.outcome,
+            ReconciliationPlanOutcome::Conservative
+        );
+        assert_eq!(aggregate.reconciliation.mismatch_count, 11);
+        assert_eq!(aggregate.reconciliation.omitted_mismatches, 3);
     }
 
     #[test]
@@ -1453,6 +1787,12 @@ mod view_delta_tests {
             classify_view_delta(&previous, &geometry).effect,
             ViewDeltaEffect::Geometry
         );
+        let geometry_plan = classify_view_delta(&previous, &geometry).reconciliation_plan();
+        assert_eq!(
+            geometry_plan.outcome,
+            ReconciliationPlanOutcome::ExactTopology
+        );
+        assert_eq!(geometry_plan.effect, ViewDeltaEffect::Geometry);
 
         for baseline in [f32::NAN, f32::INFINITY] {
             let invalid_baseline = surface(SurfaceNode::widget(
@@ -1471,6 +1811,12 @@ mod view_delta_tests {
                 classify_view_delta(&previous, &invalid_baseline).effect,
                 ViewDeltaEffect::Structural
             );
+            assert_eq!(
+                classify_view_delta(&previous, &invalid_baseline)
+                    .reconciliation_plan()
+                    .outcome,
+                ReconciliationPlanOutcome::Conservative
+            );
         }
 
         let mut paint_widget =
@@ -1486,6 +1832,9 @@ mod view_delta_tests {
             classify_view_delta(&previous, &paint).effect,
             ViewDeltaEffect::Paint
         );
+        let paint_plan = classify_view_delta(&previous, &paint).reconciliation_plan();
+        assert_eq!(paint_plan.outcome, ReconciliationPlanOutcome::ExactTopology);
+        assert_eq!(paint_plan.effect, ViewDeltaEffect::Paint);
 
         let mut interaction_widget = ColorMarkerWidget::new(Some(color));
         interaction_widget.common.id = 1;
@@ -1499,6 +1848,12 @@ mod view_delta_tests {
             classify_view_delta(&previous, &interaction).effect,
             ViewDeltaEffect::Interaction
         );
+        let interaction_plan = classify_view_delta(&previous, &interaction).reconciliation_plan();
+        assert_eq!(
+            interaction_plan.outcome,
+            ReconciliationPlanOutcome::ExactTopology
+        );
+        assert_eq!(interaction_plan.effect, ViewDeltaEffect::Interaction);
     }
 
     #[test]
@@ -1941,6 +2296,10 @@ mod view_delta_tests {
             &delta,
             ViewDeltaCause::InsufficientIdentityEvidence
         ));
+        assert_eq!(
+            delta.reconciliation_plan().outcome,
+            ReconciliationPlanOutcome::Conservative
+        );
     }
 
     #[test]
@@ -2049,6 +2408,10 @@ mod view_delta_tests {
         assert_eq!(delta.event_count, 16);
         assert_eq!(delta.total_events, 20);
         assert_eq!(delta.omitted_events, 4);
+        let plan = delta.reconciliation_plan();
+        assert_eq!(plan.mismatch_count, 17);
+        assert_eq!(plan.omitted_mismatches, 9);
+        assert!(plan.mismatches.iter().all(Option::is_some));
 
         fn deep(rect_x: f32) -> SurfaceNode<()> {
             let mut node = SurfaceNode::overlay_marker(
@@ -2193,6 +2556,10 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
         assert!(has_cause(&delta, ViewDeltaCause::Reordered));
         assert!(!has_cause(&delta, ViewDeltaCause::Replaced));
+        assert_eq!(
+            delta.reconciliation_plan().outcome,
+            ReconciliationPlanOutcome::Conservative
+        );
     }
 
     #[test]
@@ -2211,6 +2578,10 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
         assert!(has_cause(&delta, ViewDeltaCause::Added));
         assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+        assert_eq!(
+            delta.reconciliation_plan().outcome,
+            ReconciliationPlanOutcome::RequiresStructural
+        );
 
         let removed = surface(SurfaceNode::container(
             1,
@@ -2221,6 +2592,10 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
         assert!(has_cause(&delta, ViewDeltaCause::Removed));
         assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+        assert_eq!(
+            delta.reconciliation_plan().outcome,
+            ReconciliationPlanOutcome::RequiresStructural
+        );
     }
 
     #[test]
@@ -2561,6 +2936,14 @@ mod view_delta_tests {
         assert_eq!(
             classify_view_delta(&previous, &mapped_widget_surface(None)).effect,
             ViewDeltaEffect::Interaction
+        );
+        let plan = classify_view_delta(&previous, &changed).reconciliation_plan();
+        assert_eq!(plan.outcome, ReconciliationPlanOutcome::Conservative);
+        assert!(
+            plan.mismatches
+                .iter()
+                .flatten()
+                .any(|reason| *reason == ReconciliationMismatch::OpaqueWidgetMapper)
         );
     }
 

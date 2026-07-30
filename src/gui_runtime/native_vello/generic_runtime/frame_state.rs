@@ -12,12 +12,14 @@ use super::{
         collect_gpu_surface_interaction_regions_with_scratch,
     },
 };
+use crate::runtime::BasePaintPlanContext;
 use crate::theme::DpiScale;
+use crate::theme::ResolvedAppearance;
+use crate::theme::ThemeTokens;
 use crate::{
     gui::types::Rect as UiRect,
     gui_runtime::native_vello::NativeTextRenderer,
-    runtime::{BasePaintPlanContext, PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
-    theme::{ResolvedAppearance, ThemeTokens},
+    runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
 };
 use vello::Scene;
 use vello::kurbo::Affine;

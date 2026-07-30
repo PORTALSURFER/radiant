@@ -7,7 +7,7 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
@@ -148,6 +148,81 @@ impl WidgetSemantics for TextWidget {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ExactFloat(u32);
+
+impl ExactFloat {
+    fn new(value: f32) -> Option<Self> {
+        value.is_finite().then(|| Self(value.to_bits()))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TextGeometryRevision {
+    text: PaintText,
+    wrap: TextWrap,
+    sizing: [ExactFloat; 4],
+    baseline: Option<ExactFloat>,
+    inset: [ExactFloat; 2],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TextPaintRevision {
+    text: PaintText,
+    align: TextAlign,
+    color: TextColorRole,
+    background: Option<TextBackgroundRole>,
+    contract: crate::widgets::PaintContract,
+    style: crate::widgets::WidgetStyle,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TextInteractionRevision {
+    text: PaintText,
+    focus: crate::widgets::FocusBehavior,
+    tooltip: Option<String>,
+}
+
+impl TextWidget {
+    fn exact_revision(&self) -> Option<WidgetRevision> {
+        let sizing = self.common.sizing;
+        Some(WidgetRevision::exact(
+            (),
+            TextGeometryRevision {
+                text: self.text.clone(),
+                wrap: self.wrap,
+                sizing: [
+                    ExactFloat::new(sizing.min.x)?,
+                    ExactFloat::new(sizing.min.y)?,
+                    ExactFloat::new(sizing.preferred.x)?,
+                    ExactFloat::new(sizing.preferred.y)?,
+                ],
+                baseline: match sizing.baseline {
+                    Some(value) => Some(ExactFloat::new(value)?),
+                    None => None,
+                },
+                inset: [
+                    ExactFloat::new(self.inset.x)?,
+                    ExactFloat::new(self.inset.y)?,
+                ],
+            },
+            TextPaintRevision {
+                text: self.text.clone(),
+                align: self.align,
+                color: self.color,
+                background: self.background,
+                contract: self.common.paint,
+                style: self.common.style,
+            },
+            TextInteractionRevision {
+                text: self.text.clone(),
+                focus: self.common.focus,
+                tooltip: self.common.tooltip.clone(),
+            },
+        ))
+    }
+}
+
 impl Widget for TextWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -155,6 +230,11 @@ impl Widget for TextWidget {
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
         &mut self.common
+    }
+
+    fn revision(&self) -> WidgetRevision {
+        self.exact_revision()
+            .unwrap_or_else(WidgetRevision::conservative)
     }
 
     fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
@@ -202,5 +282,66 @@ impl Widget for TextWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_text_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TextAlign, TextWidget, TextWrap};
+    use crate::{
+        layout::Vector2,
+        widgets::{TextColorRole, Widget, WidgetRevision, WidgetSizing},
+    };
+
+    fn text() -> TextWidget {
+        TextWidget::new(7, "hello", WidgetSizing::fixed(Vector2::new(80.0, 20.0)))
+    }
+
+    #[test]
+    fn equal_immutable_text_inputs_have_equal_exact_revisions() {
+        assert_eq!(text().revision(), text().revision());
+    }
+
+    #[test]
+    fn text_revision_partitions_geometry_paint_and_interaction_inputs() {
+        let base = text();
+        assert_ne!(
+            base.revision(),
+            base.clone().with_align(TextAlign::Center).revision()
+        );
+        assert_ne!(
+            base.revision(),
+            base.clone().with_color(TextColorRole::Muted).revision()
+        );
+        assert_ne!(
+            base.revision(),
+            base.clone().with_inset(Vector2::new(2.0, 0.0)).revision()
+        );
+        assert_ne!(
+            base.revision(),
+            base.clone()
+                .with_align(TextAlign::Right)
+                .with_background(crate::widgets::TextBackgroundRole::Accent)
+                .revision()
+        );
+
+        let mut focused = base.clone();
+        focused.common.focus = crate::widgets::FocusBehavior::Keyboard;
+        assert_ne!(base.revision(), focused.revision());
+
+        let mut tooltip = base.clone();
+        tooltip.common.tooltip = Some(String::from("hint"));
+        assert_ne!(base.revision(), tooltip.revision());
+    }
+
+    #[test]
+    fn non_finite_text_geometry_uses_conservative_revision() {
+        let mut widget = text();
+        widget.inset = Vector2::new(f32::NAN, 0.0);
+        assert_eq!(widget.revision(), WidgetRevision::conservative());
+
+        widget.inset = Vector2::new(0.0, 0.0);
+        widget.wrap = TextWrap::Word;
+        assert_ne!(widget.revision(), WidgetRevision::conservative());
     }
 }

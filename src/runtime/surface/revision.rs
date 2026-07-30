@@ -19,7 +19,7 @@ pub(crate) enum WidgetRevisionEffect {
 }
 
 /// Minimal comparison input for a same-ID retained widget pair.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct WidgetRevisionSnapshot {
     pub(crate) id: WidgetId,
     pub(crate) compatibility_kind: &'static str,
@@ -54,16 +54,16 @@ pub(crate) fn classify_widget_revision(
 }
 
 fn classify_exact_components(
-    previous: WidgetRevisionComponents,
-    current: WidgetRevisionComponents,
+    previous: &WidgetRevisionComponents,
+    current: &WidgetRevisionComponents,
 ) -> WidgetRevisionEffect {
-    if previous.structure != current.structure {
+    if !previous.structure_equal(current) {
         WidgetRevisionEffect::Structural
-    } else if previous.geometry != current.geometry {
+    } else if !previous.geometry_equal(current) {
         WidgetRevisionEffect::Geometry
-    } else if previous.paint != current.paint {
+    } else if !previous.paint_equal(current) {
         WidgetRevisionEffect::Paint
-    } else if previous.interaction != current.interaction {
+    } else if !previous.interaction_equal(current) {
         WidgetRevisionEffect::Interaction
     } else {
         WidgetRevisionEffect::Unchanged
@@ -524,7 +524,8 @@ fn compare_scene<Message>(
 #[cfg(test)]
 mod tests {
     use super::{WidgetRevisionEffect, WidgetRevisionSnapshot, classify_widget_revision};
-    use crate::widgets::{WidgetRevision, WidgetRevisionComponents};
+    use crate::layout::Vector2;
+    use crate::widgets::{TextWidget, Widget, WidgetRevision, WidgetSizing};
 
     const KIND: &str = "test::Widget";
 
@@ -537,12 +538,7 @@ mod tests {
     }
 
     fn exact(structure: u64, geometry: u64, paint: u64, interaction: u64) -> WidgetRevision {
-        WidgetRevision::exact_for_test(WidgetRevisionComponents {
-            structure,
-            geometry,
-            paint,
-            interaction,
-        })
+        WidgetRevision::exact(structure, geometry, paint, interaction)
     }
 
     use crate::widgets::WidgetId;
@@ -551,7 +547,7 @@ mod tests {
     fn missing_identity_and_replacements_take_structural_fallback() {
         let current = Some(snapshot(7, exact(1, 1, 1, 1)));
         assert_eq!(
-            classify_widget_revision(None, current),
+            classify_widget_revision(None, current.clone()),
             WidgetRevisionEffect::Structural
         );
         assert_eq!(
@@ -583,7 +579,7 @@ mod tests {
         let exact = Some(snapshot(7, exact(1, 1, 1, 1)));
         let conservative = Some(snapshot(7, WidgetRevision::conservative()));
         assert_eq!(
-            classify_widget_revision(exact, conservative),
+            classify_widget_revision(exact.clone(), conservative.clone()),
             WidgetRevisionEffect::Structural
         );
         assert_eq!(
@@ -603,13 +599,64 @@ mod tests {
             (exact(1, 1, 1, 1), WidgetRevisionEffect::Unchanged),
         ] {
             assert_eq!(
-                classify_widget_revision(base, Some(snapshot(7, revision))),
+                classify_widget_revision(base.clone(), Some(snapshot(7, revision))),
                 expected
             );
         }
         assert_eq!(
             classify_widget_revision(base, Some(snapshot(7, exact(2, 2, 2, 2)))),
             WidgetRevisionEffect::Structural
+        );
+    }
+
+    #[test]
+    fn typed_component_mismatch_widens_to_that_component_effect() {
+        let previous = Some(snapshot(
+            7,
+            WidgetRevision::exact("structure", 1_u32, "paint", "interaction"),
+        ));
+        let current = Some(snapshot(
+            7,
+            WidgetRevision::exact("structure", 1_u64, "paint", "interaction"),
+        ));
+
+        assert_eq!(
+            classify_widget_revision(previous, current),
+            WidgetRevisionEffect::Geometry
+        );
+    }
+
+    #[test]
+    fn text_widget_revisions_reach_the_classifier_with_safe_effects() {
+        let base = TextWidget::new(7, "hello", WidgetSizing::fixed(Vector2::new(80.0, 20.0)));
+        let mut geometry = base.clone();
+        geometry.wrap = crate::widgets::TextWrap::Word;
+        let mut paint = base.clone();
+        paint.align = crate::widgets::TextAlign::Center;
+        let mut interaction = base.clone();
+        interaction.common.tooltip = Some(String::from("hint"));
+        let snapshot = |widget: &dyn Widget| WidgetRevisionSnapshot {
+            id: widget.common().id,
+            compatibility_kind: widget.compatibility_kind(),
+            revision: widget.revision(),
+        };
+
+        let previous = snapshot(&base);
+        assert_eq!(
+            classify_widget_revision(Some(previous.clone()), Some(snapshot(&geometry))),
+            WidgetRevisionEffect::Geometry
+        );
+        assert_eq!(
+            classify_widget_revision(Some(previous.clone()), Some(snapshot(&paint))),
+            WidgetRevisionEffect::Paint
+        );
+        assert_eq!(
+            classify_widget_revision(Some(previous.clone()), Some(snapshot(&interaction))),
+            WidgetRevisionEffect::Interaction
+        );
+        assert_eq!(
+            classify_widget_revision(Some(previous.clone()), Some(snapshot(&base))),
+            WidgetRevisionEffect::Unchanged
         );
     }
 }
@@ -622,8 +669,8 @@ mod view_delta_tests {
         layout::{ContainerKind, ContainerPolicy},
         runtime::{EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
         widgets::{
-            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
-            WidgetRevisionComponents, WidgetStyle, WidgetTone,
+            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetStyle,
+            WidgetTone,
         },
     };
 
@@ -884,19 +931,14 @@ mod view_delta_tests {
         fn new(id: u64) -> Self {
             Self {
                 common: WidgetCommon::fixed(id, 40.0, 20.0),
-                revision: WidgetRevision::exact_for_test(WidgetRevisionComponents {
-                    structure: 1,
-                    geometry: 1,
-                    paint: 1,
-                    interaction: 1,
-                }),
+                revision: WidgetRevision::exact(1_u8, 1_u8, 1_u8, 1_u8),
             }
         }
     }
 
     impl Widget for RevisionWidget {
         fn revision(&self) -> WidgetRevision {
-            self.revision
+            self.revision.clone()
         }
 
         fn common(&self) -> &WidgetCommon {

@@ -643,7 +643,7 @@ mod tests {
                 bounds,
                 WidgetInput::wheel(
                     inside,
-                    Vector2::new(0.0, 120.0),
+                    Vector2::new(0.0, -120.0),
                     PointerModifiers::default()
                 )
             ),
@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(
             knob.handle_input(
                 bounds,
-                WidgetInput::plain_wheel(inside, Vector2::new(0.0, -120.0)),
+                WidgetInput::plain_wheel(inside, Vector2::new(0.0, 120.0)),
             ),
             None,
         );

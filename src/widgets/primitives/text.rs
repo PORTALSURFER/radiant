@@ -7,7 +7,8 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics, WidgetSizing,
+    Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
+    WidgetSizing,
 };
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
@@ -139,6 +140,10 @@ impl TextWidget {
 }
 
 impl WidgetSemantics for TextWidget {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact(self.text.as_str().to_owned())
+    }
+
     fn automation_role(&self) -> crate::gui::automation::AutomationRole {
         crate::gui::automation::AutomationRole::Text
     }
@@ -290,7 +295,7 @@ mod tests {
     use super::{TextAlign, TextWidget, TextWrap};
     use crate::{
         layout::Vector2,
-        widgets::{TextColorRole, Widget, WidgetRevision, WidgetSizing},
+        widgets::{TextColorRole, Widget, WidgetRevision, WidgetSemanticsRevision, WidgetSizing},
     };
 
     fn text() -> TextWidget {
@@ -300,6 +305,20 @@ mod tests {
     #[test]
     fn equal_immutable_text_inputs_have_equal_exact_revisions() {
         assert_eq!(text().revision(), text().revision());
+    }
+
+    #[test]
+    fn text_semantic_revision_tracks_automation_label_without_resolving_output() {
+        let first = text();
+        let second = TextWidget::new(7, "world", WidgetSizing::fixed(Vector2::new(80.0, 20.0)));
+        assert_eq!(
+            first.capabilities().semantics_revision(),
+            Some(WidgetSemanticsRevision::exact("hello".to_owned()))
+        );
+        assert_ne!(
+            first.capabilities().semantics_revision(),
+            second.capabilities().semantics_revision()
+        );
     }
 
     #[test]

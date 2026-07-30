@@ -1828,6 +1828,17 @@ component ownership. This foundation hook still does not enable refresh or
 repaint optimization, and widgets should exclude stable identity and mutable
 runtime state from their immutable evidence. Advanced hosts should keep using
 the conservative default when any affected input is unavailable or ambiguous.
+The optional `WidgetSemantics` capability has the same conservative posture:
+its default `WidgetSemantics::revision()` returns
+`WidgetSemanticsRevision::conservative()`. A custom capability may return
+`WidgetSemanticsRevision::exact(value)` with one UI-local `Eq + 'static` value;
+`WidgetCapabilities::semantics_revision()` exposes that evidence without
+evaluating role, label, value, or metadata output methods. Capability presence,
+unsupported descriptor contract versions, and conservative evidence take the
+structural fallback. Changed or type-mismatched exact semantic evidence is an
+interaction change, while equal exact evidence is unchanged. Existing custom
+`WidgetSemantics` and `Widget` implementations remain source-compatible through
+the default hook.
 Hosts that want deterministic test failures can configure
 `SurfaceRuntime::set_identity_audit(IdentityAudit::strict())`. The default
 `IdentityAudit` policy is observational: every replacement completes cleanup and

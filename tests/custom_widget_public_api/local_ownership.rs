@@ -6,7 +6,8 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         EmbeddedInteractiveRowWidget, InteractiveRowMessage, InteractiveRowWidget, PointerButton,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSemantics, WidgetSizing,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSemantics, WidgetSemanticsRevision,
+        WidgetSizing,
     },
 };
 use std::{cell::RefCell, rc::Rc};
@@ -40,6 +41,10 @@ impl LocalWidget {
 }
 
 impl WidgetSemantics for LocalWidget {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact(self.local.borrow().activations)
+    }
+
     fn automation_role(&self) -> AutomationRole {
         AutomationRole::Readout
     }
@@ -51,6 +56,17 @@ impl WidgetSemantics for LocalWidget {
     fn automation_value_text(&self) -> Option<String> {
         Some(self.local.borrow().activations.to_string())
     }
+}
+
+#[test]
+fn custom_semantic_revision_is_exposed_through_the_capability_descriptor() {
+    let local = Rc::new(RefCell::new(LocalState { activations: 0 }));
+    let widget = LocalWidget::new(30, local);
+    let capabilities = widget.capabilities();
+    assert_eq!(
+        capabilities.semantics_revision(),
+        Some(WidgetSemanticsRevision::exact(0_usize))
+    );
 }
 
 impl Widget for LocalWidget {

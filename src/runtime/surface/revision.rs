@@ -8,7 +8,8 @@
 use super::widget::{
     MapperDescriptor, MapperRelation, SurfaceWidgetRevisionEvidence, WidgetCapabilityEvidence,
 };
-use crate::layout::{ContainerPolicy, SlotParams};
+use crate::gui::types::Rect;
+use crate::layout::{ContainerPolicy, LayoutOutput, NodeId, SlotParams};
 use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
 use std::collections::HashSet;
@@ -325,6 +326,260 @@ pub(crate) enum ReconciliationMismatch {
 
 const MAX_RECONCILIATION_MISMATCHES: usize = 8;
 
+const MAX_SURFACE_DAMAGE_CANDIDATES: usize = 8;
+
+/// One bounded logical old/new damage candidate retained for diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SurfaceDamageCandidate {
+    pub(crate) node_id: NodeId,
+    pub(crate) old_bounds: Option<Rect>,
+    pub(crate) new_bounds: Option<Rect>,
+    pub(crate) effect: ViewDeltaEffect,
+}
+
+/// Bounded, allocation-free observational damage evidence.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SurfaceDamage {
+    pub(crate) candidates: [Option<SurfaceDamageCandidate>; MAX_SURFACE_DAMAGE_CANDIDATES],
+    pub(crate) candidate_count: u8,
+    pub(crate) full_viewport: bool,
+    pub(crate) viewport: Rect,
+}
+
+impl SurfaceDamage {
+    pub(crate) const fn empty(viewport: Rect) -> Self {
+        Self {
+            candidates: [None; MAX_SURFACE_DAMAGE_CANDIDATES],
+            candidate_count: 0,
+            full_viewport: false,
+            viewport,
+        }
+    }
+
+    pub(crate) const fn full_viewport(viewport: Rect) -> Self {
+        Self {
+            candidates: [None; MAX_SURFACE_DAMAGE_CANDIDATES],
+            candidate_count: 0,
+            full_viewport: true,
+            viewport,
+        }
+    }
+
+    /// Start bounded damage evidence from one classified delta. Old bounds
+    /// are captured before a possible relayout; call [`Self::finish`] after the
+    /// controller has either retained or replaced its layout output.
+    pub(crate) fn from_view_delta<Message>(
+        delta: &ViewDelta,
+        plan: &ReconciliationPlan,
+        previous: &super::UiSurface<Message>,
+        old_layout: &LayoutOutput,
+        viewport: Rect,
+    ) -> Self {
+        let mut damage = Self::empty(viewport);
+        if delta.conservative
+            || delta.omitted_events != 0
+            || delta.truncated_paths
+            || plan.omitted_mismatches != 0
+            || matches!(plan.outcome, ReconciliationPlanOutcome::Conservative)
+            || plan.mismatches.iter().flatten().any(|mismatch| {
+                matches!(
+                    mismatch,
+                    ReconciliationMismatch::OpaqueWidgetMapper
+                        | ReconciliationMismatch::InvalidEvidence
+                        | ReconciliationMismatch::InsufficientIdentityEvidence
+                )
+            })
+        {
+            return Self::full_viewport(viewport);
+        }
+
+        // Interaction-only and unchanged observations do not damage base
+        // content. All other classified effects must produce at least one
+        // bounded candidate or widen conservatively.
+        if matches!(
+            delta.effect,
+            ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+        ) {
+            return damage;
+        }
+
+        for event in delta.events.iter().flatten() {
+            if matches!(
+                event.effect,
+                ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+            ) {
+                continue;
+            }
+            let Some(node_id) = event.path.last_node_id() else {
+                return Self::full_viewport(viewport);
+            };
+            let old_bounds = bounds_for_damage_node(previous, old_layout, node_id);
+            if old_bounds.is_none() && !is_overlay_node(previous, node_id) {
+                return Self::full_viewport(viewport);
+            }
+            if old_bounds.is_some_and(|bounds| !valid_damage_rect(bounds)) {
+                return Self::full_viewport(viewport);
+            }
+            if !damage.insert_or_merge(SurfaceDamageCandidate {
+                node_id,
+                old_bounds,
+                new_bounds: None,
+                effect: event.effect,
+            }) {
+                return Self::full_viewport(viewport);
+            }
+        }
+        if damage.candidate_count == 0 {
+            return Self::full_viewport(viewport);
+        }
+        damage
+    }
+
+    /// Resolve new bounds after relayout (or against the retained layout when
+    /// completed-layout reuse was selected).
+    pub(crate) fn finish<Message>(
+        mut self,
+        current: &super::UiSurface<Message>,
+        new_layout: &LayoutOutput,
+    ) -> Self {
+        if self.full_viewport {
+            return self;
+        }
+        for candidate in self.candidates.iter_mut().flatten() {
+            let bounds = bounds_for_damage_node(current, new_layout, candidate.node_id);
+            if bounds.is_none() && !is_overlay_node(current, candidate.node_id) {
+                return Self::full_viewport(self.viewport);
+            }
+            if bounds.is_some_and(|bounds| !valid_damage_rect(bounds)) {
+                return Self::full_viewport(self.viewport);
+            }
+            candidate.new_bounds = bounds;
+        }
+        self
+    }
+
+    /// Merge frame-local evidence without allocating. Full-viewport evidence
+    /// dominates, while repeated node candidates retain first-old/latest-new
+    /// bounds and their broadest effect.
+    pub(crate) fn merge(&mut self, other: Self) {
+        if other.full_viewport {
+            self.full_viewport = true;
+            self.candidate_count = 0;
+            self.candidates = [None; MAX_SURFACE_DAMAGE_CANDIDATES];
+            self.viewport = other.viewport;
+            return;
+        }
+        if self.full_viewport {
+            return;
+        }
+        for candidate in other.candidates.iter().flatten() {
+            if !self.insert_or_merge(*candidate) {
+                *self = Self::full_viewport(other.viewport);
+                return;
+            }
+        }
+    }
+
+    fn insert_or_merge(&mut self, candidate: SurfaceDamageCandidate) -> bool {
+        if let Some(existing) = self
+            .candidates
+            .iter_mut()
+            .flatten()
+            .find(|existing| existing.node_id == candidate.node_id)
+        {
+            // Preserve the first observed old bound and the latest new bound,
+            // including an explicit `None` for a removed node.
+            existing.new_bounds = candidate.new_bounds;
+            existing.effect = broader_effect(existing.effect, candidate.effect);
+            return true;
+        }
+        let index = usize::from(self.candidate_count);
+        if index >= self.candidates.len() {
+            return false;
+        }
+        self.candidates[index] = Some(candidate);
+        self.candidate_count = self.candidate_count.saturating_add(1);
+        true
+    }
+}
+
+fn valid_damage_rect(rect: Rect) -> bool {
+    rect.is_finite() && rect.width() >= 0.0 && rect.height() >= 0.0
+}
+
+fn bounds_for_damage_node<Message>(
+    surface: &super::UiSurface<Message>,
+    layout: &LayoutOutput,
+    node_id: NodeId,
+) -> Option<Rect> {
+    // Overlay rectangles are explicit surface data. Never substitute a
+    // placeholder layout rect for an overlay candidate.
+    if is_overlay_node(surface, node_id) {
+        return explicit_overlay_rect(&surface.root, node_id);
+    }
+    layout.rects.get(&node_id).copied()
+}
+
+fn is_overlay_node<Message>(surface: &super::UiSurface<Message>, node_id: NodeId) -> bool {
+    contains_overlay(&surface.root, node_id)
+}
+
+fn contains_overlay<Message>(node: &super::SurfaceNode<Message>, node_id: NodeId) -> bool {
+    match node {
+        super::SurfaceNode::Overlay(overlay) => overlay.id == node_id,
+        super::SurfaceNode::Scene(scene) => {
+            contains_overlay(&scene.base, node_id)
+                || scene.layers.iter().any(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .is_some_and(|input| contains_overlay(input, node_id))
+                        || contains_overlay(&layer.node, node_id)
+                })
+        }
+        super::SurfaceNode::Container(container) => container
+            .children
+            .iter()
+            .any(|child| contains_overlay(&child.child, node_id)),
+        super::SurfaceNode::FloatingLayer(layer) => layer
+            .container
+            .children
+            .iter()
+            .any(|child| contains_overlay(&child.child, node_id)),
+        super::SurfaceNode::Widget(_) => false,
+    }
+}
+
+fn explicit_overlay_rect<Message>(
+    node: &super::SurfaceNode<Message>,
+    node_id: NodeId,
+) -> Option<Rect> {
+    match node {
+        super::SurfaceNode::Overlay(overlay) if overlay.id == node_id => Some(overlay.rect),
+        super::SurfaceNode::Scene(scene) => {
+            explicit_overlay_rect(&scene.base, node_id).or_else(|| {
+                scene.layers.iter().find_map(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .and_then(|input| explicit_overlay_rect(input, node_id))
+                        .or_else(|| explicit_overlay_rect(&layer.node, node_id))
+                })
+            })
+        }
+        super::SurfaceNode::Container(container) => container
+            .children
+            .iter()
+            .find_map(|child| explicit_overlay_rect(&child.child, node_id)),
+        super::SurfaceNode::FloatingLayer(layer) => layer
+            .container
+            .children
+            .iter()
+            .find_map(|child| explicit_overlay_rect(&child.child, node_id)),
+        _ => None,
+    }
+}
+
 /// Bounded observational feasibility plan for a future node reconciliation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ReconciliationPlan {
@@ -535,6 +790,16 @@ impl ViewDeltaPath {
             truncated: false,
         }
     }
+
+    fn last_node_id(self) -> Option<NodeId> {
+        self.components[..usize::from(self.len)]
+            .iter()
+            .rev()
+            .find_map(|component| match component {
+                Some(ViewDeltaPathComponent::Node(node_id)) => Some(*node_id),
+                _ => None,
+            })
+    }
 }
 
 /// Bounded observational relation between two immutable surfaces.
@@ -554,7 +819,7 @@ pub(crate) struct ViewDelta {
 ///
 /// This is deliberately crate-private: the classifier is observational
 /// evidence for runtime alignment work, not a refresh-policy API.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ViewDeltaDiagnostics {
     pub(crate) classified: bool,
     pub(crate) duration: Duration,
@@ -568,6 +833,7 @@ pub(crate) struct ViewDeltaDiagnostics {
     /// plan reuse. This is private evidence, not a public refresh policy API.
     pub(crate) base_paint_reuse_safe: bool,
     pub(crate) reconciliation: ReconciliationPlan,
+    pub(crate) damage: SurfaceDamage,
 }
 
 impl Default for ViewDeltaDiagnostics {
@@ -589,6 +855,10 @@ impl ViewDeltaDiagnostics {
             structural_cause: None,
             base_paint_reuse_safe: true,
             reconciliation: ReconciliationPlan::startup(),
+            damage: SurfaceDamage::empty(Rect {
+                min: crate::gui::types::Point { x: 0.0, y: 0.0 },
+                max: crate::gui::types::Point { x: 0.0, y: 0.0 },
+            }),
         }
     }
 
@@ -608,6 +878,7 @@ impl ViewDeltaDiagnostics {
         self.truncated_paths |= other.truncated_paths;
         self.base_paint_reuse_safe &= other.base_paint_reuse_safe;
         self.reconciliation.merge(other.reconciliation);
+        self.damage.merge(other.damage);
         if self.structural_cause.is_none() {
             self.structural_cause = other.structural_cause;
         }
@@ -718,6 +989,10 @@ impl ViewDelta {
             structural_cause,
             base_paint_reuse_safe,
             reconciliation,
+            damage: SurfaceDamage::empty(Rect {
+                min: crate::gui::types::Point { x: 0.0, y: 0.0 },
+                max: crate::gui::types::Point { x: 0.0, y: 0.0 },
+            }),
         }
     }
 }
@@ -1499,13 +1774,14 @@ mod tests {
 #[cfg(test)]
 mod view_delta_tests {
     use super::{
-        ReconciliationMismatch, ReconciliationPlanOutcome, ViewDeltaCause, ViewDeltaEffect,
-        ViewDeltaScratch, WidgetRevisionEffect, WidgetRevisionSnapshot,
-        classify_view_delta as classify_with_scratch, classify_widget_revision,
+        ReconciliationMismatch, ReconciliationPlanOutcome, SurfaceDamage, SurfaceDamageCandidate,
+        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch, WidgetRevisionEffect,
+        WidgetRevisionSnapshot, classify_view_delta as classify_with_scratch,
+        classify_widget_revision,
     };
     use crate::{
         gui::types::{Point, Rect, Vector2},
-        layout::{ContainerKind, ContainerPolicy},
+        layout::{ContainerKind, ContainerPolicy, LayoutOutput},
         runtime::{
             EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
             WidgetMessageMapper,
@@ -1700,6 +1976,137 @@ mod view_delta_tests {
         );
         assert_eq!(aggregate.reconciliation.mismatch_count, 11);
         assert_eq!(aggregate.reconciliation.omitted_mismatches, 3);
+    }
+
+    #[test]
+    fn surface_damage_captures_old_and_new_overlay_rects_without_layout_placeholders() {
+        let previous = surface(benchmark_tree(2, "base"));
+        let current = surface(benchmark_tree(2, "last_geometry"));
+        let delta = classify_view_delta(&previous, &current);
+        let plan = delta.reconciliation_plan();
+        let mut old_layout = LayoutOutput::default();
+        old_layout.rects.insert(
+            3,
+            Rect::from_min_size(Point::new(90.0, 90.0), Vector2::new(1.0, 1.0)),
+        );
+        let damage = SurfaceDamage::from_view_delta(
+            &delta,
+            &plan,
+            &previous,
+            &old_layout,
+            Rect::from_size(100.0, 100.0),
+        );
+        assert!(!damage.full_viewport);
+        assert_eq!(damage.candidate_count, 1);
+        assert_eq!(
+            damage.candidates[0]
+                .expect("overlay damage candidate")
+                .old_bounds,
+            Some(Rect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(2.0, 2.0)
+            ))
+        );
+
+        let mut new_layout = LayoutOutput::default();
+        new_layout.rects.insert(
+            3,
+            Rect::from_min_size(Point::new(80.0, 80.0), Vector2::new(1.0, 1.0)),
+        );
+        let damage = damage.finish(&current, &new_layout);
+        assert_eq!(
+            damage.candidates[0]
+                .expect("finished overlay damage")
+                .new_bounds,
+            Some(Rect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(3.0, 3.0)
+            ))
+        );
+    }
+
+    #[test]
+    fn surface_damage_is_empty_for_interaction_and_full_viewport_for_capacity_fallback() {
+        let previous = surface(benchmark_tree(2, "base"));
+        let current = surface(benchmark_tree(2, "base"));
+        let mut interaction = super::ViewDelta::new();
+        interaction.record(
+            ViewDeltaEffect::Interaction,
+            ViewDeltaCause::ContainerHover,
+            super::ViewDeltaPath::empty(),
+        );
+        let empty = SurfaceDamage::from_view_delta(
+            &interaction,
+            &interaction.reconciliation_plan(),
+            &previous,
+            &LayoutOutput::default(),
+            Rect::from_size(100.0, 100.0),
+        );
+        assert_eq!(empty.candidate_count, 0);
+        assert!(!empty.full_viewport);
+
+        let mut scratch = ViewDeltaScratch::with_capacity(0);
+        let conservative = classify_with_scratch(&previous, &current, &mut scratch);
+        let fallback = SurfaceDamage::from_view_delta(
+            &conservative,
+            &conservative.reconciliation_plan(),
+            &previous,
+            &LayoutOutput::default(),
+            Rect::from_size(100.0, 100.0),
+        );
+        assert!(fallback.full_viewport);
+    }
+
+    #[test]
+    fn surface_damage_merge_coalesces_nodes_and_promotes_capacity() {
+        let viewport = Rect::from_size(100.0, 100.0);
+        let rect = Rect::from_min_size(Point::default(), Vector2::new(2.0, 2.0));
+        let mut first = SurfaceDamage::empty(viewport);
+        assert!(first.insert_or_merge(SurfaceDamageCandidate {
+            node_id: 1,
+            old_bounds: Some(rect),
+            new_bounds: Some(rect),
+            effect: ViewDeltaEffect::Paint,
+        }));
+        let mut second = SurfaceDamage::empty(viewport);
+        assert!(second.insert_or_merge(SurfaceDamageCandidate {
+            node_id: 1,
+            old_bounds: Some(Rect::from_min_size(
+                Point::new(8.0, 8.0),
+                Vector2::new(3.0, 3.0),
+            )),
+            new_bounds: Some(Rect::from_min_size(
+                Point::new(9.0, 9.0),
+                Vector2::new(4.0, 4.0),
+            )),
+            effect: ViewDeltaEffect::Geometry,
+        }));
+        first.merge(second);
+        let merged = first.candidates[0].expect("coalesced candidate");
+        assert_eq!(merged.old_bounds, Some(rect));
+        assert_eq!(
+            merged.new_bounds,
+            Some(Rect::from_min_size(
+                Point::new(9.0, 9.0),
+                Vector2::new(4.0, 4.0),
+            ))
+        );
+        assert_eq!(merged.effect, ViewDeltaEffect::Geometry);
+
+        let mut many = SurfaceDamage::empty(viewport);
+        for node_id in 2..11 {
+            assert!(
+                many.insert_or_merge(SurfaceDamageCandidate {
+                    node_id,
+                    old_bounds: Some(rect),
+                    new_bounds: Some(rect),
+                    effect: ViewDeltaEffect::Paint,
+                }) || node_id == 10
+            );
+        }
+        assert_eq!(many.candidate_count, 8);
+        first.merge(many);
+        assert!(first.full_viewport);
     }
 
     #[test]

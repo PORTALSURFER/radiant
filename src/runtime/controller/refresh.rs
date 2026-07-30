@@ -4,7 +4,7 @@ use super::SurfaceRuntime;
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
-    surface::{ViewDeltaDiagnostics, ViewDeltaEffect, classify_view_delta},
+    surface::{SurfaceDamage, ViewDeltaDiagnostics, ViewDeltaEffect, classify_view_delta},
 };
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
@@ -738,6 +738,30 @@ mod tests {
     }
 
     #[test]
+    fn refresh_frame_records_bounded_surface_damage_candidates() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                geometry_mode: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.bridge_mut().geometry = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert!(!frame.view_delta.damage.full_viewport);
+        assert_eq!(frame.view_delta.damage.candidate_count, 1);
+        let candidate = frame.view_delta.damage.candidates[0]
+            .expect("geometry refresh should retain one bounded candidate");
+        assert!(candidate.old_bounds.is_some());
+        assert!(candidate.new_bounds.is_some());
+        assert_eq!(candidate.effect, ViewDeltaEffect::Geometry);
+    }
+
+    #[test]
     fn projection_structural_evidence_promotes_to_surface() {
         let mut runtime =
             SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
@@ -1003,7 +1027,7 @@ pub struct SurfaceRefreshDiagnostics {
 }
 
 /// Runtime/frame transport for observational view-delta evidence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SurfaceRefreshFrameDiagnostics {
     pub(crate) refresh: SurfaceRefreshDiagnostics,
     pub(crate) view_delta: ViewDeltaDiagnostics,
@@ -1210,6 +1234,10 @@ where
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         if scope.is_paint_only() {
             self.base_paint_plan_reuse_eligible = false;
+            let view_delta = ViewDeltaDiagnostics {
+                damage: SurfaceDamage::full_viewport(self.viewport),
+                ..ViewDeltaDiagnostics::default()
+            };
             self.record_refresh_diagnostics(
                 SurfaceRefreshDiagnostics {
                     invalidation,
@@ -1217,7 +1245,7 @@ where
                     identity: SurfaceIdentityDiagnostics::default(),
                 },
                 Duration::ZERO,
-                ViewDeltaDiagnostics::default(),
+                view_delta,
                 RepaintScope::PaintOnly,
             );
             return;
@@ -1233,9 +1261,16 @@ where
             .saturating_add(1);
 
         let view_delta_started = Instant::now();
-        let view_delta =
-            classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta)
-                .diagnostics(view_delta_started.elapsed());
+        let raw_view_delta =
+            classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
+        let damage = SurfaceDamage::from_view_delta(
+            &raw_view_delta,
+            &raw_view_delta.reconciliation_plan(),
+            &self.surface,
+            &self.layout,
+            self.viewport,
+        );
+        let mut view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
         let effective_scope = effective_scope(scope, view_delta);
         let reuse_completed_layout = can_reuse_completed_layout(self, scope, view_delta);
         self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, scope, view_delta);
@@ -1295,6 +1330,8 @@ where
         if let Some(widget_id) = self.interaction.focus.focused_widget {
             self.restore_focused_widget_state(widget_id);
         }
+
+        view_delta.damage = damage.finish(&self.surface, &self.layout);
 
         self.record_refresh_diagnostics(
             SurfaceRefreshDiagnostics {

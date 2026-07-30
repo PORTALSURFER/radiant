@@ -10,10 +10,12 @@ use crate::{
     layout::NodeId,
     widgets::{WidgetId, WidgetState},
 };
+use std::time::Instant;
 
 pub(super) struct RuntimeInteractionState<Message> {
     pub(super) focus: RuntimeFocusState,
     pub(super) hover: RuntimeHoverState,
+    pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
     pub(super) drag: RuntimeDragState<Message>,
 }
@@ -23,6 +25,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
         Self {
             focus: RuntimeFocusState::default(),
             hover: RuntimeHoverState::default(),
+            tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
             drag: RuntimeDragState::default(),
         }
@@ -40,6 +43,13 @@ pub(super) struct RuntimeHoverState {
     pub(super) container: Option<NodeId>,
     pub(super) widget: Option<WidgetId>,
     pub(super) scroll_affordance: Option<NodeId>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct RuntimeTooltipState {
+    pub(super) target: Option<WidgetId>,
+    pub(super) deadline: Option<Instant>,
+    pub(super) revealed: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

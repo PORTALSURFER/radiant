@@ -30,12 +30,18 @@ where
         theme: &ThemeTokens,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
+        let Some(widget_id) = self
+            .interaction
+            .tooltip
+            .target
+            .filter(|_| self.interaction.tooltip.revealed)
+            .filter(|widget_id| self.interaction.hover.widget == Some(*widget_id))
+        else {
+            return;
+        };
         if self.interaction.pointer.capture.is_some() {
             return;
         }
-        let Some(widget_id) = self.interaction.hover.widget else {
-            return;
-        };
         let Some(tooltip) = self
             .surface_widget(widget_id)
             .and_then(|widget| widget.tooltip())

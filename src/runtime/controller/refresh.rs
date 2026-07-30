@@ -1394,6 +1394,9 @@ where
                 .capture_state
                 .is_some_and(|(captured_id, _)| captured_id == widget_id);
         let hover = self.interaction.hover.widget == Some(widget_id);
+        if self.interaction.tooltip.target == Some(widget_id) {
+            self.reset_tooltip_hover_intent();
+        }
         if focus {
             self.interaction.focus.focused_widget = None;
         }

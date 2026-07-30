@@ -70,6 +70,17 @@ where
         }
     }
 
+    pub(in crate::runtime::controller) fn reconcile_pointer_hover_after_capture_release(
+        &mut self,
+        position: Point,
+    ) {
+        let previous_hovered_widget = self.interaction.hover.widget;
+        self.dispatch_pointer_move_target_with_refresh(position, true);
+        if previous_hovered_widget != self.interaction.hover.widget {
+            self.clear_retained_hover_except(self.interaction.hover.widget);
+        }
+    }
+
     /// Route one normalized widget interaction by point hit test.
     ///
     /// Returns the targeted widget id when a projected widget handled the point.
@@ -170,6 +181,7 @@ where
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
+        self.reset_tooltip_hover_intent();
     }
 
     fn cancel_captured_widget_state(&mut self, widget_id: WidgetId) {
@@ -201,6 +213,10 @@ where
     /// arrive to clear paint-only hover fills.
     pub(crate) fn clear_pointer_hover(&mut self) -> bool {
         let mut cleared = false;
+        if self.interaction.tooltip != Default::default() {
+            self.reset_tooltip_hover_intent();
+            cleared = true;
+        }
         if let Some(widget_id) = self.interaction.hover.widget.take() {
             if let Some(widget) = self.surface.find_widget_mut(widget_id)
                 && widget.widget_object().common().state.hovered

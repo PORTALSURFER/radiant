@@ -18,6 +18,7 @@ where
         if self.start_scrollbar_drag_at(position) {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
+            self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
         }
@@ -30,10 +31,12 @@ where
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.interaction.pointer.scroll_drag_capture = None;
+            self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
+        self.reset_tooltip_hover_intent();
         self.dispatch_input_at(position, input)
     }
 
@@ -51,10 +54,12 @@ where
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
+            self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
+        self.reset_tooltip_hover_intent();
         let routed = self.dispatch_input_at_output(position, input);
         match routed {
             Some((widget_id, true)) => Some(widget_id),
@@ -82,6 +87,7 @@ where
             .take()
             .is_some()
         {
+            self.reset_tooltip_hover_intent();
             return None;
         }
         let captured = self.interaction.pointer.capture.take();
@@ -101,15 +107,19 @@ where
         }
         let widget_id = captured.or_else(|| self.widget_at(position))?;
         self.interaction.pointer.capture_state = None;
-        self.dispatch_input(
+        let routed = self.dispatch_input(
             widget_id,
             WidgetInput::PointerRelease {
                 position,
                 button,
                 modifiers,
             },
-        )
-        .then_some(widget_id)
+        );
+        if captured.is_some() {
+            self.reconcile_pointer_hover_after_capture_release(position);
+        }
+        self.rearm_tooltip_hover_intent();
+        routed.then_some(widget_id)
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_modifiers_changed(

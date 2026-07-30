@@ -23,6 +23,9 @@ where
     ) -> PointerMoveDispatch {
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
+        if self.interaction.pointer.capture.is_some() {
+            self.reset_tooltip_hover_intent();
+        }
         if self.drag_scrollbar_to(position, refresh_after_message) {
             return PointerMoveDispatch::default();
         }
@@ -202,6 +205,7 @@ where
             })
             .unwrap_or(false);
         self.interaction.hover.widget = hover_widget;
+        self.arm_tooltip_hover_intent(hover_widget);
         PointerHoverTransition {
             changed: true,
             emitted_output,

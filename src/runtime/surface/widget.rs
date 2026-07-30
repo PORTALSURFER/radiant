@@ -3,7 +3,7 @@ use crate::{
     layout::LayoutNode,
     widgets::{
         FocusBehavior, PointerCapturePolicy, Widget, WidgetCursor, WidgetId, WidgetInput,
-        WidgetOutput, WidgetRevision,
+        WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
     },
 };
 
@@ -20,6 +20,54 @@ pub struct SurfaceWidget<Message> {
     widget: Box<dyn Widget>,
     messages: WidgetMessageMapper<Message>,
     accepts_native_file_drop: bool,
+    revision_evidence: SurfaceWidgetRevisionEvidence,
+}
+
+/// Immutable widget evidence captured when the widget crosses the erased
+/// `SurfaceWidget` boundary.  View-delta classification borrows this record
+/// and never dispatches back into the live widget object.
+#[derive(Clone)]
+pub(crate) struct SurfaceWidgetRevisionEvidence {
+    pub(crate) id: WidgetId,
+    pub(crate) compatibility_kind: &'static str,
+    pub(crate) revision: WidgetRevision,
+    pub(crate) capabilities: WidgetCapabilityEvidence,
+    pub(crate) valid: bool,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct WidgetCapabilityEvidence {
+    pub(crate) contract_version: u16,
+    pub(crate) semantics_revision: Option<WidgetSemanticsRevision>,
+}
+
+impl WidgetCapabilityEvidence {
+    fn capture(widget: &dyn Widget) -> Self {
+        let capabilities = widget.capabilities();
+        Self {
+            contract_version: capabilities.contract_version,
+            semantics_revision: capabilities.semantics_revision(),
+        }
+    }
+
+    fn conservative() -> Self {
+        Self {
+            contract_version: 0,
+            semantics_revision: None,
+        }
+    }
+}
+
+impl SurfaceWidgetRevisionEvidence {
+    fn capture(widget: &dyn Widget) -> Self {
+        Self {
+            id: widget.common().id,
+            compatibility_kind: widget.compatibility_kind(),
+            revision: widget.revision(),
+            capabilities: WidgetCapabilityEvidence::capture(widget),
+            valid: true,
+        }
+    }
 }
 
 impl<Message> Clone for SurfaceWidget<Message> {
@@ -28,6 +76,7 @@ impl<Message> Clone for SurfaceWidget<Message> {
             widget: self.widget.clone(),
             messages: self.messages.clone(),
             accepts_native_file_drop: self.accepts_native_file_drop,
+            revision_evidence: self.revision_evidence.clone(),
         }
     }
 }
@@ -38,11 +87,7 @@ impl<Message> SurfaceWidget<Message> {
         widget: impl Widget + Clone + 'static,
         messages: WidgetMessageMapper<Message>,
     ) -> Self {
-        Self {
-            widget: Box::new(widget),
-            messages,
-            accepts_native_file_drop: false,
-        }
+        Self::from_boxed(Box::new(widget), messages)
     }
 
     /// Build a custom widget leaf plus host-defined message mapper.
@@ -50,19 +95,21 @@ impl<Message> SurfaceWidget<Message> {
         widget: impl Widget + Clone + 'static,
         messages: WidgetMessageMapper<Message>,
     ) -> Self {
-        Self {
-            widget: Box::new(widget),
-            messages,
-            accepts_native_file_drop: false,
-        }
+        Self::from_boxed(Box::new(widget), messages)
     }
 
     /// Build a custom boxed widget leaf plus host-defined message mapper.
     pub fn custom_box(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
+        Self::from_boxed(widget, messages)
+    }
+
+    fn from_boxed(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
+        let revision_evidence = SurfaceWidgetRevisionEvidence::capture(widget.as_ref());
         Self {
             widget,
             messages,
             accepts_native_file_drop: false,
+            revision_evidence,
         }
     }
 
@@ -78,6 +125,7 @@ impl<Message> SurfaceWidget<Message> {
 
     /// Return the runtime widget object mutably.
     pub fn widget_mut(&mut self) -> &mut dyn Widget {
+        self.invalidate_revision_evidence();
         self.widget.as_mut()
     }
 
@@ -88,16 +136,40 @@ impl<Message> SurfaceWidget<Message> {
 
     /// Return the runtime widget object mutably.
     pub fn widget_object_mut(&mut self) -> &mut dyn Widget {
+        self.invalidate_revision_evidence();
         self.widget.as_mut()
     }
 
     pub(in crate::runtime) fn compatibility_kind(&self) -> &'static str {
-        self.widget.compatibility_kind()
+        self.revision_evidence.compatibility_kind
     }
 
     /// Return the declarative revision metadata supplied by the widget.
     pub fn revision(&self) -> WidgetRevision {
-        self.widget.revision()
+        self.revision_evidence.revision.clone()
+    }
+
+    pub(in crate::runtime::surface) fn revision_evidence(&self) -> &SurfaceWidgetRevisionEvidence {
+        &self.revision_evidence
+    }
+
+    /// Borrow the erased widget for runtime-owned state mutation.  These
+    /// mutations intentionally preserve declarative revision evidence.
+    pub(in crate::runtime) fn widget_object_mut_runtime(&mut self) -> &mut dyn Widget {
+        self.widget.as_mut()
+    }
+
+    /// Reidentify a projected widget during lowering without invalidating the
+    /// declarative evidence captured for its concrete widget.
+    pub(in crate::runtime::surface) fn set_id_runtime(&mut self, id: WidgetId) {
+        self.widget_object_mut_runtime().common_mut().id = id;
+        self.revision_evidence.id = id;
+    }
+
+    fn invalidate_revision_evidence(&mut self) {
+        self.revision_evidence.valid = false;
+        self.revision_evidence.revision = WidgetRevision::conservative();
+        self.revision_evidence.capabilities = WidgetCapabilityEvidence::conservative();
     }
 
     /// Return whether this widget participates in runtime focus management.

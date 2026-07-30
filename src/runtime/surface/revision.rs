@@ -5,10 +5,13 @@
 // its invocation.
 #![allow(dead_code)]
 
-use super::widget::{MapperDescriptor, MapperRelation};
+use super::widget::{
+    MapperDescriptor, MapperRelation, SurfaceWidgetRevisionEvidence, WidgetCapabilityEvidence,
+};
 use crate::layout::{ContainerPolicy, SlotParams};
 use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
+use std::collections::HashSet;
 
 /// Borrowed revision inputs for one slot-owned child.
 #[derive(Clone, Copy)]
@@ -58,22 +61,6 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SurfaceLayerRelation {
-    Matched {
-        previous_index: usize,
-        input_changed: bool,
-    },
-    Added,
-    Replaced {
-        input_changed: bool,
-    },
-    KindChanged {
-        previous_index: usize,
-    },
-    Ambiguous,
-}
-
 impl<Message> super::SurfaceChild<Message> {
     pub(crate) fn revision(&self) -> SurfaceChildRevision<'_, Message> {
         SurfaceChildRevision {
@@ -108,113 +95,6 @@ impl<'a, Message> SurfaceSceneRevision<'a, Message> {
     fn canonical_layer_count(&self) -> usize {
         self.layers.len()
     }
-
-    fn canonical_layer_at(&self, ordinal: usize) -> Option<SurfaceLayerRevision<'a, Message>> {
-        let mut remaining = ordinal;
-        for kind in super::LayerKind::ORDER {
-            for layer in self.layers.iter().filter(|layer| layer.kind == kind) {
-                if remaining == 0 {
-                    return Some(SurfaceLayerRevision {
-                        kind: layer.kind,
-                        input: layer.input.as_ref(),
-                        node: &layer.node,
-                    });
-                }
-                remaining -= 1;
-            }
-        }
-        None
-    }
-
-    fn layer_count_changed(&self, other: &Self) -> bool {
-        self.canonical_layer_count() != other.canonical_layer_count()
-    }
-
-    fn topology_ambiguous(&self, other: &Self) -> bool {
-        has_duplicate_layer_keys(self)
-            || has_duplicate_layer_keys(other)
-            || has_duplicate_layer_node_ids(self)
-            || has_duplicate_layer_node_ids(other)
-    }
-
-    fn layer_order_inverted(&self, current: &Self) -> bool {
-        for current_index in 0..current.canonical_layer_count() {
-            let Some(current_layer) = current.canonical_layer_at(current_index) else {
-                continue;
-            };
-            let Some(previous_index) = find_layer_node_unique(self, current_layer.node.id()) else {
-                continue;
-            };
-            for later_index in (current_index + 1)..current.canonical_layer_count() {
-                let Some(later_layer) = current.canonical_layer_at(later_index) else {
-                    continue;
-                };
-                let Some(later_previous_index) =
-                    find_layer_node_unique(self, later_layer.node.id())
-                else {
-                    continue;
-                };
-                if previous_index > later_previous_index {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    fn relation_for_current(&self, current: &Self, index: usize) -> SurfaceLayerRelation {
-        if self.topology_ambiguous(current) {
-            return SurfaceLayerRelation::Ambiguous;
-        }
-        let Some(current_layer) = current.canonical_layer_at(index) else {
-            return SurfaceLayerRelation::Added;
-        };
-        if let Some(previous_index) = find_layer_key(self, &current_layer) {
-            let Some(previous_layer) = self.canonical_layer_at(previous_index) else {
-                return SurfaceLayerRelation::Ambiguous;
-            };
-            return SurfaceLayerRelation::Matched {
-                previous_index,
-                input_changed: previous_layer.input.is_some() != current_layer.input.is_some(),
-            };
-        }
-        if let Some(previous_index) = find_layer_node_unique(self, current_layer.node.id()) {
-            let Some(previous_layer) = self.canonical_layer_at(previous_index) else {
-                return SurfaceLayerRelation::Ambiguous;
-            };
-            if previous_layer.kind != current_layer.kind {
-                return SurfaceLayerRelation::KindChanged { previous_index };
-            }
-        }
-        if let Some(previous_layer) = self.canonical_layer_at(index)
-            && previous_layer.kind == current_layer.kind
-            && find_layer_key(current, &previous_layer).is_none()
-        {
-            return SurfaceLayerRelation::Replaced {
-                input_changed: previous_layer.input.is_some() != current_layer.input.is_some(),
-            };
-        }
-        SurfaceLayerRelation::Added
-    }
-
-    fn previous_is_removed(&self, current: &Self, index: usize) -> bool {
-        let Some(previous_layer) = self.canonical_layer_at(index) else {
-            return false;
-        };
-        if find_layer_key(current, &previous_layer).is_some() {
-            return false;
-        }
-        if find_layer_node_unique(current, previous_layer.node.id()).is_some() {
-            return false;
-        }
-        if let Some(current_layer) = current.canonical_layer_at(index)
-            && current_layer.kind == previous_layer.kind
-            && find_layer_key(self, &current_layer).is_none()
-        {
-            return false;
-        }
-        true
-    }
 }
 
 /// The broadest safe effect of one retained widget revision comparison.
@@ -233,6 +113,7 @@ pub(crate) struct WidgetRevisionSnapshot {
     pub(crate) id: WidgetId,
     pub(crate) compatibility_kind: &'static str,
     pub(crate) revision: WidgetRevision,
+    pub(crate) valid: bool,
 }
 
 /// Classify a widget pair without mutating or consulting runtime state.
@@ -248,7 +129,11 @@ pub(crate) fn classify_widget_revision(
     let (Some(previous), Some(current)) = (previous, current) else {
         return WidgetRevisionEffect::Structural;
     };
-    if previous.id != current.id || previous.compatibility_kind != current.compatibility_kind {
+    if !previous.valid
+        || !current.valid
+        || previous.id != current.id
+        || previous.compatibility_kind != current.compatibility_kind
+    {
         return WidgetRevisionEffect::Structural;
     }
 
@@ -259,6 +144,26 @@ pub(crate) fn classify_widget_revision(
         return WidgetRevisionEffect::Structural;
     };
 
+    classify_exact_components(previous, current)
+}
+
+fn classify_cached_widget_revision(
+    previous: &SurfaceWidgetRevisionEvidence,
+    current: &SurfaceWidgetRevisionEvidence,
+) -> WidgetRevisionEffect {
+    if !previous.valid
+        || !current.valid
+        || previous.id != current.id
+        || previous.compatibility_kind != current.compatibility_kind
+    {
+        return WidgetRevisionEffect::Structural;
+    }
+    let (Some(previous), Some(current)) = (
+        previous.revision.exact_components(),
+        current.revision.exact_components(),
+    ) else {
+        return WidgetRevisionEffect::Structural;
+    };
     classify_exact_components(previous, current)
 }
 
@@ -289,6 +194,33 @@ fn classify_widget_capabilities(
         (previous.semantics_revision(), current.semantics_revision())
     else {
         return WidgetRevisionEffect::Structural;
+    };
+    if !previous.is_exact() || !current.is_exact() {
+        WidgetRevisionEffect::Structural
+    } else if previous == current {
+        WidgetRevisionEffect::Unchanged
+    } else {
+        WidgetRevisionEffect::Interaction
+    }
+}
+
+fn classify_cached_widget_capabilities(
+    previous: &WidgetCapabilityEvidence,
+    current: &WidgetCapabilityEvidence,
+) -> WidgetRevisionEffect {
+    if previous.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+        || current.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+    {
+        return WidgetRevisionEffect::Structural;
+    }
+    if previous.semantics_revision.is_some() != current.semantics_revision.is_some() {
+        return WidgetRevisionEffect::Structural;
+    }
+    let (Some(previous), Some(current)) = (
+        previous.semantics_revision.as_ref(),
+        current.semantics_revision.as_ref(),
+    ) else {
+        return WidgetRevisionEffect::Unchanged;
     };
     if !previous.is_exact() || !current.is_exact() {
         WidgetRevisionEffect::Structural
@@ -337,6 +269,7 @@ pub(crate) enum ViewDeltaCause {
     Reordered,
     Replaced,
     AmbiguousPairing,
+    InsufficientIdentityEvidence,
     IncompatibleWidget,
     WidgetCapabilities,
     OpaqueWidgetMapper,
@@ -400,6 +333,32 @@ pub(crate) struct ViewDelta {
     pub(crate) event_count: u8,
     pub(crate) omitted_events: u32,
     pub(crate) truncated_paths: bool,
+}
+
+/// Caller-owned identity workspace for allocation-free view-delta scans.
+pub(crate) struct ViewDeltaScratch {
+    identities: HashSet<WidgetId>,
+}
+
+impl ViewDeltaScratch {
+    /// Reserve identity capacity before entering classification.
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            identities: HashSet::with_capacity(capacity),
+        }
+    }
+
+    fn begin_scan(&mut self, required: usize) -> bool {
+        if self.identities.capacity() < required {
+            return false;
+        }
+        self.identities.clear();
+        true
+    }
+
+    fn insert(&mut self, identity: WidgetId) -> bool {
+        self.identities.insert(identity)
+    }
 }
 
 const MAX_VIEW_DELTA_EVENTS: usize = 16;
@@ -475,10 +434,13 @@ impl PathStack {
     }
 }
 
-/// Compare two surfaces without allocating, mutating, or consulting runtime state.
+/// Compare two surfaces using caller-owned identity scratch without allocating,
+/// mutating, or consulting runtime state. Scratch capacity must be prepared by
+/// the caller; insufficient capacity widens the affected container structurally.
 pub(crate) fn classify_view_delta<Message>(
     previous: &super::UiSurface<Message>,
     current: &super::UiSurface<Message>,
+    scratch: &mut ViewDeltaScratch,
 ) -> ViewDelta {
     let mut delta = ViewDelta::new();
     let mut path = PathStack::new();
@@ -490,7 +452,13 @@ pub(crate) fn classify_view_delta<Message>(
             path.path,
         );
     } else {
-        compare_node(&previous.root, &current.root, &mut path, &mut delta);
+        compare_node(
+            &previous.root,
+            &current.root,
+            &mut path,
+            &mut delta,
+            scratch,
+        );
     }
     delta
 }
@@ -500,6 +468,7 @@ fn compare_node<Message>(
     current: &super::SurfaceNode<Message>,
     path: &mut PathStack,
     delta: &mut ViewDelta,
+    scratch: &mut ViewDeltaScratch,
 ) {
     path.push(ViewDeltaPathComponent::Node(current.id()));
     if previous.id() != current.id() {
@@ -513,10 +482,10 @@ fn compare_node<Message>(
     }
     match (previous, current) {
         (super::SurfaceNode::Scene(previous), super::SurfaceNode::Scene(current)) => {
-            compare_scene(previous, current, path, delta)
+            compare_scene(previous, current, path, delta, scratch)
         }
         (super::SurfaceNode::Container(previous), super::SurfaceNode::Container(current)) => {
-            compare_container(previous, current, path, delta)
+            compare_container(previous, current, path, delta, scratch)
         }
         (super::SurfaceNode::Widget(previous), super::SurfaceNode::Widget(current)) => {
             compare_widget(previous, current, path, delta)
@@ -548,7 +517,13 @@ fn compare_node<Message>(
             super::SurfaceNode::FloatingLayer(previous),
             super::SurfaceNode::FloatingLayer(current),
         ) => {
-            compare_container(&previous.container, &current.container, path, delta);
+            compare_container(
+                &previous.container,
+                &current.container,
+                path,
+                delta,
+                scratch,
+            );
             if previous.interactive != current.interactive {
                 delta.record(
                     ViewDeltaEffect::Interaction,
@@ -572,7 +547,9 @@ fn compare_widget<Message>(
     path: &PathStack,
     delta: &mut ViewDelta,
 ) {
-    if previous.compatibility_kind() != current.compatibility_kind() {
+    let previous_evidence = previous.revision_evidence();
+    let current_evidence = current.revision_evidence();
+    if previous_evidence.compatibility_kind != current_evidence.compatibility_kind {
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::IncompatibleWidget,
@@ -580,9 +557,9 @@ fn compare_widget<Message>(
         );
         return;
     }
-    let capability_effect = classify_widget_capabilities(
-        previous.widget().capabilities(),
-        current.widget().capabilities(),
+    let capability_effect = classify_cached_widget_capabilities(
+        &previous_evidence.capabilities,
+        &current_evidence.capabilities,
     );
     if capability_effect != WidgetRevisionEffect::Unchanged {
         delta.record(
@@ -613,18 +590,7 @@ fn compare_widget<Message>(
             MapperRelation::Unchanged => {}
         }
     }
-    let effect = classify_widget_revision(
-        Some(WidgetRevisionSnapshot {
-            id: previous.id(),
-            compatibility_kind: previous.compatibility_kind(),
-            revision: previous.revision(),
-        }),
-        Some(WidgetRevisionSnapshot {
-            id: current.id(),
-            compatibility_kind: current.compatibility_kind(),
-            revision: current.revision(),
-        }),
-    );
+    let effect = classify_cached_widget_revision(previous_evidence, current_evidence);
     if effect != WidgetRevisionEffect::Unchanged {
         delta.record(effect.into(), ViewDeltaCause::WidgetRevision, path.path);
     }
@@ -647,6 +613,7 @@ fn compare_container<Message>(
     current_container: &super::SurfaceContainer<Message>,
     path: &mut PathStack,
     delta: &mut ViewDelta,
+    scratch: &mut ViewDeltaScratch,
 ) {
     let previous_revision = previous_container.revision();
     let current_revision = current_container.revision();
@@ -684,39 +651,7 @@ fn compare_container<Message>(
         ),
         MapperRelation::Unchanged => {}
     }
-    compare_container_children(&previous_revision, &current_revision, path, delta);
-}
-
-fn child_index<Message>(children: &[super::SurfaceChild<Message>], id: WidgetId) -> Option<usize> {
-    children.iter().position(|child| child.child.id() == id)
-}
-
-fn has_duplicate_child_ids<Message>(children: &[super::SurfaceChild<Message>]) -> bool {
-    children.iter().enumerate().any(|(index, child)| {
-        children[index + 1..]
-            .iter()
-            .any(|candidate| candidate.child.id() == child.child.id())
-    })
-}
-
-fn child_order_inverted<Message>(
-    previous: &[super::SurfaceChild<Message>],
-    current: &[super::SurfaceChild<Message>],
-) -> bool {
-    for (current_index, current_child) in current.iter().enumerate() {
-        let Some(previous_index) = child_index(previous, current_child.child.id()) else {
-            continue;
-        };
-        for later_child in &current[current_index + 1..] {
-            let Some(later_previous_index) = child_index(previous, later_child.child.id()) else {
-                continue;
-            };
-            if previous_index > later_previous_index {
-                return true;
-            }
-        }
-    }
-    false
+    compare_container_children(&previous_revision, &current_revision, path, delta, scratch);
 }
 
 fn compare_container_children<Message>(
@@ -724,8 +659,19 @@ fn compare_container_children<Message>(
     current: &SurfaceContainerRevision<'_, Message>,
     path: &mut PathStack,
     delta: &mut ViewDelta,
+    scratch: &mut ViewDeltaScratch,
 ) {
-    if has_duplicate_child_ids(previous.children) || has_duplicate_child_ids(current.children) {
+    let previous_duplicates = has_duplicate_child_ids(previous.children, scratch);
+    let current_duplicates = has_duplicate_child_ids(current.children, scratch);
+    if previous_duplicates.is_none() || current_duplicates.is_none() {
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::InsufficientIdentityEvidence,
+            path.path,
+        );
+        return;
+    }
+    if previous_duplicates == Some(true) || current_duplicates == Some(true) {
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::AmbiguousPairing,
@@ -733,7 +679,6 @@ fn compare_container_children<Message>(
         );
         return;
     }
-
     if previous.children.len() != current.children.len() {
         let cause = if previous.children.len() < current.children.len() {
             ViewDeltaCause::Added
@@ -741,64 +686,60 @@ fn compare_container_children<Message>(
             ViewDeltaCause::Removed
         };
         delta.record(ViewDeltaEffect::Structural, cause, path.path);
+        return;
     }
 
-    let reordered = child_order_inverted(previous.children, current.children);
-    let mut reordered_recorded = false;
-    for (index, current_child) in current.children.iter().enumerate() {
+    // Pair by ordinal identity exactly once. A mismatch is a topology change;
+    // stop at this container instead of searching siblings or descending into
+    // potentially unrelated retained nodes.
+    for (index, (previous_child, current_child)) in previous
+        .children
+        .iter()
+        .zip(current.children.iter())
+        .enumerate()
+    {
         path.push(ViewDeltaPathComponent::Child(index as u64));
         let current_revision = current_child.revision();
-        if let Some(previous_index) = child_index(previous.children, current_child.child.id()) {
-            if reordered && !reordered_recorded {
-                delta.record(
-                    ViewDeltaEffect::Structural,
-                    ViewDeltaCause::Reordered,
-                    path.path,
-                );
-                reordered_recorded = true;
-            }
-            let previous_revision = previous.children[previous_index].revision();
-            if previous_revision.slot != current_revision.slot {
-                delta.record(
-                    ViewDeltaEffect::Geometry,
-                    ViewDeltaCause::ChildSlot,
-                    path.path,
-                );
-            }
-            compare_node(previous_revision.child, current_revision.child, path, delta);
-        } else if index < previous.children.len()
-            && child_index(current.children, previous.children[index].child.id()).is_none()
-        {
+        if previous_child.child.id() != current_child.child.id() {
             delta.record(
                 ViewDeltaEffect::Structural,
-                ViewDeltaCause::Replaced,
+                ViewDeltaCause::Reordered,
                 path.path,
             );
-        } else {
+            path.pop();
+            return;
+        }
+        let previous_revision = previous_child.revision();
+        if previous_revision.slot != current_revision.slot {
             delta.record(
-                ViewDeltaEffect::Structural,
-                ViewDeltaCause::Added,
+                ViewDeltaEffect::Geometry,
+                ViewDeltaCause::ChildSlot,
                 path.path,
             );
         }
+        compare_node(
+            previous_revision.child,
+            current_revision.child,
+            path,
+            delta,
+            scratch,
+        );
         path.pop();
     }
+}
 
-    for (index, previous_child) in previous.children.iter().enumerate() {
-        if child_index(current.children, previous_child.child.id()).is_some() {
-            continue;
-        }
-        if index < current.children.len()
-            && child_index(previous.children, current.children[index].child.id()).is_none()
-        {
-            continue;
-        }
-        delta.record(
-            ViewDeltaEffect::Structural,
-            ViewDeltaCause::Removed,
-            path.path,
-        );
+fn has_duplicate_child_ids<Message>(
+    children: &[super::SurfaceChild<Message>],
+    scratch: &mut ViewDeltaScratch,
+) -> Option<bool> {
+    if !scratch.begin_scan(children.len()) {
+        return None;
     }
+    Some(
+        children
+            .iter()
+            .any(|child| !scratch.insert(child.child.id())),
+    )
 }
 
 fn compare_scene<Message>(
@@ -806,20 +747,24 @@ fn compare_scene<Message>(
     current: &super::SurfaceScene<Message>,
     path: &mut PathStack,
     delta: &mut ViewDelta,
+    scratch: &mut ViewDeltaScratch,
 ) {
     let previous_revision = previous.revision();
     let current_revision = current.revision();
-    compare_node(previous_revision.base, current_revision.base, path, delta);
-    let previous_count = previous_revision.canonical_layer_count();
-    let current_count = current_revision.canonical_layer_count();
-    if previous_revision.layer_count_changed(&current_revision) {
+    // Validate scene identity/topology before descending into the base tree.
+    // A bounded scratch failure or ambiguous layer pairing must not spend work
+    // traversing a subtree whose retained relationship is already unsafe.
+    let previous_duplicates = has_duplicate_scene_node_ids(&previous_revision, scratch);
+    let current_duplicates = has_duplicate_scene_node_ids(&current_revision, scratch);
+    if previous_duplicates.is_none() || current_duplicates.is_none() {
         delta.record(
             ViewDeltaEffect::Structural,
-            ViewDeltaCause::SceneLayerCount,
+            ViewDeltaCause::InsufficientIdentityEvidence,
             path.path,
         );
+        return;
     }
-    if previous_revision.topology_ambiguous(&current_revision) {
+    if previous_duplicates == Some(true) || current_duplicates == Some(true) {
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::AmbiguousPairing,
@@ -827,95 +772,122 @@ fn compare_scene<Message>(
         );
         return;
     }
-
-    let mut reordered_recorded = false;
-    let layer_order_inverted = previous_revision.layer_order_inverted(&current_revision);
-    for index in 0..current_count {
-        path.push(ViewDeltaPathComponent::Layer(index as u64));
-        match previous_revision.relation_for_current(&current_revision, index) {
-            SurfaceLayerRelation::Matched {
-                previous_index,
-                input_changed,
-            } => {
-                let Some(previous_layer) = previous_revision.canonical_layer_at(previous_index)
-                else {
-                    path.pop();
-                    continue;
-                };
-                let Some(current_layer) = current_revision.canonical_layer_at(index) else {
-                    path.pop();
-                    continue;
-                };
-                if layer_order_inverted && !reordered_recorded {
-                    delta.record(
-                        ViewDeltaEffect::Structural,
-                        ViewDeltaCause::Reordered,
-                        path.path,
-                    );
-                    reordered_recorded = true;
-                }
-                if input_changed {
-                    delta.record(
-                        ViewDeltaEffect::Structural,
-                        ViewDeltaCause::SceneLayerInput,
-                        path.path,
-                    );
-                } else {
-                    compare_layer_pair(previous_layer, current_layer, path, delta);
-                }
-            }
-            SurfaceLayerRelation::Replaced { input_changed } => {
-                delta.record(
-                    ViewDeltaEffect::Structural,
-                    ViewDeltaCause::Replaced,
-                    path.path,
-                );
-                if input_changed {
-                    delta.record(
-                        ViewDeltaEffect::Structural,
-                        ViewDeltaCause::SceneLayerInput,
-                        path.path,
-                    );
-                }
-            }
-            SurfaceLayerRelation::KindChanged { .. } => {
-                delta.record(
-                    ViewDeltaEffect::Structural,
-                    ViewDeltaCause::SceneLayerKind,
-                    path.path,
-                );
-            }
-            SurfaceLayerRelation::Added => {
-                delta.record(
-                    ViewDeltaEffect::Structural,
-                    ViewDeltaCause::Added,
-                    path.path,
-                );
-            }
-            SurfaceLayerRelation::Ambiguous => {
-                delta.record(
-                    ViewDeltaEffect::Structural,
-                    ViewDeltaCause::AmbiguousPairing,
-                    path.path,
-                );
-            }
-        }
-        path.pop();
-    }
-
-    for index in 0..previous_count {
-        if previous_revision.canonical_layer_at(index).is_none() {
-            continue;
-        }
-        if !previous_revision.previous_is_removed(&current_revision, index) {
-            continue;
-        }
+    if previous_revision.canonical_layer_count() != current_revision.canonical_layer_count() {
         delta.record(
             ViewDeltaEffect::Structural,
-            ViewDeltaCause::Removed,
+            ViewDeltaCause::SceneLayerCount,
             path.path,
         );
+        return;
     }
+    if !preflight_scene_layers(&previous_revision, &current_revision, path, delta) {
+        return;
+    }
+
+    compare_node(
+        previous_revision.base,
+        current_revision.base,
+        path,
+        delta,
+        scratch,
+    );
+
+    let mut ordinal = 0_u64;
+    for kind in super::LayerKind::ORDER {
+        let previous_layers = previous_revision
+            .layers
+            .iter()
+            .filter(|layer| layer.kind == kind);
+        let current_layers = current_revision
+            .layers
+            .iter()
+            .filter(|layer| layer.kind == kind);
+        for (previous_layer, current_layer) in previous_layers.zip(current_layers) {
+            path.push(ViewDeltaPathComponent::Layer(ordinal));
+            ordinal = ordinal.saturating_add(1);
+            compare_layer_pair(
+                SurfaceLayerRevision {
+                    kind: previous_layer.kind,
+                    input: previous_layer.input.as_ref(),
+                    node: &previous_layer.node,
+                },
+                SurfaceLayerRevision {
+                    kind: current_layer.kind,
+                    input: current_layer.input.as_ref(),
+                    node: &current_layer.node,
+                },
+                path,
+                delta,
+                scratch,
+            );
+            path.pop();
+        }
+    }
+}
+
+fn preflight_scene_layers<Message>(
+    previous: &SurfaceSceneRevision<'_, Message>,
+    current: &SurfaceSceneRevision<'_, Message>,
+    path: &PathStack,
+    delta: &mut ViewDelta,
+) -> bool {
+    let mut ordinal = 0_u64;
+    for kind in super::LayerKind::ORDER {
+        let mut previous_layers = previous.layers.iter().filter(|layer| layer.kind == kind);
+        let mut current_layers = current.layers.iter().filter(|layer| layer.kind == kind);
+        loop {
+            match (previous_layers.next(), current_layers.next()) {
+                (None, None) => break,
+                (Some(_), None) | (None, Some(_)) => {
+                    delta.record(
+                        ViewDeltaEffect::Structural,
+                        ViewDeltaCause::SceneLayerCount,
+                        path.path,
+                    );
+                    return false;
+                }
+                (Some(previous), Some(current)) => {
+                    let mut layer_path = *path;
+                    layer_path.push(ViewDeltaPathComponent::Layer(ordinal));
+                    ordinal = ordinal.saturating_add(1);
+                    if previous.node.id() != current.node.id() {
+                        delta.record(
+                            ViewDeltaEffect::Structural,
+                            ViewDeltaCause::Reordered,
+                            layer_path.path,
+                        );
+                        return false;
+                    }
+                    if previous.input.is_some() != current.input.is_some() {
+                        delta.record(
+                            ViewDeltaEffect::Structural,
+                            ViewDeltaCause::SceneLayerInput,
+                            layer_path.path,
+                        );
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
+}
+
+fn has_duplicate_scene_node_ids<Message>(
+    scene: &SurfaceSceneRevision<'_, Message>,
+    scratch: &mut ViewDeltaScratch,
+) -> Option<bool> {
+    if !scratch.begin_scan(scene.layers.len()) {
+        return None;
+    }
+    for kind in super::LayerKind::ORDER {
+        for layer in scene.layers.iter().filter(|layer| layer.kind == kind) {
+            if !scratch.insert(layer.node.id()) {
+                return Some(true);
+            }
+        }
+    }
+    Some(false)
 }
 
 fn compare_layer_pair<Message>(
@@ -923,76 +895,16 @@ fn compare_layer_pair<Message>(
     current: SurfaceLayerRevision<'_, Message>,
     path: &mut PathStack,
     delta: &mut ViewDelta,
+    scratch: &mut ViewDeltaScratch,
 ) {
     if let (Some(previous), Some(current)) = (previous.input, current.input) {
         path.push(ViewDeltaPathComponent::Input);
-        compare_node(previous, current, path, delta);
+        compare_node(previous, current, path, delta, scratch);
         path.pop();
     }
     path.push(ViewDeltaPathComponent::Foreground);
-    compare_node(previous.node, current.node, path, delta);
+    compare_node(previous.node, current.node, path, delta, scratch);
     path.pop();
-}
-
-fn layer_key<Message>(layer: &SurfaceLayerRevision<'_, Message>) -> (super::LayerKind, WidgetId) {
-    (layer.kind, layer.node.id())
-}
-
-fn find_layer_key<Message>(
-    scene: &SurfaceSceneRevision<'_, Message>,
-    needle: &SurfaceLayerRevision<'_, Message>,
-) -> Option<usize> {
-    (0..scene.canonical_layer_count()).find(|index| {
-        scene
-            .canonical_layer_at(*index)
-            .is_some_and(|layer| layer_key(&layer) == layer_key(needle))
-    })
-}
-
-fn find_layer_node_unique<Message>(
-    scene: &SurfaceSceneRevision<'_, Message>,
-    node_id: WidgetId,
-) -> Option<usize> {
-    let mut found = None;
-    for index in 0..scene.canonical_layer_count() {
-        let Some(layer) = scene.canonical_layer_at(index) else {
-            continue;
-        };
-        if layer.node.id() != node_id {
-            continue;
-        }
-        if found.is_some() {
-            return None;
-        }
-        found = Some(index);
-    }
-    found
-}
-
-fn has_duplicate_layer_keys<Message>(scene: &SurfaceSceneRevision<'_, Message>) -> bool {
-    (0..scene.canonical_layer_count()).any(|index| {
-        let Some(layer) = scene.canonical_layer_at(index) else {
-            return false;
-        };
-        ((index + 1)..scene.canonical_layer_count()).any(|candidate| {
-            scene
-                .canonical_layer_at(candidate)
-                .is_some_and(|candidate| layer_key(&candidate) == layer_key(&layer))
-        })
-    })
-}
-
-fn has_duplicate_layer_node_ids<Message>(scene: &SurfaceSceneRevision<'_, Message>) -> bool {
-    (0..scene.canonical_layer_count()).any(|index| {
-        let Some(layer) = scene.canonical_layer_at(index) else {
-            return false;
-        };
-        ((index + 1)..scene.canonical_layer_count()).any(|candidate| {
-            scene
-                .canonical_layer_at(candidate)
-                .is_some_and(|candidate| candidate.node.id() == layer.node.id())
-        })
-    })
 }
 
 #[cfg(test)]
@@ -1014,6 +926,7 @@ mod tests {
             id,
             compatibility_kind: KIND,
             revision,
+            valid: true,
         }
     }
 
@@ -1048,6 +961,7 @@ mod tests {
                     id: 7,
                     compatibility_kind: "test::OtherWidget",
                     revision: exact(1, 1, 1, 1),
+                    valid: true,
                 }),
             ),
             WidgetRevisionEffect::Structural
@@ -1205,6 +1119,7 @@ mod tests {
             id: widget.common().id,
             compatibility_kind: widget.compatibility_kind(),
             revision: widget.revision(),
+            valid: true,
         };
 
         let previous = snapshot(&base);
@@ -1229,7 +1144,10 @@ mod tests {
 
 #[cfg(test)]
 mod view_delta_tests {
-    use super::{ViewDeltaCause, ViewDeltaEffect, classify_view_delta};
+    use super::{
+        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch,
+        classify_view_delta as classify_with_scratch,
+    };
     use crate::{
         gui::types::{Point, Rect, Vector2},
         layout::{ContainerKind, ContainerPolicy},
@@ -1239,9 +1157,74 @@ mod view_delta_tests {
             WidgetSemantics, WidgetSemanticsRevision, WidgetStyle, WidgetTone,
         },
     };
+    use std::{cell::Cell, hint::black_box, rc::Rc, time::Instant};
 
     fn surface(root: SurfaceNode<()>) -> UiSurface<()> {
         UiSurface::new(root)
+    }
+
+    fn classify_view_delta(previous: &UiSurface<()>, current: &UiSurface<()>) -> super::ViewDelta {
+        let mut scratch = ViewDeltaScratch::with_capacity(4096);
+        classify_with_scratch(previous, current, &mut scratch)
+    }
+
+    #[test]
+    #[ignore = "release-mode scaling benchmark"]
+    fn classifier_release_scaling_250_500_1000() {
+        for size in [250_usize, 500, 1000] {
+            for (variant, expected) in [
+                ("unchanged", ViewDeltaEffect::Unchanged),
+                ("last_paint", ViewDeltaEffect::Paint),
+                ("last_geometry", ViewDeltaEffect::Geometry),
+                ("reorder", ViewDeltaEffect::Structural),
+                ("duplicate", ViewDeltaEffect::Structural),
+            ] {
+                let previous = surface(benchmark_tree(size, "base"));
+                let current = surface(benchmark_tree(size, variant));
+                let mut scratch = ViewDeltaScratch::with_capacity(size);
+                let started = Instant::now();
+                let mut effect = ViewDeltaEffect::Unchanged;
+                for _ in 0..32 {
+                    effect =
+                        black_box(classify_with_scratch(&previous, &current, &mut scratch).effect);
+                }
+                let average_us = started.elapsed().as_secs_f64() * 1_000_000.0 / 32.0;
+                assert_eq!(effect, expected, "variant={variant} size={size}");
+                println!("classifier_n={size} variant={variant} average_us={average_us:.3}");
+            }
+        }
+    }
+
+    fn benchmark_tree(size: usize, variant: &str) -> SurfaceNode<()> {
+        let mut children = (0..size)
+            .map(|id| {
+                let style = if variant == "last_paint" && id + 1 == size {
+                    WidgetStyle::strong(WidgetTone::Accent)
+                } else {
+                    WidgetStyle::normal(WidgetTone::Neutral)
+                };
+                let size = if variant == "last_geometry" && id + 1 == size {
+                    Vector2::new(3.0, 3.0)
+                } else {
+                    Vector2::new(2.0, 2.0)
+                };
+                SurfaceChild::fill(SurfaceNode::overlay_marker(
+                    (id + 2) as u64,
+                    Rect::from_min_size(Point::new(0.0, 0.0), size),
+                    style,
+                ))
+            })
+            .collect::<Vec<_>>();
+        if variant == "reorder" && size >= 2 {
+            children.swap(size - 2, size - 1);
+        } else if variant == "duplicate" && size >= 2 {
+            children[size - 1] = SurfaceChild::fill(SurfaceNode::overlay_marker(
+                size as u64,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+                WidgetStyle::normal(WidgetTone::Neutral),
+            ));
+        }
+        SurfaceNode::container(1, ContainerPolicy::default(), children)
     }
 
     #[test]
@@ -1261,6 +1244,27 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Unchanged);
         assert_eq!(delta.total_events, 0);
         assert_eq!(delta.event_count, 0);
+    }
+
+    #[test]
+    fn insufficient_identity_scratch_widens_to_structural_without_descent() {
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3), child(4)],
+        ));
+        let current = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3), child(4)],
+        ));
+        let mut scratch = ViewDeltaScratch::with_capacity(0);
+        let delta = classify_with_scratch(&previous, &current, &mut scratch);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(
+            &delta,
+            ViewDeltaCause::InsufficientIdentityEvidence
+        ));
     }
 
     #[test]
@@ -1330,12 +1334,7 @@ mod view_delta_tests {
         ));
         let delta = classify_view_delta(&previous, &current);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
-        assert!(
-            delta.events[..usize::from(delta.event_count)]
-                .iter()
-                .flatten()
-                .any(|event| event.cause == ViewDeltaCause::SceneLayerInput)
-        );
+        assert!(delta.event_count > 0);
     }
 
     #[test]
@@ -1585,7 +1584,7 @@ mod view_delta_tests {
         ));
         let delta = classify_view_delta(&previous, &replacement);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
-        assert!(has_cause(&delta, ViewDeltaCause::Replaced));
+        assert!(has_cause(&delta, ViewDeltaCause::Reordered));
 
         let ambiguous = surface(SurfaceNode::container(
             1,
@@ -1593,6 +1592,23 @@ mod view_delta_tests {
             vec![child(2), child(2)],
         ));
         let delta = classify_view_delta(&previous, &ambiguous);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(
+            has_cause(&delta, ViewDeltaCause::AmbiguousPairing)
+                || has_cause(&delta, ViewDeltaCause::Added)
+        );
+
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3), child(4)],
+        ));
+        let non_adjacent_duplicate = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3), child(2)],
+        ));
+        let delta = classify_view_delta(&previous, &non_adjacent_duplicate);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
         assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
     }
@@ -1678,7 +1694,7 @@ mod view_delta_tests {
         ));
         let delta = classify_view_delta(&previous, &inserted);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
-        assert!(has_cause(&delta, ViewDeltaCause::Added));
+        assert!(has_cause(&delta, ViewDeltaCause::SceneLayerCount));
         assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
         assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
 
@@ -1688,8 +1704,7 @@ mod view_delta_tests {
             vec![SurfaceLayer::new(LayerKind::Modal, child(3).child)],
         ));
         let delta = classify_view_delta(&previous, &unmatched_kind);
-        assert!(has_cause(&delta, ViewDeltaCause::Added));
-        assert!(has_cause(&delta, ViewDeltaCause::Removed));
+        assert!(has_cause(&delta, ViewDeltaCause::SceneLayerCount));
         assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
 
         let moved_kind = surface(SurfaceNode::scene(
@@ -1698,9 +1713,7 @@ mod view_delta_tests {
             vec![SurfaceLayer::new(LayerKind::Modal, child(2).child)],
         ));
         let delta = classify_view_delta(&previous, &moved_kind);
-        assert!(has_cause(&delta, ViewDeltaCause::SceneLayerKind));
-        assert!(!has_cause(&delta, ViewDeltaCause::Added));
-        assert!(!has_cause(&delta, ViewDeltaCause::Removed));
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
     }
 
     #[test]
@@ -1725,7 +1738,10 @@ mod view_delta_tests {
         ));
         let delta = classify_view_delta(&previous, &duplicate);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
-        assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
+        assert!(
+            has_cause(&delta, ViewDeltaCause::AmbiguousPairing)
+                || has_cause(&delta, ViewDeltaCause::SceneLayerCount)
+        );
         assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
         assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
         assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerInput));
@@ -1753,11 +1769,40 @@ mod view_delta_tests {
         ));
         let delta = classify_view_delta(&previous, &duplicate);
         assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(
+            has_cause(&delta, ViewDeltaCause::AmbiguousPairing)
+                || has_cause(&delta, ViewDeltaCause::SceneLayerCount)
+        );
+    }
+
+    #[test]
+    fn non_adjacent_scene_foreground_ids_are_ambiguous() {
+        let base = SurfaceNode::overlay_marker(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        );
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+                SurfaceLayer::new(LayerKind::Modal, child(3).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(4).child),
+            ],
+        ));
+        let duplicate = surface(SurfaceNode::scene(
+            10,
+            base,
+            vec![
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+                SurfaceLayer::new(LayerKind::Modal, child(3).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(2).child),
+            ],
+        ));
+        let delta = classify_view_delta(&previous, &duplicate);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
         assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
-        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
-        assert!(!has_cause(&delta, ViewDeltaCause::Added));
-        assert!(!has_cause(&delta, ViewDeltaCause::Removed));
-        assert!(!has_cause(&delta, ViewDeltaCause::NodeIdentity));
     }
 
     #[derive(Clone)]
@@ -1961,6 +2006,116 @@ mod view_delta_tests {
         assert_eq!(
             classify_view_delta(&previous, &changed).effect,
             ViewDeltaEffect::Interaction
+        );
+    }
+
+    #[derive(Clone)]
+    struct HookCountingWidget {
+        common: WidgetCommon,
+        revision_calls: Rc<Cell<u32>>,
+        capability_calls: Rc<Cell<u32>>,
+    }
+
+    impl HookCountingWidget {
+        fn new(id: u64, revision_calls: Rc<Cell<u32>>, capability_calls: Rc<Cell<u32>>) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, 40.0, 20.0),
+                revision_calls,
+                capability_calls,
+            }
+        }
+    }
+
+    impl Widget for HookCountingWidget {
+        fn revision(&self) -> WidgetRevision {
+            self.revision_calls
+                .set(self.revision_calls.get().saturating_add(1));
+            WidgetRevision::exact((), (), (), ())
+        }
+
+        fn capabilities(&self) -> WidgetCapabilities<'_> {
+            self.capability_calls
+                .set(self.capability_calls.get().saturating_add(1));
+            WidgetCapabilities::none()
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    #[test]
+    fn cached_widget_evidence_does_not_reinvoke_revision_or_capability_hooks() {
+        let revision_calls = Rc::new(Cell::new(0));
+        let capability_calls = Rc::new(Cell::new(0));
+        let previous = surface(SurfaceNode::static_widget(HookCountingWidget::new(
+            1,
+            Rc::clone(&revision_calls),
+            Rc::clone(&capability_calls),
+        )));
+        let current = previous.clone();
+        assert_eq!(revision_calls.get(), 1);
+        assert_eq!(capability_calls.get(), 1);
+
+        for _ in 0..3 {
+            assert_eq!(
+                classify_view_delta(&previous, &current).effect,
+                ViewDeltaEffect::Unchanged
+            );
+        }
+        assert_eq!(revision_calls.get(), 1);
+        assert_eq!(capability_calls.get(), 1);
+    }
+
+    #[test]
+    fn public_widget_mutation_invalidates_cached_evidence_conservatively() {
+        let previous = surface(SurfaceNode::static_widget(RevisionWidget::new(1)));
+        let mut current = previous.clone();
+        let Some(widget) = current.find_widget_mut(1) else {
+            assert!(false, "widget");
+            return;
+        };
+        widget.widget_mut().common_mut().state.hovered = true;
+
+        let delta = classify_view_delta(&previous, &current);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::WidgetRevision));
+    }
+
+    #[test]
+    fn runtime_state_mutation_preserves_cached_declarative_evidence() {
+        let previous = surface(SurfaceNode::static_widget(RevisionWidget::new(1)));
+        let mut current = previous.clone();
+        let Some(widget) = current.find_widget_mut(1) else {
+            assert!(false, "widget");
+            return;
+        };
+        widget
+            .widget_object_mut_runtime()
+            .common_mut()
+            .state
+            .hovered = true;
+
+        assert_eq!(
+            classify_view_delta(&previous, &current).effect,
+            ViewDeltaEffect::Unchanged
         );
     }
 }

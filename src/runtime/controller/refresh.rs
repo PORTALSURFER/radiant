@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 const MAX_IDENTITY_REPLACEMENTS_PER_REFRESH: usize = 4;
 const MAX_IDENTITY_PATH_COMPONENTS: usize = 8;
+const INVALID_COMPATIBILITY_KIND: &str = "<invalid-cached-widget-evidence>";
 
 /// Runtime policy for incompatible same-ID widget replacements.
 ///
@@ -59,7 +60,7 @@ mod tests {
         runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
         widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
     };
-    use std::sync::Arc;
+    use std::{cell::Cell, rc::Rc, sync::Arc};
 
     #[derive(Default)]
     struct ReplacementBridge {
@@ -165,6 +166,169 @@ mod tests {
                 hover: true,
                 widget_state: true,
             }
+        );
+    }
+
+    #[derive(Clone)]
+    struct MutableCompatibilityWidget {
+        common: crate::widgets::WidgetCommon,
+        changed: Rc<Cell<bool>>,
+    }
+
+    impl MutableCompatibilityWidget {
+        fn new(changed: Rc<Cell<bool>>) -> Self {
+            Self {
+                common: crate::widgets::WidgetCommon::fixed(20, 80.0, 28.0),
+                changed,
+            }
+        }
+    }
+
+    impl crate::widgets::Widget for MutableCompatibilityWidget {
+        fn compatibility_kind(&self) -> &'static str {
+            if self.changed.get() {
+                "test::MutableCompatibilityWidget::changed"
+            } else {
+                "test::MutableCompatibilityWidget::base"
+            }
+        }
+
+        fn revision(&self) -> crate::widgets::WidgetRevision {
+            crate::widgets::WidgetRevision::exact((), (), (), ())
+        }
+
+        fn common(&self) -> &crate::widgets::WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: crate::widgets::WidgetInput,
+        ) -> Option<crate::widgets::WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    struct MutableCompatibilityBridge {
+        surface: Arc<UiSurface<()>>,
+    }
+
+    impl MutableCompatibilityBridge {
+        fn new(changed: Rc<Cell<bool>>) -> Self {
+            Self {
+                surface: Arc::new(UiSurface::new(SurfaceNode::widget(
+                    MutableCompatibilityWidget::new(changed),
+                    WidgetMessageMapper::none(),
+                ))),
+            }
+        }
+    }
+
+    impl RuntimeBridge<()> for MutableCompatibilityBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            Arc::clone(&self.surface)
+        }
+    }
+
+    #[test]
+    fn invalidated_same_id_compatibility_discards_all_controller_ownership() {
+        let changed = Rc::new(Cell::new(false));
+        let mut runtime = SurfaceRuntime::new(
+            MutableCompatibilityBridge::new(Rc::clone(&changed)),
+            Vector2::new(120.0, 80.0),
+        );
+        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.pointer.capture = Some(20);
+        runtime.interaction.pointer.capture_state = Some((20, Default::default()));
+        runtime.interaction.hover.widget = Some(20);
+
+        changed.set(true);
+        let Some(widget) = runtime.surface.find_widget_mut(20) else {
+            assert!(false, "mutable compatibility widget exists");
+            return;
+        };
+        widget.widget_mut().common_mut().state.hovered = true;
+
+        runtime.refresh();
+
+        assert_eq!(runtime.focused_widget(), None);
+        assert_eq!(runtime.pointer_capture(), None);
+        assert_eq!(runtime.hovered_widget(), None);
+        assert_eq!(runtime.interaction.pointer.capture_state, None);
+        assert_eq!(
+            runtime
+                .last_refresh_diagnostics()
+                .identity
+                .replacement_count,
+            1
+        );
+        let replacement = runtime.last_refresh_diagnostics().identity.replacements[0];
+        assert!(
+            replacement.is_some_and(|replacement| {
+                replacement.previous_kind != replacement.current_kind
+            })
+        );
+        assert_eq!(
+            replacement.map(|replacement| replacement.discarded_ownership),
+            Some(SurfaceIdentityOwnership {
+                focus: true,
+                pointer_capture: true,
+                hover: true,
+                widget_state: true,
+            })
+        );
+    }
+
+    struct ReidentifiedWidgetBridge;
+
+    impl RuntimeBridge<()> for ReidentifiedWidgetBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            let widget = SurfaceNode::widget(
+                ButtonWidget::new(7, "Stable", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )
+            .with_id(20);
+            Arc::new(UiSurface::new(widget))
+        }
+    }
+
+    #[test]
+    fn projection_reidentification_preserves_retained_ownership_across_refreshes() {
+        let mut runtime = SurfaceRuntime::new(ReidentifiedWidgetBridge, Vector2::new(120.0, 80.0));
+        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.pointer.capture = Some(20);
+        runtime.interaction.pointer.capture_state = Some((20, Default::default()));
+        runtime.interaction.hover.widget = Some(20);
+
+        runtime.refresh();
+        assert_eq!(runtime.focused_widget(), Some(20));
+        assert_eq!(runtime.pointer_capture(), Some(20));
+        assert_eq!(runtime.hovered_widget(), Some(20));
+
+        runtime.refresh();
+        assert_eq!(runtime.focused_widget(), Some(20));
+        assert_eq!(runtime.pointer_capture(), Some(20));
+        assert_eq!(runtime.hovered_widget(), Some(20));
+        assert_eq!(
+            runtime
+                .last_refresh_diagnostics()
+                .identity
+                .replacement_count,
+            0
         );
     }
 
@@ -648,20 +812,30 @@ where
             let Some(previous_path) = previous_paths.get(widget_id) else {
                 continue;
             };
-            let Some(previous_kind) = self
+            let Some((previous_kind, previous_valid)) = self
                 .surface
-                .widget_compatibility_kind_at_path(previous_path.as_slice())
+                .widget_compatibility_at_path(previous_path.as_slice())
             else {
                 continue;
             };
-            let Some(current_kind) =
-                next_surface.widget_compatibility_kind_at_path(current_path.as_slice())
+            let Some((current_kind, current_valid)) =
+                next_surface.widget_compatibility_at_path(current_path.as_slice())
             else {
                 continue;
             };
-            if previous_kind == current_kind {
+            if previous_valid && current_valid && previous_kind == current_kind {
                 continue;
             }
+            let previous_kind = if previous_valid {
+                previous_kind
+            } else {
+                INVALID_COMPATIBILITY_KIND
+            };
+            let current_kind = if current_valid {
+                current_kind
+            } else {
+                INVALID_COMPATIBILITY_KIND
+            };
             let discarded_ownership = self.discard_widget_ownership(*widget_id);
             diagnostics.push(SurfaceIdentityReplacement {
                 widget_id: *widget_id,

@@ -205,7 +205,11 @@ where
             if let Some(widget) = self.surface.find_widget_mut(widget_id)
                 && widget.widget_object().common().state.hovered
             {
-                widget.widget_object_mut().common_mut().state.hovered = false;
+                widget
+                    .widget_object_mut_runtime()
+                    .common_mut()
+                    .state
+                    .hovered = false;
             }
             cleared = true;
         }
@@ -235,7 +239,11 @@ where
             if !widget.widget_object().common().state.hovered {
                 continue;
             }
-            widget.widget_object_mut().common_mut().state.hovered = false;
+            widget
+                .widget_object_mut_runtime()
+                .common_mut()
+                .state
+                .hovered = false;
             cleared = true;
         }
         if cleared {

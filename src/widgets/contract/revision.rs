@@ -63,10 +63,10 @@ impl Eq for WidgetRevision {}
 
 #[derive(Clone)]
 pub(crate) struct WidgetRevisionComponents {
-    structure: Rc<dyn RevisionValue>,
-    geometry: Rc<dyn RevisionValue>,
-    paint: Rc<dyn RevisionValue>,
-    interaction: Rc<dyn RevisionValue>,
+    /// Keep all four typed values behind one erased allocation.  The values
+    /// themselves remain independently erased so a type mismatch is scoped to
+    /// its component rather than widening every component at once.
+    values: Rc<dyn RevisionComponents>,
 }
 
 impl fmt::Debug for WidgetRevisionComponents {
@@ -77,10 +77,10 @@ impl fmt::Debug for WidgetRevisionComponents {
 
 impl PartialEq for WidgetRevisionComponents {
     fn eq(&self, other: &Self) -> bool {
-        self.structure.equals(&*other.structure)
-            && self.geometry.equals(&*other.geometry)
-            && self.paint.equals(&*other.paint)
-            && self.interaction.equals(&*other.interaction)
+        self.structure_equal(other)
+            && self.geometry_equal(other)
+            && self.paint_equal(other)
+            && self.interaction_equal(other)
     }
 }
 
@@ -88,19 +88,57 @@ impl Eq for WidgetRevisionComponents {}
 
 impl WidgetRevisionComponents {
     pub(crate) fn structure_equal(&self, other: &Self) -> bool {
-        self.structure.equals(&*other.structure)
+        self.values.structure().equals(other.values.structure())
     }
 
     pub(crate) fn geometry_equal(&self, other: &Self) -> bool {
-        self.geometry.equals(&*other.geometry)
+        self.values.geometry().equals(other.values.geometry())
     }
 
     pub(crate) fn paint_equal(&self, other: &Self) -> bool {
-        self.paint.equals(&*other.paint)
+        self.values.paint().equals(other.values.paint())
     }
 
     pub(crate) fn interaction_equal(&self, other: &Self) -> bool {
-        self.interaction.equals(&*other.interaction)
+        self.values.interaction().equals(other.values.interaction())
+    }
+}
+
+trait RevisionComponents: Any {
+    fn structure(&self) -> &dyn RevisionValue;
+    fn geometry(&self) -> &dyn RevisionValue;
+    fn paint(&self) -> &dyn RevisionValue;
+    fn interaction(&self) -> &dyn RevisionValue;
+}
+
+struct TypedRevisionComponents<S, G, P, I> {
+    structure: S,
+    geometry: G,
+    paint: P,
+    interaction: I,
+}
+
+impl<S, G, P, I> RevisionComponents for TypedRevisionComponents<S, G, P, I>
+where
+    S: Eq + 'static,
+    G: Eq + 'static,
+    P: Eq + 'static,
+    I: Eq + 'static,
+{
+    fn structure(&self) -> &dyn RevisionValue {
+        &self.structure
+    }
+
+    fn geometry(&self) -> &dyn RevisionValue {
+        &self.geometry
+    }
+
+    fn paint(&self) -> &dyn RevisionValue {
+        &self.paint
+    }
+
+    fn interaction(&self) -> &dyn RevisionValue {
+        &self.interaction
     }
 }
 
@@ -151,10 +189,12 @@ impl WidgetRevision {
     {
         Self {
             representation: Representation::Exact(WidgetRevisionComponents {
-                structure: Rc::new(structure),
-                geometry: Rc::new(geometry),
-                paint: Rc::new(paint),
-                interaction: Rc::new(interaction),
+                values: Rc::new(TypedRevisionComponents {
+                    structure,
+                    geometry,
+                    paint,
+                    interaction,
+                }),
             }),
         }
     }

@@ -167,7 +167,7 @@ impl<Message> SurfaceNode<Message> {
         match &mut self {
             Self::Scene(scene) => scene.id = id,
             Self::Container(container) => container.id = id,
-            Self::Widget(widget) => widget.widget_mut().common_mut().id = id,
+            Self::Widget(widget) => widget.set_id_runtime(id),
             Self::Overlay(overlay) => overlay.id = id,
             Self::FloatingLayer(layer) => layer.container.id = id,
         }
@@ -236,7 +236,9 @@ impl<Message> SurfaceNode<Message> {
                 }
                 changed
             }
-            Self::Widget(widget) => widget.widget_mut().advance_timed_repaint(now),
+            Self::Widget(widget) => widget
+                .widget_object_mut_runtime()
+                .advance_timed_repaint(now),
             Self::Overlay(_) => false,
             Self::FloatingLayer(layer) => {
                 let mut changed = false;

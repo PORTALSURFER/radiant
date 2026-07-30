@@ -26,7 +26,7 @@ pub use action_row::{ActionRowBuilder, DEFAULT_ACTION_ROW_HEIGHT, action_row};
 pub use badge::{
     BadgeBuilder, InteractiveBadgeBuilder, badge, badge_mapped, badge_message, interactive_badge,
 };
-pub use button::{ButtonBuilder, button, button_mapped, button_message};
+pub use button::{ButtonBuilder, button, button_mapped, button_mapped_with, button_message};
 pub use button_row::{ButtonRowParts, button_row, button_row_from_parts};
 pub use color_marker::{ColorMarkerBuilder, color_marker};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};
@@ -66,5 +66,5 @@ pub use text_input::{
     TextInputBuilder, TextInputWithClearButtonBuilder, text_input, text_input_clear_button_id,
     text_input_mapped,
 };
-pub use toggle::{ToggleBuilder, checkbox, toggle, toggle_mapped};
+pub use toggle::{ToggleBuilder, checkbox, toggle, toggle_mapped, toggle_mapped_with};
 pub use tree_row::{TreeRowBuilder, TreeRowDragDropState, TreeRowMessageBuilder, tree_row};

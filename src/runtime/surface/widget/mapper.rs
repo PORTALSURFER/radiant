@@ -145,6 +145,24 @@ impl<Input, Message> EventMapper<Input, Message> {
         }
     }
 
+    /// Adapt a typed mapper to widget-output routing without inspecting or
+    /// invoking its callback during reconciliation.
+    pub fn typed_mapped(self) -> EventMapper<WidgetOutput, Option<Message>>
+    where
+        Input: Clone + 'static,
+        Message: 'static,
+    {
+        let EventMapper { map, evidence } = self;
+        EventMapper {
+            map: MapperCallback::Rc(Rc::new(move |output| {
+                output
+                    .typed_cloned::<Input>()
+                    .map(|input| map.invoke(input))
+            })),
+            evidence,
+        }
+    }
+
     /// Invoke the mapper with one event payload.
     pub fn invoke(&self, input: Input) -> Message {
         self.map.invoke(input)
@@ -321,6 +339,22 @@ impl<Message> WidgetMessageMapper<Message> {
             map: Some(OutputMapper::Dynamic(map)),
             native_file_drop: None,
         }
+    }
+
+    /// Build a button-output mapper while preserving typed equality evidence.
+    pub fn button_mapped(map: EventMapper<crate::widgets::ButtonMessage, Message>) -> Self
+    where
+        Message: 'static,
+    {
+        Self::dynamic_mapped(map.typed_mapped())
+    }
+
+    /// Build a toggle-output mapper while preserving typed equality evidence.
+    pub fn toggle_mapped(map: EventMapper<crate::widgets::ToggleMessage, Message>) -> Self
+    where
+        Message: 'static,
+    {
+        Self::dynamic_mapped(map.typed_mapped())
     }
 
     /// Return this mapper with native file-drop events mapped to host messages.
@@ -630,6 +664,37 @@ mod tests {
         );
         assert_eq!(*calls.borrow(), 0);
         assert_eq!(mapper.invoke(1), 2);
+        assert_eq!(*calls.borrow(), 1);
+    }
+
+    #[test]
+    fn typed_mapped_preserves_evidence_and_invokes_only_on_output() {
+        let calls = Rc::new(RefCell::new(0usize));
+        let calls_for_mapper = Rc::clone(&calls);
+        let mapper = EventMapper::with_revision(Revision(4), move |message: ButtonMessage| {
+            *calls_for_mapper.borrow_mut() += 1;
+            assert!(matches!(message, ButtonMessage::Activate));
+        })
+        .typed_mapped();
+        let equal =
+            EventMapper::with_revision(Revision(4), |_message: ButtonMessage| {}).typed_mapped();
+
+        assert_eq!(
+            mapper.descriptor().relation(&equal.descriptor()),
+            MapperRelation::Unchanged
+        );
+        assert_eq!(*calls.borrow(), 0);
+        assert_eq!(
+            mapper.invoke(WidgetOutput::typed(ButtonMessage::Activate)),
+            Some(())
+        );
+        assert_eq!(*calls.borrow(), 1);
+        assert_eq!(
+            mapper.invoke(WidgetOutput::typed(TextInputMessage::Changed {
+                value: String::from("ignored"),
+            })),
+            None
+        );
         assert_eq!(*calls.borrow(), 1);
     }
 

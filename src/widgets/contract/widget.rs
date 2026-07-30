@@ -78,10 +78,13 @@ pub trait Widget: WidgetClone + Any {
     /// Return declarative revision metadata for this widget's immutable inputs.
     ///
     /// The conservative default is always correct and keeps existing custom
-    /// widgets source-compatible. Exact structure, geometry, paint, and
-    /// interaction revisions are intentionally not a public construction API
-    /// yet; no refresh optimization is enabled by this hook in the current
-    /// runtime.
+    /// widgets source-compatible. Widgets that can prove exact changes may
+    /// return `WidgetRevision::exact(structure, geometry, paint, interaction)`
+    /// with four independently typed `Eq + 'static` values. Component type
+    /// mismatches and unavailable evidence widen safely through the classifier;
+    /// exact revisions are clonable UI-local values rather than `Copy` values
+    /// because they retain arbitrary component ownership. No production refresh
+    /// or repaint optimization consumes this hook yet.
     fn revision(&self) -> WidgetRevision {
         WidgetRevision::conservative()
     }

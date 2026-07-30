@@ -31,3 +31,28 @@ fn custom_widgets_keep_the_conservative_revision_default_through_trait_objects()
         SurfaceWidget::custom(widget, WidgetMessageMapper::none());
     assert_eq!(surface_widget.revision(), WidgetRevision::conservative());
 }
+
+#[test]
+fn custom_widgets_can_publish_typed_exact_revision_evidence() {
+    let first = WidgetRevision::exact(
+        ("status", 1_u8),
+        vec![120_u16, 28],
+        support::CustomWidgetMessage::Activated,
+        Some("label"),
+    );
+    let equal = WidgetRevision::exact(
+        ("status", 1_u8),
+        vec![120_u16, 28],
+        support::CustomWidgetMessage::Activated,
+        Some("label"),
+    );
+    let changed = WidgetRevision::exact(
+        ("status", 1_u8),
+        vec![121_u16, 28],
+        support::CustomWidgetMessage::Activated,
+        Some("label"),
+    );
+
+    assert_eq!(first, equal);
+    assert_ne!(first, changed);
+}

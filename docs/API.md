@@ -1817,12 +1817,17 @@ and expose bounded `SurfaceIdentityReplacement` entries through
 same-kind keyed reorders keep the normal retained-state behavior.
 Custom widgets also expose an additive `Widget::revision()` hook. Its
 `WidgetRevision::conservative()` default is correct for existing custom widgets
-and for any widget that cannot prove exact immutable-input changes. The public
-revision value is intentionally opaque: exact structure, geometry, paint, and
-interaction components are not arbitrary hash/u64 constructors, and this
-foundation hook does not enable refresh or repaint optimization yet. Advanced
-hosts should keep using the conservative default until the classified delta
-contract is published.
+and for any widget that cannot prove exact immutable-input changes. A widget
+that can prove those changes may call
+`WidgetRevision::exact(structure, geometry, paint, interaction)` with four
+independently typed `Eq + 'static` values. Values are compared by typed
+equality; they are not hashes or caller-provided integer fingerprints, and a
+component type mismatch widens to that component's safe effect. Exact revisions are UI-local
+clonable values rather than `Copy` values because they retain arbitrary
+component ownership. This foundation hook still does not enable refresh or
+repaint optimization, and widgets should exclude stable identity and mutable
+runtime state from their immutable evidence. Advanced hosts should keep using
+the conservative default when any affected input is unavailable or ambiguous.
 Hosts that want deterministic test failures can configure
 `SurfaceRuntime::set_identity_audit(IdentityAudit::strict())`. The default
 `IdentityAudit` policy is observational: every replacement completes cleanup and

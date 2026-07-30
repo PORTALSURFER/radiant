@@ -66,7 +66,9 @@ use activation::{ActivationRevealController, ApplicationReopenRegistration};
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
-pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
+pub(in crate::gui_runtime::native_vello) use core::{
+    GenericNativeRuntimeCore, PaintPlanCacheDecision, PointerPressStamp,
+};
 use frame_cadence::{
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
     timed_frame_cadence, timed_frame_target_fps,

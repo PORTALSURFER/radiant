@@ -1,5 +1,5 @@
 use super::super::{SurfaceRuntime, SurfaceTraversalIndex};
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 use crate::{gui::types::Vector2, layout::LayoutDiagnosticCode, runtime::RuntimeBridge};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -26,6 +26,7 @@ where
         );
         self.refresh_visible_traversal_orders();
         self.sync_scroll_offsets();
+        self.record_completed_layout();
     }
 
     pub(in crate::runtime::controller) fn relayout_with_traversal(
@@ -41,6 +42,16 @@ where
         );
         self.install_traversal_index(traversal);
         self.sync_scroll_offsets();
+        self.record_completed_layout();
+    }
+
+    fn record_completed_layout(&mut self) {
+        self.completed_layout = Some(super::super::CompletedLayoutContext {
+            viewport: effective_layout_viewport(self.viewport),
+            window_environment: self.window_environment,
+            layout_state_generation: self.layout_state_generation,
+            layout_debug_options: self.layout_debug_options,
+        });
     }
 
     fn sync_scroll_offsets(&mut self) {
@@ -72,9 +83,22 @@ where
                 }),
         );
         for (node_id, offset) in self.scratch.scroll_clamp_updates.drain(..) {
-            self.layout_state.scroll_offsets.insert(node_id, offset);
+            if self.layout_state.scroll_offset(node_id) != offset {
+                self.layout_state.scroll_offsets.insert(node_id, offset);
+                self.layout_state_generation = self.layout_state_generation.saturating_add(1);
+            }
         }
     }
+}
+
+fn effective_layout_viewport(viewport: Rect) -> Rect {
+    Rect::from_min_size(
+        Point::new(viewport.min.x.floor(), viewport.min.y.floor()),
+        Vector2::new(
+            viewport.width().round().max(0.0),
+            viewport.height().round().max(0.0),
+        ),
+    )
 }
 
 fn clamped_scroll_offset(current: Vector2, child_rect: Rect, viewport_rect: Rect) -> Vector2 {

@@ -37,6 +37,15 @@ pub(super) fn projection_refresh_large_tree() -> impl FnMut() -> ScenarioCounter
     move || refresh_large_tree.step()
 }
 
+/// Exercise exact large-cohort refreshes where projection/traversal work stays
+/// measurable while the completed layout is reused. Counts are asserted per
+/// iteration so this remains a deterministic harness scenario rather than a
+/// machine-dependent timing threshold.
+pub(super) fn layout_reuse_large_cohort_3k() -> impl FnMut() -> ScenarioCounters {
+    let mut bench = StatefulLayoutReuseBench::new();
+    move || bench.step()
+}
+
 pub(super) fn resize_large_tree() -> impl FnMut() -> ScenarioCounters {
     let mut resize_large_tree = StatefulResizeBench::new();
     move || resize_large_tree.step()
@@ -178,6 +187,38 @@ struct StatefulResizeBench {
     wide: bool,
 }
 
+struct StatefulLayoutReuseBench {
+    runtime: SurfaceRuntime<LayoutReuseBridge, ()>,
+}
+
+impl StatefulLayoutReuseBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(LayoutReuseBridge, Vector2::new(960.0, 720.0)),
+        }
+    }
+
+    fn step(&mut self) -> ScenarioCounters {
+        let before = self.runtime.refresh_counters();
+        self.runtime.refresh_with_scope(RepaintScope::Projection);
+        let after = self.runtime.refresh_counters();
+        assert_eq!(
+            after.application_projection - before.application_projection,
+            1
+        );
+        assert_eq!(after.runtime_projection - before.runtime_projection, 1);
+        assert_eq!(after.widget_state_sync - before.widget_state_sync, 1);
+        assert_eq!(after.layout - before.layout, 0);
+        black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_surface_refresh_count(1)
+            .with_application_projection_count(1)
+            .with_runtime_projection_count(1)
+            .with_widget_state_sync_count(1)
+            .with_layout_count(0)
+    }
+}
+
 impl StatefulResizeBench {
     fn new() -> Self {
         Self {
@@ -201,6 +242,14 @@ impl StatefulResizeBench {
 
 struct RefreshBridge {
     revision: u64,
+}
+
+struct LayoutReuseBridge;
+
+impl RuntimeBridge<()> for LayoutReuseBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::arc_surface(UiSurface::new(nodes::runtime_surface_node(3_000)))
+    }
 }
 
 impl RuntimeBridge<()> for RefreshBridge {

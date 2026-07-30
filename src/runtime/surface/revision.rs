@@ -405,6 +405,10 @@ impl ViewDeltaScratch {
         }
     }
 
+    pub(crate) fn has_identity_capacity(&self) -> bool {
+        self.identities.capacity() != 0
+    }
+
     fn begin_scan(&mut self, required: usize) -> bool {
         if self.identities.capacity() < required {
             return false;

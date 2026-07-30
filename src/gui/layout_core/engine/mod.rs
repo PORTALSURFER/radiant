@@ -35,6 +35,11 @@ pub struct LayoutEngine {
 }
 
 impl LayoutEngine {
+    /// Return whether an explicit layout or measurement invalidation is pending.
+    pub(crate) fn has_explicit_dirty(&self) -> bool {
+        !self.layout_dirty.is_empty() || !self.measure_dirty.is_empty()
+    }
+
     /// Mark a node as geometry-dirty.
     pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
         self.layout_dirty.insert(node_id);

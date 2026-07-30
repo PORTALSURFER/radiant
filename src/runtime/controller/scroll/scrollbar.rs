@@ -69,6 +69,7 @@ where
             capture.node_id,
             Vector2::new(previous_offset.x, offset_fraction * affordance.max_scroll),
         );
+        self.layout_state_generation = self.layout_state_generation.saturating_add(1);
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(capture.node_id);
         if offset != previous_offset {

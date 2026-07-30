@@ -1,6 +1,7 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
 use super::SurfaceRuntime;
+use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
     surface::{ViewDeltaDiagnostics, ViewDeltaEffect, classify_view_delta},
@@ -566,6 +567,114 @@ mod tests {
     }
 
     #[test]
+    fn exact_surface_and_projection_refreshes_reuse_completed_layout() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let before = runtime.refresh_counters();
+
+        runtime.refresh();
+        let after_surface = runtime.refresh_counters();
+        assert_eq!(
+            after_surface.application_projection,
+            before.application_projection + 1
+        );
+        assert_eq!(
+            after_surface.runtime_projection,
+            before.runtime_projection + 1
+        );
+        assert_eq!(
+            after_surface.widget_state_sync,
+            before.widget_state_sync + 1
+        );
+        assert_eq!(after_surface.layout, before.layout);
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        let after_projection = runtime.refresh_counters();
+        assert_eq!(
+            after_projection.application_projection,
+            after_surface.application_projection + 1
+        );
+        assert_eq!(
+            after_projection.runtime_projection,
+            after_surface.runtime_projection + 1
+        );
+        assert_eq!(
+            after_projection.widget_state_sync,
+            after_surface.widget_state_sync + 1
+        );
+        assert_eq!(after_projection.layout, after_surface.layout);
+    }
+
+    #[test]
+    fn requested_layout_always_recomputes_even_with_exact_evidence() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let before = runtime.refresh_counters().layout;
+
+        runtime.refresh_with_scope(RepaintScope::Layout);
+
+        assert_eq!(runtime.refresh_counters().layout, before + 1);
+    }
+
+    #[test]
+    fn zero_view_delta_scratch_vetoes_exact_leaf_layout_reuse() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        runtime.scratch.view_delta = crate::runtime::surface::ViewDeltaScratch::with_capacity(0);
+        let before = runtime.refresh_counters().layout;
+
+        runtime.refresh_with_scope(RepaintScope::Surface);
+        assert_eq!(runtime.refresh_counters().layout, before + 1);
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        assert_eq!(runtime.refresh_counters().layout, before + 2);
+    }
+
+    #[test]
+    fn completed_layout_context_changes_veto_reuse() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let baseline = runtime.refresh_counters().layout;
+
+        runtime.viewport.max.x += 1.0;
+        runtime.refresh();
+        assert_eq!(runtime.refresh_counters().layout, baseline + 1);
+
+        runtime.layout_debug_options = crate::layout::LayoutDebugOptions::bounds_only();
+        runtime.refresh();
+        assert_eq!(runtime.refresh_counters().layout, baseline + 2);
+
+        runtime.set_window_environment(crate::runtime::WindowEnvironment::new(
+            crate::theme::DpiScale::new(2.0),
+            None,
+            false,
+            false,
+        ));
+        runtime.refresh();
+        assert_eq!(runtime.refresh_counters().layout, baseline + 3);
+    }
+
+    #[test]
     fn paint_only_refresh_skips_view_delta_classification() {
         let mut runtime =
             SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
@@ -995,6 +1104,47 @@ fn effective_scope(requested: RepaintScope, view_delta: ViewDeltaDiagnostics) ->
     }
 }
 
+fn can_reuse_completed_layout<Bridge, Message>(
+    runtime: &SurfaceRuntime<Bridge, Message>,
+    requested: RepaintScope,
+    view_delta: ViewDeltaDiagnostics,
+) -> bool
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    if !matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
+        || !view_delta.classified
+        || !runtime.scratch.view_delta.has_identity_capacity()
+        || view_delta.omitted_events != 0
+        || view_delta.truncated_paths
+        || !matches!(
+            view_delta.effect,
+            ViewDeltaEffect::Paint | ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+        )
+    {
+        return false;
+    }
+    let Some(completed) = runtime.completed_layout else {
+        return false;
+    };
+    completed.viewport == effective_layout_viewport(runtime.viewport)
+        && completed.window_environment == runtime.window_environment
+        && completed.layout_state_generation == runtime.layout_state_generation
+        && completed.layout_debug_options == runtime.layout_debug_options
+        && !runtime.external_layout_dirty
+        && !runtime.layout_engine.has_explicit_dirty()
+}
+
+fn effective_layout_viewport(viewport: Rect) -> Rect {
+    Rect::from_min_size(
+        Point::new(viewport.min.x.floor(), viewport.min.y.floor()),
+        Vector2::new(
+            viewport.width().round().max(0.0),
+            viewport.height().round().max(0.0),
+        ),
+    )
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -1006,9 +1156,10 @@ where
 
     /// Apply one typed repaint scope to the current projected surface.
     ///
-    /// `Projection` may reuse layout only because the caller supplied an explicit
-    /// unchanged structural/layout revision. Startup, resize, identity changes,
-    /// and unknown custom-host changes should use `Surface`.
+    /// A fresh `Surface` or `Projection` may reuse a completed layout only when
+    /// exact, geometry-stable view-delta evidence and the completed-layout
+    /// context still match. Startup, resize, identity changes, and unknown
+    /// custom-host changes remain conservative.
     pub fn refresh_with_scope(&mut self, scope: RepaintScope) {
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
@@ -1040,6 +1191,7 @@ where
             classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta)
                 .diagnostics(view_delta_started.elapsed());
         let effective_scope = effective_scope(scope, view_delta);
+        let reuse_completed_layout = can_reuse_completed_layout(self, scope, view_delta);
 
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,
@@ -1080,7 +1232,10 @@ where
         self.surface = next_surface;
         self.layout_root = layout_root;
         self.restore_pointer_capture_state();
-        let layout = if effective_scope.refreshes_layout() {
+        let layout_required = !reuse_completed_layout
+            && (effective_scope.refreshes_layout()
+                || matches!(scope, RepaintScope::Surface | RepaintScope::Projection));
+        let layout = if layout_required {
             let layout_started = Instant::now();
             self.relayout_with_traversal(traversal);
             self.refresh_counters.layout = self.refresh_counters.layout.saturating_add(1);

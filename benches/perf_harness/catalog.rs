@@ -63,6 +63,13 @@ const SCENE_CACHE_REFRESH_COUNTERS: &[&str] = &[
     "layout_count",
     "paint_plan_rebuild_count",
 ];
+const LAYOUT_REUSE_COUNTERS: &[&str] = &[
+    "surface_refresh_count",
+    "application_projection_count",
+    "runtime_projection_count",
+    "widget_state_sync_count",
+    "layout_count",
+];
 const TEXT_PAINT_COUNTERS: &[&str] = &["paint_primitive_count"];
 const TEXT_CACHE_COUNTERS: &[&str] = &["text_cache_hit_count"];
 const TEXT_EDIT_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
@@ -119,6 +126,7 @@ macro_rules! perf_scenario_catalog {
             ("runtime_virtualized_nested_scroll_hover_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_SCROLL_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
             ("runtime_refresh_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_REFRESH_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
             ("runtime_projection_refresh_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_REFRESH_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::projection_refresh_large_tree),
+            ("runtime_layout_reuse_large_cohort_3k", "runtime_surface", "layout_reuse", LAYOUT_REUSE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::layout_reuse_large_cohort_3k),
             ("runtime_resize_large_tree", "runtime_surface", "frame_cadence", RESIZE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
             ("runtime_animation_frame_cadence_1k", "runtime_surface", "frame_cadence", FRAME_CADENCE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::animation_frame_cadence_1k),
             ("runtime_command_flattening_512", "runtime_commands", "runtime_commands", COMMAND_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),

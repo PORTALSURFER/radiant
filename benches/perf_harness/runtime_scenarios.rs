@@ -63,6 +63,10 @@ pub(super) fn projection_refresh_large_tree() -> impl FnMut() -> crate::runner::
     surface::projection_refresh_large_tree()
 }
 
+pub(super) fn layout_reuse_large_cohort_3k() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    surface::layout_reuse_large_cohort_3k()
+}
+
 pub(super) fn resize_large_tree() -> impl FnMut() -> crate::runner::ScenarioCounters {
     surface::resize_large_tree()
 }

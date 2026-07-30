@@ -111,7 +111,10 @@ where
     layout_engine: LayoutEngine,
     layout: LayoutOutput,
     layout_state: LayoutState,
+    layout_state_generation: u64,
     layout_debug_options: LayoutDebugOptions,
+    completed_layout: Option<CompletedLayoutContext>,
+    external_layout_dirty: bool,
     traversal: RuntimeTraversalState,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
@@ -135,6 +138,14 @@ where
     identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CompletedLayoutContext {
+    viewport: Rect,
+    window_environment: WindowEnvironment,
+    layout_state_generation: u64,
+    layout_debug_options: LayoutDebugOptions,
 }
 
 /// Runtime controller for shared-surface declarative hosts.

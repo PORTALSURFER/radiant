@@ -236,6 +236,7 @@ where
             }
             Command::SetDpiScale(scale) => {
                 self.repaint_requested = true;
+                self.external_layout_dirty = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
                 outcome.request_surface_refresh(RepaintScope::Surface);
@@ -243,6 +244,7 @@ where
             }
             Command::SetWindowLogicalSize(size) => {
                 self.repaint_requested = true;
+                self.external_layout_dirty = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
                 outcome.request_surface_refresh(RepaintScope::Surface);

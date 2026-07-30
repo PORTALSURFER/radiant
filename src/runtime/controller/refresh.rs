@@ -224,23 +224,27 @@ mod tests {
     }
 
     struct MutableCompatibilityBridge {
-        surface: Arc<UiSurface<()>>,
+        surface: UiSurface<()>,
     }
 
     impl MutableCompatibilityBridge {
         fn new(changed: Rc<Cell<bool>>) -> Self {
             Self {
-                surface: Arc::new(UiSurface::new(SurfaceNode::widget(
+                surface: UiSurface::new(SurfaceNode::widget(
                     MutableCompatibilityWidget::new(changed),
                     WidgetMessageMapper::none(),
-                ))),
+                )),
             }
         }
     }
 
     impl RuntimeBridge<()> for MutableCompatibilityBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-            Arc::clone(&self.surface)
+            crate::runtime::test_arc_surface(self.surface.clone())
+        }
+
+        fn pull_surface(&mut self) -> UiSurface<()> {
+            self.surface.clone()
         }
     }
 
@@ -258,8 +262,7 @@ mod tests {
 
         changed.set(true);
         let Some(widget) = runtime.surface.find_widget_mut(20) else {
-            assert!(false, "mutable compatibility widget exists");
-            return;
+            panic!("mutable compatibility widget exists");
         };
         widget.widget_mut().common_mut().state.hovered = true;
 
@@ -302,7 +305,7 @@ mod tests {
                 WidgetMessageMapper::none(),
             )
             .with_id(20);
-            Arc::new(UiSurface::new(widget))
+            crate::runtime::test_arc_surface(UiSurface::new(widget))
         }
     }
 

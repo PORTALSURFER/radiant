@@ -464,8 +464,7 @@ fn synchronize_skips_widget_with_invalidated_cached_compatibility() {
         WidgetMessageMapper::none(),
     );
     let Some(widget) = current.find_widget_mut(20) else {
-        assert!(false, "current widget exists");
-        return;
+        panic!("current widget exists");
     };
     widget.widget_mut().common_mut().state.hovered = true;
 

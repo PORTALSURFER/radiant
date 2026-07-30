@@ -53,6 +53,10 @@ impl RuntimeBridge<()> for RevisionBridge {
 
 #[test]
 fn projection_stage_refreshes_paint_content_without_running_layout() {
+    let requested_scope = RepaintScope::Projection;
+    // TextWidget's exact geometry revision includes text content, so changing
+    // the label promotes this projection request to an effective layout pass.
+    let effective_scope = RepaintScope::Layout;
     let mut runtime = SurfaceRuntime::new(
         RevisionBridge {
             label: "Before",
@@ -65,7 +69,7 @@ fn projection_stage_refreshes_paint_content_without_running_layout() {
     let before_counters = runtime.refresh_counters();
 
     runtime.bridge_mut().label = "After";
-    runtime.refresh_with_scope(RepaintScope::Projection);
+    runtime.refresh_with_scope(requested_scope);
 
     assert_eq!(
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
@@ -78,14 +82,19 @@ fn projection_stage_refreshes_paint_content_without_running_layout() {
             application_projection: before_counters.application_projection + 1,
             runtime_projection: before_counters.runtime_projection + 1,
             widget_state_sync: before_counters.widget_state_sync + 1,
-            layout: before_counters.layout,
+            layout: before_counters.layout
+                + if effective_scope.refreshes_layout() {
+                    1
+                } else {
+                    0
+                },
         }
     );
     assert_eq!(
         runtime.last_refresh_diagnostics().invalidation,
         SurfaceInvalidation::Projection
     );
-    assert_eq!(
+    assert_ne!(
         runtime.last_refresh_diagnostics().timings.layout,
         Duration::ZERO
     );

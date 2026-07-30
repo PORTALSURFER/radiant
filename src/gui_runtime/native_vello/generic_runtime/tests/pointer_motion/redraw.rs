@@ -129,13 +129,14 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
 
 #[test]
 fn pointer_move_preserves_typed_refresh_scope() {
-    for (scope, expected_layout_passes) in
-        [(RepaintScope::Projection, 0), (RepaintScope::Layout, 1)]
-    {
+    for (requested_scope, effective_scope) in [
+        (RepaintScope::Projection, RepaintScope::Surface),
+        (RepaintScope::Layout, RepaintScope::Surface),
+    ] {
         let mut runner = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
             PointerMoveBridge {
-                repaint_scope: Some(scope),
+                repaint_scope: Some(requested_scope),
                 ..PointerMoveBridge::default()
             },
             Vector2::new(120.0, 40.0),
@@ -152,22 +153,33 @@ fn pointer_move_preserves_typed_refresh_scope() {
         let first = runner.core.route_pointer_move(point);
         assert!(first.needs_scene_rebuild());
         let layout_before_second_move = runner.core.runtime.refresh_counters().layout;
+        // The first hover-entry refresh is immediate. Discard its diagnostics
+        // so this frame covers only the deferred second move.
+        let _ = runner.core.runtime.take_frame_refresh_diagnostics();
 
         let routed = runner
             .core
             .route_pointer_move(Point::new(point.x + 1.0, point.y));
         assert!(routed.needs_scene_rebuild());
-        assert_eq!(routed.surface_refresh_scope_or_surface(), scope);
+        assert_eq!(routed.surface_refresh_scope_or_surface(), requested_scope);
 
         runner.apply_route_outcome(routed);
 
         assert_eq!(
             runner.core.runtime.refresh_counters().layout,
-            layout_before_second_move + expected_layout_passes
+            layout_before_second_move
+                + if effective_scope.refreshes_layout() {
+                    1
+                } else {
+                    0
+                }
         );
+        let frame = runner.core.runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, requested_scope);
+        assert_eq!(frame.effective_scope, effective_scope);
         assert_eq!(
             runner.core.runtime.last_refresh_diagnostics().invalidation,
-            match scope {
+            match requested_scope {
                 RepaintScope::Projection => SurfaceInvalidation::Projection,
                 RepaintScope::Layout => SurfaceInvalidation::Layout,
                 RepaintScope::Surface => SurfaceInvalidation::Surface,

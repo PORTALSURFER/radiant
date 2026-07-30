@@ -3,7 +3,7 @@
 use super::SurfaceRuntime;
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
-    surface::{ViewDeltaDiagnostics, classify_view_delta},
+    surface::{ViewDeltaDiagnostics, ViewDeltaEffect, classify_view_delta},
 };
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
@@ -65,11 +65,73 @@ mod tests {
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
 
+    #[derive(Clone)]
+    struct FenceSemanticWidget {
+        common: crate::widgets::WidgetCommon,
+        revision: crate::widgets::WidgetSemanticsRevision,
+    }
+
+    impl FenceSemanticWidget {
+        fn new(id: u64, revision: &'static str) -> Self {
+            Self {
+                common: crate::widgets::WidgetCommon::fixed(id, 80.0, 28.0),
+                revision: crate::widgets::WidgetSemanticsRevision::exact(revision),
+            }
+        }
+    }
+
+    impl crate::widgets::WidgetSemantics for FenceSemanticWidget {
+        fn revision(&self) -> crate::widgets::WidgetSemanticsRevision {
+            self.revision.clone()
+        }
+    }
+
+    impl crate::widgets::Widget for FenceSemanticWidget {
+        fn revision(&self) -> crate::widgets::WidgetRevision {
+            crate::widgets::WidgetRevision::exact((), (), (), ())
+        }
+
+        fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+            crate::widgets::WidgetCapabilities::new().semantics(self)
+        }
+
+        fn common(&self) -> &crate::widgets::WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: crate::widgets::WidgetInput,
+        ) -> Option<crate::widgets::WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
     #[derive(Default)]
     struct ReplacementBridge {
         replace: bool,
         replacement_count: usize,
         deep: bool,
+        geometry: bool,
+        mapper_changed: bool,
+        geometry_mode: bool,
+        exact: bool,
+        semantic_mode: bool,
+        semantic_changed: bool,
     }
 
     impl RuntimeBridge<()> for ReplacementBridge {
@@ -85,6 +147,46 @@ mod tests {
                         .collect(),
                 )));
             }
+            if self.geometry_mode {
+                let mut slot = crate::layout::SlotParams::fill();
+                slot.margin.left = if self.geometry { 4.0 } else { 0.0 };
+                return crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+                    1,
+                    0.0,
+                    vec![SurfaceChild::new(
+                        slot,
+                        SurfaceNode::widget(
+                            crate::widgets::TextWidget::new(
+                                20,
+                                "Stable",
+                                WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    )],
+                )));
+            }
+            if self.exact {
+                return crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+                    crate::widgets::TextWidget::new(
+                        20,
+                        "Stable",
+                        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )));
+            }
+            if self.semantic_mode {
+                let revision = if self.semantic_changed {
+                    "after"
+                } else {
+                    "before"
+                };
+                return crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+                    FenceSemanticWidget::new(20, revision),
+                    WidgetMessageMapper::none(),
+                )));
+            }
             if self.deep {
                 let mut node = replacement_widget(20, self.replace);
                 for id in 0..(MAX_IDENTITY_PATH_COMPONENTS + 2) {
@@ -93,6 +195,11 @@ mod tests {
                 }
                 return crate::runtime::test_arc_surface(UiSurface::new(node));
             }
+            let mapper = if self.mapper_changed {
+                WidgetMessageMapper::dynamic(|_| None)
+            } else {
+                WidgetMessageMapper::none()
+            };
             let node = if self.replace {
                 SurfaceNode::widget(
                     ScrollbarWidget::new(
@@ -100,7 +207,7 @@ mod tests {
                         ScrollbarAxis::Vertical,
                         WidgetSizing::fixed(Vector2::new(16.0, 80.0)),
                     ),
-                    WidgetMessageMapper::none(),
+                    mapper,
                 )
             } else {
                 SurfaceNode::widget(
@@ -109,7 +216,7 @@ mod tests {
                         "Previous",
                         WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
                     ),
-                    WidgetMessageMapper::none(),
+                    mapper,
                 )
             };
             crate::runtime::test_arc_surface(UiSurface::new(node))
@@ -497,6 +604,114 @@ mod tests {
         assert_eq!(summary.total_events, 1);
         assert_eq!(summary.recorded_events, 1);
     }
+
+    #[test]
+    fn projection_geometry_evidence_promotes_to_layout() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                geometry_mode: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
+        let layout_before = runtime.refresh_counters().layout;
+        runtime.bridge_mut().geometry = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, RepaintScope::Projection);
+        assert_eq!(frame.effective_scope, RepaintScope::Layout);
+        assert_eq!(runtime.refresh_counters().layout, layout_before + 1);
+    }
+
+    #[test]
+    fn projection_structural_evidence_promotes_to_surface() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.bridge_mut().replace = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, RepaintScope::Projection);
+        assert_eq!(frame.effective_scope, RepaintScope::Surface);
+        assert_eq!(frame.refresh.invalidation, SurfaceInvalidation::Projection);
+    }
+
+    #[test]
+    fn layout_structural_evidence_promotes_to_surface() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.bridge_mut().replace = true;
+
+        runtime.refresh_with_scope(RepaintScope::Layout);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, RepaintScope::Layout);
+        assert_eq!(frame.effective_scope, RepaintScope::Surface);
+    }
+
+    #[test]
+    fn opaque_mapper_evidence_promotes_projection_to_surface() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.bridge_mut().mapper_changed = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, RepaintScope::Projection);
+        assert_eq!(frame.effective_scope, RepaintScope::Surface);
+    }
+
+    #[test]
+    fn semantic_revision_evidence_promotes_projection_to_projection() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                semantic_mode: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.bridge_mut().semantic_changed = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, RepaintScope::Projection);
+        assert_eq!(frame.effective_scope, RepaintScope::Projection);
+        assert_eq!(
+            frame.view_delta.effect,
+            crate::runtime::surface::ViewDeltaEffect::Interaction
+        );
+    }
+
+    #[test]
+    fn unchanged_projection_stays_narrow_and_surface_never_narrows() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        let projection = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(projection.effective_scope, RepaintScope::Projection);
+
+        runtime.refresh_with_scope(RepaintScope::Surface);
+        let surface = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(surface.requested_scope, RepaintScope::Surface);
+        assert_eq!(surface.effective_scope, RepaintScope::Surface);
+    }
 }
 
 impl SurfaceIdentityPath {
@@ -670,11 +885,66 @@ pub struct SurfaceRefreshDiagnostics {
 }
 
 /// Runtime/frame transport for observational view-delta evidence.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SurfaceRefreshFrameDiagnostics {
     pub(crate) refresh: SurfaceRefreshDiagnostics,
     pub(crate) view_delta: ViewDeltaDiagnostics,
     pub(crate) total: Duration,
+    pub(crate) requested_scope: RepaintScope,
+    pub(crate) effective_scope: RepaintScope,
+    has_refresh: bool,
+}
+
+impl SurfaceRefreshFrameDiagnostics {
+    pub(crate) const fn startup() -> Self {
+        Self {
+            refresh: SurfaceRefreshDiagnostics::startup(),
+            view_delta: ViewDeltaDiagnostics::startup(),
+            total: Duration::ZERO,
+            requested_scope: RepaintScope::Surface,
+            effective_scope: RepaintScope::Surface,
+            has_refresh: true,
+        }
+    }
+
+    fn record(
+        &mut self,
+        refresh: SurfaceRefreshDiagnostics,
+        view_delta: ViewDeltaDiagnostics,
+        total: Duration,
+        requested_scope: RepaintScope,
+        effective_scope: RepaintScope,
+    ) {
+        if !self.has_refresh {
+            *self = Self {
+                refresh,
+                view_delta,
+                total,
+                requested_scope,
+                effective_scope,
+                has_refresh: true,
+            };
+            return;
+        }
+        self.refresh.merge(refresh);
+        self.view_delta.merge(view_delta);
+        self.total = self.total.saturating_add(total);
+        self.requested_scope = self.requested_scope.merge(requested_scope);
+        self.effective_scope = self.effective_scope.merge(effective_scope);
+    }
+}
+
+impl Default for SurfaceRefreshFrameDiagnostics {
+    fn default() -> Self {
+        Self {
+            refresh: SurfaceRefreshDiagnostics::default(),
+            view_delta: ViewDeltaDiagnostics::default(),
+            total: Duration::ZERO,
+            requested_scope: RepaintScope::PaintOnly,
+            effective_scope: RepaintScope::PaintOnly,
+            has_refresh: false,
+        }
+    }
 }
 
 impl SurfaceRefreshDiagnostics {
@@ -707,6 +977,24 @@ impl SurfaceRefreshDiagnostics {
     }
 }
 
+fn effective_scope(requested: RepaintScope, view_delta: ViewDeltaDiagnostics) -> RepaintScope {
+    if requested.is_paint_only() {
+        return RepaintScope::PaintOnly;
+    }
+    if !view_delta.classified {
+        return RepaintScope::Surface;
+    }
+    match (requested, view_delta.effect) {
+        (RepaintScope::Surface, _) => RepaintScope::Surface,
+        (RepaintScope::Layout, ViewDeltaEffect::Structural) => RepaintScope::Surface,
+        (RepaintScope::Layout, _) => RepaintScope::Layout,
+        (RepaintScope::Projection, ViewDeltaEffect::Structural) => RepaintScope::Surface,
+        (RepaintScope::Projection, ViewDeltaEffect::Geometry) => RepaintScope::Layout,
+        (RepaintScope::Projection, _) => RepaintScope::Projection,
+        (RepaintScope::PaintOnly, _) => RepaintScope::PaintOnly,
+    }
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -733,6 +1021,7 @@ where
                 },
                 Duration::ZERO,
                 ViewDeltaDiagnostics::default(),
+                RepaintScope::PaintOnly,
             );
             return;
         }
@@ -750,6 +1039,7 @@ where
         let view_delta =
             classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta)
                 .diagnostics(view_delta_started.elapsed());
+        let effective_scope = effective_scope(scope, view_delta);
 
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,
@@ -790,7 +1080,7 @@ where
         self.surface = next_surface;
         self.layout_root = layout_root;
         self.restore_pointer_capture_state();
-        let layout = if scope.refreshes_layout() {
+        let layout = if effective_scope.refreshes_layout() {
             let layout_started = Instant::now();
             self.relayout_with_traversal(traversal);
             self.refresh_counters.layout = self.refresh_counters.layout.saturating_add(1);
@@ -817,6 +1107,7 @@ where
             },
             refresh_started.elapsed(),
             view_delta,
+            effective_scope,
         );
         self.enforce_identity_audit(identity);
     }
@@ -831,20 +1122,24 @@ where
         diagnostics: SurfaceRefreshDiagnostics,
         total: Duration,
         view_delta: ViewDeltaDiagnostics,
+        effective_scope: RepaintScope,
     ) {
         self.last_refresh_diagnostics = diagnostics;
         self.last_view_delta_diagnostics = view_delta;
-        self.pending_frame_refresh_diagnostics.merge(diagnostics);
-        self.pending_frame_view_delta_diagnostics.merge(view_delta);
-        self.pending_frame_refresh_total = self.pending_frame_refresh_total.saturating_add(total);
+        self.pending_frame_refresh.record(
+            diagnostics,
+            view_delta,
+            total,
+            diagnostics
+                .invalidation
+                .repaint_scope()
+                .unwrap_or(RepaintScope::PaintOnly),
+            effective_scope,
+        );
     }
 
     pub(crate) fn take_frame_refresh_diagnostics(&mut self) -> SurfaceRefreshFrameDiagnostics {
-        SurfaceRefreshFrameDiagnostics {
-            refresh: std::mem::take(&mut self.pending_frame_refresh_diagnostics),
-            view_delta: std::mem::take(&mut self.pending_frame_view_delta_diagnostics),
-            total: std::mem::take(&mut self.pending_frame_refresh_total),
-        }
+        std::mem::take(&mut self.pending_frame_refresh)
     }
 
     /// Return cumulative refresh-stage counts for this runtime.

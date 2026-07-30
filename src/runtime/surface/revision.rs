@@ -350,6 +350,9 @@ pub(crate) struct ViewDeltaDiagnostics {
     pub(crate) omitted_events: u32,
     pub(crate) truncated_paths: bool,
     pub(crate) structural_cause: Option<ViewDeltaCause>,
+    /// Whether every recorded change is safe for backend-neutral base paint
+    /// plan reuse. This is private evidence, not a public refresh policy API.
+    pub(crate) base_paint_reuse_safe: bool,
 }
 
 impl Default for ViewDeltaDiagnostics {
@@ -369,6 +372,7 @@ impl ViewDeltaDiagnostics {
             omitted_events: 0,
             truncated_paths: false,
             structural_cause: None,
+            base_paint_reuse_safe: true,
         }
     }
 
@@ -386,6 +390,7 @@ impl ViewDeltaDiagnostics {
         self.recorded_events = self.recorded_events.saturating_add(other.recorded_events);
         self.omitted_events = self.omitted_events.saturating_add(other.omitted_events);
         self.truncated_paths |= other.truncated_paths;
+        self.base_paint_reuse_safe &= other.base_paint_reuse_safe;
         if self.structural_cause.is_none() {
             self.structural_cause = other.structural_cause;
         }
@@ -465,6 +470,14 @@ impl ViewDelta {
             .flatten()
             .find(|event| event.effect == ViewDeltaEffect::Structural)
             .map(|event| event.cause);
+        let base_paint_reuse_safe = self.events.iter().flatten().all(|event| {
+            matches!(
+                event.cause,
+                ViewDeltaCause::WidgetCapabilities
+                    | ViewDeltaCause::OpaqueWidgetMapper
+                    | ViewDeltaCause::WidgetRevision
+            )
+        });
         ViewDeltaDiagnostics {
             classified: true,
             duration,
@@ -474,6 +487,7 @@ impl ViewDelta {
             omitted_events: self.omitted_events,
             truncated_paths: self.truncated_paths,
             structural_cause,
+            base_paint_reuse_safe,
         }
     }
 }

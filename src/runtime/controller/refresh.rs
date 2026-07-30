@@ -624,6 +624,7 @@ mod tests {
         runtime.refresh_with_scope(RepaintScope::Layout);
 
         assert_eq!(runtime.refresh_counters().layout, before + 1);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -733,6 +734,7 @@ mod tests {
         assert_eq!(frame.requested_scope, RepaintScope::Projection);
         assert_eq!(frame.effective_scope, RepaintScope::Layout);
         assert_eq!(runtime.refresh_counters().layout, layout_before + 1);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -748,6 +750,7 @@ mod tests {
         assert_eq!(frame.requested_scope, RepaintScope::Projection);
         assert_eq!(frame.effective_scope, RepaintScope::Surface);
         assert_eq!(frame.refresh.invalidation, SurfaceInvalidation::Projection);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -799,6 +802,7 @@ mod tests {
             frame.view_delta.effect,
             crate::runtime::surface::ViewDeltaEffect::Interaction
         );
+        assert!(runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -813,10 +817,12 @@ mod tests {
         let _ = runtime.take_frame_refresh_diagnostics();
 
         runtime.refresh_with_scope(RepaintScope::Projection);
+        assert!(runtime.base_paint_plan_reuse_eligible());
         let projection = runtime.take_frame_refresh_diagnostics();
         assert_eq!(projection.effective_scope, RepaintScope::Projection);
 
         runtime.refresh_with_scope(RepaintScope::Surface);
+        assert!(runtime.base_paint_plan_reuse_eligible());
         let surface = runtime.take_frame_refresh_diagnostics();
         assert_eq!(surface.requested_scope, RepaintScope::Surface);
         assert_eq!(surface.effective_scope, RepaintScope::Surface);
@@ -933,6 +939,8 @@ pub struct SurfaceRefreshCounters {
     pub widget_state_sync: u64,
     /// Layout passes.
     pub layout: u64,
+    /// Native/backend-neutral base paint plans rebuilt by the host renderer.
+    pub base_paint_plan_rebuilds: u64,
 }
 
 impl SurfaceRefreshCounters {
@@ -942,6 +950,7 @@ impl SurfaceRefreshCounters {
             runtime_projection: 1,
             widget_state_sync: 0,
             layout: 1,
+            base_paint_plan_rebuilds: 0,
         }
     }
 }
@@ -1135,6 +1144,42 @@ where
         && !runtime.layout_engine.has_explicit_dirty()
 }
 
+fn can_reuse_base_paint_plan<Bridge, Message>(
+    runtime: &SurfaceRuntime<Bridge, Message>,
+    requested: RepaintScope,
+    view_delta: ViewDeltaDiagnostics,
+) -> bool
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
+        && view_delta.classified
+        && runtime.scratch.view_delta.has_identity_capacity()
+        && view_delta.omitted_events == 0
+        && !view_delta.truncated_paths
+        && view_delta.base_paint_reuse_safe
+        && matches!(
+            view_delta.effect,
+            ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+        )
+        && can_reuse_completed_layout(runtime, requested, view_delta)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BasePaintPlanContext {
+    pub(crate) viewport: Rect,
+    pub(crate) window_environment: crate::runtime::WindowEnvironment,
+    pub(crate) layout_state_generation: u64,
+    pub(crate) layout_debug_options: crate::layout::LayoutDebugOptions,
+    pub(crate) hovered_container: Option<crate::layout::NodeId>,
+    pub(crate) hovered_widget: Option<WidgetId>,
+    pub(crate) hovered_scroll_affordance: Option<crate::layout::NodeId>,
+    pub(crate) focused_widget: Option<WidgetId>,
+    pub(crate) pointer_capture: Option<WidgetId>,
+    pub(crate) pointer_capture_state: Option<(WidgetId, crate::widgets::WidgetState)>,
+    pub(crate) scrollbar_drag: Option<crate::layout::NodeId>,
+}
+
 fn effective_layout_viewport(viewport: Rect) -> Rect {
     Rect::from_min_size(
         Point::new(viewport.min.x.floor(), viewport.min.y.floor()),
@@ -1164,6 +1209,7 @@ where
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         if scope.is_paint_only() {
+            self.base_paint_plan_reuse_eligible = false;
             self.record_refresh_diagnostics(
                 SurfaceRefreshDiagnostics {
                     invalidation,
@@ -1192,6 +1238,7 @@ where
                 .diagnostics(view_delta_started.elapsed());
         let effective_scope = effective_scope(scope, view_delta);
         let reuse_completed_layout = can_reuse_completed_layout(self, scope, view_delta);
+        self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, scope, view_delta);
 
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,
@@ -1300,6 +1347,37 @@ where
     /// Return cumulative refresh-stage counts for this runtime.
     pub const fn refresh_counters(&self) -> SurfaceRefreshCounters {
         self.refresh_counters
+    }
+
+    pub(crate) fn base_paint_plan_context(&self) -> BasePaintPlanContext {
+        BasePaintPlanContext {
+            viewport: self.viewport,
+            window_environment: self.window_environment,
+            layout_state_generation: self.layout_state_generation,
+            layout_debug_options: self.layout_debug_options,
+            hovered_container: self.interaction.hover.container,
+            hovered_widget: self.interaction.hover.widget,
+            hovered_scroll_affordance: self.interaction.hover.scroll_affordance,
+            focused_widget: self.interaction.focus.focused_widget,
+            pointer_capture: self.interaction.pointer.capture,
+            pointer_capture_state: self.interaction.pointer.capture_state,
+            scrollbar_drag: self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .map(|capture| capture.node_id),
+        }
+    }
+
+    pub(crate) fn base_paint_plan_reuse_eligible(&self) -> bool {
+        self.base_paint_plan_reuse_eligible
+    }
+
+    pub(crate) fn record_base_paint_plan_rebuild(&mut self) {
+        self.refresh_counters.base_paint_plan_rebuilds = self
+            .refresh_counters
+            .base_paint_plan_rebuilds
+            .saturating_add(1);
     }
 
     fn enforce_identity_audit(&self, identity: SurfaceIdentityDiagnostics) {

@@ -28,6 +28,7 @@ mod work;
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
+pub(crate) use refresh::BasePaintPlanContext;
 pub use refresh::{
     IdentityAudit, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
@@ -135,6 +136,7 @@ where
     last_view_delta_diagnostics: crate::runtime::surface::ViewDeltaDiagnostics,
     pending_frame_refresh: refresh::SurfaceRefreshFrameDiagnostics,
     refresh_counters: SurfaceRefreshCounters,
+    pub(in crate::runtime) base_paint_plan_reuse_eligible: bool,
     identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,

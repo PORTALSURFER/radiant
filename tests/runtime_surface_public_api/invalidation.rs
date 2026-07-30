@@ -88,6 +88,7 @@ fn projection_stage_refreshes_paint_content_without_running_layout() {
                 } else {
                     0
                 },
+            base_paint_plan_rebuilds: before_counters.base_paint_plan_rebuilds,
         }
     );
     assert_eq!(

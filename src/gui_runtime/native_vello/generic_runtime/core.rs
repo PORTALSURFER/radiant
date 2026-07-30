@@ -2,6 +2,7 @@
 
 use super::{FrameWorkReason, GenericRouteOutcome};
 use crate::gui::types::{Point, Vector2};
+use crate::runtime::BasePaintPlanContext;
 use crate::runtime::{
     CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
 };
@@ -17,6 +18,7 @@ where
     pub(in crate::gui_runtime::native_vello) last_pointer_press: Option<PointerPressStamp>,
     appearance_policy: AppearancePolicy,
     resolved_appearance: ResolvedAppearance,
+    base_paint_plan_context: Option<(BasePaintPlanContext, ResolvedAppearance)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -73,6 +75,7 @@ where
             last_pointer_press: None,
             appearance_policy: AppearancePolicy::FollowEnvironment,
             resolved_appearance: ResolvedAppearance::fixed(crate::theme::ThemeTokens::dark()),
+            base_paint_plan_context: None,
         }
     }
 
@@ -92,12 +95,25 @@ where
     pub(super) fn paint_plan_into(&mut self, plan: &mut crate::runtime::SurfacePaintPlan) {
         let environment = self.runtime.context().resolved_environment();
         let appearance = self.appearance_policy.resolve(environment);
+        let context = self.runtime.base_paint_plan_context();
+        if self.runtime.base_paint_plan_reuse_eligible()
+            && self
+                .base_paint_plan_context
+                .is_some_and(|(cached, cached_appearance)| {
+                    cached == context && cached_appearance == appearance
+                })
+        {
+            self.resolved_appearance = appearance;
+            return;
+        }
         // The caller owns the mutable frame preparation boundary; cache the
         // pass snapshot so runtime overlays cannot drift from the base scene.
         self.resolved_appearance = appearance;
         let theme = appearance.tokens();
         self.runtime
             .base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
+        self.base_paint_plan_context = Some((context, appearance));
+        self.runtime.record_base_paint_plan_rebuild();
     }
 
     pub(super) fn paint_transient_overlay(

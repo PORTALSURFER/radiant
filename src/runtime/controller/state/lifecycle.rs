@@ -70,6 +70,7 @@ where
             last_view_delta_diagnostics: crate::runtime::surface::ViewDeltaDiagnostics::startup(),
             pending_frame_refresh: super::super::refresh::SurfaceRefreshFrameDiagnostics::startup(),
             refresh_counters: super::super::SurfaceRefreshCounters::startup(),
+            base_paint_plan_reuse_eligible: false,
             identity_audit: super::super::IdentityAudit::default(),
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),

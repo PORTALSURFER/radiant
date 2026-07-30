@@ -28,17 +28,21 @@ fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
 
 #[test]
 fn deferred_wheel_refresh_preserves_typed_scope_until_frame_preparation() {
-    for (scope, expected_layout_passes) in
-        [(RepaintScope::Projection, 0), (RepaintScope::Layout, 1)]
-    {
+    for (requested_scope, effective_scope) in [
+        (RepaintScope::Projection, RepaintScope::Surface),
+        (RepaintScope::Layout, RepaintScope::Surface),
+    ] {
         let mut runner = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
             WheelRefreshBridge {
-                repaint_scope: Some(scope),
+                repaint_scope: Some(requested_scope),
                 ..WheelRefreshBridge::default()
             },
             Vector2::new(240.0, 40.0),
         );
+        // Discard startup diagnostics so this frame describes the requested
+        // refresh and its classifier-selected effective scope.
+        let _ = runner.core.runtime.take_frame_refresh_diagnostics();
         let layout_before = runner.core.runtime.refresh_counters().layout;
         let outcome = runner.core.route_scroll_deferred_refresh_with_modifiers(
             Point::new(12.0, 12.0),
@@ -47,19 +51,30 @@ fn deferred_wheel_refresh_preserves_typed_scope_until_frame_preparation() {
         );
 
         assert!(outcome.is_deferred_surface_refresh());
-        assert_eq!(outcome.surface_refresh_scope_or_surface(), scope);
+        assert_eq!(outcome.surface_refresh_scope_or_surface(), requested_scope);
         runner.apply_route_outcome(outcome);
-        assert_eq!(runner.timing.deferred_surface_refresh_scope, Some(scope));
+        assert_eq!(
+            runner.timing.deferred_surface_refresh_scope,
+            Some(requested_scope)
+        );
 
         runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
 
         assert_eq!(
             runner.core.runtime.refresh_counters().layout,
-            layout_before + expected_layout_passes
+            layout_before
+                + if effective_scope.refreshes_layout() {
+                    1
+                } else {
+                    0
+                }
         );
+        let frame = runner.core.runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.requested_scope, requested_scope);
+        assert_eq!(frame.effective_scope, effective_scope);
         assert_eq!(
             runner.core.runtime.last_refresh_diagnostics().invalidation,
-            match scope {
+            match requested_scope {
                 RepaintScope::Projection => SurfaceInvalidation::Projection,
                 RepaintScope::Layout => SurfaceInvalidation::Layout,
                 RepaintScope::Surface => SurfaceInvalidation::Surface,

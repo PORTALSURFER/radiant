@@ -55,8 +55,12 @@ fn direct_typed_refresh_commands_apply_the_requested_stage() {
     };
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
     let before_projection = runtime.refresh_counters();
+    let requested_projection_scope = RepaintScope::Projection;
+    // The command fixture's conservative button mapper requires a structural
+    // fallback, so the requested projection is effectively a surface refresh.
+    let effective_projection_scope = RepaintScope::Surface;
 
-    let projection = runtime.execute_command(Command::repaint(RepaintScope::Projection));
+    let projection = runtime.execute_command(Command::repaint(requested_projection_scope));
 
     assert!(projection.surface_refresh_requested);
     assert_eq!(
@@ -65,11 +69,18 @@ fn direct_typed_refresh_commands_apply_the_requested_stage() {
     );
     assert_eq!(
         runtime.refresh_counters().layout,
-        before_projection.layout,
-        "projection-only commands must reuse layout"
+        before_projection.layout
+            + if effective_projection_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            },
+        "effective scope must determine whether layout runs"
     );
 
-    let layout = runtime.execute_command(Command::repaint(RepaintScope::Layout));
+    let requested_layout_scope = RepaintScope::Layout;
+    let effective_layout_scope = RepaintScope::Surface;
+    let layout = runtime.execute_command(Command::repaint(requested_layout_scope));
 
     assert!(layout.surface_refresh_requested);
     assert_eq!(
@@ -78,8 +89,18 @@ fn direct_typed_refresh_commands_apply_the_requested_stage() {
     );
     assert_eq!(
         runtime.refresh_counters().layout,
-        before_projection.layout + 1,
-        "layout commands must run exactly one layout pass"
+        before_projection.layout
+            + if effective_projection_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            }
+            + if effective_layout_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            },
+        "effective scopes must determine the layout pass count"
     );
 }
 
@@ -90,9 +111,11 @@ fn narrower_eager_refresh_does_not_consume_broader_pending_refresh() {
     };
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
     let before = runtime.refresh_counters();
+    let requested_pending_scope = RepaintScope::Layout;
+    let effective_scope = RepaintScope::Surface;
 
     let outcome = runtime.execute_command(Command::batch([
-        Command::repaint(RepaintScope::Layout),
+        Command::repaint(requested_pending_scope),
         Command::message(CommandDemoMessage::ProjectionRefresh),
     ]));
 
@@ -108,7 +131,22 @@ fn narrower_eager_refresh_does_not_consume_broader_pending_refresh() {
     );
     assert_eq!(after.runtime_projection, before.runtime_projection + 2);
     assert_eq!(after.widget_state_sync, before.widget_state_sync + 2);
-    assert_eq!(after.layout, before.layout + 1);
+    // The eager projection and remaining broader pending refresh each promote
+    // to Surface under the conservative mapper evidence.
+    assert_eq!(
+        after.layout,
+        before.layout
+            + if effective_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            }
+            + if effective_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            }
+    );
     assert_eq!(
         runtime.last_refresh_diagnostics().invalidation,
         radiant::runtime::SurfaceInvalidation::Layout

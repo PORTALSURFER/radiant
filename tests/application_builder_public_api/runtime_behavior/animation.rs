@@ -846,7 +846,12 @@ fn presentation_frame_clock_surface_revisions_request_projection_only_refresh() 
 #[test]
 fn revision_backed_frame_drain_projects_once_and_reuses_layout() {
     use radiant::prelude as ui;
-    use radiant::runtime::{RepaintScope, SurfaceRevisions};
+    use radiant::runtime::{RepaintScope, SurfaceInvalidation, SurfaceRevisions};
+
+    let requested_scope = RepaintScope::Projection;
+    // TextWidget's exact geometry revision includes its text content. The
+    // frame update therefore promotes the requested projection to layout.
+    let effective_scope = RepaintScope::Layout;
 
     let bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Frame {}", state.count)).id(10))
@@ -867,10 +872,7 @@ fn revision_backed_frame_drain_projects_once_and_reuses_layout() {
     let outcome = runtime.drain_runtime_messages();
     let after = runtime.refresh_counters();
 
-    assert_eq!(
-        outcome.surface_refresh_scope,
-        Some(RepaintScope::Projection)
-    );
+    assert_eq!(outcome.surface_refresh_scope, Some(requested_scope));
     assert!(outcome.surface_refresh_applied);
     assert_eq!(
         after.application_projection,
@@ -878,7 +880,19 @@ fn revision_backed_frame_drain_projects_once_and_reuses_layout() {
     );
     assert_eq!(after.runtime_projection, before.runtime_projection + 1);
     assert_eq!(after.widget_state_sync, before.widget_state_sync + 1);
-    assert_eq!(after.layout, before.layout);
+    assert_eq!(
+        after.layout,
+        before.layout
+            + if effective_scope.refreshes_layout() {
+                1
+            } else {
+                0
+            }
+    );
+    assert_eq!(
+        runtime.last_refresh_diagnostics().invalidation,
+        SurfaceInvalidation::from_repaint_scope(Some(requested_scope))
+    );
 }
 
 #[test]

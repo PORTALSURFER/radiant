@@ -5,10 +5,11 @@ use crate::{
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
         ButtonWidget, KnobMessage, KnobWidget, PointerButton, ScrollbarAxis, ScrollbarWidget,
-        WidgetInput, WidgetSizing,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetSizing,
     },
 };
 use std::collections::HashMap;
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn scene_without_layers_routes_base_widget_at_transparent_path() {
@@ -402,6 +403,80 @@ fn synchronize_widget_state_from_paths_skips_incompatible_replacement() {
             .state
             .pressed
     );
+}
+
+#[derive(Clone)]
+struct SyncProbeWidget {
+    common: WidgetCommon,
+    synchronize_calls: Rc<Cell<u32>>,
+}
+
+impl SyncProbeWidget {
+    fn new(id: u64, synchronize_calls: Rc<Cell<u32>>) -> Self {
+        Self {
+            common: WidgetCommon::fixed(id, 40.0, 20.0),
+            synchronize_calls,
+        }
+    }
+}
+
+impl Widget for SyncProbeWidget {
+    fn revision(&self) -> WidgetRevision {
+        WidgetRevision::exact((), (), (), ())
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {
+        self.synchronize_calls
+            .set(self.synchronize_calls.get().saturating_add(1));
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+    }
+}
+
+#[test]
+fn synchronize_skips_widget_with_invalidated_cached_compatibility() {
+    let synchronize_calls = Rc::new(Cell::new(0));
+    let previous: SurfaceNode<()> = SurfaceNode::widget(
+        SyncProbeWidget::new(20, Rc::clone(&synchronize_calls)),
+        WidgetMessageMapper::none(),
+    );
+    let mut current: SurfaceNode<()> = SurfaceNode::widget(
+        SyncProbeWidget::new(20, Rc::clone(&synchronize_calls)),
+        WidgetMessageMapper::none(),
+    );
+    let Some(widget) = current.find_widget_mut(20) else {
+        panic!("current widget exists");
+    };
+    widget.widget_mut().common_mut().state.hovered = true;
+
+    let paths = HashMap::from([(20, WidgetPath::from_slice(&[]))]);
+    current.synchronize_widget_state_from_paths(
+        &[20],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+    assert_eq!(synchronize_calls.get(), 0);
 }
 
 #[test]

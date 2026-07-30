@@ -14,12 +14,16 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
-    pub(super) fn widget_compatibility_kind_at_path(
+    pub(super) fn widget_compatibility_at_path(
         &self,
         child_path: &[usize],
-    ) -> Option<&'static str> {
-        self.find_widget_at_path(child_path)
-            .map(SurfaceWidget::compatibility_kind)
+    ) -> Option<(&'static str, bool)> {
+        self.find_widget_at_path(child_path).map(|widget| {
+            (
+                widget.compatibility_kind(),
+                widget.revision_evidence().valid,
+            )
+        })
     }
 
     pub(super) fn synchronize_widget_state_from_paths(
@@ -49,15 +53,18 @@ impl<Message> SurfaceNode<Message> {
             else {
                 continue;
             };
-            if current_widget.compatibility_kind() != previous_widget.compatibility_kind() {
+            if !current_widget.revision_evidence().valid
+                || !previous_widget.revision_evidence().valid
+                || current_widget.compatibility_kind() != previous_widget.compatibility_kind()
+            {
                 continue;
             }
             current_widget
-                .widget_object_mut()
+                .widget_object_mut_runtime()
                 .synchronize_from_previous(previous_widget.widget_object());
             if policy.clears_retained_hover_for(*widget_id) {
                 current_widget
-                    .widget_object_mut()
+                    .widget_object_mut_runtime()
                     .common_mut()
                     .state
                     .hovered = false;

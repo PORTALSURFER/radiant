@@ -33,6 +33,6 @@ where
             self.interaction.pointer.capture_state = None;
             return;
         };
-        widget.widget_object_mut().common_mut().state = state;
+        widget.widget_object_mut_runtime().common_mut().state = state;
     }
 }

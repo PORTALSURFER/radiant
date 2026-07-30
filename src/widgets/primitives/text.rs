@@ -141,7 +141,10 @@ impl TextWidget {
 
 impl WidgetSemantics for TextWidget {
     fn revision(&self) -> WidgetSemanticsRevision {
-        WidgetSemanticsRevision::exact(self.text.as_str().to_owned())
+        // PaintText already owns its immutable, allocation-sharing storage.
+        // Retain that value directly for cached semantic evidence instead of
+        // materializing a temporary String on every erasure boundary.
+        WidgetSemanticsRevision::exact(self.text.clone())
     }
 
     fn automation_role(&self) -> crate::gui::automation::AutomationRole {
@@ -295,6 +298,7 @@ mod tests {
     use super::{TextAlign, TextWidget, TextWrap};
     use crate::{
         layout::Vector2,
+        runtime::PaintText,
         widgets::{TextColorRole, Widget, WidgetRevision, WidgetSemanticsRevision, WidgetSizing},
     };
 
@@ -313,7 +317,7 @@ mod tests {
         let second = TextWidget::new(7, "world", WidgetSizing::fixed(Vector2::new(80.0, 20.0)));
         assert_eq!(
             first.capabilities().semantics_revision(),
-            Some(WidgetSemanticsRevision::exact("hello".to_owned()))
+            Some(WidgetSemanticsRevision::exact(PaintText::from("hello")))
         );
         assert_ne!(
             first.capabilities().semantics_revision(),

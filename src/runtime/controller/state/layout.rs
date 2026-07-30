@@ -46,6 +46,7 @@ where
     }
 
     fn record_completed_layout(&mut self) {
+        self.external_layout_dirty = false;
         self.completed_layout = Some(super::super::CompletedLayoutContext {
             viewport: effective_layout_viewport(self.viewport),
             window_environment: self.window_environment,

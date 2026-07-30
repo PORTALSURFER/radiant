@@ -47,6 +47,7 @@ where
             layout_state_generation: 0,
             layout_debug_options: LayoutDebugOptions::default(),
             completed_layout: None,
+            external_layout_dirty: false,
             traversal: RuntimeTraversalState::default(),
             scratch: RuntimeScratch::default(),
             interaction: RuntimeInteractionState::default(),
@@ -97,6 +98,7 @@ where
             return false;
         }
         self.window_environment = environment;
+        self.external_layout_dirty = true;
         self.surface.set_window_environment(environment);
         self.bridge.set_window_environment(environment);
         true

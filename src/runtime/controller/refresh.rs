@@ -1131,6 +1131,7 @@ where
         && completed.window_environment == runtime.window_environment
         && completed.layout_state_generation == runtime.layout_state_generation
         && completed.layout_debug_options == runtime.layout_debug_options
+        && !runtime.external_layout_dirty
         && !runtime.layout_engine.has_explicit_dirty()
 }
 

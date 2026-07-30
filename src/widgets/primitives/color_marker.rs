@@ -4,9 +4,14 @@ use crate::gui::types::{Point, Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintFillRect, PaintPrimitive};
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetRevision, WidgetSizing,
+};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
-use crate::widgets::primitives::support::WidgetCommon;
+use crate::widgets::primitives::support::{
+    WidgetCommon,
+    revision::{common_geometry, common_interaction, common_paint, exact_revision},
+};
 
 /// Horizontal alignment for a color marker inside its assigned bounds.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -131,6 +136,18 @@ impl ColorMarkerWidget {
 }
 
 impl Widget for ColorMarkerWidget {
+    fn revision(&self) -> WidgetRevision {
+        exact_revision(
+            common_geometry(&self.common),
+            ColorMarkerPaintRevision {
+                props: self.props,
+                common: common_paint(&self.common),
+            },
+            common_interaction(&self.common),
+        )
+        .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -166,6 +183,12 @@ impl Widget for ColorMarkerWidget {
             color,
         }));
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ColorMarkerPaintRevision {
+    props: ColorMarkerProps,
+    common: crate::widgets::primitives::support::revision::CommonPaintRevision,
 }
 
 fn marker_rect(bounds: Rect, props: ColorMarkerProps) -> Option<Rect> {

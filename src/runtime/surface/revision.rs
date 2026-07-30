@@ -1232,10 +1232,14 @@ mod view_delta_tests {
     use crate::{
         gui::types::{Point, Rect, Vector2},
         layout::{ContainerKind, ContainerPolicy},
-        runtime::{EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
+        runtime::{
+            EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
+            WidgetMessageMapper,
+        },
         widgets::{
+            ColorMarkerRunWidget, ColorMarkerWidget, FeedbackOverlayWidget, MarkerRunWidget,
             Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
-            WidgetSemantics, WidgetSemanticsRevision, WidgetStyle, WidgetTone,
+            WidgetSemantics, WidgetSemanticsRevision, WidgetSizing, WidgetStyle, WidgetTone,
         },
     };
     use std::{cell::Cell, hint::black_box, rc::Rc, time::Instant};
@@ -1325,6 +1329,139 @@ mod view_delta_tests {
         assert_eq!(delta.effect, ViewDeltaEffect::Unchanged);
         assert_eq!(delta.total_events, 0);
         assert_eq!(delta.event_count, 0);
+    }
+
+    #[test]
+    fn passive_widgets_supply_exact_revision_evidence_and_safe_float_fallbacks() {
+        let color = crate::gui::types::Rgba8::new(20, 40, 60, 255);
+        let marker = ColorMarkerWidget::new(Some(color));
+        assert_ne!(marker.revision(), WidgetRevision::conservative());
+        assert_ne!(
+            marker.revision(),
+            marker
+                .clone()
+                .with_side(marker.props.side.saturating_add(1))
+                .revision()
+        );
+        let mut invalid_sizing_marker = marker.clone();
+        invalid_sizing_marker.common.sizing.preferred.x = f32::NAN;
+        assert_eq!(
+            invalid_sizing_marker.revision(),
+            WidgetRevision::conservative()
+        );
+        for baseline in [f32::NAN, f32::INFINITY] {
+            let mut invalid_baseline_marker = marker.clone();
+            invalid_baseline_marker.common.sizing.baseline = Some(baseline);
+            assert_eq!(
+                invalid_baseline_marker.revision(),
+                WidgetRevision::conservative()
+            );
+        }
+
+        let run = MarkerRunWidget::new(Some(color), 3);
+        assert_ne!(run.revision(), WidgetRevision::conservative());
+        assert_ne!(
+            run.revision(),
+            run.clone()
+                .with_gap(run.props.gap.saturating_add(1))
+                .revision()
+        );
+
+        let color_run = ColorMarkerRunWidget::new(vec![color]);
+        assert_ne!(color_run.revision(), WidgetRevision::conservative());
+        assert_ne!(
+            color_run.revision(),
+            color_run
+                .clone()
+                .with_side(color_run.props.side.saturating_add(1))
+                .revision()
+        );
+
+        let overlay = FeedbackOverlayWidget::fill().with_progress(0.5, color);
+        assert_ne!(overlay.revision(), WidgetRevision::conservative());
+        assert_eq!(
+            FeedbackOverlayWidget::fill()
+                .with_progress(f32::NAN, color)
+                .revision(),
+            WidgetRevision::conservative()
+        );
+        assert_eq!(
+            FeedbackOverlayWidget::fill()
+                .with_edge(color, f32::INFINITY, crate::gui::paint::BorderSides::ALL)
+                .revision(),
+            WidgetRevision::conservative()
+        );
+    }
+
+    #[test]
+    fn passive_widget_view_delta_effects_follow_geometry_paint_and_interaction_contracts() {
+        let color = crate::gui::types::Rgba8::new(20, 40, 60, 255);
+        let previous = surface(SurfaceNode::widget(
+            ColorMarkerWidget::from_parts(crate::widgets::ColorMarkerWidgetParts {
+                id: 1,
+                sizing: WidgetSizing::fixed(Vector2::new(10.0, 10.0)),
+                props: crate::widgets::ColorMarkerProps::new(Some(color)),
+            }),
+            WidgetMessageMapper::none(),
+        ));
+        let geometry = surface(SurfaceNode::widget(
+            ColorMarkerWidget::from_parts(crate::widgets::ColorMarkerWidgetParts {
+                id: 1,
+                sizing: WidgetSizing::fixed(Vector2::new(12.0, 10.0)),
+                props: crate::widgets::ColorMarkerProps::new(Some(color)),
+            }),
+            WidgetMessageMapper::none(),
+        ));
+        assert_eq!(
+            classify_view_delta(&previous, &geometry).effect,
+            ViewDeltaEffect::Geometry
+        );
+
+        for baseline in [f32::NAN, f32::INFINITY] {
+            let invalid_baseline = surface(SurfaceNode::widget(
+                ColorMarkerWidget::from_parts(crate::widgets::ColorMarkerWidgetParts {
+                    id: 1,
+                    sizing: WidgetSizing {
+                        min: Vector2::new(10.0, 10.0),
+                        preferred: Vector2::new(10.0, 10.0),
+                        baseline: Some(baseline),
+                    },
+                    props: crate::widgets::ColorMarkerProps::new(Some(color)),
+                }),
+                WidgetMessageMapper::none(),
+            ));
+            assert_eq!(
+                classify_view_delta(&previous, &invalid_baseline).effect,
+                ViewDeltaEffect::Structural
+            );
+        }
+
+        let mut paint_widget =
+            ColorMarkerWidget::new(Some(crate::gui::types::Rgba8::new(90, 40, 60, 255)))
+                .with_align(crate::widgets::ColorMarkerAlign::Left);
+        paint_widget.common.id = 1;
+        paint_widget.common.sizing = WidgetSizing::fixed(Vector2::new(10.0, 10.0));
+        let paint = surface(SurfaceNode::widget(
+            paint_widget,
+            WidgetMessageMapper::none(),
+        ));
+        assert_eq!(
+            classify_view_delta(&previous, &paint).effect,
+            ViewDeltaEffect::Paint
+        );
+
+        let mut interaction_widget = ColorMarkerWidget::new(Some(color));
+        interaction_widget.common.id = 1;
+        interaction_widget.common.sizing = WidgetSizing::fixed(Vector2::new(10.0, 10.0));
+        interaction_widget.common.tooltip = Some("hint".to_owned());
+        let interaction = surface(SurfaceNode::widget(
+            interaction_widget,
+            WidgetMessageMapper::none(),
+        ));
+        assert_eq!(
+            classify_view_delta(&previous, &interaction).effect,
+            ViewDeltaEffect::Interaction
+        );
     }
 
     #[test]

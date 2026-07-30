@@ -4,9 +4,12 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing},
+        contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetRevision, WidgetSizing},
         interaction::{WidgetInput, WidgetOutput},
-        primitives::support::WidgetCommon,
+        primitives::support::{
+            WidgetCommon,
+            revision::{common_geometry, common_interaction, common_paint, exact_revision},
+        },
     },
 };
 
@@ -123,6 +126,18 @@ impl ColorMarkerRunWidget {
 }
 
 impl Widget for MarkerRunWidget {
+    fn revision(&self) -> WidgetRevision {
+        exact_revision(
+            common_geometry(&self.common),
+            MarkerRunPaintRevision {
+                props: self.props,
+                common: common_paint(&self.common),
+            },
+            common_interaction(&self.common),
+        )
+        .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -151,6 +166,18 @@ impl Widget for MarkerRunWidget {
 }
 
 impl Widget for ColorMarkerRunWidget {
+    fn revision(&self) -> WidgetRevision {
+        exact_revision(
+            common_geometry(&self.common),
+            ColorMarkerRunPaintRevision {
+                props: self.props.clone(),
+                common: common_paint(&self.common),
+            },
+            common_interaction(&self.common),
+        )
+        .unwrap_or_else(WidgetRevision::conservative)
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -176,6 +203,18 @@ impl Widget for ColorMarkerRunWidget {
     ) {
         append_color_marker_run_paint(primitives, self.common.id, bounds, &self.props);
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MarkerRunPaintRevision {
+    props: MarkerRunProps,
+    common: crate::widgets::primitives::support::revision::CommonPaintRevision,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ColorMarkerRunPaintRevision {
+    props: ColorMarkerRunProps,
+    common: crate::widgets::primitives::support::revision::CommonPaintRevision,
 }
 
 fn marker_run_common(id: WidgetId, sizing: WidgetSizing) -> WidgetCommon {

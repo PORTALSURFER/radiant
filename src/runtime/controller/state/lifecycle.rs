@@ -64,7 +64,10 @@ where
             timer_effects: super::super::timers::TimerEffects::new(effect_owner),
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
+            last_view_delta_diagnostics: crate::runtime::surface::ViewDeltaDiagnostics::startup(),
             pending_frame_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
+            pending_frame_view_delta_diagnostics:
+                crate::runtime::surface::ViewDeltaDiagnostics::startup(),
             pending_frame_refresh_total: std::time::Duration::ZERO,
             refresh_counters: super::super::SurfaceRefreshCounters::startup(),
             identity_audit: super::super::IdentityAudit::default(),

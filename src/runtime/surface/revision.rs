@@ -12,6 +12,7 @@ use crate::layout::{ContainerPolicy, SlotParams};
 use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
 use std::collections::HashSet;
+use std::time::Duration;
 
 /// Borrowed revision inputs for one slot-owned child.
 #[derive(Clone, Copy)]
@@ -335,6 +336,62 @@ pub(crate) struct ViewDelta {
     pub(crate) truncated_paths: bool,
 }
 
+/// Bounded summary retained by refresh diagnostics for one classifier pass.
+///
+/// This is deliberately crate-private: the classifier is observational
+/// evidence for runtime alignment work, not a refresh-policy API.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ViewDeltaDiagnostics {
+    pub(crate) classified: bool,
+    pub(crate) duration: Duration,
+    pub(crate) effect: ViewDeltaEffect,
+    pub(crate) total_events: u32,
+    pub(crate) recorded_events: u8,
+    pub(crate) omitted_events: u32,
+    pub(crate) truncated_paths: bool,
+    pub(crate) structural_cause: Option<ViewDeltaCause>,
+}
+
+impl Default for ViewDeltaDiagnostics {
+    fn default() -> Self {
+        Self::startup()
+    }
+}
+
+impl ViewDeltaDiagnostics {
+    pub(crate) const fn startup() -> Self {
+        Self {
+            classified: false,
+            duration: Duration::ZERO,
+            effect: ViewDeltaEffect::Unchanged,
+            total_events: 0,
+            recorded_events: 0,
+            omitted_events: 0,
+            truncated_paths: false,
+            structural_cause: None,
+        }
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        if !other.classified {
+            return;
+        }
+        if !self.classified {
+            *self = other;
+            return;
+        }
+        self.duration = self.duration.saturating_add(other.duration);
+        self.effect = broader_effect(self.effect, other.effect);
+        self.total_events = self.total_events.saturating_add(other.total_events);
+        self.recorded_events = self.recorded_events.saturating_add(other.recorded_events);
+        self.omitted_events = self.omitted_events.saturating_add(other.omitted_events);
+        self.truncated_paths |= other.truncated_paths;
+        if self.structural_cause.is_none() {
+            self.structural_cause = other.structural_cause;
+        }
+    }
+}
+
 /// Caller-owned identity workspace for allocation-free view-delta scans.
 pub(crate) struct ViewDeltaScratch {
     identities: HashSet<WidgetId>,
@@ -360,6 +417,11 @@ impl ViewDeltaScratch {
         self.identities.insert(identity)
     }
 }
+
+/// Capacity chosen during runtime construction so refresh-time scans do not
+/// allocate. Wider surfaces conservatively record an insufficient-evidence
+/// structural result instead.
+pub(crate) const DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY: usize = 4096;
 
 const MAX_VIEW_DELTA_EVENTS: usize = 16;
 const MAX_PATH_COMPONENTS: usize = 8;
@@ -389,6 +451,25 @@ impl ViewDelta {
             self.event_count += 1;
         } else {
             self.omitted_events = self.omitted_events.saturating_add(1);
+        }
+    }
+
+    pub(crate) fn diagnostics(self, duration: Duration) -> ViewDeltaDiagnostics {
+        let structural_cause = self
+            .events
+            .iter()
+            .flatten()
+            .find(|event| event.effect == ViewDeltaEffect::Structural)
+            .map(|event| event.cause);
+        ViewDeltaDiagnostics {
+            classified: true,
+            duration,
+            effect: self.effect,
+            total_events: self.total_events,
+            recorded_events: self.event_count,
+            omitted_events: self.omitted_events,
+            truncated_paths: self.truncated_paths,
+            structural_cause,
         }
     }
 }

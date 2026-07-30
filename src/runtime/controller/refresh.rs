@@ -1,7 +1,10 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
 use super::SurfaceRuntime;
-use crate::runtime::{RepaintScope, RuntimeBridge, SurfaceInvalidation};
+use crate::runtime::{
+    RepaintScope, RuntimeBridge, SurfaceInvalidation,
+    surface::{ViewDeltaDiagnostics, classify_view_delta},
+};
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
@@ -367,7 +370,7 @@ mod tests {
         assert_eq!(
             runtime
                 .take_frame_refresh_diagnostics()
-                .0
+                .refresh
                 .identity
                 .replacement_count,
             1
@@ -430,6 +433,69 @@ mod tests {
             .expect("deep replacement diagnostic");
         assert!(replacement.previous_path.truncated);
         assert!(replacement.current_path.truncated);
+    }
+
+    #[test]
+    fn fresh_surface_refresh_records_bounded_view_delta_summary() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        runtime.bridge_mut().replace = true;
+
+        runtime.refresh();
+
+        let summary = runtime.last_view_delta_diagnostics;
+        assert!(summary.classified);
+        assert_eq!(
+            summary.effect,
+            crate::runtime::surface::ViewDeltaEffect::Structural
+        );
+        assert_eq!(summary.total_events, 1);
+        assert_eq!(summary.recorded_events, 1);
+        assert_eq!(summary.omitted_events, 0);
+        assert_eq!(
+            summary.structural_cause,
+            Some(crate::runtime::surface::ViewDeltaCause::IncompatibleWidget)
+        );
+    }
+
+    #[test]
+    fn paint_only_refresh_skips_view_delta_classification() {
+        let mut runtime =
+            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+
+        let summary = runtime.last_view_delta_diagnostics;
+        assert!(!summary.classified);
+        assert_eq!(summary.total_events, 0);
+        assert_eq!(summary.duration, Duration::ZERO);
+    }
+
+    #[test]
+    fn insufficient_view_delta_scratch_records_structural_fallback() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                replacement_count: 1,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        runtime.scratch.view_delta = crate::runtime::surface::ViewDeltaScratch::with_capacity(0);
+
+        runtime.refresh();
+
+        let summary = runtime.last_view_delta_diagnostics;
+        assert!(summary.classified);
+        assert_eq!(
+            summary.effect,
+            crate::runtime::surface::ViewDeltaEffect::Structural
+        );
+        assert_eq!(
+            summary.structural_cause,
+            Some(crate::runtime::surface::ViewDeltaCause::InsufficientIdentityEvidence)
+        );
+        assert_eq!(summary.total_events, 1);
+        assert_eq!(summary.recorded_events, 1);
     }
 }
 
@@ -603,6 +669,14 @@ pub struct SurfaceRefreshDiagnostics {
     pub identity: SurfaceIdentityDiagnostics,
 }
 
+/// Runtime/frame transport for observational view-delta evidence.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SurfaceRefreshFrameDiagnostics {
+    pub(crate) refresh: SurfaceRefreshDiagnostics,
+    pub(crate) view_delta: ViewDeltaDiagnostics,
+    pub(crate) total: Duration,
+}
+
 impl SurfaceRefreshDiagnostics {
     pub(in crate::runtime) const fn startup() -> Self {
         Self {
@@ -658,6 +732,7 @@ where
                     identity: SurfaceIdentityDiagnostics::default(),
                 },
                 Duration::ZERO,
+                ViewDeltaDiagnostics::default(),
             );
             return;
         }
@@ -670,6 +745,11 @@ where
             .refresh_counters
             .application_projection
             .saturating_add(1);
+
+        let view_delta_started = Instant::now();
+        let view_delta =
+            classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta)
+                .diagnostics(view_delta_started.elapsed());
 
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,
@@ -736,6 +816,7 @@ where
                 identity,
             },
             refresh_started.elapsed(),
+            view_delta,
         );
         self.enforce_identity_audit(identity);
     }
@@ -749,19 +830,21 @@ where
         &mut self,
         diagnostics: SurfaceRefreshDiagnostics,
         total: Duration,
+        view_delta: ViewDeltaDiagnostics,
     ) {
         self.last_refresh_diagnostics = diagnostics;
+        self.last_view_delta_diagnostics = view_delta;
         self.pending_frame_refresh_diagnostics.merge(diagnostics);
+        self.pending_frame_view_delta_diagnostics.merge(view_delta);
         self.pending_frame_refresh_total = self.pending_frame_refresh_total.saturating_add(total);
     }
 
-    pub(crate) fn take_frame_refresh_diagnostics(
-        &mut self,
-    ) -> (SurfaceRefreshDiagnostics, Duration) {
-        (
-            std::mem::take(&mut self.pending_frame_refresh_diagnostics),
-            std::mem::take(&mut self.pending_frame_refresh_total),
-        )
+    pub(crate) fn take_frame_refresh_diagnostics(&mut self) -> SurfaceRefreshFrameDiagnostics {
+        SurfaceRefreshFrameDiagnostics {
+            refresh: std::mem::take(&mut self.pending_frame_refresh_diagnostics),
+            view_delta: std::mem::take(&mut self.pending_frame_view_delta_diagnostics),
+            total: std::mem::take(&mut self.pending_frame_refresh_total),
+        }
     }
 
     /// Return cumulative refresh-stage counts for this runtime.

@@ -168,8 +168,9 @@ where
             gpu_surface_stats,
             since_last_present,
         );
-        let (surface_refresh, surface_refresh_total) =
-            self.core.runtime.take_frame_refresh_diagnostics();
+        let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();
+        let surface_refresh = frame_refresh.refresh;
+        let surface_refresh_total = frame_refresh.total;
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,
@@ -235,8 +236,9 @@ where
             gpu_surface_stats,
             since_last_present,
         );
-        let (surface_refresh, surface_refresh_total) =
-            self.core.runtime.take_frame_refresh_diagnostics();
+        let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();
+        let surface_refresh = frame_refresh.refresh;
+        let surface_refresh_total = frame_refresh.total;
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,

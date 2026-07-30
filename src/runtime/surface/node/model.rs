@@ -7,7 +7,7 @@ use crate::{
     layout::{ContainerPolicy, NodeId, SlotParams},
     runtime::{
         DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsWidgetSnapshot,
-        surface::widget::{ScrollMessageMapper, SurfaceWidget},
+        surface::widget::{EventMapper, ScrollMessageMapper, SurfaceWidget},
     },
     widgets::WidgetStyle,
 };
@@ -58,7 +58,8 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) policy: ContainerPolicy,
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
-    pub(in crate::runtime::surface) scroll_message: Option<ScrollMessageMapper<Message>>,
+    pub(in crate::runtime::surface) scroll_message:
+        Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
     pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
 }
 
@@ -116,14 +117,33 @@ impl<Message> SurfaceContainer<Message> {
     where
         Message: 'static,
     {
-        self.scroll_message = Some(std::rc::Rc::new(move |update| message(update)));
+        self.scroll_message = Some(EventMapper::from_arc(message));
         self
     }
 
     /// Return this container with a UI-local scroll movement message mapper.
     pub fn with_scroll_message_local(mut self, message: ScrollMessageMapper<Message>) -> Self {
+        self.scroll_message = Some(EventMapper::from_rc(message));
+        self
+    }
+
+    /// Return this container with a scroll mapper carrying optional exact
+    /// equality evidence.
+    pub fn with_scroll_message_mapped(
+        mut self,
+        message: crate::runtime::EventMapper<crate::runtime::ScrollUpdate, Option<Message>>,
+    ) -> Self {
         self.scroll_message = Some(message);
         self
+    }
+
+    pub(in crate::runtime::surface) fn scroll_mapper_descriptor(
+        &self,
+    ) -> crate::runtime::surface::widget::MapperDescriptor {
+        self.scroll_message
+            .as_ref()
+            .map(EventMapper::descriptor)
+            .unwrap_or(crate::runtime::surface::widget::MapperDescriptor::Absent)
     }
 }
 

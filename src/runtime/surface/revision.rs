@@ -5,6 +5,7 @@
 // its invocation.
 #![allow(dead_code)]
 
+use super::widget::MapperRelation;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
 
 /// The broadest safe effect of one retained widget revision comparison.
@@ -330,13 +331,27 @@ fn compare_widget<Message>(
         );
         return;
     }
-    if previous.has_opaque_message_behavior() || current.has_opaque_message_behavior() {
-        delta.record(
-            ViewDeltaEffect::Structural,
-            ViewDeltaCause::OpaqueWidgetMapper,
-            path.path,
-        );
-        return;
+    for relation in [
+        previous
+            .output_mapper_descriptor()
+            .relation(&current.output_mapper_descriptor()),
+        previous
+            .native_file_drop_mapper_descriptor()
+            .relation(&current.native_file_drop_mapper_descriptor()),
+    ] {
+        match relation {
+            MapperRelation::Structural => delta.record(
+                ViewDeltaEffect::Structural,
+                ViewDeltaCause::OpaqueWidgetMapper,
+                path.path,
+            ),
+            MapperRelation::Interaction => delta.record(
+                ViewDeltaEffect::Interaction,
+                ViewDeltaCause::OpaqueWidgetMapper,
+                path.path,
+            ),
+            MapperRelation::Unchanged => {}
+        }
     }
     let effect = classify_widget_revision(
         Some(WidgetRevisionSnapshot {
@@ -394,13 +409,21 @@ fn compare_container<Message>(
             path.path,
         );
     }
-    if previous_container.scroll_message.is_some() || current_container.scroll_message.is_some() {
-        delta.record(
+    match previous_container
+        .scroll_mapper_descriptor()
+        .relation(&current_container.scroll_mapper_descriptor())
+    {
+        MapperRelation::Structural => delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::ScrollMapper,
             path.path,
-        );
-        return;
+        ),
+        MapperRelation::Interaction => delta.record(
+            ViewDeltaEffect::Interaction,
+            ViewDeltaCause::ScrollMapper,
+            path.path,
+        ),
+        MapperRelation::Unchanged => {}
     }
     if previous_container.children.len() != current_container.children.len() {
         let cause = if previous_container.children.len() < current_container.children.len() {
@@ -597,8 +620,11 @@ mod view_delta_tests {
     use crate::{
         gui::types::{Point, Rect, Vector2},
         layout::{ContainerKind, ContainerPolicy},
-        runtime::{LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
-        widgets::{WidgetStyle, WidgetTone},
+        runtime::{EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
+        widgets::{
+            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision,
+            WidgetRevisionComponents, WidgetStyle, WidgetTone,
+        },
     };
 
     fn surface(root: SurfaceNode<()>) -> UiSurface<()> {
@@ -792,6 +818,181 @@ mod view_delta_tests {
                 .iter()
                 .flatten()
                 .any(|event| event.cause == ViewDeltaCause::FloatingInteractive)
+        );
+    }
+
+    #[derive(PartialEq, Eq)]
+    struct MapperRevision(u32);
+
+    fn scroll_surface(
+        mapper: Option<EventMapper<crate::runtime::ScrollUpdate, Option<()>>>,
+    ) -> UiSurface<()> {
+        let node = SurfaceNode::column(1, 0.0, Vec::new());
+        let node = match mapper {
+            Some(mapper) => node.with_scroll_message_mapped(mapper),
+            None => node,
+        };
+        surface(node)
+    }
+
+    #[test]
+    fn exact_scroll_mappers_compare_as_unchanged_or_interaction() {
+        let previous = scroll_surface(Some(EventMapper::with_revision(MapperRevision(1), |_| {
+            None
+        })));
+        let equal = scroll_surface(Some(EventMapper::with_revision(MapperRevision(1), |_| {
+            Some(())
+        })));
+        let changed = scroll_surface(Some(EventMapper::with_revision(MapperRevision(2), |_| {
+            None
+        })));
+        assert_eq!(
+            classify_view_delta(&previous, &equal).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &changed).effect,
+            ViewDeltaEffect::Interaction
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &scroll_surface(None)).effect,
+            ViewDeltaEffect::Interaction
+        );
+    }
+
+    #[test]
+    fn conservative_scroll_mapper_stays_structural() {
+        let conservative = scroll_surface(Some(EventMapper::new(|_| None)));
+        let absent = scroll_surface(None);
+        assert_eq!(
+            classify_view_delta(&conservative, &absent).effect,
+            ViewDeltaEffect::Structural
+        );
+        assert_eq!(
+            classify_view_delta(&absent, &conservative).effect,
+            ViewDeltaEffect::Structural
+        );
+    }
+
+    #[derive(Clone)]
+    struct RevisionWidget {
+        common: WidgetCommon,
+        revision: WidgetRevision,
+    }
+
+    impl RevisionWidget {
+        fn new(id: u64) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, 40.0, 20.0),
+                revision: WidgetRevision::exact_for_test(WidgetRevisionComponents {
+                    structure: 1,
+                    geometry: 1,
+                    paint: 1,
+                    interaction: 1,
+                }),
+            }
+        }
+    }
+
+    impl Widget for RevisionWidget {
+        fn revision(&self) -> WidgetRevision {
+            self.revision
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    fn mapped_widget_surface(
+        output: Option<EventMapper<WidgetOutput, Option<()>>>,
+    ) -> UiSurface<()> {
+        let mapper = output
+            .map(crate::runtime::WidgetMessageMapper::dynamic_mapped)
+            .unwrap_or_else(crate::runtime::WidgetMessageMapper::none);
+        surface(SurfaceNode::widget(RevisionWidget::new(1), mapper))
+    }
+
+    #[test]
+    fn exact_output_mappers_are_unchanged_or_interaction() {
+        let previous =
+            mapped_widget_surface(Some(EventMapper::with_revision(MapperRevision(1), |_| {
+                None
+            })));
+        let equal =
+            mapped_widget_surface(Some(EventMapper::with_revision(MapperRevision(1), |_| {
+                Some(())
+            })));
+        let changed =
+            mapped_widget_surface(Some(EventMapper::with_revision(MapperRevision(2), |_| {
+                None
+            })));
+        assert_eq!(
+            classify_view_delta(&previous, &equal).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &changed).effect,
+            ViewDeltaEffect::Interaction
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &mapped_widget_surface(None)).effect,
+            ViewDeltaEffect::Interaction
+        );
+    }
+
+    #[test]
+    fn native_drop_mapper_evidence_is_classified() {
+        let base = SurfaceNode::static_widget(RevisionWidget::new(1));
+        let previous = surface(
+            base.clone()
+                .with_native_file_drop_mapped(EventMapper::with_revision(
+                    MapperRevision(1),
+                    |_| (),
+                )),
+        );
+        let equal = surface(
+            base.clone()
+                .with_native_file_drop_mapped(EventMapper::with_revision(
+                    MapperRevision(1),
+                    |_| (),
+                )),
+        );
+        let changed = surface(
+            base.clone()
+                .with_native_file_drop_mapped(EventMapper::with_revision(
+                    MapperRevision(2),
+                    |_| (),
+                )),
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &equal).effect,
+            ViewDeltaEffect::Unchanged
+        );
+        assert_eq!(
+            classify_view_delta(&previous, &changed).effect,
+            ViewDeltaEffect::Interaction
         );
     }
 }

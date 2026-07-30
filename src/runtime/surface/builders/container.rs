@@ -80,7 +80,7 @@ impl<Message> SurfaceNode<Message> {
         Message: 'static,
     {
         if let Self::Container(container) = &mut self {
-            container.scroll_message = Some(std::rc::Rc::new(move |update| message(update)));
+            container.scroll_message = Some(crate::runtime::EventMapper::from_arc(message));
         }
         self
     }
@@ -89,6 +89,18 @@ impl<Message> SurfaceNode<Message> {
     pub fn with_scroll_message_local(
         mut self,
         message: crate::runtime::ScrollMessageMapper<Message>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.scroll_message = Some(crate::runtime::EventMapper::from_rc(message));
+        }
+        self
+    }
+
+    /// Return this node with a scroll mapper carrying optional exact equality
+    /// evidence.
+    pub fn with_scroll_message_mapped(
+        mut self,
+        message: crate::runtime::EventMapper<crate::runtime::ScrollUpdate, Option<Message>>,
     ) -> Self {
         if let Self::Container(container) = &mut self {
             container.scroll_message = Some(message);

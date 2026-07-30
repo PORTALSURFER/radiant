@@ -177,8 +177,8 @@ pub(in crate::runtime) use surface::{
     WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
-    Element, LayerKind, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,
-    SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode, SurfaceOverlay,
-    SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
+    Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,
+    ScrollMessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode,
+    SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };
 pub use update_snapshot::RuntimeUpdateSnapshot;

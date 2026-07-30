@@ -1,5 +1,5 @@
 use super::super::*;
-use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
+use radiant::runtime::{EventMapper, NativeFileDrop, NativeFileDropPhase};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -240,6 +240,44 @@ fn native_file_drop_target_does_not_become_pointer_hit_target() {
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 60.0));
 
     assert_eq!(runtime.widget_at(Point::new(8.0, 8.0)), None);
+}
+
+#[test]
+fn exact_surface_native_file_drop_mapper_accepts_and_dispatches() {
+    let messages = Arc::new(Mutex::new(Vec::new()));
+    let delivered = Arc::clone(&messages);
+    let root = SurfaceNode::widget(
+        TextWidget::new(
+            10,
+            "Exact drop target",
+            WidgetSizing::fixed(Vector2::new(100.0, 40.0)),
+        ),
+        WidgetMessageMapper::none(),
+    )
+    .with_native_file_drop_mapped(EventMapper::with_revision(1u32, target_drop_message));
+    let bridge = declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| crate::arc_surface(UiSurface::new(root.clone())),
+        move |_state: &mut (), message| {
+            delivered.lock().expect("drop messages").push(message);
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 60.0));
+
+    runtime.dispatch_native_file_drop(NativeFileDrop::dropped(
+        PathBuf::from("exact.wav"),
+        Some(Point::new(8.0, 8.0)),
+        None,
+    ));
+
+    assert_eq!(
+        messages.lock().expect("drop messages").as_slice(),
+        &[DropMessage::Target {
+            phase: NativeFileDropPhase::Drop,
+            path: Some(PathBuf::from("exact.wav")),
+            target: Some(10),
+        }]
+    );
 }
 
 fn target_drop_message(drop: NativeFileDrop) -> DropMessage {

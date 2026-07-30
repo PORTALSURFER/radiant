@@ -5,8 +5,217 @@
 // its invocation.
 #![allow(dead_code)]
 
-use super::widget::MapperRelation;
+use super::widget::{MapperDescriptor, MapperRelation};
+use crate::layout::{ContainerPolicy, SlotParams};
+use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
+
+/// Borrowed revision inputs for one slot-owned child.
+#[derive(Clone, Copy)]
+pub(crate) struct SurfaceChildRevision<'a, Message> {
+    pub(crate) slot: &'a SlotParams,
+    pub(crate) child: &'a super::SurfaceNode<Message>,
+}
+
+/// Borrowed revision inputs for one surface container.
+pub(crate) struct SurfaceContainerRevision<'a, Message> {
+    pub(crate) policy: &'a ContainerPolicy,
+    pub(crate) style: Option<&'a WidgetStyle>,
+    pub(crate) hoverable: bool,
+    pub(crate) scroll_mapper: MapperDescriptor,
+    pub(crate) children: &'a [super::SurfaceChild<Message>],
+}
+
+/// Borrowed revision inputs for one canonical scene layer.
+#[derive(Clone, Copy)]
+pub(crate) struct SurfaceLayerRevision<'a, Message> {
+    pub(crate) kind: super::LayerKind,
+    pub(crate) input: Option<&'a super::SurfaceNode<Message>>,
+    pub(crate) node: &'a super::SurfaceNode<Message>,
+}
+
+/// Borrowed revision inputs for a scene's canonical layer topology.
+pub(crate) struct SurfaceSceneRevision<'a, Message> {
+    pub(crate) base: &'a super::SurfaceNode<Message>,
+    pub(crate) layers: &'a [super::SurfaceLayer<Message>],
+}
+
+impl<'a, Message> SurfaceContainerRevision<'a, Message> {
+    fn policy_changed(&self, other: &Self) -> bool {
+        self.policy != other.policy
+    }
+
+    fn style_changed(&self, other: &Self) -> bool {
+        self.style != other.style
+    }
+
+    fn hoverability_changed(&self, other: &Self) -> bool {
+        self.hoverable != other.hoverable
+    }
+
+    fn scroll_mapper_relation(&self, other: &Self) -> MapperRelation {
+        self.scroll_mapper.relation(&other.scroll_mapper)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SurfaceLayerRelation {
+    Matched {
+        previous_index: usize,
+        input_changed: bool,
+    },
+    Added,
+    Replaced {
+        input_changed: bool,
+    },
+    KindChanged {
+        previous_index: usize,
+    },
+    Ambiguous,
+}
+
+impl<Message> super::SurfaceChild<Message> {
+    pub(crate) fn revision(&self) -> SurfaceChildRevision<'_, Message> {
+        SurfaceChildRevision {
+            slot: &self.slot,
+            child: &self.child,
+        }
+    }
+}
+
+impl<Message> super::SurfaceContainer<Message> {
+    pub(crate) fn revision(&self) -> SurfaceContainerRevision<'_, Message> {
+        SurfaceContainerRevision {
+            policy: &self.policy,
+            style: self.style.as_ref(),
+            hoverable: self.hoverable,
+            scroll_mapper: self.scroll_mapper_descriptor(),
+            children: &self.children,
+        }
+    }
+}
+
+impl<Message> super::SurfaceScene<Message> {
+    pub(crate) fn revision(&self) -> SurfaceSceneRevision<'_, Message> {
+        SurfaceSceneRevision {
+            base: &self.base,
+            layers: &self.layers,
+        }
+    }
+}
+
+impl<'a, Message> SurfaceSceneRevision<'a, Message> {
+    fn canonical_layer_count(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn canonical_layer_at(&self, ordinal: usize) -> Option<SurfaceLayerRevision<'a, Message>> {
+        let mut remaining = ordinal;
+        for kind in super::LayerKind::ORDER {
+            for layer in self.layers.iter().filter(|layer| layer.kind == kind) {
+                if remaining == 0 {
+                    return Some(SurfaceLayerRevision {
+                        kind: layer.kind,
+                        input: layer.input.as_ref(),
+                        node: &layer.node,
+                    });
+                }
+                remaining -= 1;
+            }
+        }
+        None
+    }
+
+    fn layer_count_changed(&self, other: &Self) -> bool {
+        self.canonical_layer_count() != other.canonical_layer_count()
+    }
+
+    fn topology_ambiguous(&self, other: &Self) -> bool {
+        has_duplicate_layer_keys(self)
+            || has_duplicate_layer_keys(other)
+            || has_duplicate_layer_node_ids(self)
+            || has_duplicate_layer_node_ids(other)
+    }
+
+    fn layer_order_inverted(&self, current: &Self) -> bool {
+        for current_index in 0..current.canonical_layer_count() {
+            let Some(current_layer) = current.canonical_layer_at(current_index) else {
+                continue;
+            };
+            let Some(previous_index) = find_layer_node_unique(self, current_layer.node.id()) else {
+                continue;
+            };
+            for later_index in (current_index + 1)..current.canonical_layer_count() {
+                let Some(later_layer) = current.canonical_layer_at(later_index) else {
+                    continue;
+                };
+                let Some(later_previous_index) =
+                    find_layer_node_unique(self, later_layer.node.id())
+                else {
+                    continue;
+                };
+                if previous_index > later_previous_index {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn relation_for_current(&self, current: &Self, index: usize) -> SurfaceLayerRelation {
+        if self.topology_ambiguous(current) {
+            return SurfaceLayerRelation::Ambiguous;
+        }
+        let Some(current_layer) = current.canonical_layer_at(index) else {
+            return SurfaceLayerRelation::Added;
+        };
+        if let Some(previous_index) = find_layer_key(self, &current_layer) {
+            let Some(previous_layer) = self.canonical_layer_at(previous_index) else {
+                return SurfaceLayerRelation::Ambiguous;
+            };
+            return SurfaceLayerRelation::Matched {
+                previous_index,
+                input_changed: previous_layer.input.is_some() != current_layer.input.is_some(),
+            };
+        }
+        if let Some(previous_index) = find_layer_node_unique(self, current_layer.node.id()) {
+            let Some(previous_layer) = self.canonical_layer_at(previous_index) else {
+                return SurfaceLayerRelation::Ambiguous;
+            };
+            if previous_layer.kind != current_layer.kind {
+                return SurfaceLayerRelation::KindChanged { previous_index };
+            }
+        }
+        if let Some(previous_layer) = self.canonical_layer_at(index)
+            && previous_layer.kind == current_layer.kind
+            && find_layer_key(current, &previous_layer).is_none()
+        {
+            return SurfaceLayerRelation::Replaced {
+                input_changed: previous_layer.input.is_some() != current_layer.input.is_some(),
+            };
+        }
+        SurfaceLayerRelation::Added
+    }
+
+    fn previous_is_removed(&self, current: &Self, index: usize) -> bool {
+        let Some(previous_layer) = self.canonical_layer_at(index) else {
+            return false;
+        };
+        if find_layer_key(current, &previous_layer).is_some() {
+            return false;
+        }
+        if find_layer_node_unique(current, previous_layer.node.id()).is_some() {
+            return false;
+        }
+        if let Some(current_layer) = current.canonical_layer_at(index)
+            && current_layer.kind == previous_layer.kind
+            && find_layer_key(self, &current_layer).is_none()
+        {
+            return false;
+        }
+        true
+    }
+}
 
 /// The broadest safe effect of one retained widget revision comparison.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +335,8 @@ pub(crate) enum ViewDeltaCause {
     Added,
     Removed,
     Reordered,
+    Replaced,
+    AmbiguousPairing,
     IncompatibleWidget,
     WidgetCapabilities,
     OpaqueWidgetMapper,
@@ -437,31 +648,30 @@ fn compare_container<Message>(
     path: &mut PathStack,
     delta: &mut ViewDelta,
 ) {
-    if previous_container.policy != current_container.policy {
+    let previous_revision = previous_container.revision();
+    let current_revision = current_container.revision();
+    if previous_revision.policy_changed(&current_revision) {
         delta.record(
             ViewDeltaEffect::Geometry,
             ViewDeltaCause::ContainerPolicy,
             path.path,
         );
     }
-    if previous_container.style != current_container.style {
+    if previous_revision.style_changed(&current_revision) {
         delta.record(
             ViewDeltaEffect::Paint,
             ViewDeltaCause::ContainerStyle,
             path.path,
         );
     }
-    if previous_container.hoverable != current_container.hoverable {
+    if previous_revision.hoverability_changed(&current_revision) {
         delta.record(
-            ViewDeltaEffect::Paint,
+            ViewDeltaEffect::Interaction,
             ViewDeltaCause::ContainerHover,
             path.path,
         );
     }
-    match previous_container
-        .scroll_mapper_descriptor()
-        .relation(&current_container.scroll_mapper_descriptor())
-    {
+    match previous_revision.scroll_mapper_relation(&current_revision) {
         MapperRelation::Structural => delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::ScrollMapper,
@@ -474,47 +684,120 @@ fn compare_container<Message>(
         ),
         MapperRelation::Unchanged => {}
     }
-    if previous_container.children.len() != current_container.children.len() {
-        let cause = if previous_container.children.len() < current_container.children.len() {
+    compare_container_children(&previous_revision, &current_revision, path, delta);
+}
+
+fn child_index<Message>(children: &[super::SurfaceChild<Message>], id: WidgetId) -> Option<usize> {
+    children.iter().position(|child| child.child.id() == id)
+}
+
+fn has_duplicate_child_ids<Message>(children: &[super::SurfaceChild<Message>]) -> bool {
+    children.iter().enumerate().any(|(index, child)| {
+        children[index + 1..]
+            .iter()
+            .any(|candidate| candidate.child.id() == child.child.id())
+    })
+}
+
+fn child_order_inverted<Message>(
+    previous: &[super::SurfaceChild<Message>],
+    current: &[super::SurfaceChild<Message>],
+) -> bool {
+    for (current_index, current_child) in current.iter().enumerate() {
+        let Some(previous_index) = child_index(previous, current_child.child.id()) else {
+            continue;
+        };
+        for later_child in &current[current_index + 1..] {
+            let Some(later_previous_index) = child_index(previous, later_child.child.id()) else {
+                continue;
+            };
+            if previous_index > later_previous_index {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn compare_container_children<Message>(
+    previous: &SurfaceContainerRevision<'_, Message>,
+    current: &SurfaceContainerRevision<'_, Message>,
+    path: &mut PathStack,
+    delta: &mut ViewDelta,
+) {
+    if has_duplicate_child_ids(previous.children) || has_duplicate_child_ids(current.children) {
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::AmbiguousPairing,
+            path.path,
+        );
+        return;
+    }
+
+    if previous.children.len() != current.children.len() {
+        let cause = if previous.children.len() < current.children.len() {
             ViewDeltaCause::Added
         } else {
             ViewDeltaCause::Removed
         };
         delta.record(ViewDeltaEffect::Structural, cause, path.path);
     }
-    for (index, (previous, current)) in previous_container
-        .children
-        .iter()
-        .zip(&current_container.children)
-        .enumerate()
-    {
+
+    let reordered = child_order_inverted(previous.children, current.children);
+    let mut reordered_recorded = false;
+    for (index, current_child) in current.children.iter().enumerate() {
         path.push(ViewDeltaPathComponent::Child(index as u64));
-        if previous.slot != current.slot {
-            delta.record(
-                ViewDeltaEffect::Geometry,
-                ViewDeltaCause::ChildSlot,
-                path.path,
-            );
-        }
-        if previous.child.id() != current.child.id()
-            && previous_container
-                .children
-                .iter()
-                .any(|candidate| candidate.child.id() == current.child.id())
-            && current_container
-                .children
-                .iter()
-                .any(|candidate| candidate.child.id() == previous.child.id())
+        let current_revision = current_child.revision();
+        if let Some(previous_index) = child_index(previous.children, current_child.child.id()) {
+            if reordered && !reordered_recorded {
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::Reordered,
+                    path.path,
+                );
+                reordered_recorded = true;
+            }
+            let previous_revision = previous.children[previous_index].revision();
+            if previous_revision.slot != current_revision.slot {
+                delta.record(
+                    ViewDeltaEffect::Geometry,
+                    ViewDeltaCause::ChildSlot,
+                    path.path,
+                );
+            }
+            compare_node(previous_revision.child, current_revision.child, path, delta);
+        } else if index < previous.children.len()
+            && child_index(current.children, previous.children[index].child.id()).is_none()
         {
             delta.record(
                 ViewDeltaEffect::Structural,
-                ViewDeltaCause::Reordered,
+                ViewDeltaCause::Replaced,
                 path.path,
             );
         } else {
-            compare_node(&previous.child, &current.child, path, delta);
+            delta.record(
+                ViewDeltaEffect::Structural,
+                ViewDeltaCause::Added,
+                path.path,
+            );
         }
         path.pop();
+    }
+
+    for (index, previous_child) in previous.children.iter().enumerate() {
+        if child_index(current.children, previous_child.child.id()).is_some() {
+            continue;
+        }
+        if index < current.children.len()
+            && child_index(previous.children, current.children[index].child.id()).is_none()
+        {
+            continue;
+        }
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::Removed,
+            path.path,
+        );
     }
 }
 
@@ -524,50 +807,192 @@ fn compare_scene<Message>(
     path: &mut PathStack,
     delta: &mut ViewDelta,
 ) {
-    compare_node(&previous.base, &current.base, path, delta);
-    let previous_count = previous.layers.len();
-    let current_count = current.layers.len();
-    if previous_count != current_count {
+    let previous_revision = previous.revision();
+    let current_revision = current.revision();
+    compare_node(previous_revision.base, current_revision.base, path, delta);
+    let previous_count = previous_revision.canonical_layer_count();
+    let current_count = current_revision.canonical_layer_count();
+    if previous_revision.layer_count_changed(&current_revision) {
         delta.record(
             ViewDeltaEffect::Structural,
             ViewDeltaCause::SceneLayerCount,
             path.path,
         );
     }
-    for (index, (previous, current)) in previous
-        .ordered_layers()
-        .zip(current.ordered_layers())
-        .enumerate()
-    {
+    if previous_revision.topology_ambiguous(&current_revision) {
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::AmbiguousPairing,
+            path.path,
+        );
+        return;
+    }
+
+    let mut reordered_recorded = false;
+    let layer_order_inverted = previous_revision.layer_order_inverted(&current_revision);
+    for index in 0..current_count {
         path.push(ViewDeltaPathComponent::Layer(index as u64));
-        if previous.kind != current.kind {
-            delta.record(
-                ViewDeltaEffect::Structural,
-                ViewDeltaCause::SceneLayerKind,
-                path.path,
-            );
-            path.pop();
-            continue;
+        match previous_revision.relation_for_current(&current_revision, index) {
+            SurfaceLayerRelation::Matched {
+                previous_index,
+                input_changed,
+            } => {
+                let Some(previous_layer) = previous_revision.canonical_layer_at(previous_index)
+                else {
+                    path.pop();
+                    continue;
+                };
+                let Some(current_layer) = current_revision.canonical_layer_at(index) else {
+                    path.pop();
+                    continue;
+                };
+                if layer_order_inverted && !reordered_recorded {
+                    delta.record(
+                        ViewDeltaEffect::Structural,
+                        ViewDeltaCause::Reordered,
+                        path.path,
+                    );
+                    reordered_recorded = true;
+                }
+                if input_changed {
+                    delta.record(
+                        ViewDeltaEffect::Structural,
+                        ViewDeltaCause::SceneLayerInput,
+                        path.path,
+                    );
+                } else {
+                    compare_layer_pair(previous_layer, current_layer, path, delta);
+                }
+            }
+            SurfaceLayerRelation::Replaced { input_changed } => {
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::Replaced,
+                    path.path,
+                );
+                if input_changed {
+                    delta.record(
+                        ViewDeltaEffect::Structural,
+                        ViewDeltaCause::SceneLayerInput,
+                        path.path,
+                    );
+                }
+            }
+            SurfaceLayerRelation::KindChanged { .. } => {
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::SceneLayerKind,
+                    path.path,
+                );
+            }
+            SurfaceLayerRelation::Added => {
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::Added,
+                    path.path,
+                );
+            }
+            SurfaceLayerRelation::Ambiguous => {
+                delta.record(
+                    ViewDeltaEffect::Structural,
+                    ViewDeltaCause::AmbiguousPairing,
+                    path.path,
+                );
+            }
         }
-        if previous.input.is_some() != current.input.is_some() {
-            delta.record(
-                ViewDeltaEffect::Structural,
-                ViewDeltaCause::SceneLayerInput,
-                path.path,
-            );
-            path.pop();
-            continue;
-        }
-        if let (Some(previous), Some(current)) = (&previous.input, &current.input) {
-            path.push(ViewDeltaPathComponent::Input);
-            compare_node(previous, current, path, delta);
-            path.pop();
-        }
-        path.push(ViewDeltaPathComponent::Foreground);
-        compare_node(&previous.node, &current.node, path, delta);
-        path.pop();
         path.pop();
     }
+
+    for index in 0..previous_count {
+        if previous_revision.canonical_layer_at(index).is_none() {
+            continue;
+        }
+        if !previous_revision.previous_is_removed(&current_revision, index) {
+            continue;
+        }
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::Removed,
+            path.path,
+        );
+    }
+}
+
+fn compare_layer_pair<Message>(
+    previous: SurfaceLayerRevision<'_, Message>,
+    current: SurfaceLayerRevision<'_, Message>,
+    path: &mut PathStack,
+    delta: &mut ViewDelta,
+) {
+    if let (Some(previous), Some(current)) = (previous.input, current.input) {
+        path.push(ViewDeltaPathComponent::Input);
+        compare_node(previous, current, path, delta);
+        path.pop();
+    }
+    path.push(ViewDeltaPathComponent::Foreground);
+    compare_node(previous.node, current.node, path, delta);
+    path.pop();
+}
+
+fn layer_key<Message>(layer: &SurfaceLayerRevision<'_, Message>) -> (super::LayerKind, WidgetId) {
+    (layer.kind, layer.node.id())
+}
+
+fn find_layer_key<Message>(
+    scene: &SurfaceSceneRevision<'_, Message>,
+    needle: &SurfaceLayerRevision<'_, Message>,
+) -> Option<usize> {
+    (0..scene.canonical_layer_count()).find(|index| {
+        scene
+            .canonical_layer_at(*index)
+            .is_some_and(|layer| layer_key(&layer) == layer_key(needle))
+    })
+}
+
+fn find_layer_node_unique<Message>(
+    scene: &SurfaceSceneRevision<'_, Message>,
+    node_id: WidgetId,
+) -> Option<usize> {
+    let mut found = None;
+    for index in 0..scene.canonical_layer_count() {
+        let Some(layer) = scene.canonical_layer_at(index) else {
+            continue;
+        };
+        if layer.node.id() != node_id {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(index);
+    }
+    found
+}
+
+fn has_duplicate_layer_keys<Message>(scene: &SurfaceSceneRevision<'_, Message>) -> bool {
+    (0..scene.canonical_layer_count()).any(|index| {
+        let Some(layer) = scene.canonical_layer_at(index) else {
+            return false;
+        };
+        ((index + 1)..scene.canonical_layer_count()).any(|candidate| {
+            scene
+                .canonical_layer_at(candidate)
+                .is_some_and(|candidate| layer_key(&candidate) == layer_key(&layer))
+        })
+    })
+}
+
+fn has_duplicate_layer_node_ids<Message>(scene: &SurfaceSceneRevision<'_, Message>) -> bool {
+    (0..scene.canonical_layer_count()).any(|index| {
+        let Some(layer) = scene.canonical_layer_at(index) else {
+            return false;
+        };
+        ((index + 1)..scene.canonical_layer_count()).any(|candidate| {
+            scene
+                .canonical_layer_at(candidate)
+                .is_some_and(|candidate| candidate.node.id() == layer.node.id())
+        })
+    })
 }
 
 #[cfg(test)]
@@ -1060,6 +1485,279 @@ mod view_delta_tests {
             classify_view_delta(&absent, &conservative).effect,
             ViewDeltaEffect::Structural
         );
+    }
+
+    fn has_cause(delta: &super::ViewDelta, cause: ViewDeltaCause) -> bool {
+        delta.events[..usize::from(delta.event_count)]
+            .iter()
+            .flatten()
+            .any(|event| event.cause == cause)
+    }
+
+    fn child(id: u64) -> SurfaceChild<()> {
+        SurfaceChild::fill(SurfaceNode::overlay_marker(
+            id,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        ))
+    }
+
+    #[test]
+    fn child_topology_reports_reorder_and_matches_by_identity() {
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3)],
+        ));
+        let current = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(3), child(2)],
+        ));
+        let delta = classify_view_delta(&previous, &current);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Reordered));
+        assert!(!has_cause(&delta, ViewDeltaCause::Replaced));
+    }
+
+    #[test]
+    fn child_insertion_and_removal_do_not_look_like_reorder() {
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3)],
+        ));
+        let inserted = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(4), child(3)],
+        ));
+        let delta = classify_view_delta(&previous, &inserted);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Added));
+        assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+
+        let removed = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(3)],
+        ));
+        let delta = classify_view_delta(&inserted, &removed);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Removed));
+        assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+    }
+
+    #[test]
+    fn retained_child_slot_changes_are_geometry() {
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2)],
+        ));
+        let current = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![SurfaceChild::new(
+                crate::layout::SlotParams {
+                    margin: crate::layout::Insets::all(2.0),
+                    ..crate::layout::SlotParams::fill()
+                },
+                child(2).child,
+            )],
+        ));
+        let delta = classify_view_delta(&previous, &current);
+        assert_eq!(delta.effect, ViewDeltaEffect::Geometry);
+        assert!(has_cause(&delta, ViewDeltaCause::ChildSlot));
+    }
+
+    #[test]
+    fn child_topology_reports_replacement_and_ambiguous_pairing_conservatively() {
+        let previous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2)],
+        ));
+        let replacement = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(3)],
+        ));
+        let delta = classify_view_delta(&previous, &replacement);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Replaced));
+
+        let ambiguous = surface(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![child(2), child(2)],
+        ));
+        let delta = classify_view_delta(&previous, &ambiguous);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
+    }
+
+    #[test]
+    fn container_hoverability_is_interaction() {
+        let previous = surface(SurfaceNode::column(1, 0.0, Vec::new()));
+        let current =
+            surface(SurfaceNode::column(1, 0.0, Vec::new()).with_container_hoverable(true));
+        let delta = classify_view_delta(&previous, &current);
+        assert_eq!(delta.effect, ViewDeltaEffect::Interaction);
+        assert!(has_cause(&delta, ViewDeltaCause::ContainerHover));
+    }
+
+    #[test]
+    fn canonical_layers_preserve_cross_kind_order_but_report_same_kind_reorder() {
+        let base = SurfaceNode::overlay_marker(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        );
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![
+                SurfaceLayer::new(LayerKind::Tooltip, child(3).child),
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+            ],
+        ));
+        let cross_kind_same = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(3).child),
+            ],
+        ));
+        assert_eq!(
+            classify_view_delta(&previous, &cross_kind_same).effect,
+            ViewDeltaEffect::Unchanged
+        );
+
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![
+                SurfaceLayer::new(LayerKind::Tooltip, child(2).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(3).child),
+            ],
+        ));
+        let current = surface(SurfaceNode::scene(
+            10,
+            base,
+            vec![
+                SurfaceLayer::new(LayerKind::Tooltip, child(3).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(2).child),
+            ],
+        ));
+        let delta = classify_view_delta(&previous, &current);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Reordered));
+    }
+
+    #[test]
+    fn scene_layer_insertion_removal_and_kind_moves_pair_conservatively() {
+        let base = SurfaceNode::overlay_marker(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        );
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![SurfaceLayer::new(LayerKind::Floating, child(2).child)],
+        ));
+        let inserted = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(3).child),
+            ],
+        ));
+        let delta = classify_view_delta(&previous, &inserted);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::Added));
+        assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
+
+        let unmatched_kind = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![SurfaceLayer::new(LayerKind::Modal, child(3).child)],
+        ));
+        let delta = classify_view_delta(&previous, &unmatched_kind);
+        assert!(has_cause(&delta, ViewDeltaCause::Added));
+        assert!(has_cause(&delta, ViewDeltaCause::Removed));
+        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
+
+        let moved_kind = surface(SurfaceNode::scene(
+            10,
+            base,
+            vec![SurfaceLayer::new(LayerKind::Modal, child(2).child)],
+        ));
+        let delta = classify_view_delta(&previous, &moved_kind);
+        assert!(has_cause(&delta, ViewDeltaCause::SceneLayerKind));
+        assert!(!has_cause(&delta, ViewDeltaCause::Added));
+        assert!(!has_cause(&delta, ViewDeltaCause::Removed));
+    }
+
+    #[test]
+    fn duplicate_scene_layer_keys_stop_descent_with_ambiguous_pairing() {
+        let base = SurfaceNode::overlay_marker(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        );
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![SurfaceLayer::new(LayerKind::Tooltip, child(2).child)],
+        ));
+        let duplicate = surface(SurfaceNode::scene(
+            10,
+            base,
+            vec![
+                SurfaceLayer::new(LayerKind::Tooltip, child(2).child),
+                SurfaceLayer::new(LayerKind::Tooltip, child(2).child),
+            ],
+        ));
+        let delta = classify_view_delta(&previous, &duplicate);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
+        assert!(!has_cause(&delta, ViewDeltaCause::Reordered));
+        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
+        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerInput));
+    }
+
+    #[test]
+    fn duplicate_scene_foreground_ids_across_kinds_are_ambiguous() {
+        let base = SurfaceNode::overlay_marker(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+            WidgetStyle::normal(WidgetTone::Neutral),
+        );
+        let previous = surface(SurfaceNode::scene(
+            10,
+            base.clone(),
+            vec![SurfaceLayer::new(LayerKind::Floating, child(2).child)],
+        ));
+        let duplicate = surface(SurfaceNode::scene(
+            10,
+            base,
+            vec![
+                SurfaceLayer::new(LayerKind::Floating, child(2).child),
+                SurfaceLayer::new(LayerKind::Modal, child(2).child),
+            ],
+        ));
+        let delta = classify_view_delta(&previous, &duplicate);
+        assert_eq!(delta.effect, ViewDeltaEffect::Structural);
+        assert!(has_cause(&delta, ViewDeltaCause::AmbiguousPairing));
+        assert!(!has_cause(&delta, ViewDeltaCause::SceneLayerKind));
+        assert!(!has_cause(&delta, ViewDeltaCause::Added));
+        assert!(!has_cause(&delta, ViewDeltaCause::Removed));
+        assert!(!has_cause(&delta, ViewDeltaCause::NodeIdentity));
     }
 
     #[derive(Clone)]

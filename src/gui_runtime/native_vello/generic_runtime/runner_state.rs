@@ -23,6 +23,74 @@ use winit::{
     window::{Window, WindowId},
 };
 
+/// Monotonic evidence for the currently configured native presentation target.
+///
+/// This is deliberately opaque to fingerprint consumers: an unknown or
+/// exhausted target never produces reusable evidence, and the serial is never
+/// wrapped back to an earlier value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeTargetGeneration {
+    serial: u64,
+    status: NativeTargetGenerationStatus,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeTargetGenerationStatus {
+    Unknown,
+    Known,
+    Exhausted,
+}
+
+impl NativeTargetGeneration {
+    pub(super) const fn unknown() -> Self {
+        Self {
+            serial: 0,
+            status: NativeTargetGenerationStatus::Unknown,
+        }
+    }
+
+    /// Advance after an authoritative target transition. Returns `false` once
+    /// the serial is exhausted; callers must then remain conservative.
+    pub(super) fn advance(&mut self) -> bool {
+        if matches!(self.status, NativeTargetGenerationStatus::Exhausted) {
+            return false;
+        }
+        let Some(serial) = self.serial.checked_add(1) else {
+            self.status = NativeTargetGenerationStatus::Exhausted;
+            return false;
+        };
+        self.serial = serial;
+        self.status = NativeTargetGenerationStatus::Known;
+        true
+    }
+
+    /// Fence an uncertain recovery without claiming that the old target is
+    /// still valid. The next configured target advances monotonically.
+    pub(super) fn invalidate_unknown(&mut self) {
+        if !matches!(self.status, NativeTargetGenerationStatus::Exhausted) {
+            self.status = NativeTargetGenerationStatus::Unknown;
+        }
+    }
+
+    pub(super) const fn is_known(self) -> bool {
+        matches!(self.status, NativeTargetGenerationStatus::Known)
+    }
+
+    #[cfg(test)]
+    pub(super) const fn from_test_serial(serial: u64) -> Self {
+        Self {
+            serial,
+            status: NativeTargetGenerationStatus::Known,
+        }
+    }
+}
+
+impl Default for NativeTargetGeneration {
+    fn default() -> Self {
+        Self::unknown()
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
@@ -37,6 +105,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) monitor_fingerprint: Option<MonitorFingerprint>,
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,
     pub(super) environment: crate::runtime::WindowEnvironment,
+    pub(super) target_generation: NativeTargetGeneration,
 }
 
 pub(super) struct NativeRunnerInputState {
@@ -119,5 +188,31 @@ impl Default for NativeRunnerTimingState {
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NativeTargetGeneration;
+
+    #[test]
+    fn target_generation_fences_initial_resize_dpi_and_unknown_recovery() {
+        let mut generation = NativeTargetGeneration::default();
+        assert!(!generation.is_known());
+        assert!(generation.advance());
+        assert!(generation.is_known());
+        assert!(generation.advance());
+        generation.invalidate_unknown();
+        assert!(!generation.is_known());
+        assert!(generation.advance());
+        assert!(generation.is_known());
+    }
+
+    #[test]
+    fn target_generation_does_not_wrap_after_exhaustion() {
+        let mut generation = NativeTargetGeneration::from_test_serial(u64::MAX);
+        assert!(!generation.advance());
+        assert!(!generation.is_known());
+        assert!(!generation.advance());
     }
 }

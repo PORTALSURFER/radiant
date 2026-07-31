@@ -26,8 +26,9 @@ pub(in crate::gui_runtime::native_vello) use cache::{
 pub(in crate::gui_runtime::native_vello) use clip::{SceneClipBegin, SceneClipEnd, SceneClipState};
 use custom_surface::{CustomSurfaceEncodeContext, encode_custom_surface};
 use image::encode_image;
-pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncodingObservation;
 #[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncoding;
+pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncodingObservation;
 pub(in crate::gui_runtime::native_vello) use segment_evidence::{
     EncodingConservativeReason, EncodingIsolation, SafeEnclosure,
 };

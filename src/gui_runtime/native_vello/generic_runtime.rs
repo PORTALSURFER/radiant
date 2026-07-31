@@ -114,8 +114,9 @@ pub(in crate::gui_runtime::native_vello) use runtime_helpers::{
 use runtime_helpers::{maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical};
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
-    SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
+    PaintSegmentEncodingObservation, RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
+    SceneClipState, SceneTextRunBuffer, SurfaceSceneEncodeContext,
+    encode_surface_paint_plan_to_scene,
 };
 use surface_size::RenderSurfacePixelSize;
 use window::{

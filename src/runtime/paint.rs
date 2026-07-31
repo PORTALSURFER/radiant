@@ -33,6 +33,8 @@ pub(crate) use segments::{
     MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentObserver,
     PaintSegmentSpan, collect_segment_spans,
 };
+#[cfg(test)]
+pub(crate) use segments::{PaintSegment, PaintSegmentAnchor};
 pub(crate) use text::{
     button_font_size, input_font_size, optical_centered_baseline, push_text_run, text_font_size,
 };

@@ -153,6 +153,12 @@ where
         self.resolved_appearance
     }
 
+    /// Return the latest computed backend-neutral segment observation without
+    /// draining the frame diagnostics transport.
+    pub(super) fn paint_segment_observation(&self) -> crate::runtime::PaintSegmentObservation {
+        self.runtime.latest_paint_segment_observation()
+    }
+
     pub(super) fn paint_transient_overlay(
         &mut self,
         plan: &crate::runtime::SurfacePaintPlan,

@@ -1,8 +1,10 @@
 //! Renderer-frame state owned by the generic native Vello runner.
 
+use super::runner_state::NativeTargetGeneration;
 use super::{
-    CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer, PostGpuOverlayRenderer,
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer,
+    PaintSegmentEncodingObservation, PostGpuOverlayRenderer, RetainedSurfaceEncodeStats,
+    RetainedSurfaceFrameCache, SceneTextRunBuffer,
     gpu_surface::{
         SurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
     },
@@ -13,6 +15,7 @@ use super::{
     },
 };
 use crate::runtime::BasePaintPlanContext;
+use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation};
 use crate::theme::DpiScale;
 use crate::theme::ResolvedAppearance;
 use crate::theme::ThemeTokens;
@@ -23,6 +26,102 @@ use crate::{
 };
 use vello::Scene;
 use vello::kurbo::Affine;
+
+#[cfg(test)]
+use super::scene::PaintSegmentEncoding;
+
+/// One renderer-safe observation that can later be compared by retained
+/// storage. This is evidence only; it carries no reuse decision.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct NativePaintSegmentFingerprint {
+    pub(super) identity: PaintSegmentIdentity,
+    pub(super) revision: u64,
+    pub(super) target_generation: NativeTargetGeneration,
+    pub(super) primitive_start: u32,
+    pub(super) primitive_end: u32,
+    pub(super) safe_enclosure: super::scene::SafeEnclosure,
+    pub(super) isolation: super::scene::EncodingIsolation,
+    pub(super) conservative_reason: super::scene::EncodingConservativeReason,
+}
+
+/// Fixed-capacity native fingerprint evidence for one fully encoded scene.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct NativePaintSegmentFingerprintObservation {
+    pub(super) segments: [Option<NativePaintSegmentFingerprint>; MAX_PAINT_SEGMENTS],
+    pub(super) segment_count: u8,
+    pub(super) conservative: bool,
+}
+
+impl NativePaintSegmentFingerprintObservation {
+    pub(super) const fn unavailable() -> Self {
+        Self {
+            segments: [None; MAX_PAINT_SEGMENTS],
+            segment_count: 0,
+            conservative: true,
+        }
+    }
+}
+
+impl Default for NativePaintSegmentFingerprintObservation {
+    fn default() -> Self {
+        Self::unavailable()
+    }
+}
+
+fn assemble_native_paint_segment_fingerprints(
+    paint: PaintSegmentObservation,
+    encoding: PaintSegmentEncodingObservation,
+    target_generation: NativeTargetGeneration,
+) -> NativePaintSegmentFingerprintObservation {
+    if !target_generation.is_known()
+        || paint.conservative
+        || encoding.conservative
+        || paint.segment_count != encoding.segment_count
+    {
+        return NativePaintSegmentFingerprintObservation::unavailable();
+    }
+
+    let count = usize::from(paint.segment_count);
+    let mut observation = NativePaintSegmentFingerprintObservation {
+        segments: [None; MAX_PAINT_SEGMENTS],
+        segment_count: paint.segment_count,
+        conservative: false,
+    };
+    for index in 0..count {
+        let (Some(segment), Some(encoded)) = (paint.segments[index], encoding.segments[index])
+        else {
+            return NativePaintSegmentFingerprintObservation::unavailable();
+        };
+        if segment.identity != encoded.identity
+            || encoded.conservative
+            || !matches!(
+                encoded.isolation,
+                super::scene::EncodingIsolation::SelfContained
+            )
+            || matches!(
+                encoded.safe_enclosure,
+                super::scene::SafeEnclosure::ViewportFallback
+            )
+            || !matches!(
+                encoded.reason,
+                super::scene::EncodingConservativeReason::None
+            )
+        {
+            return NativePaintSegmentFingerprintObservation::unavailable();
+        }
+        observation.segments[index] = Some(NativePaintSegmentFingerprint {
+            identity: segment.identity,
+            revision: segment.revision,
+            target_generation,
+            primitive_start: encoded.primitive_start,
+            primitive_end: encoded.primitive_end,
+            safe_enclosure: encoded.safe_enclosure,
+            isolation: encoded.isolation,
+            conservative_reason: encoded.reason,
+        });
+    }
+    observation
+}
 
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,
@@ -38,6 +137,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
+    pub(super) last_native_paint_segment_fingerprints: NativePaintSegmentFingerprintObservation,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
@@ -88,6 +188,8 @@ impl NativeVelloFrameState {
             composited_base_dirty: true,
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
+            last_native_paint_segment_fingerprints:
+                NativePaintSegmentFingerprintObservation::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
@@ -135,6 +237,16 @@ impl NativeVelloFrameState {
 
     pub(super) fn record_scene_reuse(&mut self) {
         self.scene_reuse_count = self.scene_reuse_count.saturating_add(1);
+    }
+
+    pub(super) fn assemble_native_paint_segment_fingerprints(
+        &mut self,
+        paint: PaintSegmentObservation,
+        encoding: PaintSegmentEncodingObservation,
+        target_generation: NativeTargetGeneration,
+    ) {
+        self.last_native_paint_segment_fingerprints =
+            assemble_native_paint_segment_fingerprints(paint, encoding, target_generation);
     }
 
     pub(super) fn invalidate_native_scene_context(&mut self) {
@@ -238,6 +350,45 @@ impl NativeVelloFrameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::{PaintSegment, PaintSegmentAnchor, PaintSegmentIdentity};
+
+    fn identity(key: u64) -> PaintSegmentIdentity {
+        PaintSegmentIdentity {
+            preceding: None,
+            following: Some(PaintSegmentAnchor {
+                widget_id: key,
+                key,
+            }),
+        }
+    }
+
+    fn observations(
+        identity: PaintSegmentIdentity,
+        revision: u64,
+    ) -> (PaintSegmentObservation, PaintSegmentEncodingObservation) {
+        let mut paint = PaintSegmentObservation::empty();
+        paint.segment_count = 1;
+        paint.segments[0] = Some(PaintSegment {
+            identity,
+            owner: None,
+            revision,
+            implicated: false,
+        });
+        let mut encoding = PaintSegmentEncodingObservation {
+            segment_count: 1,
+            ..PaintSegmentEncodingObservation::default()
+        };
+        encoding.segments[0] = Some(PaintSegmentEncoding {
+            identity,
+            primitive_start: 2,
+            primitive_end: 4,
+            safe_enclosure: super::super::scene::SafeEnclosure::Empty,
+            isolation: super::super::scene::EncodingIsolation::SelfContained,
+            conservative: false,
+            reason: super::super::scene::EncodingConservativeReason::None,
+        });
+        (paint, encoding)
+    }
 
     #[test]
     fn scaled_scene_cache_reuses_fractional_dpi_scene_until_content_changes() {
@@ -258,5 +409,135 @@ mod tests {
 
         let _ = frame.scene_for_dpi_scale(dpi_scale);
         assert!(!frame.scaled_scene_dirty);
+    }
+
+    #[test]
+    fn native_fingerprint_changes_for_revision_identity_span_and_target() {
+        let id = identity(1);
+        let (paint, encoding) = observations(id, 1);
+        let first = assemble_native_paint_segment_fingerprints(
+            paint,
+            encoding,
+            NativeTargetGeneration::from_test_serial(1),
+        );
+        assert!(!first.conservative);
+        assert_eq!(first.segment_count, 1);
+
+        let (changed_revision, same_encoding) = observations(id, 2);
+        assert_ne!(
+            first,
+            assemble_native_paint_segment_fingerprints(
+                changed_revision,
+                same_encoding,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+        );
+        let (changed_identity, changed_identity_encoding) = observations(identity(2), 1);
+        let (_, changed_encoding) = observations(id, 1);
+        let mut span_changed = changed_encoding;
+        span_changed.segments[0].as_mut().unwrap().primitive_end = 5;
+        assert_ne!(
+            first,
+            assemble_native_paint_segment_fingerprints(
+                changed_identity,
+                changed_identity_encoding,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+        );
+        assert_ne!(
+            first,
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                encoding,
+                NativeTargetGeneration::from_test_serial(2),
+            )
+        );
+        assert_ne!(
+            first,
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                span_changed,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+        );
+    }
+
+    #[test]
+    fn native_fingerprint_rejects_mismatch_and_conservative_encoding() {
+        let (paint, encoding) = observations(identity(1), 1);
+        let (_, mismatched_encoding) = observations(identity(2), 1);
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                mismatched_encoding,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        let mut count_mismatch = encoding;
+        count_mismatch.segment_count = 0;
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                count_mismatch,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        let mut inherited = encoding;
+        inherited.segments[0].as_mut().unwrap().isolation =
+            super::super::scene::EncodingIsolation::InheritedClip;
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                inherited,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        let mut fallback = encoding;
+        fallback.segments[0].as_mut().unwrap().safe_enclosure =
+            super::super::scene::SafeEnclosure::ViewportFallback;
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                fallback,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        let mut malformed = encoding;
+        malformed.conservative = true;
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                malformed,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                paint,
+                encoding,
+                NativeTargetGeneration::unknown(),
+            )
+            .conservative
+        );
+        let mut saturated = paint;
+        saturated.conservative = true;
+        assert!(
+            assemble_native_paint_segment_fingerprints(
+                saturated,
+                encoding,
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .conservative
+        );
+        let mut exhausted = NativeTargetGeneration::from_test_serial(u64::MAX);
+        assert!(!exhausted.advance());
+        assert!(
+            assemble_native_paint_segment_fingerprints(paint, encoding, exhausted).conservative
+        );
     }
 }

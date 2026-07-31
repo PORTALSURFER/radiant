@@ -135,6 +135,7 @@ where
         self.window.render_ctx = Some(render_ctx);
         self.window.render_surface = Some(render_surface);
         self.window.renderer = Some(renderer);
+        self.window.target_generation.advance();
         self.rebuild_scene();
         self.timing.startup_timing.mark_first_scene_ready();
         if reveal_window_after_surface_setup(&self.options) {
@@ -203,6 +204,7 @@ where
                 return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
+            self.window.target_generation.advance();
             self.frame.invalidate_native_scene_context();
             self.defer_viewport_resize_with_reason(
                 logical_viewport_for_size(size, self.window.dpi_scale),
@@ -274,6 +276,7 @@ where
             return false;
         }
         self.window.dpi_scale = next;
+        self.window.target_generation.advance();
         if let Some(window) = self.window.window.as_ref() {
             self.core
                 .set_viewport(logical_viewport_for_size(window.inner_size(), next));
@@ -305,6 +308,7 @@ where
                     // A lost/outdated surface is a native target fence even
                     // when its dimensions did not change.
                     self.frame.invalidate_native_scene_context();
+                    self.window.target_generation.advance();
                 }
                 None
             }
@@ -314,6 +318,7 @@ where
                 None
             }
             Err(err) => {
+                self.window.target_generation.invalidate_unknown();
                 warn!(
                     "radiant generic native vello: non-fatal surface acquire error: {:?}",
                     err

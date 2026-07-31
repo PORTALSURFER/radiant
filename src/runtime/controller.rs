@@ -195,6 +195,12 @@ where
         self.latest_paint_segment_observation = observation;
     }
 
+    pub(crate) const fn latest_paint_segment_observation(
+        &self,
+    ) -> crate::runtime::PaintSegmentObservation {
+        self.latest_paint_segment_observation
+    }
+
     pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
         if !self.phase.accepts_work() {
             return false;

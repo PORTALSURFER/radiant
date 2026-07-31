@@ -142,6 +142,35 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
 }
 
 #[test]
+fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+
+    runner.queue_gpu_surface_wheel(point, Vector2::new(20.0, 0.0), Default::default());
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -30.0), Default::default());
+
+    assert_eq!(runner.core.runtime.bridge().wheel_count, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().last_delta,
+        Vector2::new(20.0, 0.0),
+        "changing semantic axis must route the prior pending delta before queuing the new one"
+    );
+
+    runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+
+    assert_eq!(runner.core.runtime.bridge().wheel_count, 2);
+    assert_eq!(
+        runner.core.runtime.bridge().last_delta,
+        Vector2::new(0.0, -30.0)
+    );
+}
+
+#[test]
 fn focus_loss_discards_coalesced_input_without_retaining_frame_work() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

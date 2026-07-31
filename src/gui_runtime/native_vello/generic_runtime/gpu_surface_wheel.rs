@@ -4,11 +4,28 @@ use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_r
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GpuSurfaceWheelAxis {
+    Horizontal,
+    Vertical,
+}
+
+impl GpuSurfaceWheelAxis {
+    fn from_delta(delta: Vector2) -> Self {
+        if delta.x.abs() > delta.y.abs() {
+            Self::Horizontal
+        } else {
+            Self::Vertical
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
     pub(super) delta: Vector2,
     pub(super) modifiers: PointerModifiers,
+    axis: GpuSurfaceWheelAxis,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -26,6 +43,15 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) {
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
+        if self
+            .input
+            .pending_gpu_surface_wheel
+            .as_ref()
+            .is_some_and(|pending| pending.axis != axis)
+        {
+            self.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+        }
         match &mut self.input.pending_gpu_surface_wheel {
             Some(pending) => {
                 pending.position = position;
@@ -37,6 +63,7 @@ where
                     position,
                     delta,
                     modifiers,
+                    axis,
                 });
             }
         }
@@ -61,6 +88,7 @@ where
                     position,
                     delta,
                     modifiers,
+                    axis: GpuSurfaceWheelAxis::from_delta(delta),
                 });
             }
         }
@@ -199,13 +227,13 @@ where
         position: Point,
         delta: Vector2,
     ) -> bool {
-        let is_horizontal = delta.x.abs() > delta.y.abs();
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
         self.frame
             .gpu_surface_interaction_regions
             .iter()
             .any(|region| {
                 region.contains(position)
-                    && if is_horizontal {
+                    && if axis == GpuSurfaceWheelAxis::Horizontal {
                         region.coalesce_horizontal_wheel
                     } else {
                         region.coalesce_vertical_wheel

@@ -51,23 +51,67 @@ fn gpu_signal_shader_groups_projection_parameters() {
 }
 
 #[test]
-fn gpu_signal_shader_interpolates_adjacent_buckets_for_projected_bands() {
+fn gpu_signal_shader_smooths_colored_bands_only_within_one_physical_pixel() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 
     assert!(
         shader
             .contains("fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow)")
     );
+    assert!(shader.contains("let bucket_width = window.bucket_frames / max(window.visible, 1.0);"));
+    assert!(shader.contains("let pixel_width = 1.0 / max(params.dest.z, 1.0);"));
+    assert!(shader.contains("let transition_width = min(pixel_width, bucket_width);"));
     assert!(
-        shader.contains("let clamped_position = clamp(bucket_position, 0.0, f32(last_bucket));")
+        shader.contains("let boundary_distance = abs(bucket_position - boundary) * bucket_width;")
     );
-    assert!(shader.contains("let left_bucket = u32(floor(clamped_position));"));
-    assert!(shader.contains("let right_bucket = min(left_bucket + 1u, last_bucket);"));
+    assert!(shader.contains("if (boundary_distance > transition_width * 0.5)"));
     assert!(shader.contains("let left_peak = summary_peak"));
     assert!(shader.contains("let right_peak = summary_peak"));
-    assert!(shader.contains("smoothstep(0.0, 1.0, fract(clamped_position))"));
+    assert!(shader.contains("/ max(transition_width, 0.000001),"));
     assert!(shader.contains("return mix(left_peak, right_peak, transition);"));
-    assert!(!shader.contains("boundary_distance"));
+    assert!(shader.contains("return band_peak_at(query, window);"));
+}
+
+fn interpolation_transition_width(pixel_width: f32, bucket_width: f32) -> f32 {
+    pixel_width.min(bucket_width)
+}
+
+fn interpolation_boundary_distance(bucket_position: f32, boundary: f32, bucket_width: f32) -> f32 {
+    (bucket_position - boundary).abs() * bucket_width
+}
+
+fn nearest_summary_boundary(bucket_position: f32) -> f32 {
+    let fraction = bucket_position.fract();
+    if fraction < 0.5 {
+        bucket_position.floor()
+    } else {
+        bucket_position.ceil()
+    }
+}
+
+#[test]
+fn gpu_signal_shader_uses_physical_width_and_nearest_lod_boundaries() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    let pixel_width = 1.0 / 100.0;
+    let bucket_width = 0.25;
+    let transition_width = interpolation_transition_width(pixel_width, bucket_width);
+    assert!((transition_width - pixel_width).abs() < 0.000001);
+    assert!(interpolation_boundary_distance(1.02, 1.0, bucket_width) <= transition_width * 0.5);
+    assert!(interpolation_boundary_distance(1.021, 1.0, bucket_width) > transition_width * 0.5);
+
+    let bucket_limited_width = interpolation_transition_width(0.5, 0.25);
+    assert!((bucket_limited_width - 0.25).abs() < 0.000001);
+
+    assert!(shader.contains("let bucket_fraction = fract(bucket_position);"));
+    assert!(shader.contains("var boundary = ceil(bucket_position);"));
+    assert!(shader.contains("if (bucket_fraction < 0.5)"));
+    assert!(shader.contains("boundary = floor(bucket_position);"));
+    assert!(shader.contains("let left_bucket = u32(clamp(boundary - 1.0"));
+    assert!(shader.contains("let right_bucket = u32(clamp(boundary"));
+    assert_eq!(nearest_summary_boundary(1.02), 1.0);
+    assert_eq!(nearest_summary_boundary(1.98), 2.0);
+    assert_eq!(nearest_summary_boundary(1.5), 2.0);
 }
 
 #[test]

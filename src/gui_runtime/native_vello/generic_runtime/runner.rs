@@ -279,6 +279,11 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
+        self.frame.assemble_native_paint_segment_fingerprints(
+            self.core.paint_segment_observation(),
+            self.frame.last_scene_stats.segment_encoding,
+            self.window.target_generation,
+        );
         self.frame.record_scene_encode(scene_validity);
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();

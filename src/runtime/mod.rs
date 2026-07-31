@@ -147,6 +147,7 @@ pub use gpu_surface::{
     RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
     RenderCanvasShaderSurfaceDescriptorParts,
 };
+pub(crate) use paint::PaintSegmentObserver;
 pub use paint::{
     PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,

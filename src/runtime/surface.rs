@@ -38,6 +38,8 @@ pub use widget::{
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
 #[cfg(test)]
+pub(in crate::runtime) use revision::SurfaceDamageCandidate;
+#[cfg(test)]
 pub(in crate::runtime) use revision::ViewDeltaCause;
 pub(in crate::runtime) use revision::{
     DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, SurfaceDamage, ViewDeltaDiagnostics, ViewDeltaEffect,

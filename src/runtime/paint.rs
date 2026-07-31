@@ -6,6 +6,7 @@ mod geometry;
 mod helpers;
 mod primitives;
 mod scroll;
+mod segments;
 mod text;
 
 pub(super) use chrome::{push_container_chrome, push_overlay_panel, push_tooltip_panel};
@@ -28,6 +29,7 @@ pub use primitives::{
 pub(super) use scroll::{
     push_scroll_affordance, resolve_scroll_affordance, scroll_content_clip_rect,
 };
+pub(crate) use segments::PaintSegmentObserver;
 pub(crate) use text::{
     button_font_size, input_font_size, optical_centered_baseline, push_text_run, text_font_size,
 };

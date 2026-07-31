@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 25] = [
+const COUNTER_FIELDS: [&str; 27] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -17,6 +17,8 @@ const COUNTER_FIELDS: [&str; 25] = [
     "overlay_paint_count",
     "overlay_rebuild_count",
     "paint_primitive_count",
+    "encoded_paint_primitive_count",
+    "scene_append_count",
     "text_cache_hit_count",
     "retained_surface_cache_hit_count",
     "gpu_surface_count",
@@ -50,22 +52,24 @@ impl ScenarioCounters {
     const OVERLAY_PAINT_COUNT: usize = 6;
     const OVERLAY_REBUILD_COUNT: usize = 7;
     const PAINT_PRIMITIVE_COUNT: usize = 8;
-    const TEXT_CACHE_HIT_COUNT: usize = 9;
-    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 10;
-    const GPU_SURFACE_COUNT: usize = 11;
-    const FRAME_CADENCE_DUE_COUNT: usize = 12;
-    const FRAME_CADENCE_WAIT_COUNT: usize = 13;
-    const WIDGET_CALLBACK_ALLOCATION_COUNT: usize = 14;
-    const TEXT_STORAGE_ALLOCATION_COUNT: usize = 15;
-    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 16;
-    const GPU_SURFACE_OCCLUSION_PRIMITIVE_VISIT_COUNT: usize = 17;
-    const GPU_SURFACE_OCCLUSION_INDEX_NODE_VISIT_COUNT: usize = 18;
-    const GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT: usize = 19;
-    const APPLICATION_PROJECTION_COUNT: usize = 20;
-    const RUNTIME_PROJECTION_COUNT: usize = 21;
-    const WIDGET_STATE_SYNC_COUNT: usize = 22;
-    const LAYOUT_COUNT: usize = 23;
-    const PAINT_PLAN_REBUILD_COUNT: usize = 24;
+    const ENCODED_PAINT_PRIMITIVE_COUNT: usize = 9;
+    const SCENE_APPEND_COUNT: usize = 10;
+    const TEXT_CACHE_HIT_COUNT: usize = 11;
+    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 12;
+    const GPU_SURFACE_COUNT: usize = 13;
+    const FRAME_CADENCE_DUE_COUNT: usize = 14;
+    const FRAME_CADENCE_WAIT_COUNT: usize = 15;
+    const WIDGET_CALLBACK_ALLOCATION_COUNT: usize = 16;
+    const TEXT_STORAGE_ALLOCATION_COUNT: usize = 17;
+    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 18;
+    const GPU_SURFACE_OCCLUSION_PRIMITIVE_VISIT_COUNT: usize = 19;
+    const GPU_SURFACE_OCCLUSION_INDEX_NODE_VISIT_COUNT: usize = 20;
+    const GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT: usize = 21;
+    const APPLICATION_PROJECTION_COUNT: usize = 22;
+    const RUNTIME_PROJECTION_COUNT: usize = 23;
+    const WIDGET_STATE_SYNC_COUNT: usize = 24;
+    const LAYOUT_COUNT: usize = 25;
+    const PAINT_PLAN_REBUILD_COUNT: usize = 26;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -129,6 +133,16 @@ impl ScenarioCounters {
 
     pub(crate) fn with_paint_primitive_count(mut self, value: u64) -> Self {
         self.values[Self::PAINT_PRIMITIVE_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_encoded_paint_primitive_count(mut self, value: u64) -> Self {
+        self.values[Self::ENCODED_PAINT_PRIMITIVE_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_scene_append_count(mut self, value: u64) -> Self {
+        self.values[Self::SCENE_APPEND_COUNT] = Some(value);
         self
     }
 

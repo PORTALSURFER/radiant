@@ -2643,7 +2643,8 @@ Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `retained_surface_cache_hit_count`, `gpu_surface_count`,
 `frame_cadence_due_count`, `frame_cadence_wait_count`,
 `widget_callback_allocation_count`, `text_storage_allocation_count`, and
-`allocation_sensitive_work_count`. This keeps
+`allocation_sensitive_work_count`, `encoded_paint_primitive_count`, and
+`scene_append_count`. This keeps
 performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
 Capture a machine-local baseline artifact directly with
@@ -2775,12 +2776,23 @@ It currently covers:
   `runtime_virtualized_nested_scroll_hover_10k`,
   `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
   `runtime_animation_frame_cadence_1k`, `runtime_command_flattening_512`,
-  `runtime_command_drain_1k`, and `runtime_nested_command_drain_1k`
+  `runtime_command_drain_1k`, and `runtime_nested_command_drain_1k`. The paired
+  Vello artifact strategy probes are
+  `vello_artifact_strategy_4x256_full_reencode` and
+  `vello_artifact_strategy_4x256_append_one_changed`; they use four
+  resource-free direct-Vello rectangle segments with 256 fills each. The first
+  encodes all 1,024 fills, while the second encodes one changed 256-fill segment,
+  resets its destination, and appends four segment scenes. Both assert equivalent
+  final Vello encoding counts and report the strategy counters; they make no
+  runtime-type, text, image, clip, resource, or timing-threshold claim.
 - Resource lifecycle scenarios: `resource_slot_stale_completions_1k`
 - Text scenarios: `text_line_cache_1k`, `text_word_selection_1k`, and
   `text_word_deletion_1k`
 - GPU data and surface scenarios: `gpu_signal_summary`, `gpu_surface_projection`,
   `gpu_surface_stack_projection_128`, and `gpu_custom_shader_projection`
+- Vello artifact strategy scenarios:
+  `vello_artifact_strategy_4x256_full_reencode` and
+  `vello_artifact_strategy_4x256_append_one_changed`
 
 Pass a scenario substring to run one focused slice, for example:
 

@@ -5,7 +5,7 @@ use crate::{
     bench_gpu_surface_occlusion, bench_gpu_surface_projection,
     bench_gpu_surface_stack_projection_128, command_drain, layout_scenarios, resource_scenarios,
     runner::{ScenarioRunner, ScenarioSpec},
-    runtime_scenarios, text_scenarios,
+    runtime_scenarios, text_scenarios, vello_artifact_scenarios,
 };
 
 const LAYOUT_ITERATIONS: usize = 120;
@@ -86,6 +86,7 @@ const GPU_SURFACE_OCCLUSION_COUNTERS: &[&str] = &[
     "gpu_surface_occlusion_candidate_visit_count",
 ];
 const GPU_DATA_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
+const VELLO_ARTIFACT_COUNTERS: &[&str] = &["encoded_paint_primitive_count", "scene_append_count"];
 const FRAME_CADENCE_COUNTERS: &[&str] = &[
     "paint_only_count",
     "frame_cadence_due_count",
@@ -143,6 +144,8 @@ macro_rules! perf_scenario_catalog {
             ("gpu_surface_occlusion_30", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_OCCLUSION_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_occlusion(30, 640)),
             ("gpu_surface_occlusion_128", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_OCCLUSION_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_occlusion(128, 3_200)),
             ("gpu_custom_shader_projection", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_custom_shader_projection),
+            ("vello_artifact_strategy_4x256_full_reencode", "runtime_surface", "scene_cache", VELLO_ARTIFACT_COUNTERS, RUNTIME_ITERATIONS, vello_artifact_scenarios::strategy_4x256_full_reencode),
+            ("vello_artifact_strategy_4x256_append_one_changed", "runtime_surface", "scene_cache", VELLO_ARTIFACT_COUNTERS, RUNTIME_ITERATIONS, vello_artifact_scenarios::strategy_4x256_append_one_changed),
             ]
         }
     };

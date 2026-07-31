@@ -38,6 +38,8 @@ pub(super) const PERF_SCENARIOS: &[&str] = &[
     "gpu_surface_projection",
     "gpu_surface_stack_projection_128",
     "gpu_custom_shader_projection",
+    "vello_artifact_strategy_4x256_full_reencode",
+    "vello_artifact_strategy_4x256_append_one_changed",
 ];
 
 pub(super) fn read_project_file(relative_path: &str) -> String {

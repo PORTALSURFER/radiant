@@ -21,6 +21,8 @@ fn performance_docs_describe_harness_commands_and_output_contract() {
         "`retained_surface_cache_hit_count`",
         "`frame_cadence_due_count`, `frame_cadence_wait_count`",
         "`text_storage_allocation_count`",
+        "`encoded_paint_primitive_count`",
+        "`scene_append_count`",
         "Capture a machine-local baseline artifact directly",
         "`baseline_avg_us`, `baseline_ratio`, and `baseline_status`",
         "`baseline_status=missing`",
@@ -63,6 +65,7 @@ fn performance_docs_group_scenarios_by_target_area() {
         "Resource lifecycle scenarios:",
         "Text scenarios:",
         "GPU data and surface scenarios:",
+        "Vello artifact strategy scenarios:",
         "Blessed high-risk groups:",
     ] {
         assert!(

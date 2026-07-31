@@ -11,6 +11,7 @@ use super::{
     timed_frame_target_fps,
 };
 use super::{
+    frame_state::NativeSceneValidityFingerprint,
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
     runner_state::NativeTargetGeneration,
     scene::{ArtifactFeasibilityObservation, materialize_native_paint_segment_artifacts},
@@ -60,6 +61,7 @@ pub(super) struct NativePaintSegmentArtifactAdmission<'a> {
     feasibility: ArtifactFeasibilityObservation,
     plan: NativePaintSegmentEligibilityPlan,
     payloads: Vec<Scene>,
+    scene_validity: NativeSceneValidityFingerprint,
     target_generation: NativeTargetGeneration,
 }
 
@@ -71,6 +73,7 @@ impl<'a> NativePaintSegmentArtifactAdmission<'a> {
         ArtifactFeasibilityObservation,
         NativePaintSegmentEligibilityPlan,
         Vec<Scene>,
+        NativeSceneValidityFingerprint,
         NativeTargetGeneration,
     ) {
         let Self {
@@ -78,9 +81,17 @@ impl<'a> NativePaintSegmentArtifactAdmission<'a> {
             feasibility,
             plan,
             payloads,
+            scene_validity,
             target_generation,
         } = self;
-        (scene, feasibility, plan, payloads, target_generation)
+        (
+            scene,
+            feasibility,
+            plan,
+            payloads,
+            scene_validity,
+            target_generation,
+        )
     }
 }
 
@@ -90,6 +101,7 @@ pub(super) fn materialize_native_paint_segment_artifacts_for_test(
     feasibility: ArtifactFeasibilityObservation,
     plan: NativePaintSegmentEligibilityPlan,
     payloads: Vec<Scene>,
+    scene_validity: NativeSceneValidityFingerprint,
     target_generation: NativeTargetGeneration,
 ) -> super::scene::NativePaintSegmentArtifactMaterialization {
     materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
@@ -97,6 +109,7 @@ pub(super) fn materialize_native_paint_segment_artifacts_for_test(
         feasibility,
         plan,
         payloads,
+        scene_validity,
         target_generation,
     })
 }
@@ -301,6 +314,7 @@ where
     fn rebuild_scene_with_refresh_evidence(&mut self, freshly_refreshed: bool) {
         self.timing.deferred_scene_rebuild = false;
         self.timing.deferred_scene_rebuild_requires_encode = false;
+        self.frame.reset_scene_build_outcome();
         let _ = self.apply_pending_viewport_resize_if_needed();
         let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         let viewport = self.core.runtime.viewport();
@@ -331,6 +345,31 @@ where
             self.frame.last_scene_stats.artifact_feasibility,
             self.window.target_generation,
         );
+        let assembly_attempted = matches!(
+            self.frame.last_native_paint_segment_eligibility.outcome,
+            super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::Plan
+        );
+        let assembly_vetoed = assembly_attempted
+            && self
+                .frame
+                .assemble_retained_native_scene(scene_validity, self.window.target_generation)
+                .is_err();
+        if assembly_attempted && !assembly_vetoed {
+            let paint = self.core.paint_segment_observation();
+            let encoding = self.frame.last_scene_stats.segment_encoding;
+            self.frame.reconcile_native_paint_segments(
+                paint,
+                encoding,
+                self.window.target_generation,
+            );
+            self.frame.record_scene_assembly(scene_validity);
+            self.frame.refresh_gpu_surface_interaction_regions();
+            self.frame.refresh_post_gpu_overlay_cache();
+            self.restore_native_hover_cursor_overlay();
+            self.frame.mark_scene_content_dirty();
+            self.export_automation_targets();
+            return;
+        }
         #[cfg(test)]
         self.frame.record_scene_encode_boundary();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
@@ -350,6 +389,7 @@ where
         let payloads = encode_native_paint_segment_payloads(
             &self.frame.last_paint_plan.primitives,
             eligibility,
+            scene_validity,
             &self.frame.native_paint_segment_artifact_store,
         )
         .into_payloads();
@@ -359,6 +399,7 @@ where
                 feasibility: self.frame.last_scene_stats.artifact_feasibility,
                 plan: eligibility,
                 payloads,
+                scene_validity,
                 target_generation: self.window.target_generation,
             });
         self.frame
@@ -368,7 +409,12 @@ where
             self.frame.last_scene_stats.segment_encoding,
             self.window.target_generation,
         );
-        self.frame.record_scene_encode(scene_validity);
+        if assembly_vetoed {
+            self.frame
+                .record_scene_encode_after_assembly_veto(scene_validity);
+        } else {
+            self.frame.record_scene_encode(scene_validity);
+        }
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();

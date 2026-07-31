@@ -34,9 +34,12 @@ pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
 };
-pub(super) use artifact_materialization::materialize_native_paint_segment_artifacts;
 pub(in crate::gui_runtime::native_vello) use artifact_materialization::{
     NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
+};
+pub(super) use artifact_materialization::{
+    NativePaintSegmentAssemblyResult, NativePaintSegmentAssemblyVetoReason,
+    assemble_retained_native_paint_segment_scene, materialize_native_paint_segment_artifacts,
 };
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
@@ -279,6 +282,7 @@ impl NativePaintSegmentPayloadSelection {
 pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads(
     primitives: &[PaintPrimitive],
     plan: NativePaintSegmentEligibilityPlan,
+    scene_validity: super::frame_state::NativeSceneValidityFingerprint,
     artifacts: &NativePaintSegmentArtifactStore,
 ) -> NativePaintSegmentPayloadSelection {
     let count = usize::from(plan.entry_count);
@@ -297,7 +301,7 @@ pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads
         let Some(entry) = plan.entries[index] else {
             return NativePaintSegmentPayloadSelection::empty();
         };
-        if let Some(payload) = artifacts.reusable_payload(entry) {
+        if let Some(payload) = artifacts.reusable_payload(entry, scene_validity) {
             selection.payloads.push(payload);
             #[cfg(test)]
             {

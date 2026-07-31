@@ -1,11 +1,14 @@
 //! Ephemeral Vello scene artifacts for an exact, validated eligibility plan.
 
+use super::super::frame_state::NativeSceneValidityFingerprint;
 use super::super::retained_paint_segments::{
     NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityEntry,
     NativePaintSegmentEligibilityOutcome, NativePaintSegmentFreshEncodingReason,
 };
 use super::super::runner_state::NativeTargetGeneration;
-use super::artifact_feasibility::{ArtifactFeasibilityCounts, ArtifactFeasibilityDisposition};
+use super::artifact_feasibility::{
+    ArtifactFeasibilityCounts, ArtifactFeasibilityDisposition, ArtifactFeasibilityObservation,
+};
 use super::{EncodingConservativeReason, EncodingIsolation, SafeEnclosure};
 use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentSpan};
 use vello::Scene;
@@ -20,6 +23,24 @@ pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifact {
     span: PaintSegmentSpan,
     revision: u64,
     target_generation: NativeTargetGeneration,
+    scene_validity: NativeSceneValidityFingerprint,
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmentAssemblyResult {
+    Assembled(Box<Scene>),
+    Veto(NativePaintSegmentAssemblyVetoReason),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmentAssemblyVetoReason
+{
+    InvalidPlan,
+    MixedDisposition,
+    InvalidEvidence,
+    MissingArtifact,
+    ArtifactMetadataMismatch,
+    InvalidPayload,
+    CheckpointMismatch,
 }
 
 /// Transactional, bounded materialization result for one encoded frame.
@@ -67,6 +88,7 @@ impl NativePaintSegmentArtifactMaterialization {
             span: first.span,
             revision: first.revision,
             target_generation: first.target_generation,
+            scene_validity: first.scene_validity,
         };
         self.artifacts.push(duplicate);
     }
@@ -183,6 +205,7 @@ impl NativePaintSegmentArtifactStore {
     pub(super) fn reusable_payload(
         &self,
         entry: NativePaintSegmentEligibilityEntry,
+        scene_validity: NativeSceneValidityFingerprint,
     ) -> Option<Scene> {
         let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
             entry.disposition
@@ -197,9 +220,44 @@ impl NativePaintSegmentArtifactStore {
                 && artifact.span.start == fingerprint.primitive_start
                 && artifact.span.end == fingerprint.primitive_end
                 && artifact.revision == fingerprint.revision
-                && artifact.target_generation == fingerprint.target_generation)
+                && artifact.target_generation == fingerprint.target_generation
+                && artifact.scene_validity == scene_validity)
                 .then(|| artifact.scene.clone())
         })
+    }
+
+    fn artifact_for_assembly(
+        &self,
+        index: usize,
+        entry: NativePaintSegmentEligibilityEntry,
+        scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
+    ) -> Result<&Scene, NativePaintSegmentAssemblyVetoReason> {
+        let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
+            entry.disposition
+        else {
+            return Err(NativePaintSegmentAssemblyVetoReason::MixedDisposition);
+        };
+        let Some(artifact) = self.artifacts.get(index).and_then(Option::as_ref) else {
+            return Err(NativePaintSegmentAssemblyVetoReason::MissingArtifact);
+        };
+        if artifact.identity != fingerprint.identity
+            || artifact.identity != entry.span.identity
+            || artifact.span != entry.span
+            || artifact.revision != fingerprint.revision
+            || artifact.target_generation != fingerprint.target_generation
+            || artifact.target_generation != target_generation
+        {
+            return Err(NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch);
+        }
+        if artifact.scene_validity != scene_validity {
+            return Err(NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch);
+        }
+        Ok(&artifact.scene)
+    }
+
+    fn has_artifact_after(&self, count: usize) -> bool {
+        self.artifacts[count..].iter().any(Option::is_some)
     }
 
     fn validated_next(
@@ -256,6 +314,135 @@ impl NativePaintSegmentArtifactStore {
     }
 }
 
+/// Assemble one exact retained-only plan into a scratch scene.
+///
+/// This is the authoritative retained path. It never asks the auxiliary
+/// payload selector to encode or repair a segment: every plan entry must have
+/// a matching materialized artifact, matching provenance, and matching
+/// authoritative checkpoint evidence. The caller commits the returned scene
+/// only after this function has validated the complete stream.
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn assemble_retained_native_paint_segment_scene(
+    authoritative_scene: &Scene,
+    feasibility: ArtifactFeasibilityObservation,
+    plan: super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan,
+    artifacts: &NativePaintSegmentArtifactStore,
+    scene_validity: NativeSceneValidityFingerprint,
+    target_generation: NativeTargetGeneration,
+) -> NativePaintSegmentAssemblyResult {
+    let NativePaintSegmentEligibilityOutcome::Plan = plan.outcome else {
+        return NativePaintSegmentAssemblyResult::Veto(
+            NativePaintSegmentAssemblyVetoReason::InvalidPlan,
+        );
+    };
+    let count = usize::from(plan.entry_count);
+    if count == 0 || count > MAX_PAINT_SEGMENTS {
+        return NativePaintSegmentAssemblyResult::Veto(
+            NativePaintSegmentAssemblyVetoReason::InvalidPlan,
+        );
+    }
+    if plan.entries[..count].iter().flatten().any(|entry| {
+        !matches!(
+            entry.disposition,
+            NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+        )
+    }) {
+        return NativePaintSegmentAssemblyResult::Veto(
+            NativePaintSegmentAssemblyVetoReason::MixedDisposition,
+        );
+    }
+    if !target_generation.is_known()
+        || feasibility.conservative
+        || usize::from(feasibility.segment_count) != count
+        || usize::from(feasibility.checkpoint_count) != count
+        || plan.entries[count..].iter().any(Option::is_some)
+        || feasibility.segments[count..].iter().any(Option::is_some)
+        || feasibility.checkpoints[count..].iter().any(Option::is_some)
+        || artifacts.has_artifact_after(count)
+        || !valid_no_resource_scene(authoritative_scene)
+    {
+        return NativePaintSegmentAssemblyResult::Veto(
+            NativePaintSegmentAssemblyVetoReason::InvalidEvidence,
+        );
+    }
+
+    let mut scratch = Scene::new();
+    let mut previous_counts = ArtifactFeasibilityCounts::default();
+    let mut previous_end = 0;
+    let mut prior_identities = [None; MAX_PAINT_SEGMENTS];
+
+    for index in 0..count {
+        let (Some(entry), Some(evidence), Some(checkpoint)) = (
+            plan.entries[index],
+            feasibility.segments[index],
+            feasibility.checkpoints[index],
+        ) else {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::MissingArtifact,
+            );
+        };
+        if !matches!(
+            entry.disposition,
+            NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+        ) {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::MixedDisposition,
+            );
+        }
+        if !valid_plan_and_evidence(
+            entry,
+            evidence,
+            checkpoint,
+            previous_counts,
+            previous_end,
+            &prior_identities,
+            target_generation,
+        ) {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::InvalidEvidence,
+            );
+        }
+
+        let payload = match artifacts.artifact_for_assembly(
+            index,
+            entry,
+            scene_validity,
+            target_generation,
+        ) {
+            Ok(payload) => payload,
+            Err(reason) => return NativePaintSegmentAssemblyResult::Veto(reason),
+        };
+        if !valid_no_resource_scene(payload) {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::InvalidPayload,
+            );
+        }
+
+        scratch.append(payload, None);
+        let assembled_counts = counts_from_scene(&scratch);
+        if assembled_counts != checkpoint.counts {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::CheckpointMismatch,
+            );
+        }
+        if !counts_grew_stream_from(assembled_counts, previous_counts) {
+            return NativePaintSegmentAssemblyResult::Veto(
+                NativePaintSegmentAssemblyVetoReason::InvalidEvidence,
+            );
+        }
+        previous_counts = checkpoint.counts;
+        previous_end = entry.span.end;
+        prior_identities[index] = Some(entry.span.identity);
+    }
+
+    if !encoding_equivalent(&scratch, authoritative_scene) {
+        return NativePaintSegmentAssemblyResult::Veto(
+            NativePaintSegmentAssemblyVetoReason::InvalidPayload,
+        );
+    }
+
+    NativePaintSegmentAssemblyResult::Assembled(Box::new(scratch))
+}
+
 /// Materialize artifacts from typed, independently valid scene payloads.
 ///
 /// The payload vector is plan-ordered and contains exactly one scene per plan
@@ -266,7 +453,8 @@ impl NativePaintSegmentArtifactStore {
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn materialize_native_paint_segment_artifacts(
     admission: super::super::runner::NativePaintSegmentArtifactAdmission<'_>,
 ) -> NativePaintSegmentArtifactMaterialization {
-    let (scene, feasibility, plan, payloads, target_generation) = admission.into_parts();
+    let (scene, feasibility, plan, payloads, scene_validity, target_generation) =
+        admission.into_parts();
     let NativePaintSegmentEligibilityOutcome::Plan = plan.outcome else {
         return NativePaintSegmentArtifactMaterialization::default();
     };
@@ -352,6 +540,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn materialize_native_
                 span: entry.span,
                 revision: fingerprint.revision,
                 target_generation: fingerprint.target_generation,
+                scene_validity,
             })
         })
         .collect();

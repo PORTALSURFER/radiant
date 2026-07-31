@@ -174,6 +174,11 @@ where
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,
+                scene_encode_count: self.frame.scene_encode_count,
+                scene_reuse_count: self.frame.scene_reuse_count,
+                scene_assembly_count: self.frame.scene_assembly_count,
+                scene_assembly_veto_count: self.frame.scene_assembly_veto_count,
+                scene_build_outcome: self.frame.scene_build_outcome.name(),
                 text_stats,
                 retained_policy: self.frame.retained_surface_cache.policy(),
                 retained_entries: self.frame.retained_surface_cache.entry_count(),
@@ -242,6 +247,11 @@ where
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,
+                scene_encode_count: self.frame.scene_encode_count,
+                scene_reuse_count: self.frame.scene_reuse_count,
+                scene_assembly_count: self.frame.scene_assembly_count,
+                scene_assembly_veto_count: self.frame.scene_assembly_veto_count,
+                scene_build_outcome: self.frame.scene_build_outcome.name(),
                 text_stats,
                 retained_policy: self.frame.retained_surface_cache.policy(),
                 retained_entries: self.frame.retained_surface_cache.entry_count(),

@@ -5,6 +5,11 @@ use std::time::Duration;
 
 pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) stats: RetainedSurfaceEncodeStats,
+    pub(super) scene_encode_count: u64,
+    pub(super) scene_reuse_count: u64,
+    pub(super) scene_assembly_count: u64,
+    pub(super) scene_assembly_veto_count: u64,
+    pub(super) scene_build_outcome: &'static str,
     pub(super) text_stats: TextLayoutProfileCounters,
     pub(super) retained_policy: crate::runtime::RetainedSurfaceCachePolicy,
     pub(super) retained_entries: usize,
@@ -31,6 +36,11 @@ pub(super) fn native_frame_diagnostics(
             scene_rebuild: parts.frame_work.needs_scene_rebuild(),
         },
         scene: crate::runtime::NativeSceneDiagnostics {
+            scene_encode_count: parts.scene_encode_count,
+            scene_reuse_count: parts.scene_reuse_count,
+            scene_assembly_count: parts.scene_assembly_count,
+            scene_assembly_veto_count: parts.scene_assembly_veto_count,
+            scene_build_outcome: parts.scene_build_outcome,
             traversal: crate::runtime::NativeSceneTraversalDiagnostics {
                 paint_plan_primitives: parts.stats.paint_plan_primitives,
                 clip_layer_count: parts.stats.clip_layer_count,
@@ -248,6 +258,11 @@ mod tests {
     fn native_frame_diagnostics_use_the_accumulated_refresh_total() {
         let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
             stats: Default::default(),
+            scene_encode_count: 7,
+            scene_reuse_count: 11,
+            scene_assembly_count: 13,
+            scene_assembly_veto_count: 17,
+            scene_build_outcome: "retained_assembly_veto_fallback",
             text_stats: Default::default(),
             retained_policy: RetainedSurfaceCachePolicy::default(),
             retained_entries: 0,
@@ -273,6 +288,14 @@ mod tests {
         });
 
         assert_eq!(diagnostics.presentation.surface_invalidation, "layout");
+        assert_eq!(diagnostics.scene.scene_encode_count, 7);
+        assert_eq!(diagnostics.scene.scene_reuse_count, 11);
+        assert_eq!(diagnostics.scene.scene_assembly_count, 13);
+        assert_eq!(diagnostics.scene.scene_assembly_veto_count, 17);
+        assert_eq!(
+            diagnostics.scene.scene_build_outcome,
+            "retained_assembly_veto_fallback"
+        );
         assert_eq!(
             diagnostics.timings.frame_work.refresh_surface,
             Duration::from_micros(23)

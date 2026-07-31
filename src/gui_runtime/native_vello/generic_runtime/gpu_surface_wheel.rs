@@ -4,11 +4,35 @@ use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_r
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GpuSurfaceWheelAxis {
+    Horizontal,
+    Vertical,
+}
+
+impl GpuSurfaceWheelAxis {
+    fn from_delta(delta: Vector2) -> Self {
+        if delta.x.abs() > delta.y.abs() {
+            Self::Horizontal
+        } else {
+            Self::Vertical
+        }
+    }
+
+    fn semantic_delta(self, delta: Vector2) -> Vector2 {
+        match self {
+            Self::Horizontal => Vector2::new(delta.x, 0.0),
+            Self::Vertical => Vector2::new(0.0, delta.y),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
     pub(super) delta: Vector2,
     pub(super) modifiers: PointerModifiers,
+    axis: GpuSurfaceWheelAxis,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -26,6 +50,16 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) {
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
+        let delta = axis.semantic_delta(delta);
+        if self
+            .input
+            .pending_gpu_surface_wheel
+            .as_ref()
+            .is_some_and(|pending| pending.axis != axis)
+        {
+            self.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+        }
         match &mut self.input.pending_gpu_surface_wheel {
             Some(pending) => {
                 pending.position = position;
@@ -37,6 +71,7 @@ where
                     position,
                     delta,
                     modifiers,
+                    axis,
                 });
             }
         }
@@ -50,6 +85,8 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) {
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
+        let delta = axis.semantic_delta(delta);
         match &mut self.input.pending_scroll_container_wheel {
             Some(pending) => {
                 pending.position = position;
@@ -61,6 +98,7 @@ where
                     position,
                     delta,
                     modifiers,
+                    axis,
                 });
             }
         }
@@ -191,20 +229,31 @@ where
     }
 
     pub(super) fn can_fast_path_gpu_surface_route(&self, position: Point, delta: Vector2) -> bool {
-        let is_horizontal_pan = delta.x.abs() > delta.y.abs() && delta.x.abs() > f32::EPSILON;
-        !is_horizontal_pan && self.paint_plan_has_coalescing_gpu_surface_at(position)
+        self.can_coalesce_gpu_surface_wheel(position, delta)
     }
 
-    pub(super) fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
+    pub(super) fn paint_plan_has_coalescing_gpu_surface_at(
+        &self,
+        position: Point,
+        delta: Vector2,
+    ) -> bool {
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
         self.frame
             .gpu_surface_interaction_regions
             .iter()
-            .any(|region| region.coalesce_vertical_wheel && region.contains(position))
+            .any(|region| {
+                region.contains(position)
+                    && if axis == GpuSurfaceWheelAxis::Horizontal {
+                        region.coalesce_horizontal_wheel
+                    } else {
+                        region.coalesce_vertical_wheel
+                    }
+            })
     }
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
-        let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
-        is_vertical && self.paint_plan_has_coalescing_gpu_surface_at(position)
+        let has_delta = delta.x.abs().max(delta.y.abs()) > f32::EPSILON;
+        has_delta && self.paint_plan_has_coalescing_gpu_surface_at(position, delta)
     }
 
     pub(super) fn can_coalesce_scroll_container_wheel(

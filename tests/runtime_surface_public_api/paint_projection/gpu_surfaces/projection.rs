@@ -18,6 +18,7 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
         .with_capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
                 GpuSurfaceLineStyle {
                     color: Rgba8 {

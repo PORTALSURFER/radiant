@@ -323,6 +323,7 @@ fn scene_encoding_counts_gpu_surfaces_without_projecting_interactions() {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: false,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             overlays: Vec::new(),

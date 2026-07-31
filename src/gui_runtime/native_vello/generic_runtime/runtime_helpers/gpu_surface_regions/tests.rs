@@ -15,6 +15,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
         rect: Rect::from_min_size(Point::new(99.0, 99.0), Vector2::new(1.0, 1.0)),
         fast_pointer_move: true,
         coalesce_vertical_wheel: false,
+        coalesce_horizontal_wheel: false,
         runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
     });
     let initial_capacity = regions.capacity();
@@ -33,6 +34,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
         capabilities: GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         },
         overlays: Vec::new(),
@@ -80,6 +82,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
                 rect,
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             GpuSurfaceInteractionRegion {
@@ -88,6 +91,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
                 rect: native_hover_rect,
                 fast_pointer_move: false,
                 coalesce_vertical_wheel: false,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
                     GpuSurfaceLineStyle {
                         color: Rgba8 {
@@ -263,6 +267,7 @@ fn gpu_surface_interaction_regions_keep_full_region_without_intersecting_occlude
             rect: surface_rect,
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
                 GpuSurfaceLineStyle {
                     color: Rgba8 {
@@ -322,6 +327,7 @@ fn test_surface(rect: Rect) -> PaintGpuSurface {
         capabilities: GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
                 GpuSurfaceLineStyle {
                     color: Rgba8 {

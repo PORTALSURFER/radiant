@@ -51,7 +51,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let band_gamma = array<f32, 4>(1.03, 0.94, 0.42, 1.70);
     var raw_signal = 0.0;
     if (band_count > 3u) {
-        raw_signal = projected_band_peak(band_query(in.local.x, 3u, band_count), summary_window);
+        raw_signal = band_peak_at(band_query(in.local.x, 3u, band_count), summary_window);
     }
     raw_signal = clamp(raw_signal * preview_gain, 0.0, 1.0);
     let display_peak = pow(clamp(raw_signal * 1.02, 0.0, 1.0), 0.54);
@@ -71,20 +71,12 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         high_signal = projected_band_peak(band_query(in.local.x, 2u, band_count), summary_window);
     }
     high_signal = clamp(high_signal * preview_gain, 0.0, 1.0);
+    let band_signals = array<f32, 4>(low_signal, mid_signal, high_signal, raw_signal);
     let low_peak_ownership = smoothstep(0.10, 0.42, low_signal);
     let mid_dominance = smoothstep(0.18, 0.54, mid_signal) * (1.0 - low_peak_ownership * 0.55);
     let high_dominance = smoothstep(0.10, 0.30, high_signal) * (1.0 - low_peak_ownership * 0.80);
     for (var band = 0u; band < min(band_count, 4u); band = band + 1u) {
-        var peak = projected_band_peak(band_query(in.local.x, band, band_count), summary_window);
-        if (band == 0u) {
-            peak = low_signal;
-        } else if (band == 1u) {
-            peak = mid_signal;
-        } else if (band == 2u) {
-            peak = high_signal;
-        } else if (band == 3u) {
-            peak = clamp(peak * preview_gain, 0.0, 1.0);
-        }
+        let peak = band_signals[band];
         var visible_peak = peak;
         var noise_floor = 0.004;
         if (band == 1u || band == 2u) {
@@ -234,8 +226,8 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         white_signal = max(
             white_signal,
             max(
-                band_peak_at(band_query(in.local.x - neighbor_span, 2u, band_count), summary_window) * preview_gain,
-                band_peak_at(band_query(in.local.x + neighbor_span, 2u, band_count), summary_window) * preview_gain,
+                projected_band_peak(band_query(in.local.x - neighbor_span, 2u, band_count), summary_window) * preview_gain,
+                projected_band_peak(band_query(in.local.x + neighbor_span, 2u, band_count), summary_window) * preview_gain,
             ),
         );
     }

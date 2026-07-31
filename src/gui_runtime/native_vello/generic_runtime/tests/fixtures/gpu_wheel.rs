@@ -31,6 +31,7 @@ impl Default for GpuWheelBridge {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
                     GpuSurfaceLineStyle {
                         color: Rgba8 {
@@ -159,6 +160,7 @@ impl Widget for PassiveGpuWheelWidget {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: false,
                 coalesce_vertical_wheel: true,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             overlays: Vec::new(),

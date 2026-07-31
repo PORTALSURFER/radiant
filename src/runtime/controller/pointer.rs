@@ -70,6 +70,13 @@ where
         }
     }
 
+    pub(in crate::runtime::controller) fn reconcile_pointer_hover_after_capture_release(
+        &mut self,
+        position: Point,
+    ) {
+        self.reconcile_pointer_hover_state_without_input(position);
+    }
+
     /// Route one normalized widget interaction by point hit test.
     ///
     /// Returns the targeted widget id when a projected widget handled the point.
@@ -170,6 +177,7 @@ where
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
+        self.reset_tooltip_hover_intent();
     }
 
     fn cancel_captured_widget_state(&mut self, widget_id: WidgetId) {
@@ -201,6 +209,10 @@ where
     /// arrive to clear paint-only hover fills.
     pub(crate) fn clear_pointer_hover(&mut self) -> bool {
         let mut cleared = false;
+        if self.interaction.tooltip != Default::default() {
+            self.reset_tooltip_hover_intent();
+            cleared = true;
+        }
         if let Some(widget_id) = self.interaction.hover.widget.take() {
             if let Some(widget) = self.surface.find_widget_mut(widget_id)
                 && widget.widget_object().common().state.hovered
@@ -226,7 +238,10 @@ where
         cleared
     }
 
-    fn clear_retained_hover_except(&mut self, owner: Option<WidgetId>) -> bool {
+    pub(in crate::runtime::controller) fn clear_retained_hover_except(
+        &mut self,
+        owner: Option<WidgetId>,
+    ) -> bool {
         let mut cleared = false;
         for index in 0..self.traversal.widgets.stateful_order.len() {
             let widget_id = self.traversal.widgets.stateful_order[index];
@@ -250,6 +265,24 @@ where
             self.repaint_requested = true;
         }
         cleared
+    }
+
+    pub(in crate::runtime::controller) fn retain_hover_owner(&mut self, owner: Option<WidgetId>) {
+        let Some(owner) = owner else {
+            return;
+        };
+        let Some(widget) = self.surface.find_widget_mut(owner) else {
+            return;
+        };
+        if widget.widget_object().common().state.hovered {
+            return;
+        }
+        widget
+            .widget_object_mut_runtime()
+            .common_mut()
+            .state
+            .hovered = true;
+        self.repaint_requested = true;
     }
 
     /// End the runtime drag preview because ownership has moved to a native

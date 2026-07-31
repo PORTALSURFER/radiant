@@ -174,7 +174,10 @@ where
         if !self.phase.accepts_work() {
             return None;
         }
-        self.surface.timed_repaint_deadline()
+        earlier_deadline(
+            self.surface.timed_repaint_deadline(),
+            self.interaction.tooltip.deadline,
+        )
     }
 
     /// Return the private observational delta used at the paint materialization
@@ -196,7 +199,29 @@ where
         if !self.phase.accepts_work() {
             return false;
         }
-        self.surface.advance_timed_repaints(now)
+        let mut changed = self.surface.advance_timed_repaints(now);
+        let Some(deadline) = self.interaction.tooltip.deadline else {
+            return changed;
+        };
+        if now < deadline {
+            return changed;
+        }
+        let target = self.interaction.tooltip.target;
+        if target.is_some_and(|target| {
+            self.interaction.hover.widget == Some(target)
+                && self.interaction.pointer.capture.is_none()
+                && self
+                    .surface_widget(target)
+                    .and_then(|widget| widget.tooltip())
+                    .is_some_and(|tooltip| !tooltip.is_empty())
+        }) {
+            self.interaction.tooltip.deadline = None;
+            self.interaction.tooltip.revealed = true;
+            changed = true;
+        } else {
+            self.reset_tooltip_hover_intent();
+        }
+        changed
     }
 
     /// Route one normalized widget interaction by widget id.
@@ -254,5 +279,15 @@ where
             WidgetDispatchResult::NoOutput => {}
         }
         Some(emitted_output)
+    }
+}
+
+fn earlier_deadline(
+    current: Option<std::time::Instant>,
+    candidate: Option<std::time::Instant>,
+) -> Option<std::time::Instant> {
+    match (current, candidate) {
+        (Some(current), Some(candidate)) => Some(current.min(candidate)),
+        (current, candidate) => current.or(candidate),
     }
 }

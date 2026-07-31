@@ -111,6 +111,7 @@ where
         if !self.phase.begin_closing() {
             return false;
         }
+        self.reset_tooltip_hover_intent();
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
         self.effect_owner.cancel();
@@ -207,6 +208,19 @@ where
             .is_some_and(|node_id| !self.traversal.containers.styled.contains(node_id))
         {
             self.interaction.hover.container = None;
+        }
+        let tooltip_target_is_stale = self.interaction.tooltip.target.is_some_and(|widget_id| {
+            self.interaction.hover.widget != Some(widget_id)
+                || self.interaction.pointer.capture.is_some()
+                || !self
+                    .traversal
+                    .widgets
+                    .paths
+                    .current
+                    .contains_key(&widget_id)
+        });
+        if tooltip_target_is_stale {
+            self.reset_tooltip_hover_intent();
         }
     }
 }

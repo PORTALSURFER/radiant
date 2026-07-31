@@ -23,6 +23,9 @@ where
     ) -> PointerMoveDispatch {
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
+        if self.interaction.pointer.capture.is_some() {
+            self.reset_tooltip_hover_intent();
+        }
         if self.drag_scrollbar_to(position, refresh_after_message) {
             return PointerMoveDispatch::default();
         }
@@ -60,6 +63,25 @@ where
             emitted_output,
             refresh_after_message,
         )
+    }
+
+    pub(in crate::runtime::controller) fn reconcile_pointer_hover_state_without_input(
+        &mut self,
+        position: Point,
+    ) {
+        self.update_drag_preview_position(position);
+        self.update_hovered_scroll_affordance(position);
+
+        let pointer_widget = self.pointer_widget_for_move(position);
+        self.update_hovered_container(position, pointer_widget);
+
+        let hover_widget = self.hover_widget_for_move(position, pointer_widget);
+        if self.interaction.hover.widget == hover_widget {
+            return;
+        }
+        self.interaction.hover.widget = hover_widget;
+        self.clear_retained_hover_except(hover_widget);
+        self.retain_hover_owner(hover_widget);
     }
 
     fn route_pointer_move_to_target(
@@ -202,6 +224,7 @@ where
             })
             .unwrap_or(false);
         self.interaction.hover.widget = hover_widget;
+        self.arm_tooltip_hover_intent(hover_widget);
         PointerHoverTransition {
             changed: true,
             emitted_output,

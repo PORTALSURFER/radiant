@@ -176,6 +176,14 @@ where
         self.surface.timed_repaint_deadline()
     }
 
+    /// Return the private observational delta used at the paint materialization
+    /// boundary. This evidence is not a renderer or public refresh policy API.
+    pub(crate) const fn view_delta_diagnostics(
+        &self,
+    ) -> crate::runtime::surface::ViewDeltaDiagnostics {
+        self.last_view_delta_diagnostics
+    }
+
     pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
         if !self.phase.accepts_work() {
             return false;

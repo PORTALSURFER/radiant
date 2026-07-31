@@ -19,6 +19,7 @@ where
     appearance_policy: AppearancePolicy,
     resolved_appearance: ResolvedAppearance,
     base_paint_plan_context: Option<(BasePaintPlanContext, ResolvedAppearance)>,
+    paint_segment_observer: crate::runtime::PaintSegmentObserver,
 }
 
 /// Result of one backend-neutral base paint-plan preparation pass.
@@ -87,6 +88,7 @@ where
             appearance_policy: AppearancePolicy::FollowEnvironment,
             resolved_appearance: ResolvedAppearance::fixed(crate::theme::ThemeTokens::dark()),
             base_paint_plan_context: None,
+            paint_segment_observer: crate::runtime::PaintSegmentObserver::new(),
         }
     }
 
@@ -118,6 +120,8 @@ where
                 })
         {
             self.resolved_appearance = appearance;
+            self.paint_segment_observer
+                .observe(plan, &self.runtime.view_delta_diagnostics(), true);
             return PaintPlanCacheDecision::Reused;
         }
         // The caller owns the mutable frame preparation boundary; cache the
@@ -128,6 +132,8 @@ where
             .base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
         self.base_paint_plan_context = Some((context, appearance));
         self.runtime.record_base_paint_plan_rebuild();
+        self.paint_segment_observer
+            .observe(plan, &self.runtime.view_delta_diagnostics(), false);
         PaintPlanCacheDecision::Rebuilt
     }
 

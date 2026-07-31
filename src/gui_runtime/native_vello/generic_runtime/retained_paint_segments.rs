@@ -109,7 +109,7 @@ pub(super) struct NativePaintSegmentEligibilityEntry {
 
 /// Pure observational eligibility state for one current paint-segment observation.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct NativePaintSegmentEligibilityPlan {
+pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentEligibilityPlan {
     pub(super) outcome: NativePaintSegmentEligibilityOutcome,
     pub(super) entries: [Option<NativePaintSegmentEligibilityEntry>; MAX_PAINT_SEGMENTS],
     pub(super) entry_count: u8,

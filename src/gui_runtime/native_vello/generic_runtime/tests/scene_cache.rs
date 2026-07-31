@@ -563,7 +563,13 @@ fn typed_artifact_fixture(
     }
 
     let plan = classify_collector_evidence_parts(paint, encoding, feasibility);
-    (authoritative, feasibility, plan, payloads)
+    let production_payloads =
+        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan);
+    assert_eq!(production_payloads.len(), payloads.len());
+    for (production, fixture) in production_payloads.iter().zip(payloads.iter()) {
+        assert_encoding_equal(production, fixture);
+    }
+    (authoritative, feasibility, plan, production_payloads)
 }
 
 fn materialize_fixture(

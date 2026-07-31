@@ -10,7 +10,8 @@ use super::{
     },
     post_gpu_overlay,
     retained_paint_segments::{
-        NativeRetainedPaintSegmentStore, assemble_native_paint_segment_fingerprints,
+        NativePaintSegmentEligibilityPlan, NativeRetainedPaintSegmentStore,
+        assemble_native_paint_segment_fingerprints, classify_native_paint_segment_eligibility,
     },
     runtime_helpers::{
         GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
@@ -33,6 +34,35 @@ use vello::kurbo::Affine;
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NativeVelloTestPhase {
+    EligibilityObserved,
+    SceneEncode,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+struct NativeVelloTestPhaseTrace {
+    phases: [Option<NativeVelloTestPhase>; 2],
+    len: u8,
+}
+
+#[cfg(test)]
+impl NativeVelloTestPhaseTrace {
+    fn reset(&mut self) {
+        self.phases = [None; 2];
+        self.len = 0;
+    }
+
+    fn record(&mut self, phase: NativeVelloTestPhase) {
+        if let Some(slot) = self.phases.get_mut(usize::from(self.len)) {
+            *slot = Some(phase);
+            self.len = self.len.saturating_add(1);
+        }
+    }
+}
+
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,
     pub(super) scene: Scene,
@@ -48,6 +78,9 @@ pub(super) struct NativeVelloFrameState {
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
+    pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
+    #[cfg(test)]
+    test_phase_trace: NativeVelloTestPhaseTrace,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
@@ -99,6 +132,9 @@ impl NativeVelloFrameState {
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
+            last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
+            #[cfg(test)]
+            test_phase_trace: NativeVelloTestPhaseTrace::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
@@ -158,6 +194,39 @@ impl NativeVelloFrameState {
             assemble_native_paint_segment_fingerprints(paint, encoding, target_generation);
         self.native_retained_paint_segment_store
             .reconcile(observation);
+    }
+
+    pub(super) fn observe_native_paint_segment_eligibility(
+        &mut self,
+        paint: PaintSegmentObservation,
+        feasibility: super::scene::ArtifactFeasibilityObservation,
+        target_generation: NativeTargetGeneration,
+    ) {
+        self.last_native_paint_segment_eligibility = classify_native_paint_segment_eligibility(
+            paint,
+            &self.native_retained_paint_segment_store,
+            feasibility,
+            target_generation,
+        );
+        #[cfg(test)]
+        self.test_phase_trace
+            .record(NativeVelloTestPhase::EligibilityObserved);
+    }
+
+    #[cfg(test)]
+    pub(super) fn record_scene_encode_boundary(&mut self) {
+        self.test_phase_trace
+            .record(NativeVelloTestPhase::SceneEncode);
+    }
+
+    #[cfg(test)]
+    pub(super) fn begin_test_phase_trace(&mut self) {
+        self.test_phase_trace.reset();
+    }
+
+    #[cfg(test)]
+    pub(super) fn test_phase_trace(&self) -> [Option<NativeVelloTestPhase>; 2] {
+        self.test_phase_trace.phases
     }
 
     pub(super) fn invalidate_native_scene_context(&mut self) {

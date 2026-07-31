@@ -154,9 +154,7 @@ fn collector_fresh_evidence_reaches_classifier_without_aggregate_fallback() {
     assert!(!feasibility.conservative);
     assert_eq!(
         classify_collector_evidence_parts(paint, encoding, feasibility).outcome,
-        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(
-            super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::NoArtifact,
-        )
+        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::Plan
     );
 
     let rect = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(20.0, 12.0));
@@ -206,11 +204,7 @@ fn collector_fresh_evidence_reaches_classifier_without_aggregate_fallback() {
     assert!(!stats.artifact_feasibility.conservative);
     assert_eq!(
         classify_collector_evidence(&stats).outcome,
-        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(
-            super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(
-                super::scene::ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
-            ),
-        )
+        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::Plan
     );
 }
 

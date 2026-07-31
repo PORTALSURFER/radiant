@@ -1,7 +1,7 @@
 //! Metadata-only retained paint-segment evidence for one native window.
 //!
-//! This module deliberately stores fingerprints only. It does not retain a
-//! Vello scene or any renderer payload and has no cache-hit or replay policy.
+//! This module deliberately stores fingerprints only. It does not retain any
+//! renderer payload and has no execution policy.
 
 use super::{
     PaintSegmentEncodingObservation,
@@ -11,7 +11,9 @@ use super::{
         EncodingConservativeReason, EncodingIsolation, SafeEnclosure,
     },
 };
-use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation};
+use crate::runtime::{
+    MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentSpan,
+};
 
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
@@ -30,7 +32,7 @@ pub(super) struct NativePaintSegmentFingerprint {
     pub(super) conservative_reason: EncodingConservativeReason,
 }
 
-/// Fixed-capacity native fingerprint evidence for one fully encoded scene.
+/// Fixed-capacity native fingerprint evidence for one fully encoded frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct NativePaintSegmentFingerprintObservation {
     pub(super) segments: [Option<NativePaintSegmentFingerprint>; MAX_PAINT_SEGMENTS],
@@ -51,23 +53,6 @@ impl NativePaintSegmentFingerprintObservation {
 impl Default for NativePaintSegmentFingerprintObservation {
     fn default() -> Self {
         Self::unavailable()
-    }
-}
-
-/// Metadata-only candidate records that a future artifact consumer may use.
-/// This plan does not own a scene, encoding, replay payload, or cache entry.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct NativePaintSegmentEligibilityCandidate {
-    pub(super) segments: [Option<NativePaintSegmentFingerprint>; MAX_PAINT_SEGMENTS],
-    pub(super) segment_count: u8,
-}
-
-impl Default for NativePaintSegmentEligibilityCandidate {
-    fn default() -> Self {
-        Self {
-            segments: [None; MAX_PAINT_SEGMENTS],
-            segment_count: 0,
-        }
     }
 }
 
@@ -98,42 +83,55 @@ pub(super) enum NativePaintSegmentFallbackReason {
     OrderMismatch,
     SpanMismatch,
     DuplicateIdentity,
+    MalformedSpans,
+}
+
+/// The metadata-only disposition for one exact current paint-segment span.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum NativePaintSegmentEligibilityDisposition {
+    RetainedCandidate(NativePaintSegmentFingerprint),
+    FreshEncodingRequired(NativePaintSegmentFreshEncodingReason),
 }
 
 /// Small pure observational outcome for one current paint-segment observation.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativePaintSegmentEligibilityOutcome {
-    EligibleCandidate,
-    FreshEncodingRequired(NativePaintSegmentFreshEncodingReason),
+    Plan,
     FullSceneFallback(NativePaintSegmentFallbackReason),
+}
+
+/// One bounded, ordered metadata-only eligibility entry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct NativePaintSegmentEligibilityEntry {
+    pub(super) span: PaintSegmentSpan,
+    pub(super) disposition: NativePaintSegmentEligibilityDisposition,
 }
 
 /// Pure observational eligibility state for one current paint-segment observation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct NativePaintSegmentEligibilityPlan {
     pub(super) outcome: NativePaintSegmentEligibilityOutcome,
-    pub(super) candidate: NativePaintSegmentEligibilityCandidate,
+    pub(super) entries: [Option<NativePaintSegmentEligibilityEntry>; MAX_PAINT_SEGMENTS],
+    pub(super) entry_count: u8,
 }
 
 impl NativePaintSegmentEligibilityPlan {
-    fn eligible_candidate(candidate: NativePaintSegmentEligibilityCandidate) -> Self {
+    fn plan(
+        entries: [Option<NativePaintSegmentEligibilityEntry>; MAX_PAINT_SEGMENTS],
+        entry_count: u8,
+    ) -> Self {
         Self {
-            outcome: NativePaintSegmentEligibilityOutcome::EligibleCandidate,
-            candidate,
-        }
-    }
-
-    fn fresh_encoding_required(reason: NativePaintSegmentFreshEncodingReason) -> Self {
-        Self {
-            outcome: NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(reason),
-            candidate: NativePaintSegmentEligibilityCandidate::default(),
+            outcome: NativePaintSegmentEligibilityOutcome::Plan,
+            entries,
+            entry_count,
         }
     }
 
     fn full_scene_fallback(reason: NativePaintSegmentFallbackReason) -> Self {
         Self {
             outcome: NativePaintSegmentEligibilityOutcome::FullSceneFallback(reason),
-            candidate: NativePaintSegmentEligibilityCandidate::default(),
+            entries: [None; MAX_PAINT_SEGMENTS],
+            entry_count: 0,
         }
     }
 }
@@ -146,7 +144,8 @@ impl Default for NativePaintSegmentEligibilityPlan {
     }
 }
 
-/// Assemble renderer-local fingerprints only after the complete scene encode.
+/// Assemble renderer-local fingerprints only after the complete authoritative
+/// encode.
 pub(super) fn assemble_native_paint_segment_fingerprints(
     paint: PaintSegmentObservation,
     encoding: PaintSegmentEncodingObservation,
@@ -282,10 +281,40 @@ impl NativeRetainedPaintSegmentStore {
 }
 
 /// Classify metadata evidence without retaining or touching renderer payloads.
+#[cfg(test)]
 pub(super) fn classify_native_paint_segment_eligibility(
     paint: PaintSegmentObservation,
     retained: &NativeRetainedPaintSegmentStore,
     feasibility: ArtifactFeasibilityObservation,
+    target_generation: NativeTargetGeneration,
+) -> NativePaintSegmentEligibilityPlan {
+    let mut current_spans = [None; MAX_PAINT_SEGMENTS];
+    let count = usize::from(paint.segment_count).min(MAX_PAINT_SEGMENTS);
+    for (index, slot) in current_spans.iter_mut().enumerate().take(count) {
+        *slot = feasibility.segments[index].map(|segment| PaintSegmentSpan {
+            identity: segment.identity,
+            start: segment.primitive_start,
+            end: segment.primitive_end,
+        });
+    }
+    classify_native_paint_segment_eligibility_with_spans(
+        paint,
+        retained,
+        feasibility,
+        current_spans,
+        paint.segment_count,
+        false,
+        target_generation,
+    )
+}
+
+pub(super) fn classify_native_paint_segment_eligibility_with_spans(
+    paint: PaintSegmentObservation,
+    retained: &NativeRetainedPaintSegmentStore,
+    feasibility: ArtifactFeasibilityObservation,
+    current_spans: [Option<PaintSegmentSpan>; MAX_PAINT_SEGMENTS],
+    current_span_count: u8,
+    current_spans_malformed: bool,
     target_generation: NativeTargetGeneration,
 ) -> NativePaintSegmentEligibilityPlan {
     let count = usize::from(paint.segment_count);
@@ -307,6 +336,12 @@ pub(super) fn classify_native_paint_segment_eligibility(
     if count == 0 {
         return fallback(NativePaintSegmentFallbackReason::EmptyEvidence);
     }
+    if current_spans_malformed || usize::from(current_span_count) != count {
+        return fallback(NativePaintSegmentFallbackReason::MalformedSpans);
+    }
+    if current_spans[count..].iter().any(Option::is_some) {
+        return fallback(NativePaintSegmentFallbackReason::TrailingEvidence);
+    }
     if usize::from(feasibility.segment_count) != count
         || usize::from(feasibility.checkpoint_count) != count
     {
@@ -320,26 +355,29 @@ pub(super) fn classify_native_paint_segment_eligibility(
         return fallback(NativePaintSegmentFallbackReason::TrailingEvidence);
     }
 
-    let mut candidate = NativePaintSegmentEligibilityCandidate {
-        segments: [None; MAX_PAINT_SEGMENTS],
-        segment_count: paint.segment_count,
-    };
-    let mut fresh_required = None;
+    let mut entries = [None; MAX_PAINT_SEGMENTS];
     for index in 0..count {
-        let (Some(current), Some(previous), Some(artifact), Some(checkpoint)) = (
-            paint.segments[index],
-            retained.entries[index],
-            feasibility.segments[index],
-            feasibility.checkpoints[index],
-        ) else {
-            return fallback(
-                if paint.segments[index].is_none() || retained.entries[index].is_none() {
-                    NativePaintSegmentFallbackReason::MissingSegment
-                } else {
-                    NativePaintSegmentFallbackReason::MissingCheckpoint
-                },
-            );
+        let Some(current) = paint.segments[index] else {
+            return fallback(NativePaintSegmentFallbackReason::MissingSegment);
         };
+        let Some(current_span) = current_spans[index] else {
+            return fallback(NativePaintSegmentFallbackReason::MalformedSpans);
+        };
+        let Some(previous) = retained.entries[index] else {
+            return fallback(NativePaintSegmentFallbackReason::MissingSegment);
+        };
+        let Some(artifact) = feasibility.segments[index] else {
+            return fallback(NativePaintSegmentFallbackReason::MissingCheckpoint);
+        };
+        let Some(checkpoint) = feasibility.checkpoints[index] else {
+            return fallback(NativePaintSegmentFallbackReason::MissingCheckpoint);
+        };
+        if current_span.start >= current_span.end {
+            return fallback(NativePaintSegmentFallbackReason::MalformedSpans);
+        }
+        if current_span.identity != current.identity {
+            return fallback(NativePaintSegmentFallbackReason::OrderMismatch);
+        }
         if !previous.target_generation.is_known() {
             return fallback(NativePaintSegmentFallbackReason::UnknownOrExhaustedTargetGeneration);
         }
@@ -373,6 +411,11 @@ pub(super) fn classify_native_paint_segment_eligibility(
         {
             return fallback(NativePaintSegmentFallbackReason::SpanMismatch);
         }
+        if let ArtifactFeasibilityDisposition::RequiresFreshEncoding(reason) = artifact.disposition
+            && !allowed_segment_local_reason(reason)
+        {
+            return fallback(NativePaintSegmentFallbackReason::FeasibilityConservative);
+        }
         if duplicate_identity_before(index, current.identity, &paint.segments, |record| {
             record.identity
         }) || duplicate_identity_before(index, previous.identity, &retained.entries, |record| {
@@ -386,33 +429,47 @@ pub(super) fn classify_native_paint_segment_eligibility(
             return fallback(NativePaintSegmentFallbackReason::DuplicateIdentity);
         }
 
-        if current.revision != previous.revision {
-            fresh_required.get_or_insert(NativePaintSegmentFreshEncodingReason::RevisionChanged);
-        }
-        match artifact.disposition {
-            ArtifactFeasibilityDisposition::ContiguousCandidate => {
-                candidate.segments[index] = Some(previous);
+        let disposition = if current.revision != previous.revision {
+            NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                NativePaintSegmentFreshEncodingReason::RevisionChanged,
+            )
+        } else {
+            match artifact.disposition {
+                ArtifactFeasibilityDisposition::ContiguousCandidate => {
+                    NativePaintSegmentEligibilityDisposition::RetainedCandidate(previous)
+                }
+                ArtifactFeasibilityDisposition::NoArtifact => {
+                    NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                        NativePaintSegmentFreshEncodingReason::NoArtifact,
+                    )
+                }
+                ArtifactFeasibilityDisposition::RequiresFreshEncoding(reason) => {
+                    NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                        NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(reason),
+                    )
+                }
             }
-            ArtifactFeasibilityDisposition::NoArtifact => {
-                fresh_required.get_or_insert(NativePaintSegmentFreshEncodingReason::NoArtifact);
-            }
-            ArtifactFeasibilityDisposition::RequiresFreshEncoding(reason) => {
-                fresh_required.get_or_insert(
-                    NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(reason),
-                );
-            }
-        }
+        };
+        entries[index] = Some(NativePaintSegmentEligibilityEntry {
+            span: current_span,
+            disposition,
+        });
     }
 
-    if let Some(reason) = fresh_required {
-        NativePaintSegmentEligibilityPlan::fresh_encoding_required(reason)
-    } else {
-        NativePaintSegmentEligibilityPlan::eligible_candidate(candidate)
-    }
+    NativePaintSegmentEligibilityPlan::plan(entries, paint.segment_count)
 }
 
 fn fallback(reason: NativePaintSegmentFallbackReason) -> NativePaintSegmentEligibilityPlan {
     NativePaintSegmentEligibilityPlan::full_scene_fallback(reason)
+}
+
+fn allowed_segment_local_reason(reason: ArtifactFeasibilityReason) -> bool {
+    matches!(
+        reason,
+        ArtifactFeasibilityReason::CrossSegmentTransformOrStyle
+            | ArtifactFeasibilityReason::UnprovableResourceLocality
+            | ArtifactFeasibilityReason::UnsupportedPrimitive
+    )
 }
 
 fn duplicate_identity_before<T>(
@@ -556,14 +613,12 @@ mod tests {
             plan.outcome,
             NativePaintSegmentEligibilityOutcome::FullSceneFallback(reason)
         );
-        assert_eq!(
-            plan.candidate,
-            NativePaintSegmentEligibilityCandidate::default()
-        );
+        assert_eq!(plan.entries, [None; MAX_PAINT_SEGMENTS]);
+        assert_eq!(plan.entry_count, 0);
     }
 
     #[test]
-    fn eligibility_classifier_accepts_exact_candidate_and_reports_fresh_reasons() {
+    fn eligibility_classifier_builds_exact_plan_and_reports_fresh_reasons() {
         let (paint, retained, feasibility) = classifier_fixture(
             &[1],
             known(),
@@ -571,16 +626,13 @@ mod tests {
         );
         let plan =
             classify_native_paint_segment_eligibility(paint, &retained, feasibility, known());
+        assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
+        assert_eq!(plan.entry_count, 1);
         assert_eq!(
-            plan.outcome,
-            NativePaintSegmentEligibilityOutcome::EligibleCandidate
-        );
-        assert_eq!(
-            plan.candidate,
-            NativePaintSegmentEligibilityCandidate {
-                segments: retained.snapshot(),
-                segment_count: 1,
-            }
+            plan.entries[0].unwrap().disposition,
+            NativePaintSegmentEligibilityDisposition::RetainedCandidate(
+                retained.snapshot()[0].unwrap()
+            )
         );
 
         let mut revision_changed = paint;
@@ -591,15 +643,12 @@ mod tests {
             feasibility,
             known(),
         );
+        assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
         assert_eq!(
-            plan.outcome,
-            NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(
+            plan.entries[0].unwrap().disposition,
+            NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
                 NativePaintSegmentFreshEncodingReason::RevisionChanged
             )
-        );
-        assert_eq!(
-            plan.candidate,
-            NativePaintSegmentEligibilityCandidate::default()
         );
 
         for (disposition, reason) in [
@@ -609,25 +658,173 @@ mod tests {
             ),
             (
                 ArtifactFeasibilityDisposition::RequiresFreshEncoding(
-                    ArtifactFeasibilityReason::OpenClip,
+                    ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
                 ),
                 NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(
-                    ArtifactFeasibilityReason::OpenClip,
+                    ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
                 ),
             ),
         ] {
             let (paint, retained, feasibility) = classifier_fixture(&[1], known(), &[disposition]);
             let plan =
                 classify_native_paint_segment_eligibility(paint, &retained, feasibility, known());
+            assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
             assert_eq!(
-                plan.outcome,
-                NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(reason)
-            );
-            assert_eq!(
-                plan.candidate,
-                NativePaintSegmentEligibilityCandidate::default()
+                plan.entries[0].unwrap().disposition,
+                NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(reason)
             );
         }
+    }
+
+    #[test]
+    fn eligibility_classifier_builds_four_ordered_retained_entries() {
+        let (paint, retained, feasibility) = classifier_fixture(
+            &[1, 2, 3, 4],
+            known(),
+            &[ArtifactFeasibilityDisposition::ContiguousCandidate; 4],
+        );
+        let plan =
+            classify_native_paint_segment_eligibility(paint, &retained, feasibility, known());
+
+        assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
+        assert_eq!(plan.entry_count, 4);
+        for index in 0..4 {
+            let entry = plan.entries[index].expect("ordered eligibility entry");
+            let current = paint.segments[index].expect("current segment");
+            assert_eq!(entry.span.identity, current.identity);
+            assert_eq!(entry.span.start, (index as u32) * 2);
+            assert_eq!(entry.span.end, (index as u32) * 2 + 1);
+            assert_eq!(
+                entry.disposition,
+                NativePaintSegmentEligibilityDisposition::RetainedCandidate(
+                    retained.snapshot()[index].expect("retained fingerprint")
+                )
+            );
+        }
+        assert!(plan.entries[4..].iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn eligibility_classifier_keeps_unrelated_entries_when_one_revision_changes() {
+        let (mut paint, retained, feasibility) = classifier_fixture(
+            &[1, 2, 3, 4],
+            known(),
+            &[ArtifactFeasibilityDisposition::ContiguousCandidate; 4],
+        );
+        paint.segments[2].as_mut().unwrap().revision += 1;
+        let plan =
+            classify_native_paint_segment_eligibility(paint, &retained, feasibility, known());
+
+        assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
+        assert_eq!(plan.entry_count, 4);
+        for index in 0..4 {
+            let disposition = plan.entries[index]
+                .expect("ordered eligibility entry")
+                .disposition;
+            if index == 2 {
+                assert_eq!(
+                    disposition,
+                    NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                        NativePaintSegmentFreshEncodingReason::RevisionChanged,
+                    )
+                );
+            } else {
+                assert_eq!(
+                    disposition,
+                    NativePaintSegmentEligibilityDisposition::RetainedCandidate(
+                        retained.snapshot()[index].expect("retained fingerprint")
+                    )
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn eligibility_classifier_keeps_unrelated_entries_for_local_fresh_reasons() {
+        for disposition in [
+            ArtifactFeasibilityDisposition::NoArtifact,
+            ArtifactFeasibilityDisposition::RequiresFreshEncoding(
+                ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
+            ),
+            ArtifactFeasibilityDisposition::RequiresFreshEncoding(
+                ArtifactFeasibilityReason::UnprovableResourceLocality,
+            ),
+            ArtifactFeasibilityDisposition::RequiresFreshEncoding(
+                ArtifactFeasibilityReason::UnsupportedPrimitive,
+            ),
+        ] {
+            let (paint, retained, feasibility) = classifier_fixture(
+                &[1, 2, 3],
+                known(),
+                &[
+                    ArtifactFeasibilityDisposition::ContiguousCandidate,
+                    disposition,
+                    ArtifactFeasibilityDisposition::ContiguousCandidate,
+                ],
+            );
+            let plan =
+                classify_native_paint_segment_eligibility(paint, &retained, feasibility, known());
+
+            assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
+            assert_eq!(plan.entry_count, 3);
+            assert!(matches!(
+                plan.entries[0].expect("first entry").disposition,
+                NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+            ));
+            assert!(matches!(
+                plan.entries[1].expect("middle entry").disposition,
+                NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(_)
+            ));
+            assert!(matches!(
+                plan.entries[2].expect("last entry").disposition,
+                NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn eligibility_classifier_routes_shifted_current_spans_without_vetoing_retention() {
+        let (paint, retained, feasibility) = classifier_fixture(
+            &[1, 2],
+            known(),
+            &[ArtifactFeasibilityDisposition::ContiguousCandidate; 2],
+        );
+        let mut current_spans = [None; MAX_PAINT_SEGMENTS];
+        for (index, current_span) in current_spans.iter_mut().take(2).enumerate() {
+            *current_span = Some(PaintSegmentSpan {
+                identity: paint.segments[index].expect("current segment").identity,
+                start: 100 + index as u32 * 3,
+                end: 102 + index as u32 * 3,
+            });
+        }
+        let plan = classify_native_paint_segment_eligibility_with_spans(
+            paint,
+            &retained,
+            feasibility,
+            current_spans,
+            2,
+            false,
+            known(),
+        );
+
+        assert_eq!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan);
+        assert_eq!(plan.entry_count, 2);
+        assert_eq!(
+            plan.entries[0].expect("first entry").span,
+            current_spans[0].unwrap()
+        );
+        assert_eq!(
+            plan.entries[1].expect("second entry").span,
+            current_spans[1].unwrap()
+        );
+        assert!(matches!(
+            plan.entries[0].expect("first entry").disposition,
+            NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+        ));
+        assert!(matches!(
+            plan.entries[1].expect("second entry").disposition,
+            NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+        ));
     }
 
     #[test]
@@ -777,13 +974,11 @@ mod tests {
                 NativePaintSegmentFallbackReason::EmptyEvidence
             )
         );
-        assert_eq!(
-            plan.candidate,
-            NativePaintSegmentEligibilityCandidate::default()
-        );
+        assert_eq!(plan.entries, [None; MAX_PAINT_SEGMENTS]);
+        assert_eq!(plan.entry_count, 0);
         assert!(!matches!(
             plan.outcome,
-            NativePaintSegmentEligibilityOutcome::EligibleCandidate
+            NativePaintSegmentEligibilityOutcome::Plan
         ));
     }
 
@@ -893,12 +1088,10 @@ mod tests {
         assert_eq!(retained.snapshot(), retained_before);
         assert!(!matches!(
             plan.outcome,
-            NativePaintSegmentEligibilityOutcome::EligibleCandidate
+            NativePaintSegmentEligibilityOutcome::Plan
         ));
-        assert_eq!(
-            plan.candidate,
-            NativePaintSegmentEligibilityCandidate::default()
-        );
+        assert_eq!(plan.entries, [None; MAX_PAINT_SEGMENTS]);
+        assert_eq!(plan.entry_count, 0);
     }
 
     #[test]

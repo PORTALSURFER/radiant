@@ -136,6 +136,7 @@ where
         self.window.render_surface = Some(render_surface);
         self.window.renderer = Some(renderer);
         self.window.target_generation.advance();
+        self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();
         self.timing.startup_timing.mark_first_scene_ready();
         if reveal_window_after_surface_setup(&self.options) {
@@ -205,6 +206,7 @@ where
             }
             render_ctx.resize_surface(surface, size.width, size.height);
             self.window.target_generation.advance();
+            self.frame.clear_native_paint_segment_artifacts();
             self.frame.invalidate_native_scene_context();
             self.defer_viewport_resize_with_reason(
                 logical_viewport_for_size(size, self.window.dpi_scale),
@@ -277,6 +279,7 @@ where
         }
         self.window.dpi_scale = next;
         self.window.target_generation.advance();
+        self.frame.clear_native_paint_segment_artifacts();
         if let Some(window) = self.window.window.as_ref() {
             self.core
                 .set_viewport(logical_viewport_for_size(window.inner_size(), next));
@@ -309,6 +312,7 @@ where
                     // when its dimensions did not change.
                     self.frame.invalidate_native_scene_context();
                     self.window.target_generation.advance();
+                    self.frame.clear_native_paint_segment_artifacts();
                 }
                 None
             }
@@ -319,6 +323,7 @@ where
             }
             Err(err) => {
                 self.window.target_generation.invalidate_unknown();
+                self.frame.clear_native_paint_segment_artifacts();
                 warn!(
                     "radiant generic native vello: non-fatal surface acquire error: {:?}",
                     err

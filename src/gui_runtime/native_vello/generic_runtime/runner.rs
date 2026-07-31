@@ -7,8 +7,13 @@ use super::{
     NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
     SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
-    encode_surface_paint_plan_to_scene, materialize_native_paint_segment_artifacts,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
+};
+use super::{
+    retained_paint_segments::NativePaintSegmentEligibilityPlan,
+    runner_state::NativeTargetGeneration,
+    scene::{ArtifactFeasibilityObservation, materialize_native_paint_segment_artifacts},
 };
 use crate::{
     gui::types::Vector2,
@@ -17,6 +22,7 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
+use vello::Scene;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
@@ -42,6 +48,57 @@ where
 pub(super) struct AppliedRouteOutcome {
     pub(super) exit_requested: bool,
     pub(super) sync_auxiliary_windows_now: bool,
+}
+
+/// One-shot admission for materializing artifacts from one completed scene encode.
+///
+/// The runner is the only production owner that can construct this token. Its
+/// private fields keep the authoritative scene, evidence, eligibility plan,
+/// payloads, and target generation together until the materializer consumes it.
+pub(super) struct NativePaintSegmentArtifactAdmission<'a> {
+    scene: &'a Scene,
+    feasibility: ArtifactFeasibilityObservation,
+    plan: NativePaintSegmentEligibilityPlan,
+    payloads: Vec<Scene>,
+    target_generation: NativeTargetGeneration,
+}
+
+impl<'a> NativePaintSegmentArtifactAdmission<'a> {
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        &'a Scene,
+        ArtifactFeasibilityObservation,
+        NativePaintSegmentEligibilityPlan,
+        Vec<Scene>,
+        NativeTargetGeneration,
+    ) {
+        let Self {
+            scene,
+            feasibility,
+            plan,
+            payloads,
+            target_generation,
+        } = self;
+        (scene, feasibility, plan, payloads, target_generation)
+    }
+}
+
+#[cfg(test)]
+pub(super) fn materialize_native_paint_segment_artifacts_for_test(
+    scene: &Scene,
+    feasibility: ArtifactFeasibilityObservation,
+    plan: NativePaintSegmentEligibilityPlan,
+    payloads: Vec<Scene>,
+    target_generation: NativeTargetGeneration,
+) -> super::scene::NativePaintSegmentArtifactMaterialization {
+    materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
+        scene,
+        feasibility,
+        plan,
+        payloads,
+        target_generation,
+    })
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -294,15 +351,16 @@ where
             &self.frame.last_paint_plan.primitives,
             eligibility,
         );
-        let materialization = materialize_native_paint_segment_artifacts(
-            &self.frame.scene,
-            self.frame.last_scene_stats.artifact_feasibility,
-            eligibility,
-            payloads,
-            self.window.target_generation,
-        );
+        let materialization =
+            materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
+                scene: &self.frame.scene,
+                feasibility: self.frame.last_scene_stats.artifact_feasibility,
+                plan: eligibility,
+                payloads,
+                target_generation: self.window.target_generation,
+            });
         self.frame
-            .record_native_paint_segment_artifacts(materialization.artifacts.len());
+            .reconcile_native_paint_segment_artifacts(materialization);
         self.frame.reconcile_native_paint_segments(
             self.core.paint_segment_observation(),
             self.frame.last_scene_stats.segment_encoding,

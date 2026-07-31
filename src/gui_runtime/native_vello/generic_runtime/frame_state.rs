@@ -18,6 +18,7 @@ use super::{
         GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
         collect_gpu_surface_interaction_regions_with_scratch,
     },
+    scene::{NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore},
 };
 use crate::runtime::BasePaintPlanContext;
 use crate::runtime::{PaintSegmentObservation, collect_segment_spans};
@@ -79,8 +80,8 @@ pub(super) struct NativeVelloFrameState {
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
+    pub(super) native_paint_segment_artifact_store: NativePaintSegmentArtifactStore,
     pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
-    pub(super) last_native_paint_segment_artifact_count: u8,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
     pub(super) scene_text_runs: SceneTextRunBuffer,
@@ -134,8 +135,8 @@ impl NativeVelloFrameState {
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
+            native_paint_segment_artifact_store: NativePaintSegmentArtifactStore::default(),
             last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
-            last_native_paint_segment_artifact_count: 0,
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
@@ -199,8 +200,16 @@ impl NativeVelloFrameState {
             .reconcile(observation);
     }
 
-    pub(super) fn record_native_paint_segment_artifacts(&mut self, artifact_count: usize) {
-        self.last_native_paint_segment_artifact_count = artifact_count.min(255) as u8;
+    pub(super) fn reconcile_native_paint_segment_artifacts(
+        &mut self,
+        materialization: NativePaintSegmentArtifactMaterialization,
+    ) {
+        self.native_paint_segment_artifact_store
+            .reconcile(materialization);
+    }
+
+    pub(super) fn clear_native_paint_segment_artifacts(&mut self) {
+        self.native_paint_segment_artifact_store.clear();
     }
 
     pub(super) fn observe_native_paint_segment_eligibility(

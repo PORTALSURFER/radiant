@@ -12,13 +12,6 @@ use std::{sync::Arc, time::Duration};
 use vello::{Scene, kurbo::Affine, peniko::Fill};
 
 mod artifact_feasibility;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "This crate-private materialization contract is intentionally dormant until its approved caller integration."
-    )
-)]
 mod artifact_materialization;
 mod cache;
 mod clip;
@@ -41,15 +34,9 @@ pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
 };
-#[cfg_attr(
-    not(test),
-    expect(
-        unused_imports,
-        reason = "The crate-private materialization result and function are the production contract boundary awaiting their approved caller."
-    )
-)]
+pub(super) use artifact_materialization::materialize_native_paint_segment_artifacts;
 pub(in crate::gui_runtime::native_vello) use artifact_materialization::{
-    NativePaintSegmentArtifactMaterialization, materialize_native_paint_segment_artifacts,
+    NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
 };
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,

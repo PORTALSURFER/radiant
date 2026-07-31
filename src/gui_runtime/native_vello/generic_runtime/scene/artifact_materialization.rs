@@ -2,12 +2,10 @@
 
 use super::super::retained_paint_segments::{
     NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityOutcome,
-    NativePaintSegmentEligibilityPlan, NativePaintSegmentFreshEncodingReason,
+    NativePaintSegmentFreshEncodingReason,
 };
 use super::super::runner_state::NativeTargetGeneration;
-use super::artifact_feasibility::{
-    ArtifactFeasibilityCounts, ArtifactFeasibilityDisposition, ArtifactFeasibilityObservation,
-};
+use super::artifact_feasibility::{ArtifactFeasibilityCounts, ArtifactFeasibilityDisposition};
 use super::{EncodingConservativeReason, EncodingIsolation, SafeEnclosure};
 use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentSpan};
 use vello::Scene;
@@ -16,11 +14,18 @@ use vello::Scene;
 /// scene encoding. The evidence is retained beside the payload so a later
 /// consumer cannot lose the identity or generation fence that authorized it.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifact {
-    pub(in crate::gui_runtime::native_vello) scene: Scene,
-    pub(in crate::gui_runtime::native_vello) identity: PaintSegmentIdentity,
-    pub(in crate::gui_runtime::native_vello) span: PaintSegmentSpan,
-    pub(in crate::gui_runtime::native_vello) revision: u64,
-    pub(in crate::gui_runtime::native_vello) target_generation: NativeTargetGeneration,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "The retained scene payload is evidence for a future consumer, not a production replay path."
+        )
+    )]
+    scene: Scene,
+    identity: PaintSegmentIdentity,
+    span: PaintSegmentSpan,
+    revision: u64,
+    target_generation: NativeTargetGeneration,
 }
 
 /// Transactional, bounded materialization result for one encoded frame.
@@ -29,7 +34,7 @@ pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifact {
 /// replay, or rendering policy.
 #[derive(Default)]
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactMaterialization {
-    pub(in crate::gui_runtime::native_vello) artifacts: Vec<NativePaintSegmentArtifact>,
+    artifacts: Vec<NativePaintSegmentArtifact>,
 }
 
 impl NativePaintSegmentArtifactMaterialization {
@@ -42,6 +47,183 @@ impl NativePaintSegmentArtifactMaterialization {
     pub(in crate::gui_runtime::native_vello) fn is_empty(&self) -> bool {
         self.artifacts.is_empty()
     }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn artifacts_for_test(
+        &self,
+    ) -> &[NativePaintSegmentArtifact] {
+        &self.artifacts
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn artifacts_for_test_mut(
+        &mut self,
+    ) -> &mut [NativePaintSegmentArtifact] {
+        &mut self.artifacts
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn duplicate_first_for_test(&mut self) {
+        let Some(first) = self.artifacts.first() else {
+            return;
+        };
+        let duplicate = NativePaintSegmentArtifact {
+            scene: first.scene.clone(),
+            identity: first.identity,
+            span: first.span,
+            revision: first.revision,
+            target_generation: first.target_generation,
+        };
+        self.artifacts.push(duplicate);
+    }
+}
+
+impl NativePaintSegmentArtifact {
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn scene_for_test(&self) -> &Scene {
+        &self.scene
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn identity_for_test(&self) -> PaintSegmentIdentity {
+        self.identity
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn span_for_test(&self) -> PaintSegmentSpan {
+        self.span
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn revision_for_test(&self) -> u64 {
+        self.revision
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn target_generation_for_test(
+        &self,
+    ) -> NativeTargetGeneration {
+        self.target_generation
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_target_generation_for_test(
+        &mut self,
+        target_generation: NativeTargetGeneration,
+    ) {
+        self.target_generation = target_generation;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_revision_for_test(&mut self, revision: u64) {
+        self.revision = revision;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_identity_for_test(
+        &mut self,
+        identity: PaintSegmentIdentity,
+    ) {
+        self.identity = identity;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_span_start_for_test(&mut self, start: u32) {
+        self.span.start = start;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_span_identity_for_test(
+        &mut self,
+        identity: PaintSegmentIdentity,
+    ) {
+        self.span.identity = identity;
+    }
+}
+
+/// Fixed-capacity native artifacts retained for one fully encoded window.
+///
+/// This store is a future consumer foundation only. It does not admit cache
+/// entries, authorize reuse, or assemble partial scenes.
+pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactStore {
+    artifacts: [Option<NativePaintSegmentArtifact>; MAX_PAINT_SEGMENTS],
+}
+
+impl Default for NativePaintSegmentArtifactStore {
+    fn default() -> Self {
+        Self {
+            artifacts: [const { None }; MAX_PAINT_SEGMENTS],
+        }
+    }
+}
+
+impl NativePaintSegmentArtifactStore {
+    /// Atomically replace the retained artifacts with one validated
+    /// materialization. Invalid input clears the store rather than preserving
+    /// stale artifacts.
+    pub(in crate::gui_runtime::native_vello) fn reconcile(
+        &mut self,
+        materialization: NativePaintSegmentArtifactMaterialization,
+    ) {
+        if materialization.artifacts.is_empty() {
+            self.clear();
+            return;
+        }
+        let Some(next) = Self::validated_next(materialization) else {
+            self.clear();
+            return;
+        };
+        self.artifacts = next;
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn clear(&mut self) {
+        self.artifacts = [const { None }; MAX_PAINT_SEGMENTS];
+    }
+
+    fn validated_next(
+        materialization: NativePaintSegmentArtifactMaterialization,
+    ) -> Option<[Option<NativePaintSegmentArtifact>; MAX_PAINT_SEGMENTS]> {
+        if materialization.artifacts.len() > MAX_PAINT_SEGMENTS {
+            return None;
+        }
+
+        let mut generation = None;
+        let mut previous_end = None;
+        for (index, artifact) in materialization.artifacts.iter().enumerate() {
+            let span = artifact.span;
+            if artifact.identity != span.identity
+                || artifact.revision == 0
+                || !artifact.target_generation.is_known()
+                || span.start >= span.end
+                || previous_end.is_some_and(|end| span.start < end)
+                || materialization.artifacts[..index]
+                    .iter()
+                    .any(|prior| prior.identity == artifact.identity)
+                || generation.is_some_and(|existing| existing != artifact.target_generation)
+            {
+                return None;
+            }
+            generation = Some(artifact.target_generation);
+            previous_end = Some(span.end);
+        }
+
+        let mut next = [const { None }; MAX_PAINT_SEGMENTS];
+        for (index, artifact) in materialization.artifacts.into_iter().enumerate() {
+            next[index] = Some(artifact);
+        }
+        Some(next)
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn snapshot_identities(
+        &self,
+    ) -> [Option<PaintSegmentIdentity>; MAX_PAINT_SEGMENTS] {
+        let mut identities = [None; MAX_PAINT_SEGMENTS];
+        for (index, artifact) in self.artifacts.iter().enumerate() {
+            identities[index] = artifact.as_ref().map(|artifact| artifact.identity);
+        }
+        identities
+    }
 }
 
 /// Materialize artifacts from typed, independently valid scene payloads.
@@ -51,13 +233,10 @@ impl NativePaintSegmentArtifactMaterialization {
 /// assembled scene. The assembled scene must be encoding-equivalent to the
 /// authoritative scene, so no artifact can escape from a partially validated
 /// or merely count-compatible stream.
-pub(in crate::gui_runtime::native_vello) fn materialize_native_paint_segment_artifacts(
-    scene: &Scene,
-    feasibility: ArtifactFeasibilityObservation,
-    plan: NativePaintSegmentEligibilityPlan,
-    payloads: Vec<Scene>,
-    target_generation: NativeTargetGeneration,
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn materialize_native_paint_segment_artifacts(
+    admission: super::super::runner::NativePaintSegmentArtifactAdmission<'_>,
 ) -> NativePaintSegmentArtifactMaterialization {
+    let (scene, feasibility, plan, payloads, target_generation) = admission.into_parts();
     let NativePaintSegmentEligibilityOutcome::Plan = plan.outcome else {
         return NativePaintSegmentArtifactMaterialization::default();
     };

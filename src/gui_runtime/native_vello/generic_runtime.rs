@@ -118,7 +118,6 @@ pub(in crate::gui_runtime::native_vello) use scene::{
     PaintSegmentEncodingObservation, RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
     SceneClipState, SceneTextRunBuffer, SurfaceSceneEncodeContext,
     encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
-    materialize_native_paint_segment_artifacts,
 };
 use surface_size::RenderSurfacePixelSize;
 use window::{

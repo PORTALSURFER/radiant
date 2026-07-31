@@ -102,3 +102,37 @@ fn resource_and_text_perf_scenarios_cover_reusable_domain_logic() {
         "text perf scenarios should expose parseable cache and allocation-sensitive counters"
     );
 }
+
+#[test]
+fn vello_artifact_strategy_scenarios_keep_direct_fixtures_and_counts_focused() {
+    let bench = read_project_file("benches/perf_harness.rs");
+    let scenarios = read_project_file("benches/perf_harness/vello_artifact_scenarios.rs");
+    let metrics = read_project_file("benches/perf_harness/runner/metrics.rs");
+
+    assert!(
+        bench.contains("perf_harness/vello_artifact_scenarios.rs")
+            && scenarios.contains("Scene::new")
+            && scenarios.contains("destination.reset()")
+            && scenarios.contains("destination.append(scene, None)")
+            && scenarios.contains("SEGMENT_COUNT: usize = 4")
+            && scenarios.contains("PRIMITIVES_PER_SEGMENT: usize = 256")
+            && scenarios.contains("Fill::NonZero")
+            && scenarios.contains("Rect::new")
+            && scenarios.contains("expected_final_encoding_counts")
+            && scenarios.contains("encoded_paint_primitive_count")
+            && scenarios.contains("scene_append_count")
+            && !scenarios.contains("PaintPrimitive")
+            && !scenarios.contains("GpuSurface")
+            && metrics.contains("encoded_paint_primitive_count")
+            && metrics.contains("scene_append_count"),
+        "Vello artifact strategy probes should remain direct, resource-free fixture-only benchmarks with parseable counters"
+    );
+    assert!(
+        scenarios.contains("assert_eq!(encoded_paint_primitive_count, TOTAL_PRIMITIVES)")
+            && scenarios
+                .contains("assert_eq!(encoded_paint_primitive_count, PRIMITIVES_PER_SEGMENT)")
+            && scenarios.contains("assert_eq!(scene_append_count, SEGMENT_COUNT)")
+            && scenarios.contains("assert_eq!(EncodingCounts::from_scene(&destination), expected)"),
+        "Vello artifact strategy probes should assert baseline/candidate work counts and equivalent final encoding counts"
+    );
+}

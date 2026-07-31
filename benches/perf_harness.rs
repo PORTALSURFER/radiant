@@ -16,6 +16,8 @@ mod runner;
 mod runtime_scenarios;
 #[path = "perf_harness/text_scenarios.rs"]
 mod text_scenarios;
+#[path = "perf_harness/vello_artifact_scenarios.rs"]
+mod vello_artifact_scenarios;
 
 use radiant::{
     gui::types::{ImageRgba, Rgba8},

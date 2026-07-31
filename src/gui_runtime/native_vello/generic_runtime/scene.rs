@@ -8,6 +8,7 @@ use crate::{
 use std::{sync::Arc, time::Duration};
 use vello::{Scene, kurbo::Affine, peniko::Fill};
 
+mod artifact_feasibility;
 mod cache;
 mod clip;
 mod custom_surface;
@@ -20,13 +21,17 @@ mod text;
 mod text_input;
 mod text_input_selection;
 mod text_runs;
+pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityObservation;
+#[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
+    ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
+};
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
 pub(in crate::gui_runtime::native_vello) use clip::{SceneClipBegin, SceneClipEnd, SceneClipState};
 use custom_surface::{CustomSurfaceEncodeContext, encode_custom_surface};
 use image::encode_image;
-#[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncoding;
 pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncodingObservation;
 pub(in crate::gui_runtime::native_vello) use segment_evidence::{
@@ -70,6 +75,8 @@ where
         &plan.primitives,
         crate::gui::types::Rect::from_size(viewport.x, viewport.y),
     );
+    let mut artifact_feasibility =
+        artifact_feasibility::ArtifactFeasibilityCollector::new(&plan.primitives);
     for (index, primitive) in plan.primitives.iter().enumerate() {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
@@ -101,6 +108,8 @@ where
                 segment_evidence.observe_suppressed(index, clip_state.depth());
                 if primitive.gpu_surface().is_some() {
                     segment_evidence.observe_anchor(index, clip_state.depth());
+                    flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+                    artifact_feasibility.checkpoint(index as u32, scene);
                 }
                 continue;
             }
@@ -108,6 +117,8 @@ where
         }
         if primitive.gpu_surface().is_some() {
             segment_evidence.observe_anchor(index, clip_state.depth());
+            flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+            artifact_feasibility.checkpoint(index as u32, scene);
         } else {
             segment_evidence.observe_paint(index, primitive, &clip_state);
         }
@@ -201,6 +212,8 @@ where
     }
     flush_text_runs(scene, text_renderer, text_runs, &mut stats);
     stats.segment_encoding = segment_evidence.finish(clip_state.depth());
+    stats.artifact_feasibility =
+        artifact_feasibility.finish(scene, stats.segment_encoding, &plan.primitives);
     stats
 }
 

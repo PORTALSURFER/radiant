@@ -227,6 +227,77 @@ fn scene_encoding_observes_finite_self_contained_segment_bounds() {
         super::scene::EncodingIsolation::SelfContained
     );
     assert!(!segment.conservative);
+    let artifact = stats.artifact_feasibility.segments[0].expect("artifact evidence");
+    assert_eq!(stats.artifact_feasibility.checkpoint_count, 1);
+    assert_eq!(
+        stats.artifact_feasibility.checkpoints[0]
+            .expect("final artifact checkpoint")
+            .primitive_end,
+        1
+    );
+    assert_eq!(
+        artifact.disposition,
+        super::scene::ArtifactFeasibilityDisposition::ContiguousCandidate
+    );
+}
+
+#[test]
+fn artifact_feasibility_rejects_later_fill_that_inherits_style_or_transform() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let rect = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(20.0, 12.0));
+    let fill = || {
+        PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 7,
+            rect,
+            color: Rgba8::new(255, 255, 255, 255),
+        })
+    };
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            fill(),
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 42,
+                key: 42,
+                revision: 1,
+                rect,
+                content: GpuSurfaceContent::CustomShader {
+                    descriptor: Arc::new(crate::runtime::GpuShaderSurfaceDescriptor::new("test")),
+                },
+                capabilities: GpuSurfaceCapabilities::default(),
+                overlays: Vec::new(),
+            }),
+            fill(),
+        ],
+    };
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+    assert_eq!(stats.artifact_feasibility.segment_count, 2);
+    assert_eq!(
+        stats.artifact_feasibility.segments[0]
+            .expect("first artifact evidence")
+            .disposition,
+        super::scene::ArtifactFeasibilityDisposition::ContiguousCandidate
+    );
+    assert_eq!(
+        stats.artifact_feasibility.segments[1]
+            .expect("second artifact evidence")
+            .disposition,
+        super::scene::ArtifactFeasibilityDisposition::RequiresFreshEncoding(
+            super::scene::ArtifactFeasibilityReason::CrossSegmentTransformOrStyle
+        )
+    );
 }
 
 #[test]
@@ -301,6 +372,11 @@ fn scene_encoding_widens_unclipped_text_and_tracks_clip_isolation() {
         second.isolation,
         super::scene::EncodingIsolation::SelfContained
     );
+    let artifact = stats.artifact_feasibility.segments[0].expect("artifact evidence");
+    assert!(matches!(
+        artifact.disposition,
+        super::scene::ArtifactFeasibilityDisposition::RequiresFreshEncoding(_)
+    ));
 }
 
 #[test]

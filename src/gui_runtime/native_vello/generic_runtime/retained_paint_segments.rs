@@ -61,6 +61,7 @@ pub(super) fn assemble_native_paint_segment_fingerprints(
         || paint.conservative
         || encoding.conservative
         || paint.segment_count != encoding.segment_count
+        || usize::from(paint.segment_count) > MAX_PAINT_SEGMENTS
     {
         return NativePaintSegmentFingerprintObservation::unavailable();
     }

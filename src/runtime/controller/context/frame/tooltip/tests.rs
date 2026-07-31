@@ -221,6 +221,16 @@ fn tooltip_release_reconciles_hover_target_after_exclusive_capture() {
 
     assert_eq!(runtime.pointer_capture(), None);
     assert_eq!(runtime.hovered_widget(), Some(402));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(402)
+            .expect("reconciled hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
     let deadline = runtime
         .timed_repaint_deadline()
         .expect("release over B should arm B tooltip deadline");

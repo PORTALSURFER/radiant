@@ -74,11 +74,7 @@ where
         &mut self,
         position: Point,
     ) {
-        let previous_hovered_widget = self.interaction.hover.widget;
-        self.dispatch_pointer_move_target_with_refresh(position, true);
-        if previous_hovered_widget != self.interaction.hover.widget {
-            self.clear_retained_hover_except(self.interaction.hover.widget);
-        }
+        self.reconcile_pointer_hover_state_without_input(position);
     }
 
     /// Route one normalized widget interaction by point hit test.
@@ -242,7 +238,10 @@ where
         cleared
     }
 
-    fn clear_retained_hover_except(&mut self, owner: Option<WidgetId>) -> bool {
+    pub(in crate::runtime::controller) fn clear_retained_hover_except(
+        &mut self,
+        owner: Option<WidgetId>,
+    ) -> bool {
         let mut cleared = false;
         for index in 0..self.traversal.widgets.stateful_order.len() {
             let widget_id = self.traversal.widgets.stateful_order[index];
@@ -266,6 +265,24 @@ where
             self.repaint_requested = true;
         }
         cleared
+    }
+
+    pub(in crate::runtime::controller) fn retain_hover_owner(&mut self, owner: Option<WidgetId>) {
+        let Some(owner) = owner else {
+            return;
+        };
+        let Some(widget) = self.surface.find_widget_mut(owner) else {
+            return;
+        };
+        if widget.widget_object().common().state.hovered {
+            return;
+        }
+        widget
+            .widget_object_mut_runtime()
+            .common_mut()
+            .state
+            .hovered = true;
+        self.repaint_requested = true;
     }
 
     /// End the runtime drag preview because ownership has moved to a native

@@ -7,8 +7,10 @@ use crate::{
     theme::ThemeTokens,
     widgets::WidgetId,
 };
+use std::time::{Duration, Instant};
 
 const TOOLTIP_OVERLAY_ID: WidgetId = u64::MAX - 2_048;
+const TOOLTIP_HOVER_DELAY: Duration = Duration::from_millis(500);
 const TOOLTIP_MARGIN: f32 = 6.0;
 const TOOLTIP_GAP: f32 = 8.0;
 const TOOLTIP_MIN_WIDTH: f32 = 140.0;
@@ -25,6 +27,39 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(in crate::runtime::controller) fn reset_tooltip_hover_intent(&mut self) {
+        let revealed = self.interaction.tooltip.revealed;
+        self.interaction.tooltip = Default::default();
+        if revealed {
+            self.repaint_requested = true;
+        }
+    }
+
+    pub(in crate::runtime::controller) fn arm_tooltip_hover_intent(
+        &mut self,
+        widget_id: Option<WidgetId>,
+    ) {
+        self.reset_tooltip_hover_intent();
+        let Some(widget_id) = widget_id else {
+            return;
+        };
+        if self.interaction.pointer.capture.is_some()
+            || self
+                .surface_widget(widget_id)
+                .and_then(|widget| widget.tooltip())
+                .is_none_or(|tooltip| tooltip.is_empty())
+        {
+            return;
+        }
+        self.interaction.tooltip.target = Some(widget_id);
+        self.interaction.tooltip.deadline = Instant::now().checked_add(TOOLTIP_HOVER_DELAY);
+    }
+
+    pub(in crate::runtime::controller) fn rearm_tooltip_hover_intent(&mut self) {
+        let hover = self.interaction.hover.widget;
+        self.arm_tooltip_hover_intent(hover);
+    }
+
     pub(super) fn append_widget_tooltip_overlay(
         &self,
         theme: &ThemeTokens,

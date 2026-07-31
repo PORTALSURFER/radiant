@@ -65,6 +65,25 @@ where
         )
     }
 
+    pub(in crate::runtime::controller) fn reconcile_pointer_hover_state_without_input(
+        &mut self,
+        position: Point,
+    ) {
+        self.update_drag_preview_position(position);
+        self.update_hovered_scroll_affordance(position);
+
+        let pointer_widget = self.pointer_widget_for_move(position);
+        self.update_hovered_container(position, pointer_widget);
+
+        let hover_widget = self.hover_widget_for_move(position, pointer_widget);
+        if self.interaction.hover.widget == hover_widget {
+            return;
+        }
+        self.interaction.hover.widget = hover_widget;
+        self.clear_retained_hover_except(hover_widget);
+        self.retain_hover_owner(hover_widget);
+    }
+
     fn route_pointer_move_to_target(
         &mut self,
         position: Point,

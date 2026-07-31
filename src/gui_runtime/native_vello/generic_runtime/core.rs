@@ -120,8 +120,12 @@ where
                 })
         {
             self.resolved_appearance = appearance;
-            self.paint_segment_observer
-                .observe(plan, &self.runtime.view_delta_diagnostics(), true);
+            let observation = self.paint_segment_observer.observe(
+                plan,
+                &self.runtime.view_delta_diagnostics(),
+                true,
+            );
+            self.runtime.record_paint_segment_observation(observation);
             return PaintPlanCacheDecision::Reused;
         }
         // The caller owns the mutable frame preparation boundary; cache the
@@ -132,8 +136,12 @@ where
             .base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
         self.base_paint_plan_context = Some((context, appearance));
         self.runtime.record_base_paint_plan_rebuild();
-        self.paint_segment_observer
-            .observe(plan, &self.runtime.view_delta_diagnostics(), false);
+        let observation = self.paint_segment_observer.observe(
+            plan,
+            &self.runtime.view_delta_diagnostics(),
+            false,
+        );
+        self.runtime.record_paint_segment_observation(observation);
         PaintPlanCacheDecision::Rebuilt
     }
 

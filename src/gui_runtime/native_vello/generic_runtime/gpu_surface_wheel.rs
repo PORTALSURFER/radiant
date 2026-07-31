@@ -18,6 +18,13 @@ impl GpuSurfaceWheelAxis {
             Self::Vertical
         }
     }
+
+    fn semantic_delta(self, delta: Vector2) -> Vector2 {
+        match self {
+            Self::Horizontal => Vector2::new(delta.x, 0.0),
+            Self::Vertical => Vector2::new(0.0, delta.y),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,6 +51,7 @@ where
         modifiers: PointerModifiers,
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
+        let delta = axis.semantic_delta(delta);
         if self
             .input
             .pending_gpu_surface_wheel
@@ -77,6 +85,8 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) {
+        let axis = GpuSurfaceWheelAxis::from_delta(delta);
+        let delta = axis.semantic_delta(delta);
         match &mut self.input.pending_scroll_container_wheel {
             Some(pending) => {
                 pending.position = position;
@@ -88,7 +98,7 @@ where
                     position,
                     delta,
                     modifiers,
-                    axis: GpuSurfaceWheelAxis::from_delta(delta),
+                    axis,
                 });
             }
         }

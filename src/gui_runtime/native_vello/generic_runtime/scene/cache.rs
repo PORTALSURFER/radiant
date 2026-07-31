@@ -40,6 +40,7 @@ pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
     pub retained_frame_text_run_count: usize,
     pub text_run_count: usize,
     pub segment_encoding: super::PaintSegmentEncodingObservation,
+    pub artifact_feasibility: super::ArtifactFeasibilityObservation,
 }
 
 impl RetainedSurfaceEncodeStats {

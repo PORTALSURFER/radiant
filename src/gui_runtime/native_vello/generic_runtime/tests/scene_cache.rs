@@ -442,14 +442,7 @@ fn artifact_counts(scene: &Scene) -> super::scene::ArtifactFeasibilityCounts {
     }
 }
 
-fn typed_artifact_fixture(
-    segment_count: usize,
-) -> (
-    Scene,
-    super::scene::ArtifactFeasibilityObservation,
-    super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan,
-    Vec<Scene>,
-) {
+fn typed_artifact_source_plan(segment_count: usize) -> SurfacePaintPlan {
     assert!((1..=crate::runtime::MAX_PAINT_SEGMENTS).contains(&segment_count));
     let mut primitives = Vec::with_capacity(segment_count * 2 - 1);
     for index in 0..segment_count {
@@ -461,10 +454,21 @@ fn typed_artifact_fixture(
             primitives.push(artifact_anchor(index as u64 + 10));
         }
     }
-    let source_plan = SurfacePaintPlan {
+    SurfacePaintPlan {
         clear_color: ThemeTokens::default().clear_color,
         primitives,
-    };
+    }
+}
+
+fn typed_artifact_fixture(
+    segment_count: usize,
+) -> (
+    Scene,
+    super::scene::ArtifactFeasibilityObservation,
+    super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan,
+    Vec<Scene>,
+) {
+    let source_plan = typed_artifact_source_plan(segment_count);
 
     let mut source_scene = Scene::new();
     let mut source_text_renderer = NativeTextRenderer::new();
@@ -563,8 +567,13 @@ fn typed_artifact_fixture(
     }
 
     let plan = classify_collector_evidence_parts(paint, encoding, feasibility);
-    let production_payloads =
-        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan);
+    let empty_store = super::scene::NativePaintSegmentArtifactStore::default();
+    let production_payloads = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        plan,
+        &empty_store,
+    )
+    .into_payloads();
     assert_eq!(production_payloads.len(), payloads.len());
     for (production, fixture) in production_payloads.iter().zip(payloads.iter()) {
         assert_encoding_equal(production, fixture);
@@ -588,6 +597,22 @@ fn materialize_fixture(
         payloads,
         super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
     )
+}
+
+fn artifact_store_for_fixture(
+    scene: &Scene,
+    feasibility: super::scene::ArtifactFeasibilityObservation,
+    plan: super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan,
+    payloads: &[Scene],
+) -> super::scene::NativePaintSegmentArtifactStore {
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(materialize_fixture((
+        scene.clone(),
+        feasibility,
+        plan,
+        payloads.to_vec(),
+    )));
+    store
 }
 
 fn assert_encoding_equal(actual: &Scene, expected: &Scene) {
@@ -656,6 +681,93 @@ fn scene_artifact_materialization_accepts_mixed_retained_and_fresh_order() {
     {
         assert_encoding_equal(artifact.scene_for_test(), expected);
     }
+}
+
+#[test]
+fn scene_artifact_payload_selection_reuses_matching_stored_artifact() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let source_plan = typed_artifact_source_plan(1);
+    let store = artifact_store_for_fixture(&scene, feasibility, plan, &payloads);
+
+    let selection =
+        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+
+    assert_eq!(selection.reused_count_for_test(), 1);
+    assert_eq!(selection.fresh_count_for_test(), 0);
+    assert_eq!(selection.payloads_for_test().len(), 1);
+    assert_encoding_equal(&selection.payloads_for_test()[0], &payloads[0]);
+}
+
+#[test]
+fn scene_artifact_payload_selection_missing_store_falls_back_to_fresh_encoding() {
+    let (_, _, plan, expected_payloads) = typed_artifact_fixture(1);
+    let source_plan = typed_artifact_source_plan(1);
+    let store = super::scene::NativePaintSegmentArtifactStore::default();
+
+    let selection =
+        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+
+    assert_eq!(selection.reused_count_for_test(), 0);
+    assert_eq!(selection.fresh_count_for_test(), 1);
+    assert_encoding_equal(&selection.payloads_for_test()[0], &expected_payloads[0]);
+}
+
+#[test]
+fn scene_artifact_payload_selection_metadata_mismatch_falls_back_to_fresh_encoding() {
+    type Materialization = super::scene::NativePaintSegmentArtifactMaterialization;
+    type Invalidator = fn(&mut Materialization);
+
+    let cases: [(&str, Invalidator); 2] = [
+        ("revision", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_revision_for_test(2);
+        }),
+        ("target generation", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_target_generation_for_test(
+                super::super::runner_state::NativeTargetGeneration::from_test_serial(2),
+            );
+        }),
+    ];
+
+    for (case, invalidate) in cases {
+        let (scene, feasibility, plan, expected_payloads) = typed_artifact_fixture(1);
+        let source_plan = typed_artifact_source_plan(1);
+        let mut materialization =
+            materialize_fixture((scene.clone(), feasibility, plan, expected_payloads.clone()));
+        invalidate(&mut materialization);
+        let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+        store.reconcile(materialization);
+
+        let selection = super::scene::encode_native_paint_segment_payloads(
+            &source_plan.primitives,
+            plan,
+            &store,
+        );
+
+        assert_eq!(selection.reused_count_for_test(), 0, "{case}");
+        assert_eq!(selection.fresh_count_for_test(), 1, "{case}");
+        assert_encoding_equal(&selection.payloads_for_test()[0], &expected_payloads[0]);
+    }
+}
+
+#[test]
+fn scene_artifact_payload_selection_corruption_is_rejected_by_authoritative_materialization() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let source_plan = typed_artifact_source_plan(1);
+    let mut store = artifact_store_for_fixture(&scene, feasibility, plan, &payloads);
+    store
+        .artifact_for_test_mut(0)
+        .expect("stored artifact")
+        .scene_for_test_mut()
+        .encoding_mut()
+        .path_data[0] ^= 1;
+
+    let selection =
+        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+    assert_eq!(selection.reused_count_for_test(), 1);
+    assert_eq!(selection.fresh_count_for_test(), 0);
+
+    let materialized = materialize_fixture((scene, feasibility, plan, selection.into_payloads()));
+    assert!(materialized.is_empty());
 }
 
 #[test]

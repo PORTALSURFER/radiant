@@ -1,8 +1,8 @@
 //! Ephemeral Vello scene artifacts for an exact, validated eligibility plan.
 
 use super::super::retained_paint_segments::{
-    NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityOutcome,
-    NativePaintSegmentFreshEncodingReason,
+    NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityEntry,
+    NativePaintSegmentEligibilityOutcome, NativePaintSegmentFreshEncodingReason,
 };
 use super::super::runner_state::NativeTargetGeneration;
 use super::artifact_feasibility::{ArtifactFeasibilityCounts, ArtifactFeasibilityDisposition};
@@ -11,16 +11,10 @@ use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentSpan}
 use vello::Scene;
 
 /// One ephemeral Vello artifact materialized from a completed authoritative
-/// scene encoding. The evidence is retained beside the payload so a later
-/// consumer cannot lose the identity or generation fence that authorized it.
+/// scene encoding. The evidence is retained beside the payload so auxiliary
+/// payload preparation cannot lose the identity or generation fence that
+/// authorized it.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifact {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "The retained scene payload is evidence for a future consumer, not a production replay path."
-        )
-    )]
     scene: Scene,
     identity: PaintSegmentIdentity,
     span: PaintSegmentSpan,
@@ -85,6 +79,11 @@ impl NativePaintSegmentArtifact {
     }
 
     #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn scene_for_test_mut(&mut self) -> &mut Scene {
+        &mut self.scene
+    }
+
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn identity_for_test(&self) -> PaintSegmentIdentity {
         self.identity
     }
@@ -143,8 +142,9 @@ impl NativePaintSegmentArtifact {
 
 /// Fixed-capacity native artifacts retained for one fully encoded window.
 ///
-/// This store is a future consumer foundation only. It does not admit cache
-/// entries, authorize reuse, or assemble partial scenes.
+/// Lookup is limited to exact metadata-matched resource-free payload clones for
+/// auxiliary payload preparation. This store does not admit cache entries,
+/// reconstruct authoritative scenes, or control rendering/presentation.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactStore {
     artifacts: [Option<NativePaintSegmentArtifact>; MAX_PAINT_SEGMENTS],
 }
@@ -178,6 +178,28 @@ impl NativePaintSegmentArtifactStore {
 
     pub(in crate::gui_runtime::native_vello) fn clear(&mut self) {
         self.artifacts = [const { None }; MAX_PAINT_SEGMENTS];
+    }
+
+    pub(super) fn reusable_payload(
+        &self,
+        entry: NativePaintSegmentEligibilityEntry,
+    ) -> Option<Scene> {
+        let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
+            entry.disposition
+        else {
+            return None;
+        };
+
+        self.artifacts.iter().flatten().find_map(|artifact| {
+            (artifact.identity == fingerprint.identity
+                && artifact.identity == entry.span.identity
+                && artifact.span == entry.span
+                && artifact.span.start == fingerprint.primitive_start
+                && artifact.span.end == fingerprint.primitive_end
+                && artifact.revision == fingerprint.revision
+                && artifact.target_generation == fingerprint.target_generation)
+                .then(|| artifact.scene.clone())
+        })
     }
 
     fn validated_next(
@@ -223,6 +245,14 @@ impl NativePaintSegmentArtifactStore {
             identities[index] = artifact.as_ref().map(|artifact| artifact.identity);
         }
         identities
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn artifact_for_test_mut(
+        &mut self,
+        index: usize,
+    ) -> Option<&mut NativePaintSegmentArtifact> {
+        self.artifacts.get_mut(index)?.as_mut()
     }
 }
 

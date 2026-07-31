@@ -231,29 +231,91 @@ where
     stats
 }
 
-/// Encode one typed, resource-free payload for every entry in an eligibility
-/// plan. This is observational only; the authoritative scene above remains the
-/// render source and is never assembled from these payloads.
+/// The auxiliary payloads selected for one eligibility plan.
+pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentPayloadSelection {
+    payloads: Vec<Scene>,
+    #[cfg(test)]
+    reused_count: usize,
+    #[cfg(test)]
+    fresh_count: usize,
+}
+
+impl NativePaintSegmentPayloadSelection {
+    fn empty() -> Self {
+        Self {
+            payloads: Vec::new(),
+            #[cfg(test)]
+            reused_count: 0,
+            #[cfg(test)]
+            fresh_count: 0,
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn into_payloads(self) -> Vec<Scene> {
+        self.payloads
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn payloads_for_test(&self) -> &[Scene] {
+        &self.payloads
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn reused_count_for_test(&self) -> usize {
+        self.reused_count
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn fresh_count_for_test(&self) -> usize {
+        self.fresh_count
+    }
+}
+
+/// Select one typed, resource-free payload for every entry in an eligibility
+/// plan. Matching retained artifacts are cloned; all other entries are freshly
+/// encoded from the current primitives. This is auxiliary preparation only: the
+/// authoritative scene above remains the render source and is never assembled
+/// from these payloads.
 pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads(
     primitives: &[PaintPrimitive],
     plan: NativePaintSegmentEligibilityPlan,
-) -> Vec<Scene> {
+    artifacts: &NativePaintSegmentArtifactStore,
+) -> NativePaintSegmentPayloadSelection {
     let count = usize::from(plan.entry_count);
     if count == 0 || count > MAX_PAINT_SEGMENTS {
-        return Vec::new();
+        return NativePaintSegmentPayloadSelection::empty();
     }
 
-    let mut payloads = Vec::with_capacity(count);
+    let mut selection = NativePaintSegmentPayloadSelection {
+        payloads: Vec::with_capacity(count),
+        #[cfg(test)]
+        reused_count: 0,
+        #[cfg(test)]
+        fresh_count: 0,
+    };
     for index in 0..count {
         let Some(entry) = plan.entries[index] else {
-            return Vec::new();
+            return NativePaintSegmentPayloadSelection::empty();
         };
+        if let Some(payload) = artifacts.reusable_payload(entry) {
+            selection.payloads.push(payload);
+            #[cfg(test)]
+            {
+                selection.reused_count += 1;
+            }
+            continue;
+        };
+
         let Some(payload) = encode_resource_free_segment(primitives, entry.span) else {
-            return Vec::new();
+            return NativePaintSegmentPayloadSelection::empty();
         };
-        payloads.push(payload);
+        selection.payloads.push(payload);
+        #[cfg(test)]
+        {
+            selection.fresh_count += 1;
+        }
     }
-    payloads
+    selection
 }
 
 fn encode_resource_free_segment(

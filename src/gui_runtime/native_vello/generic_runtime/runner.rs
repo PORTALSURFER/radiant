@@ -350,7 +350,9 @@ where
         let payloads = encode_native_paint_segment_payloads(
             &self.frame.last_paint_plan.primitives,
             eligibility,
-        );
+            &self.frame.native_paint_segment_artifact_store,
+        )
+        .into_payloads();
         let materialization =
             materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
                 scene: &self.frame.scene,

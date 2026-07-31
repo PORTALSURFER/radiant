@@ -131,14 +131,14 @@ fn mapped_knob_routes_hover_wheel_to_a_distinct_automation_gesture() {
             30,
             &[],
             bounds,
-            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(0.0, -120.0)),
+            WidgetInput::plain_wheel(Point::new(20.0, 20.0), Vector2::new(0.0, 120.0)),
         ),
         Some(WidgetDispatchResult::Message(KnobMessage::WheelGesture(batch)))
             if batch.events
                 == [
                     crate::widgets::KnobAutomationEvent::GestureStarted { value: 0.5 },
-                    crate::widgets::KnobAutomationEvent::ValueChanged { value: 0.52 },
-                    crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.52 },
+                    crate::widgets::KnobAutomationEvent::ValueChanged { value: 0.55 },
+                    crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.55 },
                 ]
     ));
 }

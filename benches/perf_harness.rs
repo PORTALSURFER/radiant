@@ -101,6 +101,7 @@ fn bench_gpu_surface_projection() -> ScenarioCounters {
         .with_capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         }),
     ));
@@ -152,6 +153,7 @@ fn bench_gpu_surface_stack_projection_128() -> ScenarioCounters {
                     .with_capabilities(GpuSurfaceCapabilities {
                         fast_pointer_move: index % 2 == 0,
                         coalesce_vertical_wheel: true,
+                        coalesce_horizontal_wheel: false,
                         runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
                     }),
                 ),
@@ -284,6 +286,7 @@ fn bench_gpu_custom_shader_projection() -> ScenarioCounters {
         .with_capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: false,
+            coalesce_horizontal_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         }),
     ));

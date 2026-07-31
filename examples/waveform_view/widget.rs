@@ -133,6 +133,7 @@ impl Widget for WaveformWidget {
             capabilities: RenderCanvasCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
+                coalesce_horizontal_wheel: false,
                 runtime_overlays: RenderCanvasRuntimeOverlays::pointer_vertical_line(
                     RenderCanvasLineStyle {
                         color: Rgba8 {

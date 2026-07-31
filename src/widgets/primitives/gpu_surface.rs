@@ -121,6 +121,12 @@ impl GpuSurfaceWidget {
         self
     }
 
+    /// Enable coalesced horizontal wheel routing for this retained GPU surface.
+    pub fn with_coalesced_horizontal_wheel(mut self, enabled: bool) -> Self {
+        self.capabilities.coalesce_horizontal_wheel = enabled;
+        self
+    }
+
     /// Replace the lightweight overlays for this retained GPU surface.
     pub fn with_overlays(mut self, overlays: Vec<GpuSurfaceOverlay>) -> Self {
         self.overlays = overlays;
@@ -149,7 +155,9 @@ impl Widget for GpuSurfaceWidget {
     }
 
     fn accepts_wheel_input(&self) -> bool {
-        self.emits_input || self.capabilities.coalesce_vertical_wheel
+        self.emits_input
+            || self.capabilities.coalesce_vertical_wheel
+            || self.capabilities.coalesce_horizontal_wheel
     }
 
     fn append_paint(

@@ -43,26 +43,13 @@ fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow) -> f3
         return 0.0;
     }
     let bucket_position = frame / max(window.bucket_frames, 1.0) - window.bucket_offset;
-    let bucket_fraction = fract(bucket_position);
-    var boundary = ceil(bucket_position);
-    if (bucket_fraction < 0.5) {
-        boundary = floor(bucket_position);
-    }
-    let bucket_width = window.bucket_frames / max(window.visible, 1.0);
-    let boundary_distance = abs(bucket_position - boundary) * bucket_width;
-    let half_pixel = 0.5 / max(params.dest.z, 1.0);
-    if (boundary_distance > half_pixel) {
-        return band_peak_at(query, window);
-    }
-    let left_bucket = u32(clamp(boundary - 1.0, 0.0, f32(window.bucket_count - 1u)));
-    let right_bucket = u32(clamp(boundary, 0.0, f32(window.bucket_count - 1u)));
+    let last_bucket = window.bucket_count - 1u;
+    let clamped_position = clamp(bucket_position, 0.0, f32(last_bucket));
+    let left_bucket = u32(floor(clamped_position));
+    let right_bucket = min(left_bucket + 1u, last_bucket);
     let left_peak = summary_peak(left_bucket, query.band, query.band_count, window.bucket_count);
     let right_peak = summary_peak(right_bucket, query.band, query.band_count, window.bucket_count);
-    let transition = clamp(
-        0.5 + (bucket_position - boundary) * bucket_width / max(half_pixel * 2.0, 0.000001),
-        0.0,
-        1.0,
-    );
+    let transition = smoothstep(0.0, 1.0, fract(clamped_position));
     return mix(left_peak, right_peak, transition);
 }
 

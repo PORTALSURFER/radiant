@@ -191,20 +191,31 @@ where
     }
 
     pub(super) fn can_fast_path_gpu_surface_route(&self, position: Point, delta: Vector2) -> bool {
-        let is_horizontal_pan = delta.x.abs() > delta.y.abs() && delta.x.abs() > f32::EPSILON;
-        !is_horizontal_pan && self.paint_plan_has_coalescing_gpu_surface_at(position)
+        self.can_coalesce_gpu_surface_wheel(position, delta)
     }
 
-    pub(super) fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
+    pub(super) fn paint_plan_has_coalescing_gpu_surface_at(
+        &self,
+        position: Point,
+        delta: Vector2,
+    ) -> bool {
+        let is_horizontal = delta.x.abs() > delta.y.abs();
         self.frame
             .gpu_surface_interaction_regions
             .iter()
-            .any(|region| region.coalesce_vertical_wheel && region.contains(position))
+            .any(|region| {
+                region.contains(position)
+                    && if is_horizontal {
+                        region.coalesce_horizontal_wheel
+                    } else {
+                        region.coalesce_vertical_wheel
+                    }
+            })
     }
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
-        let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
-        is_vertical && self.paint_plan_has_coalescing_gpu_surface_at(position)
+        let has_delta = delta.x.abs().max(delta.y.abs()) > f32::EPSILON;
+        has_delta && self.paint_plan_has_coalescing_gpu_surface_at(position, delta)
     }
 
     pub(super) fn can_coalesce_scroll_container_wheel(

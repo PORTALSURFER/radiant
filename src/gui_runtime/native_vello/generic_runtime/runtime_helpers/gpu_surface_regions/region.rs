@@ -10,6 +10,7 @@ pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) rect: Rect,
     pub(in crate::gui_runtime::native_vello) fast_pointer_move: bool,
     pub(in crate::gui_runtime::native_vello) coalesce_vertical_wheel: bool,
+    pub(in crate::gui_runtime::native_vello) coalesce_horizontal_wheel: bool,
     pub(in crate::gui_runtime::native_vello) runtime_overlays: GpuSurfaceRuntimeOverlays,
 }
 
@@ -23,6 +24,7 @@ impl GpuSurfaceInteractionRegion {
         }
         if !surface.capabilities.fast_pointer_move
             && !surface.capabilities.coalesce_vertical_wheel
+            && !surface.capabilities.coalesce_horizontal_wheel
             && surface
                 .capabilities
                 .runtime_overlays
@@ -37,6 +39,7 @@ impl GpuSurfaceInteractionRegion {
             rect: surface.rect,
             fast_pointer_move: surface.capabilities.fast_pointer_move,
             coalesce_vertical_wheel: surface.capabilities.coalesce_vertical_wheel,
+            coalesce_horizontal_wheel: surface.capabilities.coalesce_horizontal_wheel,
             runtime_overlays: surface.capabilities.runtime_overlays,
         })
     }

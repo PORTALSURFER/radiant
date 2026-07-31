@@ -51,41 +51,23 @@ fn gpu_signal_shader_groups_projection_parameters() {
 }
 
 #[test]
-fn gpu_signal_shader_smooths_colored_bands_only_within_one_destination_pixel() {
+fn gpu_signal_shader_interpolates_adjacent_buckets_for_projected_bands() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 
     assert!(
         shader
             .contains("fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow)")
     );
-    assert!(shader.contains("let half_pixel = 0.5 / max(params.dest.z, 1.0);"));
-    assert!(shader.contains("if (boundary_distance > half_pixel)"));
+    assert!(
+        shader.contains("let clamped_position = clamp(bucket_position, 0.0, f32(last_bucket));")
+    );
+    assert!(shader.contains("let left_bucket = u32(floor(clamped_position));"));
+    assert!(shader.contains("let right_bucket = min(left_bucket + 1u, last_bucket);"));
     assert!(shader.contains("let left_peak = summary_peak"));
     assert!(shader.contains("let right_peak = summary_peak"));
-    assert!(shader.contains("/ max(half_pixel * 2.0, 0.000001),"));
+    assert!(shader.contains("smoothstep(0.0, 1.0, fract(clamped_position))"));
     assert!(shader.contains("return mix(left_peak, right_peak, transition);"));
-}
-
-fn interpolation_boundary_distance(bucket_position: f32, bucket_width: f32) -> f32 {
-    let bucket_fraction = bucket_position.fract();
-    let boundary = if bucket_fraction < 0.5 {
-        bucket_position.floor()
-    } else {
-        bucket_position.ceil()
-    };
-    (bucket_position - boundary).abs() * bucket_width
-}
-
-#[test]
-fn gpu_signal_shader_interpolation_boundary_distance_has_a_half_pixel_radius() {
-    let pixel_width = 1.0 / 100.0;
-    let half_pixel = pixel_width * 0.5;
-    let bucket_width = 0.25;
-
-    assert!((interpolation_boundary_distance(1.02, bucket_width) - half_pixel).abs() < 0.000001);
-    assert!(interpolation_boundary_distance(1.019, bucket_width) < half_pixel);
-    assert!(interpolation_boundary_distance(1.021, bucket_width) > half_pixel);
-    assert!((half_pixel * 2.0 - pixel_width).abs() < 0.000001);
+    assert!(!shader.contains("boundary_distance"));
 }
 
 #[test]

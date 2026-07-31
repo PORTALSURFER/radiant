@@ -114,12 +114,13 @@ fn native_gpu_surface_fast_path_tests_stay_grouped_by_behavior() {
             && root.contains("mod hover;")
             && root.contains("mod plain_surface;")
             && root.contains("mod paint_only;")
-            && !root.contains("fn gpu_surface_fast_path_does_not_capture_horizontal_pan")
+            && !root
+                .contains("fn gpu_surface_fast_path_respects_horizontal_capability_and_zero_delta",)
             && !root.contains("struct PaintOnlyPointerBridge"),
         "native GPU-surface fast-path test root should index focused behavior groups instead of owning all cases and fixtures"
     );
     assert!(
-        wheel.contains("fn gpu_surface_fast_path_does_not_capture_horizontal_pan")
+        wheel.contains("fn gpu_surface_fast_path_respects_horizontal_capability_and_zero_delta")
             && pointer_move
                 .contains("fn gpu_surface_pointer_move_fast_path_only_within_cached_surface")
             && pointer_move.contains(

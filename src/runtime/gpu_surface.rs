@@ -63,6 +63,8 @@ pub struct GpuSurfaceCapabilities {
     pub fast_pointer_move: bool,
     /// Whether vertical wheel deltas over this surface can be coalesced until redraw.
     pub coalesce_vertical_wheel: bool,
+    /// Whether horizontal wheel deltas over this surface can be coalesced until redraw.
+    pub coalesce_horizontal_wheel: bool,
     /// Runtime-owned overlay policies for this surface.
     pub runtime_overlays: GpuSurfaceRuntimeOverlays,
 }

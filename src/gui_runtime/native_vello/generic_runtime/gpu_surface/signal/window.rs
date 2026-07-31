@@ -21,7 +21,7 @@ pub(super) fn signal_bucket_window(
     let end = ceil_bucket_index(frame_range[1], bucket_frames, bucket_count)
         .max(start + 1)
         .min(bucket_count);
-    Some(SignalBucketWindow { start, end })
+    Some(SignalBucketWindow { start, end }.with_guard_buckets(bucket_count))
 }
 
 fn floor_bucket_index(frame: f32, bucket_frames: f32, bucket_count: usize) -> usize {
@@ -47,6 +47,13 @@ fn bucket_index(
 }
 
 impl SignalBucketWindow {
+    fn with_guard_buckets(self, bucket_count: usize) -> Self {
+        Self {
+            start: self.start.saturating_sub(1),
+            end: self.end.saturating_add(1).min(bucket_count),
+        }
+    }
+
     pub(super) fn bucket_count(self) -> usize {
         self.end.saturating_sub(self.start)
     }
@@ -87,15 +94,15 @@ mod tests {
     }
 
     #[test]
-    fn signal_bucket_window_uploads_only_visible_buckets() {
+    fn signal_bucket_window_uploads_one_guard_bucket_per_side() {
         let level = level(4, 32, 2);
 
         let window =
             signal_bucket_window([16.0, 80.0], &level, 2).expect("visible range has buckets");
 
-        assert_eq!(window, SignalBucketWindow { start: 4, end: 20 });
-        assert_eq!(window.bucket_count(), 16);
-        assert_eq!(window.buckets(&level, 2).len(), 32);
+        assert_eq!(window, SignalBucketWindow { start: 3, end: 21 });
+        assert_eq!(window.bucket_count(), 18);
+        assert_eq!(window.buckets(&level, 2).len(), 36);
     }
 
     #[test]
@@ -105,7 +112,17 @@ mod tests {
         let window =
             signal_bucket_window([24.0, 96.0], &level, 3).expect("clamped range has buckets");
 
-        assert_eq!(window, SignalBucketWindow { start: 3, end: 4 });
-        assert_eq!(window.buckets(&level, 3).len(), 3);
+        assert_eq!(window, SignalBucketWindow { start: 2, end: 4 });
+        assert_eq!(window.buckets(&level, 3).len(), 6);
+    }
+
+    #[test]
+    fn signal_bucket_window_does_not_pad_beyond_summary_edges() {
+        let level = level(8, 4, 3);
+
+        let window = signal_bucket_window([0.0, 32.0], &level, 3).expect("full range has buckets");
+
+        assert_eq!(window, SignalBucketWindow { start: 0, end: 4 });
+        assert_eq!(window.buckets(&level, 3).len(), 12);
     }
 }

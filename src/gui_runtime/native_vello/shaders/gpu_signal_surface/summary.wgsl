@@ -12,8 +12,8 @@ fn band_query(x: f32, band: u32, band_count: u32) -> SignalBandQuery {
     return SignalBandQuery(x, band, band_count);
 }
 
-fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
-    let center = clamp(query.x, 0.0, 1.0);
+fn summary_frame_at(x: f32, window: SignalSummaryWindow) -> f32 {
+    let center = clamp(x, 0.0, 1.0);
     let visual_frame = window.start + window.visible * center;
     let slide_offset = params.slide_preview.x;
     var frame = visual_frame - slide_offset;
@@ -21,6 +21,14 @@ fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
         frame = frame - floor(frame / window.frames) * window.frames;
     }
     if (frame < 0.0 || frame > window.frames) {
+        return -1.0;
+    }
+    return max(frame, 0.0);
+}
+
+fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
+    let frame = summary_frame_at(query.x, window);
+    if (frame < 0.0) {
         return 0.0;
     }
     let source_frame = max(frame, 0.0);
@@ -30,7 +38,32 @@ fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
 }
 
 fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
-    return band_peak_at(query, window);
+    let frame = summary_frame_at(query.x, window);
+    if (frame < 0.0) {
+        return 0.0;
+    }
+    let bucket_position = frame / max(window.bucket_frames, 1.0) - window.bucket_offset;
+    let bucket_fraction = fract(bucket_position);
+    var boundary = ceil(bucket_position);
+    if (bucket_fraction < 0.5) {
+        boundary = floor(bucket_position);
+    }
+    let bucket_width = window.bucket_frames / max(window.visible, 1.0);
+    let boundary_distance = abs(bucket_position - boundary) * bucket_width;
+    let half_pixel = 0.5 / max(params.dest.z, 1.0);
+    if (boundary_distance > half_pixel) {
+        return band_peak_at(query, window);
+    }
+    let left_bucket = u32(clamp(boundary - 1.0, 0.0, f32(window.bucket_count - 1u)));
+    let right_bucket = u32(clamp(boundary, 0.0, f32(window.bucket_count - 1u)));
+    let left_peak = summary_peak(left_bucket, query.band, query.band_count, window.bucket_count);
+    let right_peak = summary_peak(right_bucket, query.band, query.band_count, window.bucket_count);
+    let transition = clamp(
+        0.5 + (bucket_position - boundary) * bucket_width / max(half_pixel * 2.0, 0.000001),
+        0.0,
+        1.0,
+    );
+    return mix(left_peak, right_peak, transition);
 }
 
 fn projected_band_peak(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {

@@ -51,6 +51,91 @@ fn gpu_signal_shader_groups_projection_parameters() {
 }
 
 #[test]
+fn gpu_signal_shader_smooths_colored_bands_only_within_one_destination_pixel() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    assert!(
+        shader
+            .contains("fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow)")
+    );
+    assert!(shader.contains("let half_pixel = 0.5 / max(params.dest.z, 1.0);"));
+    assert!(shader.contains("if (boundary_distance > half_pixel)"));
+    assert!(shader.contains("let left_peak = summary_peak"));
+    assert!(shader.contains("let right_peak = summary_peak"));
+    assert!(shader.contains("/ max(half_pixel * 2.0, 0.000001),"));
+    assert!(shader.contains("return mix(left_peak, right_peak, transition);"));
+}
+
+fn interpolation_boundary_distance(bucket_position: f32, bucket_width: f32) -> f32 {
+    let bucket_fraction = bucket_position.fract();
+    let boundary = if bucket_fraction < 0.5 {
+        bucket_position.floor()
+    } else {
+        bucket_position.ceil()
+    };
+    (bucket_position - boundary).abs() * bucket_width
+}
+
+#[test]
+fn gpu_signal_shader_interpolation_boundary_distance_has_a_half_pixel_radius() {
+    let pixel_width = 1.0 / 100.0;
+    let half_pixel = pixel_width * 0.5;
+    let bucket_width = 0.25;
+
+    assert!((interpolation_boundary_distance(1.02, bucket_width) - half_pixel).abs() < 0.000001);
+    assert!(interpolation_boundary_distance(1.019, bucket_width) < half_pixel);
+    assert!(interpolation_boundary_distance(1.021, bucket_width) > half_pixel);
+    assert!((half_pixel * 2.0 - pixel_width).abs() < 0.000001);
+}
+
+#[test]
+fn gpu_signal_shader_keeps_raw_carrier_nearest_bucket_and_reuses_precomputed_bands() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    assert!(shader.contains(
+        "raw_signal = band_peak_at(band_query(in.local.x, 3u, band_count), summary_window);"
+    ));
+    assert!(!shader.contains(
+        "raw_signal = projected_band_peak(band_query(in.local.x, 3u, band_count), summary_window);"
+    ));
+    assert!(shader.contains(
+        "let band_signals = array<f32, 4>(low_signal, mid_signal, high_signal, raw_signal);"
+    ));
+    assert!(shader.contains("let peak = band_signals[band];"));
+    assert!(!shader.contains("var peak = projected_band_peak"));
+}
+
+#[test]
+fn gpu_signal_shader_smooths_high_band_center_neighbors() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    assert!(shader.contains("let neighbor_span = pixel_width * 1.15;"));
+    assert!(shader.contains(
+        "projected_band_peak(band_query(in.local.x - neighbor_span, 2u, band_count), summary_window)"
+    ));
+    assert!(shader.contains(
+        "projected_band_peak(band_query(in.local.x + neighbor_span, 2u, band_count), summary_window)"
+    ));
+    assert!(!shader.contains(
+        "band_peak_at(band_query(in.local.x - neighbor_span, 2u, band_count), summary_window)"
+    ));
+    assert!(!shader.contains(
+        "band_peak_at(band_query(in.local.x + neighbor_span, 2u, band_count), summary_window)"
+    ));
+}
+
+#[test]
+fn gpu_signal_shader_has_no_summary_sample_scan_loop() {
+    let summary = super::super::super::gpu_surface::GPU_SIGNAL_SHADER
+        .split_once("fn preview_curve_value")
+        .expect("summary shader should precede preview helpers")
+        .0;
+
+    assert!(!summary.contains("for ("));
+    assert!(!summary.contains("while ("));
+}
+
+#[test]
 fn gpu_signal_shader_does_not_cap_gain_preview() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 
@@ -111,7 +196,7 @@ fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
 
     assert!(shader.contains("band_scales = array<f32, 4>(0.93, 0.43, 0.046, 0.02)"));
     assert!(shader.contains("band_gamma = array<f32, 4>(1.03, 0.94, 0.42, 1.70)"));
-    assert!(shader.contains("raw_signal = projected_band_peak"));
+    assert!(shader.contains("raw_signal = band_peak_at"));
     assert!(shader.contains("display_peak"));
     let band_colors = shader_vec4_array(shader, "let band_colors = array<vec4<f32>, 4>(");
     assert_eq!(band_colors.len(), 4);

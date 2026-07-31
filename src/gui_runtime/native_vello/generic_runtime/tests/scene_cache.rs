@@ -3,10 +3,11 @@ use crate::{
     gui::types::ImageRgba,
     runtime::{
         GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintSegment,
-        PaintSegmentObservation, PaintTextAlign, PaintTextRun, SurfacePaintPlan,
+        PaintSegmentObservation, PaintTextAlign, PaintTextRun, RetainedSurfaceCachePolicy,
+        SurfacePaintPlan,
     },
     theme::ThemeTokens,
-    widgets::TextWrap,
+    widgets::{TextWrap, WidgetRevision},
 };
 
 #[path = "scene_cache/retained.rs"]
@@ -89,6 +90,112 @@ fn classify_collector_evidence_parts(
         feasibility,
         target_generation,
     )
+}
+
+fn test_scene_validity() -> super::super::frame_state::NativeSceneValidityFingerprint {
+    let runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    runner.frame.native_scene_validity_fingerprint(
+        runner.core.base_paint_plan_context(),
+        runner.core.resolved_appearance(),
+        runner.window.dpi_scale,
+    )
+}
+
+fn test_scene_validity_with_dpi(
+    dpi_scale: f64,
+) -> super::super::frame_state::NativeSceneValidityFingerprint {
+    let runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    runner.frame.native_scene_validity_fingerprint(
+        runner.core.base_paint_plan_context(),
+        runner.core.resolved_appearance(),
+        crate::theme::DpiScale::new(dpi_scale),
+    )
+}
+
+#[derive(Clone, Debug)]
+struct RetainedSegmentWidget {
+    common: WidgetCommon,
+}
+
+impl RetainedSegmentWidget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(201, WidgetSizing::fixed(Vector2::new(320.0, 80.0)));
+        common.paint.bounds = crate::widgets::PaintBounds::AllowOverflow;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for RetainedSegmentWidget {
+    fn revision(&self) -> WidgetRevision {
+        WidgetRevision::exact(
+            "retained-segment",
+            (320_u32, 80_u32),
+            "green-fill-signal-bands",
+            (),
+        )
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: Rgba8::new(0, 255, 64, 255),
+        }));
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: self.common.id,
+            key: 901,
+            revision: 1,
+            rect: bounds,
+            content: GpuSurfaceContent::SignalBands {
+                frames: 1,
+                band_count: 1,
+                frame_range: [0.0, 1.0],
+                samples: Arc::<[f32]>::from(vec![0.0]),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }));
+    }
+}
+
+#[derive(Default)]
+struct RetainedSegmentBridge;
+
+impl RuntimeBridge<()> for RetainedSegmentBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            RetainedSegmentWidget::new(),
+            WidgetMessageMapper::none(),
+        )))
+    }
 }
 
 #[test]
@@ -571,6 +678,7 @@ fn typed_artifact_fixture(
     let production_payloads = super::scene::encode_native_paint_segment_payloads(
         &source_plan.primitives,
         plan,
+        test_scene_validity(),
         &empty_store,
     )
     .into_payloads();
@@ -589,12 +697,25 @@ fn materialize_fixture(
         Vec<Scene>,
     ),
 ) -> super::scene::NativePaintSegmentArtifactMaterialization {
+    materialize_fixture_with_validity(fixture, test_scene_validity())
+}
+
+fn materialize_fixture_with_validity(
+    fixture: (
+        Scene,
+        super::scene::ArtifactFeasibilityObservation,
+        super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan,
+        Vec<Scene>,
+    ),
+    scene_validity: super::super::frame_state::NativeSceneValidityFingerprint,
+) -> super::scene::NativePaintSegmentArtifactMaterialization {
     let (scene, feasibility, plan, payloads) = fixture;
     super::runner::materialize_native_paint_segment_artifacts_for_test(
         &scene,
         feasibility,
         plan,
         payloads,
+        scene_validity,
         super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
     )
 }
@@ -639,6 +760,200 @@ fn assert_encoding_equal(actual: &Scene, expected: &Scene) {
     assert!(expected.resources.glyphs.is_empty());
     assert!(expected.resources.glyph_runs.is_empty());
     assert!(expected.resources.normalized_coords.is_empty());
+}
+
+#[test]
+fn retained_scene_assembly_matches_authoritative_encoding_in_plan_order() {
+    let (authoritative, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let scene_validity = test_scene_validity();
+    let store = artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads);
+    let result = super::scene::assemble_retained_native_paint_segment_scene(
+        &authoritative,
+        feasibility,
+        plan,
+        &store,
+        scene_validity,
+        super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+    );
+    let super::scene::NativePaintSegmentAssemblyResult::Assembled(assembled) = result else {
+        panic!("exact retained plan should assemble");
+    };
+    assert_encoding_equal(&assembled, &authoritative);
+}
+
+#[test]
+fn retained_scene_assembly_vetoes_mixed_and_missing_artifacts() {
+    let (authoritative, feasibility, mut mixed_plan, payloads) = typed_artifact_fixture(3);
+    mixed_plan.entries[1]
+        .as_mut()
+        .expect("middle entry")
+        .disposition = super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+        super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RevisionChanged,
+    );
+    let mixed_store =
+        artifact_store_for_fixture(&authoritative, feasibility, mixed_plan, &payloads);
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &authoritative,
+            feasibility,
+            mixed_plan,
+            &mixed_store,
+            test_scene_validity(),
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(
+            super::scene::NativePaintSegmentAssemblyVetoReason::MixedDisposition
+        )
+    ));
+
+    let (authoritative, feasibility, plan, _) = typed_artifact_fixture(1);
+    let empty_store = super::scene::NativePaintSegmentArtifactStore::default();
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &authoritative,
+            feasibility,
+            plan,
+            &empty_store,
+            test_scene_validity(),
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(
+            super::scene::NativePaintSegmentAssemblyVetoReason::MissingArtifact
+        )
+    ));
+}
+
+#[test]
+fn retained_scene_assembly_and_lookup_veto_context_provenance_mismatch() {
+    let (authoritative, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let scene_validity = test_scene_validity();
+    let store = artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads);
+    let source_plan = typed_artifact_source_plan(1);
+    let selection = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        plan,
+        test_scene_validity_with_dpi(2.0),
+        &store,
+    );
+    assert_eq!(selection.reused_count_for_test(), 0);
+    assert_eq!(selection.fresh_count_for_test(), 1);
+
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &authoritative,
+            feasibility,
+            plan,
+            &store,
+            test_scene_validity_with_dpi(2.0),
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(
+            super::scene::NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch
+        )
+    ));
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &authoritative,
+            feasibility,
+            plan,
+            &store,
+            scene_validity,
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(2),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(_)
+    ));
+}
+
+#[test]
+fn late_retained_assembly_veto_leaves_frame_scene_untouched() {
+    let (authoritative, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let scene_validity = test_scene_validity();
+    let mut frame = NativeVelloFrameState::new(
+        NativeTextRenderer::new(),
+        RetainedSurfaceCachePolicy::default(),
+    );
+    frame.scene = authoritative.clone();
+    frame.last_scene_stats.artifact_feasibility = feasibility;
+    frame.last_native_paint_segment_eligibility = plan;
+    frame.reconcile_native_paint_segment_artifacts(materialize_fixture_with_validity(
+        (authoritative.clone(), feasibility, plan, payloads),
+        scene_validity,
+    ));
+    frame
+        .native_paint_segment_artifact_store
+        .artifact_for_test_mut(1)
+        .expect("middle artifact")
+        .scene_for_test_mut()
+        .encoding_mut()
+        .path_data[0] ^= 1;
+    let previous_scene = frame.scene.clone();
+
+    assert_eq!(
+        frame.assemble_retained_native_scene(
+            scene_validity,
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        Err(super::scene::NativePaintSegmentAssemblyVetoReason::InvalidPayload)
+    );
+    assert_encoding_equal(&frame.scene, &previous_scene);
+}
+
+#[test]
+fn runner_warms_artifacts_before_later_retained_assembly() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        RetainedSegmentBridge,
+        Vector2::new(320.0, 180.0),
+    );
+    assert!(runner.window.target_generation.advance());
+
+    // Startup view-delta evidence is conservatively unavailable. Establish a
+    // classified unchanged projection before the initial encode so the next
+    // rebuild can exercise the retained-plan/artifact warm-up fence.
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    runner.rebuild_scene();
+    assert_eq!(runner.frame.scene_encode_count, 1);
+    assert_eq!(runner.frame.scene_assembly_count, 0);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .all(Option::is_none)
+    );
+
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    runner.rebuild_scene();
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_assembly_veto_count, 1);
+    assert_eq!(
+        runner.frame.scene_build_outcome,
+        super::super::frame_state::NativeSceneBuildOutcome::RetainedAssemblyVetoFallback
+    );
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .any(Option::is_some)
+    );
+
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    runner.rebuild_scene();
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_assembly_count, 1);
+    assert_eq!(
+        runner.frame.scene_build_outcome,
+        super::super::frame_state::NativeSceneBuildOutcome::RetainedAssembly
+    );
 }
 
 #[test]
@@ -689,8 +1004,12 @@ fn scene_artifact_payload_selection_reuses_matching_stored_artifact() {
     let source_plan = typed_artifact_source_plan(1);
     let store = artifact_store_for_fixture(&scene, feasibility, plan, &payloads);
 
-    let selection =
-        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+    let selection = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        plan,
+        test_scene_validity(),
+        &store,
+    );
 
     assert_eq!(selection.reused_count_for_test(), 1);
     assert_eq!(selection.fresh_count_for_test(), 0);
@@ -704,8 +1023,12 @@ fn scene_artifact_payload_selection_missing_store_falls_back_to_fresh_encoding()
     let source_plan = typed_artifact_source_plan(1);
     let store = super::scene::NativePaintSegmentArtifactStore::default();
 
-    let selection =
-        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+    let selection = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        plan,
+        test_scene_validity(),
+        &store,
+    );
 
     assert_eq!(selection.reused_count_for_test(), 0);
     assert_eq!(selection.fresh_count_for_test(), 1);
@@ -740,6 +1063,7 @@ fn scene_artifact_payload_selection_metadata_mismatch_falls_back_to_fresh_encodi
         let selection = super::scene::encode_native_paint_segment_payloads(
             &source_plan.primitives,
             plan,
+            test_scene_validity(),
             &store,
         );
 
@@ -761,8 +1085,12 @@ fn scene_artifact_payload_selection_corruption_is_rejected_by_authoritative_mate
         .encoding_mut()
         .path_data[0] ^= 1;
 
-    let selection =
-        super::scene::encode_native_paint_segment_payloads(&source_plan.primitives, plan, &store);
+    let selection = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        plan,
+        test_scene_validity(),
+        &store,
+    );
     assert_eq!(selection.reused_count_for_test(), 1);
     assert_eq!(selection.fresh_count_for_test(), 0);
 
@@ -910,6 +1238,7 @@ fn scene_artifact_store_clears_after_target_generation_transition() {
         feasibility,
         plan,
         payloads,
+        test_scene_validity(),
         previous_target_generation,
     );
     assert_eq!(
@@ -950,6 +1279,7 @@ fn scene_artifact_materialization_rejects_missing_and_extra_payloads_atomically(
             feasibility,
             plan,
             payloads,
+            test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
         )
         .is_empty()
@@ -963,6 +1293,7 @@ fn scene_artifact_materialization_rejects_missing_and_extra_payloads_atomically(
             feasibility,
             plan,
             payloads,
+            test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
         )
         .is_empty()

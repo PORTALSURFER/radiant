@@ -1,6 +1,16 @@
 /// Scene encoding counters for one native frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeSceneDiagnostics {
+    /// Cumulative authoritative full-scene encodes for this native frame state.
+    pub scene_encode_count: u64,
+    /// Cumulative whole-scene reuse decisions for this native frame state.
+    pub scene_reuse_count: u64,
+    /// Cumulative authoritative retained-scene assemblies.
+    pub scene_assembly_count: u64,
+    /// Cumulative retained-assembly vetoes that fell back to full encoding.
+    pub scene_assembly_veto_count: u64,
+    /// Outcome of the most recent scene rebuild decision.
+    pub scene_build_outcome: &'static str,
     /// Paint-plan traversal counters.
     pub traversal: NativeSceneTraversalDiagnostics,
     /// Text-related scene counters.

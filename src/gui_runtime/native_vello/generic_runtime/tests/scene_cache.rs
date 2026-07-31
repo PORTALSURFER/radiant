@@ -581,7 +581,7 @@ fn materialize_fixture(
     ),
 ) -> super::scene::NativePaintSegmentArtifactMaterialization {
     let (scene, feasibility, plan, payloads) = fixture;
-    super::scene::materialize_native_paint_segment_artifacts(
+    super::runner::materialize_native_paint_segment_artifacts_for_test(
         &scene,
         feasibility,
         plan,
@@ -621,25 +621,17 @@ fn scene_artifact_materialization_accepts_one_typed_candidate_with_full_equality
     let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
     let expected_payload = payloads[0].clone();
     let expected_entry = plan.entries[0].expect("entry");
-    let materialized = super::scene::materialize_native_paint_segment_artifacts(
-        &scene,
-        feasibility,
-        plan,
-        payloads,
-        super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
-    );
+    let materialized = materialize_fixture((scene.clone(), feasibility, plan, payloads));
 
     assert_eq!(materialized.len(), 1);
-    assert_encoding_equal(&materialized.artifacts[0].scene, &scene);
-    assert_encoding_equal(&materialized.artifacts[0].scene, &expected_payload);
+    let artifact = &materialized.artifacts_for_test()[0];
+    assert_encoding_equal(artifact.scene_for_test(), &scene);
+    assert_encoding_equal(artifact.scene_for_test(), &expected_payload);
+    assert_eq!(artifact.identity_for_test(), expected_entry.span.identity);
+    assert_eq!(artifact.span_for_test(), expected_entry.span);
+    assert_eq!(artifact.revision_for_test(), 1);
     assert_eq!(
-        materialized.artifacts[0].identity,
-        expected_entry.span.identity
-    );
-    assert_eq!(materialized.artifacts[0].span, expected_entry.span);
-    assert_eq!(materialized.artifacts[0].revision, 1);
-    assert_eq!(
-        materialized.artifacts[0].target_generation,
+        artifact.target_generation_for_test(),
         super::super::runner_state::NativeTargetGeneration::from_test_serial(1)
     );
 }
@@ -654,18 +646,186 @@ fn scene_artifact_materialization_accepts_mixed_retained_and_fresh_order() {
         super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RevisionChanged,
     );
     let expected = [payloads[0].clone(), payloads[2].clone()];
-    let materialized = super::scene::materialize_native_paint_segment_artifacts(
+    let materialized = materialize_fixture((scene, feasibility, plan, payloads));
+
+    assert_eq!(materialized.len(), 2);
+    for (artifact, expected) in materialized
+        .artifacts_for_test()
+        .iter()
+        .zip(expected.iter())
+    {
+        assert_encoding_equal(artifact.scene_for_test(), expected);
+    }
+}
+
+#[test]
+fn scene_artifact_store_installs_valid_candidate() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let expected_identity = plan.entries[0].map(|entry| entry.span.identity);
+    let materialized = materialize_fixture((scene, feasibility, plan, payloads));
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+
+    store.reconcile(materialized);
+
+    assert_eq!(store.snapshot_identities()[0], expected_identity);
+    assert!(store.snapshot_identities()[1..].iter().all(Option::is_none));
+}
+
+#[test]
+fn scene_artifact_store_keeps_mixed_candidates_in_plan_order() {
+    let (scene, feasibility, mut plan, payloads) = typed_artifact_fixture(3);
+    if let Some(entry) = plan.entries[1].as_mut() {
+        entry.disposition = super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+            super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RevisionChanged,
+        );
+    }
+    let expected = [
+        plan.entries[0].map(|entry| entry.span.identity),
+        plan.entries[2].map(|entry| entry.span.identity),
+    ];
+    let materialized = materialize_fixture((scene, feasibility, plan, payloads));
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+
+    store.reconcile(materialized);
+
+    let identities = store.snapshot_identities();
+    assert_eq!(identities[0], expected[0]);
+    assert_eq!(identities[1], expected[1]);
+    assert!(identities[2..].iter().all(Option::is_none));
+}
+
+#[test]
+fn scene_artifact_store_clears_for_empty_and_fallback_materializations() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(materialize_fixture((scene, feasibility, plan, payloads)));
+    assert!(store.snapshot_identities()[0].is_some());
+
+    store.reconcile(super::scene::NativePaintSegmentArtifactMaterialization::default());
+    assert!(store.snapshot_identities().iter().all(Option::is_none));
+
+    let (scene, feasibility, mut plan, payloads) = typed_artifact_fixture(1);
+    plan.outcome = super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FullSceneFallback(
+        super::super::retained_paint_segments::NativePaintSegmentFallbackReason::TrailingEvidence,
+    );
+    store.reconcile(materialize_fixture((scene, feasibility, plan, payloads)));
+    assert!(store.snapshot_identities().iter().all(Option::is_none));
+}
+
+#[test]
+fn scene_artifact_store_rejects_invalid_input_and_clears_stale_artifacts() {
+    type Materialization = super::scene::NativePaintSegmentArtifactMaterialization;
+    type Invalidator = fn(&mut Materialization);
+
+    let cases: [(&str, Invalidator); 8] = [
+        ("unknown generation", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_target_generation_for_test(
+                super::super::runner_state::NativeTargetGeneration::unknown(),
+            );
+        }),
+        ("zero revision", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_revision_for_test(0);
+        }),
+        ("mismatched identity and span", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_identity_for_test(
+                crate::runtime::PaintSegmentIdentity {
+                    preceding: None,
+                    following: None,
+                },
+            );
+        }),
+        ("empty span", |materialization| {
+            let end = materialization.artifacts_for_test()[0].span_for_test().end;
+            materialization.artifacts_for_test_mut()[0].set_span_start_for_test(end);
+        }),
+        ("overlapping or out-of-order span", |materialization| {
+            let start = materialization.artifacts_for_test()[0]
+                .span_for_test()
+                .start;
+            materialization.artifacts_for_test_mut()[1].set_span_start_for_test(start);
+        }),
+        ("duplicate identity", |materialization| {
+            let identity = materialization.artifacts_for_test()[0].identity_for_test();
+            materialization.artifacts_for_test_mut()[1].set_identity_for_test(identity);
+            materialization.artifacts_for_test_mut()[1].set_span_identity_for_test(identity);
+        }),
+        ("mixed generation", |materialization| {
+            materialization.artifacts_for_test_mut()[1].set_target_generation_for_test(
+                super::super::runner_state::NativeTargetGeneration::from_test_serial(2),
+            );
+        }),
+        ("oversize input", |materialization| {
+            while materialization.artifacts_for_test().len() <= crate::runtime::MAX_PAINT_SEGMENTS {
+                materialization.duplicate_first_for_test();
+            }
+        }),
+    ];
+
+    for (case, invalidate) in cases {
+        let (scene, feasibility, plan, payloads) = typed_artifact_fixture(2);
+        let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+        store.reconcile(materialize_fixture((scene, feasibility, plan, payloads)));
+        assert!(
+            store.snapshot_identities()[0].is_some(),
+            "{case}: valid install"
+        );
+
+        let (scene, feasibility, plan, payloads) = typed_artifact_fixture(2);
+        let mut invalid = materialize_fixture((scene, feasibility, plan, payloads));
+        invalidate(&mut invalid);
+        store.reconcile(invalid);
+
+        assert!(
+            store.snapshot_identities().iter().all(Option::is_none),
+            "{case}: invalid materialization must clear the store"
+        );
+    }
+}
+
+#[test]
+fn scene_artifact_store_clears_after_target_generation_transition() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    runner.window.target_generation =
+        super::super::runner_state::NativeTargetGeneration::from_test_serial(1);
+    let previous_target_generation = runner.window.target_generation;
+    let materialized = super::runner::materialize_native_paint_segment_artifacts_for_test(
         &scene,
         feasibility,
         plan,
         payloads,
-        super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        previous_target_generation,
+    );
+    assert_eq!(
+        materialized.artifacts_for_test()[0].target_generation_for_test(),
+        previous_target_generation
+    );
+    runner
+        .frame
+        .reconcile_native_paint_segment_artifacts(materialized);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()[0]
+            .is_some()
     );
 
-    assert_eq!(materialized.len(), 2);
-    for (artifact, expected) in materialized.artifacts.iter().zip(expected.iter()) {
-        assert_encoding_equal(&artifact.scene, expected);
-    }
+    runner.update_native_dpi_scale(2.0);
+
+    assert_ne!(runner.window.target_generation, previous_target_generation);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .all(Option::is_none)
+    );
 }
 
 #[test]
@@ -673,7 +833,7 @@ fn scene_artifact_materialization_rejects_missing_and_extra_payloads_atomically(
     let (_, feasibility, plan, mut payloads) = typed_artifact_fixture(2);
     payloads.pop();
     assert!(
-        super::scene::materialize_native_paint_segment_artifacts(
+        super::runner::materialize_native_paint_segment_artifacts_for_test(
             &Scene::new(),
             feasibility,
             plan,
@@ -686,7 +846,7 @@ fn scene_artifact_materialization_rejects_missing_and_extra_payloads_atomically(
     let (scene, feasibility, plan, mut payloads) = typed_artifact_fixture(2);
     payloads.push(Scene::new());
     assert!(
-        super::scene::materialize_native_paint_segment_artifacts(
+        super::runner::materialize_native_paint_segment_artifacts_for_test(
             &scene,
             feasibility,
             plan,

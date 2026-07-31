@@ -530,6 +530,9 @@ Portable or sandboxed hosts should create the renderer with
 Embedded rendering supports the normal vector, gradient, clip, text, image, and
 SVG paint plan; retained GPU/custom surfaces fail explicitly because those need
 the standalone runtime's additional compositing and host callbacks.
+Headless capture hosts can use `OffscreenVelloCapture::new_with_text_options(...)`
+with the same `NativeTextOptions` policy; `OffscreenVelloCapture::new(...)`
+retains the default system-fallback behavior.
 
 Tests, automation, and embedded hosts that inspect paint plans should import
 `SurfacePaintPlan` from `radiant::runtime`, then use

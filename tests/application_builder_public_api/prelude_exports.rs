@@ -520,6 +520,15 @@ fn runtime_exports_embedded_vello_renderer_contract() {
         radiant::runtime::EmbeddedVelloRenderer,
         radiant::runtime::EmbeddedVelloError,
     > = radiant::runtime::EmbeddedVelloRenderer::new_with_text_options;
+
+    let _: fn(
+        radiant::gui::types::Vector2,
+        radiant::theme::DpiScale,
+        &radiant::gui_runtime::NativeTextOptions,
+    ) -> Result<
+        radiant::gui_runtime::OffscreenVelloCapture,
+        radiant::gui_runtime::EmbeddedVelloError,
+    > = radiant::gui_runtime::OffscreenVelloCapture::new_with_text_options;
 }
 
 #[test]

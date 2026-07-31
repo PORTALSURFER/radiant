@@ -189,6 +189,174 @@ fn scene_encoding_counts_gpu_surfaces_without_projecting_interactions() {
     assert_eq!(stats.gpu_surface_count, 1);
 }
 
+#[test]
+fn scene_encoding_observes_finite_self_contained_segment_bounds() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let rect = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(20.0, 12.0));
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 7,
+            rect,
+            color: Rgba8::new(255, 255, 255, 255),
+        })],
+    };
+
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+    let segment = stats.segment_encoding.segments[0].expect("one segment");
+    assert_eq!(segment.primitive_start, 0);
+    assert_eq!(segment.primitive_end, 1);
+    assert_eq!(
+        segment.safe_enclosure,
+        super::scene::SafeEnclosure::Bounded(rect)
+    );
+    assert_eq!(
+        segment.isolation,
+        super::scene::EncodingIsolation::SelfContained
+    );
+    assert!(!segment.conservative);
+}
+
+#[test]
+fn scene_encoding_widens_unclipped_text_and_tracks_clip_isolation() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let clip = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0));
+    let text = PaintPrimitive::Text(PaintTextRun {
+        widget_id: 9,
+        text: "evidence".into(),
+        rect: Rect::from_min_size(Point::new(2.0, 2.0), Vector2::new(20.0, 12.0)),
+        font_size: 12.0,
+        color: Rgba8::new(255, 255, 255, 255),
+        align: PaintTextAlign::Left,
+        wrap: TextWrap::None,
+        baseline: None,
+    });
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            text.clone(),
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 42,
+                key: 42,
+                revision: 1,
+                rect: clip,
+                content: GpuSurfaceContent::RgbaAtlas {
+                    source_rect: clip,
+                    atlas: Arc::new(
+                        ImageRgba::new(40, 20, vec![255; 40 * 20 * 4]).expect("valid image"),
+                    ),
+                },
+                capabilities: GpuSurfaceCapabilities::default(),
+                overlays: Vec::new(),
+            }),
+            PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: clip,
+            }),
+            text,
+            PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }),
+        ],
+    };
+
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+    let first = stats.segment_encoding.segments[0].expect("first segment");
+    assert_eq!(
+        first.safe_enclosure,
+        super::scene::SafeEnclosure::ViewportFallback
+    );
+    assert_eq!(
+        first.reason,
+        super::scene::EncodingConservativeReason::UncertainPrimitive
+    );
+    let second = stats.segment_encoding.segments[1].expect("second segment");
+    assert_eq!(
+        second.safe_enclosure,
+        super::scene::SafeEnclosure::Bounded(clip)
+    );
+    assert_eq!(
+        second.isolation,
+        super::scene::EncodingIsolation::SelfContained
+    );
+}
+
+#[test]
+fn scene_encoding_marks_clip_closed_after_gpu_anchor_as_inherited() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let clip = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0));
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: clip,
+            }),
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 42,
+                key: 42,
+                revision: 1,
+                rect: clip,
+                content: GpuSurfaceContent::CustomShader {
+                    descriptor: Arc::new(crate::runtime::GpuShaderSurfaceDescriptor::new("test")),
+                },
+                capabilities: GpuSurfaceCapabilities::default(),
+                overlays: Vec::new(),
+            }),
+            PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }),
+            PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 7,
+                rect: Rect::from_min_size(Point::new(2.0, 2.0), Vector2::new(8.0, 8.0)),
+                color: Rgba8::new(255, 255, 255, 255),
+            }),
+        ],
+    };
+
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+    let first = stats.segment_encoding.segments[0].expect("first segment");
+    assert_eq!(first.isolation, super::scene::EncodingIsolation::OpenClip);
+    let second = stats.segment_encoding.segments[1].expect("second segment");
+    assert_eq!(
+        second.isolation,
+        super::scene::EncodingIsolation::InheritedClip
+    );
+    assert!(second.conservative);
+}
+
 fn encode_plan<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
     scene: &mut Scene,

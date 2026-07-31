@@ -13,6 +13,7 @@ mod clip;
 mod custom_surface;
 mod frame;
 mod image;
+mod segment_evidence;
 mod shape;
 mod svg;
 mod text;
@@ -22,9 +23,14 @@ mod text_runs;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
-pub(in crate::gui_runtime::native_vello) use clip::SceneClipState;
+pub(in crate::gui_runtime::native_vello) use clip::{SceneClipBegin, SceneClipEnd, SceneClipState};
 use custom_surface::{CustomSurfaceEncodeContext, encode_custom_surface};
 use image::encode_image;
+pub(in crate::gui_runtime::native_vello) use segment_evidence::PaintSegmentEncodingObservation;
+#[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use segment_evidence::{
+    EncodingConservativeReason, EncodingIsolation, SafeEnclosure,
+};
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
     encode_rect, encode_rect_batch, encode_rect_stroke, encode_rect_stroke_batch,
@@ -59,11 +65,18 @@ where
         ..RetainedSurfaceEncodeStats::default()
     };
     let mut clip_state = SceneClipState::default();
-    for primitive in &plan.primitives {
+    let mut segment_evidence = segment_evidence::PaintSegmentEvidenceCollector::new(
+        &plan.primitives,
+        crate::gui::types::Rect::from_size(viewport.x, viewport.y),
+    );
+    for (index, primitive) in plan.primitives.iter().enumerate() {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
+                let depth_before = clip_state.depth();
                 flush_text_runs(scene, text_renderer, text_runs, &mut stats);
-                if clip_state.begin(clip.rect).pushes_layer() {
+                let begin = clip_state.begin(clip.rect);
+                segment_evidence.observe_clip_start(index, depth_before, begin, clip.rect);
+                if begin.pushes_layer() {
                     stats.clip_layer_count = stats.clip_layer_count.saturating_add(1);
                     scene.push_clip_layer(
                         Fill::NonZero,
@@ -74,14 +87,28 @@ where
                 continue;
             }
             PaintPrimitive::ClipEnd(_) => {
-                if clip_state.end().pops_layer() {
+                let depth_before = clip_state.depth();
+                let end = clip_state.end();
+                segment_evidence.observe_clip_end(index, depth_before, clip_state.depth(), end);
+                if end.pops_layer() {
                     flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                     scene.pop_layer();
                 }
                 continue;
             }
-            _ if clip_state.is_suppressed() => continue,
+            _ if clip_state.is_suppressed() => {
+                segment_evidence.observe_suppressed(index, clip_state.depth());
+                if primitive.gpu_surface().is_some() {
+                    segment_evidence.observe_anchor(index, clip_state.depth());
+                }
+                continue;
+            }
             _ => {}
+        }
+        if primitive.gpu_surface().is_some() {
+            segment_evidence.observe_anchor(index, clip_state.depth());
+        } else {
+            segment_evidence.observe_paint(index, primitive, &clip_state);
         }
         if flushes_pending_text_before_encoding(primitive) {
             flush_text_runs(scene, text_renderer, text_runs, &mut stats);
@@ -172,6 +199,7 @@ where
         }
     }
     flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+    stats.segment_encoding = segment_evidence.finish(clip_state.depth());
     stats
 }
 

@@ -7,7 +7,7 @@ use super::{PaintPrimitive, SurfacePaintPlan};
 use crate::runtime::surface::{SurfaceDamage, ViewDeltaDiagnostics, ViewDeltaEffect};
 use crate::widgets::WidgetId;
 
-const MAX_PAINT_SEGMENTS: usize = 64;
+pub(crate) const MAX_PAINT_SEGMENTS: usize = 64;
 
 /// Stable identity of one GPU render-canvas boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,6 +21,18 @@ pub(crate) struct PaintSegmentAnchor {
 pub(crate) struct PaintSegmentIdentity {
     pub(crate) preceding: Option<PaintSegmentAnchor>,
     pub(crate) following: Option<PaintSegmentAnchor>,
+}
+
+/// Half-open primitive span for one ordinary segment.
+///
+/// Spans use the same GPU-surface anchor boundaries as [`PaintSegmentIdentity`]
+/// and deliberately include clip bookkeeping at either edge. GPU anchors are
+/// excluded from every span.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PaintSegmentSpan {
+    pub(crate) identity: PaintSegmentIdentity,
+    pub(crate) start: u32,
+    pub(crate) end: u32,
 }
 
 /// One ordinary contiguous primitive run observed in a materialized paint plan.
@@ -213,6 +225,26 @@ fn collect_segments(
     primitives: &[PaintPrimitive],
     output: &mut [Option<(PaintSegmentIdentity, Option<WidgetId>)>; MAX_PAINT_SEGMENTS],
 ) -> (u8, bool) {
+    let mut spans = [None; MAX_PAINT_SEGMENTS];
+    let (segment_count, malformed) = collect_segment_spans(primitives, &mut spans);
+    for (index, span) in spans.iter().enumerate().take(usize::from(segment_count)) {
+        let Some(span) = *span else {
+            continue;
+        };
+        output[index] = Some((
+            span.identity,
+            ordinary_owner(&primitives[span.start as usize..span.end as usize]),
+        ));
+    }
+    (segment_count, malformed)
+}
+
+/// Collect ordinary spans using the exact anchor/order rules used by the
+/// runtime paint-segment observer.
+pub(crate) fn collect_segment_spans(
+    primitives: &[PaintPrimitive],
+    output: &mut [Option<PaintSegmentSpan>; MAX_PAINT_SEGMENTS],
+) -> (u8, bool) {
     let mut segment_count = 0usize;
     let mut start = 0usize;
     let mut preceding = None;
@@ -240,14 +272,14 @@ fn collect_segments(
             if segment_count >= output.len() {
                 malformed = true;
             } else {
-                let owner = ordinary_owner(&primitives[start..index]);
-                output[segment_count] = Some((
-                    PaintSegmentIdentity {
+                output[segment_count] = Some(PaintSegmentSpan {
+                    identity: PaintSegmentIdentity {
                         preceding,
                         following: Some(anchor),
                     },
-                    owner,
-                ));
+                    start: start as u32,
+                    end: index as u32,
+                });
                 segment_count += 1;
             }
         }
@@ -258,13 +290,14 @@ fn collect_segments(
         if segment_count >= output.len() {
             malformed = true;
         } else {
-            output[segment_count] = Some((
-                PaintSegmentIdentity {
+            output[segment_count] = Some(PaintSegmentSpan {
+                identity: PaintSegmentIdentity {
                     preceding,
                     following: None,
                 },
-                ordinary_owner(&primitives[start..]),
-            ));
+                start: start as u32,
+                end: primitives.len() as u32,
+            });
             segment_count += 1;
         }
     }

@@ -22,7 +22,7 @@ struct RetainedSurfaceFrameCacheEntry {
     frame: PaintFrame,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
     pub paint_plan_primitives: usize,
     pub clip_layer_count: usize,
@@ -39,6 +39,7 @@ pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
     pub retained_frame_primitive_count: usize,
     pub retained_frame_text_run_count: usize,
     pub text_run_count: usize,
+    pub segment_encoding: super::PaintSegmentEncodingObservation,
 }
 
 impl RetainedSurfaceEncodeStats {

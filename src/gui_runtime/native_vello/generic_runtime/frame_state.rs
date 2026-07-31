@@ -11,7 +11,8 @@ use super::{
     post_gpu_overlay,
     retained_paint_segments::{
         NativePaintSegmentEligibilityPlan, NativeRetainedPaintSegmentStore,
-        assemble_native_paint_segment_fingerprints, classify_native_paint_segment_eligibility,
+        assemble_native_paint_segment_fingerprints,
+        classify_native_paint_segment_eligibility_with_spans,
     },
     runtime_helpers::{
         GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
@@ -19,7 +20,7 @@ use super::{
     },
 };
 use crate::runtime::BasePaintPlanContext;
-use crate::runtime::PaintSegmentObservation;
+use crate::runtime::{PaintSegmentObservation, collect_segment_spans};
 use crate::theme::DpiScale;
 use crate::theme::ResolvedAppearance;
 use crate::theme::ThemeTokens;
@@ -202,12 +203,19 @@ impl NativeVelloFrameState {
         feasibility: super::scene::ArtifactFeasibilityObservation,
         target_generation: NativeTargetGeneration,
     ) {
-        self.last_native_paint_segment_eligibility = classify_native_paint_segment_eligibility(
-            paint,
-            &self.native_retained_paint_segment_store,
-            feasibility,
-            target_generation,
-        );
+        let mut current_spans = [None; crate::runtime::MAX_PAINT_SEGMENTS];
+        let (current_span_count, current_spans_malformed) =
+            collect_segment_spans(&self.last_paint_plan.primitives, &mut current_spans);
+        self.last_native_paint_segment_eligibility =
+            classify_native_paint_segment_eligibility_with_spans(
+                paint,
+                &self.native_retained_paint_segment_store,
+                feasibility,
+                current_spans,
+                current_span_count,
+                current_spans_malformed,
+                target_generation,
+            );
         #[cfg(test)]
         self.test_phase_trace
             .record(NativeVelloTestPhase::EligibilityObserved);

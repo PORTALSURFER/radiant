@@ -90,8 +90,15 @@ fn eligibility_observation_precedes_encode_without_changing_scene_counters() {
         )
     );
     assert_eq!(
-        runner.frame.last_native_paint_segment_eligibility.candidate,
-        super::super::super::retained_paint_segments::NativePaintSegmentEligibilityCandidate::default()
+        runner.frame.last_native_paint_segment_eligibility.entries,
+        [None; crate::runtime::MAX_PAINT_SEGMENTS]
+    );
+    assert_eq!(
+        runner
+            .frame
+            .last_native_paint_segment_eligibility
+            .entry_count,
+        0
     );
     assert_eq!(
         runner.frame.test_phase_trace(),

@@ -354,6 +354,21 @@ pub struct OffscreenVelloCapture {
 impl OffscreenVelloCapture {
     /// Create a headless capture renderer for a logical viewport and DPI scale.
     pub fn new(logical_size: Vector2, dpi_scale: DpiScale) -> Result<Self, EmbeddedVelloError> {
+        Self::new_with_text_options(logical_size, dpi_scale, &NativeTextOptions::default())
+    }
+
+    /// Create a headless capture renderer with explicit font policy.
+    ///
+    /// Use this constructor when a headless host supplies an ordered,
+    /// per-glyph fallback stack through [`NativeTextOptions::embedded_fonts`]
+    /// or preferred font files through [`NativeTextOptions::font_paths`]. The
+    /// options are read while creating the renderer; the host does not need to
+    /// keep them alive afterward.
+    pub fn new_with_text_options(
+        logical_size: Vector2,
+        dpi_scale: DpiScale,
+        text_options: &NativeTextOptions,
+    ) -> Result<Self, EmbeddedVelloError> {
         let logical_size = sanitized_logical_size(logical_size);
         let mut render_context = RenderContext::new();
         let dev_id = pollster::block_on(render_context.device(None))
@@ -368,7 +383,7 @@ impl OffscreenVelloCapture {
             renderer,
             scene: Scene::new(),
             scaled_scene: Scene::new(),
-            text_renderer: NativeTextRenderer::with_options(&NativeTextOptions::default()),
+            text_renderer: NativeTextRenderer::with_options(text_options),
             bridge: EmbeddedSceneBridge,
             retained_cache: RetainedSurfaceFrameCache::with_policy(
                 RetainedSurfaceCachePolicy::default(),
@@ -685,6 +700,7 @@ impl RuntimeBridge<()> for EmbeddedSceneBridge {
 mod tests {
     use super::*;
     use crate::gui::types::{ImageRgba, Rect};
+    use crate::gui_runtime::EmbeddedFont;
     use crate::runtime::{
         GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd,
         PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillRect, PaintGpuSurface,
@@ -1176,6 +1192,60 @@ mod tests {
         );
         assert_eq!(align_bytes_per_row(420 * 4), 1792);
         assert_eq!(align_bytes_per_row(525 * 4), 2304);
+    }
+
+    fn text_layout_signature(renderer: &mut NativeTextRenderer) -> Option<(u32, usize, u64, u64)> {
+        renderer.layout_text("A", 12.0).map(|layout| {
+            (
+                layout.width.to_bits(),
+                layout.glyphs.len(),
+                layout.fallback_glyphs,
+                layout.missing_glyphs,
+            )
+        })
+    }
+
+    #[test]
+    fn offscreen_capture_text_options_reach_rendering_without_changing_defaults() {
+        let Ok(mut default_capture) =
+            OffscreenVelloCapture::new(Vector2::new(20.0, 12.0), DpiScale::ONE)
+        else {
+            // Headless CI without an adapter still exercises the API type-checking path.
+            return;
+        };
+        let default_options = NativeTextOptions::default();
+        let Ok(mut default_options_capture) = OffscreenVelloCapture::new_with_text_options(
+            Vector2::new(20.0, 12.0),
+            DpiScale::ONE,
+            &default_options,
+        ) else {
+            return;
+        };
+        let explicit_options = NativeTextOptions {
+            embedded_fonts: vec![EmbeddedFont::from_static(include_bytes!(
+                "../../../tests/fixtures/fonts/primary.ttf"
+            ))],
+            font_paths: Vec::new(),
+        };
+        let Ok(mut explicit_capture) = OffscreenVelloCapture::new_with_text_options(
+            Vector2::new(20.0, 12.0),
+            DpiScale::ONE,
+            &explicit_options,
+        ) else {
+            return;
+        };
+
+        assert_eq!(
+            text_layout_signature(&mut default_capture.text_renderer),
+            text_layout_signature(&mut default_options_capture.text_renderer)
+        );
+        assert_eq!(
+            explicit_capture
+                .text_renderer
+                .layout_text("A", 12.0)
+                .and_then(|layout| layout.glyphs.first().map(|glyph| glyph.face_index)),
+            Some(0)
+        );
     }
 
     #[test]

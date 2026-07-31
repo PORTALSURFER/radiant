@@ -147,6 +147,10 @@ pub use gpu_surface::{
     RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
     RenderCanvasShaderSurfaceDescriptorParts,
 };
+pub(crate) use paint::{
+    MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentObserver,
+    PaintSegmentSpan, collect_segment_spans,
+};
 pub use paint::{
     PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
@@ -158,7 +162,6 @@ pub use paint::{
     push_fill_rect, push_fill_rect_batch, push_stroke_polyline, push_stroke_rect,
     push_stroke_rect_batch, push_text, push_text_run_with_metrics, push_visible_fill_rect,
 };
-pub(crate) use paint::{PaintSegmentObservation, PaintSegmentObserver};
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,

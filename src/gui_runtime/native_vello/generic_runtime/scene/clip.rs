@@ -76,6 +76,23 @@ impl SceneClipState {
         matches!(self.frames.last(), Some(SceneClipFrame::Suppressed))
     }
 
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn depth(&self) -> usize {
+        self.frames.len()
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn effective_rect(
+        &self,
+    ) -> Option<UiRect> {
+        if self
+            .frames
+            .iter()
+            .any(|frame| matches!(frame, SceneClipFrame::Suppressed))
+        {
+            return None;
+        }
+        self.active_effective_rect()
+    }
+
     fn active_effective_rect(&self) -> Option<UiRect> {
         match self.frames.last()? {
             SceneClipFrame::Pushed { effective_rect }

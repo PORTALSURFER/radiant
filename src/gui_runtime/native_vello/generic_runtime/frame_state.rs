@@ -9,13 +9,16 @@ use super::{
         SurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
     },
     post_gpu_overlay,
+    retained_paint_segments::{
+        NativeRetainedPaintSegmentStore, assemble_native_paint_segment_fingerprints,
+    },
     runtime_helpers::{
         GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
         collect_gpu_surface_interaction_regions_with_scratch,
     },
 };
 use crate::runtime::BasePaintPlanContext;
-use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation};
+use crate::runtime::PaintSegmentObservation;
 use crate::theme::DpiScale;
 use crate::theme::ResolvedAppearance;
 use crate::theme::ThemeTokens;
@@ -29,99 +32,6 @@ use vello::kurbo::Affine;
 
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
-
-/// One renderer-safe observation that can later be compared by retained
-/// storage. This is evidence only; it carries no reuse decision.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct NativePaintSegmentFingerprint {
-    pub(super) identity: PaintSegmentIdentity,
-    pub(super) revision: u64,
-    pub(super) target_generation: NativeTargetGeneration,
-    pub(super) primitive_start: u32,
-    pub(super) primitive_end: u32,
-    pub(super) safe_enclosure: super::scene::SafeEnclosure,
-    pub(super) isolation: super::scene::EncodingIsolation,
-    pub(super) conservative_reason: super::scene::EncodingConservativeReason,
-}
-
-/// Fixed-capacity native fingerprint evidence for one fully encoded scene.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct NativePaintSegmentFingerprintObservation {
-    pub(super) segments: [Option<NativePaintSegmentFingerprint>; MAX_PAINT_SEGMENTS],
-    pub(super) segment_count: u8,
-    pub(super) conservative: bool,
-}
-
-impl NativePaintSegmentFingerprintObservation {
-    pub(super) const fn unavailable() -> Self {
-        Self {
-            segments: [None; MAX_PAINT_SEGMENTS],
-            segment_count: 0,
-            conservative: true,
-        }
-    }
-}
-
-impl Default for NativePaintSegmentFingerprintObservation {
-    fn default() -> Self {
-        Self::unavailable()
-    }
-}
-
-fn assemble_native_paint_segment_fingerprints(
-    paint: PaintSegmentObservation,
-    encoding: PaintSegmentEncodingObservation,
-    target_generation: NativeTargetGeneration,
-) -> NativePaintSegmentFingerprintObservation {
-    if !target_generation.is_known()
-        || paint.conservative
-        || encoding.conservative
-        || paint.segment_count != encoding.segment_count
-    {
-        return NativePaintSegmentFingerprintObservation::unavailable();
-    }
-
-    let count = usize::from(paint.segment_count);
-    let mut observation = NativePaintSegmentFingerprintObservation {
-        segments: [None; MAX_PAINT_SEGMENTS],
-        segment_count: paint.segment_count,
-        conservative: false,
-    };
-    for index in 0..count {
-        let (Some(segment), Some(encoded)) = (paint.segments[index], encoding.segments[index])
-        else {
-            return NativePaintSegmentFingerprintObservation::unavailable();
-        };
-        if segment.identity != encoded.identity
-            || encoded.conservative
-            || !matches!(
-                encoded.isolation,
-                super::scene::EncodingIsolation::SelfContained
-            )
-            || matches!(
-                encoded.safe_enclosure,
-                super::scene::SafeEnclosure::ViewportFallback
-            )
-            || !matches!(
-                encoded.reason,
-                super::scene::EncodingConservativeReason::None
-            )
-        {
-            return NativePaintSegmentFingerprintObservation::unavailable();
-        }
-        observation.segments[index] = Some(NativePaintSegmentFingerprint {
-            identity: segment.identity,
-            revision: segment.revision,
-            target_generation,
-            primitive_start: encoded.primitive_start,
-            primitive_end: encoded.primitive_end,
-            safe_enclosure: encoded.safe_enclosure,
-            isolation: encoded.isolation,
-            conservative_reason: encoded.reason,
-        });
-    }
-    observation
-}
 
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,
@@ -137,7 +47,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
-    pub(super) last_native_paint_segment_fingerprints: NativePaintSegmentFingerprintObservation,
+    pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
@@ -188,8 +98,7 @@ impl NativeVelloFrameState {
             composited_base_dirty: true,
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
-            last_native_paint_segment_fingerprints:
-                NativePaintSegmentFingerprintObservation::default(),
+            native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
@@ -239,14 +148,16 @@ impl NativeVelloFrameState {
         self.scene_reuse_count = self.scene_reuse_count.saturating_add(1);
     }
 
-    pub(super) fn assemble_native_paint_segment_fingerprints(
+    pub(super) fn reconcile_native_paint_segments(
         &mut self,
         paint: PaintSegmentObservation,
         encoding: PaintSegmentEncodingObservation,
         target_generation: NativeTargetGeneration,
     ) {
-        self.last_native_paint_segment_fingerprints =
+        let observation =
             assemble_native_paint_segment_fingerprints(paint, encoding, target_generation);
+        self.native_retained_paint_segment_store
+            .reconcile(observation);
     }
 
     pub(super) fn invalidate_native_scene_context(&mut self) {
@@ -538,6 +449,31 @@ mod tests {
         assert!(!exhausted.advance());
         assert!(
             assemble_native_paint_segment_fingerprints(paint, encoding, exhausted).conservative
+        );
+    }
+
+    #[test]
+    fn full_encode_reconcile_records_store_and_scene_reuse_preserves_it() {
+        let mut frame = NativeVelloFrameState::new(
+            NativeTextRenderer::new(),
+            RetainedSurfaceCachePolicy::default(),
+        );
+        let (paint, encoding) = observations(identity(7), 3);
+        frame.reconcile_native_paint_segments(
+            paint,
+            encoding,
+            NativeTargetGeneration::from_test_serial(1),
+        );
+        let retained = frame.native_retained_paint_segment_store.snapshot();
+        assert!(retained[0].is_some());
+        assert_eq!(frame.scene_encode_count, 0);
+
+        frame.record_scene_reuse();
+        assert_eq!(frame.scene_encode_count, 0);
+        assert_eq!(frame.scene_reuse_count, 1);
+        assert_eq!(
+            frame.native_retained_paint_segment_store.snapshot(),
+            retained
         );
     }
 }

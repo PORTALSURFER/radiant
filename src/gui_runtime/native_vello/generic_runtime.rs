@@ -49,6 +49,7 @@ mod popup_drag;
 mod post_gpu_overlay;
 mod present;
 mod render_profile;
+mod retained_paint_segments;
 mod route_outcome;
 mod run_report;
 mod runner;

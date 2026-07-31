@@ -29,7 +29,7 @@ use winit::{
 /// exhausted target never produces reusable evidence, and the serial is never
 /// wrapped back to an earlier value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct NativeTargetGeneration {
+pub(in crate::gui_runtime::native_vello) struct NativeTargetGeneration {
     serial: u64,
     status: NativeTargetGenerationStatus,
 }

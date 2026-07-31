@@ -6,7 +6,8 @@ use super::{
     NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
     NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
     SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
+    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
+    encode_surface_paint_plan_to_scene, materialize_native_paint_segment_artifacts,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::{
@@ -288,6 +289,20 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
+        let eligibility = self.frame.last_native_paint_segment_eligibility;
+        let payloads = encode_native_paint_segment_payloads(
+            &self.frame.last_paint_plan.primitives,
+            eligibility,
+        );
+        let materialization = materialize_native_paint_segment_artifacts(
+            &self.frame.scene,
+            self.frame.last_scene_stats.artifact_feasibility,
+            eligibility,
+            payloads,
+            self.window.target_generation,
+        );
+        self.frame
+            .record_native_paint_segment_artifacts(materialization.artifacts.len());
         self.frame.reconcile_native_paint_segments(
             self.core.paint_segment_observation(),
             self.frame.last_scene_stats.segment_encoding,

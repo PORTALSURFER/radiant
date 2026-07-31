@@ -3,7 +3,10 @@
 use crate::{
     gui::types::{Rgba8, Vector2},
     gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
-    runtime::{PaintPrimitive, RuntimeBridge, RuntimeRetainedSurfaceCapability},
+    runtime::{
+        MAX_PAINT_SEGMENTS, PaintPrimitive, PaintSegmentSpan, RuntimeBridge,
+        RuntimeRetainedSurfaceCapability,
+    },
 };
 use std::{sync::Arc, time::Duration};
 use vello::{Scene, kurbo::Affine, peniko::Fill};
@@ -68,6 +71,8 @@ use text::encode_text;
 use text_input::encode_text_input;
 pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;
 use text_runs::flush_text_runs;
+
+use super::retained_paint_segments::NativePaintSegmentEligibilityPlan;
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
@@ -237,6 +242,79 @@ where
     stats.artifact_feasibility =
         artifact_feasibility.finish(scene, stats.segment_encoding, &plan.primitives);
     stats
+}
+
+/// Encode one typed, resource-free payload for every entry in an eligibility
+/// plan. This is observational only; the authoritative scene above remains the
+/// render source and is never assembled from these payloads.
+pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads(
+    primitives: &[PaintPrimitive],
+    plan: NativePaintSegmentEligibilityPlan,
+) -> Vec<Scene> {
+    let count = usize::from(plan.entry_count);
+    if count == 0 || count > MAX_PAINT_SEGMENTS {
+        return Vec::new();
+    }
+
+    let mut payloads = Vec::with_capacity(count);
+    for index in 0..count {
+        let Some(entry) = plan.entries[index] else {
+            return Vec::new();
+        };
+        let Some(payload) = encode_resource_free_segment(primitives, entry.span) else {
+            return Vec::new();
+        };
+        payloads.push(payload);
+    }
+    payloads
+}
+
+fn encode_resource_free_segment(
+    primitives: &[PaintPrimitive],
+    span: PaintSegmentSpan,
+) -> Option<Scene> {
+    let start = usize::try_from(span.start).ok()?;
+    let end = usize::try_from(span.end).ok()?;
+    let primitives = primitives.get(start..end)?;
+    let mut scene = Scene::new();
+    let mut clip_state = SceneClipState::default();
+
+    for primitive in primitives {
+        match primitive {
+            PaintPrimitive::ClipStart(clip) => {
+                if clip_state.begin(clip.rect).pushes_layer() {
+                    scene.push_clip_layer(
+                        Fill::NonZero,
+                        Affine::IDENTITY,
+                        &to_kurbo_rect(clip.rect),
+                    );
+                }
+            }
+            PaintPrimitive::ClipEnd(_) => {
+                if clip_state.end().pops_layer() {
+                    scene.pop_layer();
+                }
+            }
+            _ if clip_state.is_suppressed() => {}
+            PaintPrimitive::FillRect(fill) => encode_rect(&mut scene, fill.color, fill.rect),
+            PaintPrimitive::FillRectBatch(fill) => {
+                encode_rect_batch(&mut scene, fill.color, &fill.rects)
+            }
+            PaintPrimitive::OverlayPanel(panel) => encode_rect(
+                &mut scene,
+                Rgba8 {
+                    r: 48,
+                    g: 48,
+                    b: 48,
+                    a: 255,
+                },
+                panel.rect,
+            ),
+            _ => return None,
+        }
+    }
+
+    (clip_state.depth() == 0).then_some(scene)
 }
 
 pub(super) fn flushes_pending_text_before_encoding(primitive: &PaintPrimitive) -> bool {

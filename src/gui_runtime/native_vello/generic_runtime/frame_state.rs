@@ -80,6 +80,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
     pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
+    pub(super) last_native_paint_segment_artifact_count: u8,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
     pub(super) scene_text_runs: SceneTextRunBuffer,
@@ -134,6 +135,7 @@ impl NativeVelloFrameState {
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
             last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
+            last_native_paint_segment_artifact_count: 0,
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
@@ -195,6 +197,10 @@ impl NativeVelloFrameState {
             assemble_native_paint_segment_fingerprints(paint, encoding, target_generation);
         self.native_retained_paint_segment_store
             .reconcile(observation);
+    }
+
+    pub(super) fn record_native_paint_segment_artifacts(&mut self, artifact_count: usize) {
+        self.last_native_paint_segment_artifact_count = artifact_count.min(255) as u8;
     }
 
     pub(super) fn observe_native_paint_segment_eligibility(

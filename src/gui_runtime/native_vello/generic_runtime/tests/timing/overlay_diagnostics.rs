@@ -70,6 +70,41 @@ fn exact_scene_refresh_reuses_encoded_scene_and_preserves_derived_state() {
 }
 
 #[test]
+fn eligibility_observation_precedes_encode_without_changing_scene_counters() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactTransientOverlayBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    assert!(runner.window.target_generation.advance());
+
+    runner.rebuild_scene();
+    assert_eq!(runner.frame.scene_encode_count, 1);
+    assert_eq!(runner.frame.scene_reuse_count, 0);
+
+    runner.rebuild_scene();
+    assert_eq!(
+        runner.frame.last_native_paint_segment_eligibility.outcome,
+        super::super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FullSceneFallback(
+            super::super::super::retained_paint_segments::NativePaintSegmentFallbackReason::PaintConservative,
+        )
+    );
+    assert_eq!(
+        runner.frame.last_native_paint_segment_eligibility.candidate,
+        super::super::super::retained_paint_segments::NativePaintSegmentEligibilityCandidate::default()
+    );
+    assert_eq!(
+        runner.frame.test_phase_trace(),
+        [
+            Some(super::super::super::frame_state::NativeVelloTestPhase::EligibilityObserved),
+            Some(super::super::super::frame_state::NativeVelloTestPhase::SceneEncode),
+        ]
+    );
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_reuse_count, 0);
+}
+
+#[test]
 fn environment_change_vetoes_exact_scene_reuse_and_reencodes() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

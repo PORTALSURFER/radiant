@@ -2,8 +2,8 @@ use super::*;
 use crate::{
     gui::types::ImageRgba,
     runtime::{
-        GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintTextAlign,
-        PaintTextRun, SurfacePaintPlan,
+        GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintSegment,
+        PaintSegmentObservation, PaintTextAlign, PaintTextRun, SurfacePaintPlan,
     },
     theme::ThemeTokens,
     widgets::TextWrap,
@@ -49,6 +49,169 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     assert!(stats.text_run_count >= expected_text_primitives);
     assert!(text_runs.is_empty());
     assert_eq!(text_runs.overflow_capacity(), 0);
+}
+
+fn classify_collector_evidence(
+    stats: &RetainedSurfaceEncodeStats,
+) -> super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan {
+    let mut paint = PaintSegmentObservation::empty();
+    paint.segment_count = stats.segment_encoding.segment_count;
+    for index in 0..usize::from(paint.segment_count) {
+        let encoded = stats.segment_encoding.segments[index].expect("encoded segment");
+        paint.segments[index] = Some(PaintSegment {
+            identity: encoded.identity,
+            owner: None,
+            revision: 1,
+            implicated: false,
+        });
+    }
+    classify_collector_evidence_parts(paint, stats.segment_encoding, stats.artifact_feasibility)
+}
+
+fn classify_collector_evidence_parts(
+    paint: PaintSegmentObservation,
+    encoding: super::scene::PaintSegmentEncodingObservation,
+    feasibility: super::scene::ArtifactFeasibilityObservation,
+) -> super::super::retained_paint_segments::NativePaintSegmentEligibilityPlan {
+    let target_generation = super::super::runner_state::NativeTargetGeneration::from_test_serial(1);
+    let mut retained =
+        super::super::retained_paint_segments::NativeRetainedPaintSegmentStore::default();
+    retained.reconcile(
+        super::super::retained_paint_segments::assemble_native_paint_segment_fingerprints(
+            paint,
+            encoding,
+            target_generation,
+        ),
+    );
+    super::super::retained_paint_segments::classify_native_paint_segment_eligibility(
+        paint,
+        &retained,
+        feasibility,
+        target_generation,
+    )
+}
+
+#[test]
+fn collector_fresh_evidence_reaches_classifier_without_aggregate_fallback() {
+    let mut bridge = demo_bridge();
+    let scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let clip = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0));
+    let no_artifact = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: clip,
+            }),
+            PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }),
+        ],
+    };
+    let identity = crate::runtime::PaintSegmentIdentity {
+        preceding: None,
+        following: None,
+    };
+    let mut encoding_segments = [None; crate::runtime::MAX_PAINT_SEGMENTS];
+    encoding_segments[0] = Some(super::scene::PaintSegmentEncoding {
+        identity,
+        primitive_start: 0,
+        primitive_end: 2,
+        safe_enclosure: super::scene::SafeEnclosure::Empty,
+        isolation: super::scene::EncodingIsolation::SelfContained,
+        conservative: false,
+        reason: super::scene::EncodingConservativeReason::None,
+    });
+    let encoding = super::scene::PaintSegmentEncodingObservation {
+        segments: encoding_segments,
+        segment_count: 1,
+        conservative: false,
+    };
+    let feasibility = super::super::scene::ArtifactFeasibilityCollector::new(
+        &no_artifact.primitives,
+    )
+    .finish(&scene, encoding, &no_artifact.primitives);
+    let mut paint_segments = [None; crate::runtime::MAX_PAINT_SEGMENTS];
+    paint_segments[0] = Some(PaintSegment {
+        identity,
+        owner: None,
+        revision: 1,
+        implicated: false,
+    });
+    let paint = PaintSegmentObservation {
+        segments: paint_segments,
+        segment_count: 1,
+        conservative: false,
+        all_implicated: false,
+    };
+    assert_eq!(
+        feasibility.segments[0]
+            .expect("NoArtifact evidence")
+            .disposition,
+        super::scene::ArtifactFeasibilityDisposition::NoArtifact
+    );
+    assert!(!feasibility.conservative);
+    assert_eq!(
+        classify_collector_evidence_parts(paint, encoding, feasibility).outcome,
+        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(
+            super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::NoArtifact,
+        )
+    );
+
+    let rect = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(20.0, 12.0));
+    let fill = || {
+        PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 7,
+            rect,
+            color: Rgba8::new(255, 255, 255, 255),
+        })
+    };
+    let fresh_encoding = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            fill(),
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 42,
+                key: 42,
+                revision: 1,
+                rect,
+                content: GpuSurfaceContent::CustomShader {
+                    descriptor: Arc::new(crate::runtime::GpuShaderSurfaceDescriptor::new("test")),
+                },
+                capabilities: GpuSurfaceCapabilities::default(),
+                overlays: Vec::new(),
+            }),
+            fill(),
+        ],
+    };
+    let mut stats_scene = Scene::new();
+    let stats = encode_plan(
+        &fresh_encoding,
+        &mut stats_scene,
+        &mut text_renderer,
+        &mut bridge,
+        Vector2::new(320.0, 180.0),
+        &mut retained_cache,
+        &mut text_runs,
+    );
+    assert_eq!(
+        stats.artifact_feasibility.segments[1]
+            .expect("fresh-encoding evidence")
+            .disposition,
+        super::scene::ArtifactFeasibilityDisposition::RequiresFreshEncoding(
+            super::scene::ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
+        )
+    );
+    assert!(!stats.artifact_feasibility.conservative);
+    assert_eq!(
+        classify_collector_evidence(&stats).outcome,
+        super::super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::FreshEncodingRequired(
+            super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(
+                super::scene::ArtifactFeasibilityReason::CrossSegmentTransformOrStyle,
+            ),
+        )
+    );
 }
 
 #[test]
@@ -377,6 +540,7 @@ fn scene_encoding_widens_unclipped_text_and_tracks_clip_isolation() {
         artifact.disposition,
         super::scene::ArtifactFeasibilityDisposition::RequiresFreshEncoding(_)
     ));
+    assert!(stats.artifact_feasibility.conservative);
 }
 
 #[test]

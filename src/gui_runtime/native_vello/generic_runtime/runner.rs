@@ -265,7 +265,16 @@ where
             self.export_automation_targets();
             return;
         }
+        #[cfg(test)]
+        self.frame.begin_test_phase_trace();
         let retained_surface = self.core.runtime.retained_surface_capability();
+        self.frame.observe_native_paint_segment_eligibility(
+            self.core.paint_segment_observation(),
+            self.frame.last_scene_stats.artifact_feasibility,
+            self.window.target_generation,
+        );
+        #[cfg(test)]
+        self.frame.record_scene_encode_boundary();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.frame.last_paint_plan,
             SurfaceSceneEncodeContext {

@@ -43,6 +43,29 @@ pub(in crate::gui_runtime::native_vello) enum ArtifactFeasibilityDisposition {
     RequiresFreshEncoding(ArtifactFeasibilityReason),
 }
 
+impl ArtifactFeasibilityReason {
+    /// Whether this reason means that the observation itself is unsafe to
+    /// admit to the eligibility classifier. Other fresh-encoding reasons are
+    /// authentic segment-local outcomes, not aggregate evidence failure.
+    fn requires_conservative_fallback(self) -> bool {
+        !matches!(
+            self,
+            Self::CrossSegmentTransformOrStyle
+                | Self::UnprovableResourceLocality
+                | Self::UnsupportedPrimitive
+        )
+    }
+}
+
+impl ArtifactFeasibilityDisposition {
+    fn requires_conservative_fallback(self) -> bool {
+        matches!(
+            self,
+            Self::RequiresFreshEncoding(reason) if reason.requires_conservative_fallback()
+        )
+    }
+}
+
 /// Cheap stream and resource lengths copied from one Vello encoding state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) struct ArtifactFeasibilityCounts {
@@ -294,10 +317,7 @@ impl ArtifactFeasibilityCollector {
             } else {
                 validate_segment(index, span, checkpoint, encoded, &this, primitives)
             };
-            if !matches!(
-                disposition,
-                ArtifactFeasibilityDisposition::ContiguousCandidate
-            ) {
+            if disposition.requires_conservative_fallback() {
                 observation.conservative = true;
             }
             observation.segments[index] = Some(evidence(span, disposition));

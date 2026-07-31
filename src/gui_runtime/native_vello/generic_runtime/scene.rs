@@ -24,6 +24,10 @@ mod text_runs;
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityObservation;
 #[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
+    ArtifactFeasibilityCheckpoint, ArtifactFeasibilityCollector, ArtifactFeasibilityCounts,
+    ArtifactFeasibilitySegment,
+};
+pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
 };
 pub(in crate::gui_runtime::native_vello) use cache::{

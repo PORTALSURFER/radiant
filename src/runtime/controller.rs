@@ -134,6 +134,7 @@ where
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,
     last_view_delta_diagnostics: crate::runtime::surface::ViewDeltaDiagnostics,
+    latest_paint_segment_observation: crate::runtime::PaintSegmentObservation,
     pending_frame_refresh: refresh::SurfaceRefreshFrameDiagnostics,
     refresh_counters: SurfaceRefreshCounters,
     pub(in crate::runtime) base_paint_plan_reuse_eligible: bool,
@@ -182,6 +183,13 @@ where
         &self,
     ) -> crate::runtime::surface::ViewDeltaDiagnostics {
         self.last_view_delta_diagnostics
+    }
+
+    pub(crate) fn record_paint_segment_observation(
+        &mut self,
+        observation: crate::runtime::PaintSegmentObservation,
+    ) {
+        self.latest_paint_segment_observation = observation;
     }
 
     pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {

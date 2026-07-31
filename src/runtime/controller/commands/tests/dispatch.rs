@@ -50,6 +50,36 @@ fn frame_refresh_diagnostics_accumulate_eager_refreshes_until_consumed() {
 }
 
 #[test]
+fn frame_refresh_take_keeps_latest_paint_segment_snapshot_after_reset() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+    let unavailable = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(
+        unavailable.paint_segments,
+        crate::runtime::PaintSegmentObservation::unavailable()
+    );
+
+    let observed = crate::runtime::PaintSegmentObservation::empty();
+    runtime.record_paint_segment_observation(observed);
+    runtime.refresh_with_scope(RepaintScope::Projection);
+    let frame = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(frame.paint_segments, observed);
+    assert_eq!(frame.refresh.invalidation, SurfaceInvalidation::Projection);
+
+    let repeated = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(repeated.paint_segments, observed);
+    assert_eq!(repeated.refresh.invalidation, SurfaceInvalidation::None);
+    assert_eq!(repeated.total, std::time::Duration::ZERO);
+
+    let replacement = crate::runtime::PaintSegmentObservation::unavailable();
+    runtime.record_paint_segment_observation(replacement);
+    assert_eq!(
+        runtime.take_frame_refresh_diagnostics().paint_segments,
+        replacement
+    );
+}
+
+#[test]
 fn deferred_message_dispatch_refreshes_before_focus_followup() {
     let mut runtime =
         SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));

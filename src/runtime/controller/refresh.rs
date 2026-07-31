@@ -1031,6 +1031,7 @@ pub struct SurfaceRefreshDiagnostics {
 pub(crate) struct SurfaceRefreshFrameDiagnostics {
     pub(crate) refresh: SurfaceRefreshDiagnostics,
     pub(crate) view_delta: ViewDeltaDiagnostics,
+    pub(crate) paint_segments: crate::runtime::PaintSegmentObservation,
     pub(crate) total: Duration,
     pub(crate) requested_scope: RepaintScope,
     pub(crate) effective_scope: RepaintScope,
@@ -1042,6 +1043,7 @@ impl SurfaceRefreshFrameDiagnostics {
         Self {
             refresh: SurfaceRefreshDiagnostics::startup(),
             view_delta: ViewDeltaDiagnostics::startup(),
+            paint_segments: crate::runtime::PaintSegmentObservation::unavailable(),
             total: Duration::ZERO,
             requested_scope: RepaintScope::Surface,
             effective_scope: RepaintScope::Surface,
@@ -1061,6 +1063,7 @@ impl SurfaceRefreshFrameDiagnostics {
             *self = Self {
                 refresh,
                 view_delta,
+                paint_segments: self.paint_segments,
                 total,
                 requested_scope,
                 effective_scope,
@@ -1081,6 +1084,7 @@ impl Default for SurfaceRefreshFrameDiagnostics {
         Self {
             refresh: SurfaceRefreshDiagnostics::default(),
             view_delta: ViewDeltaDiagnostics::default(),
+            paint_segments: crate::runtime::PaintSegmentObservation::unavailable(),
             total: Duration::ZERO,
             requested_scope: RepaintScope::PaintOnly,
             effective_scope: RepaintScope::PaintOnly,
@@ -1378,7 +1382,9 @@ where
     }
 
     pub(crate) fn take_frame_refresh_diagnostics(&mut self) -> SurfaceRefreshFrameDiagnostics {
-        std::mem::take(&mut self.pending_frame_refresh)
+        let mut frame = std::mem::take(&mut self.pending_frame_refresh);
+        frame.paint_segments = self.latest_paint_segment_observation;
+        frame
     }
 
     /// Return cumulative refresh-stage counts for this runtime.

@@ -131,6 +131,39 @@ fn generic_core_reuses_cached_base_paint_plan_after_exact_refresh() {
 }
 
 #[test]
+fn generic_core_publishes_rebuilt_and_reused_segment_observations() {
+    let mut core = GenericNativeRuntimeCore::new(ExactPlanBridge, Vector2::new(320.0, 40.0));
+    let mut plan = crate::runtime::SurfacePaintPlan::empty(&crate::theme::ThemeTokens::default());
+
+    let startup = core.runtime.take_frame_refresh_diagnostics();
+    assert_eq!(
+        startup.paint_segments,
+        crate::runtime::PaintSegmentObservation::unavailable()
+    );
+
+    core.paint_plan_into(&mut plan);
+    let rebuilt = core.runtime.take_frame_refresh_diagnostics();
+    assert_eq!(rebuilt.paint_segments.segment_count, 1);
+
+    core.runtime
+        .refresh_with_scope(crate::runtime::RepaintScope::Projection);
+    core.paint_plan_into(&mut plan);
+    let reused = core.runtime.take_frame_refresh_diagnostics();
+    assert_eq!(
+        reused.paint_segments.segment_count,
+        rebuilt.paint_segments.segment_count
+    );
+    let rebuilt_segment = rebuilt.paint_segments.segments[0].expect("rebuilt segment");
+    let reused_segment = reused.paint_segments.segments[0].expect("reused segment");
+    assert_eq!(reused_segment.identity, rebuilt_segment.identity);
+    assert_eq!(reused_segment.owner, rebuilt_segment.owner);
+    assert_eq!(reused_segment.revision, rebuilt_segment.revision);
+    assert!(!reused_segment.implicated);
+    assert!(!reused.paint_segments.conservative);
+    assert!(!reused.paint_segments.all_implicated);
+}
+
+#[test]
 fn generic_core_rebuilds_cached_base_paint_plan_after_environment_veto() {
     let mut core = GenericNativeRuntimeCore::new(ExactPlanBridge, Vector2::new(320.0, 40.0));
     let mut plan = crate::runtime::SurfacePaintPlan::empty(&crate::theme::ThemeTokens::default());

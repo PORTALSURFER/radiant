@@ -68,6 +68,8 @@ where
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
             last_view_delta_diagnostics: crate::runtime::surface::ViewDeltaDiagnostics::startup(),
+            latest_paint_segment_observation: crate::runtime::PaintSegmentObservation::unavailable(
+            ),
             pending_frame_refresh: super::super::refresh::SurfaceRefreshFrameDiagnostics::startup(),
             refresh_counters: super::super::SurfaceRefreshCounters::startup(),
             base_paint_plan_reuse_eligible: false,

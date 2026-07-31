@@ -45,6 +45,17 @@ pub(crate) struct PaintSegmentObservation {
 }
 
 impl PaintSegmentObservation {
+    /// Evidence is unavailable until a materialized paint plan has been
+    /// observed. This is deliberately conservative for private consumers.
+    pub(crate) const fn unavailable() -> Self {
+        Self {
+            segments: [None; MAX_PAINT_SEGMENTS],
+            segment_count: 0,
+            conservative: true,
+            all_implicated: true,
+        }
+    }
+
     pub(crate) const fn empty() -> Self {
         Self {
             segments: [None; MAX_PAINT_SEGMENTS],
@@ -406,6 +417,16 @@ mod tests {
                 following: None,
             }
         );
+    }
+
+    #[test]
+    fn unavailable_snapshot_is_distinct_from_valid_empty_observation() {
+        let observation = PaintSegmentObservation::unavailable();
+        assert_eq!(observation.segment_count, 0);
+        assert!(observation.conservative);
+        assert!(observation.all_implicated);
+        assert!(observation.segments.iter().all(Option::is_none));
+        assert_ne!(observation, PaintSegmentObservation::empty());
     }
 
     #[test]

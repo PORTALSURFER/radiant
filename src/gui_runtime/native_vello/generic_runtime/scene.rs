@@ -9,6 +9,8 @@ use std::{sync::Arc, time::Duration};
 use vello::{Scene, kurbo::Affine, peniko::Fill};
 
 mod artifact_feasibility;
+#[cfg(test)]
+mod artifact_materialization;
 mod cache;
 mod clip;
 mod custom_surface;
@@ -29,6 +31,10 @@ pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
 };
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
+};
+#[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use artifact_materialization::{
+    NativePaintSegmentArtifactMaterialization, materialize_native_paint_segment_artifacts,
 };
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,

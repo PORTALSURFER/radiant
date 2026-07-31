@@ -279,7 +279,7 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
-        self.frame.assemble_native_paint_segment_fingerprints(
+        self.frame.reconcile_native_paint_segments(
             self.core.paint_segment_observation(),
             self.frame.last_scene_stats.segment_encoding,
             self.window.target_generation,

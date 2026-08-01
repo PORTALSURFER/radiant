@@ -380,7 +380,6 @@ impl<T> Default for NativeResourceQuarantine<T> {
 }
 
 impl<T> NativeResourceQuarantine<T> {
-    #[cfg(test)]
     pub(super) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -443,6 +442,55 @@ impl<T> NativeResourcePublicationReservation<'_, T> {
     }
 }
 
+fn maintain_native_resource_entries<T>(
+    active: &mut Option<T>,
+    quarantine: &mut NativeResourceQuarantine<T>,
+    turn: &mut NativeResourceMaintenanceTurn,
+    mut maintain: impl FnMut(&mut T) -> bool,
+    mut ready: impl FnMut(&T) -> bool,
+) {
+    if let Some(entry) = active.as_mut()
+        && maintain(entry)
+    {
+        turn.record_pending();
+    }
+    for entry in &mut quarantine.entries {
+        if maintain(entry) {
+            turn.record_pending();
+        }
+    }
+    let _ = turn.drop_one_ready(quarantine, &mut ready);
+    turn.record_pending_if_ready(quarantine, &mut ready);
+}
+
+fn retire_native_resource_entries<T>(
+    active: &mut Option<T>,
+    quarantine: &mut NativeResourceQuarantine<T>,
+    turn: &mut NativeResourceMaintenanceTurn,
+    mut maintain: impl FnMut(&mut T) -> bool,
+    mut ready: impl FnMut(&T) -> bool,
+) -> bool {
+    if active.is_some() {
+        if quarantine.is_full() {
+            // Keep the active entry owned until a later bounded turn frees
+            // quarantine capacity; never drop it just to make room.
+            turn.record_pending();
+        } else if let Some(entry) = active.take() {
+            match quarantine.try_push(entry) {
+                Ok(()) => {}
+                Err(entry) => {
+                    // Preserve the active entry if the capacity reservation
+                    // ever changes between the check and the push.
+                    *active = Some(entry);
+                    turn.record_pending();
+                }
+            }
+        }
+    }
+    maintain_native_resource_entries(active, quarantine, turn, &mut maintain, &mut ready);
+    active.is_none() && quarantine.is_empty()
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
@@ -476,26 +524,30 @@ impl NativeRunnerWindowState {
     }
 
     pub(super) fn maintain_native_resources(&mut self, turn: &mut NativeResourceMaintenanceTurn) {
-        if self
-            .native_resources
-            .as_mut()
-            .is_some_and(NativeWindowResourceBundle::maintain_completion)
-        {
-            turn.record_pending();
-        }
-        for bundle in &mut self.quarantined_native_resources.entries {
-            if bundle.maintain_completion() {
-                turn.record_pending();
-            }
-        }
-        let _ = turn.drop_one_ready(
+        maintain_native_resource_entries(
+            &mut self.native_resources,
             &mut self.quarantined_native_resources,
+            turn,
+            NativeWindowResourceBundle::maintain_completion,
             NativeWindowResourceBundle::retirement_eligible,
         );
-        turn.record_pending_if_ready(
-            &self.quarantined_native_resources,
+    }
+
+    /// Move the complete active bundle into bounded retirement ownership,
+    /// advance every exact-generation completion witness without waiting, and
+    /// report completion only after both active and quarantined ownership is
+    /// empty.
+    pub(super) fn retire_native_resources(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        retire_native_resource_entries(
+            &mut self.native_resources,
+            &mut self.quarantined_native_resources,
+            turn,
+            NativeWindowResourceBundle::maintain_completion,
             NativeWindowResourceBundle::retirement_eligible,
-        );
+        )
     }
 
     /// Isolate the active bundle after an admission veto without destroying
@@ -674,6 +726,67 @@ mod tests {
         assert!(!turn.drop_one_ready(&mut quarantine, |entry| entry.ready));
         assert_eq!(drops.load(Ordering::Relaxed), 0);
         assert_eq!(quarantine.len(), 1);
+    }
+
+    #[test]
+    fn retiring_native_resource_moves_active_into_quarantine_without_dropping_pending_work() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut active = Some(DropTracked::new(false, &drops));
+        let mut quarantine = NativeResourceQuarantine::default();
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(!super::retire_native_resource_entries(
+            &mut active,
+            &mut quarantine,
+            &mut turn,
+            |entry| !entry.ready,
+            |entry| entry.ready,
+        ));
+        assert!(active.is_none());
+        assert_eq!(quarantine.len(), 1);
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
+        assert!(turn.has_pending());
+    }
+
+    #[test]
+    fn retiring_native_resource_retains_active_when_quarantine_is_full() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut active = Some(DropTracked::new(true, &drops));
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(DropTracked::new(false, &drops)).is_ok());
+        assert!(quarantine.try_push(DropTracked::new(false, &drops)).is_ok());
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(!super::retire_native_resource_entries(
+            &mut active,
+            &mut quarantine,
+            &mut turn,
+            |entry| !entry.ready,
+            |entry| entry.ready,
+        ));
+        assert!(active.is_some());
+        assert_eq!(quarantine.len(), 2);
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
+        assert!(turn.has_pending());
+    }
+
+    #[test]
+    fn retiring_native_resource_reports_empty_only_after_one_bounded_drop() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut active = Some(DropTracked::new(true, &drops));
+        let mut quarantine = NativeResourceQuarantine::default();
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(super::retire_native_resource_entries(
+            &mut active,
+            &mut quarantine,
+            &mut turn,
+            |entry| !entry.ready,
+            |entry| entry.ready,
+        ));
+        assert!(active.is_none());
+        assert!(quarantine.is_empty());
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
     }
 
     #[test]

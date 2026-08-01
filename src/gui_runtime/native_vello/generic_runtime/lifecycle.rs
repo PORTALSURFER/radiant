@@ -70,16 +70,12 @@ where
                 return;
             };
             let AuxiliaryWindowEventResult {
-                closed,
                 messages,
                 terminal_cause,
             } = self.auxiliary_windows[index].route_window_event(event_loop, event, adapter);
             if let Some(error) = terminal_cause {
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
-            }
-            if closed {
-                self.auxiliary_windows.remove(index);
             }
             if !messages.is_empty() {
                 self.dispatch_auxiliary_messages(event_loop, messages);

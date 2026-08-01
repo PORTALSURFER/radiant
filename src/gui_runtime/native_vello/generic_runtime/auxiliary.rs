@@ -15,12 +15,19 @@ use winit::{
 mod bridge;
 mod placement;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AuxiliaryNativeWindowLifecycle {
+    Admitted,
+    Retiring,
+}
+
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
     close_message: Option<Message>,
     cache_on_close: bool,
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
     active: bool,
+    lifecycle: AuxiliaryNativeWindowLifecycle,
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
@@ -42,6 +49,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             cache_on_close,
             runner: GenericNativeVelloRunner::new(options, bridge, viewport),
             active: true,
+            lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
         }
     }
 
@@ -49,18 +57,35 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &self.key
     }
 
+    fn is_admitted(&self) -> bool {
+        matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Admitted)
+    }
+
+    pub(super) fn is_retiring(&self) -> bool {
+        matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
+    }
+
     pub(super) fn maintain_native_resources_with_turn(
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
-    ) {
+    ) -> bool {
+        if self.is_retiring() {
+            return self.runner.retire_native_resources_with_turn(turn);
+        }
         self.runner.maintain_native_resources_with_turn(turn);
+        false
     }
 
     pub(super) fn window_id(&self) -> Option<WindowId> {
-        self.runner.window.id
+        self.is_admitted()
+            .then_some(self.runner.window.id)
+            .flatten()
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
+        if !self.is_admitted() {
+            return;
+        }
         self.cache_on_close = projection.caches_on_close();
         self.close_message = projection.close_message;
         self.runner.core.runtime.bridge_mut().surface = projection.surface;
@@ -108,6 +133,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     pub(super) fn show(&mut self) {
+        if !self.is_admitted() {
+            return;
+        }
         self.active = true;
         if let Some(window) = self.runner.window.window.as_ref() {
             window.set_visible(true);
@@ -120,7 +148,37 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         snapshot: super::window_environment::AccessibilityDisplaySnapshot,
     ) {
+        if !self.is_admitted() {
+            return;
+        }
         self.runner.queue_accessibility_display_snapshot(snapshot);
+    }
+
+    fn begin_retiring(&mut self) {
+        if !self.is_admitted() {
+            return;
+        }
+        self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
+        self.hide();
+        let _ = self.runner.core.runtime.begin_closing();
+    }
+
+    fn handle_close_requested(&mut self) -> AuxiliaryWindowEventResult<Message> {
+        if self.is_retiring() {
+            return AuxiliaryWindowEventResult::ignored();
+        }
+        if self.cache_on_close {
+            self.hide();
+            return AuxiliaryWindowEventResult {
+                messages: self.close_message.take().into_iter().collect(),
+                terminal_cause: None,
+            };
+        }
+        self.begin_retiring();
+        AuxiliaryWindowEventResult {
+            messages: self.close_message.take().into_iter().collect(),
+            terminal_cause: None,
+        }
     }
 
     pub(super) fn route_window_event(
@@ -129,23 +187,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event: WindowEvent,
         adapter: &mut GenericNativeAdapterOwner,
     ) -> AuxiliaryWindowEventResult<Message> {
+        if self.is_retiring() {
+            return AuxiliaryWindowEventResult::ignored();
+        }
         let mut terminal_cause = None;
         match event {
-            WindowEvent::CloseRequested => {
-                if self.cache_on_close {
-                    self.hide();
-                    return AuxiliaryWindowEventResult {
-                        closed: false,
-                        messages: self.close_message.take().into_iter().collect(),
-                        terminal_cause: None,
-                    };
-                }
-                return AuxiliaryWindowEventResult {
-                    closed: true,
-                    messages: self.close_message.take().into_iter().collect(),
-                    terminal_cause: None,
-                };
-            }
+            WindowEvent::CloseRequested => return self.handle_close_requested(),
             WindowEvent::Resized(size) => self.runner.resize_surface(size),
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.update_native_dpi_scale(scale_factor);
@@ -198,7 +245,6 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
         AuxiliaryWindowEventResult {
-            closed: false,
             messages: self.take_messages(),
             terminal_cause,
         }
@@ -216,9 +262,17 @@ fn auxiliary_redraw_terminal_cause(
 }
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {
-    pub(super) closed: bool,
     pub(super) messages: Vec<Message>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
+}
+
+impl<Message> AuxiliaryWindowEventResult<Message> {
+    fn ignored() -> Self {
+        Self {
+            messages: Vec::new(),
+            terminal_cause: None,
+        }
+    }
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -297,7 +351,9 @@ where
         }
         let projections = self.core.runtime.host_project_auxiliary_windows();
         for window in &mut self.auxiliary_windows {
-            if !auxiliary_projection_contains_key(&projections, window.key()) {
+            if window.is_admitted()
+                && !auxiliary_projection_contains_key(&projections, window.key())
+            {
                 window.hide();
             }
         }
@@ -305,9 +361,14 @@ where
             if let Some(window) = self
                 .auxiliary_windows
                 .iter_mut()
-                .find(|window| window.key() == projection.key)
+                .find(|window| window.is_admitted() && window.key() == projection.key)
             {
                 window.update_projection(projection);
+            } else if auxiliary_key_is_retiring(&self.auxiliary_windows, &projection.key) {
+                // Keep the projection pending in application state, but do
+                // not reactivate, recreate, or replay it while the older
+                // generation-bound child is still retiring.
+                continue;
             } else {
                 let initialized = {
                     let parent_window = self.window.window.as_deref();
@@ -354,6 +415,15 @@ fn auxiliary_projection_contains_key<Message>(
         .any(|projection| projection.key.as_str() == key)
 }
 
+fn auxiliary_key_is_retiring<Message>(
+    windows: &[AuxiliaryNativeWindow<Message>],
+    key: &str,
+) -> bool {
+    windows
+        .iter()
+        .any(|window| window.is_retiring() && window.key() == key)
+}
+
 fn append_initialized_auxiliary_window<T>(
     windows: &mut Vec<T>,
     initialized: Result<T, NativeGenericRunError>,
@@ -366,11 +436,29 @@ fn append_initialized_auxiliary_window<T>(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_initialized_auxiliary_window, auxiliary_projection_contains_key,
-        auxiliary_redraw_terminal_cause,
+        AuxiliaryNativeWindow, AuxiliarySurfaceBridge, AuxiliaryWindowEventResult,
+        GenericNativeVelloRunner, NativeResourceMaintenanceTurn,
+        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
+        auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
     };
-    use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
+    use crate::gui::types::Vector2;
+    use crate::{
+        application::empty, gui_runtime::NativeRunOptions, prelude::IntoView,
+        runtime::AuxiliaryWindow,
+    };
     use std::sync::Arc;
+
+    fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let projection =
+            AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface).on_close(7);
+        let projection = if cache_on_close {
+            projection.cache_on_close()
+        } else {
+            projection
+        };
+        AuxiliaryNativeWindow::new(projection, &NativeRunOptions::default())
+    }
 
     #[test]
     fn auxiliary_projection_key_lookup_uses_projected_windows_without_key_clones() {
@@ -425,5 +513,80 @@ mod tests {
             Some(failure)
         );
         assert_eq!(auxiliary_redraw_terminal_cause(Ok(())), None);
+    }
+
+    #[test]
+    fn destructive_close_enters_retiring_and_consumes_its_message_once() {
+        let mut window = auxiliary_window(false);
+
+        let first = window.handle_close_requested();
+        assert_eq!(first.messages, [7]);
+        assert!(window.is_retiring());
+        assert!(!window.active);
+        assert!(window.window_id().is_none());
+        assert!(!window.runner.core.runtime.begin_closing());
+
+        let unrelated = auxiliary_window(true);
+        assert!(auxiliary_key_is_retiring(
+            std::slice::from_ref(&window),
+            "settings"
+        ));
+        assert!(!auxiliary_key_is_retiring(
+            std::slice::from_ref(&unrelated),
+            "mixer"
+        ));
+
+        let duplicate = window.handle_close_requested();
+        assert_eq!(duplicate.messages, Vec::<i32>::new());
+        assert!(duplicate.terminal_cause.is_none());
+
+        let late = AuxiliaryWindowEventResult::<i32>::ignored();
+        assert!(late.messages.is_empty());
+        assert!(late.terminal_cause.is_none());
+    }
+
+    #[test]
+    fn cached_close_hides_reuses_and_does_not_begin_closing() {
+        let mut window = auxiliary_window(true);
+
+        let close = window.handle_close_requested();
+        assert_eq!(close.messages, [7]);
+        assert!(!window.is_retiring());
+        assert!(!window.active);
+
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        window.update_projection(
+            AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface).cache_on_close(),
+        );
+        assert!(window.active);
+        assert!(!window.is_retiring());
+        assert!(window.runner.core.runtime.begin_closing());
+
+        let duplicate = window.handle_close_requested();
+        assert!(duplicate.messages.is_empty());
+    }
+
+    #[test]
+    fn maintenance_removes_retiring_child_only_after_gpu_state_is_empty() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let child = parent
+            .auxiliary_windows
+            .last_mut()
+            .expect("test parent should retain the auxiliary child");
+        let close = child.handle_close_requested();
+        assert_eq!(close.messages, [7]);
+
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        parent.maintain_native_resources_with_turn(&mut turn);
+
+        assert!(parent.auxiliary_windows.is_empty());
+        assert!(parent.timing.deferred_auxiliary_window_sync);
+        assert!(!turn.has_pending());
     }
 }

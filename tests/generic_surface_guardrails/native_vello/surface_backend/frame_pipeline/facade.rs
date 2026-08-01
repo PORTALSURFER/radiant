@@ -317,6 +317,7 @@ fn native_device_callbacks_use_shared_callback_and_user_event_boundaries() {
     assert!(lifecycle.contains("RuntimeUserEvent::DeviceLost"));
     assert!(lifecycle.contains("RuntimeUserEvent::RenderDeviceError"));
     assert!(runtime_event.contains("Arc<DeviceLossRegistration>"));
+    assert!(runtime_event.contains("NativeAdapterGeneration"));
     assert!(runtime_event.contains("NativeRenderDeviceErrorKind"));
     assert!(runtime_event.contains("Arc::ptr_eq"));
 }
@@ -338,16 +339,24 @@ fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
 
     assert!(
         adapter.contains("pub(super) struct GenericNativeAdapterOwner")
-            && adapter.contains("device_loss_registration: Option<Arc<DeviceLossRegistration>>")
+            && adapter.contains("struct SelectedNativeAdapter")
+            && adapter.contains("selected: Option<SelectedNativeAdapter>")
+            && adapter.contains("generation: NativeAdapterGeneration")
+            && adapter.contains("device_loss_registration: Arc<DeviceLossRegistration>")
+            && adapter.contains("let selected =")
+            && adapter.contains("self.selected = Some(selected)")
             && adapter.contains("fn accepts_device_loss")
             && adapter.contains("device_loss_registration_matches")
-            && adapter.contains("Arc::ptr_eq"),
-        "the adapter owner should retain and compare the current callback witness"
+            && adapter.contains("Arc::ptr_eq")
+            && !adapter.contains("selected_device_id: Option")
+            && !adapter.contains("selected_backend: Option")
+            && !adapter.contains("device_loss_registration: Option"),
+        "the adapter owner should publish one complete generation-tagged selection record"
     );
     assert!(
         runner.contains("adapter: Option<GenericNativeAdapterOwner>")
             && runner.contains("device_loss_event_is_current")
-            && runner.contains("adapter.accepts_device_loss(registration)")
+            && runner.contains("adapter.accepts_device_loss(generation, registration)")
             && !runner.contains("Arc::ptr_eq")
             && !runner.contains("device_loss_registration")
             && !runner.contains("RenderContext"),
@@ -363,6 +372,7 @@ fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
     assert!(runner.contains("NativeGenericRunError::RenderDeviceError"));
     assert!(device.contains("DeviceLostReason::Destroyed"));
     assert!(device.contains("Arc<DeviceLossRegistration>"));
+    assert!(device.contains("generation: NativeAdapterGeneration"));
     assert!(device.contains("classify_uncaptured_error"));
     assert!(device.contains("RENDER_DEVICE_ERROR_MESSAGE_FALLBACK"));
     assert!(!device.contains("catch_unwind") && !device.contains("AssertUnwindSafe"));
@@ -373,4 +383,15 @@ fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
             "device-loss admission must not broaden renderer panic containment in {module}"
         );
     }
+}
+
+#[test]
+fn native_auxiliary_windows_borrow_the_owner_without_advancing_generation() {
+    let auxiliary =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
+
+    assert!(auxiliary.contains("adapter: &mut GenericNativeAdapterOwner"));
+    assert!(!auxiliary.contains("NativeAdapterGeneration"));
+    assert!(!auxiliary.contains("select_primary_device"));
+    assert!(!auxiliary.contains(".advance("));
 }

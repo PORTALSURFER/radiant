@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::generic_runtime::NativeRenderDeviceErrorKind;
+use super::generic_runtime::{NativeAdapterGeneration, NativeRenderDeviceErrorKind};
 
 /// Owner-scoped identity for one native WGPU device callback pair.
 ///
@@ -24,10 +24,12 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     ApplicationReopenRequested,
     DeviceLost {
         registration: Arc<DeviceLossRegistration>,
+        generation: NativeAdapterGeneration,
         message: String,
     },
     RenderDeviceError {
         registration: Arc<DeviceLossRegistration>,
+        generation: NativeAdapterGeneration,
         kind: NativeRenderDeviceErrorKind,
         message: String,
     },
@@ -44,28 +46,35 @@ impl PartialEq for RuntimeUserEvent {
             (
                 Self::DeviceLost {
                     registration: left_registration,
+                    generation: left_generation,
                     message: left_message,
                 },
                 Self::DeviceLost {
                     registration: right_registration,
+                    generation: right_generation,
                     message: right_message,
                 },
             ) => {
-                Arc::ptr_eq(left_registration, right_registration) && left_message == right_message
+                Arc::ptr_eq(left_registration, right_registration)
+                    && left_generation == right_generation
+                    && left_message == right_message
             }
             (
                 Self::RenderDeviceError {
                     registration: left_registration,
+                    generation: left_generation,
                     kind: left_kind,
                     message: left_message,
                 },
                 Self::RenderDeviceError {
                     registration: right_registration,
+                    generation: right_generation,
                     kind: right_kind,
                     message: right_message,
                 },
             ) => {
                 Arc::ptr_eq(left_registration, right_registration)
+                    && left_generation == right_generation
                     && left_kind == right_kind
                     && left_message == right_message
             }

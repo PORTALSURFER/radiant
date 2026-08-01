@@ -66,6 +66,7 @@ mod window_environment;
 
 use activation::{ActivationRevealController, ApplicationReopenRegistration};
 use adapter::GenericNativeAdapterOwner;
+pub(in crate::gui_runtime::native_vello) use adapter::NativeAdapterGeneration;
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;

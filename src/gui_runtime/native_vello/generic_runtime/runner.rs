@@ -3,13 +3,14 @@
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
-    GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
-    NativeGenericRunError, NativeRenderDeviceErrorKind, NativeRunnerInputState,
-    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
-    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
-    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    GenericNativeRuntimeCore, GenericRouteOutcome, NativeAdapterGeneration,
+    NativeAutomationTargetExporter, NativeGenericRunError, NativeRenderDeviceErrorKind,
+    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
+    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -185,10 +186,11 @@ where
     pub(super) fn handle_device_lost_event(
         &mut self,
         event_loop: &ActiveEventLoop,
+        generation: NativeAdapterGeneration,
         registration: Arc<DeviceLossRegistration>,
         message: String,
     ) {
-        if !self.device_loss_event_is_current(&registration) {
+        if !self.device_loss_event_is_current(generation, &registration) {
             return;
         }
         let cause = NativeGenericRunError::RenderDeviceLost(message);
@@ -198,11 +200,12 @@ where
     pub(super) fn handle_render_device_error_event(
         &mut self,
         event_loop: &ActiveEventLoop,
+        generation: NativeAdapterGeneration,
         registration: Arc<DeviceLossRegistration>,
         kind: NativeRenderDeviceErrorKind,
         message: String,
     ) {
-        if !self.device_loss_event_is_current(&registration) {
+        if !self.device_loss_event_is_current(generation, &registration) {
             return;
         }
         let cause = NativeGenericRunError::RenderDeviceError { kind, message };
@@ -211,11 +214,12 @@ where
 
     pub(super) fn device_loss_event_is_current(
         &self,
+        generation: NativeAdapterGeneration,
         registration: &Arc<DeviceLossRegistration>,
     ) -> bool {
         self.adapter
             .as_ref()
-            .is_some_and(|adapter| adapter.accepts_device_loss(registration))
+            .is_some_and(|adapter| adapter.accepts_device_loss(generation, registration))
     }
 
     pub(super) fn record_initialization_error_and_exit(

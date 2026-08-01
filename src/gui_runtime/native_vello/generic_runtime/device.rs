@@ -1,4 +1,6 @@
-use super::{DeviceLossRegistration, NativeRenderDeviceErrorKind, RuntimeUserEvent};
+use super::{
+    DeviceLossRegistration, NativeAdapterGeneration, NativeRenderDeviceErrorKind, RuntimeUserEvent,
+};
 use std::sync::Arc;
 use vello::wgpu;
 use winit::event_loop::EventLoopProxy;
@@ -23,22 +25,25 @@ pub(super) fn classify_device_lost(
 
 fn device_lost_event(
     registration: Arc<DeviceLossRegistration>,
+    generation: NativeAdapterGeneration,
     reason: wgpu::DeviceLostReason,
     message: String,
 ) -> Option<RuntimeUserEvent> {
     classify_device_lost(reason, message).map(|message| RuntimeUserEvent::DeviceLost {
         registration,
+        generation,
         message,
     })
 }
 
 fn send_device_lost_event(
     registration: Arc<DeviceLossRegistration>,
+    generation: NativeAdapterGeneration,
     reason: wgpu::DeviceLostReason,
     message: String,
     send_event: impl FnOnce(RuntimeUserEvent) -> bool,
 ) -> bool {
-    let Some(event) = device_lost_event(registration, reason, message) else {
+    let Some(event) = device_lost_event(registration, generation, reason, message) else {
         return false;
     };
     send_event(event)
@@ -73,11 +78,13 @@ fn owned_error_message(description: String) -> String {
 
 fn render_device_error_event(
     registration: Arc<DeviceLossRegistration>,
+    generation: NativeAdapterGeneration,
     error: wgpu::Error,
 ) -> RuntimeUserEvent {
     let (kind, message) = classify_uncaptured_error(error);
     RuntimeUserEvent::RenderDeviceError {
         registration,
+        generation,
         kind,
         message,
     }
@@ -85,15 +92,17 @@ fn render_device_error_event(
 
 fn send_render_device_error_event(
     registration: Arc<DeviceLossRegistration>,
+    generation: NativeAdapterGeneration,
     error: wgpu::Error,
     send_event: impl FnOnce(RuntimeUserEvent) -> bool,
 ) -> bool {
-    send_event(render_device_error_event(registration, error))
+    send_event(render_device_error_event(registration, generation, error))
 }
 
 pub(super) fn install_device_loss_callback(
     device: &wgpu::Device,
     proxy: EventLoopProxy<RuntimeUserEvent>,
+    generation: NativeAdapterGeneration,
 ) -> Arc<DeviceLossRegistration> {
     let registration = Arc::new(DeviceLossRegistration::new());
     let callback_registration = Arc::clone(&registration);
@@ -101,6 +110,7 @@ pub(super) fn install_device_loss_callback(
     device.set_device_lost_callback(move |reason, message| {
         let _ = send_device_lost_event(
             Arc::clone(&callback_registration),
+            generation,
             reason,
             message,
             |event| device_loss_proxy.send_event(event).is_ok(),
@@ -108,10 +118,12 @@ pub(super) fn install_device_loss_callback(
     });
     let callback_registration = Arc::clone(&registration);
     device.on_uncaptured_error(Arc::new(move |error| {
-        let _ =
-            send_render_device_error_event(Arc::clone(&callback_registration), error, |event| {
-                proxy.send_event(event).is_ok()
-            });
+        let _ = send_render_device_error_event(
+            Arc::clone(&callback_registration),
+            generation,
+            error,
+            |event| proxy.send_event(event).is_ok(),
+        );
     }));
     registration
 }
@@ -190,6 +202,7 @@ mod tests {
     fn device_loss_event_preserves_owned_text_after_source_is_dropped() {
         let event = device_lost_event(
             Arc::new(DeviceLossRegistration::new()),
+            NativeAdapterGeneration::from_test_serial(1),
             wgpu::DeviceLostReason::Unknown,
             String::from("backend-owned diagnostic"),
         )
@@ -207,6 +220,7 @@ mod tests {
     fn device_loss_proxy_send_failure_is_harmless() {
         let sent = send_device_lost_event(
             Arc::new(DeviceLossRegistration::new()),
+            NativeAdapterGeneration::from_test_serial(1),
             wgpu::DeviceLostReason::Unknown,
             String::from("driver reset"),
             |_| false,
@@ -272,15 +286,22 @@ mod tests {
     #[test]
     fn uncaptured_error_event_keeps_only_owned_backend_neutral_evidence() {
         let registration = Arc::new(DeviceLossRegistration::new());
-        let event = render_device_error_event(Arc::clone(&registration), validation_error("bad"));
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let event = render_device_error_event(
+            Arc::clone(&registration),
+            generation,
+            validation_error("bad"),
+        );
 
         match event {
             RuntimeUserEvent::RenderDeviceError {
                 registration: event_registration,
+                generation: event_generation,
                 kind,
                 message,
             } => {
                 assert!(Arc::ptr_eq(&event_registration, &registration));
+                assert_eq!(event_generation, generation);
                 assert_eq!(kind, NativeRenderDeviceErrorKind::Validation);
                 assert_eq!(message, "bad");
             }
@@ -292,6 +313,7 @@ mod tests {
     fn uncaptured_error_proxy_send_failure_is_harmless() {
         let sent = send_render_device_error_event(
             Arc::new(DeviceLossRegistration::new()),
+            NativeAdapterGeneration::from_test_serial(1),
             internal_error("driver fault"),
             |_| false,
         );

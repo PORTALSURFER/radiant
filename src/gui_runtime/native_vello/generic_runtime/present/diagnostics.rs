@@ -9,6 +9,10 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) scene_reuse_count: u64,
     pub(super) scene_assembly_count: u64,
     pub(super) scene_assembly_veto_count: u64,
+    pub(super) scene_mixed_assembly_count: u64,
+    pub(super) scene_assembly_fresh_count: u64,
+    pub(super) scene_assembly_reused_count: u64,
+    pub(super) scene_assembly_append_count: u64,
     pub(super) scene_build_outcome: &'static str,
     pub(super) text_stats: TextLayoutProfileCounters,
     pub(super) retained_policy: crate::runtime::RetainedSurfaceCachePolicy,
@@ -40,6 +44,10 @@ pub(super) fn native_frame_diagnostics(
             scene_reuse_count: parts.scene_reuse_count,
             scene_assembly_count: parts.scene_assembly_count,
             scene_assembly_veto_count: parts.scene_assembly_veto_count,
+            scene_mixed_assembly_count: parts.scene_mixed_assembly_count,
+            scene_assembly_fresh_count: parts.scene_assembly_fresh_count,
+            scene_assembly_reused_count: parts.scene_assembly_reused_count,
+            scene_assembly_append_count: parts.scene_assembly_append_count,
             scene_build_outcome: parts.scene_build_outcome,
             traversal: crate::runtime::NativeSceneTraversalDiagnostics {
                 paint_plan_primitives: parts.stats.paint_plan_primitives,
@@ -262,6 +270,10 @@ mod tests {
             scene_reuse_count: 11,
             scene_assembly_count: 13,
             scene_assembly_veto_count: 17,
+            scene_mixed_assembly_count: 19,
+            scene_assembly_fresh_count: 23,
+            scene_assembly_reused_count: 29,
+            scene_assembly_append_count: 31,
             scene_build_outcome: "retained_assembly_veto_fallback",
             text_stats: Default::default(),
             retained_policy: RetainedSurfaceCachePolicy::default(),
@@ -292,6 +304,10 @@ mod tests {
         assert_eq!(diagnostics.scene.scene_reuse_count, 11);
         assert_eq!(diagnostics.scene.scene_assembly_count, 13);
         assert_eq!(diagnostics.scene.scene_assembly_veto_count, 17);
+        assert_eq!(diagnostics.scene.scene_mixed_assembly_count, 19);
+        assert_eq!(diagnostics.scene.scene_assembly_fresh_count, 23);
+        assert_eq!(diagnostics.scene.scene_assembly_reused_count, 29);
+        assert_eq!(diagnostics.scene.scene_assembly_append_count, 31);
         assert_eq!(
             diagnostics.scene.scene_build_outcome,
             "retained_assembly_veto_fallback"

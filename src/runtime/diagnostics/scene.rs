@@ -9,6 +9,14 @@ pub struct NativeSceneDiagnostics {
     pub scene_assembly_count: u64,
     /// Cumulative retained-assembly vetoes that fell back to full encoding.
     pub scene_assembly_veto_count: u64,
+    /// Cumulative retained assemblies that included fresh segment encodings.
+    pub scene_mixed_assembly_count: u64,
+    /// Cumulative fresh segment payloads used by retained assemblies.
+    pub scene_assembly_fresh_count: u64,
+    /// Cumulative reused segment payloads used by retained assemblies.
+    pub scene_assembly_reused_count: u64,
+    /// Cumulative segment payloads appended by retained assemblies.
+    pub scene_assembly_append_count: u64,
     /// Outcome of the most recent scene rebuild decision.
     pub scene_build_outcome: &'static str,
     /// Paint-plan traversal counters.

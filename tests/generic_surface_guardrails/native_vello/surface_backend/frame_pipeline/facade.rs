@@ -72,18 +72,53 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
         "present driver should delegate dirty scene texture rendering to the focused scene_texture module"
     );
     assert!(
-        scene_texture.contains("use super::NativeVelloFrameState;")
+        scene_texture.contains("NativeVelloFrameState")
             && scene_texture.contains("use crate::gui_runtime::native_vello::color_from_rgba;")
-            && scene_texture.contains("use std::time::{Duration, Instant};")
+            && scene_texture.contains("time::{Duration, Instant}")
             && scene_texture.contains("use tracing::error;")
             && scene_texture.contains("AaConfig")
             && scene_texture.contains("RenderParams")
             && scene_texture.contains("Renderer")
             && scene_texture.contains("util::RenderSurface")
             && scene_texture.contains("wgpu")
-            && scene_texture.contains("use winit::event_loop::ActiveEventLoop;")
+            && scene_texture.contains("NativeGenericRunError")
+            && scene_texture.contains("Result<Duration, NativeGenericRunError>")
+            && !scene_texture.contains("ActiveEventLoop")
+            && !scene_texture.contains("event_loop.exit()")
             && !scene_texture.starts_with("use super::*;"),
-        "scene texture rendering should name its frame, color, timing, tracing, Vello, WGPU, and event-loop dependencies"
+        "scene texture rendering should name its frame, color, timing, tracing, Vello, WGPU, and typed error dependencies"
+    );
+}
+
+#[test]
+fn native_present_propagates_direct_and_cached_scene_failures_before_completion() {
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("present driver should define redraw");
+    let redraw_end = present
+        .find("pub(super) fn redraw_and_exit_on_error")
+        .expect("present driver should define redraw error handoff");
+    let redraw = &present[redraw_start..redraw_end];
+    let direct_render = redraw
+        .find("render_scene_to_surface_view(")
+        .expect("direct resize should render through the focused scene-texture adapter");
+    let cached_render = redraw
+        .find("render_scene_texture_if_needed(")
+        .expect("normal redraw should render through the focused scene-texture adapter");
+    let direct_completion = redraw
+        .find("self.finish_direct_resize_present(")
+        .expect("direct resize should retain its success completion path");
+    let cached_completion = redraw
+        .find("present_base_frame(")
+        .expect("normal redraw should retain its success completion path");
+
+    assert!(
+        redraw.contains("Result<(), NativeGenericRunError>")
+            && redraw.matches(")?").count() >= 2
+            && direct_render < direct_completion
+            && cached_render < cached_completion,
+        "both scene render paths should return before their success-only presentation bookkeeping"
     );
 }
 

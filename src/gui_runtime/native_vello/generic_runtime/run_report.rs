@@ -49,6 +49,8 @@ pub enum NativeGenericRunError {
     EventLoopRun(String),
     /// Native surface texture acquisition failed because the GPU ran out of memory.
     SurfaceAcquireOutOfMemory,
+    /// Rendering a native Vello scene into its target texture failed.
+    FrameRender(String),
     /// Native window or renderer setup failed before the runtime became usable.
     NativeInitialization {
         /// Initialization stage that reported the failure.
@@ -75,6 +77,9 @@ impl std::fmt::Display for NativeGenericRunError {
                     formatter,
                     "native surface acquisition failed: out of memory"
                 )
+            }
+            Self::FrameRender(message) => {
+                write!(formatter, "native frame rendering failed: {message}")
             }
             Self::NativeInitialization { stage, message } => write!(
                 formatter,

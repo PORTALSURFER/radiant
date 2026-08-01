@@ -1,5 +1,5 @@
 use super::{
-    GenericNativeVelloRunner, RenderFrameProfile, RenderSurfacePixelSize,
+    GenericNativeVelloRunner, NativeGenericRunError, RenderFrameProfile, RenderSurfacePixelSize,
     hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
     post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
     slow_render_profile_enabled,
@@ -21,7 +21,10 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+    pub(super) fn redraw(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+    ) -> Result<(), NativeGenericRunError> {
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
@@ -30,10 +33,10 @@ where
         }
         self.apply_pending_surface_resize_if_needed();
         if self.window.window.is_none() {
-            return;
+            return Ok(());
         }
         let Some(surface_texture) = self.acquire_present_surface_texture(event_loop) else {
-            return;
+            return Ok(());
         };
         let profile_enabled = render_profile_enabled();
         let diagnostics_requested = self.frame_diagnostics_enabled;
@@ -50,37 +53,40 @@ where
         self.paint_transient_overlays(&mut profile);
         let frame_work = self.take_pending_frame_work();
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
-        let Some(surface) = self.window.render_surface.as_mut() else {
-            return;
-        };
-        let dev_id = surface.dev_id;
-        let Some(render_ctx) = self.window.render_ctx.as_ref() else {
-            return;
-        };
-        let Some(renderer) = self.window.renderer.as_mut() else {
-            return;
-        };
-        let dev_handle = &render_ctx.devices[dev_id];
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut scene_texture_context = SceneTextureContext {
-            renderer,
-            device: &dev_handle.device,
-            queue: &dev_handle.queue,
-            surface,
-            dpi_scale: self.window.dpi_scale,
-            record_timing: profile.record_timings,
-            event_loop,
+        let render_to_texture_elapsed = {
+            let Some(surface) = self.window.render_surface.as_mut() else {
+                return Ok(());
+            };
+            let dev_id = surface.dev_id;
+            let Some(render_ctx) = self.window.render_ctx.as_ref() else {
+                return Ok(());
+            };
+            let Some(renderer) = self.window.renderer.as_mut() else {
+                return Ok(());
+            };
+            let dev_handle = &render_ctx.devices[dev_id];
+            let mut scene_texture_context = SceneTextureContext {
+                renderer,
+                device: &dev_handle.device,
+                queue: &dev_handle.queue,
+                surface,
+                dpi_scale: self.window.dpi_scale,
+                record_timing: profile.record_timings,
+            };
+            if render_resize_frame_directly {
+                render_scene_to_surface_view(
+                    &mut self.frame,
+                    &mut scene_texture_context,
+                    &surface_view,
+                )?
+            } else {
+                render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)?
+            }
         };
         if render_resize_frame_directly {
-            let Some(render_to_texture_elapsed) = render_scene_to_surface_view(
-                &mut self.frame,
-                &mut scene_texture_context,
-                &surface_view,
-            ) else {
-                return;
-            };
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
             self.finish_direct_resize_present(
@@ -90,13 +96,16 @@ where
                 diagnostics_requested,
                 frame_work,
             );
-            return;
+            return Ok(());
         }
-        let Some(render_to_texture_elapsed) =
-            render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)
-        else {
-            return;
+        let Some(surface) = self.window.render_surface.as_mut() else {
+            return Ok(());
         };
+        let dev_id = surface.dev_id;
+        let Some(render_ctx) = self.window.render_ctx.as_ref() else {
+            return Ok(());
+        };
+        let dev_handle = &render_ctx.devices[dev_id];
         let mut encoder =
             dev_handle
                 .device
@@ -201,6 +210,13 @@ where
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();
+        Ok(())
+    }
+
+    pub(super) fn redraw_and_exit_on_error(&mut self, event_loop: &ActiveEventLoop) {
+        if let Err(error) = self.redraw(event_loop) {
+            self.record_frame_render_error_and_exit(event_loop, error);
+        }
     }
 
     pub(super) fn should_render_resize_frame_directly(&self) -> bool {

@@ -614,6 +614,11 @@ fn native_run_reports_expose_surface_out_of_memory_compatibly() {
         radiant::runtime::NativeGenericRunError::EventLoopRun("stopped".to_string()).to_string(),
         "native event loop failed: stopped"
     );
+    assert_eq!(
+        radiant::runtime::NativeGenericRunError::FrameRender("backend rejected scene".to_string(),)
+            .to_string(),
+        "native frame rendering failed: backend rejected scene"
+    );
 }
 
 #[test]

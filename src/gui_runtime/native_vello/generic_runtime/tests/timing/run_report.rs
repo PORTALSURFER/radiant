@@ -48,6 +48,20 @@ fn terminal_cause_takes_precedence_over_successful_or_failed_event_loop_result()
 }
 
 #[test]
+fn frame_render_error_display_is_stable_and_preserves_first_cause() {
+    let mut runner = make_runner();
+    let frame_error = NativeGenericRunError::FrameRender(String::from("backend rejected scene"));
+
+    assert_eq!(
+        frame_error.to_string(),
+        "native frame rendering failed: backend rejected scene"
+    );
+    assert!(runner.record_terminal_cause(frame_error.clone()));
+    assert!(!runner.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory));
+    assert_eq!(runner.take_terminal_cause(), Some(frame_error));
+}
+
+#[test]
 fn native_initialization_stage_display_and_error_display_are_stable() {
     let stages = [
         (

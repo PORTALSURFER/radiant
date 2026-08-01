@@ -47,8 +47,15 @@ where
             else {
                 return;
             };
-            let AuxiliaryWindowEventResult { closed, messages } =
-                self.auxiliary_windows[index].route_window_event(event_loop, event);
+            let AuxiliaryWindowEventResult {
+                closed,
+                messages,
+                terminal_cause,
+            } = self.auxiliary_windows[index].route_window_event(event_loop, event);
+            if let Some(error) = terminal_cause {
+                self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
+                return;
+            }
             if closed {
                 self.auxiliary_windows.remove(index);
             }
@@ -142,7 +149,7 @@ where
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
-            WindowEvent::RedrawRequested => self.redraw(event_loop),
+            WindowEvent::RedrawRequested => self.redraw_and_exit_on_error(event_loop),
             _ => {}
         }
     }

@@ -24,6 +24,7 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) frame_work: FrameWork,
     pub(super) surface_refresh: crate::runtime::SurfaceRefreshDiagnostics,
     pub(super) surface_refresh_total: Duration,
+    pub(super) surface_recovery: crate::runtime::NativeSurfaceRecoveryDiagnostics,
 }
 
 pub(super) fn native_frame_diagnostics(
@@ -39,6 +40,7 @@ pub(super) fn native_frame_diagnostics(
             paint_only: parts.frame_work.is_paint_only(),
             scene_rebuild: parts.frame_work.needs_scene_rebuild(),
         },
+        surface_recovery: parts.surface_recovery,
         scene: crate::runtime::NativeSceneDiagnostics {
             scene_encode_count: parts.scene_encode_count,
             scene_reuse_count: parts.scene_reuse_count,
@@ -297,9 +299,21 @@ mod tests {
                 identity: Default::default(),
             },
             surface_refresh_total: Duration::from_micros(23),
+            surface_recovery: crate::runtime::NativeSurfaceRecoveryDiagnostics {
+                lost: 37,
+                outdated: 41,
+                completed_reconfigures: 43,
+                zero_size_deferrals: 47,
+                retry_requests: 53,
+            },
         });
 
         assert_eq!(diagnostics.presentation.surface_invalidation, "layout");
+        assert_eq!(diagnostics.surface_recovery.lost, 37);
+        assert_eq!(diagnostics.surface_recovery.outdated, 41);
+        assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 43);
+        assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 47);
+        assert_eq!(diagnostics.surface_recovery.retry_requests, 53);
         assert_eq!(diagnostics.scene.scene_encode_count, 7);
         assert_eq!(diagnostics.scene.scene_reuse_count, 11);
         assert_eq!(diagnostics.scene.scene_assembly_count, 13);

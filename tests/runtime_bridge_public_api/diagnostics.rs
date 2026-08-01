@@ -5,10 +5,11 @@ use radiant::runtime::{
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
-    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
-    NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
-    RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+    NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics,
+    NativeSurfaceRecoveryDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
+    NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
+    NativeTransientOverlayTiming, RuntimeBridge, RuntimeFrameDiagnosticsHost,
+    RuntimeHostCapabilities,
 };
 use std::time::Duration;
 
@@ -17,6 +18,13 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
         presentation: NativeFramePresentationDiagnostics::default(),
+        surface_recovery: NativeSurfaceRecoveryDiagnostics {
+            lost: 2,
+            outdated: 3,
+            completed_reconfigures: 5,
+            zero_size_deferrals: 7,
+            retry_requests: 11,
+        },
         scene: NativeSceneDiagnostics {
             traversal: NativeSceneTraversalDiagnostics {
                 paint_plan_primitives: 12,
@@ -102,6 +110,11 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
+    assert_eq!(diagnostics.surface_recovery.lost, 2);
+    assert_eq!(diagnostics.surface_recovery.outdated, 3);
+    assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 5);
+    assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 7);
+    assert_eq!(diagnostics.surface_recovery.retry_requests, 11);
     assert!(diagnostics.text.has_shaping_limits());
     assert!(diagnostics.text.has_font_coverage_gaps());
     assert!(diagnostics.text.has_text_quality_warnings());
@@ -143,6 +156,25 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(
         diagnostics.timings.cpu_envelope_total(),
         Duration::from_micros(67)
+    );
+}
+
+#[test]
+fn native_surface_recovery_diagnostics_default_to_zero() {
+    let default_recovery = NativeSurfaceRecoveryDiagnostics::default();
+    assert_eq!(
+        default_recovery,
+        NativeSurfaceRecoveryDiagnostics {
+            lost: 0,
+            outdated: 0,
+            completed_reconfigures: 0,
+            zero_size_deferrals: 0,
+            retry_requests: 0,
+        }
+    );
+    assert_eq!(
+        NativeFrameDiagnostics::default().surface_recovery,
+        default_recovery
     );
 }
 

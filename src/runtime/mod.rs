@@ -116,11 +116,12 @@ pub use diagnostics::{
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
     NativeSceneMediaDiagnostics, NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics,
-    NativeSceneTraversalDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
-    NativeTransientOverlayTiming, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
-    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
-    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+    NativeSceneTraversalDiagnostics, NativeSurfaceRecoveryDiagnostics, NativeTextCacheCounters,
+    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
+    NativeTextQualityStatus, NativeTransientOverlayTiming, RetainedSurfaceCachePolicy,
+    RuntimeDiagnostics, RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE,
+    UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode,
+    UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;

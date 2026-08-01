@@ -3,11 +3,29 @@ use super::{
     NativeSceneDiagnostics, NativeTextDiagnostics,
 };
 
+/// Cumulative, bounded observations of native surface recovery for one window.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeSurfaceRecoveryDiagnostics {
+    /// Number of surface-acquisition failures reported as lost.
+    pub lost: u64,
+    /// Number of surface-acquisition failures reported as outdated.
+    pub outdated: u64,
+    /// Number of forced surface reconfigurations that completed.
+    pub completed_reconfigures: u64,
+    /// Number of lost or outdated acquisitions deferred while the window had
+    /// a zero width or height.
+    pub zero_size_deferrals: u64,
+    /// Number of redraw retries requested after a completed reconfiguration.
+    pub retry_requests: u64,
+}
+
 /// Structured diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameDiagnostics {
     /// Redraw routing metadata for the presented native frame.
     pub presentation: NativeFramePresentationDiagnostics,
+    /// Cumulative native surface recovery observations for the window.
+    pub surface_recovery: NativeSurfaceRecoveryDiagnostics,
     /// Scene and retained-surface encoding counters.
     pub scene: NativeSceneDiagnostics,
     /// Native text layout cache activity.

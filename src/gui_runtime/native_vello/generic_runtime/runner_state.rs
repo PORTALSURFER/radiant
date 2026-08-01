@@ -6,7 +6,10 @@ use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
-use super::{FrameWork, FrameWorkReason, RuntimeUserEvent};
+use super::{
+    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceRenderer, PostGpuOverlayRenderer,
+    RuntimeUserEvent,
+};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
@@ -227,6 +230,28 @@ impl Default for NativeTargetGeneration {
     }
 }
 
+/// Retained GPU state that belongs to one native window resource generation.
+///
+/// This is constructed afresh with each published resource bundle. It must not
+/// be retained in [`NativeVelloFrameState`](super::NativeVelloFrameState),
+/// because quarantining a bundle is the fence that isolates every retained
+/// WGPU resource for its exact adapter generation.
+pub(super) struct NativeWindowGpuResources {
+    pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
+    pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
+    pub(super) composited_base_frame: Option<CompositedBaseFrame>,
+}
+
+impl NativeWindowGpuResources {
+    pub(super) fn new() -> Self {
+        Self {
+            gpu_surface_renderer: GpuSurfaceRenderer::default(),
+            post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
+            composited_base_frame: None,
+        }
+    }
+}
+
 /// The complete native surface/renderer binding for one window.
 ///
 /// The bundle is published only after both WGPU surface setup and Vello
@@ -236,6 +261,7 @@ pub(super) struct NativeWindowResourceBundle {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) render_surface: RenderSurface<'static>,
     pub(super) renderer: Renderer,
+    pub(super) gpu_resources: NativeWindowGpuResources,
     pub(super) completion_witness: NativeSubmissionCompletionWitness,
 }
 
@@ -260,6 +286,7 @@ impl NativeWindowResourceBundle {
             generation,
             render_surface,
             renderer,
+            gpu_resources: NativeWindowGpuResources::new(),
             completion_witness,
         })
     }
@@ -571,7 +598,7 @@ impl Default for NativeRunnerTimingState {
 mod tests {
     use super::{
         NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerWindowState,
-        NativeSurfaceRecoveryState, NativeTargetGeneration,
+        NativeSurfaceRecoveryState, NativeTargetGeneration, NativeWindowGpuResources,
     };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
     use std::sync::{
@@ -610,6 +637,20 @@ mod tests {
         assert!(state.isolate_native_resources());
         assert!(state.native_resources.is_none());
         assert!(state.quarantined_native_resources.is_empty());
+    }
+
+    #[test]
+    fn fresh_window_gpu_state_is_quarantined_as_one_owned_entry() {
+        let mut quarantine = NativeResourceQuarantine::default();
+        let gpu_resources = NativeWindowGpuResources::new();
+
+        assert!(gpu_resources.composited_base_frame.is_none());
+        assert!(quarantine.try_push(gpu_resources).is_ok());
+        assert_eq!(quarantine.len(), 1);
+
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        assert!(turn.drop_one_ready(&mut quarantine, |_| true));
+        assert!(quarantine.is_empty());
     }
 
     #[test]

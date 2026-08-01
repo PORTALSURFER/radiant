@@ -2,9 +2,8 @@
 
 use super::runner_state::NativeTargetGeneration;
 use super::{
-    CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer,
-    PaintSegmentEncodingObservation, PostGpuOverlayRenderer, RetainedSurfaceEncodeStats,
-    RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    GpuSurfaceInteractionRegion, PaintSegmentEncodingObservation, PostGpuOverlayRenderer,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     gpu_surface::{
         SurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
     },
@@ -77,11 +76,8 @@ pub(super) struct NativeVelloFrameState {
     scaled_scene: Scene,
     scaled_scene_dpi_scale: DpiScale,
     scaled_scene_dirty: bool,
-    pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
-    pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     pub(super) last_paint_plan: SurfacePaintPlan,
     pub(super) transient_overlay_primitives: Vec<PaintPrimitive>,
-    pub(super) composited_base_frame: Option<CompositedBaseFrame>,
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
@@ -163,11 +159,8 @@ impl NativeVelloFrameState {
             scaled_scene: Scene::new(),
             scaled_scene_dpi_scale: DpiScale::ONE,
             scaled_scene_dirty: true,
-            gpu_surface_renderer: GpuSurfaceRenderer::default(),
-            post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
             transient_overlay_primitives: Vec::new(),
-            composited_base_frame: None,
             composited_base_dirty: true,
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
@@ -491,10 +484,10 @@ impl NativeVelloFrameState {
 
     pub(super) fn render_post_gpu_overlay(
         &mut self,
+        renderer: &mut PostGpuOverlayRenderer,
         target: &mut post_gpu_overlay::PostGpuOverlayRenderTarget<'_>,
     ) {
         let Self {
-            post_gpu_overlay_renderer,
             last_paint_plan,
             transient_overlay_primitives,
             post_gpu_overlay_gpu_regions,
@@ -503,7 +496,7 @@ impl NativeVelloFrameState {
         } = self;
         let suffix =
             post_gpu_overlay_suffix_start.and_then(|start| last_paint_plan.primitives.get(start..));
-        post_gpu_overlay_renderer.render_cached_layers(
+        renderer.render_cached_layers(
             target,
             suffix,
             post_gpu_overlay_gpu_regions,

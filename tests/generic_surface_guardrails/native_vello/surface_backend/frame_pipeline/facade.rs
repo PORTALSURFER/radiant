@@ -247,9 +247,7 @@ fn native_frame_state_uses_explicit_imports() {
 
     assert!(
         frame_state.contains("use super::{")
-            && frame_state.contains("CompositedBaseFrame")
             && frame_state.contains("GpuSurfaceInteractionRegion")
-            && frame_state.contains("GpuSurfaceRenderer")
             && frame_state.contains("PostGpuOverlayRenderer")
             && frame_state.contains("RetainedSurfaceEncodeStats")
             && frame_state.contains("RetainedSurfaceFrameCache")
@@ -260,8 +258,10 @@ fn native_frame_state_uses_explicit_imports() {
             )
             && frame_state.contains("theme::ThemeTokens")
             && frame_state.contains("use vello::Scene;")
+            && !frame_state.contains("gpu_surface_renderer: GpuSurfaceRenderer")
+            && !frame_state.contains("composited_base_frame: Option<CompositedBaseFrame>")
             && !frame_state.starts_with("use super::*;"),
-        "native frame state should name renderer, cache, runtime, theme, and scene dependencies"
+        "native frame state should name CPU renderer, cache, runtime, theme, and scene dependencies without retaining generation-bound GPU owners"
     );
     assert!(
         frame_state.contains("struct NativeVelloFrameState")

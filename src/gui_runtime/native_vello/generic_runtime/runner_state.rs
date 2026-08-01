@@ -852,6 +852,22 @@ mod tests {
     }
 
     #[test]
+    fn native_resource_publication_quarantines_the_old_complete_bundle_as_one_entry() {
+        let mut active = Some(1);
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(2).is_ok());
+
+        let publication = super::reserve_native_resource_publication(&mut active, &mut quarantine)
+            .expect("one quarantine slot should admit a complete replacement");
+        publication.publish(3);
+
+        assert_eq!(active, Some(3));
+        assert_eq!(quarantine.len(), 2);
+        assert!(quarantine.entries.contains(&2));
+        assert!(quarantine.entries.contains(&1));
+    }
+
+    #[test]
     fn abandoned_native_resource_publication_reservation_preserves_active_state() {
         let mut active = Some(1);
         let mut quarantine = NativeResourceQuarantine::default();

@@ -81,8 +81,9 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
             && scene_texture.contains("Renderer")
             && scene_texture.contains("util::RenderSurface")
             && scene_texture.contains("wgpu")
+            && scene_texture.contains("NativeFrameRenderFailure")
             && scene_texture.contains("NativeGenericRunError")
-            && scene_texture.contains("Result<Duration, NativeGenericRunError>")
+            && scene_texture.contains("Result<Duration, NativeFrameRenderFailure>")
             && !scene_texture.contains("ActiveEventLoop")
             && !scene_texture.contains("event_loop.exit()")
             && !scene_texture.starts_with("use super::*;"),
@@ -144,14 +145,17 @@ fn native_vello_failures_fence_before_frame_render_and_closing() {
         2,
         "both contained renderer unwinds and backend errors should fence indeterminate work"
     );
-    let panic_error = scene_texture
-        .find("return Err(NativeGenericRunError::FrameRender(message));")
-        .expect("contained renderer unwinds should return FrameRender");
-    let backend_error = scene_texture
-        .find("return Err(frame_render_error(message));")
-        .expect("backend renderer errors should return FrameRender");
+    let frame_returns: Vec<_> = scene_texture
+        .match_indices("NativeFrameRenderFailure::from_message(message)")
+        .map(|(offset, _)| offset)
+        .collect();
+    assert_eq!(
+        frame_returns.len(),
+        2,
+        "contained renderer unwinds and backend errors should both return the private FrameRender token"
+    );
     assert!(
-        fences[0] < panic_error && fences[1] < backend_error,
+        fences[0] < frame_returns[0] && fences[1] < frame_returns[1],
         "indeterminate submission evidence must be recorded before either FrameRender return"
     );
     assert_eq!(
@@ -179,9 +183,10 @@ fn native_vello_failures_fence_before_frame_render_and_closing() {
         "success-only presentation paths should remain after the fenced render boundary"
     );
     assert!(
-        runner.contains("pub(super) fn record_frame_render_error_and_exit(")
-            && runner.contains("self.admit_native_shutdown(event_loop, Some(cause));"),
-        "FrameRender should enter the existing bounded shutdown handoff after fencing"
+        runner.contains("pub(super) fn recover_frame_render_failure(")
+            && runner.contains("self.admit_native_shutdown(event_loop, Some(cause.clone()));")
+            && !runner.contains("record_frame_render_error_and_exit"),
+        "an ineligible or failed reconstruction should enter the existing bounded shutdown handoff with the original FrameRender"
     );
 }
 
@@ -209,11 +214,136 @@ fn native_present_propagates_direct_and_cached_scene_failures_before_completion(
         .expect("normal redraw should retain its success completion path");
 
     assert!(
-        redraw.contains("Result<(), NativeGenericRunError>")
+        redraw.contains("Result<(), NativeFrameRenderFailure>")
             && redraw.matches(")?").count() >= 2
             && direct_render < direct_completion
             && cached_render < cached_completion,
         "both scene render paths should return before their success-only presentation bookkeeping"
+    );
+}
+
+#[test]
+fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
+    let scene_texture =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    let recovery =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/renderer_recovery.rs");
+    let auxiliary =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
+
+    let render_call = scene_texture
+        .find("context.renderer.render_to_texture(")
+        .expect("the narrow renderer boundary should call Vello");
+    let first_fence = scene_texture
+        .find("context.completion_witness.record_indeterminate_submission();")
+        .expect("the narrow renderer boundary should fence failed work");
+    assert!(
+        render_call < first_fence,
+        "failed Vello work should be fenced at the narrow render boundary"
+    );
+
+    let redraw_return = present
+        .find("let result = self.redraw(event_loop, &mut adapter);")
+        .expect("primary redraw should return before recovery is considered");
+    let recovery_after_return = present[redraw_return..]
+        .find("self.recover_frame_render_failure(")
+        .map(|offset| redraw_return + offset)
+        .expect("primary failure handling should invoke reconstruction after redraw returns");
+    assert!(
+        redraw_return < recovery_after_return,
+        "SurfaceTexture ownership must end at redraw return before reconstruction"
+    );
+    let render_before_present = present
+        .find("render_scene_to_surface_view(")
+        .expect("direct redraw should use the narrow renderer boundary")
+        < present
+            .find("surface_texture.present()")
+            .expect("presentation should remain in the success path");
+    assert!(
+        render_before_present,
+        "presentation must remain after the narrow render boundary"
+    );
+
+    let preflight = runner
+        .find("let admission = preflight_renderer_recovery(")
+        .expect("recovery should preflight lifecycle, generation, identity, and capacity");
+    let attempt = runner
+        .find("self.renderer_recovery.record_attempt(admission.generation);")
+        .expect("recovery should record its bounded attempt");
+    let candidate = runner
+        .find("let candidate = construct_renderer_recovery_candidate(")
+        .expect("recovery should construct a complete local candidate");
+    assert!(
+        preflight < attempt && attempt < candidate,
+        "capacity and exact-generation preflight must precede GPU setup, with the attempt recorded first"
+    );
+
+    let final_validation = runner
+        .find("if !renderer_recovery_commit_is_valid(")
+        .expect("recovery should revalidate immediately before publication");
+    let reserve = runner
+        .find("let Some(publication) = self.window.reserve_native_resource_publication()")
+        .expect("recovery should reserve complete-bundle publication capacity");
+    let publish = runner
+        .find("publication.publish(candidate.bundle);")
+        .expect("recovery should publish the complete candidate bundle atomically");
+    let target_commit = runner
+        .find("self.window.target_generation = admission.next_target_generation;")
+        .expect("target generation should advance after publication");
+    let frame_invalidation = runner
+        .find("self.frame.invalidate_native_resources_for_recovery();")
+        .expect("renderer-dependent frame state should be invalidated after publication");
+    let scene_rebuild = runner
+        .find("self.rebuild_scene();")
+        .expect("the scene should rebuild after publication");
+    let redraw_request = runner
+        .find("self.request_redraw_for_frame_work(FrameWork::RebuildScene {")
+        .expect("one fresh redraw should be requested after scene rebuild");
+    assert!(
+        candidate < final_validation
+            && final_validation < reserve
+            && reserve < publish
+            && publish < target_commit
+            && target_commit < frame_invalidation
+            && frame_invalidation < scene_rebuild
+            && scene_rebuild < redraw_request,
+        "candidate construction and final validation must precede atomic publication, which must precede target/cache/scene/redraw mutation"
+    );
+
+    for required in [
+        "active_generation",
+        "current_generation",
+        "publication_available",
+        "candidate.bundle.generation",
+        "Arc::ptr_eq",
+        "NativeWindowResourceBundle::new(",
+        "create_render_surface_for_selected(",
+        "NativeRendererRecoveryWindowKind::Auxiliary",
+    ] {
+        assert!(
+            recovery.contains(required)
+                || runner.contains(required)
+                || auxiliary.contains(required),
+            "bounded reconstruction should retain `{required}`"
+        );
+    }
+    assert_eq!(
+        recovery.matches("catch_unwind").count(),
+        1,
+        "renderer reconstruction should contain only the narrow Renderer::new unwind boundary"
+    );
+    assert!(
+        recovery.contains("Renderer::new(&device.device, renderer_options)")
+            && !recovery.contains("pollster::block_on")
+            && !recovery.contains("queue.submit")
+            && !recovery.contains("select_primary_device")
+            && !recovery.contains("std::thread")
+            && !recovery.contains("thread::")
+            && !recovery.contains("sleep(")
+            && !recovery.contains(".join("),
+        "renderer reconstruction must stay event-loop-local without blocking, submission, selection, or new worker machinery"
     );
 }
 

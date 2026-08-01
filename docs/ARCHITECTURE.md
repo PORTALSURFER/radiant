@@ -203,6 +203,17 @@ lazily one per event-loop opportunity and cached hidden auxiliaries rebuild
 before show. Any recovery publication or reconstruction veto returns through
 the existing bounded `Closing` policy.
 
+A `FrameRender` returned by the narrow Vello `render_to_texture` boundary has a
+separate bounded per-window reconstruction path. After the failed redraw has
+returned, the path preflights the current adapter generation, window identity,
+lifecycle, and complete-bundle publication capacity, then constructs a fresh
+surface, renderer, GPU state, and exact-generation completion witness against
+the shared selected device. Publication moves the old complete bundle into the
+bounded quarantine before target/frame/scene invalidation and one fresh redraw.
+The same contract applies to auxiliary windows; successful reconstruction is
+internal, while a veto, candidate failure, or repeated same-generation failure
+enters `Closing` with the original `FrameRender` cause.
+
 Environment-aware widget paint is additive and remains in the core contract:
 `ResolvedEnvironment` is a lossless copyable projection of the current
 `WindowEnvironment`, and `WidgetPaintContext` borrows the existing bounds,

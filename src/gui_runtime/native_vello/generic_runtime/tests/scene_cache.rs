@@ -1382,6 +1382,66 @@ fn scene_artifact_store_clears_after_target_generation_transition() {
 }
 
 #[test]
+fn other_surface_fence_clears_native_target_state_without_consuming_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    runner.window.target_generation =
+        super::super::runner_state::NativeTargetGeneration::from_test_serial(1);
+    let scene_validity = runner.frame.native_scene_validity_fingerprint(
+        runner.core.base_paint_plan_context(),
+        runner.core.resolved_appearance(),
+        runner.window.dpi_scale,
+    );
+    runner.frame.record_scene_encode(scene_validity);
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    runner
+        .frame
+        .reconcile_native_paint_segment_artifacts(materialize_fixture_with_validity(
+            (scene, feasibility, plan, payloads),
+            scene_validity,
+        ));
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .any(Option::is_some)
+    );
+    assert!(runner.frame.can_reuse_native_scene(scene_validity));
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+    let application_count = runner.core.runtime.bridge().state.count;
+    let application_name = runner.core.runtime.bridge().state.name.clone();
+    let pending = super::super::FrameWork::RebuildScene {
+        reason: super::super::FrameWorkReason::RuntimeSurfaceRepaint,
+        mode: super::super::SceneRebuildMode::Immediate,
+    };
+    runner.timing.pending_frame_work = pending;
+
+    runner.handle_other_surface_acquire_failure(winit::dpi::PhysicalSize::new(640, 360));
+
+    assert!(!runner.window.target_generation.is_known());
+    assert!(!runner.frame.can_reuse_native_scene(scene_validity));
+    assert!(runner.frame.scene_texture_dirty);
+    assert!(runner.frame.composited_base_dirty);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .all(Option::is_none)
+    );
+    assert_eq!(runner.core.runtime.bridge().state.count, application_count);
+    assert_eq!(runner.core.runtime.bridge().state.name, application_name);
+    assert_eq!(runner.timing.pending_frame_work, pending);
+}
+
+#[test]
 fn scene_artifact_materialization_rejects_missing_and_extra_payloads_atomically() {
     let (_, feasibility, plan, mut payloads) = typed_artifact_fixture(2);
     payloads.pop();

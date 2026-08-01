@@ -22,10 +22,12 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             lost: 2,
             outdated: 3,
             timeouts: 5,
-            completed_reconfigures: 7,
-            zero_size_deferrals: 11,
-            retry_requests: 13,
-            timeout_retry_requests: 17,
+            others: 7,
+            completed_reconfigures: 11,
+            zero_size_deferrals: 13,
+            retry_requests: 17,
+            timeout_retry_requests: 19,
+            other_retry_requests: 23,
         },
         scene: NativeSceneDiagnostics {
             traversal: NativeSceneTraversalDiagnostics {
@@ -115,10 +117,12 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(diagnostics.surface_recovery.lost, 2);
     assert_eq!(diagnostics.surface_recovery.outdated, 3);
     assert_eq!(diagnostics.surface_recovery.timeouts, 5);
-    assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 7);
-    assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 11);
-    assert_eq!(diagnostics.surface_recovery.retry_requests, 13);
-    assert_eq!(diagnostics.surface_recovery.timeout_retry_requests, 17);
+    assert_eq!(diagnostics.surface_recovery.others, 7);
+    assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 11);
+    assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 13);
+    assert_eq!(diagnostics.surface_recovery.retry_requests, 17);
+    assert_eq!(diagnostics.surface_recovery.timeout_retry_requests, 19);
+    assert_eq!(diagnostics.surface_recovery.other_retry_requests, 23);
     assert!(diagnostics.text.has_shaping_limits());
     assert!(diagnostics.text.has_font_coverage_gaps());
     assert!(diagnostics.text.has_text_quality_warnings());
@@ -172,10 +176,12 @@ fn native_surface_recovery_diagnostics_default_to_zero() {
             lost: 0,
             outdated: 0,
             timeouts: 0,
+            others: 0,
             completed_reconfigures: 0,
             zero_size_deferrals: 0,
             retry_requests: 0,
             timeout_retry_requests: 0,
+            other_retry_requests: 0,
         }
     );
     assert_eq!(

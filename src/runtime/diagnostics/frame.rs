@@ -12,6 +12,8 @@ pub struct NativeSurfaceRecoveryDiagnostics {
     pub outdated: u64,
     /// Number of surface-acquisition failures reported as timeouts.
     pub timeouts: u64,
+    /// Number of surface-acquisition failures reported as other errors.
+    pub others: u64,
     /// Number of forced surface reconfigurations that completed.
     pub completed_reconfigures: u64,
     /// Number of lost or outdated acquisitions deferred while the window had
@@ -21,6 +23,8 @@ pub struct NativeSurfaceRecoveryDiagnostics {
     pub retry_requests: u64,
     /// Number of one-shot redraw retries requested after a timeout.
     pub timeout_retry_requests: u64,
+    /// Number of one-shot redraw retries requested after an other error.
+    pub other_retry_requests: u64,
 }
 
 /// Structured diagnostics for one native presentation frame.

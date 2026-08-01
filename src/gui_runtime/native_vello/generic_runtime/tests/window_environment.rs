@@ -92,6 +92,46 @@ fn dpi_target_transition_rearms_timeout_retry_between_timeout_attempts() {
 }
 
 #[test]
+fn dpi_target_transition_rearms_other_retry_between_other_attempts() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_other_retry_request(true)
+    );
+    runner.update_native_dpi_scale(2.0);
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_other_retry_request(true)
+    );
+    assert_eq!(runner.window.surface_recovery.diagnostics().others, 2);
+    assert_eq!(
+        runner
+            .window
+            .surface_recovery
+            .diagnostics()
+            .other_retry_requests,
+        2
+    );
+}
+
+#[test]
 #[cfg(target_os = "macos")]
 fn accessibility_snapshot_updates_are_routed_only_for_changed_causes() {
     let mut runner = GenericNativeVelloRunner::new(

@@ -48,6 +48,19 @@ impl Default for NativeSubmissionCompletionState {
 
 impl NativeSubmissionCompletionState {
     pub(super) fn record_successful_submission(&mut self) -> Option<NativeSubmissionCallbackId> {
+        self.record_submission()
+    }
+
+    /// Record a renderer call whose queue submission outcome is indeterminate.
+    ///
+    /// The failure path uses the same conservative fence as a known submission,
+    /// but remains a distinct transition so callers cannot accidentally report
+    /// a failed renderer call as successful work.
+    pub(super) fn record_indeterminate_submission(&mut self) -> Option<NativeSubmissionCallbackId> {
+        self.record_submission()
+    }
+
+    fn record_submission(&mut self) -> Option<NativeSubmissionCallbackId> {
         match self.phase {
             NativeSubmissionCompletionPhase::NeverSubmitted
             | NativeSubmissionCompletionPhase::Completed {
@@ -216,6 +229,12 @@ impl NativeSubmissionCompletionWitness {
         }
     }
 
+    pub(super) fn record_indeterminate_submission(&mut self) {
+        if let Some(callback_id) = self.state.record_indeterminate_submission() {
+            self.register_callback(callback_id);
+        }
+    }
+
     /// Poll one exact-generation device without waiting, consume callback
     /// progress, and rearm only after a coalesced submission has completed.
     pub(super) fn maintain(&mut self) -> bool {
@@ -320,5 +339,51 @@ mod tests {
             .expect("a later submission should arm a fresh callback");
         assert_ne!(first, second);
         assert!(!state.retirement_eligible());
+    }
+
+    #[test]
+    fn indeterminate_submission_arms_a_fence_without_becoming_successful() {
+        let mut state = NativeSubmissionCompletionState::default();
+
+        let callback = state
+            .record_indeterminate_submission()
+            .expect("indeterminate renderer work should arm a callback");
+
+        assert!(state.callback_pending());
+        assert!(!state.retirement_eligible());
+        assert!(state.observe_callback_completion(callback));
+        assert!(state.retirement_eligible());
+    }
+
+    #[test]
+    fn indeterminate_submission_rearms_after_completed_prior_work() {
+        let mut state = NativeSubmissionCompletionState::default();
+        let first = state.record_successful_submission().unwrap();
+        assert!(state.observe_callback_completion(first));
+
+        let indeterminate = state
+            .record_indeterminate_submission()
+            .expect("new indeterminate work must not reuse a completed callback");
+        assert_ne!(first, indeterminate);
+        assert!(!state.retirement_eligible());
+        assert!(state.observe_callback_completion(indeterminate));
+        assert!(state.retirement_eligible());
+    }
+
+    #[test]
+    fn indeterminate_submission_coalesces_with_pending_work_and_requires_rearm() {
+        let mut state = NativeSubmissionCompletionState::default();
+        let first = state.record_successful_submission().unwrap();
+
+        assert!(state.record_indeterminate_submission().is_none());
+        assert!(state.rearm_required());
+        assert!(state.observe_callback_completion(first));
+        assert!(!state.retirement_eligible());
+
+        let rearm = state
+            .prepare_rearm()
+            .expect("indeterminate work after a pending callback should rearm");
+        assert!(state.observe_callback_completion(rearm));
+        assert!(state.retirement_eligible());
     }
 }

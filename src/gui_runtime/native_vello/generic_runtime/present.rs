@@ -74,6 +74,7 @@ where
             };
             let mut scene_texture_context = SceneTextureContext {
                 renderer: &mut resources.renderer,
+                completion_witness: &mut resources.completion_witness,
                 device: &dev_handle.device,
                 queue: &dev_handle.queue,
                 surface,
@@ -81,13 +82,11 @@ where
                 record_timing: profile.record_timings,
             };
             if render_resize_frame_directly {
-                let elapsed = render_scene_to_surface_view(
+                render_scene_to_surface_view(
                     &mut self.frame,
                     &mut scene_texture_context,
                     &surface_view,
-                )?;
-                resources.record_successful_native_submission();
-                elapsed
+                )?
             } else {
                 render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)?
             }

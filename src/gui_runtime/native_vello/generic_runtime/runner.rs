@@ -300,6 +300,9 @@ where
 
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
         self.record_frame_work(frame_work);
+        if self.window.native_resources.is_none() {
+            return;
+        }
         let now = Instant::now();
         if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
             return;

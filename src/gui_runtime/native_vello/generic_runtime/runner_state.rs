@@ -1,5 +1,6 @@
 //! Focused state groups owned by the generic native Vello runner.
 
+use super::NativeAdapterGeneration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
@@ -223,12 +224,37 @@ impl Default for NativeTargetGeneration {
     }
 }
 
+/// The complete native surface/renderer binding for one window.
+///
+/// The bundle is published only after both WGPU surface setup and Vello
+/// renderer construction succeed. Its generation is owner-provided evidence,
+/// never a device or handle identity substitute.
+pub(super) struct NativeWindowResourceBundle {
+    pub(super) generation: NativeAdapterGeneration,
+    pub(super) render_surface: RenderSurface<'static>,
+    pub(super) renderer: Renderer,
+}
+
+impl NativeWindowResourceBundle {
+    pub(super) fn new(
+        generation: NativeAdapterGeneration,
+        render_surface: RenderSurface<'static>,
+        renderer: Renderer,
+    ) -> Option<Self> {
+        generation.is_known().then_some(Self {
+            generation,
+            render_surface,
+            renderer,
+        })
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
     pub(super) window: Option<Arc<Window>>,
-    pub(super) render_surface: Option<RenderSurface<'static>>,
-    pub(super) renderer: Option<Renderer>,
+    pub(super) native_resources: Option<NativeWindowResourceBundle>,
+    pub(super) stale_native_resources: Vec<NativeWindowResourceBundle>,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -237,7 +263,27 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,
     pub(super) environment: crate::runtime::WindowEnvironment,
     pub(super) target_generation: NativeTargetGeneration,
+    pub(super) native_surface_target_fenced: bool,
     pub(super) surface_recovery: NativeSurfaceRecoveryState,
+}
+
+impl NativeRunnerWindowState {
+    /// Atomically publish a complete bound bundle. Any previous active bundle
+    /// is retained for explicit later recovery/retirement rather than dropped
+    /// as part of publication.
+    pub(super) fn publish_native_resources(&mut self, resources: NativeWindowResourceBundle) {
+        if let Some(previous) = self.native_resources.replace(resources) {
+            self.stale_native_resources.push(previous);
+        }
+    }
+
+    /// Isolate the active bundle after an admission veto without destroying
+    /// its WGPU/Vello resources synchronously.
+    pub(super) fn isolate_native_resources(&mut self) {
+        if let Some(stale) = self.native_resources.take() {
+            self.stale_native_resources.push(stale);
+        }
+    }
 }
 
 pub(super) struct NativeRunnerInputState {
@@ -325,8 +371,21 @@ impl Default for NativeRunnerTimingState {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeSurfaceRecoveryState, NativeTargetGeneration};
+    use super::{NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration};
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
+
+    #[test]
+    fn native_window_resources_start_unpublished_and_without_stale_gpu_state() {
+        let mut state = NativeRunnerWindowState::default();
+
+        assert!(state.native_resources.is_none());
+        assert!(state.stale_native_resources.is_empty());
+        assert!(!state.native_surface_target_fenced);
+
+        state.isolate_native_resources();
+        assert!(state.native_resources.is_none());
+        assert!(state.stale_native_resources.is_empty());
+    }
 
     #[test]
     fn target_generation_fences_initial_resize_dpi_and_unknown_recovery() {

@@ -243,6 +243,19 @@ impl GenericNativeAdapterOwner {
         context.devices.get(device_id)
     }
 
+    /// Capture the owner's current known generation for a window resource
+    /// bundle. Callers cannot manufacture or advance this evidence.
+    pub(super) fn capture_generation(&self) -> Option<NativeAdapterGeneration> {
+        let generation = self.selected.as_ref()?.generation;
+        generation.is_known().then_some(generation)
+    }
+
+    /// Admit a window resource bundle only when it still names the exact
+    /// current known generation owned by this adapter.
+    pub(super) fn admit_generation(&self, generation: NativeAdapterGeneration) -> bool {
+        self.capture_generation() == Some(generation)
+    }
+
     pub(super) fn device_handle_for_surface(
         &self,
         surface: &RenderSurface<'_>,
@@ -409,6 +422,31 @@ mod tests {
         assert!(
             !owner.accepts_device_loss(NativeAdapterGeneration::from_test_serial(2), &current,)
         );
+    }
+
+    #[test]
+    fn generation_capture_and_admission_require_the_exact_known_owner_value() {
+        let generation = NativeAdapterGeneration::from_test_serial(7);
+        let owner = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+
+        assert_eq!(owner.capture_generation(), Some(generation));
+        assert!(owner.admit_generation(generation));
+        assert!(!owner.admit_generation(NativeAdapterGeneration::from_test_serial(8)));
+        assert!(!owner.admit_generation(NativeAdapterGeneration::unknown()));
+    }
+
+    #[test]
+    fn generation_capture_rejects_an_unselected_owner() {
+        let owner = GenericNativeAdapterOwner {
+            render_context: None,
+            selected: None,
+        };
+
+        assert_eq!(owner.capture_generation(), None);
+        assert!(!owner.admit_generation(NativeAdapterGeneration::from_test_serial(1)));
     }
 
     #[test]

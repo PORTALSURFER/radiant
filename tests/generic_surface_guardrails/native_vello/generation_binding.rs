@@ -62,6 +62,22 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
         publication_reservation < surface_creation,
         "publication capacity should be reserved before WGPU surface creation"
     );
+    for candidate in [
+        "let candidate_native_dpi_scale =",
+        "let candidate_dpi_scale =",
+        "let candidate_monitor_fingerprint =",
+        "let candidate_accessibility_display =",
+        "let candidate_environment =",
+        "let candidate_viewport =",
+    ] {
+        let candidate_position = surface
+            .find(candidate)
+            .unwrap_or_else(|| panic!("surface initialization should derive `{candidate}`"));
+        assert!(
+            candidate_position < publication_reservation,
+            "candidate `{candidate}` should be derived before publication reservation"
+        );
+    }
     let publication_commit = surface
         .find("native_resource_publication.publish(native_resources)")
         .expect("surface initialization should commit the reserved resource publication");
@@ -71,6 +87,40 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
     assert!(
         publication_commit < window_metadata,
         "window metadata should follow successful native resource publication"
+    );
+    for metadata_commit in [
+        "self.window.native_dpi_scale = candidate_native_dpi_scale",
+        "self.window.dpi_scale = candidate_dpi_scale",
+        "self.window.monitor_fingerprint = candidate_monitor_fingerprint",
+        "self.window.accessibility_display = candidate_accessibility_display",
+        "self.window.environment = candidate_environment",
+    ] {
+        let metadata_position = surface
+            .find(metadata_commit)
+            .unwrap_or_else(|| panic!("surface initialization should commit `{metadata_commit}`"));
+        assert!(
+            publication_commit < metadata_position,
+            "window metadata `{metadata_commit}` should follow successful native resource publication"
+        );
+    }
+    let environment_update = surface
+        .find("set_window_environment(candidate_environment)")
+        .expect("startup should commit the candidate environment to the core");
+    let environment_refresh = surface
+        .find("self.core.refresh_surface()")
+        .expect("startup should refresh before rebuilding after an environment change");
+    let viewport_commit = surface
+        .find("self.core.set_viewport(candidate_viewport)")
+        .expect("startup should commit the candidate viewport to the core");
+    let scene_rebuild = surface
+        .find("self.rebuild_scene()")
+        .expect("startup should rebuild the first scene after candidate commit");
+    assert!(
+        publication_commit < environment_update
+            && environment_update < environment_refresh
+            && environment_refresh < viewport_commit
+            && viewport_commit < scene_rebuild,
+        "startup environment refresh and viewport commit should follow publication before the first scene rebuild"
     );
     assert!(
         adapter.contains("fn capture_generation") && adapter.contains("fn admit_generation"),

@@ -498,6 +498,24 @@ mod tests {
     }
 
     #[test]
+    fn abandoned_native_resource_publication_reservation_preserves_active_state() {
+        let mut active = Some(1);
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(2).is_ok());
+
+        {
+            let reservation =
+                super::reserve_native_resource_publication(&mut active, &mut quarantine);
+            assert!(reservation.is_some());
+            // Scope exit models an initialization error after reservation and
+            // before native-resource publication.
+        }
+
+        assert_eq!(active, Some(1));
+        assert_eq!(quarantine.len(), 1);
+    }
+
+    #[test]
     fn target_generation_fences_initial_resize_dpi_and_unknown_recovery() {
         let mut generation = NativeTargetGeneration::default();
         assert!(!generation.is_known());

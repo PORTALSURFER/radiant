@@ -87,31 +87,22 @@ where
             })?;
         configure_created_top_level_window(&window, &self.options);
         self.timing.startup_timing.mark_window_created();
-        self.window.native_dpi_scale = DpiScale::new(window.scale_factor());
-        self.window.dpi_scale = self.active_dpi_scale();
-        self.window.monitor_fingerprint = current_monitor_fingerprint(&window);
-        self.window.accessibility_display = accessibility::current_snapshot();
-        self.window.environment = environment_for_native_state(
-            self.window.dpi_scale,
+        let candidate_native_dpi_scale = DpiScale::new(window.scale_factor());
+        let candidate_dpi_scale = self
+            .window
+            .dpi_scale_override
+            .unwrap_or(candidate_native_dpi_scale);
+        let candidate_monitor_fingerprint = current_monitor_fingerprint(&window);
+        let candidate_accessibility_display = accessibility::current_snapshot();
+        let candidate_environment = environment_for_native_state(
+            candidate_dpi_scale,
             window_color_scheme(window.theme()),
-            self.window.accessibility_display,
+            candidate_accessibility_display,
         );
-        if self
-            .core
-            .runtime
-            .set_window_environment(self.window.environment)
-        {
-            // Startup is the one non-deferred environment transition: the
-            // first scene must be projected with the native values already
-            // known from the created window.
-            self.core.refresh_surface();
-        }
-
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
-        self.core
-            .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
+        let candidate_viewport = logical_viewport_for_size(size, candidate_dpi_scale);
         let Some(native_resource_publication) = self.window.reserve_native_resource_publication()
         else {
             return Err(native_initialization_error(
@@ -205,6 +196,22 @@ where
         native_resource_publication.publish(native_resources);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
+        self.window.native_dpi_scale = candidate_native_dpi_scale;
+        self.window.dpi_scale = candidate_dpi_scale;
+        self.window.monitor_fingerprint = candidate_monitor_fingerprint;
+        self.window.accessibility_display = candidate_accessibility_display;
+        self.window.environment = candidate_environment;
+        if self
+            .core
+            .runtime
+            .set_window_environment(candidate_environment)
+        {
+            // Startup is the one non-deferred environment transition: the
+            // first scene must be projected with the native values already
+            // known from the created window.
+            self.core.refresh_surface();
+        }
+        self.core.set_viewport(candidate_viewport);
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();

@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Owner-scoped identity for one native WGPU device-loss callback.
+use super::generic_runtime::NativeRenderDeviceErrorKind;
+
+/// Owner-scoped identity for one native WGPU device callback pair.
 ///
 /// The witness is intentionally opaque and compared by allocation identity.
 /// An event carrying an old witness therefore cannot be admitted after its
@@ -22,6 +24,11 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     ApplicationReopenRequested,
     DeviceLost {
         registration: Arc<DeviceLossRegistration>,
+        message: String,
+    },
+    RenderDeviceError {
+        registration: Arc<DeviceLossRegistration>,
+        kind: NativeRenderDeviceErrorKind,
         message: String,
     },
     #[cfg(target_os = "macos")]
@@ -45,6 +52,22 @@ impl PartialEq for RuntimeUserEvent {
                 },
             ) => {
                 Arc::ptr_eq(left_registration, right_registration) && left_message == right_message
+            }
+            (
+                Self::RenderDeviceError {
+                    registration: left_registration,
+                    kind: left_kind,
+                    message: left_message,
+                },
+                Self::RenderDeviceError {
+                    registration: right_registration,
+                    kind: right_kind,
+                    message: right_message,
+                },
+            ) => {
+                Arc::ptr_eq(left_registration, right_registration)
+                    && left_kind == right_kind
+                    && left_message == right_message
             }
             #[cfg(target_os = "macos")]
             (Self::AccessibilityDisplayChanged, Self::AccessibilityDisplayChanged) => true,

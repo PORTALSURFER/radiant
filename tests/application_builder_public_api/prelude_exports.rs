@@ -624,6 +624,22 @@ fn native_run_reports_expose_surface_out_of_memory_compatibly() {
             .to_string(),
         "native render device lost: driver reset"
     );
+    let render_device_error = radiant::runtime::NativeGenericRunError::RenderDeviceError {
+        kind: radiant::runtime::NativeRenderDeviceErrorKind::Validation,
+        message: String::from("shader rejected"),
+    };
+    assert_eq!(
+        render_device_error.to_string(),
+        "native render device error (validation): shader rejected"
+    );
+    assert_eq!(
+        radiant::runtime::NativeRenderDeviceErrorKind::OutOfMemory.to_string(),
+        "out of memory"
+    );
+    assert_eq!(
+        radiant::runtime::NativeRenderDeviceErrorKind::Internal.to_string(),
+        "internal"
+    );
 }
 
 #[test]

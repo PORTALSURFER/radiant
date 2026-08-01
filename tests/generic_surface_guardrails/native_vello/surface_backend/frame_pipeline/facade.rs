@@ -274,7 +274,7 @@ fn native_frame_state_uses_explicit_imports() {
 }
 
 #[test]
-fn native_device_loss_uses_shared_callback_and_user_event_boundaries() {
+fn native_device_callbacks_use_shared_callback_and_user_event_boundaries() {
     let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
     let auxiliary =
@@ -294,18 +294,21 @@ fn native_device_loss_uses_shared_callback_and_user_event_boundaries() {
 
     assert!(callback < renderer);
     assert!(device.contains("set_device_lost_callback"));
+    assert_eq!(device.matches("on_uncaptured_error").count(), 1);
     assert!(surface.contains("event_proxy.clone()"));
     assert!(
         auxiliary.contains("initialize_runtime(event_loop, parent_window, event_proxy.clone())")
     );
     assert!(runtime_wakeup.contains("event_loop_proxy"));
     assert!(lifecycle.contains("RuntimeUserEvent::DeviceLost"));
+    assert!(lifecycle.contains("RuntimeUserEvent::RenderDeviceError"));
     assert!(runtime_event.contains("Arc<DeviceLossRegistration>"));
+    assert!(runtime_event.contains("NativeRenderDeviceErrorKind"));
     assert!(runtime_event.contains("Arc::ptr_eq"));
 }
 
 #[test]
-fn native_device_loss_admission_is_witness_scoped_without_broad_panic_handling() {
+fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
     let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
     let runner_state =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner_state.rs");
@@ -318,9 +321,13 @@ fn native_device_loss_admission_is_witness_scoped_without_broad_panic_handling()
     ];
 
     assert!(runner.contains("Arc::ptr_eq"));
+    assert!(runner.contains("handle_render_device_error_event"));
+    assert!(runner.contains("NativeGenericRunError::RenderDeviceError"));
     assert!(runner_state.contains("device_loss_registration"));
     assert!(device.contains("DeviceLostReason::Destroyed"));
     assert!(device.contains("Arc<DeviceLossRegistration>"));
+    assert!(device.contains("classify_uncaptured_error"));
+    assert!(device.contains("RENDER_DEVICE_ERROR_MESSAGE_FALLBACK"));
     assert!(!device.contains("catch_unwind") && !device.contains("AssertUnwindSafe"));
     for module in runtime_modules {
         let source = read_runtime_source(module);

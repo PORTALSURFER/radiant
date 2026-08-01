@@ -235,6 +235,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) render_ctx: Option<RenderContext>,
     pub(super) render_surface: Option<RenderSurface<'static>>,
     pub(super) renderer: Option<Renderer>,
+    /// Shared owner witness for the device-loss and uncaptured-error callbacks.
     pub(super) device_loss_registration: Option<Arc<DeviceLossRegistration>>,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,

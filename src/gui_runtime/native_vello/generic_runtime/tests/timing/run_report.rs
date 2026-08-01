@@ -1,7 +1,7 @@
 use super::super::super::runner::DeviceLossEventSource;
 use super::super::super::{
     DeviceLossRegistration, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage,
+    NativeInitializationStage, NativeRenderDeviceErrorKind,
 };
 use super::{fixtures::*, shared::*};
 use std::sync::Arc;
@@ -98,6 +98,71 @@ fn render_device_loss_display_is_stable_and_preserves_first_cause() {
     );
     assert!(!runner.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory));
     assert_eq!(runner.take_terminal_cause(), Some(device_loss));
+}
+
+#[test]
+fn render_device_error_kind_and_display_are_stable() {
+    let kinds = [
+        (NativeRenderDeviceErrorKind::OutOfMemory, "out of memory"),
+        (NativeRenderDeviceErrorKind::Validation, "validation"),
+        (NativeRenderDeviceErrorKind::Internal, "internal"),
+    ];
+
+    for (kind, label) in kinds {
+        assert_eq!(kind.to_string(), label);
+        let error = NativeGenericRunError::RenderDeviceError {
+            kind,
+            message: String::from("backend detail"),
+        };
+        assert_eq!(
+            error.to_string(),
+            format!("native render device error ({label}): backend detail")
+        );
+    }
+}
+
+#[test]
+fn render_device_error_takes_first_cause_precedence_over_other_terminal_failures() {
+    let render_device_error = NativeGenericRunError::RenderDeviceError {
+        kind: NativeRenderDeviceErrorKind::Internal,
+        message: String::from("driver fault"),
+    };
+    let later_causes = [
+        NativeGenericRunError::RenderDeviceLost(String::from("device lost")),
+        NativeGenericRunError::FrameRender(String::from("frame rejected")),
+        NativeGenericRunError::NativeInitialization {
+            stage: NativeInitializationStage::RendererCreation,
+            message: String::from("renderer rejected device"),
+        },
+        NativeGenericRunError::EventLoopRun(String::from("stopped")),
+    ];
+
+    for later_cause in later_causes {
+        let mut runner = make_runner();
+        assert!(runner.record_terminal_cause(render_device_error.clone()));
+        assert!(!runner.record_terminal_cause(later_cause));
+        assert_eq!(
+            runner.take_terminal_cause(),
+            Some(render_device_error.clone())
+        );
+    }
+}
+
+#[test]
+fn render_device_error_terminal_cause_blocks_later_initialization_work() {
+    let mut runner = make_runner();
+    assert!(runner.should_initialize_runtime());
+    assert!(runner.should_admit_auxiliary_sync());
+
+    let render_device_error = NativeGenericRunError::RenderDeviceError {
+        kind: NativeRenderDeviceErrorKind::Validation,
+        message: String::from("uncaptured validation"),
+    };
+    runner.record_terminal_cause(render_device_error.clone());
+
+    assert!(!runner.should_initialize_runtime());
+    assert!(!runner.should_admit_auxiliary_sync());
+    assert_eq!(runner.take_terminal_cause(), Some(render_device_error));
 }
 
 #[test]

@@ -1,9 +1,11 @@
-use super::{DeviceLossRegistration, RuntimeUserEvent};
+use super::{DeviceLossRegistration, NativeRenderDeviceErrorKind, RuntimeUserEvent};
 use std::sync::Arc;
 use vello::wgpu;
 use winit::event_loop::EventLoopProxy;
 
 pub(super) const DEVICE_LOSS_MESSAGE_FALLBACK: &str = "WGPU device lost without backend details";
+pub(super) const RENDER_DEVICE_ERROR_MESSAGE_FALLBACK: &str =
+    "WGPU render device error without backend details";
 
 pub(super) fn classify_device_lost(
     reason: wgpu::DeviceLostReason,
@@ -42,20 +44,75 @@ fn send_device_lost_event(
     send_event(event)
 }
 
+pub(super) fn classify_uncaptured_error(
+    error: wgpu::Error,
+) -> (NativeRenderDeviceErrorKind, String) {
+    match error {
+        wgpu::Error::OutOfMemory { .. } => (
+            NativeRenderDeviceErrorKind::OutOfMemory,
+            String::from(RENDER_DEVICE_ERROR_MESSAGE_FALLBACK),
+        ),
+        wgpu::Error::Validation { description, .. } => (
+            NativeRenderDeviceErrorKind::Validation,
+            owned_error_message(description),
+        ),
+        wgpu::Error::Internal { description, .. } => (
+            NativeRenderDeviceErrorKind::Internal,
+            owned_error_message(description),
+        ),
+    }
+}
+
+fn owned_error_message(description: String) -> String {
+    if description.is_empty() {
+        String::from(RENDER_DEVICE_ERROR_MESSAGE_FALLBACK)
+    } else {
+        description
+    }
+}
+
+fn render_device_error_event(
+    registration: Arc<DeviceLossRegistration>,
+    error: wgpu::Error,
+) -> RuntimeUserEvent {
+    let (kind, message) = classify_uncaptured_error(error);
+    RuntimeUserEvent::RenderDeviceError {
+        registration,
+        kind,
+        message,
+    }
+}
+
+fn send_render_device_error_event(
+    registration: Arc<DeviceLossRegistration>,
+    error: wgpu::Error,
+    send_event: impl FnOnce(RuntimeUserEvent) -> bool,
+) -> bool {
+    send_event(render_device_error_event(registration, error))
+}
+
 pub(super) fn install_device_loss_callback(
     device: &wgpu::Device,
     proxy: EventLoopProxy<RuntimeUserEvent>,
 ) -> Arc<DeviceLossRegistration> {
     let registration = Arc::new(DeviceLossRegistration::new());
     let callback_registration = Arc::clone(&registration);
+    let device_loss_proxy = proxy.clone();
     device.set_device_lost_callback(move |reason, message| {
         let _ = send_device_lost_event(
             Arc::clone(&callback_registration),
             reason,
             message,
-            |event| proxy.send_event(event).is_ok(),
+            |event| device_loss_proxy.send_event(event).is_ok(),
         );
     });
+    let callback_registration = Arc::clone(&registration);
+    device.on_uncaptured_error(Arc::new(move |error| {
+        let _ =
+            send_render_device_error_event(Arc::clone(&callback_registration), error, |event| {
+                proxy.send_event(event).is_ok()
+            });
+    }));
     registration
 }
 
@@ -152,6 +209,90 @@ mod tests {
             Arc::new(DeviceLossRegistration::new()),
             wgpu::DeviceLostReason::Unknown,
             String::from("driver reset"),
+            |_| false,
+        );
+
+        assert!(!sent);
+    }
+
+    fn backend_error_source() -> Box<dyn std::error::Error + Send + Sync> {
+        Box::new(std::io::Error::other("backend source"))
+    }
+
+    fn validation_error(description: &str) -> wgpu::Error {
+        wgpu::Error::Validation {
+            source: backend_error_source(),
+            description: description.to_owned(),
+        }
+    }
+
+    fn internal_error(description: &str) -> wgpu::Error {
+        wgpu::Error::Internal {
+            source: backend_error_source(),
+            description: description.to_owned(),
+        }
+    }
+
+    #[test]
+    fn uncaptured_errors_convert_all_backend_categories_to_owned_evidence() {
+        assert_eq!(
+            classify_uncaptured_error(wgpu::Error::OutOfMemory {
+                source: backend_error_source(),
+            }),
+            (
+                NativeRenderDeviceErrorKind::OutOfMemory,
+                String::from(RENDER_DEVICE_ERROR_MESSAGE_FALLBACK)
+            )
+        );
+        assert_eq!(
+            classify_uncaptured_error(validation_error("shader rejected")),
+            (
+                NativeRenderDeviceErrorKind::Validation,
+                String::from("shader rejected")
+            )
+        );
+        assert_eq!(
+            classify_uncaptured_error(internal_error("driver fault")),
+            (
+                NativeRenderDeviceErrorKind::Internal,
+                String::from("driver fault")
+            )
+        );
+    }
+
+    #[test]
+    fn empty_uncaptured_error_descriptions_use_stable_non_empty_fallback() {
+        for error in [validation_error(""), internal_error("")] {
+            let (_, message) = classify_uncaptured_error(error);
+            assert_eq!(message, RENDER_DEVICE_ERROR_MESSAGE_FALLBACK);
+            assert!(!message.is_empty());
+        }
+    }
+
+    #[test]
+    fn uncaptured_error_event_keeps_only_owned_backend_neutral_evidence() {
+        let registration = Arc::new(DeviceLossRegistration::new());
+        let event = render_device_error_event(Arc::clone(&registration), validation_error("bad"));
+
+        match event {
+            RuntimeUserEvent::RenderDeviceError {
+                registration: event_registration,
+                kind,
+                message,
+            } => {
+                assert!(Arc::ptr_eq(&event_registration, &registration));
+                assert_eq!(kind, NativeRenderDeviceErrorKind::Validation);
+                assert_eq!(message, "bad");
+            }
+            _ => panic!("uncaptured WGPU errors should use the render-device event"),
+        }
+    }
+
+    #[test]
+    fn uncaptured_error_proxy_send_failure_is_harmless() {
+        let sent = send_render_device_error_event(
+            Arc::new(DeviceLossRegistration::new()),
+            internal_error("driver fault"),
             |_| false,
         );
 

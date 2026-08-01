@@ -38,6 +38,28 @@ impl fmt::Display for NativeInitializationStage {
     }
 }
 
+/// Backend-neutral classification of an uncaptured native WGPU device error.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeRenderDeviceErrorKind {
+    /// The backend could not allocate the requested GPU resource.
+    OutOfMemory,
+    /// The native WGPU operation violated a validation rule.
+    Validation,
+    /// The native WGPU backend reported an unexpected internal failure.
+    Internal,
+}
+
+impl fmt::Display for NativeRenderDeviceErrorKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let label = match self {
+            Self::OutOfMemory => "out of memory",
+            Self::Validation => "validation",
+            Self::Internal => "internal",
+        };
+        formatter.write_str(label)
+    }
+}
+
 /// Typed failure reported by the generic native Vello runtime.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NativeGenericRunError {
@@ -51,6 +73,13 @@ pub enum NativeGenericRunError {
     SurfaceAcquireOutOfMemory,
     /// The WGPU render device was lost for an unexpected reason.
     RenderDeviceLost(String),
+    /// The WGPU render device reported an uncaptured backend error.
+    RenderDeviceError {
+        /// Backend-neutral classification of the uncaptured error.
+        kind: NativeRenderDeviceErrorKind,
+        /// Owned backend diagnostic captured at the native callback boundary.
+        message: String,
+    },
     /// Rendering a native Vello scene into its target texture failed.
     FrameRender(String),
     /// Native window or renderer setup failed before the runtime became usable.
@@ -82,6 +111,9 @@ impl std::fmt::Display for NativeGenericRunError {
             }
             Self::RenderDeviceLost(message) => {
                 write!(formatter, "native render device lost: {message}")
+            }
+            Self::RenderDeviceError { kind, message } => {
+                write!(formatter, "native render device error ({kind}): {message}")
             }
             Self::FrameRender(message) => {
                 write!(formatter, "native frame rendering failed: {message}")

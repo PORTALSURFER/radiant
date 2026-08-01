@@ -106,7 +106,7 @@ pub(in crate::gui_runtime::native_vello) use route_outcome::{
 };
 pub use run_report::{
     NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
-    NativeInitializationStage,
+    NativeInitializationStage, NativeRenderDeviceErrorKind,
 };
 use runner::GenericNativeVelloRunner;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};

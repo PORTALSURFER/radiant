@@ -4,9 +4,9 @@ use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeRuntimeCore,
     GenericRouteOutcome, NativeAutomationTargetExporter, NativeGenericRunError,
-    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    NativeRenderDeviceErrorKind, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -204,6 +204,27 @@ where
         }
     }
 
+    pub(super) fn handle_render_device_error_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        registration: Arc<DeviceLossRegistration>,
+        kind: NativeRenderDeviceErrorKind,
+        message: String,
+    ) {
+        let Some(source) = self.device_loss_event_source(&registration) else {
+            return;
+        };
+        let cause = NativeGenericRunError::RenderDeviceError { kind, message };
+        match source {
+            DeviceLossEventSource::Primary => {
+                self.record_render_device_error_and_exit(event_loop, cause)
+            }
+            DeviceLossEventSource::Auxiliary => {
+                self.record_auxiliary_terminal_cause_and_exit(event_loop, cause)
+            }
+        }
+    }
+
     pub(super) fn device_loss_event_source(
         &self,
         registration: &Arc<DeviceLossRegistration>,
@@ -255,6 +276,17 @@ where
     ) {
         if self.record_terminal_cause(cause.clone()) {
             error!(error = %cause, "radiant generic native vello: render device lost");
+            event_loop.exit();
+        }
+    }
+
+    pub(super) fn record_render_device_error_and_exit(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+    ) {
+        if self.record_terminal_cause(cause.clone()) {
+            error!(error = %cause, "radiant generic native vello: render device error");
             event_loop.exit();
         }
     }

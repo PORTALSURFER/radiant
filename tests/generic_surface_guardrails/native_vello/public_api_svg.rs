@@ -16,6 +16,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
         "NativeGenericRunError",
         "NativeGenericRuntimeArtifacts",
         "NativeStartupTimingArtifact",
+        "NativeRenderDeviceErrorKind",
         "run_native_vello_runtime",
         "run_native_vello_runtime_with_artifacts",
     ] {

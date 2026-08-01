@@ -11,6 +11,11 @@ use std::time::Duration;
 
 pub(super) const LATEST_SAMPLE_CAPACITY: usize = 4;
 
+/// The parent keeps a bounded number of stable schedule identities. A key
+/// that cannot be admitted because this bound is full is deliberately omitted
+/// from shadow evidence; it never affects scheduler operation.
+pub(super) const CPU_FRAME_OBSERVATION_KEY_CAPACITY: usize = 16;
+
 /// A duration whose absence cannot be confused with a zero-length stage.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum CpuFrameDuration {
@@ -242,6 +247,7 @@ impl CpuFrameObservationCapture {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct CpuFrameObservationAdmission {
     key: FrameScheduleKey,
+    tracked: bool,
     frame_work: FrameWork,
     cadence_target_fps: Option<u32>,
     pending_redraw_age: CpuFramePendingRedrawAge,
@@ -449,10 +455,15 @@ impl CpuFrameObservationLedger {
         cadence_target_fps: Option<u32>,
         pending_redraw_age: CpuFramePendingRedrawAge,
     ) -> CpuFrameObservationAdmission {
-        let state = self.state_or_insert(key.clone());
-        state.counters.admitted_redraws = state.counters.admitted_redraws.saturating_add(1);
+        let tracked = if let Some(state) = self.state_or_insert(key.clone()) {
+            state.counters.admitted_redraws = state.counters.admitted_redraws.saturating_add(1);
+            true
+        } else {
+            false
+        };
         CpuFrameObservationAdmission {
             key,
+            tracked,
             frame_work,
             cadence_target_fps,
             pending_redraw_age,
@@ -465,6 +476,9 @@ impl CpuFrameObservationLedger {
         capture: CpuFrameObservationCapture,
         redraw_failed: bool,
     ) {
+        if !admission.tracked {
+            return;
+        }
         let recovery_triggered = capture.recovery_triggered();
         if recovery_triggered {
             // A recovery transition establishes a new evidence epoch. Keep
@@ -472,7 +486,9 @@ impl CpuFrameObservationLedger {
             // influence its replacement window.
             self.remove(&admission.key);
         }
-        let state = self.state_or_insert(admission.key.clone());
+        let Some(state) = self.state_or_insert(admission.key.clone()) else {
+            return;
+        };
         if recovery_triggered {
             state.counters.admitted_redraws = state.counters.admitted_redraws.saturating_add(1);
         }
@@ -530,13 +546,16 @@ impl CpuFrameObservationLedger {
         self.state(key).map(|state| state.sample_count)
     }
 
-    fn state_or_insert(&mut self, key: FrameScheduleKey) -> &mut CpuFrameObservationState {
+    fn state_or_insert(&mut self, key: FrameScheduleKey) -> Option<&mut CpuFrameObservationState> {
         if let Some(index) = self.states.iter().position(|state| state.key == key) {
-            return &mut self.states[index];
+            return Some(&mut self.states[index]);
+        }
+        if self.states.len() >= CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            return None;
         }
         self.states.push(CpuFrameObservationState::new(key));
         let index = self.states.len() - 1;
-        &mut self.states[index]
+        Some(&mut self.states[index])
     }
 }
 
@@ -633,10 +652,142 @@ mod tests {
     }
 
     #[test]
+    fn observation_key_capacity_omits_overflow_without_projection() {
+        let mut ledger = CpuFrameObservationLedger::default();
+        for index in 0..=CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            admitted(&mut ledger, key(&format!("window-{index}")));
+        }
+
+        assert_eq!(ledger.len(), CPU_FRAME_OBSERVATION_KEY_CAPACITY);
+        for index in 0..CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            let stable_key = key(&format!("window-{index}"));
+            assert!(ledger.state(&stable_key).is_some());
+            assert!(ledger.projection().window(&stable_key).is_some());
+        }
+        let overflow_key = key(&format!("window-{CPU_FRAME_OBSERVATION_KEY_CAPACITY}"));
+        assert!(ledger.state(&overflow_key).is_none());
+        assert!(ledger.projection().window(&overflow_key).is_none());
+    }
+
+    #[test]
+    fn tracked_key_records_while_observation_key_capacity_is_full() {
+        let mut ledger = CpuFrameObservationLedger::default();
+        for index in 0..CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            admitted(&mut ledger, key(&format!("window-{index}")));
+        }
+
+        let tracked_key = key("window-0");
+        admitted(&mut ledger, tracked_key.clone());
+
+        let state = ledger
+            .state(&tracked_key)
+            .expect("tracked key should remain");
+        assert_eq!(state.counters.admitted_redraws, 2);
+        assert_eq!(state.sample_count, 2);
+        assert_eq!(ledger.len(), CPU_FRAME_OBSERVATION_KEY_CAPACITY);
+    }
+
+    #[test]
+    fn removing_a_key_releases_a_slot_without_transferring_history() {
+        let mut ledger = CpuFrameObservationLedger::default();
+        for index in 0..CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            admitted(&mut ledger, key(&format!("window-{index}")));
+        }
+
+        let removed_key = key("window-0");
+        ledger.remove(&removed_key);
+        let replacement_key = key("replacement");
+        admitted(&mut ledger, replacement_key.clone());
+
+        assert_eq!(ledger.len(), CPU_FRAME_OBSERVATION_KEY_CAPACITY);
+        assert!(ledger.state(&removed_key).is_none());
+        let replacement = ledger
+            .state(&replacement_key)
+            .expect("replacement key should use the released slot");
+        assert_eq!(replacement.counters.admitted_redraws, 1);
+        assert_eq!(replacement.sample_count, 1);
+        assert_eq!(
+            replacement.samples[0].as_ref().unwrap().key,
+            replacement_key
+        );
+    }
+
+    #[test]
+    fn overflow_admissions_remain_untracked_through_every_finish_outcome() {
+        let mut ledger = CpuFrameObservationLedger::default();
+        for index in 0..CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            admitted(&mut ledger, key(&format!("window-{index}")));
+        }
+
+        for (index, expected_outcome) in [
+            CpuFrameCompletionOutcome::SuccessfulPresentation,
+            CpuFrameCompletionOutcome::Failed,
+            CpuFrameCompletionOutcome::Incomplete,
+            CpuFrameCompletionOutcome::RecoveryTriggered,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let overflow_key = key(&format!("overflow-{index}"));
+            let admission = ledger.begin(
+                overflow_key.clone(),
+                FrameWork::None,
+                None,
+                CpuFramePendingRedrawAge::Unknown,
+            );
+            assert!(!admission.tracked);
+
+            ledger.remove(&key(&format!("window-{index}")));
+            let mut capture = CpuFrameObservationCapture::default();
+            let redraw_failed = match expected_outcome {
+                CpuFrameCompletionOutcome::SuccessfulPresentation => {
+                    capture.mark_successful_presentation();
+                    false
+                }
+                CpuFrameCompletionOutcome::Failed => true,
+                CpuFrameCompletionOutcome::Incomplete => {
+                    capture.mark_frame_path_started();
+                    false
+                }
+                CpuFrameCompletionOutcome::RecoveryTriggered => {
+                    capture.mark_recovery_triggered();
+                    true
+                }
+                CpuFrameCompletionOutcome::SkippedOrVetoed => unreachable!(),
+            };
+            ledger.finish(admission, capture, redraw_failed);
+
+            assert!(ledger.state(&overflow_key).is_none());
+            assert!(ledger.projection().window(&overflow_key).is_none());
+            assert_eq!(ledger.len(), CPU_FRAME_OBSERVATION_KEY_CAPACITY - 1);
+
+            admitted(&mut ledger, key(&format!("replacement-{index}")));
+            assert_eq!(ledger.len(), CPU_FRAME_OBSERVATION_KEY_CAPACITY);
+        }
+    }
+
+    #[test]
+    fn clear_reuses_only_bounded_key_allocation() {
+        let mut ledger = CpuFrameObservationLedger::default();
+        for index in 0..CPU_FRAME_OBSERVATION_KEY_CAPACITY {
+            admitted(&mut ledger, key(&format!("window-{index}")));
+        }
+        let capacity_before_clear = ledger.states.capacity();
+
+        assert!(capacity_before_clear <= CPU_FRAME_OBSERVATION_KEY_CAPACITY);
+        ledger.clear();
+        assert_eq!(ledger.len(), 0);
+        assert_eq!(ledger.states.capacity(), capacity_before_clear);
+
+        admitted(&mut ledger, key("reused"));
+        assert_eq!(ledger.state(&key("reused")).unwrap().sample_count, 1);
+    }
+
+    #[test]
     fn counters_saturate_without_wrapping() {
         let stable_key = key("settings");
         let mut ledger = CpuFrameObservationLedger::default();
-        let state = ledger.state_or_insert(stable_key.clone());
+        let state = ledger.state_or_insert(stable_key.clone()).unwrap();
         state.counters.admitted_redraws = u64::MAX;
         state.counters.successful_presentations = u64::MAX;
         state.counters.recovery_triggered_frames = u64::MAX;

@@ -219,6 +219,12 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
+        if self.window.native_resources.is_none() {
+            self.timing.redraw_requested = false;
+            self.timing.redraw_requested_at = None;
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        }
         self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();

@@ -63,6 +63,98 @@ fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
 }
 
 #[test]
+fn unbound_resources_preserve_pending_resize_without_native_work_or_retry() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let adapter = GenericNativeAdapterOwner::with_test_registration(
+        NativeAdapterGeneration::from_test_serial(1),
+        Arc::new(DeviceLossRegistration::new()),
+    );
+
+    runner.defer_surface_resize(PhysicalSize::new(640, 360));
+    let initial_context_generation = runner.frame.native_scene_context_generation_for_test();
+    runner.apply_pending_surface_resize_if_needed(&adapter);
+
+    assert_eq!(
+        runner.timing.pending_surface_resize,
+        Some(PhysicalSize::new(640, 360))
+    );
+    assert!(!runner.timing.redraw_requested);
+    assert!(runner.window.native_surface_target_fenced);
+    assert_eq!(
+        runner.frame.native_scene_context_generation_for_test(),
+        initial_context_generation + 1
+    );
+    assert!(!runner.admit_native_resources(&adapter));
+    assert_eq!(
+        runner.frame.native_scene_context_generation_for_test(),
+        initial_context_generation + 1
+    );
+}
+
+#[test]
+fn dpi_change_after_admission_veto_preserves_fenced_target_evidence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let adapter = GenericNativeAdapterOwner::with_test_registration(
+        NativeAdapterGeneration::from_test_serial(1),
+        Arc::new(DeviceLossRegistration::new()),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+
+    assert!(!runner.admit_native_resources(&adapter));
+    assert!(runner.window.native_resources.is_none());
+    assert!(!runner.window.target_generation.is_known());
+    assert!(runner.window.native_surface_target_fenced);
+    assert!(runner.frame.scene_texture_dirty);
+    assert!(runner.frame.composited_base_dirty);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .all(Option::is_none)
+    );
+
+    let fenced_context_generation = runner.frame.native_scene_context_generation_for_test();
+    runner.update_native_dpi_scale(2.0);
+    runner.update_native_dpi_scale(1.5);
+
+    assert!(!runner.window.target_generation.is_known());
+    assert!(runner.window.native_surface_target_fenced);
+    assert_eq!(
+        runner.frame.native_scene_context_generation_for_test(),
+        fenced_context_generation
+    );
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .snapshot_identities()
+            .iter()
+            .all(Option::is_none)
+    );
+    assert!(!runner.timing.redraw_requested);
+
+    assert!(!runner.admit_native_resources(&adapter));
+    assert_eq!(
+        runner.frame.native_scene_context_generation_for_test(),
+        fenced_context_generation
+    );
+    assert!(!runner.window.target_generation.is_known());
+    assert!(runner.window.native_surface_target_fenced);
+}
+
+#[test]
 fn other_failure_fences_native_target_without_reconfiguring_zero_size_surface() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -93,6 +185,7 @@ fn other_failure_fences_native_target_without_reconfiguring_zero_size_surface() 
             .completed_reconfigures,
         0
     );
+    assert!(runner.window.native_surface_target_fenced);
     assert_eq!(runner.window.surface_recovery.diagnostics().others, 1);
     assert_eq!(
         runner
@@ -102,6 +195,27 @@ fn other_failure_fences_native_target_without_reconfiguring_zero_size_surface() 
             .other_retry_requests,
         0
     );
+}
+
+#[test]
+fn repeated_target_fences_are_idempotent() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    assert!(runner.window.target_generation.advance());
+
+    runner.handle_other_surface_acquire_failure(PhysicalSize::new(640, 360));
+    let context_generation = runner.frame.native_scene_context_generation_for_test();
+    runner.handle_other_surface_acquire_failure(PhysicalSize::new(640, 360));
+
+    assert_eq!(
+        runner.frame.native_scene_context_generation_for_test(),
+        context_generation
+    );
+    assert!(!runner.window.target_generation.is_known());
+    assert!(runner.window.native_surface_target_fenced);
 }
 
 #[test]

@@ -416,6 +416,11 @@ impl NativeVelloFrameState {
         self.last_scene_validity = None;
     }
 
+    #[cfg(test)]
+    pub(super) const fn native_scene_context_generation_for_test(&self) -> u64 {
+        self.native_scene_context_generation
+    }
+
     pub(super) fn mark_scene_texture_dirty(&mut self) {
         self.scene_texture_dirty = true;
         self.composited_base_dirty = true;

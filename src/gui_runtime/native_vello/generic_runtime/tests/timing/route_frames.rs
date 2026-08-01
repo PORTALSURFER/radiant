@@ -116,6 +116,24 @@ fn frame_diagnostics_redraw_requests_skip_tracking_without_observer() {
 }
 
 #[test]
+fn unbound_native_resources_suppress_redraw_reissue_but_retain_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let work = FrameWork::PaintOnly {
+        reason: FrameWorkReason::PointerHover,
+    };
+
+    runner.request_redraw_for_frame_work(work);
+
+    assert_eq!(runner.timing.pending_frame_work, work);
+    assert!(!runner.timing.redraw_requested);
+    assert!(runner.window.native_resources.is_none());
+}
+
+#[test]
 fn frame_diagnostics_availability_is_cached_at_runner_start() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

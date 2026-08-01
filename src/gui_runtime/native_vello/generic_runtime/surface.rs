@@ -1,6 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
-use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
+use super::runner_state::{
+    NativeWindowResourceBundle, SurfaceAcquirePolicy, surface_acquire_policy,
+};
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, SceneRebuildMode,
@@ -131,6 +133,12 @@ where
                 })?;
         }
         self.timing.startup_timing.mark_wgpu_device_ready();
+        let generation = adapter.capture_generation().ok_or_else(|| {
+            native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native adapter has no current known generation",
+            )
+        })?;
         let supported_present_modes = surface
             .get_capabilities(
                 adapter
@@ -166,10 +174,24 @@ where
                 native_initialization_error(NativeInitializationStage::RendererCreation, err)
             })?;
         self.timing.startup_timing.mark_renderer_ready();
+        if !adapter.admit_generation(generation) {
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native adapter generation changed during window resource initialization",
+            ));
+        }
+        let native_resources =
+            NativeWindowResourceBundle::new(generation, render_surface, renderer).ok_or_else(
+                || {
+                    native_initialization_error(
+                        NativeInitializationStage::DeviceAcquisition,
+                        "native window resources require a known adapter generation",
+                    )
+                },
+            )?;
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
-        self.window.render_surface = Some(render_surface);
-        self.window.renderer = Some(renderer);
+        self.window.publish_native_resources(native_resources);
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();
@@ -209,6 +231,9 @@ where
         &mut self,
         adapter: &GenericNativeAdapterOwner,
     ) {
+        if !self.admit_native_resources(adapter) {
+            return;
+        }
         let Some(size) = self.timing.pending_surface_resize.take() else {
             return;
         };
@@ -234,13 +259,20 @@ where
         if size.width == 0 || size.height == 0 {
             return false;
         }
+        if !self.admit_native_resources(adapter) {
+            return false;
+        }
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
-        if let Some(surface) = self.window.render_surface.as_mut() {
-            if !surface_size_changed(surface.config.width, surface.config.height, size) {
+        if let Some(resources) = self.window.native_resources.as_mut() {
+            if !surface_size_changed(
+                resources.render_surface.config.width,
+                resources.render_surface.config.height,
+                size,
+            ) {
                 return false;
             }
-            if !adapter.resize_surface(surface, size.width, size.height) {
+            if !adapter.resize_surface(&mut resources.render_surface, size.width, size.height) {
                 return false;
             }
             self.complete_target_transition();
@@ -264,10 +296,13 @@ where
         if size.width == 0 || size.height == 0 {
             return false;
         }
+        if !self.admit_native_resources(adapter) {
+            return false;
+        }
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
-        if let Some(surface) = self.window.render_surface.as_mut() {
-            if !adapter.resize_surface(surface, size.width, size.height) {
+        if let Some(resources) = self.window.native_resources.as_mut() {
+            if !adapter.resize_surface(&mut resources.render_surface, size.width, size.height) {
                 return false;
             }
             self.complete_target_transition();
@@ -278,11 +313,17 @@ where
 
     fn complete_target_transition(&mut self) {
         self.fence_native_surface_target();
-        self.window.target_generation.advance();
+        if self.window.target_generation.advance() {
+            self.window.native_surface_target_fenced = false;
+        }
         self.window.surface_recovery.rearm_transient_retry();
     }
 
     fn fence_native_surface_target(&mut self) {
+        if self.window.native_surface_target_fenced {
+            return;
+        }
+        self.window.native_surface_target_fenced = true;
         self.frame.clear_native_paint_segment_artifacts();
         self.frame.invalidate_native_scene_context();
         self.frame.mark_scene_texture_dirty();
@@ -308,8 +349,8 @@ where
     }
 
     pub(super) fn prepare_successful_surface_acquisition(&mut self) {
-        if !self.window.target_generation.is_known() {
-            self.window.target_generation.advance();
+        if !self.window.target_generation.is_known() && self.window.target_generation.advance() {
+            self.window.native_surface_target_fenced = false;
         }
         self.window.surface_recovery.rearm_transient_retry();
     }
@@ -372,7 +413,12 @@ where
             return false;
         }
         self.window.dpi_scale = next;
-        self.window.target_generation.advance();
+        if self.window.native_resources.is_some()
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+        {
+            self.window.target_generation.advance();
+        }
         self.window.surface_recovery.rearm_transient_retry();
         self.frame.clear_native_paint_segment_artifacts();
         if let Some(window) = self.window.window.as_ref() {
@@ -393,9 +439,12 @@ where
         event_loop: &ActiveEventLoop,
         adapter: &GenericNativeAdapterOwner,
     ) -> Option<wgpu::SurfaceTexture> {
+        if !self.admit_native_resources(adapter) {
+            return None;
+        }
         let texture = {
-            let surface = self.window.render_surface.as_mut()?;
-            surface.surface.get_current_texture()
+            let resources = self.window.native_resources.as_mut()?;
+            resources.render_surface.surface.get_current_texture()
         };
         match texture {
             Ok(frame) => {
@@ -454,6 +503,27 @@ where
                 None
             }
         }
+    }
+
+    /// Admit the active window bundle against the owner's exact current
+    /// generation. A mismatch is fenced once and moved out of the active
+    /// path; no native work or redraw retry is requested.
+    pub(super) fn admit_native_resources(&mut self, adapter: &GenericNativeAdapterOwner) -> bool {
+        let Some(generation) = self
+            .window
+            .native_resources
+            .as_ref()
+            .map(|resources| resources.generation)
+        else {
+            self.fence_native_surface_target();
+            return false;
+        };
+        if adapter.admit_generation(generation) {
+            return true;
+        }
+        self.window.isolate_native_resources();
+        self.fence_native_surface_target();
+        false
     }
 }
 

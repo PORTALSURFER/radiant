@@ -29,6 +29,9 @@ where
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
+        if !self.admit_native_resources(adapter) {
+            return Ok(());
+        }
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
@@ -55,21 +58,22 @@ where
         self.paint_transient_overlays(&mut profile);
         let frame_work = self.take_pending_frame_work();
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
+        if !self.admit_native_resources(adapter) {
+            return Ok(());
+        }
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let render_to_texture_elapsed = {
-            let Some(surface) = self.window.render_surface.as_mut() else {
+            let Some(resources) = self.window.native_resources.as_mut() else {
                 return Ok(());
             };
-            let Some(renderer) = self.window.renderer.as_mut() else {
-                return Ok(());
-            };
+            let surface = &mut resources.render_surface;
             let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
                 return Ok(());
             };
             let mut scene_texture_context = SceneTextureContext {
-                renderer,
+                renderer: &mut resources.renderer,
                 device: &dev_handle.device,
                 queue: &dev_handle.queue,
                 surface,
@@ -87,6 +91,9 @@ where
             }
         };
         if render_resize_frame_directly {
+            if !self.admit_native_resources(adapter) {
+                return Ok(());
+            }
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
             self.finish_direct_resize_present(
@@ -98,9 +105,13 @@ where
             );
             return Ok(());
         }
-        let Some(surface) = self.window.render_surface.as_mut() else {
+        if !self.admit_native_resources(adapter) {
+            return Ok(());
+        }
+        let Some(resources) = self.window.native_resources.as_mut() else {
             return Ok(());
         };
+        let surface = &mut resources.render_surface;
         let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
             return Ok(());
         };
@@ -143,6 +154,9 @@ where
                     format: surface.config.format,
                     size: surface_size.logical_size(self.window.dpi_scale),
                 });
+        }
+        if !self.admit_native_resources(adapter) {
+            return Ok(());
         }
         let (_, elapsed) = profile.measure(|| {
             dev_handle.queue.submit(std::iter::once(encoder.finish()));

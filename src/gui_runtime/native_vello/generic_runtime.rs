@@ -21,6 +21,7 @@ use vello::Scene;
 
 mod accessibility;
 mod activation;
+mod adapter;
 mod automation_export;
 mod auxiliary;
 mod composited_base;
@@ -64,6 +65,7 @@ mod window;
 mod window_environment;
 
 use activation::{ActivationRevealController, ApplicationReopenRegistration};
+use adapter::GenericNativeAdapterOwner;
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;

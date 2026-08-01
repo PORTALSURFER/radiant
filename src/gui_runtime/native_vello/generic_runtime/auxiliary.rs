@@ -1,12 +1,11 @@
 use super::{
-    DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
+    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     GenericRouteOutcome, NativeGenericRunError, RuntimeUserEvent, SceneRebuildMode,
     initial_viewport, owner_window_handle,
 };
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
-use std::sync::Arc;
 use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoopProxy},
@@ -73,6 +72,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event_loop: &ActiveEventLoop,
         parent_window: Option<&Window>,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeGenericRunError> {
         if self
             .runner
@@ -89,16 +89,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             self.runner.options.window.geometry.position =
                 centered_position(parent_window, &self.runner.options);
         }
-        self.runner.initialize_runtime(event_loop, event_proxy)
-    }
-
-    pub(super) fn accepts_device_loss(&self, registration: &Arc<DeviceLossRegistration>) -> bool {
-        // `active` is visibility state: a cache-on-close window still owns its
-        // device until the parent removes it from `auxiliary_windows`.
-        auxiliary_device_loss_registration_matches(
-            self.runner.window.device_loss_registration.as_ref(),
-            registration,
-        )
+        self.runner
+            .initialize_runtime_with_adapter(event_loop, event_proxy, adapter)
     }
 
     pub(super) fn hide(&mut self) {
@@ -128,6 +120,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         event_loop: &ActiveEventLoop,
         event: WindowEvent,
+        adapter: &mut GenericNativeAdapterOwner,
     ) -> AuxiliaryWindowEventResult<Message> {
         let mut terminal_cause = None;
         match event {
@@ -154,38 +147,45 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::ThemeChanged(theme) => self.runner.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
                 let routed = self.runner.handle_focus_lost_before_external_drag();
-                self.runner.handle_route_outcome(event_loop, routed);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
                 if self.runner.core.runtime.external_drag_armed() {
                     let outcome = self.runner.launch_external_drag_if_armed();
-                    self.runner.handle_route_outcome(event_loop, outcome);
+                    self.runner
+                        .handle_route_outcome_with_adapter(event_loop, outcome, adapter);
                 }
             }
             WindowEvent::Focused(true) => {
                 let routed = self.runner.handle_focus_regained_after_native_modal_loop();
-                self.runner.handle_route_outcome(event_loop, routed);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
             }
             WindowEvent::CursorEntered { .. } => self.runner.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
                 let route = self.runner.route_native_mouse_input(button, state);
-                self.runner.handle_route_outcome(event_loop, route.outcome);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, route.outcome, adapter);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let route = self.runner.route_native_mouse_wheel(delta);
-                self.runner.handle_route_outcome(event_loop, route.outcome);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, route.outcome, adapter);
             }
-            WindowEvent::KeyboardInput { event, .. } => {
-                self.runner.handle_keyboard_event(event_loop, event)
-            }
+            WindowEvent::KeyboardInput { event, .. } => self
+                .runner
+                .handle_keyboard_event_with_adapter(event_loop, event, adapter),
             WindowEvent::ModifiersChanged(modifiers) => {
                 let routed = self
                     .runner
                     .route_native_modifiers_changed(modifiers.state());
-                self.runner.handle_route_outcome(event_loop, routed);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
             }
             WindowEvent::RedrawRequested => {
-                terminal_cause = auxiliary_redraw_terminal_cause(self.runner.redraw(event_loop));
+                terminal_cause =
+                    auxiliary_redraw_terminal_cause(self.runner.redraw(event_loop, adapter));
             }
             _ => {}
         }
@@ -245,6 +245,24 @@ where
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
+        let Some(mut adapter) = self.adapter.take() else {
+            return Err(NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: String::from("native adapter owner was not initialized"),
+            });
+        };
+        let result =
+            self.sync_auxiliary_windows_with_adapter(event_loop, event_proxy, &mut adapter);
+        self.adapter = Some(adapter);
+        result
+    }
+
+    pub(super) fn sync_auxiliary_windows_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) -> Result<(), NativeGenericRunError> {
         self.timing.deferred_auxiliary_window_sync = false;
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
@@ -267,7 +285,7 @@ where
                     let parent_window = self.window.window.as_deref();
                     let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
                     window
-                        .initialize_runtime(event_loop, parent_window, event_proxy.clone())
+                        .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
                         .map(|()| window)
                 };
                 if let Err(error) =
@@ -288,12 +306,13 @@ where
     pub(super) fn sync_deferred_auxiliary_windows_if_needed(
         &mut self,
         event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
     ) {
         if self.timing.deferred_auxiliary_window_sync
             && self.should_admit_auxiliary_sync()
             && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
         {
-            let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
+            let _ = self.sync_auxiliary_windows_with_adapter(event_loop, event_proxy, adapter);
         }
     }
 }
@@ -305,13 +324,6 @@ fn auxiliary_projection_contains_key<Message>(
     projections
         .iter()
         .any(|projection| projection.key.as_str() == key)
-}
-
-fn auxiliary_device_loss_registration_matches(
-    current: Option<&Arc<DeviceLossRegistration>>,
-    registration: &Arc<DeviceLossRegistration>,
-) -> bool {
-    current.is_some_and(|current| Arc::ptr_eq(current, registration))
 }
 
 fn append_initialized_auxiliary_window<T>(
@@ -326,37 +338,11 @@ fn append_initialized_auxiliary_window<T>(
 #[cfg(test)]
 mod tests {
     use super::{
-        DeviceLossRegistration, append_initialized_auxiliary_window,
-        auxiliary_device_loss_registration_matches, auxiliary_projection_contains_key,
+        append_initialized_auxiliary_window, auxiliary_projection_contains_key,
         auxiliary_redraw_terminal_cause,
     };
     use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
     use std::sync::Arc;
-
-    #[test]
-    fn auxiliary_device_loss_admission_requires_current_owned_witness() {
-        let current = Arc::new(DeviceLossRegistration::new());
-        let stale = Arc::new(DeviceLossRegistration::new());
-        let superseding = Arc::new(DeviceLossRegistration::new());
-
-        assert!(auxiliary_device_loss_registration_matches(
-            Some(&current),
-            &current
-        ));
-        assert!(!auxiliary_device_loss_registration_matches(
-            Some(&current),
-            &stale
-        ));
-        assert!(!auxiliary_device_loss_registration_matches(
-            Some(&superseding),
-            &current
-        ));
-        assert!(auxiliary_device_loss_registration_matches(
-            Some(&superseding),
-            &superseding
-        ));
-        assert!(!auxiliary_device_loss_registration_matches(None, &current));
-    }
 
     #[test]
     fn auxiliary_projection_key_lookup_uses_projected_windows_without_key_clones() {

@@ -1,0 +1,317 @@
+//! Event-loop-confined WGPU/Vello adapter ownership for one generic run.
+
+use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
+use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
+use std::{fmt, sync::Arc};
+use vello::{
+    util::{DeviceHandle, RenderContext, RenderSurface},
+    wgpu,
+};
+use winit::event_loop::EventLoopProxy;
+
+use super::surface::instance_for_options;
+
+/// The one native adapter owner for a generic-native application run.
+///
+/// The owner is created and used on the event-loop thread. It retains the
+/// render context, the one selected device/queue, and the callback witness for
+/// that device. Window runners receive borrows of this owner for surface,
+/// resize, and presentation work; they never construct another context or
+/// device callback pair.
+pub(super) struct GenericNativeAdapterOwner {
+    render_context: Option<RenderContext>,
+    selected_device_id: Option<usize>,
+    selected_backend: Option<wgpu::Backend>,
+    device_loss_registration: Option<Arc<DeviceLossRegistration>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum AdapterSurfaceError {
+    NoSelectedDevice,
+    RenderSurfaceCreation(String),
+    DeviceMismatch,
+}
+
+impl fmt::Display for AdapterSurfaceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoSelectedDevice => f.write_str("native adapter has no selected device"),
+            Self::RenderSurfaceCreation(message) => {
+                write!(f, "native render surface creation failed: {message}")
+            }
+            Self::DeviceMismatch => f.write_str(
+                "native surface resolved to a different device than the selected adapter",
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AuxiliaryAdapterCompatibilityError {
+    NoSelectedDevice,
+    BackendMismatch,
+    SurfaceUnsupported,
+}
+
+impl fmt::Display for AuxiliaryAdapterCompatibilityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoSelectedDevice => f.write_str("native adapter has no selected device"),
+            Self::BackendMismatch => f.write_str(
+                "auxiliary GPU backend policy is incompatible with the selected native adapter",
+            ),
+            Self::SurfaceUnsupported => {
+                f.write_str("selected native adapter does not support the auxiliary surface")
+            }
+        }
+    }
+}
+
+impl GenericNativeAdapterOwner {
+    pub(super) fn new(options: &NativeRunOptions) -> Self {
+        Self {
+            render_context: Some(RenderContext {
+                instance: instance_for_options(options),
+                devices: Vec::new(),
+            }),
+            selected_device_id: None,
+            selected_backend: None,
+            device_loss_registration: None,
+        }
+    }
+
+    pub(super) fn instance(&self) -> Option<&wgpu::Instance> {
+        self.render_context
+            .as_ref()
+            .map(|context| &context.instance)
+    }
+
+    pub(super) fn select_primary_device(
+        &mut self,
+        surface: &wgpu::Surface<'_>,
+        proxy: EventLoopProxy<RuntimeUserEvent>,
+    ) -> Result<(), &'static str> {
+        let (device_id, backend, registration) = {
+            let Some(context) = self.render_context.as_mut() else {
+                return Err("native adapter render context is unavailable");
+            };
+            let Some(device_id) = pollster::block_on(context.device(Some(surface))) else {
+                return Err("no compatible render device found");
+            };
+            let Some(device_handle) = context.devices.get(device_id) else {
+                return Err("native adapter selected device handle is unavailable");
+            };
+            let backend = device_handle.adapter().get_info().backend;
+            let registration = install_device_loss_callback(&device_handle.device, proxy);
+            (device_id, backend, registration)
+        };
+        self.selected_device_id = Some(device_id);
+        self.selected_backend = Some(backend);
+        self.device_loss_registration = Some(registration);
+        Ok(())
+    }
+
+    pub(super) fn validate_auxiliary_surface(
+        &self,
+        requested_backend: NativeGpuBackend,
+        surface: &wgpu::Surface<'_>,
+    ) -> Result<(), AuxiliaryAdapterCompatibilityError> {
+        let selected_backend = self
+            .selected_backend
+            .ok_or(AuxiliaryAdapterCompatibilityError::NoSelectedDevice)?;
+        if !auxiliary_backend_policy_is_compatible(requested_backend, selected_backend) {
+            return Err(AuxiliaryAdapterCompatibilityError::BackendMismatch);
+        }
+        if !self
+            .selected_adapter()
+            .is_some_and(|adapter| adapter.is_surface_supported(surface))
+        {
+            return Err(AuxiliaryAdapterCompatibilityError::SurfaceUnsupported);
+        }
+        Ok(())
+    }
+
+    pub(super) fn create_render_surface<'surface>(
+        &mut self,
+        surface: wgpu::Surface<'surface>,
+        width: u32,
+        height: u32,
+        present_mode: wgpu::PresentMode,
+    ) -> Result<RenderSurface<'surface>, AdapterSurfaceError> {
+        let selected_device_id = self
+            .selected_device_id
+            .ok_or(AdapterSurfaceError::NoSelectedDevice)?;
+        let Some(context) = self.render_context.as_mut() else {
+            return Err(AdapterSurfaceError::NoSelectedDevice);
+        };
+        let render_surface =
+            pollster::block_on(context.create_render_surface(surface, width, height, present_mode))
+                .map_err(render_surface_creation_error)?;
+        if render_surface.dev_id != selected_device_id {
+            return Err(AdapterSurfaceError::DeviceMismatch);
+        }
+        Ok(render_surface)
+    }
+
+    pub(super) fn selected_device_handle(&self) -> Option<&DeviceHandle> {
+        let context = self.render_context.as_ref()?;
+        let device_id = self.selected_device_id?;
+        context.devices.get(device_id)
+    }
+
+    pub(super) fn device_handle_for_surface(
+        &self,
+        surface: &RenderSurface<'_>,
+    ) -> Option<&DeviceHandle> {
+        let device_id = self.selected_device_id?;
+        (surface.dev_id == device_id)
+            .then(|| self.selected_device_handle())
+            .flatten()
+    }
+
+    pub(super) fn resize_surface(
+        &self,
+        surface: &mut RenderSurface<'_>,
+        width: u32,
+        height: u32,
+    ) -> bool {
+        let Some(device_id) = self.selected_device_id else {
+            return false;
+        };
+        if surface.dev_id != device_id {
+            return false;
+        }
+        let Some(context) = self.render_context.as_ref() else {
+            return false;
+        };
+        context.resize_surface(surface, width, height);
+        true
+    }
+
+    pub(super) fn accepts_device_loss(&self, registration: &Arc<DeviceLossRegistration>) -> bool {
+        device_loss_registration_matches(self.device_loss_registration.as_ref(), registration)
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_test_registration(registration: Arc<DeviceLossRegistration>) -> Self {
+        Self {
+            render_context: None,
+            selected_device_id: None,
+            selected_backend: None,
+            device_loss_registration: Some(registration),
+        }
+    }
+
+    fn selected_adapter(&self) -> Option<&wgpu::Adapter> {
+        self.selected_device_handle().map(DeviceHandle::adapter)
+    }
+}
+
+fn render_surface_creation_error(error: impl fmt::Display) -> AdapterSurfaceError {
+    AdapterSurfaceError::RenderSurfaceCreation(error.to_string())
+}
+
+pub(super) fn auxiliary_backend_policy_is_compatible(
+    requested_backend: NativeGpuBackend,
+    selected_backend: wgpu::Backend,
+) -> bool {
+    match requested_backend {
+        NativeGpuBackend::Auto => true,
+        NativeGpuBackend::Primary => matches!(
+            selected_backend,
+            wgpu::Backend::Vulkan
+                | wgpu::Backend::Metal
+                | wgpu::Backend::Dx12
+                | wgpu::Backend::BrowserWebGpu
+        ),
+        NativeGpuBackend::Vulkan => selected_backend == wgpu::Backend::Vulkan,
+        NativeGpuBackend::Dx12 => selected_backend == wgpu::Backend::Dx12,
+        NativeGpuBackend::Metal => selected_backend == wgpu::Backend::Metal,
+        NativeGpuBackend::Gl => selected_backend == wgpu::Backend::Gl,
+        NativeGpuBackend::BrowserWebGpu => selected_backend == wgpu::Backend::BrowserWebGpu,
+    }
+}
+
+pub(super) fn device_loss_registration_matches(
+    current: Option<&Arc<DeviceLossRegistration>>,
+    registration: &Arc<DeviceLossRegistration>,
+) -> bool {
+    current.is_some_and(|current| Arc::ptr_eq(current, registration))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
+        auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
+        render_surface_creation_error,
+    };
+    use crate::gui_runtime::NativeGpuBackend;
+    use std::sync::Arc;
+    use vello::wgpu;
+
+    #[test]
+    fn auxiliary_auto_inherits_every_selected_backend() {
+        for backend in wgpu::Backend::ALL {
+            assert!(auxiliary_backend_policy_is_compatible(
+                NativeGpuBackend::Auto,
+                backend
+            ));
+        }
+    }
+
+    #[test]
+    fn explicit_auxiliary_backend_requires_exact_or_primary_compatibility() {
+        assert!(auxiliary_backend_policy_is_compatible(
+            NativeGpuBackend::Metal,
+            wgpu::Backend::Metal
+        ));
+        assert!(!auxiliary_backend_policy_is_compatible(
+            NativeGpuBackend::Metal,
+            wgpu::Backend::Vulkan
+        ));
+        assert!(auxiliary_backend_policy_is_compatible(
+            NativeGpuBackend::Primary,
+            wgpu::Backend::Dx12
+        ));
+        assert!(!auxiliary_backend_policy_is_compatible(
+            NativeGpuBackend::Primary,
+            wgpu::Backend::Gl
+        ));
+    }
+
+    #[test]
+    fn one_owner_witness_admits_current_and_rejects_stale_or_missing_events() {
+        let current = Arc::new(DeviceLossRegistration::new());
+        let stale = Arc::new(DeviceLossRegistration::new());
+
+        assert!(device_loss_registration_matches(Some(&current), &current));
+        assert!(!device_loss_registration_matches(Some(&current), &stale));
+        assert!(!device_loss_registration_matches(None, &current));
+    }
+
+    #[test]
+    fn missing_render_context_is_reported_as_absent() {
+        let owner = GenericNativeAdapterOwner::with_test_registration(Arc::new(
+            DeviceLossRegistration::new(),
+        ));
+
+        assert!(owner.instance().is_none());
+    }
+
+    #[test]
+    fn render_surface_creation_error_retains_backend_message() {
+        let backend_error = String::from("unsupported surface format");
+        let error = render_surface_creation_error(backend_error.as_str());
+        drop(backend_error);
+
+        assert_eq!(
+            error,
+            AdapterSurfaceError::RenderSurfaceCreation(String::from("unsupported surface format",))
+        );
+        assert_eq!(
+            error.to_string(),
+            "native render surface creation failed: unsupported surface format"
+        );
+    }
+}

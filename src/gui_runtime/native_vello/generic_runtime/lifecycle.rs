@@ -57,11 +57,21 @@ where
             else {
                 return;
             };
+            let Some(adapter) = self.adapter.as_mut() else {
+                self.record_initialization_error_and_exit(
+                    event_loop,
+                    NativeGenericRunError::NativeInitialization {
+                        stage: NativeInitializationStage::DeviceAcquisition,
+                        message: String::from("native adapter owner was not initialized"),
+                    },
+                );
+                return;
+            };
             let AuxiliaryWindowEventResult {
                 closed,
                 messages,
                 terminal_cause,
-            } = self.auxiliary_windows[index].route_window_event(event_loop, event);
+            } = self.auxiliary_windows[index].route_window_event(event_loop, event, adapter);
             if let Some(error) = terminal_cause {
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;

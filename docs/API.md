@@ -2475,8 +2475,13 @@ presentation, and the runner records that cause before requesting event-loop
 backend text; an empty backend message uses a deterministic fallback, while
 normal device destruction is ignored. Device-loss handling is terminal reporting
 only in this slice: recovery, device reconstruction, and retry are not
-implemented. Auxiliary-window frame and device-loss failures use the same parent
-report boundary.
+implemented. `RenderDeviceError { kind, message }` reports an uncaptured WGPU
+device error through the backend-neutral `NativeRenderDeviceErrorKind` values
+`OutOfMemory`, `Validation`, and `Internal`; empty backend descriptions use a
+deterministic non-empty fallback. Validation errors captured by the scoped custom
+shader diagnostics path remain scoped diagnostics rather than becoming terminal
+run errors. Auxiliary-window frame, device-loss, and uncaptured device-error
+failures use the same parent report boundary.
 This keeps compatibility diagnostics and generic runtime diagnostics on the same
 mechanism without coupling the public runtime API to a host application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads

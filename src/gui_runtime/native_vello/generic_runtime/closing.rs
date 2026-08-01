@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 pub(super) const NATIVE_CLOSING_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(16);
 pub(super) const NATIVE_CLOSING_MAX_MAINTENANCE_OPPORTUNITIES: u8 = 16;
 pub(super) const NATIVE_CLOSING_MAX_DURATION: Duration = Duration::from_millis(250);
+pub(super) const NATIVE_RECOVERY_MAX_DURATION: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NativeClosingBudget {
@@ -58,6 +59,21 @@ impl NativeClosingBudget {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeRecoveryBudget {
+    first_admitted_at: Instant,
+}
+
+impl NativeRecoveryBudget {
+    fn new(first_admitted_at: Instant) -> Self {
+        Self { first_admitted_at }
+    }
+
+    fn deadline(self) -> Instant {
+        self.first_admitted_at + NATIVE_RECOVERY_MAX_DURATION
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativeClosingProgress {
     Continue,
     Complete,
@@ -68,7 +84,7 @@ pub(super) enum NativeClosingProgress {
 pub(super) enum NativeLifecycle {
     #[default]
     Running,
-    Recovering,
+    Recovering(NativeRecoveryBudget),
     Closing(NativeClosingBudget),
     Stopped,
 }
@@ -83,7 +99,7 @@ impl NativeLifecycle {
     }
 
     pub(super) const fn is_recovering(self) -> bool {
-        matches!(self, Self::Recovering)
+        matches!(self, Self::Recovering(_))
     }
 
     pub(super) const fn is_stopped(self) -> bool {
@@ -91,7 +107,7 @@ impl NativeLifecycle {
     }
 
     pub(super) fn admit_closing(&mut self, first_admitted_at: Instant) -> bool {
-        if !matches!(self, Self::Running | Self::Recovering) {
+        if !matches!(self, Self::Running | Self::Recovering(_)) {
             return false;
         }
         *self = Self::Closing(NativeClosingBudget::new(first_admitted_at));
@@ -99,10 +115,14 @@ impl NativeLifecycle {
     }
 
     pub(super) fn admit_recovery(&mut self) -> bool {
+        self.admit_recovery_at(Instant::now())
+    }
+
+    fn admit_recovery_at(&mut self, first_admitted_at: Instant) -> bool {
         if !self.is_running() {
             return false;
         }
-        *self = Self::Recovering;
+        *self = Self::Recovering(NativeRecoveryBudget::new(first_admitted_at));
         true
     }
 
@@ -128,8 +148,20 @@ impl NativeLifecycle {
     pub(super) fn closing_deadline(&self, now: Instant) -> Option<Instant> {
         match self {
             Self::Closing(budget) => Some(budget.next_opportunity_deadline(now)),
-            Self::Running | Self::Recovering | Self::Stopped => None,
+            Self::Running | Self::Recovering(_) | Self::Stopped => None,
         }
+    }
+
+    pub(super) fn recovery_deadline(&self) -> Option<Instant> {
+        match self {
+            Self::Recovering(budget) => Some(budget.deadline()),
+            Self::Running | Self::Closing(_) | Self::Stopped => None,
+        }
+    }
+
+    pub(super) fn recovery_expired(&self, now: Instant) -> bool {
+        self.recovery_deadline()
+            .is_some_and(|deadline| now >= deadline)
     }
 
     pub(super) fn finish_closing(&mut self) -> bool {
@@ -145,7 +177,7 @@ impl NativeLifecycle {
 mod tests {
     use super::{
         NATIVE_CLOSING_MAX_DURATION, NATIVE_CLOSING_MAX_MAINTENANCE_OPPORTUNITIES,
-        NativeClosingProgress, NativeLifecycle,
+        NATIVE_RECOVERY_MAX_DURATION, NativeClosingProgress, NativeLifecycle,
     };
     use std::time::{Duration, Instant};
 
@@ -243,10 +275,10 @@ mod tests {
     fn recovery_round_trip_preserves_running_lifecycle_without_closing() {
         let mut lifecycle = NativeLifecycle::default();
 
-        assert!(lifecycle.admit_recovery());
+        assert!(lifecycle.admit_recovery_at(Instant::now()));
         assert!(lifecycle.is_recovering());
         assert!(!lifecycle.is_closing());
-        assert!(!lifecycle.admit_recovery());
+        assert!(!lifecycle.admit_recovery_at(Instant::now()));
         assert!(lifecycle.finish_recovery());
         assert!(lifecycle.is_running());
     }
@@ -255,9 +287,25 @@ mod tests {
     fn recovery_failure_can_enter_the_existing_closing_budget() {
         let mut lifecycle = NativeLifecycle::default();
 
-        assert!(lifecycle.admit_recovery());
+        assert!(lifecycle.admit_recovery_at(Instant::now()));
         assert!(lifecycle.admit_closing(Instant::now()));
         assert!(lifecycle.is_closing());
         assert!(!lifecycle.is_recovering());
+    }
+
+    #[test]
+    fn recovery_deadline_is_absolute_from_first_admission() {
+        let first_admitted_at = Instant::now();
+        let mut lifecycle = NativeLifecycle::default();
+
+        assert!(lifecycle.admit_recovery_at(first_admitted_at));
+        assert_eq!(
+            lifecycle.recovery_deadline(),
+            Some(first_admitted_at + NATIVE_RECOVERY_MAX_DURATION)
+        );
+        assert!(!lifecycle.recovery_expired(
+            first_admitted_at + NATIVE_RECOVERY_MAX_DURATION - Duration::from_millis(1)
+        ));
+        assert!(lifecycle.recovery_expired(first_admitted_at + NATIVE_RECOVERY_MAX_DURATION));
     }
 }

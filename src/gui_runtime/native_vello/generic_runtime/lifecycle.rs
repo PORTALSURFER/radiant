@@ -252,7 +252,12 @@ where
             return;
         }
         if self.is_recovering() {
-            event_loop.set_control_flow(ControlFlow::Wait);
+            let now = Instant::now();
+            if self.recovery_expired(now) {
+                self.admit_native_shutdown(event_loop, None);
+            } else if let Some(deadline) = self.recovery_deadline() {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            }
             return;
         }
         if !self.is_running() {

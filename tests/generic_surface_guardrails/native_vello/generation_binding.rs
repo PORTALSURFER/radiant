@@ -618,6 +618,11 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
         "candidate_starts",
         "candidate_completions",
         "max_in_flight",
+        "AtomicBool",
+        "OnceLock",
+        "RecoveryFutureError::Cancelled",
+        "acknowledge",
+        "has_in_flight_candidate",
     ] {
         assert!(
             recovery.contains(required),
@@ -644,6 +649,23 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
         !runner_state.contains("quarantined_native_resources.clear")
             && !recovery.contains("quarantined_native_resources.clear"),
         "recovery must preserve bounded quarantine ownership"
+    );
+    assert!(
+        recovery.contains("cancelled: AtomicBool")
+            && recovery.contains("fn cancel(&self)")
+            && recovery.contains("thread.unpark()")
+            && recovery.contains("fn is_cancelled(&self)")
+            && recovery.contains("thread::park()")
+            && recovery.contains("if cancellation.is_cancelled()"),
+        "recovery worker parking must remain cancellation-wakeable and cancellation-fenced"
+    );
+    assert!(
+        lifecycle.contains("recovery_deadline")
+            && lifecycle.contains("recovery_expired")
+            && lifecycle.contains("ControlFlow::WaitUntil")
+            && runner.contains("self.recovery.acknowledge")
+            && runner.contains("!self.recovery.has_in_flight_candidate()"),
+        "recovery must have a deadline, retain the cancellation episode, and acknowledge late completion"
     );
     assert!(
         adapter.contains("is_strictly_newer_than")

@@ -195,6 +195,14 @@ where
         self.native_lifecycle.is_recovering()
     }
 
+    pub(super) fn recovery_deadline(&self) -> Option<Instant> {
+        self.native_lifecycle.recovery_deadline()
+    }
+
+    pub(super) fn recovery_expired(&self, now: Instant) -> bool {
+        self.native_lifecycle.recovery_expired(now)
+    }
+
     pub(super) fn admit_device_recovery(&mut self) -> bool {
         if !self.native_lifecycle.admit_recovery() {
             return false;
@@ -276,7 +284,8 @@ where
             return;
         }
         let mut turn = NativeResourceMaintenanceTurn::new();
-        let native_ownership_empty = self.retire_all_native_resources_with_turn(&mut turn);
+        let native_ownership_empty = self.retire_all_native_resources_with_turn(&mut turn)
+            && !self.recovery.has_in_flight_candidate();
         let Some(progress) = self
             .native_lifecycle
             .observe_closing_opportunity(now, native_ownership_empty)
@@ -311,6 +320,7 @@ where
                 .auxiliary_windows
                 .iter()
                 .all(AuxiliaryNativeWindow::native_resource_ownership_is_empty)
+            && !self.recovery.has_in_flight_candidate()
     }
 
     pub(super) fn begin_native_resource_maintenance(&mut self) -> NativeResourceMaintenanceTurn {
@@ -489,6 +499,7 @@ where
         episode: NativeRecoveryEpisodeToken,
     ) {
         if !self.is_recovering() {
+            let _ = self.recovery.acknowledge(episode);
             return;
         }
         let Some(result) = self.recovery.take_ready(episode) else {

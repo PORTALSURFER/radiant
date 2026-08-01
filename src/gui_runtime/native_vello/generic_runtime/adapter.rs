@@ -11,6 +11,82 @@ use winit::event_loop::EventLoopProxy;
 
 use super::surface::instance_for_options;
 
+/// Monotonic identity for one selected native adapter.
+///
+/// Unknown and exhausted generations are never valid selection evidence. A
+/// failed advancement leaves the caller's previous generation untouched, and
+/// a successful advancement can never reuse an earlier serial.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) struct NativeAdapterGeneration {
+    serial: u64,
+    status: NativeAdapterGenerationStatus,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeAdapterGenerationStatus {
+    Unknown,
+    Known,
+    Exhausted,
+}
+
+impl NativeAdapterGeneration {
+    pub(super) const fn unknown() -> Self {
+        Self {
+            serial: 0,
+            status: NativeAdapterGenerationStatus::Unknown,
+        }
+    }
+
+    /// Advance after a complete adapter selection. Returns `false` once the
+    /// serial is exhausted; callers must then remain conservative.
+    pub(super) fn advance(&mut self) -> bool {
+        if matches!(self.status, NativeAdapterGenerationStatus::Exhausted) {
+            return false;
+        }
+        let Some(serial) = self.serial.checked_add(1) else {
+            self.status = NativeAdapterGenerationStatus::Exhausted;
+            return false;
+        };
+        self.serial = serial;
+        self.status = NativeAdapterGenerationStatus::Known;
+        true
+    }
+
+    pub(super) const fn is_known(self) -> bool {
+        matches!(self.status, NativeAdapterGenerationStatus::Known)
+    }
+
+    #[cfg(test)]
+    pub(super) const fn is_exhausted(self) -> bool {
+        matches!(self.status, NativeAdapterGenerationStatus::Exhausted)
+    }
+
+    #[cfg(test)]
+    pub(super) const fn from_test_serial(serial: u64) -> Self {
+        Self {
+            serial,
+            status: NativeAdapterGenerationStatus::Known,
+        }
+    }
+}
+
+impl Default for NativeAdapterGeneration {
+    fn default() -> Self {
+        Self::unknown()
+    }
+}
+
+/// Complete selection state published by the shared adapter owner.
+///
+/// The record is constructed locally and assigned to the owner only after
+/// device selection and both callback registrations have completed.
+struct SelectedNativeAdapter {
+    device_id: usize,
+    backend: wgpu::Backend,
+    generation: NativeAdapterGeneration,
+    device_loss_registration: Arc<DeviceLossRegistration>,
+}
+
 /// The one native adapter owner for a generic-native application run.
 ///
 /// The owner is created and used on the event-loop thread. It retains the
@@ -20,9 +96,7 @@ use super::surface::instance_for_options;
 /// device callback pair.
 pub(super) struct GenericNativeAdapterOwner {
     render_context: Option<RenderContext>,
-    selected_device_id: Option<usize>,
-    selected_backend: Option<wgpu::Backend>,
-    device_loss_registration: Option<Arc<DeviceLossRegistration>>,
+    selected: Option<SelectedNativeAdapter>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,9 +148,7 @@ impl GenericNativeAdapterOwner {
                 instance: instance_for_options(options),
                 devices: Vec::new(),
             }),
-            selected_device_id: None,
-            selected_backend: None,
-            device_loss_registration: None,
+            selected: None,
         }
     }
 
@@ -91,7 +163,11 @@ impl GenericNativeAdapterOwner {
         surface: &wgpu::Surface<'_>,
         proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), &'static str> {
-        let (device_id, backend, registration) = {
+        if self.render_context.is_none() {
+            return Err("native adapter render context is unavailable");
+        }
+        let generation = self.next_generation()?;
+        let selected = {
             let Some(context) = self.render_context.as_mut() else {
                 return Err("native adapter render context is unavailable");
             };
@@ -102,12 +178,16 @@ impl GenericNativeAdapterOwner {
                 return Err("native adapter selected device handle is unavailable");
             };
             let backend = device_handle.adapter().get_info().backend;
-            let registration = install_device_loss_callback(&device_handle.device, proxy);
-            (device_id, backend, registration)
+            let device_loss_registration =
+                install_device_loss_callback(&device_handle.device, proxy, generation);
+            SelectedNativeAdapter {
+                device_id,
+                backend,
+                generation,
+                device_loss_registration,
+            }
         };
-        self.selected_device_id = Some(device_id);
-        self.selected_backend = Some(backend);
-        self.device_loss_registration = Some(registration);
+        self.selected = Some(selected);
         Ok(())
     }
 
@@ -117,7 +197,9 @@ impl GenericNativeAdapterOwner {
         surface: &wgpu::Surface<'_>,
     ) -> Result<(), AuxiliaryAdapterCompatibilityError> {
         let selected_backend = self
-            .selected_backend
+            .selected
+            .as_ref()
+            .map(|selected| selected.backend)
             .ok_or(AuxiliaryAdapterCompatibilityError::NoSelectedDevice)?;
         if !auxiliary_backend_policy_is_compatible(requested_backend, selected_backend) {
             return Err(AuxiliaryAdapterCompatibilityError::BackendMismatch);
@@ -139,7 +221,9 @@ impl GenericNativeAdapterOwner {
         present_mode: wgpu::PresentMode,
     ) -> Result<RenderSurface<'surface>, AdapterSurfaceError> {
         let selected_device_id = self
-            .selected_device_id
+            .selected
+            .as_ref()
+            .map(|selected| selected.device_id)
             .ok_or(AdapterSurfaceError::NoSelectedDevice)?;
         let Some(context) = self.render_context.as_mut() else {
             return Err(AdapterSurfaceError::NoSelectedDevice);
@@ -155,7 +239,7 @@ impl GenericNativeAdapterOwner {
 
     pub(super) fn selected_device_handle(&self) -> Option<&DeviceHandle> {
         let context = self.render_context.as_ref()?;
-        let device_id = self.selected_device_id?;
+        let device_id = self.selected.as_ref()?.device_id;
         context.devices.get(device_id)
     }
 
@@ -163,7 +247,7 @@ impl GenericNativeAdapterOwner {
         &self,
         surface: &RenderSurface<'_>,
     ) -> Option<&DeviceHandle> {
-        let device_id = self.selected_device_id?;
+        let device_id = self.selected.as_ref()?.device_id;
         (surface.dev_id == device_id)
             .then(|| self.selected_device_handle())
             .flatten()
@@ -175,7 +259,7 @@ impl GenericNativeAdapterOwner {
         width: u32,
         height: u32,
     ) -> bool {
-        let Some(device_id) = self.selected_device_id else {
+        let Some(device_id) = self.selected.as_ref().map(|selected| selected.device_id) else {
             return false;
         };
         if surface.dev_id != device_id {
@@ -188,18 +272,48 @@ impl GenericNativeAdapterOwner {
         true
     }
 
-    pub(super) fn accepts_device_loss(&self, registration: &Arc<DeviceLossRegistration>) -> bool {
-        device_loss_registration_matches(self.device_loss_registration.as_ref(), registration)
+    pub(super) fn accepts_device_loss(
+        &self,
+        generation: NativeAdapterGeneration,
+        registration: &Arc<DeviceLossRegistration>,
+    ) -> bool {
+        self.selected.as_ref().is_some_and(|selected| {
+            generation.is_known()
+                && selected.generation == generation
+                && device_loss_registration_matches(
+                    Some(&selected.device_loss_registration),
+                    registration,
+                )
+        })
     }
 
     #[cfg(test)]
-    pub(super) fn with_test_registration(registration: Arc<DeviceLossRegistration>) -> Self {
+    pub(super) fn with_test_registration(
+        generation: NativeAdapterGeneration,
+        registration: Arc<DeviceLossRegistration>,
+    ) -> Self {
         Self {
             render_context: None,
-            selected_device_id: None,
-            selected_backend: None,
-            device_loss_registration: Some(registration),
+            selected: Some(SelectedNativeAdapter {
+                device_id: 0,
+                backend: wgpu::Backend::Noop,
+                generation,
+                device_loss_registration: registration,
+            }),
         }
+    }
+
+    fn next_generation(&self) -> Result<NativeAdapterGeneration, &'static str> {
+        let mut generation = self
+            .selected
+            .as_ref()
+            .map_or_else(NativeAdapterGeneration::unknown, |selected| {
+                selected.generation
+            });
+        if !generation.advance() {
+            return Err("native adapter generation is exhausted");
+        }
+        Ok(generation)
     }
 
     fn selected_adapter(&self) -> Option<&wgpu::Adapter> {
@@ -243,8 +357,8 @@ pub(super) fn device_loss_registration_matches(
 mod tests {
     use super::{
         AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
-        auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
-        render_surface_creation_error,
+        NativeAdapterGeneration, auxiliary_backend_policy_is_compatible,
+        device_loss_registration_matches, render_surface_creation_error,
     };
     use crate::gui_runtime::NativeGpuBackend;
     use std::sync::Arc;
@@ -284,19 +398,64 @@ mod tests {
     fn one_owner_witness_admits_current_and_rejects_stale_or_missing_events() {
         let current = Arc::new(DeviceLossRegistration::new());
         let stale = Arc::new(DeviceLossRegistration::new());
+        let generation = NativeAdapterGeneration::from_test_serial(1);
 
         assert!(device_loss_registration_matches(Some(&current), &current));
         assert!(!device_loss_registration_matches(Some(&current), &stale));
         assert!(!device_loss_registration_matches(None, &current));
+        let owner =
+            GenericNativeAdapterOwner::with_test_registration(generation, Arc::clone(&current));
+        assert!(owner.accepts_device_loss(generation, &current));
+        assert!(
+            !owner.accepts_device_loss(NativeAdapterGeneration::from_test_serial(2), &current,)
+        );
     }
 
     #[test]
     fn missing_render_context_is_reported_as_absent() {
-        let owner = GenericNativeAdapterOwner::with_test_registration(Arc::new(
-            DeviceLossRegistration::new(),
-        ));
+        let owner = GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        );
 
         assert!(owner.instance().is_none());
+    }
+
+    #[test]
+    fn adapter_generation_advances_from_unknown_without_reuse() {
+        let mut generation = NativeAdapterGeneration::default();
+        assert!(!generation.is_known());
+        assert!(!generation.is_exhausted());
+        assert!(generation.advance());
+        assert!(generation.is_known());
+        let previous = generation;
+        assert!(generation.advance());
+        assert_ne!(generation, previous);
+    }
+
+    #[test]
+    fn adapter_generation_does_not_wrap_after_exhaustion() {
+        let mut generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
+        assert!(!generation.advance());
+        assert!(!generation.is_known());
+        assert!(generation.is_exhausted());
+        assert!(!generation.advance());
+    }
+
+    #[test]
+    fn failed_generation_candidate_leaves_selected_record_unchanged() {
+        let registration = Arc::new(DeviceLossRegistration::new());
+        let generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
+        let owner = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::clone(&registration),
+        );
+
+        assert_eq!(
+            owner.next_generation(),
+            Err("native adapter generation is exhausted")
+        );
+        assert!(owner.accepts_device_loss(generation, &registration));
     }
 
     #[test]

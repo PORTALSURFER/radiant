@@ -188,13 +188,21 @@ where
             }
             RuntimeUserEvent::DeviceLost {
                 registration,
+                generation,
                 message,
-            } => self.handle_device_lost_event(event_loop, registration, message),
+            } => self.handle_device_lost_event(event_loop, generation, registration, message),
             RuntimeUserEvent::RenderDeviceError {
+                registration,
+                generation,
+                kind,
+                message,
+            } => self.handle_render_device_error_event(
+                event_loop,
+                generation,
                 registration,
                 kind,
                 message,
-            } => self.handle_render_device_error_event(event_loop, registration, kind, message),
+            ),
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();

@@ -186,8 +186,10 @@ application-builder code.
 
 The generic native Vello runtime has one event-loop-confined adapter owner per
 application run. The primary window selects the shared WGPU context, device,
-queue, and device-loss callback witness; auxiliary windows borrow that owner and
-create only compatible surfaces and per-window renderers. Auxiliary
+queue, and device-loss callback witness; the owner publishes crate-private
+monotonic adapter-generation evidence with that selection, while
+`NativeTargetGeneration` remains per-window. Auxiliary windows borrow that
+owner and create only compatible surfaces and per-window renderers. Auxiliary
 `NativeGpuBackend::Auto` inherits the selected primary backend, while an
 explicit auxiliary policy must be compatible with it and the selected adapter
 must support the child surface. Auxiliary child runners route and present their

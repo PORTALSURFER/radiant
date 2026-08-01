@@ -3,11 +3,13 @@
 use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage, SceneRebuildMode, configure_created_top_level_window,
-    generic_window_attributes, reveal_window_after_surface_setup,
+    NativeInitializationStage, RuntimeUserEvent, SceneRebuildMode,
+    configure_created_top_level_window, generic_window_attributes,
+    reveal_window_after_surface_setup,
 };
 use super::{
     accessibility,
+    device::install_device_loss_callback,
     window_environment::{
         current_monitor_fingerprint, environment_for_native_state, window_color_scheme,
     },
@@ -21,7 +23,10 @@ use crate::{
 use std::{sync::Arc, time::Instant};
 use tracing::{error, info, warn};
 use vello::{Renderer, wgpu};
-use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop};
+use winit::{
+    dpi::PhysicalSize,
+    event_loop::{ActiveEventLoop, EventLoopProxy},
+};
 
 mod backend;
 mod viewport;
@@ -36,6 +41,7 @@ where
     pub(super) fn initialize_runtime(
         &mut self,
         event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
         info!("radiant generic native vello: initializing runtime window and surface");
         self.timing.startup_timing.mark_init_started();
@@ -105,6 +111,8 @@ where
         })?;
         self.timing.startup_timing.mark_surface_ready();
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
+        let device_loss_registration =
+            install_device_loss_callback(&dev_handle.device, event_proxy.clone());
         self.timing.startup_timing.mark_renderer_started();
         let renderer =
             Renderer::new(&dev_handle.device, startup_renderer_options()).map_err(|err| {
@@ -116,6 +124,7 @@ where
         self.window.render_ctx = Some(render_ctx);
         self.window.render_surface = Some(render_surface);
         self.window.renderer = Some(renderer);
+        self.window.device_loss_registration = Some(device_loss_registration);
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();
@@ -128,7 +137,7 @@ where
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
         });
-        self.sync_auxiliary_windows(event_loop)?;
+        self.sync_auxiliary_windows(event_loop, event_proxy)?;
         Ok(())
     }
 

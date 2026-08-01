@@ -272,3 +272,61 @@ fn native_frame_state_uses_explicit_imports() {
         "native frame state should own frame buffers, caches, and dirty flags without hidden runtime imports"
     );
 }
+
+#[test]
+fn native_device_loss_uses_shared_callback_and_user_event_boundaries() {
+    let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
+    let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
+    let auxiliary =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
+    let runtime_wakeup =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runtime_wakeup.rs");
+    let lifecycle =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
+    let runtime_event = read_runtime_source("src/gui_runtime/native_vello/runtime_event.rs");
+
+    let callback = surface
+        .find("install_device_loss_callback")
+        .expect("shared surface initialization should install device-loss callbacks");
+    let renderer = surface
+        .find("Renderer::new")
+        .expect("shared surface initialization should retain renderer creation");
+
+    assert!(callback < renderer);
+    assert!(device.contains("set_device_lost_callback"));
+    assert!(surface.contains("event_proxy.clone()"));
+    assert!(
+        auxiliary.contains("initialize_runtime(event_loop, parent_window, event_proxy.clone())")
+    );
+    assert!(runtime_wakeup.contains("event_loop_proxy"));
+    assert!(lifecycle.contains("RuntimeUserEvent::DeviceLost"));
+    assert!(runtime_event.contains("Arc<DeviceLossRegistration>"));
+    assert!(runtime_event.contains("Arc::ptr_eq"));
+}
+
+#[test]
+fn native_device_loss_admission_is_witness_scoped_without_broad_panic_handling() {
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    let runner_state =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner_state.rs");
+    let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
+    let runtime_modules = [
+        "src/gui_runtime/native_vello/generic_runtime.rs",
+        "src/gui_runtime/native_vello/generic_runtime/present.rs",
+        "src/gui_runtime/native_vello/generic_runtime/lifecycle.rs",
+        "src/gui_runtime/native_vello/generic_runtime/auxiliary.rs",
+    ];
+
+    assert!(runner.contains("Arc::ptr_eq"));
+    assert!(runner_state.contains("device_loss_registration"));
+    assert!(device.contains("DeviceLostReason::Destroyed"));
+    assert!(device.contains("Arc<DeviceLossRegistration>"));
+    assert!(!device.contains("catch_unwind") && !device.contains("AssertUnwindSafe"));
+    for module in runtime_modules {
+        let source = read_runtime_source(module);
+        assert!(
+            !source.contains("catch_unwind") && !source.contains("AssertUnwindSafe"),
+            "device-loss admission must not broaden renderer panic containment in {module}"
+        );
+    }
+}

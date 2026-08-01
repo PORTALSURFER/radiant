@@ -2451,7 +2451,8 @@ artifact capture is requested. The report envelope is generic: Radiant owns the
 result transport while each runtime path chooses its artifact payload and typed
 error boundary. The generic Vello runtime reports `NativeGenericRunError`
 variants for event-loop build and run failures, native initialization failures,
-frame-render failures, and terminal native surface failures. `NativeInitialization { stage, message }`
+frame-render failures, terminal native surface failures, and unexpected render-device loss.
+`NativeInitialization { stage, message }`
 uses the backend-neutral `NativeInitializationStage` for native window creation,
 WGPU surface creation, compatible-device acquisition, render-surface creation,
 and renderer creation; backend-specific error details remain owned text at the
@@ -2470,7 +2471,12 @@ hook still runs. This boundary does not convert ordinary application or widget
 panics outside the renderer call, and `panic=abort` or foreign aborts remain
 outside its scope. The failed frame is not presented or counted as a successful
 presentation, and the runner records that cause before requesting event-loop
-exit. Auxiliary-window frame failures use the same parent report boundary.
+`RenderDeviceLost(message)` reports an unexpected WGPU device loss using owned
+backend text; an empty backend message uses a deterministic fallback, while
+normal device destruction is ignored. Device-loss handling is terminal reporting
+only in this slice: recovery, device reconstruction, and retry are not
+implemented. Auxiliary-window frame and device-loss failures use the same parent
+report boundary.
 This keeps compatibility diagnostics and generic runtime diagnostics on the same
 mechanism without coupling the public runtime API to a host application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads

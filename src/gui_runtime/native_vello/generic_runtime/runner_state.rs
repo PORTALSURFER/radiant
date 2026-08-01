@@ -1,5 +1,6 @@
 //! Focused state groups owned by the generic native Vello runner.
 
+use super::DeviceLossRegistration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
@@ -234,6 +235,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) render_ctx: Option<RenderContext>,
     pub(super) render_surface: Option<RenderSurface<'static>>,
     pub(super) renderer: Option<Renderer>,
+    pub(super) device_loss_registration: Option<Arc<DeviceLossRegistration>>,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,

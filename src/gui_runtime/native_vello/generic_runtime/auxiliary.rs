@@ -1,13 +1,15 @@
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome,
-    NativeGenericRunError, SceneRebuildMode, initial_viewport, owner_window_handle,
+    DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
+    GenericRouteOutcome, NativeGenericRunError, RuntimeUserEvent, SceneRebuildMode,
+    initial_viewport, owner_window_handle,
 };
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
+use std::sync::Arc;
 use winit::{
     event::WindowEvent,
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, EventLoopProxy},
     window::{Window, WindowId},
 };
 
@@ -70,6 +72,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         event_loop: &ActiveEventLoop,
         parent_window: Option<&Window>,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
         if self
             .runner
@@ -86,7 +89,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             self.runner.options.window.geometry.position =
                 centered_position(parent_window, &self.runner.options);
         }
-        self.runner.initialize_runtime(event_loop)
+        self.runner.initialize_runtime(event_loop, event_proxy)
+    }
+
+    pub(super) fn accepts_device_loss(&self, registration: &Arc<DeviceLossRegistration>) -> bool {
+        // `active` is visibility state: a cache-on-close window still owns its
+        // device until the parent removes it from `auxiliary_windows`.
+        auxiliary_device_loss_registration_matches(
+            self.runner.window.device_loss_registration.as_ref(),
+            registration,
+        )
     }
 
     pub(super) fn hide(&mut self) {
@@ -223,12 +235,15 @@ where
         if !self.should_admit_auxiliary_sync() {
             return;
         }
-        let _ = self.sync_auxiliary_windows(event_loop);
+        if let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() {
+            let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
+        }
     }
 
     pub(super) fn sync_auxiliary_windows(
         &mut self,
         event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
         self.timing.deferred_auxiliary_window_sync = false;
         if !self.should_admit_auxiliary_sync() {
@@ -252,7 +267,7 @@ where
                     let parent_window = self.window.window.as_deref();
                     let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
                     window
-                        .initialize_runtime(event_loop, parent_window)
+                        .initialize_runtime(event_loop, parent_window, event_proxy.clone())
                         .map(|()| window)
                 };
                 if let Err(error) =
@@ -274,8 +289,11 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
     ) {
-        if self.timing.deferred_auxiliary_window_sync && self.should_admit_auxiliary_sync() {
-            let _ = self.sync_auxiliary_windows(event_loop);
+        if self.timing.deferred_auxiliary_window_sync
+            && self.should_admit_auxiliary_sync()
+            && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
+        {
+            let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
         }
     }
 }
@@ -287,6 +305,13 @@ fn auxiliary_projection_contains_key<Message>(
     projections
         .iter()
         .any(|projection| projection.key.as_str() == key)
+}
+
+fn auxiliary_device_loss_registration_matches(
+    current: Option<&Arc<DeviceLossRegistration>>,
+    registration: &Arc<DeviceLossRegistration>,
+) -> bool {
+    current.is_some_and(|current| Arc::ptr_eq(current, registration))
 }
 
 fn append_initialized_auxiliary_window<T>(
@@ -301,11 +326,37 @@ fn append_initialized_auxiliary_window<T>(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_initialized_auxiliary_window, auxiliary_projection_contains_key,
+        DeviceLossRegistration, append_initialized_auxiliary_window,
+        auxiliary_device_loss_registration_matches, auxiliary_projection_contains_key,
         auxiliary_redraw_terminal_cause,
     };
     use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
     use std::sync::Arc;
+
+    #[test]
+    fn auxiliary_device_loss_admission_requires_current_owned_witness() {
+        let current = Arc::new(DeviceLossRegistration::new());
+        let stale = Arc::new(DeviceLossRegistration::new());
+        let superseding = Arc::new(DeviceLossRegistration::new());
+
+        assert!(auxiliary_device_loss_registration_matches(
+            Some(&current),
+            &current
+        ));
+        assert!(!auxiliary_device_loss_registration_matches(
+            Some(&current),
+            &stale
+        ));
+        assert!(!auxiliary_device_loss_registration_matches(
+            Some(&superseding),
+            &current
+        ));
+        assert!(auxiliary_device_loss_registration_matches(
+            Some(&superseding),
+            &superseding
+        ));
+        assert!(!auxiliary_device_loss_registration_matches(None, &current));
+    }
 
     #[test]
     fn auxiliary_projection_key_lookup_uses_projected_windows_without_key_clones() {

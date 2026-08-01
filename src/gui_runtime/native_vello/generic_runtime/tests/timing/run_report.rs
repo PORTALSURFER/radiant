@@ -1,7 +1,10 @@
+use super::super::super::runner::DeviceLossEventSource;
 use super::super::super::{
-    GenericNativeVelloRunner, NativeGenericRunError, NativeInitializationStage,
+    DeviceLossRegistration, GenericNativeVelloRunner, NativeGenericRunError,
+    NativeInitializationStage,
 };
 use super::{fixtures::*, shared::*};
+use std::sync::Arc;
 
 fn make_runner() -> GenericNativeVelloRunner<TestFrameMessageBridge, DemoMessage> {
     GenericNativeVelloRunner::new(
@@ -26,6 +29,23 @@ fn terminal_cause_recording_is_first_write_wins_and_take_is_one_shot() {
         Some(NativeGenericRunError::SurfaceAcquireOutOfMemory)
     );
     assert_eq!(runner.take_terminal_cause(), None);
+}
+
+#[test]
+fn current_primary_device_loss_witness_admits_only_current_owner() {
+    let mut runner = make_runner();
+    let current = Arc::new(DeviceLossRegistration::new());
+    let stale = Arc::new(DeviceLossRegistration::new());
+    runner.window.device_loss_registration = Some(Arc::clone(&current));
+
+    assert_eq!(
+        runner.device_loss_event_source(&current),
+        Some(DeviceLossEventSource::Primary)
+    );
+    assert_eq!(runner.device_loss_event_source(&stale), None);
+
+    runner.window.device_loss_registration = None;
+    assert_eq!(runner.device_loss_event_source(&current), None);
 }
 
 #[test]
@@ -59,6 +79,25 @@ fn frame_render_error_display_is_stable_and_preserves_first_cause() {
     assert!(runner.record_terminal_cause(frame_error.clone()));
     assert!(!runner.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory));
     assert_eq!(runner.take_terminal_cause(), Some(frame_error));
+}
+
+#[test]
+fn render_device_loss_display_is_stable_and_preserves_first_cause() {
+    let mut runner = make_runner();
+    let device_loss = NativeGenericRunError::RenderDeviceLost(String::from("driver reset"));
+
+    assert_eq!(
+        device_loss.to_string(),
+        "native render device lost: driver reset"
+    );
+    assert!(runner.record_terminal_cause(device_loss.clone()));
+    assert!(
+        !runner.record_terminal_cause(NativeGenericRunError::FrameRender(String::from(
+            "secondary frame failure"
+        ),))
+    );
+    assert!(!runner.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory));
+    assert_eq!(runner.take_terminal_cause(), Some(device_loss));
 }
 
 #[test]
@@ -118,13 +157,29 @@ fn terminal_cause_admission_predicates_block_later_initialization_work() {
     assert!(runner.should_initialize_runtime());
     assert!(runner.should_admit_auxiliary_sync());
 
-    runner.record_terminal_cause(NativeGenericRunError::NativeInitialization {
+    let initialization = NativeGenericRunError::NativeInitialization {
         stage: NativeInitializationStage::RendererCreation,
         message: String::from("renderer rejected device"),
-    });
+    };
+    runner.record_terminal_cause(initialization.clone());
 
     assert!(!runner.should_initialize_runtime());
     assert!(!runner.should_admit_auxiliary_sync());
+    assert_eq!(runner.take_terminal_cause(), Some(initialization));
+}
+
+#[test]
+fn render_device_loss_terminal_cause_blocks_later_initialization_work() {
+    let mut runner = make_runner();
+    assert!(runner.should_initialize_runtime());
+    assert!(runner.should_admit_auxiliary_sync());
+
+    let device_loss = NativeGenericRunError::RenderDeviceLost(String::from("driver reset"));
+    runner.record_terminal_cause(device_loss.clone());
+
+    assert!(!runner.should_initialize_runtime());
+    assert!(!runner.should_admit_auxiliary_sync());
+    assert_eq!(runner.take_terminal_cause(), Some(device_loss));
 }
 
 #[test]

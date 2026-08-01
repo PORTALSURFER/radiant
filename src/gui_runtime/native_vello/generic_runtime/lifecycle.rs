@@ -1,10 +1,10 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
 use super::{
-    AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_native_window_drag,
-    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeGenericRunError,
+    NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
+    should_start_native_window_drag, should_toggle_native_window_maximized,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -27,7 +27,17 @@ where
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.should_initialize_runtime() {
             self.install_application_reopen_handler_if_needed();
-            if let Err(error) = self.initialize_runtime(event_loop) {
+            let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() else {
+                self.record_initialization_error_and_exit(
+                    event_loop,
+                    NativeGenericRunError::NativeInitialization {
+                        stage: NativeInitializationStage::DeviceAcquisition,
+                        message: String::from("native event-loop proxy was not installed"),
+                    },
+                );
+                return;
+            };
+            if let Err(error) = self.initialize_runtime(event_loop, event_proxy) {
                 self.record_initialization_error_and_exit(event_loop, error);
             }
         }
@@ -166,6 +176,10 @@ where
                 self.handle_application_reopen_intent();
                 self.observe_pending_window_activation();
             }
+            RuntimeUserEvent::DeviceLost {
+                registration,
+                message,
+            } => self.handle_device_lost_event(event_loop, registration, message),
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();

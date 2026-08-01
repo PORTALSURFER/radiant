@@ -3,8 +3,9 @@ use super::runner_state::NativeWindowResourceBundle;
 #[cfg(test)]
 use super::scene_texture::NativeFrameRenderFailure;
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, NativeAdapterGeneration, NativeGenericRunError,
+    AuxiliaryScheduleEligibility, FrameScheduleDemand, FrameScheduleKey,
+    FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
+    GenericNativeVelloRunner, GenericRouteOutcome, NativeAdapterGeneration, NativeGenericRunError,
     NativeResourceMaintenanceTurn, RuntimeUserEvent, SceneRebuildMode, initial_viewport,
     owner_window_handle,
 };
@@ -12,6 +13,7 @@ use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_opt
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
+use std::time::Instant;
 use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoopProxy},
@@ -240,6 +242,97 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .flatten()
     }
 
+    pub(super) fn frame_schedule_eligibility(
+        &self,
+        current_generation: Option<NativeAdapterGeneration>,
+    ) -> AuxiliaryScheduleEligibility {
+        let native_resources = self.runner.window.native_resources.as_ref();
+        let visible = self
+            .runner
+            .window
+            .window
+            .as_ref()
+            .and_then(|window| window.is_visible())
+            .unwrap_or(false);
+        AuxiliaryScheduleEligibility {
+            active: self.active,
+            admitted: self.is_admitted(),
+            visible,
+            local_running: self.runner.is_running() && !self.runner.has_terminal_cause(),
+            live_window: self.runner.window.id.is_some() && self.runner.window.window.is_some(),
+            recovering: self.runner.is_recovering() || self.recovery_rebuild_pending,
+            closing: self.runner.is_closing(),
+            stopped: self.runner.is_stopped(),
+            native_resources_present: native_resources.is_some(),
+            resource_generation_current: native_resources
+                .is_some_and(|resources| current_generation == Some(resources.generation)),
+            target_generation_known: self.runner.window.target_generation.is_known(),
+            native_surface_target_unfenced: !self.runner.window.native_surface_target_fenced,
+        }
+    }
+
+    pub(super) fn observe_frame_schedule(
+        &mut self,
+        now: Instant,
+        current_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<FrameScheduleDemand> {
+        if !self
+            .frame_schedule_eligibility(current_generation)
+            .is_eligible()
+        {
+            return None;
+        }
+        let animation_activity = self.runner.core.animation_activity();
+        let needs_text_caret_animation = self.runner.core.has_focused_text_input();
+        Some(FrameScheduleDemand::observe_runtime(
+            FrameScheduleKey::Auxiliary(self.key.clone()),
+            now,
+            self.runner.timing.last_timed_frame_drain,
+            self.runner.options.normalized_target_fps(),
+            animation_activity,
+            needs_text_caret_animation,
+            FrameScheduleRedrawEvidence {
+                timed_repaint_deadline: self.runner.core.timed_repaint_deadline(),
+                pending_redraw_requested: self.runner.timing.redraw_requested,
+                pending_redraw_retry_deadline: self.runner.pending_redraw_retry_deadline(),
+                pending_redraw_fresh: self.runner.timing.redraw_requested
+                    && !self.runner.pending_redraw_request_is_stale(now),
+            },
+        ))
+    }
+
+    pub(super) fn admit_frame_schedule_work(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
+        now: Instant,
+        demand: &FrameScheduleDemand,
+    ) -> Option<AuxiliaryWindowEventResult<Message>> {
+        let current_generation = adapter.capture_generation();
+        if !matches!(
+            demand.key(),
+            FrameScheduleKey::Auxiliary(key) if key == &self.key
+        ) || !self
+            .frame_schedule_eligibility(current_generation)
+            .is_eligible()
+        {
+            return None;
+        }
+        let admission = self.runner.admit_frame_schedule_work(now, demand);
+        if !admission.did_work {
+            return None;
+        }
+        if admission.route_outcome {
+            self.runner
+                .handle_route_outcome_with_adapter(event_loop, admission.outcome, adapter);
+        }
+        Some(AuxiliaryWindowEventResult {
+            messages: self.take_messages(),
+            terminal_cause: self.runner.take_terminal_cause(),
+            shutdown_requested: self.runner.native_shutdown_requested(),
+        })
+    }
+
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
         if !self.is_admitted() || self.recovery_rebuild_pending {
             return;
@@ -464,6 +557,23 @@ where
         event_loop: &ActiveEventLoop,
         messages: Vec<Message>,
     ) {
+        self.dispatch_auxiliary_messages_with_timed_frame(event_loop, messages, true);
+    }
+
+    pub(super) fn dispatch_auxiliary_messages_without_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        messages: Vec<Message>,
+    ) {
+        self.dispatch_auxiliary_messages_with_timed_frame(event_loop, messages, false);
+    }
+
+    fn dispatch_auxiliary_messages_with_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        messages: Vec<Message>,
+        merge_due_timed_frame: bool,
+    ) {
         if !self.should_admit_auxiliary_sync() {
             return;
         }
@@ -472,7 +582,11 @@ where
             let command_outcome = self.core.runtime.dispatch_message(message);
             outcome.merge(self.core.route_command_outcome(command_outcome));
         }
-        self.handle_route_outcome(event_loop, outcome);
+        if merge_due_timed_frame {
+            self.handle_route_outcome(event_loop, outcome);
+        } else {
+            self.handle_route_outcome_without_timed_frame(event_loop, outcome);
+        }
         if !self.should_admit_auxiliary_sync() {
             return;
         }

@@ -5,18 +5,21 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
     let lifecycle =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
     let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    let scheduler =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/frame_scheduler.rs");
 
     assert!(
         lifecycle.contains("let cadence = timed_frame_cadence(")
             && lifecycle.contains("TimedFrameCadence::DrainNow { next_wake }")
-            && lifecycle.contains("self.drain_timed_frame_now("),
-        "native lifecycle should compute timed-frame cadence once and drain directly when due"
+            && lifecycle.contains("self.admit_frame_schedule_work("),
+        "native lifecycle should compute timed-frame cadence once and admit selected work"
     );
     assert!(
         runner.contains("fn drain_timed_frame_now")
             && !runner.contains("fn drain_due_timed_frame")
-            && !runner.contains("match timed_frame_cadence("),
-        "runner timed-frame drain should not recompute cadence already selected by lifecycle"
+            && !runner.contains("match timed_frame_cadence(")
+            && scheduler.contains("fn admit_frame_schedule_work"),
+        "runner timed-frame admission should not recompute cadence already selected by lifecycle"
     );
 }
 

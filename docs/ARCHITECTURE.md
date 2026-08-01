@@ -203,6 +203,17 @@ lazily one per event-loop opportunity and cached hidden auxiliaries rebuild
 before show. Any recovery publication or reconstruction veto returns through
 the existing bounded `Closing` policy.
 
+The parent `AboutToWait` owner observes the primary and each eligible visible
+auxiliary runner's existing timed-repaint, caret, animation, and pending-redraw
+deadlines. It admits at most one newly due window per scheduler turn using
+stable window keys, then composes the selected cadence with the existing
+activation and maintenance deadlines through Winit's `Wait`/`WaitUntil`
+control flow; hard `Recovering` and `Closing` precedence retains their
+existing deadlines. Hidden or cached, retiring, recovering,
+resource-incomplete, stale-generation, and stopped auxiliaries remain dormant;
+the scheduler does not render, create GPU work, or introduce a second wake
+mechanism.
+
 A `FrameRender` returned by the narrow Vello `render_to_texture` boundary has a
 separate bounded per-window reconstruction path. After the failed redraw has
 returned, the path preflights the current adapter generation, window identity,

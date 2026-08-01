@@ -328,8 +328,9 @@ where
         if primary_window_ready && primary_resources_ready {
             let animation_activity = self.core.animation_activity();
             let needs_text_caret_animation = self.core.has_focused_text_input();
+            let requested_target_fps = self.options.normalized_target_fps();
             let frame_target_fps = timed_frame_target_fps(
-                self.options.normalized_target_fps(),
+                requested_target_fps,
                 animation_activity,
                 needs_text_caret_animation,
             );
@@ -339,9 +340,10 @@ where
                 frame_target_fps,
                 animation_activity.needs_animation() || needs_text_caret_animation,
             );
-            demands.push(FrameScheduleDemand::from_cadence(
+            demands.push(FrameScheduleDemand::from_cadence_with_requested_target_fps(
                 FrameScheduleKey::Primary,
                 cadence,
+                requested_target_fps,
                 frame_target_fps,
                 animation_activity,
                 needs_text_caret_animation,
@@ -528,6 +530,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::{NATIVE_RESOURCE_MAINTENANCE_INTERVAL, native_resource_maintenance_deadline};
+    use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_fairness::{
+        CpuFrameCadencePressure, CpuFrameCadenceRate,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::{
+        FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence,
+        animation_frame_interval, assess_cpu_frame_fairness, timed_frame_cadence,
+        timed_frame_target_fps,
+    };
+    use crate::runtime::RuntimeAnimationActivity;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -546,5 +557,59 @@ mod tests {
 
         assert_eq!(native_resource_maintenance_deadline(now, false), None);
         assert!(NATIVE_RESOURCE_MAINTENANCE_INTERVAL >= Duration::from_millis(1));
+    }
+
+    #[test]
+    fn primary_activity_cap_keeps_requested_cadence_separate_from_effective_schedule() {
+        let now = Instant::now();
+        let last_timed_frame_drain = now - animation_frame_interval(24) - Duration::from_millis(3);
+        let animation_activity = RuntimeAnimationActivity::paint_only_at(24);
+        let needs_text_caret_animation = false;
+        let requested_target_fps = 120;
+        let frame_target_fps = timed_frame_target_fps(
+            requested_target_fps,
+            animation_activity,
+            needs_text_caret_animation,
+        );
+        let cadence = timed_frame_cadence(
+            now,
+            last_timed_frame_drain,
+            frame_target_fps,
+            animation_activity.needs_animation() || needs_text_caret_animation,
+        );
+        let redraw = FrameScheduleRedrawEvidence::default();
+        let primary = FrameScheduleDemand::from_cadence_with_requested_target_fps(
+            FrameScheduleKey::Primary,
+            cadence,
+            requested_target_fps,
+            frame_target_fps,
+            animation_activity,
+            needs_text_caret_animation,
+            redraw,
+        );
+        let effective_only = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Primary,
+            cadence,
+            frame_target_fps,
+            animation_activity,
+            needs_text_caret_animation,
+            redraw,
+        );
+
+        assert_eq!(frame_target_fps, 24);
+        assert_eq!(primary.cadence(), effective_only.cadence());
+        assert_eq!(primary.work(now), effective_only.work(now));
+        assert_eq!(primary.deadlines(now), effective_only.deadlines(now));
+
+        let demands = [primary];
+        let evidence = assess_cpu_frame_fairness(now, &demands, None)
+            .evidence_for(&FrameScheduleKey::Primary)
+            .expect("primary demand should project fairness evidence");
+        assert_eq!(evidence.requested_cadence, CpuFrameCadenceRate::Known(120));
+        assert_eq!(evidence.effective_cadence, CpuFrameCadenceRate::Known(24));
+        assert!(matches!(
+            evidence.cadence,
+            CpuFrameCadencePressure::Due { .. }
+        ));
     }
 }

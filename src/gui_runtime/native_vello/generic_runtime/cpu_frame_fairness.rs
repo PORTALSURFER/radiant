@@ -176,7 +176,13 @@ fn interaction_evidence(
 ) -> CpuFrameInteractionEvidence {
     observation
         .and_then(CpuFrameObservationWindowProjection::latest_sample)
-        .filter(|sample| sample.exact_interaction)
+        .filter(|sample| {
+            sample.exact_interaction
+                && matches!(
+                    sample.outcome,
+                    CpuFrameCompletionOutcome::SuccessfulPresentation
+                )
+        })
         .map_or(CpuFrameInteractionEvidence::Unknown, |_| {
             CpuFrameInteractionEvidence::Exact
         })
@@ -421,6 +427,7 @@ mod tests {
             true,
             super::super::CpuFrameDuration::Known(Duration::from_millis(3)),
         );
+        capture.mark_successful_presentation();
         ledger.finish(admission, capture, false);
 
         let demand = demand(stable_key.clone(), TimedFrameCadence::Idle);
@@ -437,6 +444,20 @@ mod tests {
             evidence.stage_completion.stages[CpuFrameStage::Layout.index()],
             CpuFrameStageObservation::Completed(_)
         ));
+    }
+
+    #[test]
+    fn non_successful_interaction_outcomes_remain_unknown() {
+        for outcome in [
+            CpuFrameCompletionOutcome::Incomplete,
+            CpuFrameCompletionOutcome::Failed,
+            CpuFrameCompletionOutcome::RecoveryTriggered,
+            CpuFrameCompletionOutcome::SkippedOrVetoed,
+        ] {
+            let (interaction, projected_outcome) = project_interaction_outcome(outcome);
+            assert_eq!(projected_outcome, outcome);
+            assert_eq!(interaction, CpuFrameInteractionEvidence::Unknown);
+        }
     }
 
     #[test]
@@ -475,5 +496,54 @@ mod tests {
 
     fn now() -> Instant {
         Instant::now()
+    }
+
+    fn project_interaction_outcome(
+        expected: CpuFrameCompletionOutcome,
+    ) -> (CpuFrameInteractionEvidence, CpuFrameCompletionOutcome) {
+        let stable_key = key("interaction");
+        let frame_work = FrameWork::RebuildScene {
+            reason: FrameWorkReason::RoutedInput,
+            mode: SceneRebuildMode::Immediate,
+        };
+        let mut ledger = CpuFrameObservationLedger::default();
+        let admission = ledger.begin(
+            stable_key.clone(),
+            frame_work,
+            Some(60),
+            CpuFramePendingRedrawAge::Unknown,
+        );
+        let mut capture = CpuFrameObservationCapture::default();
+        capture.record_frame_work(frame_work);
+        let redraw_failed = match expected {
+            CpuFrameCompletionOutcome::SuccessfulPresentation => {
+                capture.mark_successful_presentation();
+                false
+            }
+            CpuFrameCompletionOutcome::SkippedOrVetoed => false,
+            CpuFrameCompletionOutcome::Incomplete => {
+                capture.mark_frame_path_started();
+                false
+            }
+            CpuFrameCompletionOutcome::Failed => true,
+            CpuFrameCompletionOutcome::RecoveryTriggered => {
+                capture.mark_recovery_triggered();
+                false
+            }
+        };
+        ledger.finish(admission, capture, redraw_failed);
+
+        let demand = demand(stable_key.clone(), TimedFrameCadence::Idle);
+        let demands = [demand];
+        let evidence = assess_cpu_frame_fairness(now(), &demands, Some(&ledger))
+            .evidence_for(&stable_key)
+            .expect("interaction demand should project evidence");
+        (
+            evidence.interaction,
+            evidence
+                .recent_outcomes
+                .latest
+                .expect("finished interaction should have an outcome"),
+        )
     }
 }

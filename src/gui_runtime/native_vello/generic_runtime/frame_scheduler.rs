@@ -103,6 +103,7 @@ pub(super) struct FrameScheduleDemand {
 }
 
 impl FrameScheduleDemand {
+    #[cfg(test)]
     pub(super) fn from_cadence(
         key: FrameScheduleKey,
         cadence: TimedFrameCadence,
@@ -122,7 +123,7 @@ impl FrameScheduleDemand {
         )
     }
 
-    fn from_cadence_with_requested_target_fps(
+    pub(super) fn from_cadence_with_requested_target_fps(
         key: FrameScheduleKey,
         cadence: TimedFrameCadence,
         requested_target_fps: u32,

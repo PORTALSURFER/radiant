@@ -676,6 +676,8 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
             && recovery_rebuild_source.contains("take_deferred_auxiliary_recovery_failure_cause")
             && recovery_rebuild_source
                 .contains("self.admit_native_shutdown(event_loop, Some(cause));")
+            && recovery_rebuild_source
+                .contains("self.request_redraw_for_frame_work(FrameWork::None);")
             && !recovery_rebuild_source
                 .contains("rebuild_after_device_recovery(adapter, event_proxy.clone())?"),
         "deferred auxiliary recovery failures must enter central bounded shutdown with the retained cause rather than escape into a discarded wrapper result"

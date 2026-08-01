@@ -541,6 +541,7 @@ where
                 return Ok(());
             }
             self.timing.deferred_auxiliary_window_sync = true;
+            self.request_redraw_for_frame_work(FrameWork::None);
             return Ok(());
         }
         let projections = self.core.runtime.host_project_auxiliary_windows();
@@ -843,6 +844,32 @@ mod tests {
         assert!(opportunity.admit_rebuild());
         assert!(!opportunity.admit_rebuild());
         assert_eq!(opportunity.rebuilds(), 1);
+    }
+
+    #[test]
+    fn deferred_recovery_rebuilds_two_children_across_opportunities_and_clears_followup() {
+        let mut pending_children = 2;
+        let mut recovery_followup_pending = true;
+        let mut total_rebuilds = 0;
+
+        while pending_children != 0 {
+            let mut opportunity = AuxiliaryRecoveryOpportunity::default();
+
+            assert!(opportunity.admit_rebuild());
+            assert!(!opportunity.admit_rebuild());
+            pending_children -= usize::from(opportunity.rebuilds());
+            total_rebuilds += usize::from(opportunity.rebuilds());
+
+            if pending_children == 0 {
+                recovery_followup_pending = false;
+            } else {
+                assert!(recovery_followup_pending);
+            }
+        }
+
+        assert_eq!(total_rebuilds, 2);
+        assert_eq!(pending_children, 0);
+        assert!(!recovery_followup_pending);
     }
 
     #[test]

@@ -391,7 +391,12 @@ fn native_auxiliary_windows_borrow_the_owner_without_advancing_generation() {
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
 
     assert!(auxiliary.contains("adapter: &mut GenericNativeAdapterOwner"));
-    assert!(!auxiliary.contains("NativeAdapterGeneration"));
-    assert!(!auxiliary.contains("select_primary_device"));
-    assert!(!auxiliary.contains(".advance("));
+    assert!(auxiliary.contains("NativeAdapterGeneration"));
+    assert!(auxiliary.contains("capture_generation"));
+    for forbidden in ["select_primary_device", "next_generation", ".advance("] {
+        assert!(
+            !auxiliary.contains(forbidden),
+            "auxiliary windows must not select or advance the shared adapter generation through `{forbidden}`"
+        );
+    }
 }

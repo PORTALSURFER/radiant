@@ -159,22 +159,12 @@ fn prepare_recovery_candidate(
     Ok(NativeRecoveryCandidate { adapter, primary })
 }
 
+#[derive(Default)]
 struct RecoveryAttemptTracker {
     in_flight: bool,
     candidate_starts: u64,
     candidate_completions: u64,
     max_in_flight: u8,
-}
-
-impl Default for RecoveryAttemptTracker {
-    fn default() -> Self {
-        Self {
-            in_flight: false,
-            candidate_starts: 0,
-            candidate_completions: 0,
-            max_in_flight: 0,
-        }
-    }
 }
 
 impl RecoveryAttemptTracker {
@@ -201,20 +191,11 @@ struct NativeRecoveryEpisode {
     result: Receiver<Result<NativeRecoveryCandidate, String>>,
 }
 
+#[derive(Default)]
 pub(super) struct NativeRecoveryCoordinator {
     next_serial: u64,
     episode: Option<NativeRecoveryEpisode>,
     tracker: RecoveryAttemptTracker,
-}
-
-impl Default for NativeRecoveryCoordinator {
-    fn default() -> Self {
-        Self {
-            next_serial: 0,
-            episode: None,
-            tracker: RecoveryAttemptTracker::default(),
-        }
-    }
 }
 
 impl NativeRecoveryCoordinator {

@@ -663,6 +663,23 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
             && auxiliary.contains("quarantine_device_recovery_resources"),
         "auxiliary recovery should remain lazy, bounded, and retirement-aware"
     );
+    let recovery_rebuild_start = auxiliary
+        .find("let mut recovery_opportunity")
+        .expect("auxiliary recovery rebuild admission should remain explicit");
+    let recovery_rebuild_end = auxiliary[recovery_rebuild_start..]
+        .find("let projections")
+        .map_or(auxiliary.len(), |offset| recovery_rebuild_start + offset);
+    let recovery_rebuild_source = &auxiliary[recovery_rebuild_start..recovery_rebuild_end];
+    assert!(
+        recovery_rebuild_source.contains("let rebuild_result")
+            && recovery_rebuild_source.contains("if let Err(error) = rebuild_result")
+            && recovery_rebuild_source.contains("take_deferred_auxiliary_recovery_failure_cause")
+            && recovery_rebuild_source
+                .contains("self.admit_native_shutdown(event_loop, Some(cause));")
+            && !recovery_rebuild_source
+                .contains("rebuild_after_device_recovery(adapter, event_proxy.clone())?"),
+        "deferred auxiliary recovery failures must enter central bounded shutdown with the retained cause rather than escape into a discarded wrapper result"
+    );
 
     let loss_handler = runner
         .find("pub(super) fn handle_device_lost_event")

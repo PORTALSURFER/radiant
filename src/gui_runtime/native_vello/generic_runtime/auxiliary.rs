@@ -529,8 +529,17 @@ where
                 .iter()
                 .position(AuxiliaryNativeWindow::recovery_rebuild_pending)
         {
-            self.auxiliary_windows[index]
-                .rebuild_after_device_recovery(adapter, event_proxy.clone())?;
+            let rebuild_result = self.auxiliary_windows[index]
+                .rebuild_after_device_recovery(adapter, event_proxy.clone());
+            if let Err(error) = rebuild_result {
+                let cause = take_deferred_auxiliary_recovery_failure_cause(
+                    &mut self.recovery_cause,
+                    &mut self.recovery_auxiliary_followup_pending,
+                    error,
+                );
+                self.admit_native_shutdown(event_loop, Some(cause));
+                return Ok(());
+            }
             self.timing.deferred_auxiliary_window_sync = true;
             return Ok(());
         }
@@ -627,6 +636,15 @@ fn append_initialized_auxiliary_window<T>(
     Ok(())
 }
 
+fn take_deferred_auxiliary_recovery_failure_cause(
+    recovery_cause: &mut Option<NativeGenericRunError>,
+    recovery_auxiliary_followup_pending: &mut bool,
+    auxiliary_error: NativeGenericRunError,
+) -> NativeGenericRunError {
+    *recovery_auxiliary_followup_pending = false;
+    recovery_cause.take().unwrap_or(auxiliary_error)
+}
+
 #[derive(Default)]
 struct AuxiliaryRecoveryOpportunity {
     rebuilds: u8,
@@ -654,6 +672,7 @@ mod tests {
         AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeResourceMaintenanceTurn,
         append_initialized_auxiliary_window, auxiliary_key_is_retiring,
         auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
+        take_deferred_auxiliary_recovery_failure_cause,
     };
     use crate::gui::types::Vector2;
     use crate::{
@@ -824,5 +843,50 @@ mod tests {
         assert!(opportunity.admit_rebuild());
         assert!(!opportunity.admit_rebuild());
         assert_eq!(opportunity.rebuilds(), 1);
+    }
+
+    #[test]
+    fn deferred_auxiliary_rebuild_failure_preserves_render_device_loss_and_fences_followup() {
+        let recovery_cause = crate::gui_runtime::NativeGenericRunError::RenderDeviceLost(
+            String::from("driver reset"),
+        );
+        let auxiliary_error = crate::gui_runtime::NativeGenericRunError::NativeInitialization {
+            stage: crate::gui_runtime::NativeInitializationStage::RendererCreation,
+            message: String::from("auxiliary renderer rejected device"),
+        };
+        let mut retained_cause = Some(recovery_cause.clone());
+        let mut followup_pending = true;
+
+        assert_eq!(
+            take_deferred_auxiliary_recovery_failure_cause(
+                &mut retained_cause,
+                &mut followup_pending,
+                auxiliary_error,
+            ),
+            recovery_cause
+        );
+        assert!(retained_cause.is_none());
+        assert!(!followup_pending);
+    }
+
+    #[test]
+    fn deferred_auxiliary_rebuild_failure_falls_back_to_auxiliary_error_without_recovery_cause() {
+        let auxiliary_error = crate::gui_runtime::NativeGenericRunError::NativeInitialization {
+            stage: crate::gui_runtime::NativeInitializationStage::RenderSurfaceCreation,
+            message: String::from("auxiliary surface rejected device"),
+        };
+        let mut retained_cause = None;
+        let mut followup_pending = true;
+
+        assert_eq!(
+            take_deferred_auxiliary_recovery_failure_cause(
+                &mut retained_cause,
+                &mut followup_pending,
+                auxiliary_error.clone(),
+            ),
+            auxiliary_error
+        );
+        assert!(retained_cause.is_none());
+        assert!(!followup_pending);
     }
 }

@@ -723,6 +723,7 @@ mod tests {
             CpuFrameCompletionOutcome::SuccessfulPresentation,
             CpuFrameCompletionOutcome::Failed,
             CpuFrameCompletionOutcome::Incomplete,
+            CpuFrameCompletionOutcome::SkippedOrVetoed,
             CpuFrameCompletionOutcome::RecoveryTriggered,
         ]
         .into_iter()
@@ -753,7 +754,7 @@ mod tests {
                     capture.mark_recovery_triggered();
                     true
                 }
-                CpuFrameCompletionOutcome::SkippedOrVetoed => unreachable!(),
+                CpuFrameCompletionOutcome::SkippedOrVetoed => false,
             };
             ledger.finish(admission, capture, redraw_failed);
 

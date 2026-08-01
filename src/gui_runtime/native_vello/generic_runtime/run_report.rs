@@ -18,6 +18,8 @@ pub enum NativeGenericRunError {
     EventLoopBuild(String),
     /// The native event loop returned an error while running.
     EventLoopRun(String),
+    /// Native surface texture acquisition failed because the GPU ran out of memory.
+    SurfaceAcquireOutOfMemory,
 }
 
 impl std::fmt::Display for NativeGenericRunError {
@@ -31,6 +33,12 @@ impl std::fmt::Display for NativeGenericRunError {
             }
             Self::EventLoopRun(message) => {
                 write!(formatter, "native event loop failed: {message}")
+            }
+            Self::SurfaceAcquireOutOfMemory => {
+                write!(
+                    formatter,
+                    "native surface acquisition failed: out of memory"
+                )
             }
         }
     }

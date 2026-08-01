@@ -194,11 +194,12 @@ where
         .core
         .runtime
         .host_install_repaint_signal(repaint_signal);
-    let run_result = event_loop
+    let event_loop_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| NativeGenericRunError::EventLoopRun(err.to_string()));
     drop(accessibility_display_observer);
     drop(native_file_open_events);
+    let run_result = runner.resolve_run_result(event_loop_result);
     let elapsed = run_started.elapsed();
     match &run_result {
         Ok(_) => info!(

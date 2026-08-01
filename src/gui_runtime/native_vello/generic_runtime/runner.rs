@@ -3,9 +3,9 @@
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow, FrameWork,
     FrameWorkReason, GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
-    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    NativeGenericRunError, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -46,6 +46,7 @@ where
     pub(super) frame_diagnostics_enabled: bool,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
+    terminal_cause: Option<NativeGenericRunError>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -151,7 +152,37 @@ where
             frame_diagnostics_enabled,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
+            terminal_cause: None,
         }
+    }
+
+    pub(super) fn record_terminal_cause(&mut self, cause: NativeGenericRunError) -> bool {
+        if self.terminal_cause.is_some() {
+            return false;
+        }
+        self.terminal_cause = Some(cause);
+        true
+    }
+
+    pub(super) fn take_terminal_cause(&mut self) -> Option<NativeGenericRunError> {
+        self.terminal_cause.take()
+    }
+
+    pub(super) fn resolve_run_result(
+        &mut self,
+        run_result: Result<(), NativeGenericRunError>,
+    ) -> Result<(), NativeGenericRunError> {
+        let Some(terminal_cause) = self.take_terminal_cause() else {
+            return run_result;
+        };
+        if let Err(event_loop_error) = &run_result {
+            warn!(
+                terminal_cause = %terminal_cause,
+                event_loop_error = %event_loop_error,
+                "native terminal cause superseded the event-loop error"
+            );
+        }
+        Err(terminal_cause)
     }
 
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {

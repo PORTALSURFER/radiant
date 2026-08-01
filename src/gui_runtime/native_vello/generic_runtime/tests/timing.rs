@@ -8,6 +8,8 @@ mod overlay_diagnostics;
 mod resize;
 #[path = "timing/route_frames.rs"]
 mod route_frames;
+#[path = "timing/run_report.rs"]
+mod run_report;
 
 mod shared {
     pub(super) use super::super::*;

@@ -130,11 +130,12 @@ where
                 return Ok(());
             };
             let surface = &mut resources.render_surface;
+            let gpu_resources = &mut resources.gpu_resources;
             let gpu_surface_stats = present_base_frame(
                 &mut BaseFramePresentState {
-                    base_frame: &mut self.frame.composited_base_frame,
+                    base_frame: &mut gpu_resources.composited_base_frame,
                     base_dirty: &mut self.frame.composited_base_dirty,
-                    gpu_surface_renderer: &mut self.frame.gpu_surface_renderer,
+                    gpu_surface_renderer: &mut gpu_resources.gpu_surface_renderer,
                     profile: &mut profile,
                 },
                 surface,
@@ -154,6 +155,7 @@ where
             if self.frame.has_post_gpu_overlay_work() {
                 let surface_size = RenderSurfacePixelSize::from_surface(surface);
                 self.frame.render_post_gpu_overlay(
+                    &mut gpu_resources.post_gpu_overlay_renderer,
                     &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                         device: &dev_handle.device,
                         queue: &dev_handle.queue,

@@ -129,6 +129,66 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
 }
 
 #[test]
+fn retained_window_gpu_state_is_generation_owned_and_admitted() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
+    let frame_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/frame_state.rs"),
+    )
+    .expect("generic frame state source should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("generic present source should be readable");
+
+    for required in [
+        "struct NativeWindowGpuResources",
+        "gpu_surface_renderer: GpuSurfaceRenderer",
+        "post_gpu_overlay_renderer: PostGpuOverlayRenderer",
+        "composited_base_frame: Option<CompositedBaseFrame>",
+        "gpu_resources: NativeWindowGpuResources",
+        "gpu_resources: NativeWindowGpuResources::new()",
+    ] {
+        assert!(
+            runner_state.contains(required),
+            "generation-bound native resources should contain `{required}`"
+        );
+    }
+    for escaped_owner in [
+        "gpu_surface_renderer:",
+        "post_gpu_overlay_renderer:",
+        "composited_base_frame:",
+    ] {
+        assert!(
+            !frame_state.contains(escaped_owner),
+            "CPU-only native frame state must not retain `{escaped_owner}`"
+        );
+    }
+    assert!(
+        frame_state.contains("renderer: &mut PostGpuOverlayRenderer")
+            && !frame_state.contains("post_gpu_overlay_renderer,"),
+        "post-GPU overlay rendering should borrow its renderer from the admitted bundle"
+    );
+    assert!(
+        present.contains("let gpu_resources = &mut resources.gpu_resources")
+            && present.contains("gpu_resources.composited_base_frame")
+            && present.contains("gpu_resources.gpu_surface_renderer")
+            && present.contains("gpu_resources.post_gpu_overlay_renderer")
+            && !present.contains("self.frame.gpu_surface_renderer")
+            && !present.contains("self.frame.post_gpu_overlay_renderer")
+            && !present.contains("self.frame.composited_base_frame"),
+        "presentation should access retained GPU state through the active resource bundle"
+    );
+    assert!(
+        present.matches("admit_native_resources(adapter)").count() >= 3,
+        "presentation should admit the active generation before every GPU phase"
+    );
+}
+
+#[test]
 fn generic_native_resize_acquire_and_present_paths_admit_before_wgpu_work() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let surface = fs::read_to_string(

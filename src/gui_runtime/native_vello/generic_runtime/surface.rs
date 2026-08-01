@@ -2,20 +2,20 @@
 
 use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage, RuntimeUserEvent, SceneRebuildMode,
+    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, SceneRebuildMode,
     configure_created_top_level_window, generic_window_attributes,
     reveal_window_after_surface_setup,
 };
 use super::{
     accessibility,
-    device::install_device_loss_callback,
     window_environment::{
         current_monitor_fingerprint, environment_for_native_state, window_color_scheme,
     },
 };
 use crate::{
     gui::types::Vector2,
+    gui_runtime::NativeRunOptions,
     gui_runtime::native_vello::{select_present_mode, startup_renderer_options},
     runtime::RuntimeBridge,
     theme::DpiScale,
@@ -31,8 +31,11 @@ use winit::{
 mod backend;
 mod viewport;
 
-use backend::render_context_for_options;
 use viewport::{logical_viewport_for_size, surface_size_changed};
+
+pub(super) fn instance_for_options(options: &NativeRunOptions) -> wgpu::Instance {
+    backend::instance_for_options(options)
+}
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -42,6 +45,29 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
+    ) -> Result<(), NativeGenericRunError> {
+        let mut adapter = GenericNativeAdapterOwner::new(&self.options);
+        self.initialize_window_runtime(event_loop, event_proxy.clone(), &mut adapter, true)?;
+        self.adapter = Some(adapter);
+        self.sync_auxiliary_windows(event_loop, event_proxy)?;
+        Ok(())
+    }
+
+    pub(super) fn initialize_runtime_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) -> Result<(), NativeGenericRunError> {
+        self.initialize_window_runtime(event_loop, event_proxy, adapter, false)
+    }
+
+    fn initialize_window_runtime(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        adapter: &mut GenericNativeAdapterOwner,
+        primary: bool,
     ) -> Result<(), NativeGenericRunError> {
         info!("radiant generic native vello: initializing runtime window and surface");
         self.timing.startup_timing.mark_init_started();
@@ -73,46 +99,67 @@ where
             self.core.refresh_surface();
         }
 
-        let mut render_ctx = render_context_for_options(&self.options);
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
         self.core
             .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
-        let surface = render_ctx
-            .instance
+        let surface = adapter
+            .instance()
+            .ok_or_else(|| {
+                native_initialization_error(
+                    NativeInitializationStage::WgpuSurfaceCreation,
+                    "native adapter render context is unavailable",
+                )
+            })?
             .create_surface(window.clone())
             .map_err(|err| {
                 native_initialization_error(NativeInitializationStage::WgpuSurfaceCreation, err)
             })?;
         self.timing.startup_timing.mark_wgpu_surface_created();
-        let Some(dev_id) = pollster::block_on(render_ctx.device(Some(&surface))) else {
-            return Err(native_initialization_error(
-                NativeInitializationStage::DeviceAcquisition,
-                "no compatible render device found",
-            ));
-        };
+        if primary {
+            adapter
+                .select_primary_device(&surface, event_proxy.clone())
+                .map_err(|err| {
+                    native_initialization_error(NativeInitializationStage::DeviceAcquisition, err)
+                })?;
+        } else {
+            adapter
+                .validate_auxiliary_surface(self.options.gpu.backend, &surface)
+                .map_err(|err| {
+                    native_initialization_error(NativeInitializationStage::DeviceAcquisition, err)
+                })?;
+        }
         self.timing.startup_timing.mark_wgpu_device_ready();
         let supported_present_modes = surface
-            .get_capabilities(render_ctx.devices[dev_id].adapter())
+            .get_capabilities(
+                adapter
+                    .selected_device_handle()
+                    .ok_or_else(|| {
+                        native_initialization_error(
+                            NativeInitializationStage::DeviceAcquisition,
+                            "native adapter did not retain a selected device",
+                        )
+                    })?
+                    .adapter(),
+            )
             .present_modes;
         let present_mode = select_present_mode(
             self.options.normalized_target_fps(),
             &supported_present_modes,
         );
-        let render_surface = pollster::block_on(render_ctx.create_render_surface(
-            surface,
-            width,
-            height,
-            present_mode,
-        ))
-        .map_err(|err| {
-            native_initialization_error(NativeInitializationStage::RenderSurfaceCreation, err)
-        })?;
+        let render_surface = adapter
+            .create_render_surface(surface, width, height, present_mode)
+            .map_err(|err| {
+                native_initialization_error(NativeInitializationStage::RenderSurfaceCreation, err)
+            })?;
         self.timing.startup_timing.mark_surface_ready();
-        let dev_handle = &render_ctx.devices[render_surface.dev_id];
-        let device_loss_registration =
-            install_device_loss_callback(&dev_handle.device, event_proxy.clone());
+        let dev_handle = adapter.selected_device_handle().ok_or_else(|| {
+            native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native adapter did not retain a selected device",
+            )
+        })?;
         self.timing.startup_timing.mark_renderer_started();
         let renderer =
             Renderer::new(&dev_handle.device, startup_renderer_options()).map_err(|err| {
@@ -121,10 +168,8 @@ where
         self.timing.startup_timing.mark_renderer_ready();
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
-        self.window.render_ctx = Some(render_ctx);
         self.window.render_surface = Some(render_surface);
         self.window.renderer = Some(renderer);
-        self.window.device_loss_registration = Some(device_loss_registration);
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();
@@ -137,7 +182,6 @@ where
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
         });
-        self.sync_auxiliary_windows(event_loop, event_proxy)?;
         Ok(())
     }
 
@@ -161,7 +205,10 @@ where
         self.timing.pending_surface_resize_reason = Some(reason);
     }
 
-    pub(super) fn apply_pending_surface_resize_if_needed(&mut self) {
+    pub(super) fn apply_pending_surface_resize_if_needed(
+        &mut self,
+        adapter: &GenericNativeAdapterOwner,
+    ) {
         let Some(size) = self.timing.pending_surface_resize.take() else {
             return;
         };
@@ -170,7 +217,7 @@ where
             .pending_surface_resize_reason
             .take()
             .unwrap_or(FrameWorkReason::NativeResize);
-        let applied = self.resize_surface_now(size, false, reason);
+        let applied = self.resize_surface_now(size, false, reason, adapter);
         self.timing.surface_resize_applied_this_frame = applied;
         if applied {
             self.record_frame_work(FrameWork::ResizeSurface { reason });
@@ -182,20 +229,20 @@ where
         size: PhysicalSize<u32>,
         request_redraw: bool,
         reason: FrameWorkReason,
+        adapter: &GenericNativeAdapterOwner,
     ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
         }
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
-        if let (Some(render_ctx), Some(surface)) = (
-            self.window.render_ctx.as_ref(),
-            self.window.render_surface.as_mut(),
-        ) {
+        if let Some(surface) = self.window.render_surface.as_mut() {
             if !surface_size_changed(surface.config.width, surface.config.height, size) {
                 return false;
             }
-            render_ctx.resize_surface(surface, size.width, size.height);
+            if !adapter.resize_surface(surface, size.width, size.height) {
+                return false;
+            }
             self.complete_target_transition();
             self.defer_viewport_resize_with_reason(
                 logical_viewport_for_size(size, self.window.dpi_scale),
@@ -209,17 +256,20 @@ where
         false
     }
 
-    fn resize_surface_now_for_recovery(&mut self, size: PhysicalSize<u32>) -> bool {
+    fn resize_surface_now_for_recovery(
+        &mut self,
+        size: PhysicalSize<u32>,
+        adapter: &GenericNativeAdapterOwner,
+    ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
         }
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
-        if let (Some(render_ctx), Some(surface)) = (
-            self.window.render_ctx.as_ref(),
-            self.window.render_surface.as_mut(),
-        ) {
-            render_ctx.resize_surface(surface, size.width, size.height);
+        if let Some(surface) = self.window.render_surface.as_mut() {
+            if !adapter.resize_surface(surface, size.width, size.height) {
+                return false;
+            }
             self.complete_target_transition();
             return true;
         }
@@ -341,6 +391,7 @@ where
     pub(super) fn acquire_present_surface_texture(
         &mut self,
         event_loop: &ActiveEventLoop,
+        adapter: &GenericNativeAdapterOwner,
     ) -> Option<wgpu::SurfaceTexture> {
         let texture = {
             let surface = self.window.render_surface.as_mut()?;
@@ -356,7 +407,7 @@ where
                 let size = self.window.window.as_ref()?.inner_size();
                 match surface_acquire_policy(error, size) {
                     SurfaceAcquirePolicy::ReconfigureAndRetry
-                        if self.resize_surface_now_for_recovery(size) =>
+                        if self.resize_surface_now_for_recovery(size, adapter) =>
                     {
                         self.window.surface_recovery.record_completed_reconfigure();
                         self.window.surface_recovery.record_retry_request();

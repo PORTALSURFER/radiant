@@ -1,20 +1,14 @@
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
-use vello::{util::RenderContext, wgpu};
+use vello::wgpu;
 
-pub(super) fn render_context_for_options(options: &NativeRunOptions) -> RenderContext {
-    let Some(backends) = wgpu_backends(options.gpu.backend) else {
-        return RenderContext::new();
-    };
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+pub(super) fn instance_for_options(options: &NativeRunOptions) -> wgpu::Instance {
+    let backends = wgpu_backends(options.gpu.backend).unwrap_or_default();
+    wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends,
         flags: wgpu::InstanceFlags::from_build_config().with_env(),
         memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
         backend_options: wgpu::BackendOptions::from_env_or_default(),
-    });
-    RenderContext {
-        instance,
-        devices: Vec::new(),
-    }
+    })
 }
 
 fn wgpu_backends(backend: NativeGpuBackend) -> Option<wgpu::Backends> {
@@ -31,7 +25,7 @@ fn wgpu_backends(backend: NativeGpuBackend) -> Option<wgpu::Backends> {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeGpuBackend, wgpu, wgpu_backends};
+    use super::{NativeGpuBackend, NativeRunOptions, instance_for_options, wgpu, wgpu_backends};
 
     #[test]
     fn native_gpu_backend_policy_maps_to_wgpu_backends() {
@@ -48,5 +42,11 @@ mod tests {
             wgpu_backends(NativeGpuBackend::Vulkan),
             Some(wgpu::Backends::VULKAN)
         );
+    }
+
+    #[test]
+    fn backend_instance_creation_stays_in_the_adapter_boundary() {
+        let options = NativeRunOptions::default();
+        let _ = instance_for_options(&options);
     }
 }

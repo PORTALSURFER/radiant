@@ -713,6 +713,14 @@ window; a later projection with the same key updates and shows the cached
 window instead of recreating the native window and renderer state.
 Windows that require advanced native configuration can explicitly import
 `NativeRunOptions` and call `AuxiliaryWindow::new(...)` instead.
+The standalone native Vello multi-window path keeps one event-loop-confined
+WGPU context, device, queue, and device-loss callback owner for the whole run.
+The primary window selects that owner; auxiliary windows borrow it and create
+only their own compatible surface and renderer. An auxiliary
+`NativeGpuBackend::Auto` policy inherits the selected primary backend, while an
+explicit policy must be compatible with that backend and the selected adapter
+must support the auxiliary surface. Auxiliary child runners return messages to
+the parent, which remains responsible for projection and synchronization.
 Applications that need lightweight UI-cadence diagnostics can explicitly import
 `FrameCadenceMonitor` with `FrameCadenceConfig` to classify first-frame,
 warning-spike, error-spike, periodic, and normal frame deltas while keeping

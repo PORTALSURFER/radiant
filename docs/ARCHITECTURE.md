@@ -184,6 +184,16 @@ and frame presentation live under
 stay there or behind explicit GPU-surface contracts, not leak into normal
 application-builder code.
 
+The generic native Vello runtime has one event-loop-confined adapter owner per
+application run. The primary window selects the shared WGPU context, device,
+queue, and device-loss callback witness; auxiliary windows borrow that owner and
+create only compatible surfaces and per-window renderers. Auxiliary
+`NativeGpuBackend::Auto` inherits the selected primary backend, while an
+explicit auxiliary policy must be compatible with it and the selected adapter
+must support the child surface. Auxiliary child runners route and present their
+own projected surface, but the parent runner owns auxiliary projection and
+synchronization.
+
 Environment-aware widget paint is additive and remains in the core contract:
 `ResolvedEnvironment` is a lossless copyable projection of the current
 `WindowEnvironment`, and `WidgetPaintContext` borrows the existing bounds,
@@ -280,6 +290,7 @@ Current target-specific seams are intentionally narrow:
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.
 - `src/gui_runtime/native_vello/generic_runtime/accessibility.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/adapter.rs`,
   `src/gui_runtime/native_vello/generic_runtime/auxiliary.rs`,
   `src/gui_runtime/native_vello/generic_runtime/lifecycle.rs`,
   `src/gui_runtime/native_vello/generic_runtime/window_environment.rs`, and

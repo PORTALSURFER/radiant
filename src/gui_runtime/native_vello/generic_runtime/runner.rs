@@ -2,14 +2,14 @@
 
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
-    DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeRuntimeCore,
-    GenericRouteOutcome, NativeAutomationTargetExporter, NativeGenericRunError,
-    NativeRenderDeviceErrorKind, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
+    GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
+    NativeGenericRunError, NativeRenderDeviceErrorKind, NativeRunnerInputState,
+    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
+    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -41,6 +41,9 @@ where
     pub(super) activation_reveal: ActivationRevealController,
     pub(super) application_reopen_proxy: Option<EventLoopProxy<super::RuntimeUserEvent>>,
     pub(super) application_reopen_events: Option<ApplicationReopenRegistration>,
+    /// One application-level adapter shared by the primary and auxiliary
+    /// generic-native windows. Auxiliary runners borrow it at event boundaries.
+    pub(super) adapter: Option<GenericNativeAdapterOwner>,
     pub(super) window: NativeRunnerWindowState,
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
@@ -55,12 +58,6 @@ where
 pub(super) struct AppliedRouteOutcome {
     pub(super) exit_requested: bool,
     pub(super) sync_auxiliary_windows_now: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum DeviceLossEventSource {
-    Primary,
-    Auxiliary,
 }
 
 /// One-shot admission for materializing artifacts from one completed scene encode.
@@ -153,6 +150,7 @@ where
             activation_reveal,
             application_reopen_proxy: None,
             application_reopen_events: None,
+            adapter: None,
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
@@ -190,18 +188,11 @@ where
         registration: Arc<DeviceLossRegistration>,
         message: String,
     ) {
-        let Some(source) = self.device_loss_event_source(&registration) else {
+        if !self.device_loss_event_is_current(&registration) {
             return;
-        };
-        let cause = NativeGenericRunError::RenderDeviceLost(message);
-        match source {
-            DeviceLossEventSource::Primary => {
-                self.record_render_device_lost_and_exit(event_loop, cause)
-            }
-            DeviceLossEventSource::Auxiliary => {
-                self.record_auxiliary_terminal_cause_and_exit(event_loop, cause)
-            }
         }
+        let cause = NativeGenericRunError::RenderDeviceLost(message);
+        self.record_render_device_lost_and_exit(event_loop, cause);
     }
 
     pub(super) fn handle_render_device_error_event(
@@ -211,40 +202,20 @@ where
         kind: NativeRenderDeviceErrorKind,
         message: String,
     ) {
-        let Some(source) = self.device_loss_event_source(&registration) else {
+        if !self.device_loss_event_is_current(&registration) {
             return;
-        };
-        let cause = NativeGenericRunError::RenderDeviceError { kind, message };
-        match source {
-            DeviceLossEventSource::Primary => {
-                self.record_render_device_error_and_exit(event_loop, cause)
-            }
-            DeviceLossEventSource::Auxiliary => {
-                self.record_auxiliary_terminal_cause_and_exit(event_loop, cause)
-            }
         }
+        let cause = NativeGenericRunError::RenderDeviceError { kind, message };
+        self.record_render_device_error_and_exit(event_loop, cause);
     }
 
-    pub(super) fn device_loss_event_source(
+    pub(super) fn device_loss_event_is_current(
         &self,
         registration: &Arc<DeviceLossRegistration>,
-    ) -> Option<DeviceLossEventSource> {
-        if self
-            .window
-            .device_loss_registration
+    ) -> bool {
+        self.adapter
             .as_ref()
-            .is_some_and(|current| Arc::ptr_eq(current, registration))
-        {
-            return Some(DeviceLossEventSource::Primary);
-        }
-        if self
-            .auxiliary_windows
-            .iter()
-            .any(|window| window.accepts_device_loss(registration))
-        {
-            return Some(DeviceLossEventSource::Auxiliary);
-        }
-        None
+            .is_some_and(|adapter| adapter.accepts_device_loss(registration))
     }
 
     pub(super) fn record_initialization_error_and_exit(
@@ -848,6 +819,24 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
+        self.handle_route_outcome_inner(event_loop, outcome, None);
+    }
+
+    pub(super) fn handle_route_outcome_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter));
+    }
+
+    fn handle_route_outcome_inner(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+        adapter: Option<&mut GenericNativeAdapterOwner>,
+    ) {
         let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
         let applied = self.apply_route_outcome(outcome);
         if applied.exit_requested {
@@ -855,6 +844,7 @@ where
             return;
         }
         if applied.sync_auxiliary_windows_now
+            && adapter.is_none()
             && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
             && self
                 .sync_auxiliary_windows(event_loop, event_proxy)
@@ -877,7 +867,11 @@ where
                         "Flushed pending redraw request after route"
                     );
                 }
-                self.redraw_and_exit_on_error(event_loop);
+                if let Some(adapter) = adapter {
+                    self.redraw_and_exit_on_error_with_adapter(event_loop, adapter);
+                } else {
+                    self.redraw_and_exit_on_error(event_loop);
+                }
             }
         }
     }

@@ -1,7 +1,6 @@
-use super::super::super::runner::DeviceLossEventSource;
 use super::super::super::{
-    DeviceLossRegistration, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage, NativeRenderDeviceErrorKind,
+    DeviceLossRegistration, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeGenericRunError, NativeInitializationStage, NativeRenderDeviceErrorKind,
 };
 use super::{fixtures::*, shared::*};
 use std::sync::Arc;
@@ -36,16 +35,15 @@ fn current_primary_device_loss_witness_admits_only_current_owner() {
     let mut runner = make_runner();
     let current = Arc::new(DeviceLossRegistration::new());
     let stale = Arc::new(DeviceLossRegistration::new());
-    runner.window.device_loss_registration = Some(Arc::clone(&current));
+    runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+        Arc::clone(&current),
+    ));
 
-    assert_eq!(
-        runner.device_loss_event_source(&current),
-        Some(DeviceLossEventSource::Primary)
-    );
-    assert_eq!(runner.device_loss_event_source(&stale), None);
+    assert!(runner.device_loss_event_is_current(&current));
+    assert!(!runner.device_loss_event_is_current(&stale));
 
-    runner.window.device_loss_registration = None;
-    assert_eq!(runner.device_loss_event_source(&current), None);
+    runner.adapter = None;
+    assert!(!runner.device_loss_event_is_current(&current));
 }
 
 #[test]

@@ -276,6 +276,7 @@ fn native_frame_state_uses_explicit_imports() {
 #[test]
 fn native_device_callbacks_use_shared_callback_and_user_event_boundaries() {
     let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
+    let adapter = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/adapter.rs");
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
     let auxiliary =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
@@ -285,19 +286,32 @@ fn native_device_callbacks_use_shared_callback_and_user_event_boundaries() {
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
     let runtime_event = read_runtime_source("src/gui_runtime/native_vello/runtime_event.rs");
 
-    let callback = surface
-        .find("install_device_loss_callback")
-        .expect("shared surface initialization should install device-loss callbacks");
-    let renderer = surface
+    let initialization_sources =
+        [adapter.as_str(), surface.as_str(), auxiliary.as_str()].join("\n");
+    let callback = initialization_sources
+        .find("install_device_loss_callback(")
+        .expect("adapter initialization should install device-loss callbacks");
+    let renderer = initialization_sources
         .find("Renderer::new")
-        .expect("shared surface initialization should retain renderer creation");
+        .expect("native initialization should retain renderer creation");
 
+    assert_eq!(
+        adapter.matches("install_device_loss_callback(").count(),
+        1,
+        "the adapter owner should install one shared callback pair"
+    );
+    assert!(
+        !surface.contains("install_device_loss_callback(")
+            && !auxiliary.contains("install_device_loss_callback(")
+    );
     assert!(callback < renderer);
     assert!(device.contains("set_device_lost_callback"));
     assert_eq!(device.matches("on_uncaptured_error").count(), 1);
     assert!(surface.contains("event_proxy.clone()"));
     assert!(
-        auxiliary.contains("initialize_runtime(event_loop, parent_window, event_proxy.clone())")
+        auxiliary.contains(
+            "initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)"
+        )
     );
     assert!(runtime_wakeup.contains("event_loop_proxy"));
     assert!(lifecycle.contains("RuntimeUserEvent::DeviceLost"));
@@ -309,6 +323,7 @@ fn native_device_callbacks_use_shared_callback_and_user_event_boundaries() {
 
 #[test]
 fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
+    let adapter = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/adapter.rs");
     let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
     let runner_state =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner_state.rs");
@@ -318,12 +333,34 @@ fn native_device_callbacks_are_witness_scoped_without_broad_panic_handling() {
         "src/gui_runtime/native_vello/generic_runtime/present.rs",
         "src/gui_runtime/native_vello/generic_runtime/lifecycle.rs",
         "src/gui_runtime/native_vello/generic_runtime/auxiliary.rs",
+        "src/gui_runtime/native_vello/generic_runtime/adapter.rs",
     ];
 
-    assert!(runner.contains("Arc::ptr_eq"));
+    assert!(
+        adapter.contains("pub(super) struct GenericNativeAdapterOwner")
+            && adapter.contains("device_loss_registration: Option<Arc<DeviceLossRegistration>>")
+            && adapter.contains("fn accepts_device_loss")
+            && adapter.contains("device_loss_registration_matches")
+            && adapter.contains("Arc::ptr_eq"),
+        "the adapter owner should retain and compare the current callback witness"
+    );
+    assert!(
+        runner.contains("adapter: Option<GenericNativeAdapterOwner>")
+            && runner.contains("device_loss_event_is_current")
+            && runner.contains("adapter.accepts_device_loss(registration)")
+            && !runner.contains("Arc::ptr_eq")
+            && !runner.contains("device_loss_registration")
+            && !runner.contains("RenderContext"),
+        "the runner should delegate callback admission to the current adapter owner"
+    );
+    assert!(
+        !runner_state.contains("DeviceLossRegistration")
+            && !runner_state.contains("device_loss_registration")
+            && !runner_state.contains("RenderContext"),
+        "window state should not retain callback witnesses or the adapter render context"
+    );
     assert!(runner.contains("handle_render_device_error_event"));
     assert!(runner.contains("NativeGenericRunError::RenderDeviceError"));
-    assert!(runner_state.contains("device_loss_registration"));
     assert!(device.contains("DeviceLostReason::Destroyed"));
     assert!(device.contains("Arc<DeviceLossRegistration>"));
     assert!(device.contains("classify_uncaptured_error"));

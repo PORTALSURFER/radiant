@@ -37,6 +37,7 @@ fn native_render_surface_target_size_stays_in_focused_module() {
 #[test]
 fn native_surface_setup_uses_explicit_imports() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
+    let adapter = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/adapter.rs");
     let backend =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface/backend.rs");
     let viewport =
@@ -48,6 +49,7 @@ fn native_surface_setup_uses_explicit_imports() {
 
     assert!(
         surface.contains("use super::{")
+            && surface.contains("GenericNativeAdapterOwner")
             && surface.contains("GenericNativeVelloRunner")
             && surface.contains("generic_window_attributes")
             && surface.contains("reveal_window_after_surface_setup")
@@ -62,8 +64,11 @@ fn native_surface_setup_uses_explicit_imports() {
             && surface.contains("use winit::{")
             && surface.contains("mod viewport;")
             && surface.contains("use viewport::{logical_viewport_for_size, surface_size_changed};")
+            && surface.contains("adapter\n            .instance()")
+            && surface.contains("select_primary_device")
+            && surface.contains("create_render_surface")
             && !surface.starts_with("use super::*;"),
-        "native surface setup should name runner, window policy, viewport, renderer config, bridge, timing, tracing, Vello/WGPU, and Winit dependencies"
+        "native surface setup should name the adapter-owned renderer path and its explicit dependencies"
     );
     assert!(
         production_surface.contains("fn initialize_runtime")
@@ -88,13 +93,16 @@ fn native_surface_setup_uses_explicit_imports() {
         "native surface viewport helpers should keep pure DPI and physical-size conversion logic in a focused module"
     );
     assert!(
-        backend.contains("use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};")
-            && backend.contains("use vello::{util::RenderContext, wgpu};")
-            && backend.contains("fn render_context_for_options")
+        adapter.contains("use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};")
+            && backend.contains("use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};")
+            && backend.contains("use vello::wgpu;")
+            && backend.contains("fn instance_for_options")
             && backend.contains("fn wgpu_backends")
+            && backend.contains("wgpu::InstanceDescriptor")
+            && !backend.contains("RenderContext")
             && !backend.starts_with("use super::*;")
             && !backend.starts_with("use super::super::*;"),
-        "native surface backend setup should name run options, GPU backend policy, render context, and WGPU dependencies explicitly"
+        "native surface backend setup should keep backend policy explicit while the adapter owns context construction"
     );
 }
 

@@ -6,7 +6,7 @@ fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
 
     assert!(
-        present.contains("self.acquire_present_surface_texture(event_loop)")
+        present.contains("self.acquire_present_surface_texture(event_loop, adapter)")
             && present.contains("self.window.window.is_none()")
             && !present.contains("window.clone()")
             && !present.contains("get_current_texture()")
@@ -31,16 +31,20 @@ fn native_surface_backend_policy_stays_in_focused_module() {
 
     assert!(
         surface.contains("mod backend;")
-            && surface.contains("render_context_for_options(&self.options)")
+            && surface.contains("GenericNativeAdapterOwner")
+            && surface.contains("adapter\n            .instance()")
+            && surface.contains("adapter\n            .create_render_surface")
+            && surface.contains("adapter.resize_surface")
             && !surface.contains("fn wgpu_backends")
-            && !surface.contains("InstanceDescriptor"),
-        "surface lifecycle should delegate explicit WGPU backend policy"
+            && !surface.contains("InstanceDescriptor")
+            && !surface.contains("RenderContext"),
+        "surface lifecycle should delegate device and context operations to the adapter owner"
     );
     assert!(
-        backend.contains("fn render_context_for_options")
+        backend.contains("fn instance_for_options")
             && backend.contains("fn wgpu_backends")
             && backend.contains("NativeGpuBackend::Auto")
             && backend.contains("wgpu::InstanceDescriptor"),
-        "WGPU backend selection and render-context construction should live in surface/backend.rs"
+        "WGPU backend selection and instance construction should remain in surface/backend.rs"
     );
 }

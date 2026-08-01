@@ -1,8 +1,8 @@
 use super::{
-    GenericNativeVelloRunner, NativeGenericRunError, RenderFrameProfile, RenderSurfacePixelSize,
-    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
-    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
-    slow_render_profile_enabled,
+    GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError, RenderFrameProfile,
+    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
+    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
+    reveal_window_after_first_present, slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -24,6 +24,7 @@ where
     pub(super) fn redraw(
         &mut self,
         event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeGenericRunError> {
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
@@ -31,11 +32,12 @@ where
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
-        self.apply_pending_surface_resize_if_needed();
+        self.apply_pending_surface_resize_if_needed(adapter);
         if self.window.window.is_none() {
             return Ok(());
         }
-        let Some(surface_texture) = self.acquire_present_surface_texture(event_loop) else {
+        let Some(surface_texture) = self.acquire_present_surface_texture(event_loop, adapter)
+        else {
             return Ok(());
         };
         let profile_enabled = render_profile_enabled();
@@ -49,7 +51,7 @@ where
         self.flush_pending_scroll_container_wheel(&mut profile);
         self.refresh_deferred_surface_if_needed(&mut profile);
         self.rebuild_deferred_scene_if_needed(&mut profile);
-        self.sync_deferred_auxiliary_windows_if_needed(event_loop);
+        self.sync_deferred_auxiliary_windows_if_needed(event_loop, adapter);
         self.paint_transient_overlays(&mut profile);
         let frame_work = self.take_pending_frame_work();
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
@@ -60,14 +62,12 @@ where
             let Some(surface) = self.window.render_surface.as_mut() else {
                 return Ok(());
             };
-            let dev_id = surface.dev_id;
-            let Some(render_ctx) = self.window.render_ctx.as_ref() else {
-                return Ok(());
-            };
             let Some(renderer) = self.window.renderer.as_mut() else {
                 return Ok(());
             };
-            let dev_handle = &render_ctx.devices[dev_id];
+            let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
+                return Ok(());
+            };
             let mut scene_texture_context = SceneTextureContext {
                 renderer,
                 device: &dev_handle.device,
@@ -101,11 +101,9 @@ where
         let Some(surface) = self.window.render_surface.as_mut() else {
             return Ok(());
         };
-        let dev_id = surface.dev_id;
-        let Some(render_ctx) = self.window.render_ctx.as_ref() else {
+        let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
             return Ok(());
         };
-        let dev_handle = &render_ctx.devices[dev_id];
         let mut encoder =
             dev_handle
                 .device
@@ -214,7 +212,22 @@ where
     }
 
     pub(super) fn redraw_and_exit_on_error(&mut self, event_loop: &ActiveEventLoop) {
-        if let Err(error) = self.redraw(event_loop) {
+        let Some(mut adapter) = self.adapter.take() else {
+            return;
+        };
+        let result = self.redraw(event_loop, &mut adapter);
+        self.adapter = Some(adapter);
+        if let Err(error) = result {
+            self.record_frame_render_error_and_exit(event_loop, error);
+        }
+    }
+
+    pub(super) fn redraw_and_exit_on_error_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        if let Err(error) = self.redraw(event_loop, adapter) {
             self.record_frame_render_error_and_exit(event_loop, error);
         }
     }

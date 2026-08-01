@@ -340,6 +340,10 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
     )
     .expect("generic surface source should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("generic present source should be readable");
 
     assert!(
         runner.contains("self.window.maintain_native_resources(turn)")
@@ -368,6 +372,27 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
             && lifecycle.contains("ControlFlow::Poll => {}")
             && lifecycle.contains("NATIVE_RESOURCE_MAINTENANCE_INTERVAL"),
         "pending maintenance should use a bounded future deadline without forcing Poll"
+    );
+    let completion_wake_start = lifecycle
+        .find("RuntimeUserEvent::NativeResourceMaintenanceRequested => {")
+        .expect("completion wake should be handled at the native event-loop boundary");
+    let completion_wake = &lifecycle[completion_wake_start..][..lifecycle[completion_wake_start..]
+        .find("#[cfg(target_os = \"macos\")]\n")
+        .expect("completion wake branch should end before platform-specific events")];
+    assert!(
+        completion_wake.contains("self.begin_native_resource_maintenance_and_wake_primary()")
+            && !completion_wake.contains("FrameWork::RebuildScene"),
+        "completion retirement should wake exactly one primary redraw without adding unrelated frame work"
+    );
+    assert!(
+        runner.contains("begin_native_resource_maintenance_and_wake_primary")
+            && runner.contains("if self.maintain_native_resources_with_turn(&mut turn)")
+            && runner.contains("self.request_redraw_for_frame_work(FrameWork::None);"),
+        "maintenance should request the smallest primary redraw only after auxiliary removal"
+    );
+    assert!(
+        present.contains("self.sync_deferred_auxiliary_windows_if_needed(event_loop, adapter);"),
+        "the completion redraw should reach the existing deferred auxiliary sync consumer"
     );
     assert!(
         surface.contains("maintenance: &mut NativeResourceMaintenanceTurn")

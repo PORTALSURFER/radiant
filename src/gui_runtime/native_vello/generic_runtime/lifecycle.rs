@@ -201,7 +201,9 @@ where
                 kind,
                 message,
             ),
-            RuntimeUserEvent::NativeResourceMaintenanceRequested => {}
+            RuntimeUserEvent::NativeResourceMaintenanceRequested => {
+                let _ = self.begin_native_resource_maintenance_and_wake_primary();
+            }
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();
@@ -214,7 +216,9 @@ where
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let maintenance_pending = self.begin_native_resource_maintenance().has_pending();
+        let maintenance_pending = self
+            .begin_native_resource_maintenance_and_wake_primary()
+            .has_pending();
         let now = Instant::now();
         if self.window.window.is_none() {
             event_loop.set_control_flow(ControlFlow::Wait);

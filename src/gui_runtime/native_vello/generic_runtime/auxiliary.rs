@@ -583,7 +583,7 @@ mod tests {
         assert_eq!(close.messages, [7]);
 
         let mut turn = NativeResourceMaintenanceTurn::new();
-        parent.maintain_native_resources_with_turn(&mut turn);
+        assert!(parent.maintain_native_resources_with_turn(&mut turn));
 
         assert!(parent.auxiliary_windows.is_empty());
         assert!(parent.timing.deferred_auxiliary_window_sync);

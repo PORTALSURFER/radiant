@@ -181,3 +181,135 @@ fn auxiliary_windows_reuse_parent_adapter_initialization_without_selecting_gener
         "the common initialization path should validate auxiliary compatibility and bind the current owner generation"
     );
 }
+
+#[test]
+fn native_submission_completion_is_exact_generation_and_covers_both_present_paths() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let completion = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/submission_completion.rs"),
+    )
+    .expect("native submission completion source should be readable");
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("generic present source should be readable");
+    let scene_texture = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs"),
+    )
+    .expect("generic scene texture source should be readable");
+
+    for required in [
+        "NativeSubmissionCompletionCapability",
+        "generation: NativeAdapterGeneration",
+        "device: wgpu::Device",
+        "queue: wgpu::Queue",
+        "on_submitted_work_done",
+        "PollType::Poll",
+        "RuntimeUserEvent::NativeResourceMaintenanceRequested",
+    ] {
+        assert!(
+            completion.contains(required),
+            "completion witnessing should retain exact-generation capability `{required}`"
+        );
+    }
+    assert!(
+        !completion.contains("PollType::Wait"),
+        "completion maintenance must never use a blocking WGPU poll"
+    );
+    assert!(
+        runner_state.contains("completion_witness")
+            && runner_state.contains("&wgpu::Device")
+            && runner_state.contains("&wgpu::Queue"),
+        "each native resource bundle should own its exact queue progress witness"
+    );
+    assert!(
+        scene_texture.contains("context.renderer.render_to_texture(")
+            && present.contains("render_scene_to_surface_view("),
+        "direct-resize rendering should use Vello's internal render_to_texture submission"
+    );
+
+    let direct_render = present
+        .find("render_scene_to_surface_view(")
+        .expect("direct-resize path should render through Vello");
+    let direct_witness = present
+        .find("resources.record_successful_native_submission()")
+        .expect("direct-resize path should record the internal Vello submission");
+    let direct_present = present
+        .find("surface_texture.present()")
+        .expect("direct-resize path should present its surface texture");
+    assert!(
+        direct_render < direct_witness && direct_witness < direct_present,
+        "direct-resize completion witnessing should follow successful Vello rendering"
+    );
+
+    let ordinary_submit = present
+        .find("dev_handle.queue.submit(std::iter::once(encoder.finish()))")
+        .expect("ordinary presentation should submit its final explicit command buffer");
+    let ordinary_witness = present
+        .find("self.record_successful_native_submission()")
+        .expect("ordinary presentation should record its final explicit submission");
+    let ordinary_present = present
+        .rfind("surface_texture.present()")
+        .expect("ordinary presentation should present after its final queue submission");
+    assert!(
+        ordinary_submit < ordinary_witness && ordinary_witness < ordinary_present,
+        "ordinary completion witnessing should follow Radiant's final explicit queue submit"
+    );
+}
+
+#[test]
+fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic lifecycle source should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("generic runner source should be readable");
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("generic auxiliary source should be readable");
+    let surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
+    )
+    .expect("generic surface source should be readable");
+
+    assert!(
+        runner.contains("for window in &mut self.auxiliary_windows")
+            && runner.contains("window.maintain_native_resources_with_turn(turn)"),
+        "primary and auxiliary bundles should share one maintenance turn"
+    );
+    assert!(
+        auxiliary.contains("sync_auxiliary_windows_with_adapter_in_turn")
+            && auxiliary.contains("NativeResourceMaintenanceTurn"),
+        "auxiliary replacement should retain the shared event-loop maintenance boundary"
+    );
+    let maintenance = lifecycle
+        .find("begin_native_resource_maintenance()")
+        .expect("lifecycle should maintain native resources before initialization checks");
+    let initialize = lifecycle
+        .find("initialize_runtime(event_loop")
+        .expect("lifecycle should initialize through the maintenance-aware boundary");
+    assert!(
+        maintenance < initialize,
+        "completed quarantine capacity should be reclaimed before runtime preflight"
+    );
+    assert!(
+        lifecycle.contains("ControlFlow::WaitUntil")
+            && lifecycle.contains("ControlFlow::Poll => {}")
+            && lifecycle.contains("NATIVE_RESOURCE_MAINTENANCE_INTERVAL"),
+        "pending maintenance should use a bounded future deadline without forcing Poll"
+    );
+    assert!(
+        surface.contains("maintenance: &mut NativeResourceMaintenanceTurn")
+            && surface.contains("sync_auxiliary_windows_with_adapter_in_turn"),
+        "startup should carry one maintenance turn through primary and auxiliary setup"
+    );
+}

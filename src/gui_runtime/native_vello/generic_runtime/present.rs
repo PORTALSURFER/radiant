@@ -81,11 +81,13 @@ where
                 record_timing: profile.record_timings,
             };
             if render_resize_frame_directly {
-                render_scene_to_surface_view(
+                let elapsed = render_scene_to_surface_view(
                     &mut self.frame,
                     &mut scene_texture_context,
                     &surface_view,
-                )?
+                )?;
+                resources.record_successful_native_submission();
+                elapsed
             } else {
                 render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)?
             }
@@ -108,11 +110,12 @@ where
         if !self.admit_native_resources(adapter) {
             return Ok(());
         }
-        let Some(resources) = self.window.native_resources.as_mut() else {
-            return Ok(());
-        };
-        let surface = &mut resources.render_surface;
-        let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
+        let Some(dev_handle) = self
+            .window
+            .native_resources
+            .as_ref()
+            .and_then(|resources| adapter.device_handle_for_surface(&resources.render_surface))
+        else {
             return Ok(());
         };
         let mut encoder =
@@ -122,44 +125,53 @@ where
                     label: Some("generic_native_vello_present_blit"),
                 });
         let started = profile.record_timings.then(Instant::now);
-        let gpu_surface_stats = present_base_frame(
-            &mut BaseFramePresentState {
-                base_frame: &mut self.frame.composited_base_frame,
-                base_dirty: &mut self.frame.composited_base_dirty,
-                gpu_surface_renderer: &mut self.frame.gpu_surface_renderer,
-                profile: &mut profile,
-            },
-            surface,
-            &mut BaseFramePresentTarget {
-                device: &dev_handle.device,
-                queue: &dev_handle.queue,
-                encoder: &mut encoder,
-                surface_view: &surface_view,
-                dpi_scale: self.window.dpi_scale,
-            },
-            &self.frame.last_paint_plan,
-            &self.frame.surface_occlusion_plan,
-            &self.frame.transient_overlay_primitives,
-            self.frame.last_scene_stats.gpu_surface_count > 0,
-        );
-        profile.full_screen_blit = started.map(|started| started.elapsed()).unwrap_or_default();
-        if self.frame.has_post_gpu_overlay_work() {
-            let surface_size = RenderSurfacePixelSize::from_surface(surface);
-            self.frame
-                .render_post_gpu_overlay(&mut post_gpu_overlay::PostGpuOverlayRenderTarget {
+        let gpu_surface_stats = {
+            let Some(resources) = self.window.native_resources.as_mut() else {
+                return Ok(());
+            };
+            let surface = &mut resources.render_surface;
+            let gpu_surface_stats = present_base_frame(
+                &mut BaseFramePresentState {
+                    base_frame: &mut self.frame.composited_base_frame,
+                    base_dirty: &mut self.frame.composited_base_dirty,
+                    gpu_surface_renderer: &mut self.frame.gpu_surface_renderer,
+                    profile: &mut profile,
+                },
+                surface,
+                &mut BaseFramePresentTarget {
                     device: &dev_handle.device,
                     queue: &dev_handle.queue,
                     encoder: &mut encoder,
-                    target_view: &surface_view,
-                    format: surface.config.format,
-                    size: surface_size.logical_size(self.window.dpi_scale),
-                });
-        }
+                    surface_view: &surface_view,
+                    dpi_scale: self.window.dpi_scale,
+                },
+                &self.frame.last_paint_plan,
+                &self.frame.surface_occlusion_plan,
+                &self.frame.transient_overlay_primitives,
+                self.frame.last_scene_stats.gpu_surface_count > 0,
+            );
+            profile.full_screen_blit = started.map(|started| started.elapsed()).unwrap_or_default();
+            if self.frame.has_post_gpu_overlay_work() {
+                let surface_size = RenderSurfacePixelSize::from_surface(surface);
+                self.frame.render_post_gpu_overlay(
+                    &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
+                        device: &dev_handle.device,
+                        queue: &dev_handle.queue,
+                        encoder: &mut encoder,
+                        target_view: &surface_view,
+                        format: surface.config.format,
+                        size: surface_size.logical_size(self.window.dpi_scale),
+                    },
+                );
+            }
+            gpu_surface_stats
+        };
         if !self.admit_native_resources(adapter) {
             return Ok(());
         }
         let (_, elapsed) = profile.measure(|| {
             dev_handle.queue.submit(std::iter::once(encoder.finish()));
+            self.record_successful_native_submission();
             surface_texture.present();
         });
         profile.submit_present = elapsed;

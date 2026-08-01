@@ -18,6 +18,7 @@ use winit::{
 
 const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
 const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
+const NATIVE_RESOURCE_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(16);
 
 impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>
     for GenericNativeVelloRunner<Bridge, Message>
@@ -26,6 +27,7 @@ where
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.should_initialize_runtime() {
+            let mut maintenance = self.begin_native_resource_maintenance();
             self.install_application_reopen_handler_if_needed();
             let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() else {
                 self.record_initialization_error_and_exit(
@@ -37,7 +39,7 @@ where
                 );
                 return;
             };
-            if let Err(error) = self.initialize_runtime(event_loop, event_proxy) {
+            if let Err(error) = self.initialize_runtime(event_loop, event_proxy, &mut maintenance) {
                 self.record_initialization_error_and_exit(event_loop, error);
             }
         }
@@ -203,6 +205,7 @@ where
                 kind,
                 message,
             ),
+            RuntimeUserEvent::NativeResourceMaintenanceRequested => {}
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();
@@ -215,19 +218,22 @@ where
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let maintenance_pending = self.begin_native_resource_maintenance().has_pending();
+        let now = Instant::now();
         if self.window.window.is_none() {
             event_loop.set_control_flow(ControlFlow::Wait);
+            self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
             return;
         }
         if self.window.native_resources.is_none() {
             self.timing.redraw_requested = false;
             self.timing.redraw_requested_at = None;
             event_loop.set_control_flow(ControlFlow::Wait);
+            self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
             return;
         }
         self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
-        let now = Instant::now();
         if self.core.advance_timed_repaints(now) {
             self.rebuild_scene();
             self.request_redraw_for_frame_work(super::FrameWork::RebuildScene {
@@ -265,6 +271,7 @@ where
                         self.frame_wait_deadline(next_wake),
                     ));
                     self.schedule_activation_confirmation_poll(event_loop, now);
+                    self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
                     return;
                 }
                 let expected_interval = animation_frame_interval(frame_target_fps);
@@ -306,5 +313,58 @@ where
             }
         }
         self.schedule_activation_confirmation_poll(event_loop, now);
+        self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
+    }
+}
+
+fn native_resource_maintenance_deadline(now: Instant, pending: bool) -> Option<Instant> {
+    pending.then(|| now + NATIVE_RESOURCE_MAINTENANCE_INTERVAL)
+}
+
+impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    fn schedule_native_resource_maintenance(
+        &self,
+        event_loop: &ActiveEventLoop,
+        now: Instant,
+        pending: bool,
+    ) {
+        let Some(deadline) = native_resource_maintenance_deadline(now, pending) else {
+            return;
+        };
+        match event_loop.control_flow() {
+            ControlFlow::Poll => {}
+            ControlFlow::Wait => event_loop.set_control_flow(ControlFlow::WaitUntil(deadline)),
+            ControlFlow::WaitUntil(current) if deadline < current => {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            }
+            ControlFlow::WaitUntil(_) => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NATIVE_RESOURCE_MAINTENANCE_INTERVAL, native_resource_maintenance_deadline};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn pending_maintenance_gets_a_bounded_future_opportunity() {
+        let now = Instant::now();
+        let deadline = native_resource_maintenance_deadline(now, true)
+            .expect("pending maintenance should schedule a future opportunity");
+
+        assert!(deadline > now);
+        assert!(deadline.duration_since(now) <= NATIVE_RESOURCE_MAINTENANCE_INTERVAL);
+    }
+
+    #[test]
+    fn idle_maintenance_does_not_create_a_busy_loop_deadline() {
+        let now = Instant::now();
+
+        assert_eq!(native_resource_maintenance_deadline(now, false), None);
+        assert!(NATIVE_RESOURCE_MAINTENANCE_INTERVAL >= Duration::from_millis(1));
     }
 }

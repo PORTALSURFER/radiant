@@ -4,8 +4,9 @@ use super::NativeAdapterGeneration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
+use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
-use super::{FrameWork, FrameWorkReason};
+use super::{FrameWork, FrameWorkReason, RuntimeUserEvent};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
@@ -18,6 +19,7 @@ use std::{
 use vello::{Renderer, util::RenderSurface, wgpu};
 use winit::{
     dpi::PhysicalSize,
+    event_loop::EventLoopProxy,
     keyboard::ModifiersState,
     window::{Window, WindowId},
 };
@@ -234,6 +236,7 @@ pub(super) struct NativeWindowResourceBundle {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) render_surface: RenderSurface<'static>,
     pub(super) renderer: Renderer,
+    pub(super) completion_witness: NativeSubmissionCompletionWitness,
 }
 
 impl NativeWindowResourceBundle {
@@ -241,12 +244,92 @@ impl NativeWindowResourceBundle {
         generation: NativeAdapterGeneration,
         render_surface: RenderSurface<'static>,
         renderer: Renderer,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Option<Self> {
-        generation.is_known().then_some(Self {
+        if !generation.is_known() {
+            return None;
+        }
+        let completion_witness =
+            NativeSubmissionCompletionWitness::new(generation, device, queue, event_proxy);
+        if completion_witness.generation() != generation {
+            return None;
+        }
+        Some(Self {
             generation,
             render_surface,
             renderer,
+            completion_witness,
         })
+    }
+
+    pub(super) fn record_successful_native_submission(&mut self) {
+        self.completion_witness.record_successful_submission();
+    }
+
+    pub(super) fn maintain_completion(&mut self) -> bool {
+        self.completion_witness.maintain()
+    }
+
+    pub(super) const fn retirement_eligible(&self) -> bool {
+        self.completion_witness.retirement_eligible()
+    }
+}
+
+/// One event-loop maintenance turn may physically drop at most one quarantined
+/// native bundle across the primary and all auxiliary runners.
+pub(super) struct NativeResourceMaintenanceTurn {
+    drop_available: bool,
+    pending: bool,
+}
+
+impl Default for NativeResourceMaintenanceTurn {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NativeResourceMaintenanceTurn {
+    pub(super) const fn new() -> Self {
+        Self {
+            drop_available: true,
+            pending: false,
+        }
+    }
+
+    pub(super) const fn has_pending(&self) -> bool {
+        self.pending
+    }
+
+    fn record_pending(&mut self) {
+        self.pending = true;
+    }
+
+    fn record_drop(&mut self) {
+        self.drop_available = false;
+    }
+
+    fn drop_one_ready<T>(
+        &mut self,
+        quarantine: &mut NativeResourceQuarantine<T>,
+        ready: impl FnMut(&T) -> bool,
+    ) -> bool {
+        if !self.drop_available || !quarantine.drop_one_ready(ready) {
+            return false;
+        }
+        self.record_drop();
+        true
+    }
+
+    fn record_pending_if_ready<T>(
+        &mut self,
+        quarantine: &NativeResourceQuarantine<T>,
+        ready: impl FnMut(&T) -> bool,
+    ) {
+        if quarantine.has_ready(ready) {
+            self.record_pending();
+        }
     }
 }
 
@@ -254,9 +337,9 @@ const MAX_QUARANTINED_NATIVE_RESOURCES: usize = 2;
 
 /// Bounded ownership for native resources that have left the admitted path.
 ///
-/// This is intentionally only a quarantine boundary. A later retirement
-/// contract may drain entries after a renderer-owned completion witness; this
-/// type never authorizes synchronous destruction or GPU work.
+/// The maintenance boundary removes at most one entry after its renderer-owned
+/// completion witness is ready; it never authorizes synchronous waiting or GPU
+/// work.
 pub(super) struct NativeResourceQuarantine<T> {
     entries: VecDeque<T>,
 }
@@ -286,6 +369,18 @@ impl<T> NativeResourceQuarantine<T> {
             self.entries.push_back(entry);
             Ok(())
         }
+    }
+
+    fn drop_one_ready(&mut self, mut ready: impl FnMut(&T) -> bool) -> bool {
+        let Some(index) = self.entries.iter().position(&mut ready) else {
+            return false;
+        };
+        let _ = self.entries.remove(index);
+        true
+    }
+
+    fn has_ready(&self, mut ready: impl FnMut(&T) -> bool) -> bool {
+        self.entries.iter().any(&mut ready)
     }
 
     #[cfg(test)]
@@ -351,6 +446,29 @@ impl NativeRunnerWindowState {
             &mut self.native_resources,
             &mut self.quarantined_native_resources,
         )
+    }
+
+    pub(super) fn maintain_native_resources(&mut self, turn: &mut NativeResourceMaintenanceTurn) {
+        if self
+            .native_resources
+            .as_mut()
+            .is_some_and(NativeWindowResourceBundle::maintain_completion)
+        {
+            turn.record_pending();
+        }
+        for bundle in &mut self.quarantined_native_resources.entries {
+            if bundle.maintain_completion() {
+                turn.record_pending();
+            }
+        }
+        let _ = turn.drop_one_ready(
+            &mut self.quarantined_native_resources,
+            NativeWindowResourceBundle::retirement_eligible,
+        );
+        turn.record_pending_if_ready(
+            &self.quarantined_native_resources,
+            NativeWindowResourceBundle::retirement_eligible,
+        );
     }
 
     /// Isolate the active bundle after an admission veto without destroying
@@ -452,10 +570,34 @@ impl Default for NativeRunnerTimingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeResourceQuarantine, NativeRunnerWindowState, NativeSurfaceRecoveryState,
-        NativeTargetGeneration,
+        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerWindowState,
+        NativeSurfaceRecoveryState, NativeTargetGeneration,
     };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct DropTracked {
+        ready: bool,
+        drops: Arc<AtomicUsize>,
+    }
+
+    impl DropTracked {
+        fn new(ready: bool, drops: &Arc<AtomicUsize>) -> Self {
+            Self {
+                ready,
+                drops: Arc::clone(drops),
+            }
+        }
+    }
+
+    impl Drop for DropTracked {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::Relaxed);
+        }
+    }
 
     #[test]
     fn native_window_resources_start_unpublished_and_without_stale_gpu_state() {
@@ -479,6 +621,51 @@ mod tests {
         assert!(quarantine.is_full());
         assert_eq!(quarantine.try_push(3), Err(3));
         assert_eq!(quarantine.len(), 2);
+    }
+
+    #[test]
+    fn pending_native_resource_is_retained_without_drop() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(DropTracked::new(false, &drops)).is_ok());
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(!turn.drop_one_ready(&mut quarantine, |entry| entry.ready));
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
+        assert_eq!(quarantine.len(), 1);
+    }
+
+    #[test]
+    fn completed_native_resource_reclaims_quarantine_capacity() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(DropTracked::new(true, &drops)).is_ok());
+        assert!(quarantine.try_push(DropTracked::new(false, &drops)).is_ok());
+        assert!(quarantine.is_full());
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(turn.drop_one_ready(&mut quarantine, |entry| entry.ready));
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+        assert!(!quarantine.is_full());
+        assert_eq!(quarantine.len(), 1);
+    }
+
+    #[test]
+    fn native_resource_maintenance_drops_at_most_one_bundle_globally_per_turn() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut primary = NativeResourceQuarantine::default();
+        let mut auxiliary = NativeResourceQuarantine::default();
+        assert!(primary.try_push(DropTracked::new(true, &drops)).is_ok());
+        assert!(auxiliary.try_push(DropTracked::new(true, &drops)).is_ok());
+        let mut turn = NativeResourceMaintenanceTurn::new();
+
+        assert!(turn.drop_one_ready(&mut primary, |entry| entry.ready));
+        assert!(!turn.drop_one_ready(&mut auxiliary, |entry| entry.ready));
+        turn.record_pending_if_ready(&auxiliary, |entry| entry.ready);
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+        assert!(primary.is_empty());
+        assert_eq!(auxiliary.len(), 1);
+        assert!(turn.has_pending());
     }
 
     #[test]

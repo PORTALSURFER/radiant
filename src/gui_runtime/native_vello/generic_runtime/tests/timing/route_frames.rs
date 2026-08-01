@@ -284,6 +284,29 @@ fn coalesced_routed_redraws_keep_strongest_frame_work() {
 }
 
 #[test]
+fn auxiliary_message_route_does_not_admit_a_second_due_timed_frame() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let last_drain = Instant::now() - interval;
+    runner.timing.last_timed_frame_drain = last_drain;
+    let outcome = GenericRouteOutcome {
+        routed: true,
+        ..GenericRouteOutcome::default()
+    };
+
+    runner.apply_route_outcome_with_timed_frame(outcome, false);
+
+    assert_eq!(
+        runner.timing.last_timed_frame_drain, last_drain,
+        "parent dispatch of an auxiliary timed message must not consume a second timed admission"
+    );
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

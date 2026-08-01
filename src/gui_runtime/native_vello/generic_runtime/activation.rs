@@ -185,6 +185,25 @@ impl ActivationRevealController {
         }
         ActivationPoll::WaitUntil((now + ACTIVATION_CONFIRMATION_POLL_INTERVAL).min(poll_until))
     }
+
+    pub(super) fn confirmation_poll_deadline(
+        &self,
+        now: Instant,
+        current_foreground_process: Option<i32>,
+    ) -> Option<Instant> {
+        let PendingReveal::Requested { poll_until } = self.pending else {
+            return None;
+        };
+        if foreground_application_changed(
+            self.launch_foreground_process,
+            current_foreground_process,
+            self.application_process,
+        ) || now >= poll_until
+        {
+            return None;
+        }
+        Some((now + ACTIVATION_CONFIRMATION_POLL_INTERVAL).min(poll_until))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -330,6 +349,11 @@ where
                 ControlFlow::WaitUntil(_) => {}
             },
         }
+    }
+
+    pub(super) fn activation_confirmation_deadline(&self, now: Instant) -> Option<Instant> {
+        self.activation_reveal
+            .confirmation_poll_deadline(now, platform::frontmost_process_id())
     }
 
     fn record_application_active(&self, source: &'static str) {

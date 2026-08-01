@@ -1,10 +1,12 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
 use super::{
-    AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
-    should_start_native_window_drag, should_toggle_native_window_maximized,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    AuxiliaryWindowEventResult, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
+    FrameScheduleRedrawEvidence, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence,
+    animation_frame_interval, should_start_native_window_drag,
+    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -267,97 +269,174 @@ where
             .begin_native_resource_maintenance_and_wake_primary()
             .has_pending();
         let now = Instant::now();
-        if self.window.window.is_none() {
-            event_loop.set_control_flow(ControlFlow::Wait);
-            self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
-            return;
-        }
-        if self.window.native_resources.is_none() {
+        let primary_window_ready = self.window.window.is_some();
+        let primary_resources_ready = self.window.native_resources.is_some();
+        if primary_window_ready && !primary_resources_ready {
             self.timing.redraw_requested = false;
             self.timing.redraw_requested_at = None;
+        }
+
+        if primary_window_ready && primary_resources_ready {
+            self.observe_pending_window_activation();
+        }
+
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let mut demands = Vec::with_capacity(1 + self.auxiliary_windows.len());
+        if primary_window_ready && primary_resources_ready {
+            let animation_activity = self.core.animation_activity();
+            let needs_text_caret_animation = self.core.has_focused_text_input();
+            let frame_target_fps = timed_frame_target_fps(
+                self.options.normalized_target_fps(),
+                animation_activity,
+                needs_text_caret_animation,
+            );
+            let cadence = timed_frame_cadence(
+                now,
+                self.timing.last_timed_frame_drain,
+                frame_target_fps,
+                animation_activity.needs_animation() || needs_text_caret_animation,
+            );
+            demands.push(FrameScheduleDemand::from_cadence(
+                FrameScheduleKey::Primary,
+                cadence,
+                frame_target_fps,
+                animation_activity,
+                needs_text_caret_animation,
+                FrameScheduleRedrawEvidence {
+                    timed_repaint_deadline: self.core.timed_repaint_deadline(),
+                    pending_redraw_requested: self.timing.redraw_requested,
+                    pending_redraw_retry_deadline: self.pending_redraw_retry_deadline(),
+                    pending_redraw_fresh: self.timing.redraw_requested
+                        && !self.pending_redraw_request_is_stale(now),
+                },
+            ));
+        }
+        for window in &mut self.auxiliary_windows {
+            if let Some(demand) = window.observe_frame_schedule(now, current_generation) {
+                demands.push(demand);
+            }
+        }
+
+        let plan = self.frame_scheduler.observe(
+            now,
+            &demands,
+            FrameScheduleDeadlines {
+                activation: self.activation_confirmation_deadline(now),
+                maintenance: native_resource_maintenance_deadline(now, maintenance_pending),
+                recovery: self.recovery_deadline(),
+                ..FrameScheduleDeadlines::default()
+            },
+        );
+
+        if let Some(selected) = plan.selected.clone()
+            && let Some(demand) = demands
+                .iter()
+                .find(|demand| demand.key() == &selected)
+                .cloned()
+        {
+            match selected.clone() {
+                FrameScheduleKey::Primary => {
+                    let work = demand.work(now);
+                    if let TimedFrameCadence::DrainNow { next_wake } = demand.cadence() {
+                        let _ = next_wake;
+                        if work.drain_timed_frame
+                            && !self.should_defer_timed_frame_drain_for_pending_redraw(now)
+                        {
+                            let expected_interval =
+                                animation_frame_interval(demand.frame_target_fps());
+                            let elapsed_since_last =
+                                now.duration_since(self.timing.last_timed_frame_drain);
+                            let overdue = elapsed_since_last.saturating_sub(expected_interval);
+                            if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
+                                && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
+                                && slow_render_profile_enabled()
+                            {
+                                warn!(
+                                    target: "radiant::debug::frame_profile",
+                                    event = "radiant.timed_frame.late",
+                                    target_fps = demand.frame_target_fps(),
+                                    elapsed_since_last_frame_us = elapsed_since_last.as_micros(),
+                                    expected_interval_us = expected_interval.as_micros(),
+                                    overdue_us = overdue.as_micros(),
+                                    animation_needs_frame_message = demand
+                                        .animation_activity()
+                                        .needs_frame_message(),
+                                    animation_needs_animation = demand
+                                        .animation_activity()
+                                        .needs_animation(),
+                                    needs_text_caret_animation = demand
+                                        .needs_text_caret_animation(),
+                                    redraw_requested = self.timing.redraw_requested,
+                                    redraw_pending_us = self
+                                        .timing
+                                        .redraw_requested_at
+                                        .map(|requested_at| {
+                                            now.duration_since(requested_at).as_micros()
+                                        })
+                                        .unwrap_or(0),
+                                    "Timed frame wakeup arrived late"
+                                );
+                            }
+                        }
+                    }
+                    let admission = self.admit_frame_schedule_work(now, &demand);
+                    if admission.route_outcome {
+                        if admission.outcome.exit_requested {
+                            self.admit_native_shutdown(event_loop, None);
+                            return;
+                        }
+                        self.handle_route_outcome(event_loop, admission.outcome);
+                    }
+                    if admission.did_work {
+                        self.frame_scheduler.record_admission(selected);
+                    }
+                }
+                FrameScheduleKey::Auxiliary(key) => {
+                    let result = self.adapter.as_mut().and_then(|adapter| {
+                        self.auxiliary_windows
+                            .iter_mut()
+                            .find(|window| window.key() == key)
+                            .and_then(|window| {
+                                window.admit_frame_schedule_work(event_loop, adapter, now, &demand)
+                            })
+                    });
+                    if let Some(result) = result {
+                        if result.shutdown_requested {
+                            self.admit_native_shutdown(event_loop, result.terminal_cause);
+                            return;
+                        }
+                        if let Some(error) = result.terminal_cause {
+                            self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
+                            return;
+                        }
+                        if !result.messages.is_empty() {
+                            self.dispatch_auxiliary_messages_without_timed_frame(
+                                event_loop,
+                                result.messages,
+                            );
+                        }
+                        self.frame_scheduler.record_admission(selected);
+                    }
+                }
+            }
+        }
+
+        if let Some(deadline) = plan.deadlines.earliest() {
+            let deadline = if primary_resources_ready {
+                self.frame_wait_deadline(deadline)
+            } else {
+                deadline
+            };
+            event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+        } else {
             event_loop.set_control_flow(ControlFlow::Wait);
+        }
+        if !primary_window_ready || !primary_resources_ready {
             self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
             return;
-        }
-        self.observe_pending_window_activation();
-        let animation_activity = self.core.animation_activity();
-        if self.core.advance_timed_repaints(now) {
-            self.rebuild_scene();
-            self.request_redraw_for_frame_work(super::FrameWork::RebuildScene {
-                reason: super::FrameWorkReason::RuntimeSurfaceRepaint,
-                mode: super::SceneRebuildMode::Immediate,
-            });
-        }
-        let timed_repaint_deadline = self.core.timed_repaint_deadline();
-        let needs_text_caret_animation = self.core.has_focused_text_input();
-        let frame_target_fps = timed_frame_target_fps(
-            self.options.normalized_target_fps(),
-            animation_activity,
-            needs_text_caret_animation,
-        );
-        let cadence = timed_frame_cadence(
-            now,
-            self.timing.last_timed_frame_drain,
-            frame_target_fps,
-            animation_activity.needs_animation() || needs_text_caret_animation,
-        );
-        match cadence {
-            TimedFrameCadence::Idle => match timed_repaint_deadline {
-                Some(deadline) => event_loop.set_control_flow(ControlFlow::WaitUntil(deadline)),
-                None => event_loop.set_control_flow(ControlFlow::Wait),
-            },
-            TimedFrameCadence::WaitUntil(next_frame) => {
-                let next_wake =
-                    timed_repaint_deadline.map_or(next_frame, |deadline| next_frame.min(deadline));
-                event_loop
-                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_wake)));
-            }
-            TimedFrameCadence::DrainNow { next_wake } => {
-                if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
-                    event_loop.set_control_flow(ControlFlow::WaitUntil(
-                        self.frame_wait_deadline(next_wake),
-                    ));
-                    self.schedule_activation_confirmation_poll(event_loop, now);
-                    self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);
-                    return;
-                }
-                let expected_interval = animation_frame_interval(frame_target_fps);
-                let elapsed_since_last = now.duration_since(self.timing.last_timed_frame_drain);
-                let overdue = elapsed_since_last.saturating_sub(expected_interval);
-                if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
-                    && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
-                    && slow_render_profile_enabled()
-                {
-                    warn!(
-                        target: "radiant::debug::frame_profile",
-                        event = "radiant.timed_frame.late",
-                        target_fps = frame_target_fps,
-                        elapsed_since_last_frame_us = elapsed_since_last.as_micros(),
-                        expected_interval_us = expected_interval.as_micros(),
-                        overdue_us = overdue.as_micros(),
-                        animation_needs_frame_message = animation_activity.needs_frame_message(),
-                        animation_needs_animation = animation_activity.needs_animation(),
-                        needs_text_caret_animation,
-                        redraw_requested = self.timing.redraw_requested,
-                        redraw_pending_us = self
-                            .timing
-                            .redraw_requested_at
-                            .map(|requested_at| now.duration_since(requested_at).as_micros())
-                            .unwrap_or(0),
-                        "Timed frame wakeup arrived late"
-                    );
-                }
-                let outcome =
-                    self.drain_timed_frame_now(now, animation_activity, needs_text_caret_animation);
-                if outcome.exit_requested {
-                    self.admit_native_shutdown(event_loop, None);
-                    return;
-                }
-                self.handle_route_outcome(event_loop, outcome);
-                let next_wake =
-                    timed_repaint_deadline.map_or(next_wake, |deadline| next_wake.min(deadline));
-                event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
-            }
         }
         self.schedule_activation_confirmation_poll(event_loop, now);
         self.schedule_native_resource_maintenance(event_loop, now, maintenance_pending);

@@ -13,13 +13,14 @@ use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
     GenericNativeRuntimeCore, GenericRouteOutcome, NativeAdapterGeneration,
-    NativeAutomationTargetExporter, NativeClosingProgress, NativeGenericRunError, NativeLifecycle,
-    NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn, NativeRunnerInputState,
-    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
-    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
-    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    NativeAutomationTargetExporter, NativeClosingProgress, NativeFrameScheduler,
+    NativeGenericRunError, NativeLifecycle, NativeRenderDeviceErrorKind,
+    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -59,6 +60,7 @@ where
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
     pub(super) timing: NativeRunnerTimingState,
+    pub(super) frame_scheduler: NativeFrameScheduler,
     pub(super) frame_diagnostics_enabled: bool,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
@@ -177,6 +179,7 @@ where
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
             timing: NativeRunnerTimingState::default(),
+            frame_scheduler: NativeFrameScheduler::default(),
             frame_diagnostics_enabled,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
@@ -205,6 +208,10 @@ where
 
     pub(super) const fn is_recovering(&self) -> bool {
         self.native_lifecycle.is_recovering()
+    }
+
+    pub(super) const fn is_stopped(&self) -> bool {
+        self.native_lifecycle.is_stopped()
     }
 
     pub(super) fn recovery_deadline(&self) -> Option<Instant> {
@@ -1337,7 +1344,15 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None);
+        self.handle_route_outcome_inner(event_loop, outcome, None, true);
+    }
+
+    pub(super) fn handle_route_outcome_without_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+    ) {
+        self.handle_route_outcome_inner(event_loop, outcome, None, false);
     }
 
     pub(super) fn handle_route_outcome_with_adapter(
@@ -1346,7 +1361,7 @@ where
         outcome: GenericRouteOutcome,
         adapter: &mut GenericNativeAdapterOwner,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter));
+        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter), true);
     }
 
     fn handle_route_outcome_inner(
@@ -1354,12 +1369,17 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: Option<&mut GenericNativeAdapterOwner>,
+        merge_due_timed_frame: bool,
     ) {
         if !self.is_running() {
             return;
         }
         let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
-        let applied = self.apply_route_outcome(outcome);
+        let applied = if merge_due_timed_frame {
+            self.apply_route_outcome(outcome)
+        } else {
+            self.apply_route_outcome_with_timed_frame(outcome, false)
+        };
         if applied.exit_requested {
             self.admit_native_shutdown(event_loop, None);
             return;
@@ -1399,7 +1419,15 @@ where
 
     pub(super) fn apply_route_outcome(
         &mut self,
+        outcome: GenericRouteOutcome,
+    ) -> AppliedRouteOutcome {
+        self.apply_route_outcome_with_timed_frame(outcome, true)
+    }
+
+    pub(super) fn apply_route_outcome_with_timed_frame(
+        &mut self,
         mut outcome: GenericRouteOutcome,
+        merge_due_timed_frame: bool,
     ) -> AppliedRouteOutcome {
         if !self.is_running() {
             return AppliedRouteOutcome::default();
@@ -1410,7 +1438,9 @@ where
                 sync_auxiliary_windows_now: false,
             };
         }
-        self.merge_due_timed_frame_for_route(&mut outcome);
+        if merge_due_timed_frame {
+            self.merge_due_timed_frame_for_route(&mut outcome);
+        }
         if let Some(scale) = outcome.dpi_scale_override {
             self.set_dpi_scale_override(scale);
         }

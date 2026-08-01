@@ -117,6 +117,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event_loop: &ActiveEventLoop,
         event: WindowEvent,
     ) -> AuxiliaryWindowEventResult<Message> {
+        let mut terminal_cause = None;
         match event {
             WindowEvent::CloseRequested => {
                 if self.cache_on_close {
@@ -124,11 +125,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return AuxiliaryWindowEventResult {
                         closed: false,
                         messages: self.close_message.take().into_iter().collect(),
+                        terminal_cause: None,
                     };
                 }
                 return AuxiliaryWindowEventResult {
                     closed: true,
                     messages: self.close_message.take().into_iter().collect(),
+                    terminal_cause: None,
                 };
             }
             WindowEvent::Resized(size) => self.runner.resize_surface(size),
@@ -169,12 +172,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     .route_native_modifiers_changed(modifiers.state());
                 self.runner.handle_route_outcome(event_loop, routed);
             }
-            WindowEvent::RedrawRequested => self.runner.redraw(event_loop),
+            WindowEvent::RedrawRequested => {
+                terminal_cause = auxiliary_redraw_terminal_cause(self.runner.redraw(event_loop));
+            }
             _ => {}
         }
+        let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
         AuxiliaryWindowEventResult {
             closed: false,
             messages: self.take_messages(),
+            terminal_cause,
         }
     }
 
@@ -183,9 +190,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 }
 
+fn auxiliary_redraw_terminal_cause(
+    redraw_result: Result<(), NativeGenericRunError>,
+) -> Option<NativeGenericRunError> {
+    redraw_result.err()
+}
+
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) closed: bool,
     pub(super) messages: Vec<Message>,
+    pub(super) terminal_cause: Option<NativeGenericRunError>,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -286,7 +300,10 @@ fn append_initialized_auxiliary_window<T>(
 
 #[cfg(test)]
 mod tests {
-    use super::{append_initialized_auxiliary_window, auxiliary_projection_contains_key};
+    use super::{
+        append_initialized_auxiliary_window, auxiliary_projection_contains_key,
+        auxiliary_redraw_terminal_cause,
+    };
     use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
     use std::sync::Arc;
 
@@ -330,5 +347,18 @@ mod tests {
             Ok(())
         );
         assert_eq!(windows, [String::from("existing"), String::from("ready")]);
+    }
+
+    #[test]
+    fn auxiliary_redraw_failure_crosses_the_child_event_boundary() {
+        let failure = crate::gui_runtime::NativeGenericRunError::FrameRender(String::from(
+            "backend rejected scene",
+        ));
+
+        assert_eq!(
+            auxiliary_redraw_terminal_cause(Err(failure.clone())),
+            Some(failure)
+        );
+        assert_eq!(auxiliary_redraw_terminal_cause(Ok(())), None);
     }
 }

@@ -2451,7 +2451,7 @@ artifact capture is requested. The report envelope is generic: Radiant owns the
 result transport while each runtime path chooses its artifact payload and typed
 error boundary. The generic Vello runtime reports `NativeGenericRunError`
 variants for event-loop build and run failures, native initialization failures,
-and terminal native surface failures. `NativeInitialization { stage, message }`
+frame-render failures, and terminal native surface failures. `NativeInitialization { stage, message }`
 uses the backend-neutral `NativeInitializationStage` for native window creation,
 WGPU surface creation, compatible-device acquisition, render-surface creation,
 and renderer creation; backend-specific error details remain owned text at the
@@ -2462,6 +2462,10 @@ successful run or a secondary event-loop error. Startup and shutdown artifacts
 remain in the report, including when initialization fails after startup timing
 begins. Simple `.run()` helpers continue returning the compatibility
 `radiant::Result` string form, including the stable string for typed failures.
+`FrameRender(message)` reports a fatal Vello scene render failure using owned
+backend text; the failed frame is not presented or counted as a successful
+presentation, and the runner records that cause before requesting event-loop
+exit. Auxiliary-window frame failures use the same parent report boundary.
 This keeps compatibility diagnostics and generic runtime diagnostics on the same
 mechanism without coupling the public runtime API to a host application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads

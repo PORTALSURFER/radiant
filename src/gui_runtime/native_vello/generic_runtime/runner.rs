@@ -187,6 +187,28 @@ where
         }
     }
 
+    pub(super) fn record_frame_render_error_and_exit(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+    ) {
+        if self.record_terminal_cause(cause.clone()) {
+            error!(error = %cause, "radiant generic native vello: frame rendering failed");
+            event_loop.exit();
+        }
+    }
+
+    pub(super) fn record_auxiliary_terminal_cause_and_exit(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+    ) {
+        if self.record_terminal_cause(cause.clone()) {
+            error!(error = %cause, "radiant generic native vello: auxiliary runtime failed");
+            event_loop.exit();
+        }
+    }
+
     pub(super) fn take_terminal_cause(&mut self) -> Option<NativeGenericRunError> {
         self.terminal_cause.take()
     }
@@ -757,7 +779,7 @@ where
                         "Flushed pending redraw request after route"
                     );
                 }
-                self.redraw(event_loop);
+                self.redraw_and_exit_on_error(event_loop);
             }
         }
     }

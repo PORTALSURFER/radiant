@@ -81,7 +81,7 @@ use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, PaintPlanCacheDecision, PointerPressStamp,
 };
-use cpu_frame_fairness::assess_cpu_frame_fairness;
+use cpu_frame_fairness::{CpuFrameFairnessLedger, assess_cpu_frame_fairness};
 use cpu_frame_observation::{
     CpuFrameDuration, CpuFrameObservationAdmission, CpuFrameObservationCapture,
     CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge, CpuFrameStage,
@@ -92,7 +92,7 @@ use frame_cadence::{
 };
 use frame_scheduler::{
     AuxiliaryScheduleEligibility, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
-    FrameScheduleRedrawEvidence, NativeFrameScheduler,
+    FrameScheduleRedrawEvidence, FrameScheduleWork, FrameSchedulerPlan, NativeFrameScheduler,
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;

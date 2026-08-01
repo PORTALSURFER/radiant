@@ -375,7 +375,9 @@ where
         );
         let shadow_fairness =
             assess_cpu_frame_fairness(now, &demands, self.cpu_frame_observation.as_ref());
-        shadow_fairness.for_each(|_| {});
+        if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
+            shadow_fairness.record_turn(ledger, &plan);
+        }
 
         if let Some(selected) = plan.selected.clone()
             && let Some(demand) = demands
@@ -437,7 +439,7 @@ where
                         self.handle_route_outcome(event_loop, admission.outcome);
                     }
                     if admission.did_work {
-                        self.frame_scheduler.record_admission(selected);
+                        self.record_frame_schedule_admission(selected);
                     }
                 }
                 FrameScheduleKey::Auxiliary(key) => {
@@ -474,7 +476,7 @@ where
                                 result.messages,
                             );
                         }
-                        self.frame_scheduler.record_admission(selected);
+                        self.record_frame_schedule_admission(selected);
                     }
                 }
             }

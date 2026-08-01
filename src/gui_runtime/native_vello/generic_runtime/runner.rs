@@ -11,17 +11,18 @@ use super::renderer_recovery::{
 };
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
-    CpuFrameObservationAdmission, CpuFrameObservationCapture, CpuFrameObservationLedger,
-    CpuFrameObservationOwner, CpuFramePendingRedrawAge, DeviceLossRegistration, FrameScheduleKey,
-    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeRuntimeCore,
-    GenericRouteOutcome, NativeAdapterGeneration, NativeAutomationTargetExporter,
-    NativeClosingProgress, NativeFrameScheduler, NativeGenericRunError, NativeLifecycle,
-    NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn, NativeRunnerInputState,
-    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
-    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
-    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    CpuFrameFairnessLedger, CpuFrameObservationAdmission, CpuFrameObservationCapture,
+    CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge,
+    DeviceLossRegistration, FrameScheduleKey, FrameWork, FrameWorkReason,
+    GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
+    NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
+    NativeFrameScheduler, NativeGenericRunError, NativeLifecycle, NativeRenderDeviceErrorKind,
+    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -62,6 +63,7 @@ where
     pub(super) input: NativeRunnerInputState,
     pub(super) timing: NativeRunnerTimingState,
     pub(super) frame_scheduler: NativeFrameScheduler,
+    pub(super) cpu_frame_fairness: Option<CpuFrameFairnessLedger>,
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
     pub(super) frame_diagnostics_enabled: bool,
@@ -183,6 +185,7 @@ where
             input: NativeRunnerInputState::default(),
             timing: NativeRunnerTimingState::default(),
             frame_scheduler: NativeFrameScheduler::default(),
+            cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
             cpu_frame_observation: Some(CpuFrameObservationLedger::default()),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
@@ -201,7 +204,15 @@ where
 
     pub(super) fn mark_as_auxiliary(&mut self) {
         self.auxiliary_owner = true;
+        self.cpu_frame_fairness = None;
         self.cpu_frame_observation = None;
+    }
+
+    pub(super) fn record_frame_schedule_admission(&mut self, key: FrameScheduleKey) {
+        if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
+            ledger.mark_admitted(&key);
+        }
+        self.frame_scheduler.record_admission(key);
     }
 
     pub(super) fn begin_cpu_frame_observation(
@@ -281,6 +292,9 @@ where
     }
 
     pub(super) fn remove_cpu_frame_observation(&mut self, key: &FrameScheduleKey) {
+        if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
+            ledger.remove(key);
+        }
         if let Some(ledger) = self.cpu_frame_observation.as_mut() {
             ledger.remove(key);
         }
@@ -320,7 +334,14 @@ where
     }
 
     pub(super) fn clear_cpu_frame_observation(&mut self) {
+        self.clear_cpu_frame_fairness();
         if let Some(ledger) = self.cpu_frame_observation.as_mut() {
+            ledger.clear();
+        }
+    }
+
+    pub(super) fn clear_cpu_frame_fairness(&mut self) {
+        if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
             ledger.clear();
         }
     }
@@ -380,6 +401,7 @@ where
         }
         let _ = self.core.runtime.begin_closing();
         self.fence_native_presentation();
+        self.clear_cpu_frame_fairness();
         self.application_reopen_events.take();
         self.application_reopen_proxy.take();
         self.runtime_wakeup.clear_pending();
@@ -1640,13 +1662,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{GenericNativeVelloRunner, NativeLifecycle, recovery_completion_is_admissible};
+    use super::super::{
+        FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleRedrawEvidence,
+        assess_cpu_frame_fairness,
+    };
+    use super::{
+        FrameScheduleKey, GenericNativeVelloRunner, NativeLifecycle, TimedFrameCadence,
+        recovery_completion_is_admissible,
+    };
     use crate::{
         application::empty,
         gui::types::Vector2,
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
-        runtime::{RuntimeBridge, UiSurface},
+        runtime::{RuntimeAnimationActivity, RuntimeBridge, UiSurface},
     };
     use std::{sync::Arc, time::Instant};
 
@@ -1664,6 +1693,123 @@ mod tests {
             EmptyBridge,
             Vector2::new(320.0, 240.0),
         )
+    }
+
+    #[test]
+    fn parent_admission_boundary_marks_fairness_before_cursor_progresses() {
+        let mut runner = runner();
+        let now = Instant::now();
+        let primary_key = FrameScheduleKey::Primary;
+        let auxiliary_key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        let demands = [
+            FrameScheduleDemand::from_cadence(
+                primary_key.clone(),
+                TimedFrameCadence::DrainNow {
+                    due_at: now,
+                    next_wake: now + std::time::Duration::from_millis(16),
+                },
+                60,
+                RuntimeAnimationActivity::paint_only(),
+                false,
+                FrameScheduleRedrawEvidence::default(),
+            ),
+            FrameScheduleDemand::from_cadence(
+                auxiliary_key.clone(),
+                TimedFrameCadence::DrainNow {
+                    due_at: now,
+                    next_wake: now + std::time::Duration::from_millis(16),
+                },
+                60,
+                RuntimeAnimationActivity::paint_only(),
+                false,
+                FrameScheduleRedrawEvidence::default(),
+            ),
+        ];
+        let plan = runner
+            .frame_scheduler
+            .observe(now, &demands, FrameScheduleDeadlines::default());
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+
+        runner.record_frame_schedule_admission(primary_key.clone());
+
+        let primary_sample = runner
+            .cpu_frame_fairness
+            .as_ref()
+            .unwrap()
+            .projection()
+            .window(&primary_key)
+            .unwrap()
+            .latest_sample()
+            .unwrap();
+        assert!(primary_sample.cursor_admitted);
+        assert_eq!(
+            runner
+                .frame_scheduler
+                .observe(now, &demands, FrameScheduleDeadlines::default())
+                .selected,
+            Some(auxiliary_key)
+        );
+    }
+
+    #[test]
+    fn parent_fairness_history_uses_existing_removal_and_recovery_fences() {
+        let mut runner = runner();
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        let demands = [FrameScheduleDemand::from_cadence(
+            key.clone(),
+            TimedFrameCadence::Idle,
+            60,
+            RuntimeAnimationActivity::idle(),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        )];
+        let plan = runner
+            .frame_scheduler
+            .observe(now, &demands, FrameScheduleDeadlines::default());
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+        assert!(
+            runner
+                .cpu_frame_fairness
+                .as_ref()
+                .unwrap()
+                .projection()
+                .window(&key)
+                .is_some()
+        );
+
+        runner.remove_cpu_frame_observation(&key);
+        assert!(
+            runner
+                .cpu_frame_fairness
+                .as_ref()
+                .unwrap()
+                .projection()
+                .window(&key)
+                .is_none()
+        );
+
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+        runner.clear_cpu_frame_observation();
+        assert!(
+            runner
+                .cpu_frame_fairness
+                .as_ref()
+                .unwrap()
+                .projection()
+                .window(&key)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn auxiliary_runner_omits_parent_fairness_ledger() {
+        let mut runner = runner();
+        runner.mark_as_auxiliary();
+        assert!(runner.cpu_frame_fairness.is_none());
     }
 
     #[test]

@@ -185,14 +185,36 @@ where
         turn
     }
 
+    pub(super) fn begin_native_resource_maintenance_and_wake_primary(
+        &mut self,
+    ) -> NativeResourceMaintenanceTurn {
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        if self.maintain_native_resources_with_turn(&mut turn) {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+        turn
+    }
+
     pub(super) fn maintain_native_resources_with_turn(
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
-    ) {
+    ) -> bool {
         self.window.maintain_native_resources(turn);
-        for window in &mut self.auxiliary_windows {
-            window.maintain_native_resources_with_turn(turn);
+        let auxiliary_count = self.auxiliary_windows.len();
+        self.auxiliary_windows
+            .retain_mut(|window| !window.maintain_native_resources_with_turn(turn));
+        let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
+        if removed_auxiliary {
+            self.timing.deferred_auxiliary_window_sync = true;
         }
+        removed_auxiliary
+    }
+
+    pub(super) fn retire_native_resources_with_turn(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        self.window.retire_native_resources(turn)
     }
 
     pub(super) fn record_successful_native_submission(&mut self) {

@@ -70,16 +70,12 @@ where
                 return;
             };
             let AuxiliaryWindowEventResult {
-                closed,
                 messages,
                 terminal_cause,
             } = self.auxiliary_windows[index].route_window_event(event_loop, event, adapter);
             if let Some(error) = terminal_cause {
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
-            }
-            if closed {
-                self.auxiliary_windows.remove(index);
             }
             if !messages.is_empty() {
                 self.dispatch_auxiliary_messages(event_loop, messages);
@@ -205,7 +201,9 @@ where
                 kind,
                 message,
             ),
-            RuntimeUserEvent::NativeResourceMaintenanceRequested => {}
+            RuntimeUserEvent::NativeResourceMaintenanceRequested => {
+                let _ = self.begin_native_resource_maintenance_and_wake_primary();
+            }
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 let snapshot = super::accessibility::current_snapshot();
@@ -218,7 +216,9 @@ where
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let maintenance_pending = self.begin_native_resource_maintenance().has_pending();
+        let maintenance_pending = self
+            .begin_native_resource_maintenance_and_wake_primary()
+            .has_pending();
         let now = Instant::now();
         if self.window.window.is_none() {
             event_loop.set_control_flow(ControlFlow::Wait);

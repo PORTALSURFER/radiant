@@ -340,11 +340,17 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
     )
     .expect("generic surface source should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("generic present source should be readable");
 
     assert!(
-        runner.contains("for window in &mut self.auxiliary_windows")
-            && runner.contains("window.maintain_native_resources_with_turn(turn)"),
-        "primary and auxiliary bundles should share one maintenance turn"
+        runner.contains("self.window.maintain_native_resources(turn)")
+            && runner.contains("retain_mut(|window|")
+            && runner.contains("window.maintain_native_resources_with_turn(turn)")
+            && runner.contains("pub(super) fn retire_native_resources_with_turn("),
+        "primary and auxiliary bundles should share one maintenance turn and retire children only after GPU ownership is empty"
     );
     assert!(
         auxiliary.contains("sync_auxiliary_windows_with_adapter_in_turn")
@@ -367,9 +373,88 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
             && lifecycle.contains("NATIVE_RESOURCE_MAINTENANCE_INTERVAL"),
         "pending maintenance should use a bounded future deadline without forcing Poll"
     );
+    let completion_wake_start = lifecycle
+        .find("RuntimeUserEvent::NativeResourceMaintenanceRequested => {")
+        .expect("completion wake should be handled at the native event-loop boundary");
+    let completion_wake = &lifecycle[completion_wake_start..][..lifecycle[completion_wake_start..]
+        .find("#[cfg(target_os = \"macos\")]\n")
+        .expect("completion wake branch should end before platform-specific events")];
+    assert!(
+        completion_wake.contains("self.begin_native_resource_maintenance_and_wake_primary()")
+            && !completion_wake.contains("FrameWork::RebuildScene"),
+        "completion retirement should wake exactly one primary redraw without adding unrelated frame work"
+    );
+    assert!(
+        runner.contains("begin_native_resource_maintenance_and_wake_primary")
+            && runner.contains("if self.maintain_native_resources_with_turn(&mut turn)")
+            && runner.contains("self.request_redraw_for_frame_work(FrameWork::None);"),
+        "maintenance should request the smallest primary redraw only after auxiliary removal"
+    );
+    assert!(
+        present.contains("self.sync_deferred_auxiliary_windows_if_needed(event_loop, adapter);"),
+        "the completion redraw should reach the existing deferred auxiliary sync consumer"
+    );
     assert!(
         surface.contains("maintenance: &mut NativeResourceMaintenanceTurn")
             && surface.contains("sync_auxiliary_windows_with_adapter_in_turn"),
         "startup should carry one maintenance turn through primary and auxiliary setup"
     );
+}
+
+#[test]
+fn destructive_auxiliary_close_is_retiring_and_projection_vetoed() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("generic auxiliary source should be readable");
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic lifecycle source should be readable");
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
+
+    for required in [
+        "enum AuxiliaryNativeWindowLifecycle",
+        "Retiring",
+        "self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring",
+        "self.runner.core.runtime.begin_closing()",
+        "self.close_message.take()",
+        "if self.is_retiring()",
+        "fn auxiliary_key_is_retiring",
+        "window.is_admitted() && window.key() == projection.key",
+        "window.update_projection(projection)",
+        "self.show();",
+    ] {
+        assert!(
+            auxiliary.contains(required),
+            "destructive auxiliary lifecycle should retain `{required}`"
+        );
+    }
+    assert!(
+        auxiliary.contains("return AuxiliaryWindowEventResult::ignored()")
+            && auxiliary.contains("then_some(self.runner.window.id)"),
+        "retiring children should be non-routable before event handling"
+    );
+    assert!(
+        lifecycle.contains("let AuxiliaryWindowEventResult {")
+            && !lifecycle.contains("auxiliary_windows.remove(index)"),
+        "close handling should retain the child for maintenance retirement"
+    );
+    for required in [
+        "fn retire_native_resource_entries",
+        "if quarantine.is_full()",
+        "turn.record_pending()",
+        "active.is_none() && quarantine.is_empty()",
+        "NativeWindowResourceBundle::maintain_completion",
+        "NativeWindowResourceBundle::retirement_eligible",
+    ] {
+        assert!(
+            runner_state.contains(required),
+            "native retirement should retain bounded witness logic `{required}`"
+        );
+    }
 }

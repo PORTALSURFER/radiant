@@ -59,6 +59,7 @@ mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
 mod scene_texture;
+mod submission_completion;
 mod surface;
 mod surface_size;
 mod window;
@@ -112,6 +113,7 @@ pub use run_report::{
     NativeInitializationStage, NativeRenderDeviceErrorKind,
 };
 use runner::GenericNativeVelloRunner;
+use runner_state::NativeResourceMaintenanceTurn;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
 pub(in crate::gui_runtime::native_vello) use runtime_helpers::{
     GpuSurfaceInteractionRegion, SurfaceOcclusionPlan, SurfaceOcclusionPolicy,

@@ -33,6 +33,7 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         kind: NativeRenderDeviceErrorKind,
         message: String,
     },
+    NativeResourceMaintenanceRequested,
     #[cfg(target_os = "macos")]
     AccessibilityDisplayChanged,
 }
@@ -43,6 +44,10 @@ impl PartialEq for RuntimeUserEvent {
             (Self::RepaintRequested, Self::RepaintRequested)
             | (Self::ApplicationReopenRequested, Self::ApplicationReopenRequested) => true,
             (Self::OpenFiles(left), Self::OpenFiles(right)) => left == right,
+            (
+                Self::NativeResourceMaintenanceRequested,
+                Self::NativeResourceMaintenanceRequested,
+            ) => true,
             (
                 Self::DeviceLost {
                     registration: left_registration,

@@ -1,7 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
 use super::runner_state::{
-    NativeWindowResourceBundle, SurfaceAcquirePolicy, surface_acquire_policy,
+    NativeResourceMaintenanceTurn, NativeWindowResourceBundle, SurfaceAcquirePolicy,
+    surface_acquire_policy,
 };
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
@@ -47,12 +48,25 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        maintenance: &mut NativeResourceMaintenanceTurn,
     ) -> Result<(), NativeGenericRunError> {
         let mut adapter = GenericNativeAdapterOwner::new(&self.options);
         self.initialize_window_runtime(event_loop, event_proxy.clone(), &mut adapter, true)?;
         self.adapter = Some(adapter);
-        self.sync_auxiliary_windows(event_loop, event_proxy)?;
-        Ok(())
+        let Some(mut adapter) = self.adapter.take() else {
+            return Err(NativeGenericRunError::NativeInitialization {
+                stage: NativeInitializationStage::DeviceAcquisition,
+                message: String::from("native adapter owner was not initialized"),
+            });
+        };
+        let result = self.sync_auxiliary_windows_with_adapter_in_turn(
+            event_loop,
+            event_proxy,
+            &mut adapter,
+            maintenance,
+        );
+        self.adapter = Some(adapter);
+        result
     }
 
     pub(super) fn initialize_runtime_with_adapter(
@@ -184,15 +198,20 @@ where
                 "native adapter generation changed during window resource initialization",
             ));
         }
-        let native_resources =
-            NativeWindowResourceBundle::new(generation, render_surface, renderer).ok_or_else(
-                || {
-                    native_initialization_error(
-                        NativeInitializationStage::DeviceAcquisition,
-                        "native window resources require a known adapter generation",
-                    )
-                },
-            )?;
+        let native_resources = NativeWindowResourceBundle::new(
+            generation,
+            render_surface,
+            renderer,
+            &dev_handle.device,
+            &dev_handle.queue,
+            event_proxy,
+        )
+        .ok_or_else(|| {
+            native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native window resources require a known adapter generation",
+            )
+        })?;
         native_resource_publication.publish(native_resources);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));

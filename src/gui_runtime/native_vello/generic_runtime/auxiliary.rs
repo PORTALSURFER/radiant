@@ -1,7 +1,7 @@
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, NativeGenericRunError, RuntimeUserEvent, SceneRebuildMode,
-    initial_viewport, owner_window_handle,
+    GenericRouteOutcome, NativeGenericRunError, NativeResourceMaintenanceTurn, RuntimeUserEvent,
+    SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
@@ -47,6 +47,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn key(&self) -> &str {
         &self.key
+    }
+
+    pub(super) fn maintain_native_resources_with_turn(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) {
+        self.runner.maintain_native_resources_with_turn(turn);
     }
 
     pub(super) fn window_id(&self) -> Option<WindowId> {
@@ -245,14 +252,19 @@ where
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
+        let mut maintenance = self.begin_native_resource_maintenance();
         let Some(mut adapter) = self.adapter.take() else {
             return Err(NativeGenericRunError::NativeInitialization {
                 stage: super::NativeInitializationStage::DeviceAcquisition,
                 message: String::from("native adapter owner was not initialized"),
             });
         };
-        let result =
-            self.sync_auxiliary_windows_with_adapter(event_loop, event_proxy, &mut adapter);
+        let result = self.sync_auxiliary_windows_with_adapter_in_turn(
+            event_loop,
+            event_proxy,
+            &mut adapter,
+            &mut maintenance,
+        );
         self.adapter = Some(adapter);
         result
     }
@@ -262,6 +274,22 @@ where
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
         adapter: &mut GenericNativeAdapterOwner,
+    ) -> Result<(), NativeGenericRunError> {
+        let mut maintenance = self.begin_native_resource_maintenance();
+        self.sync_auxiliary_windows_with_adapter_in_turn(
+            event_loop,
+            event_proxy,
+            adapter,
+            &mut maintenance,
+        )
+    }
+
+    pub(super) fn sync_auxiliary_windows_with_adapter_in_turn(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        adapter: &mut GenericNativeAdapterOwner,
+        _maintenance: &mut NativeResourceMaintenanceTurn,
     ) -> Result<(), NativeGenericRunError> {
         self.timing.deferred_auxiliary_window_sync = false;
         if !self.should_admit_auxiliary_sync() {

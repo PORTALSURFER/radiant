@@ -5,9 +5,9 @@ use super::{
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
     GenericNativeRuntimeCore, GenericRouteOutcome, NativeAdapterGeneration,
     NativeAutomationTargetExporter, NativeGenericRunError, NativeRenderDeviceErrorKind,
-    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -177,6 +177,28 @@ where
 
     pub(super) fn should_initialize_runtime(&self) -> bool {
         self.window.window.is_none() && !self.has_terminal_cause()
+    }
+
+    pub(super) fn begin_native_resource_maintenance(&mut self) -> NativeResourceMaintenanceTurn {
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        self.maintain_native_resources_with_turn(&mut turn);
+        turn
+    }
+
+    pub(super) fn maintain_native_resources_with_turn(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) {
+        self.window.maintain_native_resources(turn);
+        for window in &mut self.auxiliary_windows {
+            window.maintain_native_resources_with_turn(turn);
+        }
+    }
+
+    pub(super) fn record_successful_native_submission(&mut self) {
+        if let Some(resources) = self.window.native_resources.as_mut() {
+            resources.record_successful_native_submission();
+        }
     }
 
     pub(super) fn should_admit_auxiliary_sync(&self) -> bool {

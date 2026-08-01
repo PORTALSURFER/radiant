@@ -3,11 +3,11 @@ use super::runner_state::NativeWindowResourceBundle;
 #[cfg(test)]
 use super::scene_texture::NativeFrameRenderFailure;
 use super::{
-    AuxiliaryScheduleEligibility, FrameScheduleDemand, FrameScheduleKey,
-    FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
-    GenericNativeVelloRunner, GenericRouteOutcome, NativeAdapterGeneration, NativeGenericRunError,
-    NativeResourceMaintenanceTurn, RuntimeUserEvent, SceneRebuildMode, initial_viewport,
-    owner_window_handle,
+    AuxiliaryScheduleEligibility, CpuFrameObservationCapture, FrameScheduleDemand,
+    FrameScheduleKey, FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason,
+    GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
+    NativeAdapterGeneration, NativeGenericRunError, NativeResourceMaintenanceTurn,
+    RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
@@ -67,6 +67,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn key(&self) -> &str {
         &self.key
+    }
+
+    pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
+        self.runner.take_cpu_frame_observation_capture()
     }
 
     fn is_admitted(&self) -> bool {
@@ -499,6 +503,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::RedrawRequested => {
                 let redraw_result = self.runner.redraw(event_loop, adapter);
                 if let Err(failure) = redraw_result {
+                    self.runner.mark_cpu_frame_observation_recovery();
                     let kind = NativeRendererRecoveryWindowKind::Auxiliary {
                         requested_backend: self.runner.options.gpu.backend,
                     };

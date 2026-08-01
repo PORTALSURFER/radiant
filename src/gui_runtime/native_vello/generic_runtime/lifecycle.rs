@@ -67,7 +67,7 @@ where
             else {
                 return;
             };
-            let Some(adapter) = self.adapter.as_mut() else {
+            if self.adapter.is_none() {
                 self.record_initialization_error_and_exit(
                     event_loop,
                     NativeGenericRunError::NativeInitialization {
@@ -76,12 +76,43 @@ where
                     },
                 );
                 return;
+            }
+            let auxiliary_key =
+                FrameScheduleKey::Auxiliary(self.auxiliary_windows[index].key().to_owned());
+            let observe_redraw = matches!(&event, WindowEvent::RedrawRequested)
+                && !self.auxiliary_windows[index].is_retiring();
+            let admission = observe_redraw
+                .then(|| self.begin_cpu_frame_observation(auxiliary_key.clone(), Instant::now()));
+            let route_result = match self.adapter.as_mut() {
+                Some(adapter) => {
+                    self.auxiliary_windows[index].route_window_event(event_loop, event, adapter)
+                }
+                None => {
+                    if let Some(Some(admission)) = admission {
+                        let capture =
+                            self.auxiliary_windows[index].take_cpu_frame_observation_capture();
+                        self.finish_cpu_frame_observation_with_capture(
+                            Some(admission),
+                            capture,
+                            false,
+                        );
+                    }
+                    return;
+                }
             };
             let AuxiliaryWindowEventResult {
                 messages,
                 terminal_cause,
                 shutdown_requested,
-            } = self.auxiliary_windows[index].route_window_event(event_loop, event, adapter);
+            } = route_result;
+            if let Some(Some(admission)) = admission {
+                let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
+                self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
+            }
+            let became_retiring = self.auxiliary_windows[index].is_retiring();
+            if became_retiring {
+                self.remove_cpu_frame_observation(&auxiliary_key);
+            }
             if shutdown_requested {
                 self.admit_native_shutdown(event_loop, terminal_cause);
                 return;

@@ -307,6 +307,39 @@ fn auxiliary_message_route_does_not_admit_a_second_due_timed_frame() {
 }
 
 #[test]
+fn primary_and_auxiliary_redraw_observations_finalize_once_per_stable_key() {
+    let mut ledger = CpuFrameObservationLedger::default();
+    for key in [
+        FrameScheduleKey::Primary,
+        FrameScheduleKey::Auxiliary(String::from("settings")),
+    ] {
+        let admission = ledger.begin(
+            key.clone(),
+            FrameWork::PaintOnly {
+                reason: FrameWorkReason::PointerHover,
+            },
+            Some(60),
+            CpuFrameDuration::Unknown,
+        );
+        let mut capture = CpuFrameObservationCapture::default();
+        capture.record_stage(
+            CpuFrameStage::SubmitPresent,
+            true,
+            CpuFrameDuration::Unknown,
+        );
+        capture.mark_successful_presentation();
+        ledger.finish(admission, capture, false);
+
+        let counters = ledger
+            .counters_for_test(&key)
+            .expect("route admission should retain stable-key evidence");
+        assert_eq!(counters.admitted_redraws, 1);
+        assert_eq!(counters.successful_presentations, 1);
+        assert_eq!(counters.failed_frames, 0);
+    }
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -1,5 +1,5 @@
 use super::{
-    GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
+    CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
     RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
     maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
     reveal_window_after_first_present, slow_render_profile_enabled,
@@ -27,6 +27,7 @@ where
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeFrameRenderFailure> {
+        self.cpu_frame_observation_capture.reset();
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
@@ -44,20 +45,75 @@ where
         else {
             return Ok(());
         };
+        self.cpu_frame_observation_capture.mark_frame_path_started();
         let profile_enabled = render_profile_enabled();
         let diagnostics_requested = self.frame_diagnostics_enabled;
         let slow_profile_enabled = slow_render_profile_enabled();
         let mut profile = RenderFrameProfile::recording(
             profile_enabled || diagnostics_requested || slow_profile_enabled,
         );
+        let had_coalesced_wheel_route = self.input.pending_gpu_surface_wheel.is_some()
+            || self.input.pending_scroll_container_wheel.is_some();
+        let had_deferred_surface_refresh = self.timing.deferred_surface_refresh;
+        let had_deferred_scene_rebuild = self.timing.deferred_scene_rebuild;
+        let had_deferred_scene_refresh = self.timing.deferred_surface_refresh_scope.is_some();
+        let had_transient_overlay =
+            self.core.has_transient_overlay_painter() || self.core.has_runtime_overlay_paint();
         self.flush_pending_scrollbar_drag_now();
         self.flush_pending_gpu_surface_wheel(&mut profile);
         self.flush_pending_scroll_container_wheel(&mut profile);
         self.refresh_deferred_surface_if_needed(&mut profile);
-        self.rebuild_deferred_scene_if_needed(&mut profile);
+        let scene_rebuild_completed = self.rebuild_deferred_scene_if_needed(&mut profile);
         self.sync_deferred_auxiliary_windows_if_needed(event_loop, adapter);
         self.paint_transient_overlays(&mut profile);
         let frame_work = self.take_pending_frame_work();
+        self.cpu_frame_observation_capture
+            .record_frame_work(frame_work);
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::CoalescedWheelRoute,
+            had_coalesced_wheel_route,
+            profile.record_timings,
+            profile.coalesced_wheel_route,
+        );
+        let refresh_only_path = had_deferred_surface_refresh && !had_deferred_scene_rebuild;
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::RefreshSurface,
+            refresh_only_path,
+            profile.record_timings,
+            profile.refresh_surface,
+        );
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::PaintPlan,
+            refresh_only_path,
+            profile.record_timings,
+            profile.paint_plan,
+        );
+        let immediate_scene_rebuild_completed =
+            frame_work.needs_scene_rebuild() && !had_deferred_scene_rebuild;
+        self.cpu_frame_observation_capture.record_stage(
+            CpuFrameStage::PaintPlan,
+            scene_rebuild_completed || immediate_scene_rebuild_completed,
+            super::CpuFrameDuration::Unknown,
+        );
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::DeferredSceneRebuild,
+            scene_rebuild_completed,
+            profile.record_timings,
+            profile.deferred_scene_rebuild,
+        );
+        if had_deferred_scene_refresh && !refresh_only_path {
+            self.cpu_frame_observation_capture.record_stage(
+                CpuFrameStage::RefreshSurface,
+                true,
+                super::CpuFrameDuration::Unknown,
+            );
+        }
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::TransientOverlayPaint,
+            had_transient_overlay,
+            profile.record_timings,
+            profile.transient_overlay_paint,
+        );
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
         if !self.admit_native_resources(adapter) {
             return Ok(());
@@ -65,6 +121,8 @@ where
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let render_to_texture_required =
+            render_resize_frame_directly || self.frame.scene_texture_dirty;
         let render_to_texture_elapsed = {
             let Some(resources) = self.window.native_resources.as_mut() else {
                 return Ok(());
@@ -92,6 +150,12 @@ where
                 render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)?
             }
         };
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::RenderToTexture,
+            render_to_texture_required,
+            profile.record_timings,
+            render_to_texture_elapsed,
+        );
         if render_resize_frame_directly {
             if !self.admit_native_resources(adapter) {
                 return Ok(());
@@ -168,6 +232,19 @@ where
             }
             gpu_surface_stats
         };
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::CompositedBaseRefresh,
+            !self.frame.transient_overlay_primitives.is_empty()
+                && !profile.composited_base_cache_hit,
+            profile.record_timings,
+            profile.composited_base_refresh,
+        );
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::FullScreenBlit,
+            true,
+            profile.record_timings,
+            profile.full_screen_blit,
+        );
         if !self.admit_native_resources(adapter) {
             return Ok(());
         }
@@ -177,6 +254,14 @@ where
             surface_texture.present();
         });
         profile.submit_present = elapsed;
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::SubmitPresent,
+            true,
+            profile.record_timings,
+            profile.submit_present,
+        );
+        self.cpu_frame_observation_capture
+            .mark_successful_presentation();
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
         } else {
@@ -206,6 +291,12 @@ where
         let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();
         let surface_refresh = frame_refresh.refresh;
         let surface_refresh_total = frame_refresh.total;
+        self.cpu_frame_observation_capture
+            .record_refresh_diagnostics(
+                surface_refresh,
+                surface_refresh_total,
+                frame_refresh.effective_scope,
+            );
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,
@@ -243,10 +334,14 @@ where
         let Some(mut adapter) = self.adapter.take() else {
             return;
         };
+        let admission =
+            self.begin_cpu_frame_observation(super::FrameScheduleKey::Primary, Instant::now());
         let result = self.redraw(event_loop, &mut adapter);
+        let redraw_failed = result.is_err();
         if let Err(failure) = result {
             // `redraw` has returned, so its acquired SurfaceTexture is gone
             // before reconstruction can touch the native bundle.
+            self.mark_cpu_frame_observation_recovery();
             let _ = self.recover_frame_render_failure(
                 event_loop,
                 &adapter,
@@ -254,6 +349,7 @@ where
                 super::NativeRendererRecoveryWindowKind::Primary,
             );
         }
+        self.finish_cpu_frame_observation(admission, redraw_failed);
         self.adapter = Some(adapter);
     }
 
@@ -262,9 +358,14 @@ where
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
     ) {
-        if let Err(failure) = self.redraw(event_loop, adapter) {
+        let admission =
+            self.begin_cpu_frame_observation(super::FrameScheduleKey::Primary, Instant::now());
+        let result = self.redraw(event_loop, adapter);
+        let redraw_failed = result.is_err();
+        if let Err(failure) = result {
             // `redraw` has returned, so its acquired SurfaceTexture is gone
             // before reconstruction can touch the native bundle.
+            self.mark_cpu_frame_observation_recovery();
             let _ = self.recover_frame_render_failure(
                 event_loop,
                 adapter,
@@ -272,6 +373,7 @@ where
                 super::NativeRendererRecoveryWindowKind::Primary,
             );
         }
+        self.finish_cpu_frame_observation(admission, redraw_failed);
     }
 
     pub(super) fn should_render_resize_frame_directly(&self) -> bool {
@@ -320,6 +422,20 @@ where
         let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();
         let surface_refresh = frame_refresh.refresh;
         let surface_refresh_total = frame_refresh.total;
+        self.cpu_frame_observation_capture
+            .record_refresh_diagnostics(
+                surface_refresh,
+                surface_refresh_total,
+                frame_refresh.effective_scope,
+            );
+        self.cpu_frame_observation_capture.record_profile_stage(
+            CpuFrameStage::SubmitPresent,
+            true,
+            profile.record_timings,
+            profile.submit_present,
+        );
+        self.cpu_frame_observation_capture
+            .mark_successful_presentation();
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,

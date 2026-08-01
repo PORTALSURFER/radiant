@@ -13,6 +13,10 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/adapter.rs"),
     )
     .expect("generic adapter source should be readable");
+    let surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
+    )
+    .expect("generic surface source should be readable");
 
     for required in [
         "struct NativeWindowResourceBundle",
@@ -37,6 +41,36 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
         runner_state.contains("MAX_QUARANTINED_NATIVE_RESOURCES")
             && runner_state.contains("fn try_push"),
         "quarantined native resources should have an explicit bounded admission boundary"
+    );
+    let capacity_check = surface
+        .find("can_publish_native_resources")
+        .expect("surface initialization should preflight native resource capacity");
+    let window_creation = surface
+        .find("create_window")
+        .expect("surface initialization should create its window");
+    assert!(
+        capacity_check < window_creation,
+        "native resource capacity should be checked before window/GPU setup"
+    );
+    let publication_reservation = surface
+        .find("reserve_native_resource_publication")
+        .expect("surface initialization should reserve publication capacity");
+    let surface_creation = surface
+        .find(".create_surface(")
+        .expect("surface initialization should create a WGPU surface");
+    assert!(
+        publication_reservation < surface_creation,
+        "publication capacity should be reserved before WGPU surface creation"
+    );
+    let publication_commit = surface
+        .find("native_resource_publication.publish(native_resources)")
+        .expect("surface initialization should commit the reserved resource publication");
+    let window_metadata = surface
+        .find("self.window.id = Some(window.id())")
+        .expect("surface initialization should publish window metadata");
+    assert!(
+        publication_commit < window_metadata,
+        "window metadata should follow successful native resource publication"
     );
     assert!(
         adapter.contains("fn capture_generation") && adapter.contains("fn admit_generation"),

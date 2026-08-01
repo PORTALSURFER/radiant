@@ -294,6 +294,33 @@ impl<T> NativeResourceQuarantine<T> {
     }
 }
 
+pub(super) struct NativeResourcePublicationReservation<'a, T> {
+    active: &'a mut Option<T>,
+    quarantine: &'a mut NativeResourceQuarantine<T>,
+}
+
+fn reserve_native_resource_publication<'a, T>(
+    active: &'a mut Option<T>,
+    quarantine: &'a mut NativeResourceQuarantine<T>,
+) -> Option<NativeResourcePublicationReservation<'a, T>> {
+    if active.is_some() && quarantine.is_full() {
+        return None;
+    }
+    Some(NativeResourcePublicationReservation { active, quarantine })
+}
+
+impl<T> NativeResourcePublicationReservation<'_, T> {
+    pub(super) fn publish(self, incoming: T) {
+        let Self { active, quarantine } = self;
+        if let Some(previous) = active.take() {
+            // The reservation exclusively owns both fields until this commit,
+            // so no other path can fill the bounded quarantine.
+            quarantine.entries.push_back(previous);
+        }
+        *active = Some(incoming);
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
@@ -313,23 +340,17 @@ pub(super) struct NativeRunnerWindowState {
 }
 
 impl NativeRunnerWindowState {
-    /// Atomically publish a complete bound bundle. Any previous active bundle
-    /// is retained for explicit later recovery/retirement rather than dropped
-    /// as part of publication.
-    pub(super) fn publish_native_resources(
+    pub(super) fn can_publish_native_resources(&self) -> bool {
+        self.native_resources.is_none() || !self.quarantined_native_resources.is_full()
+    }
+
+    pub(super) fn reserve_native_resource_publication(
         &mut self,
-        resources: NativeWindowResourceBundle,
-    ) -> bool {
-        if self.native_resources.is_some() && self.quarantined_native_resources.is_full() {
-            return false;
-        }
-        if let Some(previous) = self.native_resources.replace(resources)
-            && let Err(previous) = self.quarantined_native_resources.try_push(previous)
-        {
-            self.native_resources = Some(previous);
-            return false;
-        }
-        true
+    ) -> Option<NativeResourcePublicationReservation<'_, NativeWindowResourceBundle>> {
+        reserve_native_resource_publication(
+            &mut self.native_resources,
+            &mut self.quarantined_native_resources,
+        )
     }
 
     /// Isolate the active bundle after an admission veto without destroying
@@ -457,6 +478,22 @@ mod tests {
         assert!(quarantine.try_push(2).is_ok());
         assert!(quarantine.is_full());
         assert_eq!(quarantine.try_push(3), Err(3));
+        assert_eq!(quarantine.len(), 2);
+    }
+
+    #[test]
+    fn full_native_resource_publication_preserves_rejected_input_and_active_state() {
+        let mut active = Some(1);
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(2).is_ok());
+        assert!(quarantine.try_push(3).is_ok());
+        let mut incoming = Some(4);
+
+        // The generic reservation is acquired before a native bundle is built;
+        // a full quarantine therefore leaves the caller's input untouched.
+        assert!(super::reserve_native_resource_publication(&mut active, &mut quarantine).is_none());
+        assert_eq!(incoming.take(), Some(4));
+        assert_eq!(active, Some(1));
         assert_eq!(quarantine.len(), 2);
     }
 

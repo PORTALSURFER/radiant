@@ -71,6 +71,12 @@ where
         adapter: &mut GenericNativeAdapterOwner,
         primary: bool,
     ) -> Result<(), NativeGenericRunError> {
+        if !self.window.can_publish_native_resources() {
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native resource quarantine capacity is exhausted",
+            ));
+        }
         info!("radiant generic native vello: initializing runtime window and surface");
         self.timing.startup_timing.mark_init_started();
         let window = event_loop
@@ -106,6 +112,13 @@ where
         let height = size.height.max(1);
         self.core
             .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
+        let Some(native_resource_publication) = self.window.reserve_native_resource_publication()
+        else {
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native resource quarantine capacity is exhausted",
+            ));
+        };
         let surface = adapter
             .instance()
             .ok_or_else(|| {
@@ -189,14 +202,9 @@ where
                     )
                 },
             )?;
+        native_resource_publication.publish(native_resources);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
-        if !self.window.publish_native_resources(native_resources) {
-            return Err(native_initialization_error(
-                NativeInitializationStage::DeviceAcquisition,
-                "native resource quarantine capacity is exhausted",
-            ));
-        }
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();

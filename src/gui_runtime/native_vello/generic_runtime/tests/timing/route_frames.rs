@@ -307,6 +307,118 @@ fn auxiliary_message_route_does_not_admit_a_second_due_timed_frame() {
 }
 
 #[test]
+fn primary_and_auxiliary_redraw_observations_finalize_once_per_stable_key() {
+    let mut ledger = CpuFrameObservationLedger::default();
+    for key in [
+        FrameScheduleKey::Primary,
+        FrameScheduleKey::Auxiliary(String::from("settings")),
+    ] {
+        let admission = ledger.begin(
+            key.clone(),
+            FrameWork::PaintOnly {
+                reason: FrameWorkReason::PointerHover,
+            },
+            Some(60),
+            CpuFrameDuration::Unknown,
+        );
+        let mut capture = CpuFrameObservationCapture::default();
+        capture.record_stage(
+            CpuFrameStage::SubmitPresent,
+            true,
+            CpuFrameDuration::Unknown,
+        );
+        capture.mark_successful_presentation();
+        ledger.finish(admission, capture, false);
+
+        let counters = ledger
+            .counters_for_test(&key)
+            .expect("route admission should retain stable-key evidence");
+        assert_eq!(counters.admitted_redraws, 1);
+        assert_eq!(counters.successful_presentations, 1);
+        assert_eq!(counters.failed_frames, 0);
+    }
+}
+
+#[test]
+fn auxiliary_route_time_stale_redraw_commits_once_to_parent_observation() {
+    for (redraw_failed, recovery_triggered) in [(false, false), (true, true)] {
+        let mut parent_ledger = CpuFrameObservationLedger::default();
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let mut child = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            TestFrameMessageBridge::default(),
+            Vector2::new(320.0, 40.0),
+        );
+        child.mark_as_auxiliary();
+
+        let now = Instant::now();
+        child.timing.redraw_requested = true;
+        child.timing.redraw_requested_at = Some(now - Duration::from_millis(17));
+        let pending_at_route_start = child
+            .pending_redraw_elapsed(now)
+            .expect("route should observe the pending auxiliary redraw");
+        let mut route_outcome = GenericRouteOutcome {
+            routed: true,
+            ..GenericRouteOutcome::default()
+        };
+        route_outcome.request_paint_only(FrameWorkReason::RoutedInput);
+        child.apply_route_outcome(route_outcome);
+
+        assert!(
+            child.should_flush_pending_redraw_after_route(
+                pending_at_route_start,
+                Duration::from_millis(1)
+            ),
+            "a stale non-RedrawRequested route should take the synchronous flush branch"
+        );
+        assert!(
+            child.cpu_frame_observation.is_none(),
+            "the auxiliary child must not become a second ledger owner"
+        );
+
+        let mut observation = CpuFrameObservationOwner::new(&mut parent_ledger, key.clone());
+        let admission = child.begin_cpu_frame_observation_with_owner(&mut observation, now);
+        child
+            .cpu_frame_observation_capture
+            .mark_frame_path_started();
+        child.cpu_frame_observation_capture.record_stage(
+            CpuFrameStage::SubmitPresent,
+            true,
+            CpuFrameDuration::Unknown,
+        );
+        if recovery_triggered {
+            child.mark_cpu_frame_observation_recovery();
+        } else {
+            child
+                .cpu_frame_observation_capture
+                .mark_successful_presentation();
+        }
+        child.finish_cpu_frame_observation_with_owner(&mut observation, admission, redraw_failed);
+        drop(observation);
+
+        let counters = parent_ledger
+            .counters_for_test(&key)
+            .expect("parent-owned route flush should retain auxiliary evidence");
+        assert_eq!(
+            parent_ledger.sample_count_for_test(&key),
+            Some(1),
+            "one synchronous auxiliary route flush should append one parent sample"
+        );
+        assert_eq!(counters.admitted_redraws, 1);
+        assert_eq!(
+            counters.successful_presentations,
+            u64::from(!redraw_failed),
+            "successful route flushes should complete exactly once"
+        );
+        assert_eq!(counters.failed_frames, u64::from(redraw_failed));
+        assert_eq!(
+            counters.recovery_triggered_frames,
+            u64::from(recovery_triggered)
+        );
+    }
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -1,6 +1,6 @@
 use super::{
-    GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome, key_code_from_winit,
-    keypress_from_input,
+    CpuFrameObservationOwner, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
 use crate::gui::input::{KeyCode, KeyPress};
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
@@ -21,7 +21,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn handle_keyboard_event(&mut self, event_loop: &ActiveEventLoop, event: KeyEvent) {
-        self.handle_keyboard_event_inner(event_loop, event, None);
+        self.handle_keyboard_event_inner(event_loop, event, None, None);
     }
 
     pub(super) fn handle_keyboard_event_with_adapter(
@@ -29,8 +29,9 @@ where
         event_loop: &ActiveEventLoop,
         event: KeyEvent,
         adapter: &mut GenericNativeAdapterOwner,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
-        self.handle_keyboard_event_inner(event_loop, event, Some(adapter));
+        self.handle_keyboard_event_inner(event_loop, event, Some(adapter), observation);
     }
 
     fn handle_keyboard_event_inner(
@@ -38,6 +39,7 @@ where
         event_loop: &ActiveEventLoop,
         event: KeyEvent,
         mut adapter: Option<&mut GenericNativeAdapterOwner>,
+        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
         if event.state != ElementState::Pressed {
             return;
@@ -65,24 +67,49 @@ where
             }
             repeat_accepted = true;
             if self.route_text_input_shortcut(key, &mut route_outcome) {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
             if self.route_text_navigation_key(key, &mut route_outcome) {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
             if self.route_focused_widget_preempting_shortcut_key(key, &mut route_outcome) {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
             if self.route_space_text_input(key, &mut route_outcome) {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
             if self.route_focused_text_input_before_shortcuts(key, logical_text, &mut route_outcome)
             {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
             let outcome = self.core.route_key_press(
@@ -101,7 +128,12 @@ where
             let outcome = self.core.route_key_press(press, None);
             route_outcome.merge(outcome);
             if route_outcome.routed {
-                self.route_keyboard_outcome(event_loop, route_outcome, adapter.as_deref_mut());
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
                 return;
             }
         }
@@ -120,7 +152,7 @@ where
             let outcome = self.core.route_widget_key(WidgetKey::Delete);
             route_outcome.merge(outcome);
         }
-        self.route_keyboard_outcome(event_loop, route_outcome, adapter);
+        self.route_keyboard_outcome(event_loop, route_outcome, adapter, observation);
     }
 
     fn route_keyboard_outcome(
@@ -128,9 +160,10 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: Option<&mut GenericNativeAdapterOwner>,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
         if let Some(adapter) = adapter {
-            self.handle_route_outcome_with_adapter(event_loop, outcome, adapter);
+            self.handle_route_outcome_with_adapter(event_loop, outcome, adapter, observation);
         } else {
             self.handle_route_outcome(event_loop, outcome);
         }

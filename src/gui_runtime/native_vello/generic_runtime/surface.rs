@@ -504,6 +504,7 @@ where
                 Some(frame)
             }
             Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
+                self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let size = self.window.window.as_ref()?.inner_size();
                 match surface_acquire_policy(error, size) {
@@ -522,6 +523,7 @@ where
                 None
             }
             Err(error @ wgpu::SurfaceError::Timeout) => {
+                self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let size = self.window.window.as_ref()?.inner_size();
                 if matches!(
@@ -537,6 +539,7 @@ where
                 None
             }
             Err(wgpu::SurfaceError::Other) => {
+                self.mark_cpu_frame_observation_recovery();
                 let size = self
                     .window
                     .window
@@ -549,6 +552,7 @@ where
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
+                self.mark_cpu_frame_observation_recovery();
                 error!("radiant generic native vello: out of memory acquiring surface");
                 self.admit_native_shutdown(
                     event_loop,

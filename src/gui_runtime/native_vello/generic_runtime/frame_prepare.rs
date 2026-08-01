@@ -36,9 +36,12 @@ where
             .mark_deferred_model_refresh_done();
     }
 
-    pub(super) fn rebuild_deferred_scene_if_needed(&mut self, profile: &mut RenderFrameProfile) {
+    pub(super) fn rebuild_deferred_scene_if_needed(
+        &mut self,
+        profile: &mut RenderFrameProfile,
+    ) -> bool {
         if !self.timing.deferred_scene_rebuild {
-            return;
+            return false;
         }
 
         let mut skipped_rebuild = false;
@@ -65,9 +68,10 @@ where
             }
         });
         if skipped_rebuild {
-            return;
+            return false;
         }
         profile.deferred_scene_rebuild = elapsed;
+        true
     }
 
     pub(super) fn paint_transient_overlays(&mut self, profile: &mut RenderFrameProfile) {

@@ -2,9 +2,9 @@
 
 use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeGenericRunError, SceneRebuildMode,
-    configure_created_top_level_window, generic_window_attributes,
-    reveal_window_after_surface_setup,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeGenericRunError,
+    NativeInitializationStage, SceneRebuildMode, configure_created_top_level_window,
+    generic_window_attributes, reveal_window_after_surface_setup,
 };
 use super::{
     accessibility,
@@ -33,23 +33,20 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn initialize_runtime(&mut self, event_loop: &ActiveEventLoop) {
+    pub(super) fn initialize_runtime(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+    ) -> Result<(), NativeGenericRunError> {
         info!("radiant generic native vello: initializing runtime window and surface");
         self.timing.startup_timing.mark_init_started();
-        let window = match event_loop.create_window(generic_window_attributes(&self.options)) {
-            Ok(window) => Arc::new(window),
-            Err(err) => {
-                error!(
-                    "radiant generic native vello: failed to create window: {:?}",
-                    err
-                );
-                event_loop.exit();
-                return;
-            }
-        };
+        let window = event_loop
+            .create_window(generic_window_attributes(&self.options))
+            .map(Arc::new)
+            .map_err(|err| {
+                native_initialization_error(NativeInitializationStage::WindowCreation, err)
+            })?;
         configure_created_top_level_window(&window, &self.options);
         self.timing.startup_timing.mark_window_created();
-        self.window.id = Some(window.id());
         self.window.native_dpi_scale = DpiScale::new(window.scale_factor());
         self.window.dpi_scale = self.active_dpi_scale();
         self.window.monitor_fingerprint = current_monitor_fingerprint(&window);
@@ -59,7 +56,6 @@ where
             window_color_scheme(window.theme()),
             self.window.accessibility_display,
         );
-        self.window.window = Some(Arc::clone(&window));
         if self
             .core
             .runtime
@@ -77,22 +73,18 @@ where
         let height = size.height.max(1);
         self.core
             .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
-        let surface = match render_ctx.instance.create_surface(window.clone()) {
-            Ok(surface) => surface,
-            Err(err) => {
-                error!(
-                    "radiant generic native vello: failed to create wgpu surface: {:?}",
-                    err
-                );
-                event_loop.exit();
-                return;
-            }
-        };
+        let surface = render_ctx
+            .instance
+            .create_surface(window.clone())
+            .map_err(|err| {
+                native_initialization_error(NativeInitializationStage::WgpuSurfaceCreation, err)
+            })?;
         self.timing.startup_timing.mark_wgpu_surface_created();
         let Some(dev_id) = pollster::block_on(render_ctx.device(Some(&surface))) else {
-            error!("radiant generic native vello: no compatible render device found");
-            event_loop.exit();
-            return;
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "no compatible render device found",
+            ));
         };
         self.timing.startup_timing.mark_wgpu_device_ready();
         let supported_present_modes = surface
@@ -102,37 +94,25 @@ where
             self.options.normalized_target_fps(),
             &supported_present_modes,
         );
-        let render_surface = match pollster::block_on(render_ctx.create_render_surface(
+        let render_surface = pollster::block_on(render_ctx.create_render_surface(
             surface,
             width,
             height,
             present_mode,
-        )) {
-            Ok(render_surface) => render_surface,
-            Err(err) => {
-                error!(
-                    "radiant generic native vello: failed to create render surface: {:?}",
-                    err
-                );
-                event_loop.exit();
-                return;
-            }
-        };
+        ))
+        .map_err(|err| {
+            native_initialization_error(NativeInitializationStage::RenderSurfaceCreation, err)
+        })?;
         self.timing.startup_timing.mark_surface_ready();
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
         self.timing.startup_timing.mark_renderer_started();
-        let renderer = match Renderer::new(&dev_handle.device, startup_renderer_options()) {
-            Ok(renderer) => renderer,
-            Err(err) => {
-                error!(
-                    "radiant generic native vello: failed to create renderer: {:?}",
-                    err
-                );
-                event_loop.exit();
-                return;
-            }
-        };
+        let renderer =
+            Renderer::new(&dev_handle.device, startup_renderer_options()).map_err(|err| {
+                native_initialization_error(NativeInitializationStage::RendererCreation, err)
+            })?;
         self.timing.startup_timing.mark_renderer_ready();
+        self.window.id = Some(window.id());
+        self.window.window = Some(Arc::clone(&window));
         self.window.render_ctx = Some(render_ctx);
         self.window.render_surface = Some(render_surface);
         self.window.renderer = Some(renderer);
@@ -148,7 +128,8 @@ where
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
         });
-        self.sync_auxiliary_windows(event_loop);
+        self.sync_auxiliary_windows(event_loop)?;
+        Ok(())
     }
 
     pub(super) fn resize_surface(&mut self, size: PhysicalSize<u32>) {
@@ -416,6 +397,16 @@ where
     }
 }
 
+fn native_initialization_error(
+    stage: NativeInitializationStage,
+    error: impl std::fmt::Display,
+) -> NativeGenericRunError {
+    NativeGenericRunError::NativeInitialization {
+        stage,
+        message: error.to_string(),
+    }
+}
+
 #[cfg(test)]
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -423,5 +414,35 @@ where
 {
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
         self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NativeGenericRunError, NativeInitializationStage, native_initialization_error};
+
+    #[test]
+    fn native_initialization_error_maps_each_production_stage_with_owned_message() {
+        let stages = [
+            NativeInitializationStage::WindowCreation,
+            NativeInitializationStage::WgpuSurfaceCreation,
+            NativeInitializationStage::DeviceAcquisition,
+            NativeInitializationStage::RenderSurfaceCreation,
+            NativeInitializationStage::RendererCreation,
+        ];
+
+        for stage in stages {
+            let detail = String::from("backend detail");
+            let error = native_initialization_error(stage, detail.as_str());
+            drop(detail);
+
+            assert_eq!(
+                error,
+                NativeGenericRunError::NativeInitialization {
+                    stage,
+                    message: String::from("backend detail"),
+                }
+            );
+        }
     }
 }

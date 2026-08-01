@@ -10,7 +10,7 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
 
     assert!(
         lifecycle.contains("let cadence = timed_frame_cadence(")
-            && lifecycle.contains("TimedFrameCadence::DrainNow { next_wake }")
+            && lifecycle.contains("TimedFrameCadence::DrainNow { due_at, next_wake }")
             && lifecycle.contains("self.admit_frame_schedule_work("),
         "native lifecycle should compute timed-frame cadence once and admit selected work"
     );

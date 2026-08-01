@@ -298,6 +298,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             FrameScheduleRedrawEvidence {
                 timed_repaint_deadline: self.runner.core.timed_repaint_deadline(),
                 pending_redraw_requested: self.runner.timing.redraw_requested,
+                pending_redraw_age: self.runner.pending_redraw_age(now),
                 pending_redraw_retry_deadline: self.runner.pending_redraw_retry_deadline(),
                 pending_redraw_fresh: self.runner.timing.redraw_requested
                     && !self.runner.pending_redraw_request_is_stale(now),

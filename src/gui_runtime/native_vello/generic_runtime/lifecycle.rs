@@ -4,9 +4,9 @@ use super::{
     AuxiliaryWindowEventResult, CpuFrameObservationOwner, FrameScheduleDeadlines,
     FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, GenericNativeAdapterOwner,
     GenericNativeVelloRunner, NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
-    TimedFrameCadence, animation_frame_interval, should_start_native_window_drag,
-    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
+    should_start_native_window_drag, should_toggle_native_window_maximized,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -348,6 +348,7 @@ where
                 FrameScheduleRedrawEvidence {
                     timed_repaint_deadline: self.core.timed_repaint_deadline(),
                     pending_redraw_requested: self.timing.redraw_requested,
+                    pending_redraw_age: self.pending_redraw_age(now),
                     pending_redraw_retry_deadline: self.pending_redraw_retry_deadline(),
                     pending_redraw_fresh: self.timing.redraw_requested
                         && !self.pending_redraw_request_is_stale(now),
@@ -370,6 +371,9 @@ where
                 ..FrameScheduleDeadlines::default()
             },
         );
+        let shadow_fairness =
+            assess_cpu_frame_fairness(now, &demands, self.cpu_frame_observation.as_ref());
+        shadow_fairness.for_each(|_| {});
 
         if let Some(selected) = plan.selected.clone()
             && let Some(demand) = demands
@@ -380,16 +384,16 @@ where
             match selected.clone() {
                 FrameScheduleKey::Primary => {
                     let work = demand.work(now);
-                    if let TimedFrameCadence::DrainNow { next_wake } = demand.cadence() {
-                        let _ = next_wake;
+                    if let TimedFrameCadence::DrainNow { due_at, next_wake } = demand.cadence() {
+                        let _next_wake = next_wake;
                         if work.drain_timed_frame
                             && !self.should_defer_timed_frame_drain_for_pending_redraw(now)
                         {
                             let expected_interval =
                                 animation_frame_interval(demand.frame_target_fps());
                             let elapsed_since_last =
-                                now.duration_since(self.timing.last_timed_frame_drain);
-                            let overdue = elapsed_since_last.saturating_sub(expected_interval);
+                                now.saturating_duration_since(self.timing.last_timed_frame_drain);
+                            let overdue = now.saturating_duration_since(due_at);
                             if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
                                 && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
                                 && slow_render_profile_enabled()

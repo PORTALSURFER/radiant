@@ -5,11 +5,11 @@
 //! owns the ledger; child runners only expose an ephemeral capture for the
 //! parent to commit after their redraw path returns.
 
-use super::{FrameScheduleKey, FrameWork};
+use super::{FrameScheduleKey, FrameWork, FrameWorkReason};
 use crate::runtime::{RepaintScope, SurfaceInvalidation, SurfaceRefreshDiagnostics};
 use std::time::Duration;
 
-const LATEST_SAMPLE_CAPACITY: usize = 4;
+pub(super) const LATEST_SAMPLE_CAPACITY: usize = 4;
 
 /// A duration whose absence cannot be confused with a zero-length stage.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -29,6 +29,21 @@ impl CpuFrameDuration {
             Self::Unknown
         }
     }
+}
+
+/// Age evidence for a redraw request. This is kept separate from cadence
+/// lateness because a pending redraw can coexist with an idle or waiting
+/// timed cadence.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum CpuFramePendingRedrawAge {
+    /// No redraw request was pending at the observation boundary.
+    #[default]
+    NotRequested,
+    /// A request was pending and its age was measured from its exact request
+    /// instant.
+    Known(Duration),
+    /// A request was reported without an exact request instant.
+    Unknown,
 }
 
 /// Closed vocabulary for the CPU stages already represented by native frame
@@ -53,7 +68,7 @@ pub(super) enum CpuFrameStage {
 impl CpuFrameStage {
     pub(super) const COUNT: usize = 13;
 
-    const fn index(self) -> usize {
+    pub(super) const fn index(self) -> usize {
         match self {
             Self::CoalescedWheelRoute => 0,
             Self::RefreshSurface => 1,
@@ -94,6 +109,7 @@ pub(super) struct CpuFrameObservationCapture {
     frame_path_started: bool,
     successful_presentation: bool,
     recovery_triggered: bool,
+    exact_interaction: bool,
 }
 
 impl CpuFrameObservationCapture {
@@ -174,6 +190,12 @@ impl CpuFrameObservationCapture {
 
     pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
         self.frame_work = Some(frame_work);
+        if matches!(
+            frame_work.reason(),
+            FrameWorkReason::RoutedInput | FrameWorkReason::PointerHover
+        ) {
+            self.exact_interaction = true;
+        }
     }
 
     pub(super) fn mark_frame_path_started(&mut self) {
@@ -210,6 +232,10 @@ impl CpuFrameObservationCapture {
     pub(super) const fn recovery_triggered(&self) -> bool {
         self.recovery_triggered
     }
+
+    pub(super) const fn exact_interaction(&self) -> bool {
+        self.exact_interaction
+    }
 }
 
 /// Snapshot captured immediately before an existing native redraw path.
@@ -218,7 +244,7 @@ pub(super) struct CpuFrameObservationAdmission {
     key: FrameScheduleKey,
     frame_work: FrameWork,
     cadence_target_fps: Option<u32>,
-    deadline_age: CpuFrameDuration,
+    pending_redraw_age: CpuFramePendingRedrawAge,
 }
 
 /// Parent-owned observation boundary borrowed by an auxiliary runner while it
@@ -240,13 +266,13 @@ impl<'a> CpuFrameObservationOwner<'a> {
         &mut self,
         frame_work: FrameWork,
         cadence_target_fps: Option<u32>,
-        deadline_age: CpuFrameDuration,
+        pending_redraw_age: CpuFramePendingRedrawAge,
     ) -> CpuFrameObservationAdmission {
         self.ledger.begin(
             self.key.clone(),
             frame_work,
             cadence_target_fps,
-            deadline_age,
+            pending_redraw_age,
         )
     }
 
@@ -267,6 +293,7 @@ pub(super) enum CpuFrameCompletionOutcome {
     SkippedOrVetoed,
     Incomplete,
     Failed,
+    RecoveryTriggered,
 }
 
 /// One bounded latest-sample record retained for a stable schedule key.
@@ -276,9 +303,10 @@ pub(super) struct CpuFrameObservationSample {
     pub(super) frame_work: FrameWork,
     pub(super) invalidation: SurfaceInvalidation,
     pub(super) cadence_target_fps: Option<u32>,
-    pub(super) deadline_age: CpuFrameDuration,
+    pub(super) pending_redraw_age: CpuFramePendingRedrawAge,
     pub(super) outcome: CpuFrameCompletionOutcome,
     pub(super) recovery_triggered: bool,
+    pub(super) exact_interaction: bool,
     pub(super) stages: [CpuFrameStageObservation; CpuFrameStage::COUNT],
 }
 
@@ -308,8 +336,12 @@ impl CpuFrameObservationCounters {
             CpuFrameCompletionOutcome::Failed => {
                 self.failed_frames = self.failed_frames.saturating_add(1);
             }
+            CpuFrameCompletionOutcome::RecoveryTriggered => {
+                self.failed_frames = self.failed_frames.saturating_add(1);
+                self.recovery_triggered_frames = self.recovery_triggered_frames.saturating_add(1);
+            }
         }
-        if recovery {
+        if recovery && !matches!(outcome, CpuFrameCompletionOutcome::RecoveryTriggered) {
             self.recovery_triggered_frames = self.recovery_triggered_frames.saturating_add(1);
         }
     }
@@ -343,6 +375,54 @@ impl CpuFrameObservationState {
             .saturating_add(1)
             .min(LATEST_SAMPLE_CAPACITY);
     }
+
+    fn latest_sample(&self) -> Option<&CpuFrameObservationSample> {
+        if self.sample_count == 0 {
+            return None;
+        }
+        let index = (self.next_sample + LATEST_SAMPLE_CAPACITY - 1) % LATEST_SAMPLE_CAPACITY;
+        self.samples[index].as_ref()
+    }
+}
+
+/// Borrowed, read-only view of the bounded observation ledger.
+pub(super) struct CpuFrameObservationProjection<'a> {
+    states: &'a [CpuFrameObservationState],
+}
+
+impl<'a> CpuFrameObservationProjection<'a> {
+    pub(super) fn window(
+        &self,
+        key: &FrameScheduleKey,
+    ) -> Option<CpuFrameObservationWindowProjection<'a>> {
+        self.states
+            .iter()
+            .find(|state| &state.key == key)
+            .map(|state| CpuFrameObservationWindowProjection { state })
+    }
+}
+
+/// Read-only projection of one stable schedule key's bounded evidence.
+pub(super) struct CpuFrameObservationWindowProjection<'a> {
+    state: &'a CpuFrameObservationState,
+}
+
+impl<'a> CpuFrameObservationWindowProjection<'a> {
+    pub(super) const fn counters(&self) -> CpuFrameObservationCounters {
+        self.state.counters
+    }
+
+    pub(super) fn latest_sample(&self) -> Option<&'a CpuFrameObservationSample> {
+        self.state.latest_sample()
+    }
+
+    pub(super) fn samples(&self) -> &[Option<CpuFrameObservationSample>; LATEST_SAMPLE_CAPACITY] {
+        &self.state.samples
+    }
+
+    pub(super) fn sample_count(&self) -> usize {
+        self.state.sample_count
+    }
 }
 
 /// Application-level owner of bounded CPU-frame evidence for all windows.
@@ -352,12 +432,22 @@ pub(super) struct CpuFrameObservationLedger {
 }
 
 impl CpuFrameObservationLedger {
+    pub(super) fn projection(&self) -> CpuFrameObservationProjection<'_> {
+        CpuFrameObservationProjection {
+            states: &self.states,
+        }
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.states.clear();
+    }
+
     pub(super) fn begin(
         &mut self,
         key: FrameScheduleKey,
         frame_work: FrameWork,
         cadence_target_fps: Option<u32>,
-        deadline_age: CpuFrameDuration,
+        pending_redraw_age: CpuFramePendingRedrawAge,
     ) -> CpuFrameObservationAdmission {
         let state = self.state_or_insert(key.clone());
         state.counters.admitted_redraws = state.counters.admitted_redraws.saturating_add(1);
@@ -365,7 +455,7 @@ impl CpuFrameObservationLedger {
             key,
             frame_work,
             cadence_target_fps,
-            deadline_age,
+            pending_redraw_age,
         }
     }
 
@@ -375,25 +465,28 @@ impl CpuFrameObservationLedger {
         capture: CpuFrameObservationCapture,
         redraw_failed: bool,
     ) {
-        let Some(state) = self
-            .states
-            .iter_mut()
-            .find(|state| state.key == admission.key)
-        else {
-            return;
-        };
-        let outcome =
-            if capture.successful_presentation() && !redraw_failed && !capture.recovery_triggered()
-            {
-                CpuFrameCompletionOutcome::SuccessfulPresentation
-            } else if redraw_failed || capture.recovery_triggered() {
-                CpuFrameCompletionOutcome::Failed
-            } else if capture.has_completed_stage() || capture.frame_path_started() {
-                CpuFrameCompletionOutcome::Incomplete
-            } else {
-                CpuFrameCompletionOutcome::SkippedOrVetoed
-            };
         let recovery_triggered = capture.recovery_triggered();
+        if recovery_triggered {
+            // A recovery transition establishes a new evidence epoch. Keep
+            // the triggering sample, but do not let pre-recovery history
+            // influence its replacement window.
+            self.remove(&admission.key);
+        }
+        let state = self.state_or_insert(admission.key.clone());
+        if recovery_triggered {
+            state.counters.admitted_redraws = state.counters.admitted_redraws.saturating_add(1);
+        }
+        let outcome = if recovery_triggered {
+            CpuFrameCompletionOutcome::RecoveryTriggered
+        } else if capture.successful_presentation() && !redraw_failed {
+            CpuFrameCompletionOutcome::SuccessfulPresentation
+        } else if redraw_failed {
+            CpuFrameCompletionOutcome::Failed
+        } else if capture.has_completed_stage() || capture.frame_path_started() {
+            CpuFrameCompletionOutcome::Incomplete
+        } else {
+            CpuFrameCompletionOutcome::SkippedOrVetoed
+        };
         state
             .counters
             .record_completion(outcome, recovery_triggered);
@@ -402,9 +495,10 @@ impl CpuFrameObservationLedger {
             frame_work: capture.frame_work.unwrap_or(admission.frame_work),
             invalidation: capture.invalidation.unwrap_or(SurfaceInvalidation::None),
             cadence_target_fps: admission.cadence_target_fps,
-            deadline_age: admission.deadline_age,
+            pending_redraw_age: admission.pending_redraw_age,
             outcome,
             recovery_triggered,
+            exact_interaction: capture.exact_interaction(),
             stages: capture.stages,
         });
     }
@@ -463,7 +557,7 @@ mod tests {
                 reason: FrameWorkReason::PointerHover,
             },
             Some(60),
-            CpuFrameDuration::Known(Duration::from_millis(2)),
+            CpuFramePendingRedrawAge::Known(Duration::from_millis(2)),
         );
         let mut capture = CpuFrameObservationCapture::default();
         capture.record_frame_work(admission.frame_work);
@@ -509,6 +603,17 @@ mod tests {
             ledger.state(&second_key).unwrap().counters.admitted_redraws,
             1
         );
+
+        let projection = ledger.projection();
+        assert_eq!(
+            projection
+                .window(&first_key)
+                .unwrap()
+                .counters()
+                .admitted_redraws,
+            1
+        );
+        assert_eq!(projection.window(&second_key).unwrap().sample_count(), 1);
     }
 
     #[test]
@@ -540,11 +645,10 @@ mod tests {
             stable_key.clone(),
             FrameWork::None,
             None,
-            CpuFrameDuration::Unknown,
+            CpuFramePendingRedrawAge::Unknown,
         );
         let mut capture = CpuFrameObservationCapture::default();
         capture.mark_successful_presentation();
-        capture.mark_recovery_triggered();
         ledger.finish(admission, capture, false);
 
         let counters = ledger.state(&stable_key).unwrap().counters;
@@ -579,7 +683,7 @@ mod tests {
                 mode: SceneRebuildMode::Immediate,
             },
             Some(60),
-            CpuFrameDuration::Unknown,
+            CpuFramePendingRedrawAge::Unknown,
         );
         let mut capture = CpuFrameObservationCapture::default();
         capture.mark_successful_presentation();
@@ -592,7 +696,31 @@ mod tests {
         assert_eq!(state.counters.recovery_triggered_frames, 1);
         assert_eq!(
             state.samples[0].as_ref().unwrap().outcome,
-            CpuFrameCompletionOutcome::Failed
+            CpuFrameCompletionOutcome::RecoveryTriggered
+        );
+    }
+
+    #[test]
+    fn recovery_starts_a_fresh_epoch_but_keeps_the_triggering_outcome() {
+        let stable_key = key("settings");
+        let mut ledger = CpuFrameObservationLedger::default();
+        admitted(&mut ledger, stable_key.clone());
+        let admission = ledger.begin(
+            stable_key.clone(),
+            FrameWork::None,
+            None,
+            CpuFramePendingRedrawAge::Unknown,
+        );
+        let mut capture = CpuFrameObservationCapture::default();
+        capture.mark_recovery_triggered();
+        ledger.finish(admission, capture, true);
+
+        let state = ledger.state(&stable_key).unwrap();
+        assert_eq!(state.counters.admitted_redraws, 1);
+        assert_eq!(state.sample_count, 1);
+        assert_eq!(
+            state.samples[0].as_ref().unwrap().outcome,
+            CpuFrameCompletionOutcome::RecoveryTriggered
         );
     }
 
@@ -604,7 +732,7 @@ mod tests {
             stable_key.clone(),
             FrameWork::None,
             None,
-            CpuFrameDuration::Unknown,
+            CpuFramePendingRedrawAge::Unknown,
         );
         ledger.finish(admission, CpuFrameObservationCapture::default(), false);
 
@@ -622,7 +750,7 @@ mod tests {
             stable_key.clone(),
             FrameWork::None,
             None,
-            CpuFrameDuration::Unknown,
+            CpuFramePendingRedrawAge::Unknown,
         );
         let mut capture = CpuFrameObservationCapture::default();
         capture.mark_frame_path_started();
@@ -647,6 +775,7 @@ mod tests {
             FrameScheduleDemand::from_cadence(
                 FrameScheduleKey::Primary,
                 super::super::TimedFrameCadence::DrainNow {
+                    due_at: now,
                     next_wake: now + Duration::from_millis(16),
                 },
                 60,
@@ -657,6 +786,7 @@ mod tests {
             FrameScheduleDemand::from_cadence(
                 key("settings"),
                 super::super::TimedFrameCadence::DrainNow {
+                    due_at: now,
                     next_wake: now + Duration::from_millis(16),
                 },
                 60,
@@ -672,7 +802,7 @@ mod tests {
             before.selected.clone().unwrap(),
             FrameWork::None,
             Some(60),
-            CpuFrameDuration::Known(Duration::ZERO),
+            CpuFramePendingRedrawAge::Known(Duration::ZERO),
         );
         let after = scheduler.observe(now, &demands, FrameScheduleDeadlines::default());
         ledger.finish(admission, CpuFrameObservationCapture::default(), false);

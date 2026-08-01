@@ -6,8 +6,9 @@
 //! admission and presentation.
 
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
-    TimedFrameCadence, animation_frame_interval, timed_frame_cadence, timed_frame_target_fps,
+    CpuFramePendingRedrawAge, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
+    GenericRouteOutcome, SceneRebuildMode, TimedFrameCadence, animation_frame_interval,
+    timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::{RuntimeAnimationActivity, RuntimeBridge};
 use std::time::{Duration, Instant};
@@ -80,6 +81,7 @@ impl FrameScheduleWork {
 pub(super) struct FrameScheduleRedrawEvidence {
     pub(super) timed_repaint_deadline: Option<Instant>,
     pub(super) pending_redraw_requested: bool,
+    pub(super) pending_redraw_age: CpuFramePendingRedrawAge,
     pub(super) pending_redraw_retry_deadline: Option<Instant>,
     pub(super) pending_redraw_fresh: bool,
 }
@@ -88,11 +90,13 @@ pub(super) struct FrameScheduleRedrawEvidence {
 pub(super) struct FrameScheduleDemand {
     key: FrameScheduleKey,
     cadence: TimedFrameCadence,
+    requested_target_fps: u32,
     frame_target_fps: u32,
     animation_activity: RuntimeAnimationActivity,
     needs_text_caret_animation: bool,
     timed_repaint_deadline: Option<Instant>,
     pending_redraw_requested: bool,
+    pending_redraw_age: CpuFramePendingRedrawAge,
     pending_redraw_retry_deadline: Option<Instant>,
     pending_redraw_fresh: bool,
     fallback_interval: Duration,
@@ -107,14 +111,38 @@ impl FrameScheduleDemand {
         needs_text_caret_animation: bool,
         redraw: FrameScheduleRedrawEvidence,
     ) -> Self {
+        Self::from_cadence_with_requested_target_fps(
+            key,
+            cadence,
+            frame_target_fps,
+            frame_target_fps,
+            animation_activity,
+            needs_text_caret_animation,
+            redraw,
+        )
+    }
+
+    fn from_cadence_with_requested_target_fps(
+        key: FrameScheduleKey,
+        cadence: TimedFrameCadence,
+        requested_target_fps: u32,
+        frame_target_fps: u32,
+        animation_activity: RuntimeAnimationActivity,
+        needs_text_caret_animation: bool,
+        redraw: FrameScheduleRedrawEvidence,
+    ) -> Self {
         Self {
             key,
             cadence,
+            requested_target_fps: crate::gui_runtime::options::normalize_native_target_fps(
+                requested_target_fps,
+            ),
             frame_target_fps,
             animation_activity,
             needs_text_caret_animation,
             timed_repaint_deadline: redraw.timed_repaint_deadline,
             pending_redraw_requested: redraw.pending_redraw_requested,
+            pending_redraw_age: redraw.pending_redraw_age,
             pending_redraw_retry_deadline: redraw.pending_redraw_retry_deadline,
             pending_redraw_fresh: redraw.pending_redraw_fresh,
             fallback_interval: animation_frame_interval(frame_target_fps),
@@ -143,9 +171,10 @@ impl FrameScheduleDemand {
             frame_target_fps,
             animation_activity.needs_animation() || needs_text_caret_animation,
         );
-        Self::from_cadence(
+        Self::from_cadence_with_requested_target_fps(
             key,
             cadence,
+            native_target_fps,
             frame_target_fps,
             animation_activity,
             needs_text_caret_animation,
@@ -165,12 +194,24 @@ impl FrameScheduleDemand {
         self.frame_target_fps
     }
 
+    pub(super) const fn requested_target_fps(&self) -> u32 {
+        self.requested_target_fps
+    }
+
     pub(super) const fn animation_activity(&self) -> RuntimeAnimationActivity {
         self.animation_activity
     }
 
     pub(super) const fn needs_text_caret_animation(&self) -> bool {
         self.needs_text_caret_animation
+    }
+
+    pub(super) const fn pending_redraw_age(&self) -> CpuFramePendingRedrawAge {
+        self.pending_redraw_age
+    }
+
+    pub(super) const fn pending_redraw_requested(&self) -> bool {
+        self.pending_redraw_requested
     }
 
     pub(super) fn work(&self, now: Instant) -> FrameScheduleWork {
@@ -197,6 +238,7 @@ impl FrameScheduleDemand {
             TimedFrameCadence::WaitUntil(deadline)
             | TimedFrameCadence::DrainNow {
                 next_wake: deadline,
+                ..
             } => Some(deadline),
         };
         let repaint =
@@ -401,6 +443,7 @@ mod tests {
         FrameScheduleDemand::from_cadence(
             key,
             TimedFrameCadence::DrainNow {
+                due_at: now,
                 next_wake: now + Duration::from_millis(16),
             },
             60,
@@ -625,6 +668,7 @@ mod tests {
         let fresh = FrameScheduleDemand::from_cadence(
             FrameScheduleKey::Auxiliary("settings".into()),
             TimedFrameCadence::DrainNow {
+                due_at: now,
                 next_wake: now + Duration::from_millis(16),
             },
             60,

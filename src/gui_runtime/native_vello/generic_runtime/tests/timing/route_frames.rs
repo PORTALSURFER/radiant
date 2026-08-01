@@ -319,7 +319,7 @@ fn primary_and_auxiliary_redraw_observations_finalize_once_per_stable_key() {
                 reason: FrameWorkReason::PointerHover,
             },
             Some(60),
-            CpuFrameDuration::Unknown,
+            CpuFramePendingRedrawAge::Unknown,
         );
         let mut capture = CpuFrameObservationCapture::default();
         capture.record_stage(

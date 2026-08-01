@@ -11,8 +11,8 @@ use super::renderer_recovery::{
 };
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
-    CpuFrameDuration, CpuFrameObservationAdmission, CpuFrameObservationCapture,
-    CpuFrameObservationLedger, CpuFrameObservationOwner, DeviceLossRegistration, FrameScheduleKey,
+    CpuFrameObservationAdmission, CpuFrameObservationCapture, CpuFrameObservationLedger,
+    CpuFrameObservationOwner, CpuFramePendingRedrawAge, DeviceLossRegistration, FrameScheduleKey,
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeRuntimeCore,
     GenericRouteOutcome, NativeAdapterGeneration, NativeAutomationTargetExporter,
     NativeClosingProgress, NativeFrameScheduler, NativeGenericRunError, NativeLifecycle,
@@ -209,28 +209,25 @@ where
         key: FrameScheduleKey,
         now: Instant,
     ) -> Option<CpuFrameObservationAdmission> {
-        let (frame_work, cadence_target_fps, deadline_age) =
+        let (frame_work, cadence_target_fps, pending_redraw_age) =
             self.cpu_frame_observation_snapshot(now);
         self.cpu_frame_observation
             .as_mut()
-            .map(|ledger| ledger.begin(key, frame_work, cadence_target_fps, deadline_age))
+            .map(|ledger| ledger.begin(key, frame_work, cadence_target_fps, pending_redraw_age))
     }
 
     fn cpu_frame_observation_snapshot(
         &mut self,
         now: Instant,
-    ) -> (FrameWork, Option<u32>, CpuFrameDuration) {
+    ) -> (FrameWork, Option<u32>, CpuFramePendingRedrawAge) {
         let frame_work = self.timing.pending_frame_work;
         let cadence_target_fps = Some(timed_frame_target_fps(
             self.options.normalized_target_fps(),
             self.core.animation_activity(),
             self.core.has_focused_text_input(),
         ));
-        let deadline_age = self
-            .pending_redraw_elapsed(now)
-            .map(CpuFrameDuration::Known)
-            .unwrap_or(CpuFrameDuration::Unknown);
-        (frame_work, cadence_target_fps, deadline_age)
+        let pending_redraw_age = self.pending_redraw_age(now);
+        (frame_work, cadence_target_fps, pending_redraw_age)
     }
 
     pub(super) fn begin_cpu_frame_observation_with_owner(
@@ -238,9 +235,9 @@ where
         owner: &mut CpuFrameObservationOwner<'_>,
         now: Instant,
     ) -> CpuFrameObservationAdmission {
-        let (frame_work, cadence_target_fps, deadline_age) =
+        let (frame_work, cadence_target_fps, pending_redraw_age) =
             self.cpu_frame_observation_snapshot(now);
-        owner.begin(frame_work, cadence_target_fps, deadline_age)
+        owner.begin(frame_work, cadence_target_fps, pending_redraw_age)
     }
 
     pub(super) fn finish_cpu_frame_observation(
@@ -317,8 +314,15 @@ where
         if !self.native_lifecycle.admit_recovery() {
             return false;
         }
+        self.clear_cpu_frame_observation();
         self.fence_native_presentation();
         true
+    }
+
+    pub(super) fn clear_cpu_frame_observation(&mut self) {
+        if let Some(ledger) = self.cpu_frame_observation.as_mut() {
+            ledger.clear();
+        }
     }
 
     pub(super) fn finish_device_recovery(&mut self) {
@@ -706,6 +710,7 @@ where
         if !self.native_lifecycle.admit_recovery() {
             return;
         }
+        self.clear_cpu_frame_observation();
         self.recovery_cause = Some(cause);
         self.recovery_primary_was_visible = window.is_visible().unwrap_or(true);
         self.fence_native_presentation();
@@ -1000,6 +1005,19 @@ where
         }
         let requested_at = self.timing.redraw_requested_at?;
         Some(now.duration_since(requested_at))
+    }
+
+    pub(super) fn pending_redraw_age(&self, now: Instant) -> CpuFramePendingRedrawAge {
+        if !self.timing.redraw_requested {
+            CpuFramePendingRedrawAge::NotRequested
+        } else {
+            self.timing
+                .redraw_requested_at
+                .map(|requested_at| {
+                    CpuFramePendingRedrawAge::Known(now.saturating_duration_since(requested_at))
+                })
+                .unwrap_or(CpuFramePendingRedrawAge::Unknown)
+        }
     }
 
     pub(super) fn pending_interactive_scroll_flush_is_due(&self, now: Instant) -> bool {

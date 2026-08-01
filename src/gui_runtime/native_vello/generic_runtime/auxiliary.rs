@@ -3,8 +3,8 @@ use super::runner_state::NativeWindowResourceBundle;
 #[cfg(test)]
 use super::scene_texture::NativeFrameRenderFailure;
 use super::{
-    AuxiliaryScheduleEligibility, CpuFrameObservationCapture, FrameScheduleDemand,
-    FrameScheduleKey, FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason,
+    AuxiliaryScheduleEligibility, CpuFrameObservationCapture, CpuFrameObservationOwner,
+    FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
     NativeAdapterGeneration, NativeGenericRunError, NativeResourceMaintenanceTurn,
     RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
@@ -309,6 +309,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
         now: Instant,
         demand: &FrameScheduleDemand,
     ) -> Option<AuxiliaryWindowEventResult<Message>> {
@@ -327,8 +328,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return None;
         }
         if admission.route_outcome {
-            self.runner
-                .handle_route_outcome_with_adapter(event_loop, admission.outcome, adapter);
+            self.runner.handle_route_outcome_with_adapter(
+                event_loop,
+                admission.outcome,
+                adapter,
+                observation,
+            );
         }
         Some(AuxiliaryWindowEventResult {
             messages: self.take_messages(),
@@ -449,6 +454,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event_loop: &ActiveEventLoop,
         event: WindowEvent,
         adapter: &mut GenericNativeAdapterOwner,
+        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) -> AuxiliaryWindowEventResult<Message> {
         if self.is_retiring() {
             return AuxiliaryWindowEventResult::ignored();
@@ -464,41 +470,70 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::ThemeChanged(theme) => self.runner.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
                 let routed = self.runner.handle_focus_lost_before_external_drag();
-                self.runner
-                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    routed,
+                    adapter,
+                    observation.as_deref_mut(),
+                );
                 if self.runner.core.runtime.external_drag_armed() {
                     let outcome = self.runner.launch_external_drag_if_armed();
-                    self.runner
-                        .handle_route_outcome_with_adapter(event_loop, outcome, adapter);
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        outcome,
+                        adapter,
+                        observation.as_deref_mut(),
+                    );
                 }
             }
             WindowEvent::Focused(true) => {
                 let routed = self.runner.handle_focus_regained_after_native_modal_loop();
-                self.runner
-                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    routed,
+                    adapter,
+                    observation,
+                );
             }
             WindowEvent::CursorEntered { .. } => self.runner.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
                 let route = self.runner.route_native_mouse_input(button, state);
-                self.runner
-                    .handle_route_outcome_with_adapter(event_loop, route.outcome, adapter);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    route.outcome,
+                    adapter,
+                    observation.as_deref_mut(),
+                );
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let route = self.runner.route_native_mouse_wheel(delta);
-                self.runner
-                    .handle_route_outcome_with_adapter(event_loop, route.outcome, adapter);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    route.outcome,
+                    adapter,
+                    observation.as_deref_mut(),
+                );
             }
-            WindowEvent::KeyboardInput { event, .. } => self
-                .runner
-                .handle_keyboard_event_with_adapter(event_loop, event, adapter),
+            WindowEvent::KeyboardInput { event, .. } => {
+                self.runner.handle_keyboard_event_with_adapter(
+                    event_loop,
+                    event,
+                    adapter,
+                    observation.as_deref_mut(),
+                )
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let routed = self
                     .runner
                     .route_native_modifiers_changed(modifiers.state());
-                self.runner
-                    .handle_route_outcome_with_adapter(event_loop, routed, adapter);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    routed,
+                    adapter,
+                    observation,
+                );
             }
             WindowEvent::RedrawRequested => {
                 let redraw_result = self.runner.redraw(event_loop, adapter);

@@ -1,8 +1,8 @@
 use super::{
-    CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
-    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
-    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
-    reveal_window_after_first_present, slow_render_profile_enabled,
+    CpuFrameObservationOwner, CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    RenderFrameProfile, RenderSurfacePixelSize, hide_window_after_first_present,
+    maybe_log_render_profile, maybe_log_slow_render_profile, post_gpu_overlay,
+    render_profile_enabled, reveal_window_after_first_present, slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -357,9 +357,11 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
+        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
-        let admission =
-            self.begin_cpu_frame_observation(super::FrameScheduleKey::Primary, Instant::now());
+        let admission = observation
+            .as_deref_mut()
+            .map(|owner| self.begin_cpu_frame_observation_with_owner(owner, Instant::now()));
         let result = self.redraw(event_loop, adapter);
         let redraw_failed = result.is_err();
         if let Err(failure) = result {
@@ -373,7 +375,11 @@ where
                 super::NativeRendererRecoveryWindowKind::Primary,
             );
         }
-        self.finish_cpu_frame_observation(admission, redraw_failed);
+        if let (Some(owner), Some(admission)) = (observation, admission) {
+            self.finish_cpu_frame_observation_with_owner(owner, admission, redraw_failed);
+        }
+        // A child-only fallback has no parent ledger.  Leave its ephemeral
+        // capture untouched instead of consuming evidence without an owner.
     }
 
     pub(super) fn should_render_resize_frame_directly(&self) -> bool {

@@ -1,10 +1,10 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
 use super::{
-    AuxiliaryWindowEventResult, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
-    FrameScheduleRedrawEvidence, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_native_window_drag,
+    AuxiliaryWindowEventResult, CpuFrameObservationOwner, FrameScheduleDeadlines,
+    FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, GenericNativeAdapterOwner,
+    GenericNativeVelloRunner, NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
+    TimedFrameCadence, animation_frame_interval, should_start_native_window_drag,
     should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
 };
@@ -85,7 +85,16 @@ where
                 .then(|| self.begin_cpu_frame_observation(auxiliary_key.clone(), Instant::now()));
             let route_result = match self.adapter.as_mut() {
                 Some(adapter) => {
-                    self.auxiliary_windows[index].route_window_event(event_loop, event, adapter)
+                    let mut observation = self
+                        .cpu_frame_observation
+                        .as_mut()
+                        .map(|ledger| CpuFrameObservationOwner::new(ledger, auxiliary_key.clone()));
+                    self.auxiliary_windows[index].route_window_event(
+                        event_loop,
+                        event,
+                        adapter,
+                        observation.as_mut(),
+                    )
                 }
                 None => {
                     if let Some(Some(admission)) = admission {
@@ -427,11 +436,21 @@ where
                 }
                 FrameScheduleKey::Auxiliary(key) => {
                     let result = self.adapter.as_mut().and_then(|adapter| {
+                        let mut observation = self
+                            .cpu_frame_observation
+                            .as_mut()
+                            .map(|ledger| CpuFrameObservationOwner::new(ledger, selected.clone()));
                         self.auxiliary_windows
                             .iter_mut()
                             .find(|window| window.key() == key)
                             .and_then(|window| {
-                                window.admit_frame_schedule_work(event_loop, adapter, now, &demand)
+                                window.admit_frame_schedule_work(
+                                    event_loop,
+                                    adapter,
+                                    observation.as_mut(),
+                                    now,
+                                    &demand,
+                                )
                             })
                     });
                     if let Some(result) = result {

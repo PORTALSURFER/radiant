@@ -82,7 +82,7 @@ pub(in crate::gui_runtime::native_vello) use core::{
 };
 use cpu_frame_observation::{
     CpuFrameDuration, CpuFrameObservationAdmission, CpuFrameObservationCapture,
-    CpuFrameObservationLedger, CpuFrameStage,
+    CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFrameStage,
 };
 use frame_cadence::{
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,

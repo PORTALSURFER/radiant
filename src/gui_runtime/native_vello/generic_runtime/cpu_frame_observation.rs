@@ -221,6 +221,45 @@ pub(super) struct CpuFrameObservationAdmission {
     deadline_age: CpuFrameDuration,
 }
 
+/// Parent-owned observation boundary borrowed by an auxiliary runner while it
+/// performs a synchronous route-time redraw.
+///
+/// The child owns only the ephemeral capture.  The parent creates this scope
+/// for the auxiliary key and commits each completed redraw through its ledger.
+pub(super) struct CpuFrameObservationOwner<'a> {
+    ledger: &'a mut CpuFrameObservationLedger,
+    key: FrameScheduleKey,
+}
+
+impl<'a> CpuFrameObservationOwner<'a> {
+    pub(super) fn new(ledger: &'a mut CpuFrameObservationLedger, key: FrameScheduleKey) -> Self {
+        Self { ledger, key }
+    }
+
+    pub(super) fn begin(
+        &mut self,
+        frame_work: FrameWork,
+        cadence_target_fps: Option<u32>,
+        deadline_age: CpuFrameDuration,
+    ) -> CpuFrameObservationAdmission {
+        self.ledger.begin(
+            self.key.clone(),
+            frame_work,
+            cadence_target_fps,
+            deadline_age,
+        )
+    }
+
+    pub(super) fn finish(
+        &mut self,
+        admission: CpuFrameObservationAdmission,
+        capture: CpuFrameObservationCapture,
+        redraw_failed: bool,
+    ) {
+        self.ledger.finish(admission, capture, redraw_failed);
+    }
+}
+
 /// Mutually exclusive completion state for an admitted redraw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CpuFrameCompletionOutcome {
@@ -390,6 +429,11 @@ impl CpuFrameObservationLedger {
         key: &FrameScheduleKey,
     ) -> Option<CpuFrameObservationCounters> {
         self.state(key).map(|state| state.counters)
+    }
+
+    #[cfg(test)]
+    pub(super) fn sample_count_for_test(&self, key: &FrameScheduleKey) -> Option<usize> {
+        self.state(key).map(|state| state.sample_count)
     }
 
     fn state_or_insert(&mut self, key: FrameScheduleKey) -> &mut CpuFrameObservationState {

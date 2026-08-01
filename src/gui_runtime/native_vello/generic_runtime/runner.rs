@@ -12,16 +12,16 @@ use super::renderer_recovery::{
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     CpuFrameDuration, CpuFrameObservationAdmission, CpuFrameObservationCapture,
-    CpuFrameObservationLedger, DeviceLossRegistration, FrameScheduleKey, FrameWork,
-    FrameWorkReason, GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
-    NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
-    NativeFrameScheduler, NativeGenericRunError, NativeLifecycle, NativeRenderDeviceErrorKind,
-    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    CpuFrameObservationLedger, CpuFrameObservationOwner, DeviceLossRegistration, FrameScheduleKey,
+    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeRuntimeCore,
+    GenericRouteOutcome, NativeAdapterGeneration, NativeAutomationTargetExporter,
+    NativeClosingProgress, NativeFrameScheduler, NativeGenericRunError, NativeLifecycle,
+    NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn, NativeRunnerInputState,
+    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
+    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -209,6 +209,17 @@ where
         key: FrameScheduleKey,
         now: Instant,
     ) -> Option<CpuFrameObservationAdmission> {
+        let (frame_work, cadence_target_fps, deadline_age) =
+            self.cpu_frame_observation_snapshot(now);
+        self.cpu_frame_observation
+            .as_mut()
+            .map(|ledger| ledger.begin(key, frame_work, cadence_target_fps, deadline_age))
+    }
+
+    fn cpu_frame_observation_snapshot(
+        &mut self,
+        now: Instant,
+    ) -> (FrameWork, Option<u32>, CpuFrameDuration) {
         let frame_work = self.timing.pending_frame_work;
         let cadence_target_fps = Some(timed_frame_target_fps(
             self.options.normalized_target_fps(),
@@ -219,9 +230,17 @@ where
             .pending_redraw_elapsed(now)
             .map(CpuFrameDuration::Known)
             .unwrap_or(CpuFrameDuration::Unknown);
-        self.cpu_frame_observation
-            .as_mut()
-            .map(|ledger| ledger.begin(key, frame_work, cadence_target_fps, deadline_age))
+        (frame_work, cadence_target_fps, deadline_age)
+    }
+
+    pub(super) fn begin_cpu_frame_observation_with_owner(
+        &mut self,
+        owner: &mut CpuFrameObservationOwner<'_>,
+        now: Instant,
+    ) -> CpuFrameObservationAdmission {
+        let (frame_work, cadence_target_fps, deadline_age) =
+            self.cpu_frame_observation_snapshot(now);
+        owner.begin(frame_work, cadence_target_fps, deadline_age)
     }
 
     pub(super) fn finish_cpu_frame_observation(
@@ -244,6 +263,16 @@ where
             return;
         };
         ledger.finish(admission, capture, redraw_failed);
+    }
+
+    pub(super) fn finish_cpu_frame_observation_with_owner(
+        &mut self,
+        owner: &mut CpuFrameObservationOwner<'_>,
+        admission: CpuFrameObservationAdmission,
+        redraw_failed: bool,
+    ) {
+        let capture = std::mem::take(&mut self.cpu_frame_observation_capture);
+        owner.finish(admission, capture, redraw_failed);
     }
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
@@ -1432,7 +1461,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None, true);
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, true);
     }
 
     pub(super) fn handle_route_outcome_without_timed_frame(
@@ -1440,7 +1469,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None, false);
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, false);
     }
 
     pub(super) fn handle_route_outcome_with_adapter(
@@ -1448,8 +1477,9 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: &mut GenericNativeAdapterOwner,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter), true);
+        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter), observation, true);
     }
 
     fn handle_route_outcome_inner(
@@ -1457,6 +1487,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: Option<&mut GenericNativeAdapterOwner>,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
         merge_due_timed_frame: bool,
     ) {
         if !self.is_running() {
@@ -1496,10 +1527,11 @@ where
                         "Flushed pending redraw request after route"
                     );
                 }
-                if let Some(adapter) = adapter {
-                    self.redraw_and_exit_on_error_with_adapter(event_loop, adapter);
-                } else {
-                    self.redraw_and_exit_on_error(event_loop);
+                match adapter {
+                    Some(adapter) => {
+                        self.redraw_and_exit_on_error_with_adapter(event_loop, adapter, observation)
+                    }
+                    None => self.redraw_and_exit_on_error(event_loop),
                 }
             }
         }

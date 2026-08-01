@@ -49,3 +49,46 @@ fn native_generic_runtime_root_tests_stay_grouped_by_runtime_concern() {
         "native generic runtime tests should stay grouped by runtime core, timing, and window policy concerns"
     );
 }
+
+#[test]
+fn auxiliary_route_redraw_observation_stays_parent_owned() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("native lifecycle should be readable");
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("native auxiliary window routing should be readable");
+    let keyboard = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard.rs"),
+    )
+    .expect("native keyboard routing should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("native runner routing should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("native presentation should be readable");
+
+    assert!(
+        lifecycle.contains("CpuFrameObservationOwner::new(ledger, auxiliary_key.clone())")
+            && lifecycle.contains("CpuFrameObservationOwner::new(ledger, selected.clone())")
+            && auxiliary.contains("observation: Option<&mut CpuFrameObservationOwner<'_>>")
+            && keyboard.contains("observation: Option<&mut CpuFrameObservationOwner<'_>>"),
+        "auxiliary event and schedule boundaries should receive a parent-owned observation scope"
+    );
+    assert!(
+        runner.contains("match adapter")
+            && runner.contains(
+                "redraw_and_exit_on_error_with_adapter(event_loop, adapter, observation)"
+            )
+            && present.contains("begin_cpu_frame_observation_with_owner(owner")
+            && present.contains("if let (Some(owner), Some(admission))")
+            && present.contains("finish_cpu_frame_observation_with_owner(owner"),
+        "route-time auxiliary redraws should commit through the parent owner and never use an ownerless child wrapper"
+    );
+}

@@ -11,6 +11,7 @@ use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
 use crate::widgets::WidgetCursor;
 use std::{
+    collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -249,12 +250,83 @@ impl NativeWindowResourceBundle {
     }
 }
 
+const MAX_QUARANTINED_NATIVE_RESOURCES: usize = 2;
+
+/// Bounded ownership for native resources that have left the admitted path.
+///
+/// This is intentionally only a quarantine boundary. A later retirement
+/// contract may drain entries after a renderer-owned completion witness; this
+/// type never authorizes synchronous destruction or GPU work.
+pub(super) struct NativeResourceQuarantine<T> {
+    entries: VecDeque<T>,
+}
+
+impl<T> Default for NativeResourceQuarantine<T> {
+    fn default() -> Self {
+        Self {
+            entries: VecDeque::new(),
+        }
+    }
+}
+
+impl<T> NativeResourceQuarantine<T> {
+    #[cfg(test)]
+    pub(super) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub(super) fn is_full(&self) -> bool {
+        self.entries.len() >= MAX_QUARANTINED_NATIVE_RESOURCES
+    }
+
+    pub(super) fn try_push(&mut self, entry: T) -> Result<(), T> {
+        if self.is_full() {
+            Err(entry)
+        } else {
+            self.entries.push_back(entry);
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+pub(super) struct NativeResourcePublicationReservation<'a, T> {
+    active: &'a mut Option<T>,
+    quarantine: &'a mut NativeResourceQuarantine<T>,
+}
+
+fn reserve_native_resource_publication<'a, T>(
+    active: &'a mut Option<T>,
+    quarantine: &'a mut NativeResourceQuarantine<T>,
+) -> Option<NativeResourcePublicationReservation<'a, T>> {
+    if active.is_some() && quarantine.is_full() {
+        return None;
+    }
+    Some(NativeResourcePublicationReservation { active, quarantine })
+}
+
+impl<T> NativeResourcePublicationReservation<'_, T> {
+    pub(super) fn publish(self, incoming: T) {
+        let Self { active, quarantine } = self;
+        if let Some(previous) = active.take() {
+            // The reservation exclusively owns both fields until this commit,
+            // so no other path can fill the bounded quarantine.
+            quarantine.entries.push_back(previous);
+        }
+        *active = Some(incoming);
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
     pub(super) window: Option<Arc<Window>>,
     pub(super) native_resources: Option<NativeWindowResourceBundle>,
-    pub(super) stale_native_resources: Vec<NativeWindowResourceBundle>,
+    pub(super) quarantined_native_resources: NativeResourceQuarantine<NativeWindowResourceBundle>,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -268,21 +340,29 @@ pub(super) struct NativeRunnerWindowState {
 }
 
 impl NativeRunnerWindowState {
-    /// Atomically publish a complete bound bundle. Any previous active bundle
-    /// is retained for explicit later recovery/retirement rather than dropped
-    /// as part of publication.
-    pub(super) fn publish_native_resources(&mut self, resources: NativeWindowResourceBundle) {
-        if let Some(previous) = self.native_resources.replace(resources) {
-            self.stale_native_resources.push(previous);
-        }
+    pub(super) fn can_publish_native_resources(&self) -> bool {
+        self.native_resources.is_none() || !self.quarantined_native_resources.is_full()
+    }
+
+    pub(super) fn reserve_native_resource_publication(
+        &mut self,
+    ) -> Option<NativeResourcePublicationReservation<'_, NativeWindowResourceBundle>> {
+        reserve_native_resource_publication(
+            &mut self.native_resources,
+            &mut self.quarantined_native_resources,
+        )
     }
 
     /// Isolate the active bundle after an admission veto without destroying
     /// its WGPU/Vello resources synchronously.
-    pub(super) fn isolate_native_resources(&mut self) {
-        if let Some(stale) = self.native_resources.take() {
-            self.stale_native_resources.push(stale);
+    pub(super) fn isolate_native_resources(&mut self) -> bool {
+        if let Some(stale) = self.native_resources.take()
+            && let Err(stale) = self.quarantined_native_resources.try_push(stale)
+        {
+            self.native_resources = Some(stale);
+            return false;
         }
+        true
     }
 }
 
@@ -371,7 +451,10 @@ impl Default for NativeRunnerTimingState {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration};
+    use super::{
+        NativeResourceQuarantine, NativeRunnerWindowState, NativeSurfaceRecoveryState,
+        NativeTargetGeneration,
+    };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
 
     #[test]
@@ -379,12 +462,57 @@ mod tests {
         let mut state = NativeRunnerWindowState::default();
 
         assert!(state.native_resources.is_none());
-        assert!(state.stale_native_resources.is_empty());
+        assert!(state.quarantined_native_resources.is_empty());
         assert!(!state.native_surface_target_fenced);
 
-        state.isolate_native_resources();
+        assert!(state.isolate_native_resources());
         assert!(state.native_resources.is_none());
-        assert!(state.stale_native_resources.is_empty());
+        assert!(state.quarantined_native_resources.is_empty());
+    }
+
+    #[test]
+    fn native_resource_quarantine_refuses_capacity_overflow_without_dropping_input() {
+        let mut quarantine = NativeResourceQuarantine::default();
+
+        assert!(quarantine.try_push(1).is_ok());
+        assert!(quarantine.try_push(2).is_ok());
+        assert!(quarantine.is_full());
+        assert_eq!(quarantine.try_push(3), Err(3));
+        assert_eq!(quarantine.len(), 2);
+    }
+
+    #[test]
+    fn full_native_resource_publication_preserves_rejected_input_and_active_state() {
+        let mut active = Some(1);
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(2).is_ok());
+        assert!(quarantine.try_push(3).is_ok());
+        let mut incoming = Some(4);
+
+        // The generic reservation is acquired before a native bundle is built;
+        // a full quarantine therefore leaves the caller's input untouched.
+        assert!(super::reserve_native_resource_publication(&mut active, &mut quarantine).is_none());
+        assert_eq!(incoming.take(), Some(4));
+        assert_eq!(active, Some(1));
+        assert_eq!(quarantine.len(), 2);
+    }
+
+    #[test]
+    fn abandoned_native_resource_publication_reservation_preserves_active_state() {
+        let mut active = Some(1);
+        let mut quarantine = NativeResourceQuarantine::default();
+        assert!(quarantine.try_push(2).is_ok());
+
+        {
+            let reservation =
+                super::reserve_native_resource_publication(&mut active, &mut quarantine);
+            assert!(reservation.is_some());
+            // Scope exit models an initialization error after reservation and
+            // before native-resource publication.
+        }
+
+        assert_eq!(active, Some(1));
+        assert_eq!(quarantine.len(), 1);
     }
 
     #[test]

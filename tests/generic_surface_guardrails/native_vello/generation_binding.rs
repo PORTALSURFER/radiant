@@ -20,7 +20,8 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
         "RenderSurface<'static>",
         "Renderer",
         "native_resources: Option<NativeWindowResourceBundle>",
-        "stale_native_resources: Vec<NativeWindowResourceBundle>",
+        "NativeResourceQuarantine<NativeWindowResourceBundle>",
+        "quarantined_native_resources",
     ] {
         assert!(
             runner_state.contains(required),
@@ -31,6 +32,11 @@ fn generic_native_window_resources_are_one_generation_bound_bundle() {
         !runner_state.contains("render_surface: Option<RenderSurface<'static>>")
             && !runner_state.contains("renderer: Option<Renderer>"),
         "window state should not publish surface and renderer as parallel optionals"
+    );
+    assert!(
+        runner_state.contains("MAX_QUARANTINED_NATIVE_RESOURCES")
+            && runner_state.contains("fn try_push"),
+        "quarantined native resources should have an explicit bounded admission boundary"
     );
     assert!(
         adapter.contains("fn capture_generation") && adapter.contains("fn admit_generation"),

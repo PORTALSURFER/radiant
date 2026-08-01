@@ -191,7 +191,12 @@ where
             )?;
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
-        self.window.publish_native_resources(native_resources);
+        if !self.window.publish_native_resources(native_resources) {
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native resource quarantine capacity is exhausted",
+            ));
+        }
         self.window.target_generation.advance();
         self.frame.clear_native_paint_segment_artifacts();
         self.rebuild_scene();
@@ -521,7 +526,7 @@ where
         if adapter.admit_generation(generation) {
             return true;
         }
-        self.window.isolate_native_resources();
+        let _ = self.window.isolate_native_resources();
         self.fence_native_surface_target();
         false
     }

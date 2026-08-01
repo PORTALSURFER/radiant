@@ -11,6 +11,7 @@ use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
 use crate::widgets::WidgetCursor;
 use std::{
+    collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -249,12 +250,56 @@ impl NativeWindowResourceBundle {
     }
 }
 
+const MAX_QUARANTINED_NATIVE_RESOURCES: usize = 2;
+
+/// Bounded ownership for native resources that have left the admitted path.
+///
+/// This is intentionally only a quarantine boundary. A later retirement
+/// contract may drain entries after a renderer-owned completion witness; this
+/// type never authorizes synchronous destruction or GPU work.
+pub(super) struct NativeResourceQuarantine<T> {
+    entries: VecDeque<T>,
+}
+
+impl<T> Default for NativeResourceQuarantine<T> {
+    fn default() -> Self {
+        Self {
+            entries: VecDeque::new(),
+        }
+    }
+}
+
+impl<T> NativeResourceQuarantine<T> {
+    #[cfg(test)]
+    pub(super) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub(super) fn is_full(&self) -> bool {
+        self.entries.len() >= MAX_QUARANTINED_NATIVE_RESOURCES
+    }
+
+    pub(super) fn try_push(&mut self, entry: T) -> Result<(), T> {
+        if self.is_full() {
+            Err(entry)
+        } else {
+            self.entries.push_back(entry);
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
     pub(super) window: Option<Arc<Window>>,
     pub(super) native_resources: Option<NativeWindowResourceBundle>,
-    pub(super) stale_native_resources: Vec<NativeWindowResourceBundle>,
+    pub(super) quarantined_native_resources: NativeResourceQuarantine<NativeWindowResourceBundle>,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -271,18 +316,32 @@ impl NativeRunnerWindowState {
     /// Atomically publish a complete bound bundle. Any previous active bundle
     /// is retained for explicit later recovery/retirement rather than dropped
     /// as part of publication.
-    pub(super) fn publish_native_resources(&mut self, resources: NativeWindowResourceBundle) {
-        if let Some(previous) = self.native_resources.replace(resources) {
-            self.stale_native_resources.push(previous);
+    pub(super) fn publish_native_resources(
+        &mut self,
+        resources: NativeWindowResourceBundle,
+    ) -> bool {
+        if self.native_resources.is_some() && self.quarantined_native_resources.is_full() {
+            return false;
         }
+        if let Some(previous) = self.native_resources.replace(resources)
+            && let Err(previous) = self.quarantined_native_resources.try_push(previous)
+        {
+            self.native_resources = Some(previous);
+            return false;
+        }
+        true
     }
 
     /// Isolate the active bundle after an admission veto without destroying
     /// its WGPU/Vello resources synchronously.
-    pub(super) fn isolate_native_resources(&mut self) {
-        if let Some(stale) = self.native_resources.take() {
-            self.stale_native_resources.push(stale);
+    pub(super) fn isolate_native_resources(&mut self) -> bool {
+        if let Some(stale) = self.native_resources.take()
+            && let Err(stale) = self.quarantined_native_resources.try_push(stale)
+        {
+            self.native_resources = Some(stale);
+            return false;
         }
+        true
     }
 }
 
@@ -371,7 +430,10 @@ impl Default for NativeRunnerTimingState {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration};
+    use super::{
+        NativeResourceQuarantine, NativeRunnerWindowState, NativeSurfaceRecoveryState,
+        NativeTargetGeneration,
+    };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
 
     #[test]
@@ -379,12 +441,23 @@ mod tests {
         let mut state = NativeRunnerWindowState::default();
 
         assert!(state.native_resources.is_none());
-        assert!(state.stale_native_resources.is_empty());
+        assert!(state.quarantined_native_resources.is_empty());
         assert!(!state.native_surface_target_fenced);
 
-        state.isolate_native_resources();
+        assert!(state.isolate_native_resources());
         assert!(state.native_resources.is_none());
-        assert!(state.stale_native_resources.is_empty());
+        assert!(state.quarantined_native_resources.is_empty());
+    }
+
+    #[test]
+    fn native_resource_quarantine_refuses_capacity_overflow_without_dropping_input() {
+        let mut quarantine = NativeResourceQuarantine::default();
+
+        assert!(quarantine.try_push(1).is_ok());
+        assert!(quarantine.try_push(2).is_ok());
+        assert!(quarantine.is_full());
+        assert_eq!(quarantine.try_push(3), Err(3));
+        assert_eq!(quarantine.len(), 2);
     }
 
     #[test]

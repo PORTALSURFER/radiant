@@ -238,6 +238,7 @@ where
 
     fn complete_target_transition(&mut self) {
         self.window.target_generation.advance();
+        self.window.surface_recovery.rearm_timeout_retry();
         self.frame.clear_native_paint_segment_artifacts();
         self.frame.invalidate_native_scene_context();
         self.frame.mark_scene_texture_dirty();
@@ -303,6 +304,7 @@ where
         }
         self.window.dpi_scale = next;
         self.window.target_generation.advance();
+        self.window.surface_recovery.rearm_timeout_retry();
         self.frame.clear_native_paint_segment_artifacts();
         if let Some(window) = self.window.window.as_ref() {
             self.core
@@ -326,7 +328,10 @@ where
             surface.surface.get_current_texture()
         };
         match texture {
-            Ok(frame) => Some(frame),
+            Ok(frame) => {
+                self.window.surface_recovery.rearm_timeout_retry();
+                Some(frame)
+            }
             Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let size = self.window.window.as_ref()?.inner_size();
@@ -342,6 +347,21 @@ where
                         self.window.surface_recovery.record_zero_size_deferral();
                     }
                     _ => {}
+                }
+                None
+            }
+            Err(error @ wgpu::SurfaceError::Timeout) => {
+                self.window.surface_recovery.observe_acquire_error(&error);
+                let size = self.window.window.as_ref()?.inner_size();
+                if matches!(
+                    surface_acquire_policy(error, size),
+                    SurfaceAcquirePolicy::Timeout
+                ) && self
+                    .window
+                    .surface_recovery
+                    .record_timeout_retry_request(size.width > 0 && size.height > 0)
+                {
+                    self.request_redraw_for_frame_work(FrameWork::None);
                 }
                 None
             }

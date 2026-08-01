@@ -162,6 +162,25 @@ fn pending_redraw_frame_work_merges_stronger_direct_request() {
 }
 
 #[test]
+fn coalesced_timeout_retry_keeps_pending_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let pending = FrameWork::ResizeAndRebuild {
+        reason: FrameWorkReason::NativeResize,
+    };
+    runner.timing.pending_frame_work = pending;
+
+    // Timeout recovery requests a redraw with no new frame-work reason. The
+    // existing coalescing path must retain work from the failed acquisition.
+    runner.request_redraw_for_frame_work(FrameWork::None);
+
+    assert_eq!(runner.timing.pending_frame_work, pending);
+}
+
+#[test]
 fn coalesced_routed_redraws_keep_strongest_frame_work() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

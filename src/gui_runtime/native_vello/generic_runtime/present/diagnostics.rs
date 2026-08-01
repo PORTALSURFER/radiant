@@ -302,18 +302,22 @@ mod tests {
             surface_recovery: crate::runtime::NativeSurfaceRecoveryDiagnostics {
                 lost: 37,
                 outdated: 41,
-                completed_reconfigures: 43,
-                zero_size_deferrals: 47,
-                retry_requests: 53,
+                timeouts: 43,
+                completed_reconfigures: 47,
+                zero_size_deferrals: 53,
+                retry_requests: 59,
+                timeout_retry_requests: 61,
             },
         });
 
         assert_eq!(diagnostics.presentation.surface_invalidation, "layout");
         assert_eq!(diagnostics.surface_recovery.lost, 37);
         assert_eq!(diagnostics.surface_recovery.outdated, 41);
-        assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 43);
-        assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 47);
-        assert_eq!(diagnostics.surface_recovery.retry_requests, 53);
+        assert_eq!(diagnostics.surface_recovery.timeouts, 43);
+        assert_eq!(diagnostics.surface_recovery.completed_reconfigures, 47);
+        assert_eq!(diagnostics.surface_recovery.zero_size_deferrals, 53);
+        assert_eq!(diagnostics.surface_recovery.retry_requests, 59);
+        assert_eq!(diagnostics.surface_recovery.timeout_retry_requests, 61);
         assert_eq!(diagnostics.scene.scene_encode_count, 7);
         assert_eq!(diagnostics.scene.scene_reuse_count, 11);
         assert_eq!(diagnostics.scene.scene_assembly_count, 13);

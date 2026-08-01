@@ -39,6 +39,59 @@ fn dpi_change_updates_native_scale_but_defers_environment_rebuild() {
 }
 
 #[test]
+fn dpi_target_transition_rearms_timeout_retry_between_timeout_attempts() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_timeout_retry_request(true)
+    );
+
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+    assert!(
+        !runner
+            .window
+            .surface_recovery
+            .record_timeout_retry_request(true)
+    );
+
+    runner.update_native_dpi_scale(2.0);
+
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_timeout_retry_request(true)
+    );
+    assert_eq!(runner.window.surface_recovery.diagnostics().timeouts, 3);
+    assert_eq!(
+        runner
+            .window
+            .surface_recovery
+            .diagnostics()
+            .timeout_retry_requests,
+        2
+    );
+}
+
+#[test]
 #[cfg(target_os = "macos")]
 fn accessibility_snapshot_updates_are_routed_only_for_changed_causes() {
     let mut runner = GenericNativeVelloRunner::new(

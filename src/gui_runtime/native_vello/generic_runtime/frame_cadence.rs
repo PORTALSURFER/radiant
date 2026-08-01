@@ -18,7 +18,7 @@ pub(super) fn animation_frame_interval_for_normalized_fps(fps: u32) -> Duration 
 pub(super) enum TimedFrameCadence {
     Idle,
     WaitUntil(Instant),
-    DrainNow { next_wake: Instant },
+    DrainNow { due_at: Instant, next_wake: Instant },
 }
 
 pub(super) fn timed_frame_cadence(
@@ -34,7 +34,8 @@ pub(super) fn timed_frame_cadence(
     let next_frame = last_redraw.checked_add(interval).unwrap_or(now);
     if now >= next_frame {
         TimedFrameCadence::DrainNow {
-            next_wake: now + interval,
+            due_at: next_frame,
+            next_wake: now.checked_add(interval).unwrap_or(now),
         }
     } else {
         TimedFrameCadence::WaitUntil(next_frame)
@@ -96,7 +97,23 @@ mod tests {
         assert_eq!(
             timed_frame_cadence(now, last_redraw, 120, true),
             TimedFrameCadence::DrainNow {
+                due_at: last_redraw + interval,
                 next_wake: now + interval
+            }
+        );
+    }
+
+    #[test]
+    fn timed_frame_cadence_preserves_the_original_due_boundary_after_a_late_wake() {
+        let last_redraw = Instant::now();
+        let interval = animation_frame_interval(60);
+        let now = last_redraw + interval + Duration::from_millis(7);
+
+        assert_eq!(
+            timed_frame_cadence(now, last_redraw, 60, true),
+            TimedFrameCadence::DrainNow {
+                due_at: last_redraw + interval,
+                next_wake: now + interval,
             }
         );
     }

@@ -27,6 +27,7 @@ mod auxiliary;
 mod closing;
 mod composited_base;
 mod core;
+mod cpu_frame_fairness;
 mod cpu_frame_observation;
 mod device;
 mod event_routing;
@@ -80,9 +81,10 @@ use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, PaintPlanCacheDecision, PointerPressStamp,
 };
+use cpu_frame_fairness::assess_cpu_frame_fairness;
 use cpu_frame_observation::{
     CpuFrameDuration, CpuFrameObservationAdmission, CpuFrameObservationCapture,
-    CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFrameStage,
+    CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge, CpuFrameStage,
 };
 use frame_cadence::{
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,

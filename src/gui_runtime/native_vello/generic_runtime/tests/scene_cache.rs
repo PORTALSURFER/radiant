@@ -1335,7 +1335,7 @@ fn scene_artifact_store_rejects_invalid_input_and_clears_stale_artifacts() {
 }
 
 #[test]
-fn scene_artifact_store_clears_after_target_generation_transition() {
+fn scene_artifact_store_clears_after_dpi_change_without_unbound_target_promotion() {
     let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -1370,7 +1370,7 @@ fn scene_artifact_store_clears_after_target_generation_transition() {
 
     runner.update_native_dpi_scale(2.0);
 
-    assert_ne!(runner.window.target_generation, previous_target_generation);
+    assert_eq!(runner.window.target_generation, previous_target_generation);
     assert!(
         runner
             .frame

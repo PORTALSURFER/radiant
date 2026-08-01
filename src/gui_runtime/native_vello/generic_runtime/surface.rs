@@ -413,8 +413,11 @@ where
             return false;
         }
         self.window.dpi_scale = next;
-        if self.window.target_generation.advance() {
-            self.window.native_surface_target_fenced = false;
+        if self.window.native_resources.is_some()
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+        {
+            self.window.target_generation.advance();
         }
         self.window.surface_recovery.rearm_transient_retry();
         self.frame.clear_native_paint_segment_artifacts();

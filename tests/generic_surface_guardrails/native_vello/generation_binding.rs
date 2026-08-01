@@ -679,6 +679,38 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
             && runner.contains("handle_device_recovery_ready"),
         "the event loop should admit only the private recovery completion event"
     );
+    let ready_handler = runner
+        .find("pub(super) fn handle_device_recovery_ready")
+        .expect("device-recovery-ready handler should remain explicit");
+    let ready_handler_end = runner[ready_handler..]
+        .find("\n    fn commit_device_recovery_candidate")
+        .map_or(runner.len(), |offset| ready_handler + offset);
+    let ready_handler_source = &runner[ready_handler..ready_handler_end];
+    let expiry_check = ready_handler_source
+        .find("self.recovery_expired(Instant::now())")
+        .expect("recovery-ready admission should check the fixed deadline");
+    let expiry_guard_source = &ready_handler_source[expiry_check..];
+    let acknowledge = expiry_guard_source
+        .find("self.recovery.acknowledge(episode)")
+        .expect("an overdue matching recovery episode should be acknowledged");
+    let shutdown = expiry_guard_source
+        .find("self.admit_native_shutdown(event_loop, None);")
+        .expect("an overdue matching recovery episode should enter central shutdown");
+    let take_ready = expiry_guard_source
+        .find("self.recovery.take_ready(episode)")
+        .expect("normal recovery completion should still take a ready candidate");
+    let candidate_commit = expiry_guard_source
+        .find("self.commit_device_recovery_candidate(candidate)")
+        .expect("normal recovery completion should still commit the candidate");
+    assert!(
+        ready_handler_source.contains("recovery_completion_is_admissible")
+            && ready_handler_source.contains("if self.recovery.acknowledge(episode)")
+            && acknowledge < shutdown
+            && shutdown < take_ready
+            && take_ready < candidate_commit
+            && expiry_guard_source.contains("return;"),
+        "overdue recovery completion must be acknowledged and shut down before candidate extraction or publication"
+    );
     assert!(
         auxiliary.contains("recovery_rebuild_pending")
             && auxiliary.contains("recovery_opportunity")

@@ -385,8 +385,8 @@ impl NativeRecoveryCoordinator {
     ) {
         assert!(self.episode.is_none());
         assert!(self.tracker.admit());
-        let token = NativeRecoveryEpisodeToken::next(&mut self.next_serial)
-            .expect("test recovery episode token should be available");
+        self.next_serial = self.next_serial.saturating_add(1);
+        let token = NativeRecoveryEpisodeToken::from_test_serial(self.next_serial);
         let (sender, result) = sync_channel(1);
         let cancellation = Arc::new(RecoveryWorkerWake::new());
         self.episode = Some(NativeRecoveryEpisode {

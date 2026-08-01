@@ -71,6 +71,10 @@ pub(super) struct AppliedRouteOutcome {
     pub(super) sync_auxiliary_windows_now: bool,
 }
 
+const fn recovery_completion_is_admissible(recovery_expired: bool) -> bool {
+    !recovery_expired
+}
+
 /// One-shot admission for materializing artifacts from one completed scene encode.
 ///
 /// The runner is the only production owner that can construct this token. Its
@@ -500,6 +504,12 @@ where
     ) {
         if !self.is_recovering() {
             let _ = self.recovery.acknowledge(episode);
+            return;
+        }
+        if !recovery_completion_is_admissible(self.recovery_expired(Instant::now())) {
+            if self.recovery.acknowledge(episode) {
+                self.admit_native_shutdown(event_loop, None);
+            }
             return;
         }
         let Some(result) = self.recovery.take_ready(episode) else {
@@ -1358,7 +1368,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{GenericNativeVelloRunner, NativeLifecycle};
+    use super::{GenericNativeVelloRunner, NativeLifecycle, recovery_completion_is_admissible};
     use crate::{
         application::empty,
         gui::types::Vector2,
@@ -1414,6 +1424,12 @@ mod tests {
         runner.finish_device_recovery();
         assert!(runner.is_running());
         assert!(!runner.has_terminal_cause());
+    }
+
+    #[test]
+    fn overdue_recovery_completion_is_not_admissible() {
+        assert!(!recovery_completion_is_admissible(true));
+        assert!(recovery_completion_is_admissible(false));
     }
 
     #[test]

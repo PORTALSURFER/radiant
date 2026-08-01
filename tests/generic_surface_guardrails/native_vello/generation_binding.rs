@@ -458,3 +458,124 @@ fn destructive_auxiliary_close_is_retiring_and_projection_vetoed() {
         );
     }
 }
+
+#[test]
+fn native_whole_run_closing_is_central_bounded_and_nonblocking() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let generic_runtime =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic runtime source should be readable");
+    let closing = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/closing.rs"),
+    )
+    .expect("native closing policy source should be readable");
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic lifecycle source should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("generic runner source should be readable");
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("generic auxiliary source should be readable");
+    let surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
+    )
+    .expect("generic surface source should be readable");
+    let sources = [
+        &generic_runtime,
+        &closing,
+        &lifecycle,
+        &runner,
+        &auxiliary,
+        &surface,
+    ];
+
+    for required in [
+        "mod closing;",
+        "NativeLifecycle",
+        "Running",
+        "Closing",
+        "Stopped",
+        "NATIVE_CLOSING_MAX_MAINTENANCE_OPPORTUNITIES",
+        "NATIVE_CLOSING_MAX_DURATION",
+        "observe_closing_opportunity",
+    ] {
+        assert!(
+            closing.contains(required) || generic_runtime.contains(required),
+            "native closing should retain `{required}`"
+        );
+    }
+    assert!(
+        runner.contains("pub(super) fn admit_native_shutdown")
+            && runner.contains("self.core.runtime.begin_closing()")
+            && runner.contains("window.begin_whole_run_retiring(event_loop)")
+            && runner.contains("self.fence_native_presentation()"),
+        "all whole-run terminal paths should converge on one admission fence"
+    );
+    assert!(
+        lifecycle.contains("if self.is_closing()")
+            && lifecycle.contains("self.advance_native_closing(event_loop, Instant::now())")
+            && lifecycle.contains("ControlFlow::WaitUntil"),
+        "closing should continue only through bounded maintenance wakeups"
+    );
+    let closing_schedule = runner.find("fn schedule_native_closing").and_then(|start| {
+        runner[start..]
+            .find("\n    }")
+            .map(|end| &runner[start..start + end])
+    });
+    assert!(
+        closing_schedule.is_some_and(|schedule| {
+            schedule.contains("ControlFlow::WaitUntil") && !schedule.contains("ControlFlow::Poll")
+        }) && !closing.contains("ControlFlow::Poll"),
+        "closing policy must not select a polling control flow"
+    );
+    assert!(
+        runner.contains("NativeResourceMaintenanceTurn::new()")
+            && runner.contains("retire_all_native_resources_with_turn")
+            && runner
+                .contains("retain_mut(|window| !window.maintain_native_resources_with_turn(turn))")
+            && runner.contains("self.auxiliary_windows.is_empty()"),
+        "primary and auxiliary retirement should share one turn and retain unresolved ownership"
+    );
+    assert!(
+        surface.contains("pub(super) fn fence_native_presentation")
+            && runner.contains("if !self.is_running()")
+            && lifecycle.contains("RuntimeUserEvent::NativeResourceMaintenanceRequested"),
+        "presentation and normal native admission should be fenced while completion wakes remain allowed"
+    );
+    let whole_run_retirement = auxiliary
+        .find("pub(super) fn begin_whole_run_retiring")
+        .expect("auxiliary whole-run retirement should be explicit");
+    let whole_run_retirement_end = auxiliary[whole_run_retirement..]
+        .find("\n    fn handle_close_requested")
+        .map_or(auxiliary.len(), |offset| whole_run_retirement + offset);
+    assert!(
+        !auxiliary[whole_run_retirement..whole_run_retirement_end].contains("close_message.take()"),
+        "whole-run auxiliary retirement must not dispatch configured close messages"
+    );
+    assert_eq!(
+        sources
+            .iter()
+            .map(|source| source.matches("event_loop.exit()").count())
+            .sum::<usize>(),
+        1,
+        "native event-loop exit should remain inside the central shutdown stop helper"
+    );
+    for forbidden in [
+        "PollType::Wait",
+        "std::thread::sleep",
+        "thread::sleep",
+        ".join(",
+        "spin_loop",
+        "auxiliary_windows.clear()",
+    ] {
+        assert!(
+            !sources.iter().any(|source| source.contains(forbidden)),
+            "native closing must not use `{forbidden}`"
+        );
+    }
+}

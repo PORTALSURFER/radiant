@@ -4,13 +4,13 @@ use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
     GenericNativeRuntimeCore, GenericRouteOutcome, NativeAdapterGeneration,
-    NativeAutomationTargetExporter, NativeGenericRunError, NativeRenderDeviceErrorKind,
-    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    NativeAutomationTargetExporter, NativeClosingProgress, NativeGenericRunError, NativeLifecycle,
+    NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn, NativeRunnerInputState,
+    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState,
+    PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use super::{
     frame_state::NativeSceneValidityFingerprint,
@@ -30,7 +30,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 use vello::Scene;
-use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
 where
@@ -52,6 +52,8 @@ where
     pub(super) frame_diagnostics_enabled: bool,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
+    native_lifecycle: NativeLifecycle,
+    auxiliary_owner: bool,
     terminal_cause: Option<NativeGenericRunError>,
 }
 
@@ -159,8 +161,26 @@ where
             frame_diagnostics_enabled,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
+            native_lifecycle: NativeLifecycle::default(),
+            auxiliary_owner: false,
             terminal_cause: None,
         }
+    }
+
+    pub(super) fn mark_as_auxiliary(&mut self) {
+        self.auxiliary_owner = true;
+    }
+
+    pub(super) const fn is_running(&self) -> bool {
+        self.native_lifecycle.is_running()
+    }
+
+    pub(super) const fn is_closing(&self) -> bool {
+        self.native_lifecycle.is_closing()
+    }
+
+    pub(super) const fn native_shutdown_requested(&self) -> bool {
+        !self.native_lifecycle.is_running()
     }
 
     pub(super) fn record_terminal_cause(&mut self, cause: NativeGenericRunError) -> bool {
@@ -176,7 +196,84 @@ where
     }
 
     pub(super) fn should_initialize_runtime(&self) -> bool {
-        self.window.window.is_none() && !self.has_terminal_cause()
+        self.is_running() && self.window.window.is_none() && !self.has_terminal_cause()
+    }
+
+    pub(super) fn admit_native_shutdown(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: Option<NativeGenericRunError>,
+    ) {
+        if !self.is_running() {
+            return;
+        }
+        let now = Instant::now();
+        if !self.native_lifecycle.admit_closing(now) {
+            return;
+        }
+        if let Some(cause) = cause
+            && self.record_terminal_cause(cause.clone())
+        {
+            error!(
+                error = %cause,
+                "radiant generic native vello: native shutdown admitted after terminal failure"
+            );
+        }
+        let _ = self.core.runtime.begin_closing();
+        self.fence_native_presentation();
+        self.application_reopen_events.take();
+        self.application_reopen_proxy.take();
+        self.runtime_wakeup.clear_pending();
+        for window in &mut self.auxiliary_windows {
+            window.begin_whole_run_retiring(event_loop);
+        }
+        if self.native_resource_ownership_is_empty() {
+            self.stop_native_event_loop(event_loop);
+        } else {
+            self.schedule_native_closing(event_loop, now);
+        }
+    }
+
+    pub(super) fn advance_native_closing(&mut self, event_loop: &ActiveEventLoop, now: Instant) {
+        if !self.is_closing() {
+            return;
+        }
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        let native_ownership_empty = self.retire_all_native_resources_with_turn(&mut turn);
+        let Some(progress) = self
+            .native_lifecycle
+            .observe_closing_opportunity(now, native_ownership_empty)
+        else {
+            return;
+        };
+        match progress {
+            NativeClosingProgress::Complete | NativeClosingProgress::Cutoff => {
+                self.stop_native_event_loop(event_loop);
+            }
+            NativeClosingProgress::Continue => self.schedule_native_closing(event_loop, now),
+        }
+    }
+
+    fn schedule_native_closing(&self, event_loop: &ActiveEventLoop, now: Instant) {
+        if let Some(deadline) = self.native_lifecycle.closing_deadline(now) {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+        }
+    }
+
+    fn stop_native_event_loop(&mut self, event_loop: &ActiveEventLoop) {
+        let _ = self.native_lifecycle.finish_closing();
+        if !self.auxiliary_owner {
+            event_loop.exit();
+        }
+    }
+
+    pub(super) fn native_resource_ownership_is_empty(&self) -> bool {
+        self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty()
+            && self
+                .auxiliary_windows
+                .iter()
+                .all(AuxiliaryNativeWindow::native_resource_ownership_is_empty)
     }
 
     pub(super) fn begin_native_resource_maintenance(&mut self) -> NativeResourceMaintenanceTurn {
@@ -217,6 +314,20 @@ where
         self.window.retire_native_resources(turn)
     }
 
+    pub(super) fn retire_all_native_resources_with_turn(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        let primary_empty = self.retire_native_resources_with_turn(turn);
+        let auxiliary_count = self.auxiliary_windows.len();
+        self.auxiliary_windows
+            .retain_mut(|window| !window.maintain_native_resources_with_turn(turn));
+        if self.auxiliary_windows.len() != auxiliary_count {
+            self.timing.deferred_auxiliary_window_sync = true;
+        }
+        primary_empty && self.auxiliary_windows.is_empty()
+    }
+
     pub(super) fn record_successful_native_submission(&mut self) {
         if let Some(resources) = self.window.native_resources.as_mut() {
             resources.record_successful_native_submission();
@@ -224,7 +335,7 @@ where
     }
 
     pub(super) fn should_admit_auxiliary_sync(&self) -> bool {
-        !self.has_terminal_cause()
+        self.is_running() && !self.has_terminal_cause()
     }
 
     pub(super) fn handle_device_lost_event(
@@ -234,6 +345,9 @@ where
         registration: Arc<DeviceLossRegistration>,
         message: String,
     ) {
+        if !self.is_running() {
+            return;
+        }
         if !self.device_loss_event_is_current(generation, &registration) {
             return;
         }
@@ -249,6 +363,9 @@ where
         kind: NativeRenderDeviceErrorKind,
         message: String,
     ) {
+        if !self.is_running() {
+            return;
+        }
         if !self.device_loss_event_is_current(generation, &registration) {
             return;
         }
@@ -271,10 +388,7 @@ where
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
     ) {
-        if self.record_terminal_cause(cause.clone()) {
-            error!(error = %cause, "radiant generic native vello: initialization failed");
-            event_loop.exit();
-        }
+        self.admit_native_shutdown(event_loop, Some(cause));
     }
 
     pub(super) fn record_frame_render_error_and_exit(
@@ -282,10 +396,7 @@ where
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
     ) {
-        if self.record_terminal_cause(cause.clone()) {
-            error!(error = %cause, "radiant generic native vello: frame rendering failed");
-            event_loop.exit();
-        }
+        self.admit_native_shutdown(event_loop, Some(cause));
     }
 
     pub(super) fn record_render_device_lost_and_exit(
@@ -293,10 +404,7 @@ where
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
     ) {
-        if self.record_terminal_cause(cause.clone()) {
-            error!(error = %cause, "radiant generic native vello: render device lost");
-            event_loop.exit();
-        }
+        self.admit_native_shutdown(event_loop, Some(cause));
     }
 
     pub(super) fn record_render_device_error_and_exit(
@@ -304,10 +412,7 @@ where
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
     ) {
-        if self.record_terminal_cause(cause.clone()) {
-            error!(error = %cause, "radiant generic native vello: render device error");
-            event_loop.exit();
-        }
+        self.admit_native_shutdown(event_loop, Some(cause));
     }
 
     pub(super) fn record_auxiliary_terminal_cause_and_exit(
@@ -315,10 +420,7 @@ where
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
     ) {
-        if self.record_terminal_cause(cause.clone()) {
-            error!(error = %cause, "radiant generic native vello: auxiliary runtime failed");
-            event_loop.exit();
-        }
+        self.admit_native_shutdown(event_loop, Some(cause));
     }
 
     pub(super) fn take_terminal_cause(&mut self) -> Option<NativeGenericRunError> {
@@ -343,6 +445,9 @@ where
     }
 
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
+        if !self.is_running() {
+            return;
+        }
         self.record_frame_work(frame_work);
         if self.window.native_resources.is_none() {
             return;
@@ -448,12 +553,18 @@ where
         animation_activity: RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
     ) -> GenericRouteOutcome {
+        if !self.is_running() {
+            return GenericRouteOutcome::default();
+        }
         self.timing.last_timed_frame_drain = now;
         self.core
             .drain_timed_frame(animation_activity, needs_text_caret_animation)
     }
 
     pub(super) fn merge_due_timed_frame_for_route(&mut self, outcome: &mut GenericRouteOutcome) {
+        if !self.is_running() {
+            return;
+        }
         let now = Instant::now();
         let native_target_fps = self.options.normalized_target_fps();
         let native_frame_interval = animation_frame_interval_for_normalized_fps(native_target_fps);
@@ -490,6 +601,9 @@ where
     }
 
     pub(super) fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
+        if !self.is_running() {
+            return;
+        }
         if self.core.runtime.interactive_pointer_route_active() {
             return;
         }
@@ -888,10 +1002,13 @@ where
         outcome: GenericRouteOutcome,
         adapter: Option<&mut GenericNativeAdapterOwner>,
     ) {
+        if !self.is_running() {
+            return;
+        }
         let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
         let applied = self.apply_route_outcome(outcome);
         if applied.exit_requested {
-            event_loop.exit();
+            self.admit_native_shutdown(event_loop, None);
             return;
         }
         if applied.sync_auxiliary_windows_now
@@ -931,13 +1048,16 @@ where
         &mut self,
         mut outcome: GenericRouteOutcome,
     ) -> AppliedRouteOutcome {
-        self.merge_due_timed_frame_for_route(&mut outcome);
+        if !self.is_running() {
+            return AppliedRouteOutcome::default();
+        }
         if outcome.exit_requested {
             return AppliedRouteOutcome {
                 exit_requested: true,
                 sync_auxiliary_windows_now: false,
             };
         }
+        self.merge_due_timed_frame_for_route(&mut outcome);
         if let Some(scale) = outcome.dpi_scale_override {
             self.set_dpi_scale_override(scale);
         }
@@ -994,5 +1114,62 @@ where
             exit_requested: false,
             sync_auxiliary_windows_now,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GenericNativeVelloRunner, NativeLifecycle};
+    use crate::{
+        application::empty,
+        gui::types::Vector2,
+        gui_runtime::NativeRunOptions,
+        prelude::IntoView,
+        runtime::{RuntimeBridge, UiSurface},
+    };
+    use std::{sync::Arc, time::Instant};
+
+    struct EmptyBridge;
+
+    impl RuntimeBridge<()> for EmptyBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+    }
+
+    fn runner() -> GenericNativeVelloRunner<EmptyBridge, ()> {
+        GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            EmptyBridge,
+            Vector2::new(320.0, 240.0),
+        )
+    }
+
+    #[test]
+    fn native_closing_fences_runner_admission_predicates() {
+        let mut runner = runner();
+        assert!(runner.is_running());
+        assert!(runner.should_initialize_runtime());
+        assert!(runner.should_admit_auxiliary_sync());
+
+        assert!(runner.native_lifecycle.admit_closing(Instant::now()));
+
+        assert!(!runner.is_running());
+        assert!(runner.is_closing());
+        assert!(!runner.should_initialize_runtime());
+        assert!(!runner.should_admit_auxiliary_sync());
+        assert!(runner.native_shutdown_requested());
+    }
+
+    #[test]
+    fn stopped_runner_cannot_resume_normal_admission() {
+        let mut runner = runner();
+        assert!(runner.native_lifecycle.admit_closing(Instant::now()));
+        assert!(runner.native_lifecycle.finish_closing());
+        assert!(!runner.is_running());
+        assert!(!runner.is_closing());
+        assert!(runner.native_shutdown_requested());
+        assert!(!runner.native_lifecycle.admit_closing(Instant::now()));
+        assert!(matches!(runner.native_lifecycle, NativeLifecycle::Stopped));
     }
 }

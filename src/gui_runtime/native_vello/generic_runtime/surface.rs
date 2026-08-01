@@ -50,6 +50,9 @@ where
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
         maintenance: &mut NativeResourceMaintenanceTurn,
     ) -> Result<(), NativeGenericRunError> {
+        if !self.is_running() {
+            return Ok(());
+        }
         let mut adapter = GenericNativeAdapterOwner::new(&self.options);
         self.initialize_window_runtime(event_loop, event_proxy.clone(), &mut adapter, true)?;
         self.adapter = Some(adapter);
@@ -75,6 +78,9 @@ where
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
         adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeGenericRunError> {
+        if !self.is_running() {
+            return Ok(());
+        }
         self.initialize_window_runtime(event_loop, event_proxy, adapter, false)
     }
 
@@ -247,6 +253,9 @@ where
     }
 
     pub(super) fn resize_surface(&mut self, size: PhysicalSize<u32>) {
+        if !self.is_running() {
+            return;
+        }
         if size.width == 0 || size.height == 0 {
             return;
         }
@@ -537,10 +546,25 @@ where
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 error!("radiant generic native vello: out of memory acquiring surface");
-                self.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory);
-                event_loop.exit();
+                self.admit_native_shutdown(
+                    event_loop,
+                    Some(NativeGenericRunError::SurfaceAcquireOutOfMemory),
+                );
                 None
             }
+        }
+    }
+
+    pub(super) fn fence_native_presentation(&mut self) {
+        self.timing.redraw_requested = false;
+        self.timing.redraw_requested_at = None;
+        self.timing.pending_surface_resize = None;
+        self.timing.pending_surface_resize_reason = None;
+        self.timing.pending_viewport_resize = None;
+        self.timing.pending_viewport_resize_reason = None;
+        self.fence_native_surface_target();
+        if let Some(window) = self.window.window.as_ref() {
+            window.set_visible(false);
         }
     }
 
@@ -548,6 +572,9 @@ where
     /// generation. A mismatch is fenced once and moved out of the active
     /// path; no native work or redraw retry is requested.
     pub(super) fn admit_native_resources(&mut self, adapter: &GenericNativeAdapterOwner) -> bool {
+        if !self.is_running() {
+            return false;
+        }
         let Some(generation) = self
             .window
             .native_resources

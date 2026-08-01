@@ -26,6 +26,9 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.is_running() {
+            return;
+        }
         if self.should_initialize_runtime() {
             let mut maintenance = self.begin_native_resource_maintenance();
             self.install_application_reopen_handler_if_needed();
@@ -51,6 +54,9 @@ where
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        if !self.is_running() {
+            return;
+        }
         if Some(window_id) != self.window.id {
             let Some(index) = self
                 .auxiliary_windows
@@ -72,7 +78,12 @@ where
             let AuxiliaryWindowEventResult {
                 messages,
                 terminal_cause,
+                shutdown_requested,
             } = self.auxiliary_windows[index].route_window_event(event_loop, event, adapter);
+            if shutdown_requested {
+                self.admit_native_shutdown(event_loop, terminal_cause);
+                return;
+            }
             if let Some(error) = terminal_cause {
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
@@ -84,8 +95,7 @@ where
         }
         match event {
             WindowEvent::CloseRequested if self.core.runtime.host_close_requested() => {
-                self.core.runtime.begin_closing();
-                event_loop.exit();
+                self.admit_native_shutdown(event_loop, None);
             }
             WindowEvent::CloseRequested => {}
             WindowEvent::Resized(size) => self.resize_surface(size),
@@ -175,14 +185,24 @@ where
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
             RuntimeUserEvent::RepaintRequested => {
+                if !self.is_running() {
+                    self.runtime_wakeup.clear_pending();
+                    return;
+                }
                 self.runtime_wakeup.clear_pending();
                 let outcome = self.core.drain_runtime_messages();
                 self.handle_route_outcome(event_loop, outcome);
             }
-            RuntimeUserEvent::OpenFiles(paths) => self.handle_native_file_open(event_loop, paths),
+            RuntimeUserEvent::OpenFiles(paths) => {
+                if self.is_running() {
+                    self.handle_native_file_open(event_loop, paths);
+                }
+            }
             RuntimeUserEvent::ApplicationReopenRequested => {
-                self.handle_application_reopen_intent();
-                self.observe_pending_window_activation();
+                if self.is_running() {
+                    self.handle_application_reopen_intent();
+                    self.observe_pending_window_activation();
+                }
             }
             RuntimeUserEvent::DeviceLost {
                 registration,
@@ -202,20 +222,33 @@ where
                 message,
             ),
             RuntimeUserEvent::NativeResourceMaintenanceRequested => {
-                let _ = self.begin_native_resource_maintenance_and_wake_primary();
+                if self.is_closing() {
+                    self.advance_native_closing(event_loop, Instant::now());
+                } else if self.is_running() {
+                    let _ = self.begin_native_resource_maintenance_and_wake_primary();
+                }
             }
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
-                let snapshot = super::accessibility::current_snapshot();
-                self.queue_accessibility_display_snapshot(snapshot);
-                for window in &mut self.auxiliary_windows {
-                    window.queue_accessibility_display_snapshot(snapshot);
+                if self.is_running() {
+                    let snapshot = super::accessibility::current_snapshot();
+                    self.queue_accessibility_display_snapshot(snapshot);
+                    for window in &mut self.auxiliary_windows {
+                        window.queue_accessibility_display_snapshot(snapshot);
+                    }
                 }
             }
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.is_closing() {
+            self.advance_native_closing(event_loop, Instant::now());
+            return;
+        }
+        if !self.is_running() {
+            return;
+        }
         let maintenance_pending = self
             .begin_native_resource_maintenance_and_wake_primary()
             .has_pending();
@@ -303,7 +336,7 @@ where
                 let outcome =
                     self.drain_timed_frame_now(now, animation_activity, needs_text_caret_animation);
                 if outcome.exit_requested {
-                    event_loop.exit();
+                    self.admit_native_shutdown(event_loop, None);
                     return;
                 }
                 self.handle_route_outcome(event_loop, outcome);

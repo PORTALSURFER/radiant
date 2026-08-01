@@ -25,7 +25,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.window.is_none() && !self.has_terminal_cause() {
+        if self.should_initialize_runtime() {
             self.install_application_reopen_handler_if_needed();
             if let Err(error) = self.initialize_runtime(event_loop) {
                 self.record_initialization_error_and_exit(event_loop, error);

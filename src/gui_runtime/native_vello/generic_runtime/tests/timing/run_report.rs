@@ -99,16 +99,18 @@ fn initialization_terminal_cause_preserves_first_failure_over_later_causes() {
 }
 
 #[test]
-fn terminal_cause_query_blocks_later_initialization_work() {
+fn terminal_cause_admission_predicates_block_later_initialization_work() {
     let mut runner = make_runner();
-    assert!(!runner.has_terminal_cause());
+    assert!(runner.should_initialize_runtime());
+    assert!(runner.should_admit_auxiliary_sync());
 
     runner.record_terminal_cause(NativeGenericRunError::NativeInitialization {
         stage: NativeInitializationStage::RendererCreation,
         message: String::from("renderer rejected device"),
     });
 
-    assert!(runner.has_terminal_cause());
+    assert!(!runner.should_initialize_runtime());
+    assert!(!runner.should_admit_auxiliary_sync());
 }
 
 #[test]

@@ -168,6 +168,14 @@ where
         self.terminal_cause.is_some()
     }
 
+    pub(super) fn should_initialize_runtime(&self) -> bool {
+        self.window.window.is_none() && !self.has_terminal_cause()
+    }
+
+    pub(super) fn should_admit_auxiliary_sync(&self) -> bool {
+        !self.has_terminal_cause()
+    }
+
     pub(super) fn record_initialization_error_and_exit(
         &mut self,
         event_loop: &ActiveEventLoop,

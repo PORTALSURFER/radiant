@@ -197,7 +197,7 @@ where
         event_loop: &ActiveEventLoop,
         messages: Vec<Message>,
     ) {
-        if self.has_terminal_cause() {
+        if !self.should_admit_auxiliary_sync() {
             return;
         }
         let mut outcome = GenericRouteOutcome::default();
@@ -206,7 +206,7 @@ where
             outcome.merge(self.core.route_command_outcome(command_outcome));
         }
         self.handle_route_outcome(event_loop, outcome);
-        if self.has_terminal_cause() {
+        if !self.should_admit_auxiliary_sync() {
             return;
         }
         let _ = self.sync_auxiliary_windows(event_loop);
@@ -217,7 +217,7 @@ where
         event_loop: &ActiveEventLoop,
     ) -> Result<(), NativeGenericRunError> {
         self.timing.deferred_auxiliary_window_sync = false;
-        if self.has_terminal_cause() {
+        if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
         let projections = self.core.runtime.host_project_auxiliary_windows();
@@ -260,7 +260,7 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
     ) {
-        if self.timing.deferred_auxiliary_window_sync && !self.has_terminal_cause() {
+        if self.timing.deferred_auxiliary_window_sync && self.should_admit_auxiliary_sync() {
             let _ = self.sync_auxiliary_windows(event_loop);
         }
     }

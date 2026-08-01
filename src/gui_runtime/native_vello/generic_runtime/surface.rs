@@ -416,3 +416,33 @@ where
         self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{NativeGenericRunError, NativeInitializationStage, native_initialization_error};
+
+    #[test]
+    fn native_initialization_error_maps_each_production_stage_with_owned_message() {
+        let stages = [
+            NativeInitializationStage::WindowCreation,
+            NativeInitializationStage::WgpuSurfaceCreation,
+            NativeInitializationStage::DeviceAcquisition,
+            NativeInitializationStage::RenderSurfaceCreation,
+            NativeInitializationStage::RendererCreation,
+        ];
+
+        for stage in stages {
+            let detail = String::from("backend detail");
+            let error = native_initialization_error(stage, detail.as_str());
+            drop(detail);
+
+            assert_eq!(
+                error,
+                NativeGenericRunError::NativeInitialization {
+                    stage,
+                    message: String::from("backend detail"),
+                }
+            );
+        }
+    }
+}

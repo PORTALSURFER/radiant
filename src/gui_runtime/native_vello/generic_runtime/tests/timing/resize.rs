@@ -49,6 +49,10 @@ fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
         SurfaceAcquirePolicy::Terminal
     );
     assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Timeout, nonzero),
+        SurfaceAcquirePolicy::Timeout
+    );
+    assert_eq!(
         surface_acquire_policy(wgpu::SurfaceError::Other, nonzero),
         SurfaceAcquirePolicy::ConservativeFence
     );

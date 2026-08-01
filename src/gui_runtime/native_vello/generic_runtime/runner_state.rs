@@ -28,6 +28,7 @@ use winit::{
 pub(super) enum SurfaceAcquirePolicy {
     ReconfigureAndRetry,
     Defer,
+    Timeout,
     Terminal,
     ConservativeFence,
 }
@@ -43,18 +44,37 @@ pub(super) const fn surface_acquire_policy(
             SurfaceAcquirePolicy::ReconfigureAndRetry
         }
         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => SurfaceAcquirePolicy::Defer,
+        wgpu::SurfaceError::Timeout => SurfaceAcquirePolicy::Timeout,
         wgpu::SurfaceError::OutOfMemory => SurfaceAcquirePolicy::Terminal,
         _ => SurfaceAcquirePolicy::ConservativeFence,
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NativeSurfaceRecoveryState {
     lost: u64,
     outdated: u64,
+    timeouts: u64,
     completed_reconfigures: u64,
     zero_size_deferrals: u64,
     retry_requests: u64,
+    timeout_retry_requests: u64,
+    timeout_retry_armed: bool,
+}
+
+impl Default for NativeSurfaceRecoveryState {
+    fn default() -> Self {
+        Self {
+            lost: 0,
+            outdated: 0,
+            timeouts: 0,
+            completed_reconfigures: 0,
+            zero_size_deferrals: 0,
+            retry_requests: 0,
+            timeout_retry_requests: 0,
+            timeout_retry_armed: true,
+        }
+    }
 }
 
 impl NativeSurfaceRecoveryState {
@@ -65,6 +85,9 @@ impl NativeSurfaceRecoveryState {
             }
             wgpu::SurfaceError::Outdated => {
                 self.outdated = self.outdated.saturating_add(1);
+            }
+            wgpu::SurfaceError::Timeout => {
+                self.timeouts = self.timeouts.saturating_add(1);
             }
             _ => {}
         }
@@ -82,13 +105,29 @@ impl NativeSurfaceRecoveryState {
         self.retry_requests = self.retry_requests.saturating_add(1);
     }
 
+    pub(super) fn record_timeout_retry_request(&mut self, retry_allowed: bool) -> bool {
+        let should_retry = retry_allowed && self.timeout_retry_armed;
+        self.timeout_retry_armed = false;
+        if !should_retry {
+            return false;
+        }
+        self.timeout_retry_requests = self.timeout_retry_requests.saturating_add(1);
+        true
+    }
+
+    pub(super) fn rearm_timeout_retry(&mut self) {
+        self.timeout_retry_armed = true;
+    }
+
     pub(super) const fn diagnostics(self) -> crate::runtime::NativeSurfaceRecoveryDiagnostics {
         crate::runtime::NativeSurfaceRecoveryDiagnostics {
             lost: self.lost,
             outdated: self.outdated,
+            timeouts: self.timeouts,
             completed_reconfigures: self.completed_reconfigures,
             zero_size_deferrals: self.zero_size_deferrals,
             retry_requests: self.retry_requests,
+            timeout_retry_requests: self.timeout_retry_requests,
         }
     }
 }
@@ -299,41 +338,88 @@ mod tests {
         let mut state = NativeSurfaceRecoveryState::default();
         state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
         state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
         state.record_completed_reconfigure();
         state.record_zero_size_deferral();
         state.record_retry_request();
+        assert!(state.record_timeout_retry_request(true));
 
         assert_eq!(
             state.diagnostics(),
             NativeSurfaceRecoveryDiagnostics {
                 lost: 1,
                 outdated: 1,
+                timeouts: 1,
                 completed_reconfigures: 1,
                 zero_size_deferrals: 1,
                 retry_requests: 1,
+                timeout_retry_requests: 1,
             }
         );
 
         state.lost = u64::MAX;
         state.outdated = u64::MAX;
+        state.timeouts = u64::MAX;
         state.completed_reconfigures = u64::MAX;
         state.zero_size_deferrals = u64::MAX;
         state.retry_requests = u64::MAX;
+        state.timeout_retry_requests = u64::MAX;
         state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
         state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
         state.record_completed_reconfigure();
         state.record_zero_size_deferral();
         state.record_retry_request();
+        state.rearm_timeout_retry();
+        assert!(state.record_timeout_retry_request(true));
 
         assert_eq!(
             NativeSurfaceRecoveryDiagnostics::from(state),
             NativeSurfaceRecoveryDiagnostics {
                 lost: u64::MAX,
                 outdated: u64::MAX,
+                timeouts: u64::MAX,
                 completed_reconfigures: u64::MAX,
                 zero_size_deferrals: u64::MAX,
                 retry_requests: u64::MAX,
+                timeout_retry_requests: u64::MAX,
             }
         );
+    }
+
+    #[test]
+    fn consecutive_timeout_retry_is_one_shot_until_success_or_target_transition() {
+        let mut state = NativeSurfaceRecoveryState::default();
+
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(state.record_timeout_retry_request(true));
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(!state.record_timeout_retry_request(true));
+
+        // A successful acquisition rearms the next consecutive sequence.
+        state.rearm_timeout_retry();
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(state.record_timeout_retry_request(true));
+        assert!(!state.record_timeout_retry_request(true));
+
+        // Rearming is idempotent, so an authoritative transition grants only
+        // one later retry even if another transition notification is repeated.
+        state.rearm_timeout_retry();
+        state.rearm_timeout_retry();
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(state.record_timeout_retry_request(true));
+        assert!(!state.record_timeout_retry_request(true));
+
+        // A minimized window consumes the sequence permit without scheduling
+        // a retry; only a later success or target transition can rearm it.
+        state.rearm_timeout_retry();
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(!state.record_timeout_retry_request(false));
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        assert!(!state.record_timeout_retry_request(true));
+
+        let diagnostics = state.diagnostics();
+        assert_eq!(diagnostics.timeouts, 6);
+        assert_eq!(diagnostics.timeout_retry_requests, 3);
     }
 }

@@ -20,7 +20,8 @@ use super::{
     },
     scene::{
         NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
-        NativePaintSegmentAssemblyResult, NativePaintSegmentAssemblyVetoReason,
+        NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyInput,
+        NativePaintSegmentAssemblyVetoReason,
     },
 };
 use crate::runtime::BasePaintPlanContext;
@@ -36,6 +37,8 @@ use crate::{
 use vello::Scene;
 use vello::kurbo::Affine;
 
+#[cfg(test)]
+use super::scene::NativePaintSegmentAssemblyResult;
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
 
@@ -100,6 +103,10 @@ pub(super) struct NativeVelloFrameState {
     pub(super) scene_reuse_count: u64,
     pub(super) scene_assembly_count: u64,
     pub(super) scene_assembly_veto_count: u64,
+    pub(super) scene_mixed_assembly_count: u64,
+    pub(super) scene_assembly_fresh_count: u64,
+    pub(super) scene_assembly_reused_count: u64,
+    pub(super) scene_assembly_append_count: u64,
     pub(super) scene_build_outcome: NativeSceneBuildOutcome,
     native_scene_context_generation: u64,
     native_scene_invalidated: bool,
@@ -127,6 +134,7 @@ pub(super) enum NativeSceneBuildOutcome {
     NotRebuilt,
     WholeSceneReuse,
     RetainedAssembly,
+    MixedRetainedAssembly,
     FullEncode,
     RetainedAssemblyVetoFallback,
 }
@@ -137,6 +145,7 @@ impl NativeSceneBuildOutcome {
             Self::NotRebuilt => "not_rebuilt",
             Self::WholeSceneReuse => "whole_scene_reuse",
             Self::RetainedAssembly => "retained_assembly",
+            Self::MixedRetainedAssembly => "mixed_retained_assembly",
             Self::FullEncode => "full_encode",
             Self::RetainedAssemblyVetoFallback => "retained_assembly_veto_fallback",
         }
@@ -180,6 +189,10 @@ impl NativeVelloFrameState {
             scene_reuse_count: 0,
             scene_assembly_count: 0,
             scene_assembly_veto_count: 0,
+            scene_mixed_assembly_count: 0,
+            scene_assembly_fresh_count: 0,
+            scene_assembly_reused_count: 0,
+            scene_assembly_append_count: 0,
             scene_build_outcome: NativeSceneBuildOutcome::NotRebuilt,
             native_scene_context_generation: 0,
             native_scene_invalidated: true,
@@ -225,11 +238,33 @@ impl NativeVelloFrameState {
         self.scene_build_outcome = NativeSceneBuildOutcome::RetainedAssemblyVetoFallback;
     }
 
-    pub(super) fn record_scene_assembly(&mut self, fingerprint: NativeSceneValidityFingerprint) {
+    pub(super) fn record_scene_assembly(
+        &mut self,
+        fingerprint: NativeSceneValidityFingerprint,
+        fresh_count: usize,
+        reused_count: usize,
+        append_count: usize,
+    ) {
         self.scene_assembly_count = self.scene_assembly_count.saturating_add(1);
+        if fresh_count > 0 {
+            self.scene_mixed_assembly_count = self.scene_mixed_assembly_count.saturating_add(1);
+        }
+        self.scene_assembly_fresh_count = self
+            .scene_assembly_fresh_count
+            .saturating_add(fresh_count as u64);
+        self.scene_assembly_reused_count = self
+            .scene_assembly_reused_count
+            .saturating_add(reused_count as u64);
+        self.scene_assembly_append_count = self
+            .scene_assembly_append_count
+            .saturating_add(append_count as u64);
         self.native_scene_invalidated = false;
         self.last_scene_validity = Some(fingerprint);
-        self.scene_build_outcome = NativeSceneBuildOutcome::RetainedAssembly;
+        self.scene_build_outcome = if fresh_count == 0 {
+            NativeSceneBuildOutcome::RetainedAssembly
+        } else {
+            NativeSceneBuildOutcome::MixedRetainedAssembly
+        };
     }
 
     pub(super) fn record_scene_reuse(&mut self) {
@@ -265,11 +300,12 @@ impl NativeVelloFrameState {
         self.native_paint_segment_artifact_store.clear();
     }
 
+    #[cfg(test)]
     pub(super) fn assemble_retained_native_scene(
-        &mut self,
+        &self,
         scene_validity: NativeSceneValidityFingerprint,
         target_generation: NativeTargetGeneration,
-    ) -> Result<(), NativePaintSegmentAssemblyVetoReason> {
+    ) -> Result<Box<Scene>, NativePaintSegmentAssemblyVetoReason> {
         match super::scene::assemble_retained_native_paint_segment_scene(
             &self.scene,
             self.last_scene_stats.artifact_feasibility,
@@ -278,12 +314,59 @@ impl NativeVelloFrameState {
             scene_validity,
             target_generation,
         ) {
-            NativePaintSegmentAssemblyResult::Assembled(scene) => {
-                self.scene = *scene;
-                Ok(())
-            }
+            NativePaintSegmentAssemblyResult::Assembled(scene) => Ok(scene),
             NativePaintSegmentAssemblyResult::Veto(reason) => Err(reason),
         }
+    }
+
+    pub(super) fn assemble_mixed_native_scene(
+        &self,
+        viewport: crate::gui::types::Vector2,
+        paint: PaintSegmentObservation,
+        scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
+    ) -> Result<NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyVetoReason> {
+        super::scene::assemble_mixed_native_paint_segment_scene(NativePaintSegmentAssemblyInput {
+            previous_scene: &self.scene,
+            primitives: &self.last_paint_plan.primitives,
+            viewport,
+            paint,
+            previous_stats: self.last_scene_stats,
+            plan: self.last_native_paint_segment_eligibility,
+            artifacts: &self.native_paint_segment_artifact_store,
+            scene_validity,
+            previous_scene_validity: self.last_scene_validity,
+            target_generation,
+        })
+    }
+
+    pub(super) fn commit_native_scene_assembly(
+        &mut self,
+        bundle: NativePaintSegmentAssemblyBundle,
+        scene_validity: NativeSceneValidityFingerprint,
+    ) -> Result<(), NativePaintSegmentAssemblyVetoReason> {
+        let fingerprint_observation = assemble_native_paint_segment_fingerprints(
+            bundle.paint,
+            bundle.stats.segment_encoding,
+            bundle.target_generation,
+        );
+        if fingerprint_observation.conservative {
+            return Err(NativePaintSegmentAssemblyVetoReason::InvalidEvidence);
+        }
+
+        self.scene = bundle.scene;
+        self.last_scene_stats = bundle.stats;
+        self.native_paint_segment_artifact_store
+            .reconcile(bundle.materialization);
+        self.native_retained_paint_segment_store
+            .reconcile(fingerprint_observation);
+        self.record_scene_assembly(
+            scene_validity,
+            bundle.fresh_count,
+            bundle.reused_count,
+            bundle.append_count,
+        );
+        Ok(())
     }
 
     pub(super) fn observe_native_paint_segment_eligibility(

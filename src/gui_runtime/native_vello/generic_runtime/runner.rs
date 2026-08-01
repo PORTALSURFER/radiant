@@ -14,7 +14,10 @@ use super::{
     frame_state::NativeSceneValidityFingerprint,
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
     runner_state::NativeTargetGeneration,
-    scene::{ArtifactFeasibilityObservation, materialize_native_paint_segment_artifacts},
+    scene::{
+        ArtifactFeasibilityObservation, NativePaintSegmentPayload,
+        materialize_native_paint_segment_artifacts,
+    },
 };
 use crate::{
     gui::types::Vector2,
@@ -60,7 +63,7 @@ pub(super) struct NativePaintSegmentArtifactAdmission<'a> {
     scene: &'a Scene,
     feasibility: ArtifactFeasibilityObservation,
     plan: NativePaintSegmentEligibilityPlan,
-    payloads: Vec<Scene>,
+    payloads: Vec<NativePaintSegmentPayload>,
     scene_validity: NativeSceneValidityFingerprint,
     target_generation: NativeTargetGeneration,
 }
@@ -72,7 +75,7 @@ impl<'a> NativePaintSegmentArtifactAdmission<'a> {
         &'a Scene,
         ArtifactFeasibilityObservation,
         NativePaintSegmentEligibilityPlan,
-        Vec<Scene>,
+        Vec<NativePaintSegmentPayload>,
         NativeSceneValidityFingerprint,
         NativeTargetGeneration,
     ) {
@@ -100,7 +103,7 @@ pub(super) fn materialize_native_paint_segment_artifacts_for_test(
     scene: &Scene,
     feasibility: ArtifactFeasibilityObservation,
     plan: NativePaintSegmentEligibilityPlan,
-    payloads: Vec<Scene>,
+    payloads: Vec<NativePaintSegmentPayload>,
     scene_validity: NativeSceneValidityFingerprint,
     target_generation: NativeTargetGeneration,
 ) -> super::scene::NativePaintSegmentArtifactMaterialization {
@@ -340,8 +343,9 @@ where
         #[cfg(test)]
         self.frame.begin_test_phase_trace();
         let retained_surface = self.core.runtime.retained_surface_capability();
+        let paint = self.core.paint_segment_observation();
         self.frame.observe_native_paint_segment_eligibility(
-            self.core.paint_segment_observation(),
+            paint,
             self.frame.last_scene_stats.artifact_feasibility,
             self.window.target_generation,
         );
@@ -349,27 +353,37 @@ where
             self.frame.last_native_paint_segment_eligibility.outcome,
             super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::Plan
         );
-        let assembly_vetoed = assembly_attempted
-            && self
-                .frame
-                .assemble_retained_native_scene(scene_validity, self.window.target_generation)
-                .is_err();
-        if assembly_attempted && !assembly_vetoed {
-            let paint = self.core.paint_segment_observation();
-            let encoding = self.frame.last_scene_stats.segment_encoding;
-            self.frame.reconcile_native_paint_segments(
+        let mut assembly_vetoed = false;
+        if assembly_attempted {
+            match self.frame.assemble_mixed_native_scene(
+                viewport,
                 paint,
-                encoding,
+                scene_validity,
                 self.window.target_generation,
-            );
-            self.frame.record_scene_assembly(scene_validity);
-            self.frame.refresh_gpu_surface_interaction_regions();
-            self.frame.refresh_post_gpu_overlay_cache();
-            self.restore_native_hover_cursor_overlay();
-            self.frame.mark_scene_content_dirty();
-            self.export_automation_targets();
-            return;
+            ) {
+                Ok(bundle) => {
+                    if self
+                        .frame
+                        .commit_native_scene_assembly(bundle, scene_validity)
+                        .is_err()
+                    {
+                        assembly_vetoed = true;
+                    } else {
+                        self.frame.refresh_gpu_surface_interaction_regions();
+                        self.frame.refresh_post_gpu_overlay_cache();
+                        self.restore_native_hover_cursor_overlay();
+                        self.frame.mark_scene_content_dirty();
+                        self.export_automation_targets();
+                        return;
+                    }
+                }
+                Err(_) => {
+                    assembly_vetoed = true;
+                }
+            }
         }
+        // Any attempted assembly that did not return above falls through to
+        // the existing authoritative encoder for conservative repair.
         #[cfg(test)]
         self.frame.record_scene_encode_boundary();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
@@ -388,11 +402,15 @@ where
         let eligibility = self.frame.last_native_paint_segment_eligibility;
         let payloads = encode_native_paint_segment_payloads(
             &self.frame.last_paint_plan.primitives,
+            viewport,
+            paint,
             eligibility,
             scene_validity,
+            self.window.target_generation,
             &self.frame.native_paint_segment_artifact_store,
         )
-        .into_payloads();
+        .into_parts()
+        .0;
         let materialization =
             materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
                 scene: &self.frame.scene,
@@ -405,7 +423,7 @@ where
         self.frame
             .reconcile_native_paint_segment_artifacts(materialization);
         self.frame.reconcile_native_paint_segments(
-            self.core.paint_segment_observation(),
+            paint,
             self.frame.last_scene_stats.segment_encoding,
             self.window.target_generation,
         );

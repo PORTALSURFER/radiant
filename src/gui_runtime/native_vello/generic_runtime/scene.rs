@@ -1,11 +1,11 @@
 //! Scene encoding for generic runtime paint plans.
 
 use crate::{
-    gui::types::{Rgba8, Vector2},
+    gui::types::{Rect, Rgba8, Vector2},
     gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
     runtime::{
-        MAX_PAINT_SEGMENTS, PaintPrimitive, PaintSegmentSpan, RuntimeBridge,
-        RuntimeRetainedSurfaceCapability,
+        MAX_PAINT_SEGMENTS, PaintPrimitive, PaintSegmentObservation, PaintSegmentSpan,
+        RuntimeBridge, RuntimeRetainedSurfaceCapability,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -25,21 +25,27 @@ mod text;
 mod text_input;
 mod text_input_selection;
 mod text_runs;
+pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityCounts;
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityObservation;
 #[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
-    ArtifactFeasibilityCheckpoint, ArtifactFeasibilityCollector, ArtifactFeasibilityCounts,
-    ArtifactFeasibilitySegment,
+    ArtifactFeasibilityCheckpoint, ArtifactFeasibilityCollector, ArtifactFeasibilitySegment,
 };
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
 };
 pub(in crate::gui_runtime::native_vello) use artifact_materialization::{
     NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
+    NativePaintSegmentPayload, NativePaintSegmentPayloadEvidence,
 };
 pub(super) use artifact_materialization::{
-    NativePaintSegmentAssemblyResult, NativePaintSegmentAssemblyVetoReason,
-    assemble_retained_native_paint_segment_scene, materialize_native_paint_segment_artifacts,
+    NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyInput,
+    NativePaintSegmentAssemblyVetoReason, assemble_mixed_native_paint_segment_scene,
+    materialize_native_paint_segment_artifacts,
+};
+#[cfg(test)]
+pub(super) use artifact_materialization::{
+    NativePaintSegmentAssemblyResult, assemble_retained_native_paint_segment_scene,
 };
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
@@ -236,10 +242,8 @@ where
 
 /// The auxiliary payloads selected for one eligibility plan.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentPayloadSelection {
-    payloads: Vec<Scene>,
-    #[cfg(test)]
+    payloads: Vec<NativePaintSegmentPayload>,
     reused_count: usize,
-    #[cfg(test)]
     fresh_count: usize,
 }
 
@@ -247,19 +251,21 @@ impl NativePaintSegmentPayloadSelection {
     fn empty() -> Self {
         Self {
             payloads: Vec::new(),
-            #[cfg(test)]
             reused_count: 0,
-            #[cfg(test)]
             fresh_count: 0,
         }
     }
 
-    pub(in crate::gui_runtime::native_vello) fn into_payloads(self) -> Vec<Scene> {
-        self.payloads
+    pub(in crate::gui_runtime::native_vello) fn into_parts(
+        self,
+    ) -> (Vec<NativePaintSegmentPayload>, usize, usize) {
+        (self.payloads, self.fresh_count, self.reused_count)
     }
 
     #[cfg(test)]
-    pub(in crate::gui_runtime::native_vello) fn payloads_for_test(&self) -> &[Scene] {
+    pub(in crate::gui_runtime::native_vello) fn payloads_for_test(
+        &self,
+    ) -> &[NativePaintSegmentPayload] {
         &self.payloads
     }
 
@@ -274,68 +280,89 @@ impl NativePaintSegmentPayloadSelection {
     }
 }
 
-/// Select one typed, resource-free payload for every entry in an eligibility
-/// plan. Matching retained artifacts are cloned; all other entries are freshly
-/// encoded from the current primitives. This is auxiliary preparation only: the
-/// authoritative scene above remains the render source and is never assembled
-/// from these payloads.
+/// Select one typed, resource-free payload and current local evidence for every
+/// entry in an eligibility plan. Matching retained artifacts are cloned; fresh
+/// entries are encoded only after the caller has preflighted the complete plan.
 pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads(
     primitives: &[PaintPrimitive],
+    viewport: Vector2,
+    paint: PaintSegmentObservation,
     plan: NativePaintSegmentEligibilityPlan,
     scene_validity: super::frame_state::NativeSceneValidityFingerprint,
+    target_generation: super::runner_state::NativeTargetGeneration,
     artifacts: &NativePaintSegmentArtifactStore,
 ) -> NativePaintSegmentPayloadSelection {
     let count = usize::from(plan.entry_count);
-    if count == 0 || count > MAX_PAINT_SEGMENTS {
+    if count == 0
+        || count > MAX_PAINT_SEGMENTS
+        || usize::from(paint.segment_count) != count
+        || paint.conservative
+        || paint.all_implicated
+    {
         return NativePaintSegmentPayloadSelection::empty();
     }
 
     let mut selection = NativePaintSegmentPayloadSelection {
         payloads: Vec::with_capacity(count),
-        #[cfg(test)]
         reused_count: 0,
-        #[cfg(test)]
         fresh_count: 0,
     };
     for index in 0..count {
-        let Some(entry) = plan.entries[index] else {
+        let (Some(entry), Some(current)) = (plan.entries[index], paint.segments[index]) else {
             return NativePaintSegmentPayloadSelection::empty();
         };
         if let Some(payload) = artifacts.reusable_payload(entry, scene_validity) {
             selection.payloads.push(payload);
-            #[cfg(test)]
-            {
-                selection.reused_count += 1;
-            }
+            selection.reused_count += 1;
             continue;
         };
 
-        let Some(payload) = encode_resource_free_segment(primitives, entry.span) else {
+        let Some(payload) = encode_resource_free_segment(
+            primitives,
+            viewport,
+            entry.span,
+            current.revision,
+            scene_validity,
+            target_generation,
+        ) else {
             return NativePaintSegmentPayloadSelection::empty();
         };
         selection.payloads.push(payload);
-        #[cfg(test)]
-        {
-            selection.fresh_count += 1;
-        }
+        selection.fresh_count += 1;
     }
     selection
 }
 
 fn encode_resource_free_segment(
     primitives: &[PaintPrimitive],
+    viewport: Vector2,
     span: PaintSegmentSpan,
-) -> Option<Scene> {
+    revision: u64,
+    scene_validity: super::frame_state::NativeSceneValidityFingerprint,
+    target_generation: super::runner_state::NativeTargetGeneration,
+) -> Option<NativePaintSegmentPayload> {
+    if revision == 0 || !target_generation.is_known() {
+        return None;
+    }
     let start = usize::try_from(span.start).ok()?;
     let end = usize::try_from(span.end).ok()?;
     let primitives = primitives.get(start..end)?;
     let mut scene = Scene::new();
     let mut clip_state = SceneClipState::default();
+    let mut evidence = segment_evidence::PaintSegmentEvidenceCollector::new(
+        primitives,
+        Rect::from_size(viewport.x, viewport.y),
+    );
+    let mut clip_layer_count: usize = 0;
 
-    for primitive in primitives {
+    for (index, primitive) in primitives.iter().enumerate() {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
-                if clip_state.begin(clip.rect).pushes_layer() {
+                let depth_before = clip_state.depth();
+                let begin = clip_state.begin(clip.rect);
+                evidence.observe_clip_start(index, depth_before, begin, clip.rect);
+                if begin.pushes_layer() {
+                    clip_layer_count = clip_layer_count.saturating_add(1);
                     scene.push_clip_layer(
                         Fill::NonZero,
                         Affine::IDENTITY,
@@ -344,30 +371,98 @@ fn encode_resource_free_segment(
                 }
             }
             PaintPrimitive::ClipEnd(_) => {
-                if clip_state.end().pops_layer() {
+                let depth_before = clip_state.depth();
+                let end = clip_state.end();
+                evidence.observe_clip_end(index, depth_before, clip_state.depth(), end);
+                if end.pops_layer() {
                     scene.pop_layer();
                 }
             }
-            _ if clip_state.is_suppressed() => {}
-            PaintPrimitive::FillRect(fill) => encode_rect(&mut scene, fill.color, fill.rect),
+            _ if clip_state.is_suppressed() => {
+                evidence.observe_suppressed(index, clip_state.depth());
+            }
+            PaintPrimitive::FillRect(fill) => {
+                evidence.observe_paint(index, primitive, &clip_state);
+                encode_rect(&mut scene, fill.color, fill.rect);
+            }
             PaintPrimitive::FillRectBatch(fill) => {
+                evidence.observe_paint(index, primitive, &clip_state);
                 encode_rect_batch(&mut scene, fill.color, &fill.rects)
             }
-            PaintPrimitive::OverlayPanel(panel) => encode_rect(
-                &mut scene,
-                Rgba8 {
-                    r: 48,
-                    g: 48,
-                    b: 48,
-                    a: 255,
-                },
-                panel.rect,
-            ),
+            PaintPrimitive::OverlayPanel(panel) => {
+                evidence.observe_paint(index, primitive, &clip_state);
+                encode_rect(
+                    &mut scene,
+                    Rgba8 {
+                        r: 48,
+                        g: 48,
+                        b: 48,
+                        a: 255,
+                    },
+                    panel.rect,
+                );
+            }
             _ => return None,
         }
     }
 
-    (clip_state.depth() == 0).then_some(scene)
+    let local_encoding = evidence.finish(clip_state.depth());
+    let local_encoding = local_encoding.segments[0]?;
+    if local_encoding.conservative
+        || !matches!(local_encoding.isolation, EncodingIsolation::SelfContained)
+        || matches!(
+            local_encoding.safe_enclosure,
+            SafeEnclosure::ViewportFallback
+        )
+        || !matches!(local_encoding.reason, EncodingConservativeReason::None)
+        || clip_state.depth() != 0
+    {
+        return None;
+    }
+
+    let counts = artifact_counts_from_scene(&scene);
+    Some(NativePaintSegmentPayload {
+        scene,
+        evidence: NativePaintSegmentPayloadEvidence {
+            identity: span.identity,
+            span,
+            revision,
+            target_generation,
+            scene_validity,
+            encoding: PaintSegmentEncoding {
+                identity: span.identity,
+                primitive_start: span.start,
+                primitive_end: span.end,
+                safe_enclosure: local_encoding.safe_enclosure,
+                isolation: local_encoding.isolation,
+                conservative: local_encoding.conservative,
+                reason: local_encoding.reason,
+            },
+            counts,
+            clip_layer_count,
+        },
+    })
+}
+
+fn artifact_counts_from_scene(scene: &Scene) -> ArtifactFeasibilityCounts {
+    let encoding = scene.encoding();
+    ArtifactFeasibilityCounts {
+        path_tags: encoding.path_tags.len(),
+        path_data: encoding.path_data.len(),
+        draw_tags: encoding.draw_tags.len(),
+        draw_data: encoding.draw_data.len(),
+        transforms: encoding.transforms.len(),
+        styles: encoding.styles.len(),
+        n_paths: encoding.n_paths,
+        n_path_segments: encoding.n_path_segments,
+        n_clips: encoding.n_clips,
+        n_open_clips: encoding.n_open_clips,
+        patches: encoding.resources.patches.len(),
+        color_stops: encoding.resources.color_stops.len(),
+        glyphs: encoding.resources.glyphs.len(),
+        glyph_runs: encoding.resources.glyph_runs.len(),
+        normalized_coords: encoding.resources.normalized_coords.len(),
+    }
 }
 
 pub(super) fn flushes_pending_text_before_encoding(primitive: &PaintPrimitive) -> bool {

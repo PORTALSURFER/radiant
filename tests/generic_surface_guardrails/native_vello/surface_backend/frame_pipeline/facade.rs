@@ -91,6 +91,44 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
 }
 
 #[test]
+fn native_renderer_unwind_containment_stays_local_to_scene_texture() {
+    let scene_texture =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");
+    let broad_runtime_modules = [
+        "src/gui_runtime/native_vello/generic_runtime.rs",
+        "src/gui_runtime/native_vello/generic_runtime/present.rs",
+        "src/gui_runtime/native_vello/generic_runtime/runner.rs",
+        "src/gui_runtime/native_vello/generic_runtime/lifecycle.rs",
+        "src/gui_runtime/native_vello/generic_runtime/frame_prepare.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene.rs",
+        "src/gui_runtime/native_vello/generic_runtime/auxiliary.rs",
+    ];
+
+    assert_eq!(
+        scene_texture.matches("catch_unwind").count(),
+        1,
+        "the native renderer unwind boundary should have one local catcher"
+    );
+    assert!(
+        scene_texture.contains("std::panic::AssertUnwindSafe"),
+        "the native renderer unwind boundary should use the narrowly justified assertion"
+    );
+    assert!(
+        scene_texture.contains("render_to_texture(")
+            && scene_texture.contains("catch_renderer_unwind"),
+        "the local catcher should surround the sole production render invocation"
+    );
+
+    for relative in broad_runtime_modules {
+        let source = read_runtime_source(relative);
+        assert!(
+            !source.contains("catch_unwind") && !source.contains("AssertUnwindSafe"),
+            "broad native runtime module {relative} must not catch renderer or application panics"
+        );
+    }
+}
+
+#[test]
 fn native_present_propagates_direct_and_cached_scene_failures_before_completion() {
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
     let redraw_start = present

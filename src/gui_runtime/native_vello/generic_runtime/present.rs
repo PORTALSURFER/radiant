@@ -1,5 +1,5 @@
 use super::{
-    GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError, RenderFrameProfile,
+    GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
     RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
     maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
     reveal_window_after_first_present, slow_render_profile_enabled,
@@ -13,7 +13,8 @@ mod diagnostics;
 
 use super::composited_base::{BaseFramePresentState, BaseFramePresentTarget, present_base_frame};
 use super::scene_texture::{
-    SceneTextureContext, render_scene_texture_if_needed, render_scene_to_surface_view,
+    NativeFrameRenderFailure, SceneTextureContext, render_scene_texture_if_needed,
+    render_scene_to_surface_view,
 };
 use diagnostics::{NativeFrameDiagnosticsParts, native_frame_diagnostics};
 
@@ -25,7 +26,7 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
-    ) -> Result<(), NativeGenericRunError> {
+    ) -> Result<(), NativeFrameRenderFailure> {
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
@@ -243,10 +244,17 @@ where
             return;
         };
         let result = self.redraw(event_loop, &mut adapter);
-        self.adapter = Some(adapter);
-        if let Err(error) = result {
-            self.record_frame_render_error_and_exit(event_loop, error);
+        if let Err(failure) = result {
+            // `redraw` has returned, so its acquired SurfaceTexture is gone
+            // before reconstruction can touch the native bundle.
+            let _ = self.recover_frame_render_failure(
+                event_loop,
+                &adapter,
+                failure,
+                super::NativeRendererRecoveryWindowKind::Primary,
+            );
         }
+        self.adapter = Some(adapter);
     }
 
     pub(super) fn redraw_and_exit_on_error_with_adapter(
@@ -254,8 +262,15 @@ where
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
     ) {
-        if let Err(error) = self.redraw(event_loop, adapter) {
-            self.record_frame_render_error_and_exit(event_loop, error);
+        if let Err(failure) = self.redraw(event_loop, adapter) {
+            // `redraw` has returned, so its acquired SurfaceTexture is gone
+            // before reconstruction can touch the native bundle.
+            let _ = self.recover_frame_render_failure(
+                event_loop,
+                adapter,
+                failure,
+                super::NativeRendererRecoveryWindowKind::Primary,
+            );
         }
     }
 

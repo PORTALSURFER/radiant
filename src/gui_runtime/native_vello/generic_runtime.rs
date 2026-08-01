@@ -52,6 +52,7 @@ mod post_gpu_overlay;
 mod present;
 mod recovery;
 mod render_profile;
+mod renderer_recovery;
 mod retained_paint_segments;
 mod route_outcome;
 mod run_report;
@@ -109,6 +110,7 @@ use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,
     slow_render_profile_enabled,
 };
+use renderer_recovery::NativeRendererRecoveryWindowKind;
 pub(in crate::gui_runtime::native_vello) use route_outcome::{
     FrameWork, FrameWorkReason, GenericRouteOutcome, SceneRebuildMode,
 };

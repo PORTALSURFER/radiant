@@ -1,4 +1,7 @@
+use super::renderer_recovery::NativeRendererRecoveryWindowKind;
 use super::runner_state::NativeWindowResourceBundle;
+#[cfg(test)]
+use super::scene_texture::NativeFrameRenderFailure;
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     GenericRouteOutcome, NativeAdapterGeneration, NativeGenericRunError,
@@ -401,8 +404,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     .handle_route_outcome_with_adapter(event_loop, routed, adapter);
             }
             WindowEvent::RedrawRequested => {
-                terminal_cause =
-                    auxiliary_redraw_terminal_cause(self.runner.redraw(event_loop, adapter));
+                let redraw_result = self.runner.redraw(event_loop, adapter);
+                if let Err(failure) = redraw_result {
+                    let kind = NativeRendererRecoveryWindowKind::Auxiliary {
+                        requested_backend: self.runner.options.gpu.backend,
+                    };
+                    terminal_cause = self
+                        .runner
+                        .recover_frame_render_failure(event_loop, adapter, failure, kind)
+                        .err();
+                }
             }
             _ => {}
         }
@@ -419,10 +430,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 }
 
+#[cfg(test)]
 fn auxiliary_redraw_terminal_cause(
-    redraw_result: Result<(), NativeGenericRunError>,
+    redraw_result: Result<(), NativeFrameRenderFailure>,
 ) -> Option<NativeGenericRunError> {
-    redraw_result.err()
+    redraw_result
+        .err()
+        .map(NativeFrameRenderFailure::into_error)
 }
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {
@@ -670,10 +684,10 @@ impl AuxiliaryRecoveryOpportunity {
 mod tests {
     use super::{
         AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity, AuxiliarySurfaceBridge,
-        AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeResourceMaintenanceTurn,
-        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
-        auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
-        take_deferred_auxiliary_recovery_failure_cause,
+        AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeFrameRenderFailure,
+        NativeResourceMaintenanceTurn, append_initialized_auxiliary_window,
+        auxiliary_key_is_retiring, auxiliary_projection_contains_key,
+        auxiliary_redraw_terminal_cause, take_deferred_auxiliary_recovery_failure_cause,
     };
     use crate::gui::types::Vector2;
     use crate::{
@@ -738,13 +752,13 @@ mod tests {
 
     #[test]
     fn auxiliary_redraw_failure_crosses_the_child_event_boundary() {
-        let failure = crate::gui_runtime::NativeGenericRunError::FrameRender(String::from(
-            "backend rejected scene",
-        ));
+        let failure = NativeFrameRenderFailure::from_message("backend rejected scene");
 
         assert_eq!(
-            auxiliary_redraw_terminal_cause(Err(failure.clone())),
-            Some(failure)
+            auxiliary_redraw_terminal_cause(Err(failure)),
+            Some(crate::gui_runtime::NativeGenericRunError::FrameRender(
+                String::from("backend rejected scene"),
+            ))
         );
         assert_eq!(auxiliary_redraw_terminal_cause(Ok(())), None);
     }

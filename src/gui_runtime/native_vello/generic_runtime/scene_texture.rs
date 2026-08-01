@@ -1,12 +1,33 @@
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::{NativeGenericRunError, NativeVelloFrameState};
 use crate::gui_runtime::native_vello::color_from_rgba;
-use std::{
-    fmt,
-    time::{Duration, Instant},
-};
+#[cfg(test)]
+use std::fmt;
+use std::time::{Duration, Instant};
 use tracing::error;
 use vello::{AaConfig, RenderParams, Renderer, util::RenderSurface, wgpu};
+
+/// A FrameRender failure produced only by the narrow Vello render boundary.
+///
+/// Keeping this private token distinct from the public run error prevents
+/// presentation and unrelated native failures from entering renderer
+/// reconstruction accidentally.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct NativeFrameRenderFailure {
+    error: NativeGenericRunError,
+}
+
+impl NativeFrameRenderFailure {
+    pub(super) fn from_message(message: impl Into<String>) -> Self {
+        Self {
+            error: NativeGenericRunError::FrameRender(message.into()),
+        }
+    }
+
+    pub(super) fn into_error(self) -> NativeGenericRunError {
+        self.error
+    }
+}
 
 pub(super) struct SceneTextureContext<'a> {
     pub(super) renderer: &'a mut Renderer,
@@ -28,9 +49,9 @@ const OPAQUE_RENDERER_PANIC_MESSAGE: &str = "renderer panic payload was not a st
 
 fn catch_renderer_unwind<T>(render: impl FnOnce() -> T) -> Result<T, String> {
     // The production closure contains only the renderer call. AssertUnwindSafe is
-    // intentional because a caught unwind returns through redraw's existing
-    // terminal-cause/event-loop-exit path: this renderer is terminally abandoned,
-    // and no later renderer call or retry is permitted in that redraw.
+    // intentional because a caught unwind returns through redraw's narrow
+    // FrameRender handoff; the failed redraw ends before recovery can publish a
+    // fresh renderer, and no later renderer call occurs in that redraw.
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(render))
         .map_err(normalize_renderer_panic_payload)
 }
@@ -48,7 +69,7 @@ fn normalize_renderer_panic_payload(payload: Box<dyn std::any::Any + Send>) -> S
 pub(super) fn render_scene_texture_if_needed(
     frame: &mut NativeVelloFrameState,
     context: &mut SceneTextureContext<'_>,
-) -> Result<Duration, NativeGenericRunError> {
+) -> Result<Duration, NativeFrameRenderFailure> {
     if !frame.scene_texture_dirty {
         return Ok(Duration::ZERO);
     }
@@ -71,7 +92,7 @@ pub(super) fn render_scene_to_surface_view(
     frame: &mut NativeVelloFrameState,
     context: &mut SceneTextureContext<'_>,
     surface_view: &wgpu::TextureView,
-) -> Result<Duration, NativeGenericRunError> {
+) -> Result<Duration, NativeFrameRenderFailure> {
     render_scene_to_view(
         frame,
         context,
@@ -87,7 +108,7 @@ fn render_scene_to_view(
     frame: &mut NativeVelloFrameState,
     context: &mut SceneTextureContext<'_>,
     target: SceneTextureTarget<'_>,
-) -> Result<Duration, NativeGenericRunError> {
+) -> Result<Duration, NativeFrameRenderFailure> {
     let render_started = context.record_timing.then(Instant::now);
     let base_color = color_from_rgba(frame.last_paint_plan.clear_color);
     let scene = frame.scene_for_dpi_scale(context.dpi_scale);
@@ -111,7 +132,7 @@ fn render_scene_to_view(
         Err(message) => {
             error!("radiant generic native vello: render_to_texture panicked: {message}");
             context.completion_witness.record_indeterminate_submission();
-            return Err(NativeGenericRunError::FrameRender(message));
+            return Err(NativeFrameRenderFailure::from_message(message));
         }
     };
     let elapsed = render_started
@@ -121,7 +142,7 @@ fn render_scene_to_view(
         let message = err.to_string();
         error!("radiant generic native vello: render_to_texture failed: {message}");
         context.completion_witness.record_indeterminate_submission();
-        return Err(frame_render_error(message));
+        return Err(NativeFrameRenderFailure::from_message(message));
     }
 
     context.completion_witness.record_successful_submission();
@@ -131,24 +152,25 @@ fn render_scene_to_view(
 
 fn commit_scene_texture_render(
     frame: &mut NativeVelloFrameState,
-    result: Result<Duration, NativeGenericRunError>,
-) -> Result<Duration, NativeGenericRunError> {
+    result: Result<Duration, NativeFrameRenderFailure>,
+) -> Result<Duration, NativeFrameRenderFailure> {
     let elapsed = result?;
     frame.scene_texture_dirty = false;
     frame.mark_composited_base_dirty();
     Ok(elapsed)
 }
 
-pub(super) fn frame_render_error(error: impl fmt::Display) -> NativeGenericRunError {
+#[cfg(test)]
+fn frame_render_error(error: impl fmt::Display) -> NativeGenericRunError {
     NativeGenericRunError::FrameRender(error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::NativeVelloFrameState;
+    use super::super::{NativeGenericRunError, NativeVelloFrameState};
     use super::{
-        OPAQUE_RENDERER_PANIC_MESSAGE, catch_renderer_unwind, commit_scene_texture_render,
-        frame_render_error,
+        NativeFrameRenderFailure, OPAQUE_RENDERER_PANIC_MESSAGE, catch_renderer_unwind,
+        commit_scene_texture_render, frame_render_error,
     };
     use crate::gui_runtime::native_vello::NativeTextRenderer;
     use crate::runtime::RetainedSurfaceCachePolicy;
@@ -245,7 +267,7 @@ mod tests {
             RetainedSurfaceCachePolicy::default(),
         );
         frame.composited_base_dirty = false;
-        let failure = frame_render_error("backend rejected scene");
+        let failure = NativeFrameRenderFailure::from_message("backend rejected scene");
 
         assert_eq!(
             commit_scene_texture_render(&mut frame, Err(failure.clone())),
@@ -269,5 +291,15 @@ mod tests {
         );
         assert!(!frame.scene_texture_dirty);
         assert!(frame.composited_base_dirty);
+    }
+
+    #[test]
+    fn only_the_private_boundary_failure_can_be_unwrapped_for_recovery() {
+        let failure = NativeFrameRenderFailure::from_message("backend rejected scene");
+
+        assert_eq!(
+            failure.into_error(),
+            NativeGenericRunError::FrameRender("backend rejected scene".to_owned())
+        );
     }
 }

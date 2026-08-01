@@ -4,6 +4,11 @@ use super::recovery::{
     NativeRecoveryCandidate, NativeRecoveryCoordinator, NativeRecoveryEpisodeToken,
     NativeRecoveryRequest,
 };
+use super::renderer_recovery::{
+    NativeRendererRecoveryCommitFacts, NativeRendererRecoveryPolicy,
+    NativeRendererRecoveryWindowKind, construct_renderer_recovery_candidate,
+    preflight_renderer_recovery, renderer_recovery_commit_is_valid,
+};
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
@@ -24,6 +29,7 @@ use super::{
         ArtifactFeasibilityObservation, NativePaintSegmentPayload,
         materialize_native_paint_segment_artifacts,
     },
+    scene_texture::NativeFrameRenderFailure,
 };
 use crate::{
     gui::types::Vector2,
@@ -60,6 +66,7 @@ where
     auxiliary_owner: bool,
     terminal_cause: Option<NativeGenericRunError>,
     pub(super) recovery: NativeRecoveryCoordinator,
+    pub(super) renderer_recovery: NativeRendererRecoveryPolicy,
     pub(super) recovery_cause: Option<NativeGenericRunError>,
     pub(super) recovery_primary_was_visible: bool,
     pub(super) recovery_auxiliary_followup_pending: bool,
@@ -177,6 +184,7 @@ where
             auxiliary_owner: false,
             terminal_cause: None,
             recovery: NativeRecoveryCoordinator::default(),
+            renderer_recovery: NativeRendererRecoveryPolicy::default(),
             recovery_cause: None,
             recovery_primary_was_visible: false,
             recovery_auxiliary_followup_pending: false,
@@ -383,6 +391,110 @@ where
         if let Some(resources) = self.window.native_resources.as_mut() {
             resources.record_successful_native_submission();
         }
+    }
+
+    /// Recover one eligible FrameRender failure after the failed redraw has
+    /// returned and dropped its acquired SurfaceTexture. A veto or candidate
+    /// failure converges on the existing bounded whole-run Closing policy with
+    /// the original FrameRender as the first cause.
+    pub(super) fn recover_frame_render_failure(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &GenericNativeAdapterOwner,
+        failure: NativeFrameRenderFailure,
+        kind: NativeRendererRecoveryWindowKind,
+    ) -> Result<(), NativeGenericRunError> {
+        let cause = failure.into_error();
+        match self.try_recover_frame_render(adapter, kind) {
+            Ok(()) => Ok(()),
+            Err(reason) => {
+                warn!(
+                    reason,
+                    "radiant generic native vello: renderer recovery was vetoed"
+                );
+                self.admit_native_shutdown(event_loop, Some(cause.clone()));
+                Err(cause)
+            }
+        }
+    }
+
+    fn try_recover_frame_render(
+        &mut self,
+        adapter: &GenericNativeAdapterOwner,
+        kind: NativeRendererRecoveryWindowKind,
+    ) -> Result<(), String> {
+        let active_generation = self
+            .window
+            .native_resources
+            .as_ref()
+            .map(|resources| resources.generation);
+        let current_generation = adapter.capture_generation();
+        let window_identity = self.window.window.as_ref().zip(self.window.id);
+        let admission = preflight_renderer_recovery(
+            &self.renderer_recovery,
+            active_generation,
+            current_generation,
+            window_identity,
+            self.window.can_publish_native_resources(),
+            self.window.target_generation,
+            self.is_running() && !self.has_terminal_cause(),
+        )
+        .map_err(|veto| format!("renderer recovery preflight vetoed: {veto:?}"))?;
+
+        // This is deliberately before event-proxy lookup and all candidate GPU
+        // construction. Candidate failure therefore consumes the generation's
+        // one bounded allowance just like a successful candidate.
+        self.renderer_recovery.record_attempt(admission.generation);
+        let event_proxy = self
+            .runtime_wakeup
+            .event_loop_proxy()
+            .ok_or_else(|| String::from("native event-loop proxy was not installed"))?;
+        let candidate = construct_renderer_recovery_candidate(
+            &self.options,
+            adapter,
+            &admission,
+            event_proxy,
+            kind,
+        )
+        .map_err(|error| error.to_string())?;
+
+        if !renderer_recovery_commit_is_valid(
+            &self.renderer_recovery,
+            &admission,
+            &candidate,
+            NativeRendererRecoveryCommitFacts {
+                active_generation: self
+                    .window
+                    .native_resources
+                    .as_ref()
+                    .map(|resources| resources.generation),
+                current_generation: adapter.capture_generation(),
+                current_window: self.window.window.as_ref().zip(self.window.id),
+                publication_available: self.window.can_publish_native_resources(),
+                target_generation: self.window.target_generation,
+                run_admissible: self.is_running() && !self.has_terminal_cause(),
+            },
+        ) {
+            return Err(String::from(
+                "renderer recovery candidate failed final identity, generation, lifecycle, or publication validation",
+            ));
+        }
+        let Some(publication) = self.window.reserve_native_resource_publication() else {
+            return Err(String::from(
+                "renderer recovery publication capacity changed before commit",
+            ));
+        };
+        publication.publish(candidate.bundle);
+        self.window.target_generation = admission.next_target_generation;
+        self.window.native_surface_target_fenced = false;
+        self.frame.invalidate_native_resources_for_recovery();
+        self.rebuild_scene();
+        self.timing.last_redraw = Instant::now();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        });
+        Ok(())
     }
 
     pub(super) fn should_admit_auxiliary_sync(&self) -> bool {
@@ -641,14 +753,6 @@ where
     }
 
     pub(super) fn record_initialization_error_and_exit(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        cause: NativeGenericRunError,
-    ) {
-        self.admit_native_shutdown(event_loop, Some(cause));
-    }
-
-    pub(super) fn record_frame_render_error_and_exit(
         &mut self,
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,

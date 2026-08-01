@@ -2471,14 +2471,22 @@ successful run or a secondary event-loop error. Startup and shutdown artifacts
 remain in the report, including when initialization fails after startup timing
 begins. Simple `.run()` helpers continue returning the compatibility
 `radiant::Result` string form, including the stable string for typed failures.
-`FrameRender(message)` reports a fatal Vello scene render failure using owned
-backend text, including an unwinding panic contained immediately around the
-renderer call; static-string and owned-`String` payloads are normalized to owned
-text, while opaque payloads use a deterministic fallback. The configured panic
-hook still runs. This boundary does not convert ordinary application or widget
+`FrameRender(message)` reports a Vello scene render failure using owned backend
+text, including an unwinding panic contained immediately around the renderer
+call; static-string and owned-`String` payloads are normalized to owned text,
+while opaque payloads use a deterministic fallback. The configured panic hook
+still runs. This boundary does not convert ordinary application or widget
 panics outside the renderer call, and `panic=abort` or foreign aborts remain
-outside its scope. The failed frame is not presented or counted as a successful
-presentation, and the runner records that cause before requesting event-loop
+outside its scope. The failed frame is not presented, counted, committed as
+scene-texture-clean, or composed through later direct-WGPU work. When the
+failure is from that narrow boundary, the runner may internally reconstruct
+that window's complete native resource bundle once for the exact current
+adapter generation, quarantine the old bundle behind its completion witness,
+invalidate dependent frame state, rebuild the scene, and request a fresh redraw;
+successful reconstruction does not become a public run error. A missing or
+stale window, lifecycle/generation/capacity veto, repeated same-generation
+failure, or candidate construction failure enters bounded Closing while
+preserving the original `FrameRender` first cause.
 `RenderDeviceLost(message)` reports an unexpected WGPU device loss using owned
 backend text; an empty backend message uses a deterministic fallback, while
 normal device destruction is ignored. An accepted loss from the exact current

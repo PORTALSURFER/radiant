@@ -24,6 +24,7 @@ mod activation;
 mod adapter;
 mod automation_export;
 mod auxiliary;
+mod closing;
 mod composited_base;
 mod core;
 mod device;
@@ -70,6 +71,7 @@ use adapter::GenericNativeAdapterOwner;
 pub(in crate::gui_runtime::native_vello) use adapter::NativeAdapterGeneration;
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
+use closing::{NativeClosingProgress, NativeLifecycle};
 use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, PaintPlanCacheDecision, PointerPressStamp,

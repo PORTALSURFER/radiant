@@ -43,11 +43,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             options.text = parent_options.text.clone();
         }
         let bridge = AuxiliarySurfaceBridge::new(projection.surface);
+        let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
+        runner.mark_as_auxiliary();
         Self {
             key: projection.key,
             close_message: projection.close_message,
             cache_on_close,
-            runner: GenericNativeVelloRunner::new(options, bridge, viewport),
+            runner,
             active: true,
             lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
         }
@@ -74,6 +76,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         self.runner.maintain_native_resources_with_turn(turn);
         false
+    }
+
+    pub(super) fn native_resource_ownership_is_empty(&self) -> bool {
+        self.runner.native_resource_ownership_is_empty()
     }
 
     pub(super) fn window_id(&self) -> Option<WindowId> {
@@ -163,6 +169,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         let _ = self.runner.core.runtime.begin_closing();
     }
 
+    pub(super) fn begin_whole_run_retiring(&mut self, event_loop: &ActiveEventLoop) {
+        self.begin_retiring();
+        self.runner.admit_native_shutdown(event_loop, None);
+    }
+
     fn handle_close_requested(&mut self) -> AuxiliaryWindowEventResult<Message> {
         if self.is_retiring() {
             return AuxiliaryWindowEventResult::ignored();
@@ -172,12 +183,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return AuxiliaryWindowEventResult {
                 messages: self.close_message.take().into_iter().collect(),
                 terminal_cause: None,
+                shutdown_requested: false,
             };
         }
         self.begin_retiring();
         AuxiliaryWindowEventResult {
             messages: self.close_message.take().into_iter().collect(),
             terminal_cause: None,
+            shutdown_requested: false,
         }
     }
 
@@ -247,6 +260,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
             terminal_cause,
+            shutdown_requested: self.runner.native_shutdown_requested(),
         }
     }
 
@@ -264,6 +278,7 @@ fn auxiliary_redraw_terminal_cause(
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) messages: Vec<Message>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
+    pub(super) shutdown_requested: bool,
 }
 
 impl<Message> AuxiliaryWindowEventResult<Message> {
@@ -271,6 +286,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
         Self {
             messages: Vec::new(),
             terminal_cause: None,
+            shutdown_requested: false,
         }
     }
 }
@@ -306,6 +322,9 @@ where
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
+        if !self.should_admit_auxiliary_sync() {
+            return Ok(());
+        }
         let mut maintenance = self.begin_native_resource_maintenance();
         let Some(mut adapter) = self.adapter.take() else {
             return Err(NativeGenericRunError::NativeInitialization {
@@ -329,6 +348,9 @@ where
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
         adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeGenericRunError> {
+        if !self.should_admit_auxiliary_sync() {
+            return Ok(());
+        }
         let mut maintenance = self.begin_native_resource_maintenance();
         self.sync_auxiliary_windows_with_adapter_in_turn(
             event_loop,
@@ -543,6 +565,19 @@ mod tests {
         let late = AuxiliaryWindowEventResult::<i32>::ignored();
         assert!(late.messages.is_empty());
         assert!(late.terminal_cause.is_none());
+        assert!(!late.shutdown_requested);
+    }
+
+    #[test]
+    fn whole_run_retirement_reuses_retiring_transition_without_dispatching_close_message() {
+        let mut window = auxiliary_window(false);
+
+        window.begin_retiring();
+
+        assert!(window.is_retiring());
+        let late_close = window.handle_close_requested();
+        assert!(late_close.messages.is_empty());
+        assert!(!late_close.shutdown_requested);
     }
 
     #[test]

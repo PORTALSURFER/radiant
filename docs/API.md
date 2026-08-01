@@ -2463,7 +2463,12 @@ remain in the report, including when initialization fails after startup timing
 begins. Simple `.run()` helpers continue returning the compatibility
 `radiant::Result` string form, including the stable string for typed failures.
 `FrameRender(message)` reports a fatal Vello scene render failure using owned
-backend text; the failed frame is not presented or counted as a successful
+backend text, including an unwinding panic contained immediately around the
+renderer call; static-string and owned-`String` payloads are normalized to owned
+text, while opaque payloads use a deterministic fallback. The configured panic
+hook still runs. This boundary does not convert ordinary application or widget
+panics outside the renderer call, and `panic=abort` or foreign aborts remain
+outside its scope. The failed frame is not presented or counted as a successful
 presentation, and the runner records that cause before requesting event-loop
 exit. Auxiliary-window frame failures use the same parent report boundary.
 This keeps compatibility diagnostics and generic runtime diagnostics on the same

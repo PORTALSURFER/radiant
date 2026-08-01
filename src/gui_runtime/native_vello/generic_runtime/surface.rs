@@ -237,12 +237,41 @@ where
     }
 
     fn complete_target_transition(&mut self) {
+        self.fence_native_surface_target();
         self.window.target_generation.advance();
-        self.window.surface_recovery.rearm_timeout_retry();
+        self.window.surface_recovery.rearm_transient_retry();
+    }
+
+    fn fence_native_surface_target(&mut self) {
         self.frame.clear_native_paint_segment_artifacts();
         self.frame.invalidate_native_scene_context();
         self.frame.mark_scene_texture_dirty();
         self.frame.mark_composited_base_dirty();
+        self.window.target_generation.invalidate_unknown();
+    }
+
+    pub(super) fn handle_other_surface_acquire_failure(&mut self, size: PhysicalSize<u32>) {
+        self.window
+            .surface_recovery
+            .observe_acquire_error(&wgpu::SurfaceError::Other);
+        self.fence_native_surface_target();
+        if matches!(
+            surface_acquire_policy(wgpu::SurfaceError::Other, size),
+            SurfaceAcquirePolicy::ConservativeFence
+        ) && self
+            .window
+            .surface_recovery
+            .record_other_retry_request(size.width > 0 && size.height > 0)
+        {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+    }
+
+    pub(super) fn prepare_successful_surface_acquisition(&mut self) {
+        if !self.window.target_generation.is_known() {
+            self.window.target_generation.advance();
+        }
+        self.window.surface_recovery.rearm_transient_retry();
     }
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
@@ -304,7 +333,7 @@ where
         }
         self.window.dpi_scale = next;
         self.window.target_generation.advance();
-        self.window.surface_recovery.rearm_timeout_retry();
+        self.window.surface_recovery.rearm_transient_retry();
         self.frame.clear_native_paint_segment_artifacts();
         if let Some(window) = self.window.window.as_ref() {
             self.core
@@ -329,7 +358,7 @@ where
         };
         match texture {
             Ok(frame) => {
-                self.window.surface_recovery.rearm_timeout_retry();
+                self.prepare_successful_surface_acquisition();
                 Some(frame)
             }
             Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
@@ -365,18 +394,21 @@ where
                 }
                 None
             }
+            Err(wgpu::SurfaceError::Other) => {
+                let size = self
+                    .window
+                    .window
+                    .as_ref()
+                    .map_or(PhysicalSize::new(0, 0), |window| window.inner_size());
+                self.handle_other_surface_acquire_failure(size);
+                warn!(
+                    "radiant generic native vello: conservatively fenced surface after other acquire error"
+                );
+                None
+            }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 error!("radiant generic native vello: out of memory acquiring surface");
                 event_loop.exit();
-                None
-            }
-            Err(err) => {
-                self.window.target_generation.invalidate_unknown();
-                self.frame.clear_native_paint_segment_artifacts();
-                warn!(
-                    "radiant generic native vello: non-fatal surface acquire error: {:?}",
-                    err
-                );
                 None
             }
         }

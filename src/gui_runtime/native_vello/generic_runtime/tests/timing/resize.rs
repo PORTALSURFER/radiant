@@ -56,6 +56,75 @@ fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
         surface_acquire_policy(wgpu::SurfaceError::Other, nonzero),
         SurfaceAcquirePolicy::ConservativeFence
     );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Other, PhysicalSize::new(0, 360)),
+        SurfaceAcquirePolicy::ConservativeFence
+    );
+}
+
+#[test]
+fn other_failure_fences_native_target_without_reconfiguring_zero_size_surface() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+    let pending = FrameWork::RebuildScene {
+        reason: FrameWorkReason::RuntimeSurfaceRepaint,
+        mode: SceneRebuildMode::Immediate,
+    };
+    runner.timing.pending_frame_work = pending;
+
+    runner.handle_other_surface_acquire_failure(PhysicalSize::new(0, 360));
+
+    assert!(!runner.window.target_generation.is_known());
+    assert!(runner.frame.scene_texture_dirty);
+    assert!(runner.frame.composited_base_dirty);
+    assert_eq!(runner.timing.pending_frame_work, pending);
+    assert_eq!(runner.timing.pending_surface_resize, None);
+    assert_eq!(
+        runner
+            .window
+            .surface_recovery
+            .diagnostics()
+            .completed_reconfigures,
+        0
+    );
+    assert_eq!(runner.window.surface_recovery.diagnostics().others, 1);
+    assert_eq!(
+        runner
+            .window
+            .surface_recovery
+            .diagnostics()
+            .other_retry_requests,
+        0
+    );
+}
+
+#[test]
+fn successful_acquisition_after_other_fence_promotes_fresh_target_generation() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    let previous = runner.window.target_generation;
+
+    runner.handle_other_surface_acquire_failure(PhysicalSize::new(640, 360));
+    assert!(!runner.window.target_generation.is_known());
+    runner.prepare_successful_surface_acquisition();
+
+    assert!(runner.window.target_generation.is_known());
+    assert_ne!(runner.window.target_generation, previous);
+    assert!(runner.frame.scene_texture_dirty);
+    assert!(runner.frame.composited_base_dirty);
+    let promoted = runner.window.target_generation;
+    runner.prepare_successful_surface_acquisition();
+    assert_eq!(runner.window.target_generation, promoted);
 }
 
 #[test]

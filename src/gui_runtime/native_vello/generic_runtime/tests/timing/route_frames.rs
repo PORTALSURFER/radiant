@@ -181,6 +181,64 @@ fn coalesced_timeout_retry_keeps_pending_frame_work() {
 }
 
 #[test]
+fn timeout_and_other_retries_share_one_transient_permit() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_timeout_retry_request(true)
+    );
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+    assert!(
+        !runner
+            .window
+            .surface_recovery
+            .record_other_retry_request(true)
+    );
+
+    runner.window.surface_recovery.rearm_transient_retry();
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+    assert!(
+        runner
+            .window
+            .surface_recovery
+            .record_other_retry_request(true)
+    );
+    runner
+        .window
+        .surface_recovery
+        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+    assert!(
+        !runner
+            .window
+            .surface_recovery
+            .record_timeout_retry_request(true)
+    );
+
+    let diagnostics = runner.window.surface_recovery.diagnostics();
+    assert_eq!(diagnostics.timeouts, 2);
+    assert_eq!(diagnostics.others, 2);
+    assert_eq!(diagnostics.timeout_retry_requests, 1);
+    assert_eq!(diagnostics.other_retry_requests, 1);
+}
+
+#[test]
 fn coalesced_routed_redraws_keep_strongest_frame_work() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

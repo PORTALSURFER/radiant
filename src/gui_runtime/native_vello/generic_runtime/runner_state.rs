@@ -16,12 +16,88 @@ use std::{
 use vello::{
     Renderer,
     util::{RenderContext, RenderSurface},
+    wgpu,
 };
 use winit::{
     dpi::PhysicalSize,
     keyboard::ModifiersState,
     window::{Window, WindowId},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SurfaceAcquirePolicy {
+    ReconfigureAndRetry,
+    Defer,
+    Terminal,
+    ConservativeFence,
+}
+
+pub(super) const fn surface_acquire_policy(
+    error: wgpu::SurfaceError,
+    size: PhysicalSize<u32>,
+) -> SurfaceAcquirePolicy {
+    match error {
+        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated
+            if size.width > 0 && size.height > 0 =>
+        {
+            SurfaceAcquirePolicy::ReconfigureAndRetry
+        }
+        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => SurfaceAcquirePolicy::Defer,
+        wgpu::SurfaceError::OutOfMemory => SurfaceAcquirePolicy::Terminal,
+        _ => SurfaceAcquirePolicy::ConservativeFence,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeSurfaceRecoveryState {
+    lost: u64,
+    outdated: u64,
+    completed_reconfigures: u64,
+    zero_size_deferrals: u64,
+    retry_requests: u64,
+}
+
+impl NativeSurfaceRecoveryState {
+    pub(super) fn observe_acquire_error(&mut self, error: &wgpu::SurfaceError) {
+        match error {
+            wgpu::SurfaceError::Lost => {
+                self.lost = self.lost.saturating_add(1);
+            }
+            wgpu::SurfaceError::Outdated => {
+                self.outdated = self.outdated.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn record_completed_reconfigure(&mut self) {
+        self.completed_reconfigures = self.completed_reconfigures.saturating_add(1);
+    }
+
+    pub(super) fn record_zero_size_deferral(&mut self) {
+        self.zero_size_deferrals = self.zero_size_deferrals.saturating_add(1);
+    }
+
+    pub(super) fn record_retry_request(&mut self) {
+        self.retry_requests = self.retry_requests.saturating_add(1);
+    }
+
+    pub(super) const fn diagnostics(self) -> crate::runtime::NativeSurfaceRecoveryDiagnostics {
+        crate::runtime::NativeSurfaceRecoveryDiagnostics {
+            lost: self.lost,
+            outdated: self.outdated,
+            completed_reconfigures: self.completed_reconfigures,
+            zero_size_deferrals: self.zero_size_deferrals,
+            retry_requests: self.retry_requests,
+        }
+    }
+}
+
+impl From<NativeSurfaceRecoveryState> for crate::runtime::NativeSurfaceRecoveryDiagnostics {
+    fn from(state: NativeSurfaceRecoveryState) -> Self {
+        state.diagnostics()
+    }
+}
 
 /// Monotonic evidence for the currently configured native presentation target.
 ///
@@ -106,6 +182,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,
     pub(super) environment: crate::runtime::WindowEnvironment,
     pub(super) target_generation: NativeTargetGeneration,
+    pub(super) surface_recovery: NativeSurfaceRecoveryState,
 }
 
 pub(super) struct NativeRunnerInputState {
@@ -193,7 +270,8 @@ impl Default for NativeRunnerTimingState {
 
 #[cfg(test)]
 mod tests {
-    use super::NativeTargetGeneration;
+    use super::{NativeSurfaceRecoveryState, NativeTargetGeneration};
+    use crate::runtime::NativeSurfaceRecoveryDiagnostics;
 
     #[test]
     fn target_generation_fences_initial_resize_dpi_and_unknown_recovery() {
@@ -214,5 +292,48 @@ mod tests {
         assert!(!generation.advance());
         assert!(!generation.is_known());
         assert!(!generation.advance());
+    }
+
+    #[test]
+    fn surface_recovery_counters_saturate_and_convert() {
+        let mut state = NativeSurfaceRecoveryState::default();
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
+        state.record_completed_reconfigure();
+        state.record_zero_size_deferral();
+        state.record_retry_request();
+
+        assert_eq!(
+            state.diagnostics(),
+            NativeSurfaceRecoveryDiagnostics {
+                lost: 1,
+                outdated: 1,
+                completed_reconfigures: 1,
+                zero_size_deferrals: 1,
+                retry_requests: 1,
+            }
+        );
+
+        state.lost = u64::MAX;
+        state.outdated = u64::MAX;
+        state.completed_reconfigures = u64::MAX;
+        state.zero_size_deferrals = u64::MAX;
+        state.retry_requests = u64::MAX;
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
+        state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
+        state.record_completed_reconfigure();
+        state.record_zero_size_deferral();
+        state.record_retry_request();
+
+        assert_eq!(
+            NativeSurfaceRecoveryDiagnostics::from(state),
+            NativeSurfaceRecoveryDiagnostics {
+                lost: u64::MAX,
+                outdated: u64::MAX,
+                completed_reconfigures: u64::MAX,
+                zero_size_deferrals: u64::MAX,
+                retry_requests: u64::MAX,
+            }
+        );
     }
 }

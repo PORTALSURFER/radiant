@@ -193,6 +193,7 @@ where
                 frame_work,
                 surface_refresh,
                 surface_refresh_total,
+                surface_recovery: self.window.surface_recovery.diagnostics(),
             });
             self.core
                 .runtime
@@ -270,6 +271,7 @@ where
                 frame_work,
                 surface_refresh,
                 surface_refresh_total,
+                surface_recovery: self.window.surface_recovery.diagnostics(),
             });
             self.core
                 .runtime

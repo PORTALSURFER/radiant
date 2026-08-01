@@ -1,4 +1,6 @@
+use super::super::super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{fixtures::*, shared::*};
+use vello::wgpu;
 
 #[test]
 fn deferred_surface_resize_keeps_latest_nonzero_size() {
@@ -19,6 +21,36 @@ fn deferred_surface_resize_keeps_latest_nonzero_size() {
     assert_eq!(
         runner.timing.pending_surface_resize_reason,
         Some(FrameWorkReason::NativeResize)
+    );
+}
+
+#[test]
+fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
+    let nonzero = PhysicalSize::new(640, 360);
+
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Lost, nonzero),
+        SurfaceAcquirePolicy::ReconfigureAndRetry
+    );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Outdated, nonzero),
+        SurfaceAcquirePolicy::ReconfigureAndRetry
+    );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Lost, PhysicalSize::new(0, 360)),
+        SurfaceAcquirePolicy::Defer
+    );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Outdated, PhysicalSize::new(640, 0)),
+        SurfaceAcquirePolicy::Defer
+    );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::OutOfMemory, nonzero),
+        SurfaceAcquirePolicy::Terminal
+    );
+    assert_eq!(
+        surface_acquire_policy(wgpu::SurfaceError::Other, nonzero),
+        SurfaceAcquirePolicy::ConservativeFence
     );
 }
 

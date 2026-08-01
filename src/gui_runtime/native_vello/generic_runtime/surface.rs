@@ -1,5 +1,6 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
+use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, SceneRebuildMode,
     configure_created_top_level_window, generic_window_attributes,
@@ -205,9 +206,7 @@ where
                 return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
-            self.window.target_generation.advance();
-            self.frame.clear_native_paint_segment_artifacts();
-            self.frame.invalidate_native_scene_context();
+            self.complete_target_transition();
             self.defer_viewport_resize_with_reason(
                 logical_viewport_for_size(size, self.window.dpi_scale),
                 reason,
@@ -218,6 +217,31 @@ where
             return true;
         }
         false
+    }
+
+    fn resize_surface_now_for_recovery(&mut self, size: PhysicalSize<u32>) -> bool {
+        if size.width == 0 || size.height == 0 {
+            return false;
+        }
+        self.timing.pending_surface_resize = None;
+        self.timing.pending_surface_resize_reason = None;
+        if let (Some(render_ctx), Some(surface)) = (
+            self.window.render_ctx.as_ref(),
+            self.window.render_surface.as_mut(),
+        ) {
+            render_ctx.resize_surface(surface, size.width, size.height);
+            self.complete_target_transition();
+            return true;
+        }
+        false
+    }
+
+    fn complete_target_transition(&mut self) {
+        self.window.target_generation.advance();
+        self.frame.clear_native_paint_segment_artifacts();
+        self.frame.invalidate_native_scene_context();
+        self.frame.mark_scene_texture_dirty();
+        self.frame.mark_composited_base_dirty();
     }
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
@@ -303,16 +327,21 @@ where
         };
         match texture {
             Ok(frame) => Some(frame),
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                let window = self.window.window.as_ref()?;
-                let size = window.inner_size();
-                let resized = self.resize_surface_now(size, true, FrameWorkReason::NativeResize);
-                if !resized {
-                    // A lost/outdated surface is a native target fence even
-                    // when its dimensions did not change.
-                    self.frame.invalidate_native_scene_context();
-                    self.window.target_generation.advance();
-                    self.frame.clear_native_paint_segment_artifacts();
+            Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
+                self.window.surface_recovery.observe_acquire_error(&error);
+                let size = self.window.window.as_ref()?.inner_size();
+                match surface_acquire_policy(error, size) {
+                    SurfaceAcquirePolicy::ReconfigureAndRetry
+                        if self.resize_surface_now_for_recovery(size) =>
+                    {
+                        self.window.surface_recovery.record_completed_reconfigure();
+                        self.window.surface_recovery.record_retry_request();
+                        self.request_redraw_for_frame_work(FrameWork::None);
+                    }
+                    SurfaceAcquirePolicy::Defer => {
+                        self.window.surface_recovery.record_zero_size_deferral();
+                    }
+                    _ => {}
                 }
                 None
             }

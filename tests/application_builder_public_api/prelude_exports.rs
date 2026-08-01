@@ -604,6 +604,19 @@ fn native_run_reports_require_an_explicit_runtime_import() {
 }
 
 #[test]
+fn native_run_reports_expose_surface_out_of_memory_compatibly() {
+    let oom = radiant::runtime::NativeGenericRunError::SurfaceAcquireOutOfMemory;
+    assert_eq!(
+        oom.to_string(),
+        "native surface acquisition failed: out of memory"
+    );
+    assert_eq!(
+        radiant::runtime::NativeGenericRunError::EventLoopRun("stopped".to_string()).to_string(),
+        "native event loop failed: stopped"
+    );
+}
+
+#[test]
 fn prelude_exports_native_file_drop_callback_payloads() {
     let event = ui::NativeFileDrop::cancel(None, None);
 

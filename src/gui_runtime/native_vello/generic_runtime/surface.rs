@@ -2,7 +2,7 @@
 
 use super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, SceneRebuildMode,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeGenericRunError, SceneRebuildMode,
     configure_created_top_level_window, generic_window_attributes,
     reveal_window_after_surface_setup,
 };
@@ -408,6 +408,7 @@ where
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 error!("radiant generic native vello: out of memory acquiring surface");
+                self.record_terminal_cause(NativeGenericRunError::SurfaceAcquireOutOfMemory);
                 event_loop.exit();
                 None
             }

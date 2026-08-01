@@ -2450,10 +2450,16 @@ Native runtime entry points return `RuntimeRunReport<Artifacts, Error>` when
 artifact capture is requested. The report envelope is generic: Radiant owns the
 result transport while each runtime path chooses its artifact payload and typed
 error boundary. The generic Vello runtime reports `NativeGenericRunError`
-variants for event-loop build and run failures, while simple `.run()` helpers
-continue returning the compatibility `radiant::Result` string form. This keeps
-compatibility diagnostics and generic runtime diagnostics on the same mechanism
-without coupling the public runtime API to a host application model.
+variants for event-loop build and run failures plus terminal native surface
+failures. `SurfaceAcquireOutOfMemory` is returned when native surface texture
+acquisition runs out of memory; the runner records that terminal cause before
+requesting event-loop exit, so it takes precedence over an otherwise successful
+run or a secondary event-loop error. Startup and shutdown artifacts remain in
+the report. Simple `.run()` helpers continue returning the compatibility
+`radiant::Result` string form, including the stable string for this typed
+failure. This keeps compatibility diagnostics and generic runtime diagnostics
+on the same mechanism without coupling the public runtime API to a host
+application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads
 such as `PaintFrame`, `Primitive`, `TextRun`, `FillRect`, `FillCircle`,
 `FillLinearGradient`, `DrawImage`, `horizontal_line_rect`, and

@@ -1,3 +1,4 @@
+use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::{NativeGenericRunError, NativeVelloFrameState};
 use crate::gui_runtime::native_vello::color_from_rgba;
 use std::{
@@ -9,6 +10,7 @@ use vello::{AaConfig, RenderParams, Renderer, util::RenderSurface, wgpu};
 
 pub(super) struct SceneTextureContext<'a> {
     pub(super) renderer: &'a mut Renderer,
+    pub(super) completion_witness: &'a mut NativeSubmissionCompletionWitness,
     pub(super) device: &'a wgpu::Device,
     pub(super) queue: &'a wgpu::Queue,
     pub(super) surface: &'a RenderSurface<'a>,
@@ -108,6 +110,7 @@ fn render_scene_to_view(
         Ok(result) => result,
         Err(message) => {
             error!("radiant generic native vello: render_to_texture panicked: {message}");
+            context.completion_witness.record_indeterminate_submission();
             return Err(NativeGenericRunError::FrameRender(message));
         }
     };
@@ -117,8 +120,11 @@ fn render_scene_to_view(
     if let Err(err) = result {
         let message = err.to_string();
         error!("radiant generic native vello: render_to_texture failed: {message}");
+        context.completion_witness.record_indeterminate_submission();
         return Err(frame_render_error(message));
     }
+
+    context.completion_witness.record_successful_submission();
 
     Ok(elapsed)
 }

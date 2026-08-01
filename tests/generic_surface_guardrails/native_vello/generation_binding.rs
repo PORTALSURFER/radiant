@@ -288,22 +288,34 @@ fn native_submission_completion_is_exact_generation_and_covers_both_present_path
     );
     assert!(
         scene_texture.contains("context.renderer.render_to_texture(")
+            && scene_texture.contains("context.completion_witness")
             && present.contains("render_scene_to_surface_view("),
-        "direct-resize rendering should use Vello's internal render_to_texture submission"
+        "direct-resize rendering should use Vello's internal render_to_texture submission and its exact-generation witness"
     );
 
     let direct_render = present
         .find("render_scene_to_surface_view(")
         .expect("direct-resize path should render through Vello");
-    let direct_witness = present
-        .find("resources.record_successful_native_submission()")
-        .expect("direct-resize path should record the internal Vello submission");
     let direct_present = present
         .find("surface_texture.present()")
         .expect("direct-resize path should present its surface texture");
     assert!(
-        direct_render < direct_witness && direct_witness < direct_present,
-        "direct-resize completion witnessing should follow successful Vello rendering"
+        direct_render < direct_present,
+        "direct-resize completion witnessing should remain inside the shared Vello boundary before presentation"
+    );
+    assert!(
+        !present.contains("resources.record_successful_native_submission()"),
+        "direct-resize must not double-record the Vello submission after the shared boundary witnesses it"
+    );
+    let scene_render = scene_texture
+        .find("context.renderer.render_to_texture(")
+        .expect("the shared scene-texture boundary should invoke Vello");
+    let scene_success_witness = scene_texture
+        .find("context.completion_witness.record_successful_submission()")
+        .expect("the shared scene-texture boundary should witness successful Vello work");
+    assert!(
+        scene_render < scene_success_witness,
+        "successful Vello work should be witnessed immediately after the shared render call"
     );
 
     let ordinary_submit = present

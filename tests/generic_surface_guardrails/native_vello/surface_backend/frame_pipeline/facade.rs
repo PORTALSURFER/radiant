@@ -129,6 +129,63 @@ fn native_renderer_unwind_containment_stays_local_to_scene_texture() {
 }
 
 #[test]
+fn native_vello_failures_fence_before_frame_render_and_closing() {
+    let scene_texture =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+
+    let fences: Vec<_> = scene_texture
+        .match_indices("context.completion_witness.record_indeterminate_submission();")
+        .map(|(offset, _)| offset)
+        .collect();
+    assert_eq!(
+        fences.len(),
+        2,
+        "both contained renderer unwinds and backend errors should fence indeterminate work"
+    );
+    let panic_error = scene_texture
+        .find("return Err(NativeGenericRunError::FrameRender(message));")
+        .expect("contained renderer unwinds should return FrameRender");
+    let backend_error = scene_texture
+        .find("return Err(frame_render_error(message));")
+        .expect("backend renderer errors should return FrameRender");
+    assert!(
+        fences[0] < panic_error && fences[1] < backend_error,
+        "indeterminate submission evidence must be recorded before either FrameRender return"
+    );
+    assert_eq!(
+        scene_texture
+            .matches("context.completion_witness.record_successful_submission();")
+            .count(),
+        1,
+        "the shared success path should witness Vello exactly once"
+    );
+
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("present driver should define redraw");
+    let redraw_end = present
+        .find("pub(super) fn redraw_and_exit_on_error")
+        .expect("present driver should define redraw error handoff");
+    let redraw = &present[redraw_start..redraw_end];
+    assert!(
+        redraw.matches(")?").count() >= 2,
+        "direct and retained scene paths should propagate FrameRender before presentation"
+    );
+    assert!(
+        redraw.contains("self.finish_direct_resize_present(")
+            && redraw.contains("present_base_frame("),
+        "success-only presentation paths should remain after the fenced render boundary"
+    );
+    assert!(
+        runner.contains("pub(super) fn record_frame_render_error_and_exit(")
+            && runner.contains("self.admit_native_shutdown(event_loop, Some(cause));"),
+        "FrameRender should enter the existing bounded shutdown handoff after fencing"
+    );
+}
+
+#[test]
 fn native_present_propagates_direct_and_cached_scene_failures_before_completion() {
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
     let redraw_start = present

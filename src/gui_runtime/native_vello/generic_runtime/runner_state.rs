@@ -523,6 +523,19 @@ impl NativeRunnerWindowState {
         )
     }
 
+    pub(super) fn quarantine_active_native_resources(&mut self) -> bool {
+        let Some(active) = self.native_resources.take() else {
+            return true;
+        };
+        match self.quarantined_native_resources.try_push(active) {
+            Ok(()) => true,
+            Err(active) => {
+                self.native_resources = Some(active);
+                false
+            }
+        }
+    }
+
     pub(super) fn maintain_native_resources(&mut self, turn: &mut NativeResourceMaintenanceTurn) {
         maintain_native_resource_entries(
             &mut self.native_resources,

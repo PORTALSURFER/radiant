@@ -2481,9 +2481,19 @@ outside its scope. The failed frame is not presented or counted as a successful
 presentation, and the runner records that cause before requesting event-loop
 `RenderDeviceLost(message)` reports an unexpected WGPU device loss using owned
 backend text; an empty backend message uses a deterministic fallback, while
-normal device destruction is ignored. Device-loss handling is terminal reporting
-only in this slice: recovery, device reconstruction, and retry are not
-implemented. `RenderDeviceError { kind, message }` reports an uncaptured WGPU
+normal device destruction is ignored. An accepted loss from the exact current
+adapter generation and callback witness enters a private bounded `Recovering`
+phase. One fresh adapter/device candidate is prepared asynchronously from an
+empty WGPU render context, then the existing primary `WindowId` and
+`Arc<Window>` are reused for a complete generation-bound resource publication;
+application effects, geometry, and runtime-local UI state are preserved. Visible
+auxiliary windows rebuild independently at most one per event-loop opportunity;
+cached hidden auxiliaries rebuild before they are shown, and retiring
+auxiliaries never revive. Stale, duplicate, unknown, mismatched, and late loss
+events are ignored. Candidate, reconstruction, publication, or bounded
+quarantine-capacity failures enter the existing bounded Closing phase while
+preserving the original `RenderDeviceLost` cause. Successful recovery remains
+internal and does not change the public runtime API. `RenderDeviceError { kind, message }` reports an uncaptured WGPU
 device error through the backend-neutral `NativeRenderDeviceErrorKind` values
 `OutOfMemory`, `Validation`, and `Internal`; empty backend descriptions use a
 deterministic non-empty fallback. Validation errors captured by the scoped custom

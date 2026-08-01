@@ -194,7 +194,14 @@ owner and create only compatible surfaces and per-window renderers. Auxiliary
 explicit auxiliary policy must be compatible with it and the selected adapter
 must support the child surface. Auxiliary child runners route and present their
 own projected surface, but the parent runner owns auxiliary projection and
-synchronization.
+synchronization. An accepted current-generation device loss moves the private
+native lifecycle through `Recovering`; one fresh adapter/device candidate is
+prepared off the event loop from an empty render context and committed only as
+a complete primary bundle against the existing window. Old bundles remain in
+the bounded completion-witness quarantine, while visible auxiliaries rebuild
+lazily one per event-loop opportunity and cached hidden auxiliaries rebuild
+before show. Any recovery publication or reconstruction veto returns through
+the existing bounded `Closing` policy.
 
 Environment-aware widget paint is additive and remains in the core contract:
 `ResolvedEnvironment` is a lossless copyable projection of the current

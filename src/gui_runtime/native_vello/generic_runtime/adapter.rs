@@ -56,6 +56,16 @@ impl NativeAdapterGeneration {
         matches!(self.status, NativeAdapterGenerationStatus::Known)
     }
 
+    pub(super) const fn is_strictly_newer_than(self, previous: Self) -> bool {
+        matches!(
+            (self.status, previous.status),
+            (
+                NativeAdapterGenerationStatus::Known,
+                NativeAdapterGenerationStatus::Known
+            )
+        ) && self.serial > previous.serial
+    }
+
     #[cfg(test)]
     pub(super) const fn is_exhausted(self) -> bool {
         matches!(self.status, NativeAdapterGenerationStatus::Exhausted)
@@ -237,10 +247,88 @@ impl GenericNativeAdapterOwner {
         Ok(render_surface)
     }
 
+    /// Create a surface bundle using the already selected device without
+    /// running Vello's device-selection future again. Recovery and lazy
+    /// auxiliary rebuilds use this event-loop-local path after a fresh device
+    /// candidate has been selected elsewhere.
+    pub(super) fn create_render_surface_for_selected<'surface>(
+        &self,
+        surface: wgpu::Surface<'surface>,
+        width: u32,
+        height: u32,
+        present_mode: wgpu::PresentMode,
+    ) -> Result<RenderSurface<'surface>, AdapterSurfaceError> {
+        let selected = self
+            .selected
+            .as_ref()
+            .ok_or(AdapterSurfaceError::NoSelectedDevice)?;
+        let Some(context) = self.render_context.as_ref() else {
+            return Err(AdapterSurfaceError::NoSelectedDevice);
+        };
+        let Some(device_handle) = context.devices.get(selected.device_id) else {
+            return Err(AdapterSurfaceError::NoSelectedDevice);
+        };
+        let capabilities = surface.get_capabilities(device_handle.adapter());
+        let format = capabilities
+            .formats
+            .into_iter()
+            .find(|format| {
+                matches!(
+                    format,
+                    wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm
+                )
+            })
+            .ok_or_else(|| {
+                render_surface_creation_error("selected surface has no supported texture format")
+            })?;
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width,
+            height,
+            present_mode,
+            desired_maximum_frame_latency: 2,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: Vec::new(),
+        };
+        let target_texture = device_handle
+            .device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: None,
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                view_formats: &[],
+            });
+        let target_view = target_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        surface.configure(&device_handle.device, &config);
+        Ok(RenderSurface {
+            surface,
+            config,
+            dev_id: selected.device_id,
+            format,
+            target_texture,
+            target_view,
+            blitter: wgpu::util::TextureBlitter::new(&device_handle.device, format),
+        })
+    }
+
     pub(super) fn selected_device_handle(&self) -> Option<&DeviceHandle> {
         let context = self.render_context.as_ref()?;
         let device_id = self.selected.as_ref()?.device_id;
         context.devices.get(device_id)
+    }
+
+    pub(super) fn selected_device_identity(&self) -> Option<usize> {
+        self.selected_device_handle()
+            .map(|handle| super::device::wgpu_device_id(&handle.device))
     }
 
     /// Capture the owner's current known generation for a window resource
@@ -297,6 +385,37 @@ impl GenericNativeAdapterOwner {
                     Some(&selected.device_loss_registration),
                     registration,
                 )
+        })
+    }
+
+    pub(super) fn next_recovery_generation(&self) -> Option<NativeAdapterGeneration> {
+        self.next_generation().ok()
+    }
+
+    pub(super) fn from_fresh_recovery_context(
+        render_context: RenderContext,
+        device_id: usize,
+        generation: NativeAdapterGeneration,
+        device_loss_registration: Arc<DeviceLossRegistration>,
+    ) -> Result<Self, &'static str> {
+        let Some(backend) = render_context
+            .devices
+            .get(device_id)
+            .map(|device_handle| device_handle.adapter().get_info().backend)
+        else {
+            return Err("fresh recovery context did not retain its selected device");
+        };
+        if !generation.is_known() {
+            return Err("fresh recovery context requires a known generation");
+        }
+        Ok(Self {
+            render_context: Some(render_context),
+            selected: Some(SelectedNativeAdapter {
+                device_id,
+                backend,
+                generation,
+                device_loss_registration,
+            }),
         })
     }
 
@@ -469,6 +588,17 @@ mod tests {
         let previous = generation;
         assert!(generation.advance());
         assert_ne!(generation, previous);
+    }
+
+    #[test]
+    fn recovery_generation_must_be_strictly_newer_and_known() {
+        let previous = NativeAdapterGeneration::from_test_serial(4);
+        let newer = NativeAdapterGeneration::from_test_serial(5);
+
+        assert!(newer.is_strictly_newer_than(previous));
+        assert!(!previous.is_strictly_newer_than(previous));
+        assert!(!NativeAdapterGeneration::unknown().is_strictly_newer_than(previous));
+        assert!(!newer.is_strictly_newer_than(NativeAdapterGeneration::unknown()));
     }
 
     #[test]

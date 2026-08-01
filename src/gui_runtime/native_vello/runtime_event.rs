@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::generic_runtime::{NativeAdapterGeneration, NativeRenderDeviceErrorKind};
+use super::generic_runtime::{
+    NativeAdapterGeneration, NativeRecoveryEpisodeToken, NativeRenderDeviceErrorKind,
+};
 
 /// Owner-scoped identity for one native WGPU device callback pair.
 ///
@@ -27,6 +29,9 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         generation: NativeAdapterGeneration,
         message: String,
     },
+    DeviceRecoveryReady {
+        episode: NativeRecoveryEpisodeToken,
+    },
     RenderDeviceError {
         registration: Arc<DeviceLossRegistration>,
         generation: NativeAdapterGeneration,
@@ -48,6 +53,10 @@ impl PartialEq for RuntimeUserEvent {
                 Self::NativeResourceMaintenanceRequested,
                 Self::NativeResourceMaintenanceRequested,
             ) => true,
+            (
+                Self::DeviceRecoveryReady { episode: left },
+                Self::DeviceRecoveryReady { episode: right },
+            ) => left == right,
             (
                 Self::DeviceLost {
                     registration: left_registration,

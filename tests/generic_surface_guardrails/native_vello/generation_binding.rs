@@ -579,3 +579,175 @@ fn native_whole_run_closing_is_central_bounded_and_nonblocking() {
         );
     }
 }
+
+#[test]
+fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let recovery = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/recovery.rs"),
+    )
+    .expect("native recovery source should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("generic runner source should be readable");
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic lifecycle source should be readable");
+    let adapter = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/adapter.rs"),
+    )
+    .expect("generic adapter source should be readable");
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("generic auxiliary source should be readable");
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
+
+    for required in [
+        "NativeRecoveryEpisodeToken",
+        "sync_channel(1)",
+        "try_recv()",
+        "RenderContext",
+        "devices: Vec::new()",
+        "previous_device_identity",
+        "candidate_starts",
+        "candidate_completions",
+        "max_in_flight",
+        "AtomicBool",
+        "OnceLock",
+        "RecoveryFutureError::Cancelled",
+        "acknowledge",
+        "has_in_flight_candidate",
+    ] {
+        assert!(
+            recovery.contains(required),
+            "recovery should retain bounded async evidence `{required}`"
+        );
+    }
+    for forbidden in [
+        "pollster::block_on",
+        "PollType::Wait",
+        ".recv(",
+        ".join(",
+        "thread::sleep",
+        "std::thread::sleep",
+        "create_window(",
+        "auxiliary_windows.clear()",
+        "pub fn",
+    ] {
+        assert!(
+            !recovery.contains(forbidden),
+            "recovery must not introduce `{forbidden}`"
+        );
+    }
+    assert!(
+        !runner_state.contains("quarantined_native_resources.clear")
+            && !recovery.contains("quarantined_native_resources.clear"),
+        "recovery must preserve bounded quarantine ownership"
+    );
+    assert!(
+        recovery.contains("cancelled: AtomicBool")
+            && recovery.contains("fn cancel(&self)")
+            && recovery.contains("thread.unpark()")
+            && recovery.contains("fn is_cancelled(&self)")
+            && recovery.contains("thread::park()")
+            && recovery.contains("if cancellation.is_cancelled()"),
+        "recovery worker parking must remain cancellation-wakeable and cancellation-fenced"
+    );
+    assert!(
+        lifecycle.contains("recovery_deadline")
+            && lifecycle.contains("recovery_expired")
+            && lifecycle.contains("ControlFlow::WaitUntil")
+            && runner.contains("self.recovery.acknowledge")
+            && runner.contains("!self.recovery.has_in_flight_candidate()"),
+        "recovery must have a deadline, retain the cancellation episode, and acknowledge late completion"
+    );
+    assert!(
+        adapter.contains("is_strictly_newer_than")
+            && adapter.contains("from_fresh_recovery_context")
+            && recovery.contains("context.device(Some(&surface))"),
+        "recovery must select through a fresh context and require a newer generation"
+    );
+    assert!(
+        lifecycle.contains("DeviceRecoveryReady")
+            && lifecycle.contains("self.is_recovering()")
+            && runner.contains("handle_device_recovery_ready"),
+        "the event loop should admit only the private recovery completion event"
+    );
+    let ready_handler = runner
+        .find("pub(super) fn handle_device_recovery_ready")
+        .expect("device-recovery-ready handler should remain explicit");
+    let ready_handler_end = runner[ready_handler..]
+        .find("\n    fn commit_device_recovery_candidate")
+        .map_or(runner.len(), |offset| ready_handler + offset);
+    let ready_handler_source = &runner[ready_handler..ready_handler_end];
+    let expiry_check = ready_handler_source
+        .find("self.recovery_expired(Instant::now())")
+        .expect("recovery-ready admission should check the fixed deadline");
+    let expiry_guard_source = &ready_handler_source[expiry_check..];
+    let acknowledge = expiry_guard_source
+        .find("self.recovery.acknowledge(episode)")
+        .expect("an overdue matching recovery episode should be acknowledged");
+    let shutdown = expiry_guard_source
+        .find("self.admit_native_shutdown(event_loop, None);")
+        .expect("an overdue matching recovery episode should enter central shutdown");
+    let take_ready = expiry_guard_source
+        .find("self.recovery.take_ready(episode)")
+        .expect("normal recovery completion should still take a ready candidate");
+    let candidate_commit = expiry_guard_source
+        .find("self.commit_device_recovery_candidate(candidate)")
+        .expect("normal recovery completion should still commit the candidate");
+    assert!(
+        ready_handler_source.contains("recovery_completion_is_admissible")
+            && ready_handler_source.contains("if self.recovery.acknowledge(episode)")
+            && acknowledge < shutdown
+            && shutdown < take_ready
+            && take_ready < candidate_commit
+            && expiry_guard_source.contains("return;"),
+        "overdue recovery completion must be acknowledged and shut down before candidate extraction or publication"
+    );
+    assert!(
+        auxiliary.contains("recovery_rebuild_pending")
+            && auxiliary.contains("recovery_opportunity")
+            && auxiliary.contains("quarantine_device_recovery_resources"),
+        "auxiliary recovery should remain lazy, bounded, and retirement-aware"
+    );
+    let recovery_rebuild_start = auxiliary
+        .find("let mut recovery_opportunity")
+        .expect("auxiliary recovery rebuild admission should remain explicit");
+    let recovery_rebuild_end = auxiliary[recovery_rebuild_start..]
+        .find("let projections")
+        .map_or(auxiliary.len(), |offset| recovery_rebuild_start + offset);
+    let recovery_rebuild_source = &auxiliary[recovery_rebuild_start..recovery_rebuild_end];
+    assert!(
+        recovery_rebuild_source.contains("let rebuild_result")
+            && recovery_rebuild_source.contains("if let Err(error) = rebuild_result")
+            && recovery_rebuild_source.contains("take_deferred_auxiliary_recovery_failure_cause")
+            && recovery_rebuild_source
+                .contains("self.admit_native_shutdown(event_loop, Some(cause));")
+            && recovery_rebuild_source
+                .contains("self.request_redraw_for_frame_work(FrameWork::None);")
+            && !recovery_rebuild_source
+                .contains("rebuild_after_device_recovery(adapter, event_proxy.clone())?"),
+        "deferred auxiliary recovery failures must enter central bounded shutdown with the retained cause rather than escape into a discarded wrapper result"
+    );
+
+    let loss_handler = runner
+        .find("pub(super) fn handle_device_lost_event")
+        .expect("device-loss handler should remain explicit");
+    let loss_handler_end = runner[loss_handler..]
+        .find("\n    fn can_prepare_device_recovery")
+        .map_or(runner.len(), |offset| loss_handler + offset);
+    let loss_handler_source = &runner[loss_handler..loss_handler_end];
+    assert!(
+        loss_handler_source.contains("begin_device_recovery")
+            && !loss_handler_source.contains("admit_native_shutdown")
+            && !loss_handler_source.contains("record_render_device_lost_and_exit"),
+        "an accepted current DeviceLost event must enter recovery rather than direct Closing"
+    );
+}

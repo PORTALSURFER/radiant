@@ -367,6 +367,10 @@ where
         self.window.surface_recovery.rearm_transient_retry();
     }
 
+    pub(super) fn complete_native_recovery_target_transition(&mut self) {
+        self.complete_target_transition();
+    }
+
     fn fence_native_surface_target(&mut self) {
         if self.window.native_surface_target_fenced {
             return;

@@ -68,6 +68,7 @@ pub(super) enum NativeClosingProgress {
 pub(super) enum NativeLifecycle {
     #[default]
     Running,
+    Recovering,
     Closing(NativeClosingBudget),
     Stopped,
 }
@@ -81,16 +82,35 @@ impl NativeLifecycle {
         matches!(self, Self::Closing(_))
     }
 
-    #[cfg(test)]
+    pub(super) const fn is_recovering(self) -> bool {
+        matches!(self, Self::Recovering)
+    }
+
     pub(super) const fn is_stopped(self) -> bool {
         matches!(self, Self::Stopped)
     }
 
     pub(super) fn admit_closing(&mut self, first_admitted_at: Instant) -> bool {
-        if !self.is_running() {
+        if !matches!(self, Self::Running | Self::Recovering) {
             return false;
         }
         *self = Self::Closing(NativeClosingBudget::new(first_admitted_at));
+        true
+    }
+
+    pub(super) fn admit_recovery(&mut self) -> bool {
+        if !self.is_running() {
+            return false;
+        }
+        *self = Self::Recovering;
+        true
+    }
+
+    pub(super) fn finish_recovery(&mut self) -> bool {
+        if !self.is_recovering() {
+            return false;
+        }
+        *self = Self::Running;
         true
     }
 
@@ -108,7 +128,7 @@ impl NativeLifecycle {
     pub(super) fn closing_deadline(&self, now: Instant) -> Option<Instant> {
         match self {
             Self::Closing(budget) => Some(budget.next_opportunity_deadline(now)),
-            Self::Running | Self::Stopped => None,
+            Self::Running | Self::Recovering | Self::Stopped => None,
         }
     }
 
@@ -217,5 +237,27 @@ mod tests {
         assert!(!lifecycle.finish_closing());
         assert!(!lifecycle.admit_closing(Instant::now()));
         assert!(lifecycle.is_stopped());
+    }
+
+    #[test]
+    fn recovery_round_trip_preserves_running_lifecycle_without_closing() {
+        let mut lifecycle = NativeLifecycle::default();
+
+        assert!(lifecycle.admit_recovery());
+        assert!(lifecycle.is_recovering());
+        assert!(!lifecycle.is_closing());
+        assert!(!lifecycle.admit_recovery());
+        assert!(lifecycle.finish_recovery());
+        assert!(lifecycle.is_running());
+    }
+
+    #[test]
+    fn recovery_failure_can_enter_the_existing_closing_budget() {
+        let mut lifecycle = NativeLifecycle::default();
+
+        assert!(lifecycle.admit_recovery());
+        assert!(lifecycle.admit_closing(Instant::now()));
+        assert!(lifecycle.is_closing());
+        assert!(!lifecycle.is_recovering());
     }
 }

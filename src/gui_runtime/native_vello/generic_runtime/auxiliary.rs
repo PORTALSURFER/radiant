@@ -1,8 +1,11 @@
+use super::runner_state::NativeWindowResourceBundle;
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, NativeGenericRunError, NativeResourceMaintenanceTurn, RuntimeUserEvent,
-    SceneRebuildMode, initial_viewport, owner_window_handle,
+    GenericRouteOutcome, NativeAdapterGeneration, NativeGenericRunError,
+    NativeResourceMaintenanceTurn, RuntimeUserEvent, SceneRebuildMode, initial_viewport,
+    owner_window_handle,
 };
+use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
@@ -28,6 +31,7 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
     active: bool,
     lifecycle: AuxiliaryNativeWindowLifecycle,
+    recovery_rebuild_pending: bool,
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
@@ -52,6 +56,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             runner,
             active: true,
             lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
+            recovery_rebuild_pending: false,
         }
     }
 
@@ -65,6 +70,150 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn is_retiring(&self) -> bool {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
+    }
+
+    pub(super) fn recovery_rebuild_pending(&self) -> bool {
+        self.recovery_rebuild_pending
+    }
+
+    pub(super) fn can_prepare_device_recovery(&self, generation: NativeAdapterGeneration) -> bool {
+        if !self.is_admitted() {
+            return true;
+        }
+        self.runner.is_running()
+            && self
+                .runner
+                .window
+                .native_resources
+                .as_ref()
+                .is_none_or(|resources| resources.generation == generation)
+            && self.runner.window.can_publish_native_resources()
+    }
+
+    pub(super) fn admit_device_recovery(&mut self) -> bool {
+        if !self.is_admitted() {
+            return true;
+        }
+        if !self.runner.admit_device_recovery() {
+            return false;
+        }
+        self.recovery_rebuild_pending = self.runner.window.window.is_some();
+        true
+    }
+
+    pub(super) fn quarantine_device_recovery_resources(&mut self) -> bool {
+        if !self.is_admitted() || !self.recovery_rebuild_pending {
+            return true;
+        }
+        self.runner.window.quarantine_active_native_resources()
+    }
+
+    pub(super) fn finish_device_recovery_if_no_rebuild(&mut self) {
+        if self.is_admitted() && !self.recovery_rebuild_pending {
+            self.runner.finish_device_recovery();
+        }
+    }
+
+    pub(super) fn rebuild_after_device_recovery(
+        &mut self,
+        adapter: &GenericNativeAdapterOwner,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+    ) -> Result<bool, NativeGenericRunError> {
+        if !self.recovery_rebuild_pending {
+            return Ok(false);
+        }
+        let window = self.runner.window.window.clone().ok_or_else(|| {
+            NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::WgpuSurfaceCreation,
+                message: String::from("recovering auxiliary window disappeared"),
+            }
+        })?;
+        let instance =
+            adapter
+                .instance()
+                .ok_or_else(|| NativeGenericRunError::NativeInitialization {
+                    stage: super::NativeInitializationStage::WgpuSurfaceCreation,
+                    message: String::from("fresh native adapter context is unavailable"),
+                })?;
+        let surface = instance.create_surface(window.clone()).map_err(|error| {
+            NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::WgpuSurfaceCreation,
+                message: error.to_string(),
+            }
+        })?;
+        adapter
+            .validate_auxiliary_surface(self.runner.options.gpu.backend, &surface)
+            .map_err(|error| NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: error.to_string(),
+            })?;
+        let generation = adapter.capture_generation().ok_or_else(|| {
+            NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: String::from("fresh native adapter has no known generation"),
+            }
+        })?;
+        let device = adapter.selected_device_handle().ok_or_else(|| {
+            NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: String::from("fresh native adapter has no selected device"),
+            }
+        })?;
+        let present_modes = surface.get_capabilities(device.adapter()).present_modes;
+        let present_mode =
+            select_present_mode(self.runner.options.normalized_target_fps(), &present_modes);
+        let size = window.inner_size();
+        let render_surface = adapter
+            .create_render_surface_for_selected(
+                surface,
+                size.width.max(1),
+                size.height.max(1),
+                present_mode,
+            )
+            .map_err(|error| NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::RenderSurfaceCreation,
+                message: error.to_string(),
+            })?;
+        let renderer =
+            vello::Renderer::new(&device.device, startup_renderer_options()).map_err(|error| {
+                NativeGenericRunError::NativeInitialization {
+                    stage: super::NativeInitializationStage::RendererCreation,
+                    message: error.to_string(),
+                }
+            })?;
+        let native_resources = NativeWindowResourceBundle::new(
+            generation,
+            render_surface,
+            renderer,
+            &device.device,
+            &device.queue,
+            event_proxy,
+        )
+        .ok_or_else(|| NativeGenericRunError::NativeInitialization {
+            stage: super::NativeInitializationStage::DeviceAcquisition,
+            message: String::from("fresh auxiliary bundle was not generation-bound"),
+        })?;
+        let Some(publication) = self.runner.window.reserve_native_resource_publication() else {
+            return Err(NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: String::from("auxiliary quarantine capacity is exhausted"),
+            });
+        };
+        publication.publish(native_resources);
+        self.runner.complete_native_recovery_target_transition();
+        self.runner.frame.invalidate_native_resources_for_recovery();
+        self.runner.finish_device_recovery();
+        self.runner.rebuild_scene();
+        self.recovery_rebuild_pending = false;
+        if self.active {
+            self.show();
+        }
+        self.runner
+            .request_redraw_for_frame_work(FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::Immediate,
+            });
+        Ok(true)
     }
 
     pub(super) fn maintain_native_resources_with_turn(
@@ -89,7 +238,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
-        if !self.is_admitted() {
+        if !self.is_admitted() || self.recovery_rebuild_pending {
             return;
         }
         self.cache_on_close = projection.caches_on_close();
@@ -165,6 +314,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return;
         }
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
+        self.recovery_rebuild_pending = false;
         self.hide();
         let _ = self.runner.core.runtime.begin_closing();
     }
@@ -367,8 +517,21 @@ where
         adapter: &mut GenericNativeAdapterOwner,
         _maintenance: &mut NativeResourceMaintenanceTurn,
     ) -> Result<(), NativeGenericRunError> {
+        let recovery_followup_pending = self.recovery_auxiliary_followup_pending;
         self.timing.deferred_auxiliary_window_sync = false;
         if !self.should_admit_auxiliary_sync() {
+            return Ok(());
+        }
+        let mut recovery_opportunity = AuxiliaryRecoveryOpportunity::default();
+        if recovery_opportunity.admit_rebuild()
+            && let Some(index) = self
+                .auxiliary_windows
+                .iter()
+                .position(AuxiliaryNativeWindow::recovery_rebuild_pending)
+        {
+            self.auxiliary_windows[index]
+                .rebuild_after_device_recovery(adapter, event_proxy.clone())?;
+            self.timing.deferred_auxiliary_window_sync = true;
             return Ok(());
         }
         let projections = self.core.runtime.host_project_auxiliary_windows();
@@ -402,10 +565,19 @@ where
                 if let Err(error) =
                     append_initialized_auxiliary_window(&mut self.auxiliary_windows, initialized)
                 {
-                    self.record_initialization_error_and_exit(event_loop, error.clone());
+                    if let Some(cause) = self.recovery_cause.take() {
+                        self.recovery_auxiliary_followup_pending = false;
+                        self.admit_native_shutdown(event_loop, Some(cause));
+                    } else {
+                        self.record_initialization_error_and_exit(event_loop, error.clone());
+                    }
                     return Err(error);
                 }
             }
+        }
+        if recovery_followup_pending {
+            self.recovery_auxiliary_followup_pending = false;
+            self.recovery_cause.take();
         }
         Ok(())
     }
@@ -455,11 +627,31 @@ fn append_initialized_auxiliary_window<T>(
     Ok(())
 }
 
+#[derive(Default)]
+struct AuxiliaryRecoveryOpportunity {
+    rebuilds: u8,
+}
+
+impl AuxiliaryRecoveryOpportunity {
+    fn admit_rebuild(&mut self) -> bool {
+        if self.rebuilds != 0 {
+            return false;
+        }
+        self.rebuilds = 1;
+        true
+    }
+
+    #[cfg(test)]
+    const fn rebuilds(&self) -> u8 {
+        self.rebuilds
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        AuxiliaryNativeWindow, AuxiliarySurfaceBridge, AuxiliaryWindowEventResult,
-        GenericNativeVelloRunner, NativeResourceMaintenanceTurn,
+        AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity, AuxiliarySurfaceBridge,
+        AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeResourceMaintenanceTurn,
         append_initialized_auxiliary_window, auxiliary_key_is_retiring,
         auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
     };
@@ -623,5 +815,14 @@ mod tests {
         assert!(parent.auxiliary_windows.is_empty());
         assert!(parent.timing.deferred_auxiliary_window_sync);
         assert!(!turn.has_pending());
+    }
+
+    #[test]
+    fn recovery_opportunity_admits_at_most_one_auxiliary_rebuild() {
+        let mut opportunity = AuxiliaryRecoveryOpportunity::default();
+
+        assert!(opportunity.admit_rebuild());
+        assert!(!opportunity.admit_rebuild());
+        assert_eq!(opportunity.rebuilds(), 1);
     }
 }

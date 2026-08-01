@@ -1,5 +1,9 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
+use super::recovery::{
+    NativeRecoveryCandidate, NativeRecoveryCoordinator, NativeRecoveryEpisodeToken,
+    NativeRecoveryRequest,
+};
 use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeAdapterOwner,
@@ -55,6 +59,10 @@ where
     native_lifecycle: NativeLifecycle,
     auxiliary_owner: bool,
     terminal_cause: Option<NativeGenericRunError>,
+    pub(super) recovery: NativeRecoveryCoordinator,
+    pub(super) recovery_cause: Option<NativeGenericRunError>,
+    pub(super) recovery_primary_was_visible: bool,
+    pub(super) recovery_auxiliary_followup_pending: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -164,6 +172,10 @@ where
             native_lifecycle: NativeLifecycle::default(),
             auxiliary_owner: false,
             terminal_cause: None,
+            recovery: NativeRecoveryCoordinator::default(),
+            recovery_cause: None,
+            recovery_primary_was_visible: false,
+            recovery_auxiliary_followup_pending: false,
         }
     }
 
@@ -177,6 +189,22 @@ where
 
     pub(super) const fn is_closing(&self) -> bool {
         self.native_lifecycle.is_closing()
+    }
+
+    pub(super) const fn is_recovering(&self) -> bool {
+        self.native_lifecycle.is_recovering()
+    }
+
+    pub(super) fn admit_device_recovery(&mut self) -> bool {
+        if !self.native_lifecycle.admit_recovery() {
+            return false;
+        }
+        self.fence_native_presentation();
+        true
+    }
+
+    pub(super) fn finish_device_recovery(&mut self) {
+        let _ = self.native_lifecycle.finish_recovery();
     }
 
     pub(super) const fn native_shutdown_requested(&self) -> bool {
@@ -204,9 +232,18 @@ where
         event_loop: &ActiveEventLoop,
         cause: Option<NativeGenericRunError>,
     ) {
-        if !self.is_running() {
+        if self.is_closing() || self.native_lifecycle.is_stopped() {
             return;
         }
+        let cause = if self.is_recovering() {
+            self.recovery_cause.take().or(cause)
+        } else {
+            self.recovery_cause.take();
+            self.recovery_auxiliary_followup_pending = false;
+            cause
+        };
+        self.recovery.cancel();
+        self.recovery_auxiliary_followup_pending = false;
         let now = Instant::now();
         if !self.native_lifecycle.admit_closing(now) {
             return;
@@ -352,7 +389,206 @@ where
             return;
         }
         let cause = NativeGenericRunError::RenderDeviceLost(message);
-        self.record_render_device_lost_and_exit(event_loop, cause);
+        self.begin_device_recovery(event_loop, generation, cause);
+    }
+
+    fn can_prepare_device_recovery(&self, generation: NativeAdapterGeneration) -> bool {
+        self.window
+            .native_resources
+            .as_ref()
+            .is_none_or(|resources| resources.generation == generation)
+            && self.window.can_publish_native_resources()
+            && self
+                .auxiliary_windows
+                .iter()
+                .all(|window| window.can_prepare_device_recovery(generation))
+    }
+
+    fn begin_device_recovery(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        generation: NativeAdapterGeneration,
+        cause: NativeGenericRunError,
+    ) {
+        let Some(adapter) = self.adapter.as_ref() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        if adapter.capture_generation() != Some(generation)
+            || !self.can_prepare_device_recovery(generation)
+        {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        }
+        let Some(previous_device_identity) = adapter.selected_device_identity() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        let Some(next_generation) = adapter.next_recovery_generation() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        if !next_generation.is_strictly_newer_than(generation) {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        }
+        let Some(window) = self.window.window.clone() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        let Some(instance) = adapter.instance().cloned() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        let size = window.inner_size();
+        let surface = match instance.create_surface(window.clone()) {
+            Ok(surface) => surface,
+            Err(error) => {
+                warn!(error = %error, "radiant generic native vello: recovery surface creation failed");
+                self.admit_native_shutdown(event_loop, Some(cause));
+                return;
+            }
+        };
+        let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        if !self.native_lifecycle.admit_recovery() {
+            return;
+        }
+        self.recovery_cause = Some(cause);
+        self.recovery_primary_was_visible = window.is_visible().unwrap_or(true);
+        self.fence_native_presentation();
+        if self
+            .auxiliary_windows
+            .iter_mut()
+            .any(|window| !window.admit_device_recovery())
+        {
+            self.admit_native_shutdown(event_loop, None);
+            return;
+        }
+        let request = NativeRecoveryRequest {
+            instance,
+            surface,
+            width: size.width.max(1),
+            height: size.height.max(1),
+            target_fps: self.options.normalized_target_fps(),
+            generation: next_generation,
+            previous_device_identity,
+            event_proxy,
+        };
+        if let Err(error) = self.recovery.start(request) {
+            warn!(error = %error, "radiant generic native vello: recovery candidate could not start");
+            self.admit_native_shutdown(event_loop, None);
+        }
+    }
+
+    pub(super) fn handle_device_recovery_ready(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        episode: NativeRecoveryEpisodeToken,
+    ) {
+        if !self.is_recovering() {
+            return;
+        }
+        let Some(result) = self.recovery.take_ready(episode) else {
+            return;
+        };
+        match result {
+            Ok(candidate) => {
+                if let Err(error) = self.commit_device_recovery_candidate(candidate) {
+                    warn!(error = %error, "radiant generic native vello: recovery candidate publication failed");
+                    self.admit_native_shutdown(event_loop, None);
+                }
+            }
+            Err(error) => {
+                warn!(error = %error, "radiant generic native vello: recovery candidate preparation failed");
+                self.admit_native_shutdown(event_loop, None);
+            }
+        }
+    }
+
+    fn commit_device_recovery_candidate(
+        &mut self,
+        candidate: NativeRecoveryCandidate,
+    ) -> Result<(), String> {
+        if !self.is_recovering() {
+            return Err(String::from(
+                "native recovery lifecycle is no longer recovering",
+            ));
+        }
+        let Some(previous_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(|adapter| adapter.capture_generation())
+        else {
+            return Err(String::from(
+                "native recovery lost its previous adapter generation",
+            ));
+        };
+        let NativeRecoveryCandidate {
+            adapter,
+            mut primary,
+        } = candidate;
+        if !primary
+            .generation
+            .is_strictly_newer_than(previous_generation)
+            || adapter.capture_generation() != Some(primary.generation)
+            || !self.can_prepare_device_recovery(previous_generation)
+        {
+            return Err(String::from(
+                "native recovery candidate did not retain exact newer-generation evidence",
+            ));
+        }
+        if let Some(window) = self.window.window.as_ref() {
+            let size = window.inner_size();
+            if !adapter.resize_surface(
+                &mut primary.render_surface,
+                size.width.max(1),
+                size.height.max(1),
+            ) {
+                return Err(String::from(
+                    "native recovery candidate could not match the current primary geometry",
+                ));
+            }
+        } else {
+            return Err(String::from("native recovery primary window disappeared"));
+        }
+        for window in &mut self.auxiliary_windows {
+            if !window.quarantine_device_recovery_resources() {
+                return Err(String::from(
+                    "native recovery auxiliary quarantine capacity changed during commit",
+                ));
+            }
+        }
+        let Some(publication) = self.window.reserve_native_resource_publication() else {
+            return Err(String::from(
+                "native recovery primary quarantine capacity changed during commit",
+            ));
+        };
+        publication.publish(primary);
+        self.adapter = Some(adapter);
+        self.complete_native_recovery_target_transition();
+        self.frame.invalidate_native_resources_for_recovery();
+        let _ = self.native_lifecycle.finish_recovery();
+        for window in &mut self.auxiliary_windows {
+            window.finish_device_recovery_if_no_rebuild();
+        }
+        self.rebuild_scene();
+        if self.recovery_primary_was_visible
+            && let Some(window) = self.window.window.as_ref()
+        {
+            window.set_visible(true);
+        }
+        self.recovery_primary_was_visible = false;
+        self.recovery_auxiliary_followup_pending = true;
+        self.timing.deferred_auxiliary_window_sync = true;
+        self.timing.last_redraw = Instant::now();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        });
+        Ok(())
     }
 
     pub(super) fn handle_render_device_error_event(
@@ -392,14 +628,6 @@ where
     }
 
     pub(super) fn record_frame_render_error_and_exit(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        cause: NativeGenericRunError,
-    ) {
-        self.admit_native_shutdown(event_loop, Some(cause));
-    }
-
-    pub(super) fn record_render_device_lost_and_exit(
         &mut self,
         event_loop: &ActiveEventLoop,
         cause: NativeGenericRunError,
@@ -1159,6 +1387,22 @@ mod tests {
         assert!(!runner.should_initialize_runtime());
         assert!(!runner.should_admit_auxiliary_sync());
         assert!(runner.native_shutdown_requested());
+    }
+
+    #[test]
+    fn native_recovery_round_trip_fences_without_terminal_cause() {
+        let mut runner = runner();
+
+        assert!(runner.admit_device_recovery());
+        assert!(runner.is_recovering());
+        assert!(!runner.is_running());
+        assert!(!runner.is_closing());
+        assert!(!runner.has_terminal_cause());
+        assert!(!runner.should_admit_auxiliary_sync());
+
+        runner.finish_device_recovery();
+        assert!(runner.is_running());
+        assert!(!runner.has_terminal_cause());
     }
 
     #[test]

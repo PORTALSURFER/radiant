@@ -209,6 +209,9 @@ where
                 generation,
                 message,
             } => self.handle_device_lost_event(event_loop, generation, registration, message),
+            RuntimeUserEvent::DeviceRecoveryReady { episode } => {
+                self.handle_device_recovery_ready(event_loop, episode)
+            }
             RuntimeUserEvent::RenderDeviceError {
                 registration,
                 generation,
@@ -224,6 +227,8 @@ where
             RuntimeUserEvent::NativeResourceMaintenanceRequested => {
                 if self.is_closing() {
                     self.advance_native_closing(event_loop, Instant::now());
+                } else if self.is_recovering() {
+                    let _ = self.begin_native_resource_maintenance();
                 } else if self.is_running() {
                     let _ = self.begin_native_resource_maintenance_and_wake_primary();
                 }
@@ -244,6 +249,10 @@ where
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if self.is_closing() {
             self.advance_native_closing(event_loop, Instant::now());
+            return;
+        }
+        if self.is_recovering() {
+            event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
         if !self.is_running() {

@@ -579,3 +579,102 @@ fn native_whole_run_closing_is_central_bounded_and_nonblocking() {
         );
     }
 }
+
+#[test]
+fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let recovery = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/recovery.rs"),
+    )
+    .expect("native recovery source should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("generic runner source should be readable");
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic lifecycle source should be readable");
+    let adapter = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/adapter.rs"),
+    )
+    .expect("generic adapter source should be readable");
+    let auxiliary = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
+    )
+    .expect("generic auxiliary source should be readable");
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
+
+    for required in [
+        "NativeRecoveryEpisodeToken",
+        "sync_channel(1)",
+        "try_recv()",
+        "RenderContext",
+        "devices: Vec::new()",
+        "previous_device_identity",
+        "candidate_starts",
+        "candidate_completions",
+        "max_in_flight",
+    ] {
+        assert!(
+            recovery.contains(required),
+            "recovery should retain bounded async evidence `{required}`"
+        );
+    }
+    for forbidden in [
+        "pollster::block_on",
+        "PollType::Wait",
+        ".recv(",
+        ".join(",
+        "thread::sleep",
+        "std::thread::sleep",
+        "create_window(",
+        "auxiliary_windows.clear()",
+        "pub fn",
+    ] {
+        assert!(
+            !recovery.contains(forbidden),
+            "recovery must not introduce `{forbidden}`"
+        );
+    }
+    assert!(
+        !runner_state.contains("quarantined_native_resources.clear")
+            && !recovery.contains("quarantined_native_resources.clear"),
+        "recovery must preserve bounded quarantine ownership"
+    );
+    assert!(
+        adapter.contains("is_strictly_newer_than")
+            && adapter.contains("from_fresh_recovery_context")
+            && recovery.contains("context.device(Some(&surface))"),
+        "recovery must select through a fresh context and require a newer generation"
+    );
+    assert!(
+        lifecycle.contains("DeviceRecoveryReady")
+            && lifecycle.contains("self.is_recovering()")
+            && runner.contains("handle_device_recovery_ready"),
+        "the event loop should admit only the private recovery completion event"
+    );
+    assert!(
+        auxiliary.contains("recovery_rebuild_pending")
+            && auxiliary.contains("recovery_opportunity")
+            && auxiliary.contains("quarantine_device_recovery_resources"),
+        "auxiliary recovery should remain lazy, bounded, and retirement-aware"
+    );
+
+    let loss_handler = runner
+        .find("pub(super) fn handle_device_lost_event")
+        .expect("device-loss handler should remain explicit");
+    let loss_handler_end = runner[loss_handler..]
+        .find("\n    fn can_prepare_device_recovery")
+        .map_or(runner.len(), |offset| loss_handler + offset);
+    let loss_handler_source = &runner[loss_handler..loss_handler_end];
+    assert!(
+        loss_handler_source.contains("begin_device_recovery")
+            && !loss_handler_source.contains("admit_native_shutdown")
+            && !loss_handler_source.contains("record_render_device_lost_and_exit"),
+        "an accepted current DeviceLost event must enter recovery rather than direct Closing"
+    );
+}

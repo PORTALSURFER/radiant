@@ -293,6 +293,14 @@ impl NativeVelloFrameState {
         self.native_paint_segment_artifact_store.clear();
     }
 
+    pub(super) fn invalidate_native_resources_for_recovery(&mut self) {
+        self.clear_native_paint_segment_artifacts();
+        self.native_retained_paint_segment_store.clear();
+        self.invalidate_native_scene_context();
+        self.mark_scene_texture_dirty();
+        self.mark_composited_base_dirty();
+    }
+
     #[cfg(test)]
     pub(super) fn assemble_retained_native_scene(
         &self,

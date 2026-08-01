@@ -50,6 +50,7 @@ mod pointer_click;
 mod popup_drag;
 mod post_gpu_overlay;
 mod present;
+mod recovery;
 mod render_profile;
 mod retained_paint_segments;
 mod route_outcome;
@@ -103,6 +104,7 @@ use native_pointer::{
 use pointer_click::{is_double_click, pointer_press_event};
 use popup_drag::{should_start_native_window_drag, should_toggle_native_window_maximized};
 use post_gpu_overlay::PostGpuOverlayRenderer;
+pub(in crate::gui_runtime::native_vello) use recovery::NativeRecoveryEpisodeToken;
 use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,
     slow_render_profile_enabled,

@@ -617,6 +617,19 @@ fn native_run_reports_expose_surface_out_of_memory_compatibly() {
 }
 
 #[test]
+fn native_initialization_errors_are_public_and_stably_formatted() {
+    let error = radiant::runtime::NativeGenericRunError::NativeInitialization {
+        stage: radiant::runtime::NativeInitializationStage::RendererCreation,
+        message: String::from("renderer rejected device"),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "native initialization failed during renderer creation: renderer rejected device"
+    );
+}
+
+#[test]
 fn prelude_exports_native_file_drop_callback_payloads() {
     let event = ui::NativeFileDrop::cancel(None, None);
 

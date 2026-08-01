@@ -25,7 +25,7 @@ use crate::{
     runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
 };
 use std::time::{Duration, Instant};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use vello::Scene;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 
@@ -162,6 +162,21 @@ where
         }
         self.terminal_cause = Some(cause);
         true
+    }
+
+    pub(super) fn has_terminal_cause(&self) -> bool {
+        self.terminal_cause.is_some()
+    }
+
+    pub(super) fn record_initialization_error_and_exit(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+    ) {
+        if self.record_terminal_cause(cause.clone()) {
+            error!(error = %cause, "radiant generic native vello: initialization failed");
+            event_loop.exit();
+        }
     }
 
     pub(super) fn take_terminal_cause(&mut self) -> Option<NativeGenericRunError> {
@@ -716,8 +731,8 @@ where
             event_loop.exit();
             return;
         }
-        if applied.sync_auxiliary_windows_now {
-            self.sync_auxiliary_windows(event_loop);
+        if applied.sync_auxiliary_windows_now && self.sync_auxiliary_windows(event_loop).is_err() {
+            return;
         }
         if let Some(pending) = pending_redraw_at_route_start
             && self.timing.redraw_requested

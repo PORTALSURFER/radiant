@@ -1,6 +1,6 @@
 use super::{
-    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
-    initial_viewport, owner_window_handle,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome,
+    NativeGenericRunError, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
@@ -70,7 +70,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         event_loop: &ActiveEventLoop,
         parent_window: Option<&Window>,
-    ) {
+    ) -> Result<(), NativeGenericRunError> {
         if self
             .runner
             .options
@@ -86,7 +86,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             self.runner.options.window.geometry.position =
                 centered_position(parent_window, &self.runner.options);
         }
-        self.runner.initialize_runtime(event_loop);
+        self.runner.initialize_runtime(event_loop)
     }
 
     pub(super) fn hide(&mut self) {
@@ -197,17 +197,29 @@ where
         event_loop: &ActiveEventLoop,
         messages: Vec<Message>,
     ) {
+        if self.has_terminal_cause() {
+            return;
+        }
         let mut outcome = GenericRouteOutcome::default();
         for message in messages {
             let command_outcome = self.core.runtime.dispatch_message(message);
             outcome.merge(self.core.route_command_outcome(command_outcome));
         }
         self.handle_route_outcome(event_loop, outcome);
-        self.sync_auxiliary_windows(event_loop);
+        if self.has_terminal_cause() {
+            return;
+        }
+        let _ = self.sync_auxiliary_windows(event_loop);
     }
 
-    pub(super) fn sync_auxiliary_windows(&mut self, event_loop: &ActiveEventLoop) {
+    pub(super) fn sync_auxiliary_windows(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+    ) -> Result<(), NativeGenericRunError> {
         self.timing.deferred_auxiliary_window_sync = false;
+        if self.has_terminal_cause() {
+            return Ok(());
+        }
         let projections = self.core.runtime.host_project_auxiliary_windows();
         for window in &mut self.auxiliary_windows {
             if !auxiliary_projection_contains_key(&projections, window.key()) {
@@ -222,12 +234,22 @@ where
             {
                 window.update_projection(projection);
             } else {
-                let parent_window = self.window.window.as_deref();
-                let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
-                window.initialize_runtime(event_loop, parent_window);
-                self.auxiliary_windows.push(window);
+                let initialized = {
+                    let parent_window = self.window.window.as_deref();
+                    let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
+                    window
+                        .initialize_runtime(event_loop, parent_window)
+                        .map(|()| window)
+                };
+                if let Err(error) =
+                    append_initialized_auxiliary_window(&mut self.auxiliary_windows, initialized)
+                {
+                    self.record_initialization_error_and_exit(event_loop, error.clone());
+                    return Err(error);
+                }
             }
         }
+        Ok(())
     }
 
     pub(super) fn defer_auxiliary_window_sync(&mut self) {
@@ -238,8 +260,8 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
     ) {
-        if self.timing.deferred_auxiliary_window_sync {
-            self.sync_auxiliary_windows(event_loop);
+        if self.timing.deferred_auxiliary_window_sync && !self.has_terminal_cause() {
+            let _ = self.sync_auxiliary_windows(event_loop);
         }
     }
 }
@@ -253,9 +275,18 @@ fn auxiliary_projection_contains_key<Message>(
         .any(|projection| projection.key.as_str() == key)
 }
 
+fn append_initialized_auxiliary_window<T>(
+    windows: &mut Vec<T>,
+    initialized: Result<T, NativeGenericRunError>,
+) -> Result<(), NativeGenericRunError> {
+    let window = initialized?;
+    windows.push(window);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::auxiliary_projection_contains_key;
+    use super::{append_initialized_auxiliary_window, auxiliary_projection_contains_key};
     use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
     use std::sync::Arc;
 
@@ -278,5 +309,26 @@ mod tests {
         assert!(auxiliary_projection_contains_key(&projections, "settings"));
         assert!(auxiliary_projection_contains_key(&projections, "inspector"));
         assert!(!auxiliary_projection_contains_key(&projections, "mixer"));
+    }
+
+    #[test]
+    fn failed_auxiliary_initialization_propagates_without_appending_child() {
+        let failure = crate::gui_runtime::NativeGenericRunError::NativeInitialization {
+            stage: crate::gui_runtime::NativeInitializationStage::RendererCreation,
+            message: String::from("renderer rejected device"),
+        };
+        let mut windows = vec![String::from("existing")];
+
+        assert_eq!(
+            append_initialized_auxiliary_window(&mut windows, Err(failure.clone())),
+            Err(failure)
+        );
+        assert_eq!(windows, [String::from("existing")]);
+
+        assert_eq!(
+            append_initialized_auxiliary_window(&mut windows, Ok(String::from("ready"))),
+            Ok(())
+        );
+        assert_eq!(windows, [String::from("existing"), String::from("ready")]);
     }
 }

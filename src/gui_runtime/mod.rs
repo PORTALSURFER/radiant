@@ -33,9 +33,9 @@ pub struct RuntimeRunReport<Artifacts, Error = String> {
 pub use native_vello::{
     EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
     EmbeddedVelloUnsupportedPrimitive, GpuSurfaceOcclusionPlanningScratch, NativeGenericRunError,
-    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeStartupTimingArtifact,
-    OffscreenVelloCapture, plan_gpu_surface_occlusion_for_diagnostics, run_native_vello_runtime,
-    run_native_vello_runtime_with_artifacts,
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeInitializationStage,
+    NativeStartupTimingArtifact, OffscreenVelloCapture, plan_gpu_surface_occlusion_for_diagnostics,
+    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use options::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, FrameRate, MAX_NATIVE_TARGET_FPS,

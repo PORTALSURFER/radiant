@@ -29,8 +29,9 @@ pub use self::{
     },
     generic_runtime::{
         GpuSurfaceOcclusionPlanningScratch, NativeGenericRunError, NativeGenericRunReport,
-        NativeGenericRuntimeArtifacts, plan_gpu_surface_occlusion_for_diagnostics,
-        run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
+        NativeGenericRuntimeArtifacts, NativeInitializationStage,
+        plan_gpu_surface_occlusion_for_diagnostics, run_native_vello_runtime,
+        run_native_vello_runtime_with_artifacts,
     },
     startup::NativeStartupTimingArtifact,
 };

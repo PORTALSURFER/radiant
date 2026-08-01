@@ -619,6 +619,11 @@ fn native_run_reports_expose_surface_out_of_memory_compatibly() {
             .to_string(),
         "native frame rendering failed: backend rejected scene"
     );
+    assert_eq!(
+        radiant::runtime::NativeGenericRunError::RenderDeviceLost("driver reset".to_string())
+            .to_string(),
+        "native render device lost: driver reset"
+    );
 }
 
 #[test]

@@ -32,6 +32,10 @@ impl RuntimeWakeup {
         ))
     }
 
+    pub(super) fn event_loop_proxy(&self) -> Option<EventLoopProxy<RuntimeUserEvent>> {
+        self.proxy.clone()
+    }
+
     pub(super) fn clear_pending(&self) {
         self.pending.store(false, Ordering::Release);
     }

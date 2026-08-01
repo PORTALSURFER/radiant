@@ -1,11 +1,12 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow, FrameWork,
-    FrameWorkReason, GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
-    NativeGenericRunError, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
+    DeviceLossRegistration, FrameWork, FrameWorkReason, GenericNativeRuntimeCore,
+    GenericRouteOutcome, NativeAutomationTargetExporter, NativeGenericRunError,
+    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
+    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -24,6 +25,7 @@ use crate::{
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
 };
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 use vello::Scene;
@@ -53,6 +55,12 @@ where
 pub(super) struct AppliedRouteOutcome {
     pub(super) exit_requested: bool,
     pub(super) sync_auxiliary_windows_now: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DeviceLossEventSource {
+    Primary,
+    Auxiliary,
 }
 
 /// One-shot admission for materializing artifacts from one completed scene encode.
@@ -176,6 +184,48 @@ where
         !self.has_terminal_cause()
     }
 
+    pub(super) fn handle_device_lost_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        registration: Arc<DeviceLossRegistration>,
+        message: String,
+    ) {
+        let Some(source) = self.device_loss_event_source(&registration) else {
+            return;
+        };
+        let cause = NativeGenericRunError::RenderDeviceLost(message);
+        match source {
+            DeviceLossEventSource::Primary => {
+                self.record_render_device_lost_and_exit(event_loop, cause)
+            }
+            DeviceLossEventSource::Auxiliary => {
+                self.record_auxiliary_terminal_cause_and_exit(event_loop, cause)
+            }
+        }
+    }
+
+    pub(super) fn device_loss_event_source(
+        &self,
+        registration: &Arc<DeviceLossRegistration>,
+    ) -> Option<DeviceLossEventSource> {
+        if self
+            .window
+            .device_loss_registration
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, registration))
+        {
+            return Some(DeviceLossEventSource::Primary);
+        }
+        if self
+            .auxiliary_windows
+            .iter()
+            .any(|window| window.accepts_device_loss(registration))
+        {
+            return Some(DeviceLossEventSource::Auxiliary);
+        }
+        None
+    }
+
     pub(super) fn record_initialization_error_and_exit(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -194,6 +244,17 @@ where
     ) {
         if self.record_terminal_cause(cause.clone()) {
             error!(error = %cause, "radiant generic native vello: frame rendering failed");
+            event_loop.exit();
+        }
+    }
+
+    pub(super) fn record_render_device_lost_and_exit(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+    ) {
+        if self.record_terminal_cause(cause.clone()) {
+            error!(error = %cause, "radiant generic native vello: render device lost");
             event_loop.exit();
         }
     }
@@ -761,7 +822,12 @@ where
             event_loop.exit();
             return;
         }
-        if applied.sync_auxiliary_windows_now && self.sync_auxiliary_windows(event_loop).is_err() {
+        if applied.sync_auxiliary_windows_now
+            && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
+            && self
+                .sync_auxiliary_windows(event_loop, event_proxy)
+                .is_err()
+        {
             return;
         }
         if let Some(pending) = pending_redraw_at_route_start

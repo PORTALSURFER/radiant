@@ -33,6 +33,7 @@ mod device;
 mod event_routing;
 mod external_drag;
 mod frame_cadence;
+mod frame_diagnostics_publication;
 mod frame_prepare;
 mod frame_scheduler;
 mod frame_state;
@@ -90,6 +91,7 @@ use frame_cadence::{
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
     timed_frame_cadence, timed_frame_target_fps,
 };
+use frame_diagnostics_publication::NativeFrameDiagnosticsPublication;
 use frame_scheduler::{
     AuxiliaryScheduleEligibility, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
     FrameScheduleRedrawEvidence, FrameScheduleWork, FrameSchedulerPlan, NativeFrameScheduler,

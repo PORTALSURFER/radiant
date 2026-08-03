@@ -84,16 +84,63 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.take_cpu_frame_observation_capture()
     }
 
-    fn take_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
+    pub(super) fn require_scheduled_frame_admission(&mut self) {
         self.runner
             .core
             .runtime
             .bridge_mut()
-            .take_frame_diagnostics()
+            .require_schedule_admission();
     }
 
-    fn discard_frame_diagnostics(&mut self) {
-        let _ = self.take_frame_diagnostics();
+    pub(super) fn mark_parent_observation_finalized(&mut self) {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .mark_observation_finalized();
+    }
+
+    pub(super) fn mark_scheduled_frame_admission_recorded(&mut self) {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .mark_schedule_admission_recorded();
+    }
+
+    pub(super) fn take_ready_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .take_ready_frame_diagnostics()
+    }
+
+    pub(super) fn finalize_parent_frame_diagnostics(
+        &mut self,
+        scheduled_admission_recorded: bool,
+    ) -> Option<NativeFrameDiagnostics> {
+        self.mark_parent_observation_finalized();
+        if scheduled_admission_recorded {
+            self.mark_scheduled_frame_admission_recorded();
+        }
+        self.take_ready_frame_diagnostics()
+    }
+
+    #[cfg(test)]
+    pub(super) fn stage_frame_diagnostics_for_test(&mut self, diagnostics: NativeFrameDiagnostics) {
+        self.runner
+            .core
+            .runtime
+            .host_observe_frame_diagnostics(diagnostics);
+    }
+
+    pub(super) fn discard_frame_diagnostics(&mut self) {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .discard_frame_diagnostics();
     }
 
     fn event_result(
@@ -102,7 +149,6 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
-            frame_diagnostics: self.take_frame_diagnostics(),
             terminal_cause,
             shutdown_requested: self.runner.native_shutdown_requested(),
         }
@@ -363,6 +409,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if !admission.did_work {
             return None;
         }
+        self.require_scheduled_frame_admission();
         if admission.route_outcome {
             self.runner.handle_route_outcome_with_adapter(
                 event_loop,
@@ -451,6 +498,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if !self.is_admitted() {
             return;
         }
+        self.discard_frame_diagnostics();
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
         self.recovery_rebuild_pending = false;
         self.hide();
@@ -485,7 +533,6 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages,
-            frame_diagnostics: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -613,7 +660,6 @@ fn auxiliary_redraw_terminal_cause(
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) messages: Vec<Message>,
-    pub(super) frame_diagnostics: Option<NativeFrameDiagnostics>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
 }
@@ -622,7 +668,6 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
     fn ignored() -> Self {
         Self {
             messages: Vec::new(),
-            frame_diagnostics: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -1015,11 +1060,18 @@ mod tests {
 
     #[test]
     fn whole_run_retirement_reuses_retiring_transition_without_dispatching_close_message() {
-        let mut window = auxiliary_window(false);
+        let mut window = auxiliary_window_with_diagnostics(false, true);
+        window.stage_frame_diagnostics_for_test(NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            frame_sequence: Some(13),
+            ..NativeFrameDiagnostics::default()
+        });
 
         window.begin_retiring();
 
         assert!(window.is_retiring());
+        window.mark_parent_observation_finalized();
+        assert_eq!(window.take_ready_frame_diagnostics(), None);
         let late_close = window.handle_close_requested();
         assert!(late_close.messages.is_empty());
         assert!(!late_close.shutdown_requested);
@@ -1047,7 +1099,7 @@ mod tests {
     }
 
     #[test]
-    fn auxiliary_event_result_drains_diagnostics_once_and_discards_stale_close_state() {
+    fn auxiliary_parent_handoff_requires_finalization_and_admission() {
         let diagnostics = NativeFrameDiagnostics {
             window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
             frame_sequence: Some(13),
@@ -1061,9 +1113,23 @@ mod tests {
             .runtime
             .bridge_mut()
             .observe_frame_diagnostics(diagnostics);
-        let first = window.event_result(None);
-        assert_eq!(first.frame_diagnostics, Some(diagnostics));
-        assert_eq!(window.event_result(None).frame_diagnostics, None);
+        assert_eq!(window.take_ready_frame_diagnostics(), None);
+
+        window.mark_parent_observation_finalized();
+        assert_eq!(window.take_ready_frame_diagnostics(), Some(diagnostics));
+
+        window
+            .runner
+            .core
+            .runtime
+            .bridge_mut()
+            .observe_frame_diagnostics(diagnostics);
+        window.require_scheduled_frame_admission();
+        window.mark_parent_observation_finalized();
+        assert_eq!(window.take_ready_frame_diagnostics(), None);
+
+        window.mark_scheduled_frame_admission_recorded();
+        assert_eq!(window.take_ready_frame_diagnostics(), Some(diagnostics));
 
         window
             .runner
@@ -1072,8 +1138,8 @@ mod tests {
             .bridge_mut()
             .observe_frame_diagnostics(diagnostics);
         let close = window.handle_close_requested();
-        assert!(close.frame_diagnostics.is_none());
-        assert_eq!(window.event_result(None).frame_diagnostics, None);
+        assert_eq!(close.messages, [7]);
+        assert_eq!(window.take_ready_frame_diagnostics(), None);
     }
 
     #[test]

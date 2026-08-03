@@ -324,9 +324,7 @@ where
                 surface_refresh_total,
                 surface_recovery: self.window.surface_recovery.diagnostics(),
             });
-            self.core
-                .runtime
-                .host_observe_frame_diagnostics(diagnostics);
+            self.stage_frame_diagnostics(diagnostics);
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();
@@ -469,9 +467,7 @@ where
                 surface_refresh_total,
                 surface_recovery: self.window.surface_recovery.diagnostics(),
             });
-            self.core
-                .runtime
-                .host_observe_frame_diagnostics(diagnostics);
+            self.stage_frame_diagnostics(diagnostics);
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();

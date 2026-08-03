@@ -23,6 +23,8 @@ pub enum Event {
     PointerModifiersChanged {
         /// Latest platform-neutral pointer modifier state.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer press started at the given surface position.
     PointerPress {
@@ -87,7 +89,18 @@ impl Event {
 
     /// Build a pointer-modifier state change event.
     pub fn pointer_modifiers_changed(modifiers: PointerModifiers) -> Self {
-        Self::PointerModifiersChanged { modifiers }
+        Self::pointer_modifiers_changed_with_timestamp(modifiers, None)
+    }
+
+    /// Build a pointer-modifier state change event with an optional native input timestamp.
+    pub(crate) fn pointer_modifiers_changed_with_timestamp(
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::PointerModifiersChanged {
+            modifiers,
+            timestamp,
+        }
     }
 
     /// Build a pointer-press event with explicit button and modifiers.

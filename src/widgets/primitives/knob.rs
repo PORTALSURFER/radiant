@@ -138,7 +138,10 @@ impl KnobWidget {
             return None;
         }
         match input {
-            WidgetInput::PointerModifiersChanged { modifiers } => {
+            WidgetInput::PointerModifiersChanged {
+                modifiers,
+                timestamp: _,
+            } => {
                 if self.common.state.pressed {
                     self.state.fine_adjustment = modifiers.shift;
                 }
@@ -500,6 +503,7 @@ mod tests {
                         shift: true,
                         ..PointerModifiers::default()
                     },
+                    timestamp: None,
                 },
             ),
             None
@@ -524,6 +528,7 @@ mod tests {
                 bounds,
                 WidgetInput::PointerModifiersChanged {
                     modifiers: PointerModifiers::default(),
+                    timestamp: None,
                 },
             ),
             None

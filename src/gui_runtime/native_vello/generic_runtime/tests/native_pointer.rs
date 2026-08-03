@@ -140,6 +140,9 @@ impl Widget for PressTimestampWidget {
                 timestamp,
                 ..
             } if bounds.contains(position) => Some(WidgetOutput::typed(timestamp)),
+            WidgetInput::PointerModifiersChanged { timestamp, .. } => {
+                Some(WidgetOutput::typed(timestamp))
+            }
             _ => None,
         }
     }
@@ -329,6 +332,19 @@ fn native_pointer_press_delivers_one_captured_timestamp_to_widget_input() {
 }
 
 #[test]
+fn native_pointer_modifiers_changed_delivers_one_captured_timestamp_to_widget_input() {
+    let mut harness =
+        NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
+    harness.cursor_moved_logical(Point::new(8.0, 8.0));
+
+    harness.modifiers_changed(ModifiersState::SHIFT);
+
+    let timestamps = &harness.runner.core.runtime.bridge().timestamps;
+    assert_eq!(timestamps.len(), 1);
+    assert!(timestamps[0].is_some());
+}
+
+#[test]
 fn native_pointer_double_click_delivers_captured_timestamp_to_widget_input() {
     let mut harness =
         NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
@@ -367,6 +383,32 @@ fn native_pointer_release_delivers_one_captured_timestamp_to_widget_input() {
     let timestamps = &harness.runner.core.runtime.bridge().timestamps;
     assert_eq!(timestamps.len(), 1);
     assert!(timestamps[0].is_some());
+}
+
+#[test]
+fn native_focus_loss_modifier_reset_delivers_no_timestamp_and_clears_native_state() {
+    let mut harness =
+        NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
+    harness.cursor_moved_logical(Point::new(8.0, 8.0));
+    assert!(
+        harness
+            .mouse_pressed_route(MouseButton::Left)
+            .outcome
+            .routed
+    );
+    harness.modifiers_changed(ModifiersState::ALT);
+
+    let outcome = harness.focus_lost();
+
+    assert!(outcome.needs_scene_rebuild());
+    assert!(harness.runner.input.modifiers.is_empty());
+    assert_eq!(harness.runner.input.last_cursor, None);
+    assert_eq!(harness.runner.core.runtime.pointer_capture(), None);
+    let timestamps = &harness.runner.core.runtime.bridge().timestamps;
+    assert_eq!(timestamps.len(), 3);
+    assert!(timestamps[0].is_some());
+    assert!(timestamps[1].is_some());
+    assert!(timestamps[2].is_none());
 }
 
 #[test]

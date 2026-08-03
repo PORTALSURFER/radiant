@@ -16,6 +16,8 @@ pub enum WidgetInput {
     PointerModifiersChanged {
         /// Latest platform-neutral pointer modifier state.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Primary or auxiliary pointer press started at the given point.
     PointerPress {
@@ -227,6 +229,17 @@ impl WidgetInput {
             position,
             delta,
             modifiers,
+        }
+    }
+
+    /// Build a pointer-modifier state change input with an optional native input timestamp.
+    pub(crate) fn pointer_modifiers_changed_with_timestamp(
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::PointerModifiersChanged {
+            modifiers,
+            timestamp,
         }
     }
 

@@ -118,10 +118,13 @@ where
     pub(in crate::gui_runtime::native_vello) fn route_pointer_modifiers_changed(
         &mut self,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .dispatch_event(Event::PointerModifiersChanged { modifiers })
+            .dispatch_event(Event::pointer_modifiers_changed_with_timestamp(
+                modifiers, timestamp,
+            ))
             .is_some();
         self.route_outcome(routed)
     }

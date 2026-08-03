@@ -292,6 +292,7 @@ where
         &mut self,
         modifiers: ModifiersState,
     ) -> GenericRouteOutcome {
+        let timestamp = Some(InputTimestamp::capture());
         self.input.modifiers = modifiers;
         let consume_control = self
             .input
@@ -303,12 +304,10 @@ where
             None,
             self.pointer_modifiers_for_gesture(consume_control),
         );
-        let outcome =
-            self.core
-                .route_pointer_modifiers_changed(pointer_modifiers_for_native_gesture(
-                    modifiers,
-                    consume_control,
-                ));
+        let outcome = self.core.route_pointer_modifiers_changed(
+            pointer_modifiers_for_native_gesture(modifiers, consume_control),
+            timestamp,
+        );
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
         outcome

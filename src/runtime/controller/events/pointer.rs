@@ -112,6 +112,7 @@ where
     pub(in crate::runtime::controller::events) fn dispatch_pointer_modifiers_changed(
         &mut self,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
         let widget_id = self
             .interaction
@@ -120,7 +121,7 @@ where
             .or(self.interaction.hover.widget)?;
         let routed = self.dispatch_input(
             widget_id,
-            WidgetInput::PointerModifiersChanged { modifiers },
+            WidgetInput::pointer_modifiers_changed_with_timestamp(modifiers, timestamp),
         );
         if routed {
             self.repaint_requested = true;

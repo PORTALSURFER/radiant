@@ -170,6 +170,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
                 command: true,
                 ..PointerModifiers::default()
             },
+            timestamp: None,
         },
     );
     let mut copy_overlay = Vec::new();

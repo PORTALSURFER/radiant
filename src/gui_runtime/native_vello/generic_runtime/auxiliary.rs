@@ -11,7 +11,8 @@ use super::{
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::{
-    AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
+    AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
+    RuntimeBridge,
 };
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
@@ -46,6 +47,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         projection: AuxiliaryWindow<Message>,
         parent_options: &NativeRunOptions,
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+        frame_diagnostics_enabled: bool,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
         let cache_on_close = projection.caches_on_close();
@@ -54,7 +56,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if options.text.embedded_fonts.is_empty() && options.text.font_paths.is_empty() {
             options.text = parent_options.text.clone();
         }
-        let bridge = AuxiliarySurfaceBridge::new(projection.surface);
+        let bridge = AuxiliarySurfaceBridge::new(projection.surface, frame_diagnostics_enabled);
         let mut runner = GenericNativeVelloRunner::new_with_diagnostic_identity(
             options,
             bridge,
@@ -80,6 +82,30 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
         self.runner.take_cpu_frame_observation_capture()
+    }
+
+    fn take_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .take_frame_diagnostics()
+    }
+
+    fn discard_frame_diagnostics(&mut self) {
+        let _ = self.take_frame_diagnostics();
+    }
+
+    fn event_result(
+        &mut self,
+        terminal_cause: Option<NativeGenericRunError>,
+    ) -> AuxiliaryWindowEventResult<Message> {
+        AuxiliaryWindowEventResult {
+            messages: self.take_messages(),
+            frame_diagnostics: self.take_frame_diagnostics(),
+            terminal_cause,
+            shutdown_requested: self.runner.native_shutdown_requested(),
+        }
     }
 
     fn is_admitted(&self) -> bool {
@@ -345,11 +371,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 observation,
             );
         }
-        Some(AuxiliaryWindowEventResult {
-            messages: self.take_messages(),
-            terminal_cause: self.runner.take_terminal_cause(),
-            shutdown_requested: self.runner.native_shutdown_requested(),
-        })
+        let terminal_cause = self.runner.take_terminal_cause();
+        Some(self.event_result(terminal_cause))
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
@@ -441,19 +464,28 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     fn handle_close_requested(&mut self) -> AuxiliaryWindowEventResult<Message> {
         if self.is_retiring() {
+            self.discard_frame_diagnostics();
             return AuxiliaryWindowEventResult::ignored();
         }
         if self.cache_on_close {
             self.hide();
-            return AuxiliaryWindowEventResult {
-                messages: self.close_message.take().into_iter().collect(),
-                terminal_cause: None,
-                shutdown_requested: false,
-            };
+            self.discard_frame_diagnostics();
+            let messages = self.close_message.take().into_iter().collect();
+            return self.event_result_with_messages(messages);
         }
         self.begin_retiring();
+        self.discard_frame_diagnostics();
+        let messages = self.close_message.take().into_iter().collect();
+        self.event_result_with_messages(messages)
+    }
+
+    fn event_result_with_messages(
+        &mut self,
+        messages: Vec<Message>,
+    ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
-            messages: self.close_message.take().into_iter().collect(),
+            messages,
+            frame_diagnostics: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -467,6 +499,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) -> AuxiliaryWindowEventResult<Message> {
         if self.is_retiring() {
+            self.discard_frame_diagnostics();
             return AuxiliaryWindowEventResult::ignored();
         }
         let mut terminal_cause = None;
@@ -561,11 +594,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             _ => {}
         }
         let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
-        AuxiliaryWindowEventResult {
-            messages: self.take_messages(),
-            terminal_cause,
-            shutdown_requested: self.runner.native_shutdown_requested(),
-        }
+        self.event_result(terminal_cause)
     }
 
     fn take_messages(&mut self) -> Vec<Message> {
@@ -584,6 +613,7 @@ fn auxiliary_redraw_terminal_cause(
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) messages: Vec<Message>,
+    pub(super) frame_diagnostics: Option<NativeFrameDiagnostics>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
 }
@@ -592,6 +622,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
     fn ignored() -> Self {
         Self {
             messages: Vec::new(),
+            frame_diagnostics: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -751,6 +782,7 @@ where
                         projection,
                         &self.options,
                         native_window_diagnostic_identity,
+                        self.frame_diagnostics_enabled,
                     );
                     window
                         .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
@@ -864,11 +896,17 @@ mod tests {
         application::empty,
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
-        runtime::{AuxiliaryWindow, NativeWindowDiagnosticIdentity},
+        runtime::{
+            AuxiliaryWindow, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity,
+            RuntimeFrameDiagnosticsHost,
+        },
     };
     use std::sync::Arc;
 
-    fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
+    fn auxiliary_window_with_diagnostics(
+        cache_on_close: bool,
+        frame_diagnostics_enabled: bool,
+    ) -> AuxiliaryNativeWindow<i32> {
         let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
         let projection =
             AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface).on_close(7);
@@ -881,7 +919,12 @@ mod tests {
             projection,
             &NativeRunOptions::default(),
             Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            frame_diagnostics_enabled,
         )
+    }
+
+    fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
+        auxiliary_window_with_diagnostics(cache_on_close, false)
     }
 
     #[test]
@@ -1004,11 +1047,41 @@ mod tests {
     }
 
     #[test]
+    fn auxiliary_event_result_drains_diagnostics_once_and_discards_stale_close_state() {
+        let diagnostics = NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            frame_sequence: Some(13),
+            ..NativeFrameDiagnostics::default()
+        };
+        let mut window = auxiliary_window_with_diagnostics(true, true);
+
+        window
+            .runner
+            .core
+            .runtime
+            .bridge_mut()
+            .observe_frame_diagnostics(diagnostics);
+        let first = window.event_result(None);
+        assert_eq!(first.frame_diagnostics, Some(diagnostics));
+        assert_eq!(window.event_result(None).frame_diagnostics, None);
+
+        window
+            .runner
+            .core
+            .runtime
+            .bridge_mut()
+            .observe_frame_diagnostics(diagnostics);
+        let close = window.handle_close_requested();
+        assert!(close.frame_diagnostics.is_none());
+        assert_eq!(window.event_result(None).frame_diagnostics, None);
+    }
+
+    #[test]
     fn maintenance_removes_retiring_child_only_after_gpu_state_is_empty() {
         let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
         let mut parent = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
-            AuxiliarySurfaceBridge::new(surface),
+            AuxiliarySurfaceBridge::new(surface, false),
             Vector2::new(1280.0, 720.0),
         );
         parent.auxiliary_windows.push(auxiliary_window(false));

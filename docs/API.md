@@ -2871,7 +2871,10 @@ For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` before
 launch to emit a per-frame `radiant native render profile` tracing line. The
 same counters are also exposed to custom hosts through the explicitly registered
 `RuntimeFrameDiagnosticsHost` capability as `NativeFrameDiagnostics`, so apps
-can collect frame diagnostics without parsing logs. The scene diagnostics
+can collect frame diagnostics without parsing logs. The observer is called once
+for each successfully presented frame from the primary or an auxiliary window;
+auxiliary delivery is forwarded through the parent runtime event boundary before
+that event's messages are dispatched. The scene diagnostics
 are grouped into `traversal`, `text`, `media`, and `surfaces` buckets so hosts
 can inspect paint-plan traversal, text encoding, image/SVG encoding, and
 GPU/custom-surface handoff without treating the payload as one flat counter bag.

@@ -8,7 +8,8 @@ pub trait RuntimeDiagnosticsHost {
 
 /// Optional host capability for native per-frame diagnostics.
 pub trait RuntimeFrameDiagnosticsHost {
-    /// Observe structured diagnostics for one native presentation frame.
+    /// Observe structured diagnostics for one successfully presented native
+    /// frame from the primary or an auxiliary window.
     fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics);
 }
 

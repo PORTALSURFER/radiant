@@ -71,6 +71,7 @@ impl CanvasGestureState {
                 position,
                 button,
                 modifiers,
+                ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
                 Some(CanvasGestureEvent::DoubleClick {

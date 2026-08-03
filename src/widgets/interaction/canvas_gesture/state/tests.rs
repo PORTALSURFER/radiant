@@ -211,6 +211,7 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
                 position: Point::new(40.0, 45.0),
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .unwrap();

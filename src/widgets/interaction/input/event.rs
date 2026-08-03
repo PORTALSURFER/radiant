@@ -36,6 +36,8 @@ pub enum WidgetInput {
         button: PointerButton,
         /// Modifier state at double-click time.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer press ended at the given point.
     PointerRelease {
@@ -126,10 +128,21 @@ impl WidgetInput {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_double_click_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer double-click input with an optional native input timestamp.
+    pub(crate) fn pointer_double_click_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerDoubleClick {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 
@@ -316,6 +329,22 @@ mod tests {
                 position: point,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+        let timestamp = Some(InputTimestamp::capture());
+        assert_eq!(
+            WidgetInput::pointer_double_click_with_timestamp(
+                point,
+                PointerButton::Primary,
+                PointerModifiers::default(),
+                timestamp,
+            ),
+            WidgetInput::PointerDoubleClick {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
             }
         );
         assert_eq!(

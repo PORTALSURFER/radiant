@@ -43,6 +43,8 @@ pub enum Event {
         button: PointerButton,
         /// Modifier state when the double-click completed.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer press ended at the given surface position.
     PointerRelease {
@@ -136,10 +138,21 @@ impl Event {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_double_click_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer double-click event with an optional native input timestamp.
+    pub(crate) fn pointer_double_click_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerDoubleClick {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 

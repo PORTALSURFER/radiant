@@ -159,6 +159,7 @@ fn text_input_double_click_selects_word_under_pointer() {
                 position: Point::new(82.0, 20.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

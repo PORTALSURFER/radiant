@@ -44,12 +44,11 @@ where
         position: Point,
         button: PointerButton,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
-        let input = WidgetInput::PointerDoubleClick {
-            position,
-            button,
-            modifiers,
-        };
+        let input = WidgetInput::pointer_double_click_with_timestamp(
+            position, button, modifiers, timestamp,
+        );
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -64,12 +63,7 @@ where
             Some((widget_id, true)) => Some(widget_id),
             _ => self.dispatch_input_at(
                 position,
-                WidgetInput::PointerPress {
-                    position,
-                    button,
-                    modifiers,
-                    timestamp: None,
-                },
+                WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp),
             ),
         }
     }

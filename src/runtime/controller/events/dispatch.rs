@@ -41,9 +41,10 @@ where
                 position,
                 button,
                 modifiers,
+                timestamp,
             } => {
                 self.observe_pointer_position(position);
-                self.dispatch_pointer_double_click_event(position, button, modifiers)
+                self.dispatch_pointer_double_click_event(position, button, modifiers, timestamp)
             }
             Event::PointerRelease {
                 position,

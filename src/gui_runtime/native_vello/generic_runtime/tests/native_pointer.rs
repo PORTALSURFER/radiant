@@ -130,6 +130,11 @@ impl Widget for PressTimestampWidget {
                 timestamp,
                 ..
             }
+            | WidgetInput::PointerDoubleClick {
+                position,
+                timestamp,
+                ..
+            }
             | WidgetInput::PointerRelease {
                 position,
                 timestamp,
@@ -321,6 +326,28 @@ fn native_pointer_press_delivers_one_captured_timestamp_to_widget_input() {
     let timestamps = &harness.runner.core.runtime.bridge().timestamps;
     assert_eq!(timestamps.len(), 1);
     assert!(timestamps[0].is_some());
+}
+
+#[test]
+fn native_pointer_double_click_delivers_captured_timestamp_to_widget_input() {
+    let mut harness =
+        NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
+    let point = Point::new(8.0, 8.0);
+
+    harness.cursor_moved_logical(point);
+    assert!(
+        harness
+            .mouse_pressed_route(MouseButton::Left)
+            .outcome
+            .routed
+    );
+    let second_press = harness.mouse_pressed_route(MouseButton::Left);
+    assert!(second_press.outcome.routed);
+    assert!(second_press.double_click);
+
+    let timestamps = &harness.runner.core.runtime.bridge().timestamps;
+    assert_eq!(timestamps.len(), 2);
+    assert!(timestamps.iter().all(Option::is_some));
 }
 
 #[test]

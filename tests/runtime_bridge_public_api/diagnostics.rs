@@ -25,6 +25,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
             requested_target_fps: 120,
             effective_target_fps: 24,
+            latest_due_lateness_us: Some(17_000),
             not_due_turns: 3,
             selected_turns: 5,
             due_but_deferred_turns: 7,
@@ -138,6 +139,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(diagnostics.cpu_fairness.requested_target_fps, 120);
     assert_eq!(diagnostics.cpu_fairness.effective_target_fps, 24);
     assert_eq!(
+        diagnostics.cpu_fairness.latest_due_lateness_us,
+        Some(17_000)
+    );
+    assert_eq!(
         diagnostics.cpu_fairness.latest_disposition,
         NativeCpuFrameFairnessDisposition::Selected
     );
@@ -219,6 +224,10 @@ fn native_surface_recovery_diagnostics_default_to_zero() {
     assert_eq!(
         NativeFrameDiagnostics::default().cpu_fairness,
         NativeCpuFrameFairnessDiagnostics::default()
+    );
+    assert_eq!(
+        NativeCpuFrameFairnessDiagnostics::default().latest_due_lateness_us,
+        None
     );
 }
 

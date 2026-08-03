@@ -77,6 +77,10 @@ pub struct NativeCpuFrameFairnessDiagnostics {
     pub requested_target_fps: u32,
     /// Effective target FPS used by the existing cadence policy.
     pub effective_target_fps: u32,
+    /// Saturating microseconds by which the latest scheduler turn was already
+    /// past its original cadence `due_at` boundary. This is observational
+    /// missed-deadline evidence and does not change scheduling policy.
+    pub latest_due_lateness_us: Option<u64>,
     /// Saturating number of observed turns with no due work.
     pub not_due_turns: u64,
     /// Saturating number of observed turns where this key was selected.

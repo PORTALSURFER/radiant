@@ -38,6 +38,7 @@ pub(super) fn native_frame_diagnostics(
         frame_sequence: parts.profile.frame_sequence,
         input_to_present_latency_us: parts.input_to_present_latency_us,
         cpu_fairness: crate::runtime::NativeCpuFrameFairnessDiagnostics::default(),
+        cpu_observation: crate::runtime::NativeCpuFrameObservationDiagnostics::default(),
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
             frame_work_reason: parts.frame_work.reason().name(),

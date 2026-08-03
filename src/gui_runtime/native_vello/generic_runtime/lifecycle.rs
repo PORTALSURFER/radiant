@@ -8,7 +8,10 @@ use super::{
     should_start_native_window_drag, should_toggle_native_window_maximized,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
-use crate::runtime::{NativeCpuFrameFairnessDiagnostics, NativeFrameDiagnostics, RuntimeBridge};
+use crate::runtime::{
+    NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
+    NativeFrameDiagnostics, RuntimeBridge,
+};
 use std::time::{Duration, Instant};
 use tracing::warn;
 use winit::{
@@ -582,6 +585,12 @@ fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
             .map_or_else(NativeCpuFrameFairnessDiagnostics::default, |ledger| {
                 ledger.project_frame_diagnostics(key)
             });
+        diagnostics.cpu_observation = runner
+            .cpu_frame_observation
+            .as_ref()
+            .map_or_else(NativeCpuFrameObservationDiagnostics::default, |ledger| {
+                ledger.project_frame_diagnostics(key)
+            });
         runner
             .core
             .runtime
@@ -623,15 +632,17 @@ mod tests {
     use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_fairness::{
         CpuFrameCadencePressure, CpuFrameCadenceRate,
     };
+    use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_observation::CpuFrameObservationCapture;
     use crate::gui_runtime::native_vello::generic_runtime::{
-        FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence,
-        animation_frame_interval, assess_cpu_frame_fairness, timed_frame_cadence,
-        timed_frame_target_fps,
+        CpuFramePendingRedrawAge, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
+        FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason, animation_frame_interval,
+        assess_cpu_frame_fairness, timed_frame_cadence, timed_frame_target_fps,
     };
     use crate::runtime::{
         Command, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
-        NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
-        RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
+        NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
+        NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
+        RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
     };
     use crate::{application::empty, prelude::IntoView};
     use std::sync::{Arc, Mutex};
@@ -648,6 +659,7 @@ mod tests {
             frame_sequence: Option<u64>,
             input_to_present_latency_us: Option<u64>,
             cpu_fairness: NativeCpuFrameFairnessDiagnostics,
+            cpu_observation: NativeCpuFrameObservationDiagnostics,
         },
         Message(u8),
     }
@@ -686,6 +698,7 @@ mod tests {
                     frame_sequence: diagnostics.frame_sequence,
                     input_to_present_latency_us: diagnostics.input_to_present_latency_us,
                     cpu_fairness: diagnostics.cpu_fairness,
+                    cpu_observation: diagnostics.cpu_observation,
                 });
         }
     }
@@ -702,6 +715,28 @@ mod tests {
             Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
             true,
         )
+    }
+
+    fn record_parent_observation(
+        runner: &mut GenericNativeVelloRunner<OrderedAuxiliaryBridge, u8>,
+        key: &FrameScheduleKey,
+    ) {
+        let ledger = runner
+            .cpu_frame_observation
+            .as_mut()
+            .expect("enabled diagnostics should retain the parent observation ledger");
+        let admission = ledger.begin(
+            key.clone(),
+            FrameWork::None,
+            Some(60),
+            CpuFramePendingRedrawAge::Unknown,
+        );
+        let mut capture = CpuFrameObservationCapture::default();
+        capture.record_frame_work(FrameWork::PaintOnly {
+            reason: FrameWorkReason::RoutedInput,
+        });
+        capture.mark_successful_presentation();
+        ledger.finish(admission, capture, false);
     }
 
     #[test]
@@ -855,6 +890,7 @@ mod tests {
                     frame_sequence: Some(41),
                     input_to_present_latency_us: Some(1234),
                     cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
+                    cpu_observation: NativeCpuFrameObservationDiagnostics::default(),
                 },
                 OrderedAuxiliaryEvent::Message(7),
             ]
@@ -919,6 +955,7 @@ mod tests {
                     selected_turns: 1,
                     ..NativeCpuFrameFairnessDiagnostics::default()
                 },
+                cpu_observation: NativeCpuFrameObservationDiagnostics::default(),
             }]
         );
     }
@@ -987,6 +1024,7 @@ mod tests {
                         latest_selected_was_admitted: true,
                         ..NativeCpuFrameFairnessDiagnostics::default()
                     },
+                    cpu_observation: NativeCpuFrameObservationDiagnostics::default(),
                 },
                 OrderedAuxiliaryEvent::Message(7),
             ]
@@ -1023,6 +1061,7 @@ mod tests {
             vec![OrderedAuxiliaryEvent::Message(1)]
         );
 
+        record_parent_observation(&mut runner, &key);
         auxiliary.stage_frame_diagnostics_for_test(diagnostics);
         let frame_diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
         forward_auxiliary_frame_diagnostics(&mut runner, &key, frame_diagnostics);
@@ -1038,6 +1077,15 @@ mod tests {
                     frame_sequence: Some(42),
                     input_to_present_latency_us: None,
                     cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
+                    cpu_observation: NativeCpuFrameObservationDiagnostics {
+                        available: true,
+                        latest_outcome:
+                            crate::runtime::NativeCpuFrameCompletionOutcome::SuccessfulPresentation,
+                        latest_exact_interaction: true,
+                        admitted_redraws: 1,
+                        successful_presentations: 1,
+                        ..NativeCpuFrameObservationDiagnostics::default()
+                    },
                 },
                 OrderedAuxiliaryEvent::Message(2),
             ]

@@ -17,8 +17,10 @@ pub use business::{
 };
 pub(crate) use business::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub use cache_policy::RetainedSurfaceCachePolicy;
+pub use frame::NativeCpuFrameCompletionOutcome;
 pub use frame::NativeCpuFrameFairnessDiagnostics;
 pub use frame::NativeCpuFrameFairnessDisposition;
+pub use frame::NativeCpuFrameObservationDiagnostics;
 pub use frame::NativeFrameDiagnostics;
 pub use frame::NativeFramePresentationDiagnostics;
 pub use frame::NativeSurfaceRecoveryDiagnostics;

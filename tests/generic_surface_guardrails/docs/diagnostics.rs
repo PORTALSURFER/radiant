@@ -6,6 +6,8 @@ use std::{fs, path::PathBuf};
 mod custom_shader;
 #[path = "diagnostics/models.rs"]
 mod models;
+#[path = "diagnostics/observation.rs"]
+mod observation;
 #[path = "diagnostics/quality_gates.rs"]
 mod quality_gates;
 #[path = "diagnostics/text.rs"]

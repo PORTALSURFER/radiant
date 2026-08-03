@@ -16,10 +16,11 @@ use super::{
     DeviceLossRegistration, FrameScheduleKey, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
     NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
-    NativeFrameScheduler, NativeGenericRunError, NativeLifecycle, NativeRenderDeviceErrorKind,
-    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
+    NativeLifecycle, NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn,
+    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
+    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -38,7 +39,8 @@ use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{
-        NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
+        NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
+        RuntimeAnimationActivity, RuntimeBridge,
     },
 };
 use std::sync::Arc;
@@ -70,6 +72,7 @@ where
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
     pub(super) frame_diagnostics_enabled: bool,
+    pub(super) frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
     native_lifecycle: NativeLifecycle,
@@ -211,6 +214,7 @@ where
             cpu_frame_observation: Some(CpuFrameObservationLedger::default()),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
+            frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
             native_lifecycle: NativeLifecycle::default(),
@@ -230,6 +234,33 @@ where
             NativeWindowDiagnosticIdentityAllocator::exhausted();
         self.cpu_frame_fairness = None;
         self.cpu_frame_observation = None;
+    }
+
+    pub(super) fn stage_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
+        if !self.frame_diagnostics_enabled {
+            return;
+        }
+        if self.auxiliary_owner {
+            // Auxiliary runners retain the existing one-slot child-to-parent
+            // bridge handoff. This is not the application callback; the
+            // parent drains and publishes it at the event boundary.
+            self.core
+                .runtime
+                .host_observe_frame_diagnostics(diagnostics);
+        } else {
+            self.frame_diagnostics_publication.stage(diagnostics);
+        }
+    }
+
+    pub(super) fn publish_staged_frame_diagnostics(&mut self) {
+        if !self.frame_diagnostics_enabled {
+            return;
+        }
+        if let Some(diagnostics) = self.frame_diagnostics_publication.take() {
+            self.core
+                .runtime
+                .host_observe_frame_diagnostics(diagnostics);
+        }
     }
 
     pub(super) fn allocate_auxiliary_window_diagnostic_identity(
@@ -1531,7 +1562,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None, None, true);
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, true, true);
     }
 
     pub(super) fn handle_route_outcome_without_timed_frame(
@@ -1539,7 +1570,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None, None, false);
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, false, true);
     }
 
     pub(super) fn handle_route_outcome_with_adapter(
@@ -1549,7 +1580,22 @@ where
         adapter: &mut GenericNativeAdapterOwner,
         observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, Some(adapter), observation, true);
+        self.handle_route_outcome_inner(
+            event_loop,
+            outcome,
+            Some(adapter),
+            observation,
+            true,
+            false,
+        );
+    }
+
+    pub(super) fn handle_route_outcome_deferred_publication(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+    ) {
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, true, false);
     }
 
     fn handle_route_outcome_inner(
@@ -1559,6 +1605,7 @@ where
         adapter: Option<&mut GenericNativeAdapterOwner>,
         observation: Option<&mut CpuFrameObservationOwner<'_>>,
         merge_due_timed_frame: bool,
+        publish_frame_diagnostics: bool,
     ) {
         if !self.is_running() {
             return;
@@ -1604,6 +1651,9 @@ where
                     None => self.redraw_and_exit_on_error(event_loop),
                 }
             }
+        }
+        if publish_frame_diagnostics {
+            self.publish_staged_frame_diagnostics();
         }
     }
 
@@ -1705,9 +1755,15 @@ mod tests {
         gui::types::Vector2,
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
-        runtime::{RuntimeAnimationActivity, RuntimeBridge, UiSurface},
+        runtime::{
+            NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
+            RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
+        },
     };
-    use std::{sync::Arc, time::Instant};
+    use std::{
+        sync::{Arc, Mutex},
+        time::Instant,
+    };
 
     struct EmptyBridge;
 
@@ -1715,6 +1771,106 @@ mod tests {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
             crate::runtime::test_arc_surface(empty::<()>().into_surface())
         }
+    }
+
+    type PublishedFrameEvents = Arc<Mutex<Vec<(Option<u64>, Option<u64>)>>>;
+
+    struct RecordingFrameDiagnosticsBridge {
+        published: PublishedFrameEvents,
+    }
+
+    impl RuntimeBridge<()> for RecordingFrameDiagnosticsBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_frame_diagnostics()
+        }
+    }
+
+    impl RuntimeFrameDiagnosticsHost for RecordingFrameDiagnosticsBridge {
+        fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
+            self.published
+                .lock()
+                .expect("publication test events should not be poisoned")
+                .push((
+                    diagnostics
+                        .window_identity
+                        .map(NativeWindowDiagnosticIdentity::get),
+                    diagnostics.frame_sequence,
+                ));
+        }
+    }
+
+    fn staged_diagnostics() -> NativeFrameDiagnostics {
+        NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(1)),
+            frame_sequence: Some(7),
+            ..NativeFrameDiagnostics::default()
+        }
+    }
+
+    fn primary_publication_for_boundary(scheduled: bool) {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            RecordingFrameDiagnosticsBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        let diagnostics = staged_diagnostics();
+
+        runner.stage_frame_diagnostics(diagnostics);
+        assert!(
+            published
+                .lock()
+                .expect("publication test events should not be poisoned")
+                .is_empty()
+        );
+        if scheduled {
+            runner.record_frame_schedule_admission(FrameScheduleKey::Primary);
+        }
+        runner.publish_staged_frame_diagnostics();
+        runner.publish_staged_frame_diagnostics();
+
+        assert_eq!(
+            *published
+                .lock()
+                .expect("publication test events should not be poisoned"),
+            vec![(Some(1), Some(7))]
+        );
+    }
+
+    #[test]
+    fn primary_direct_redraw_publishes_once_after_staging() {
+        primary_publication_for_boundary(false);
+    }
+
+    #[test]
+    fn primary_route_time_flush_publishes_once_after_staging() {
+        primary_publication_for_boundary(false);
+    }
+
+    #[test]
+    fn primary_scheduled_route_time_flush_publishes_after_admission_record() {
+        primary_publication_for_boundary(true);
+    }
+
+    #[test]
+    fn diagnostics_disabled_staging_does_not_create_publication_state() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            EmptyBridge,
+            Vector2::new(320.0, 240.0),
+        );
+
+        runner.stage_frame_diagnostics(staged_diagnostics());
+        runner.publish_staged_frame_diagnostics();
+
+        assert!(!runner.frame_diagnostics_enabled);
+        assert_eq!(runner.frame_diagnostics_publication.take(), None);
     }
 
     fn runner() -> GenericNativeVelloRunner<EmptyBridge, ()> {

@@ -1,3 +1,4 @@
+use super::super::NativeFrameDiagnosticsPublication;
 use crate::runtime::{
     Command, NativeFrameDiagnostics, RuntimeBridge, RuntimeFrameDiagnosticsHost,
     RuntimeHostCapabilities, UiSurface,
@@ -8,7 +9,7 @@ pub(super) struct AuxiliarySurfaceBridge<Message> {
     pub(super) surface: Arc<UiSurface<Message>>,
     outbox: Vec<Message>,
     frame_diagnostics_enabled: bool,
-    pending_frame_diagnostics: Option<NativeFrameDiagnostics>,
+    frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
 }
 
 impl<Message> AuxiliarySurfaceBridge<Message> {
@@ -17,7 +18,7 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
             surface,
             outbox: Vec::new(),
             frame_diagnostics_enabled,
-            pending_frame_diagnostics: None,
+            frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
         }
     }
 
@@ -26,7 +27,7 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
     }
 
     pub(super) fn take_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
-        self.pending_frame_diagnostics.take()
+        self.frame_diagnostics_publication.take()
     }
 }
 
@@ -57,11 +58,7 @@ impl<Message> RuntimeFrameDiagnosticsHost for AuxiliarySurfaceBridge<Message> {
 
         // One auxiliary redraw event invokes one child presentation path. Keep
         // the handoff bounded to that event and drain it at the parent boundary.
-        debug_assert!(
-            self.pending_frame_diagnostics.is_none(),
-            "an auxiliary event must not present more than one frame"
-        );
-        self.pending_frame_diagnostics = Some(diagnostics);
+        self.frame_diagnostics_publication.stage(diagnostics);
     }
 }
 

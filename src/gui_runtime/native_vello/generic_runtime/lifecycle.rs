@@ -115,7 +115,6 @@ where
                 terminal_cause,
                 shutdown_requested,
             } = route_result;
-            forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
             if let Some(Some(admission)) = admission {
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
                 self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
@@ -124,6 +123,7 @@ where
             if became_retiring {
                 self.remove_cpu_frame_observation(&auxiliary_key);
             }
+            forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
             if shutdown_requested {
                 self.admit_native_shutdown(event_loop, terminal_cause);
                 return;
@@ -221,7 +221,10 @@ where
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
-            WindowEvent::RedrawRequested => self.redraw_and_exit_on_error(event_loop),
+            WindowEvent::RedrawRequested => {
+                self.redraw_and_exit_on_error(event_loop);
+                self.publish_staged_frame_diagnostics();
+            }
             _ => {}
         }
     }
@@ -438,10 +441,14 @@ where
                             self.admit_native_shutdown(event_loop, None);
                             return;
                         }
-                        self.handle_route_outcome(event_loop, admission.outcome);
+                        self.handle_route_outcome_deferred_publication(
+                            event_loop,
+                            admission.outcome,
+                        );
                     }
                     if admission.did_work {
                         self.record_frame_schedule_admission(selected);
+                        self.publish_staged_frame_diagnostics();
                     }
                 }
                 FrameScheduleKey::Auxiliary(key) => {
@@ -470,6 +477,9 @@ where
                             terminal_cause,
                             shutdown_requested,
                         } = result;
+                        if !shutdown_requested && terminal_cause.is_none() {
+                            self.record_frame_schedule_admission(selected.clone());
+                        }
                         forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
                         if shutdown_requested {
                             self.admit_native_shutdown(event_loop, terminal_cause);
@@ -484,7 +494,6 @@ where
                                 event_loop, messages,
                             );
                         }
-                        self.record_frame_schedule_admission(selected);
                     }
                 }
             }
@@ -719,6 +728,48 @@ mod tests {
                     frame_sequence: Some(41),
                 },
                 OrderedAuxiliaryEvent::Message(7),
+            ]
+        );
+    }
+
+    #[test]
+    fn auxiliary_scheduled_work_without_synchronous_present_publishes_nothing_until_later_redraw() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut runner = GenericNativeVelloRunner::new(
+            crate::gui_runtime::NativeRunOptions::default(),
+            OrderedAuxiliaryBridge {
+                events: Arc::clone(&events),
+            },
+            crate::gui::types::Vector2::new(320.0, 40.0),
+        );
+        let diagnostics = NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
+            frame_sequence: Some(42),
+            ..NativeFrameDiagnostics::default()
+        };
+
+        forward_auxiliary_frame_diagnostics(&mut runner, None);
+        let _ = runner.core.runtime.dispatch_message(1);
+        assert_eq!(
+            *events
+                .lock()
+                .expect("ordering test event log should not be poisoned"),
+            vec![OrderedAuxiliaryEvent::Message(1)]
+        );
+
+        forward_auxiliary_frame_diagnostics(&mut runner, Some(diagnostics));
+        let _ = runner.core.runtime.dispatch_message(2);
+        assert_eq!(
+            *events
+                .lock()
+                .expect("ordering test event log should not be poisoned"),
+            vec![
+                OrderedAuxiliaryEvent::Message(1),
+                OrderedAuxiliaryEvent::Diagnostics {
+                    window_identity: Some(9),
+                    frame_sequence: Some(42),
+                },
+                OrderedAuxiliaryEvent::Message(2),
             ]
         );
     }

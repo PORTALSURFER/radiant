@@ -144,6 +144,7 @@ fn backend_neutral_event_constructors_preserve_payloads() {
             delta,
             modifiers: PointerModifiers::default(),
             timestamp: None,
+            sequence_range: None,
         }
     );
 }

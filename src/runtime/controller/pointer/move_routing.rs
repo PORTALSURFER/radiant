@@ -1,6 +1,6 @@
 use super::{PointerMoveDispatch, SurfaceRuntime};
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::Point,
     runtime::RuntimeBridge,
     widgets::{PointerModifiers, WidgetId, WidgetInput},
@@ -10,6 +10,7 @@ use crate::{
 struct PointerMoveMetadata {
     modifiers: PointerModifiers,
     timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -21,9 +22,14 @@ where
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveDispatch {
         self.dispatch_pointer_move_target_with_refresh_and_metadata(
-            position, true, modifiers, timestamp,
+            position,
+            true,
+            modifiers,
+            timestamp,
+            sequence_range,
         )
     }
 
@@ -33,10 +39,12 @@ where
         refresh_after_message: bool,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveDispatch {
         let metadata = PointerMoveMetadata {
             modifiers,
             timestamp,
+            sequence_range,
         };
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
@@ -132,6 +140,7 @@ where
                 position,
                 metadata.modifiers,
                 metadata.timestamp,
+                metadata.sequence_range,
             ),
             refresh_after_message,
         );
@@ -251,6 +260,7 @@ where
                         position,
                         metadata.modifiers,
                         metadata.timestamp,
+                        metadata.sequence_range,
                     ),
                     refresh_after_message,
                 )
@@ -288,6 +298,7 @@ where
                 position,
                 metadata.modifiers,
                 metadata.timestamp,
+                metadata.sequence_range,
             ),
             refresh_after_message,
         );

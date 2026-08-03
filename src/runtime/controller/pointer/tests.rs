@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::{Rect, Vector2},
     layout::{Constraints, LayoutOutput, SizeModeCross, SizeModeMain, SlotParams},
     runtime::{
@@ -83,10 +83,12 @@ enum DoubleClickTimestampMessage {
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     },
     Move {
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     },
 }
 
@@ -138,6 +140,7 @@ impl Widget for DoubleClickTimestampWidget {
                 delta,
                 modifiers,
                 timestamp,
+                sequence_range,
                 ..
             } if bounds.contains(position) => {
                 Some(WidgetOutput::typed(DoubleClickTimestampMessage::Wheel {
@@ -145,17 +148,20 @@ impl Widget for DoubleClickTimestampWidget {
                     delta,
                     modifiers,
                     timestamp,
+                    sequence_range,
                 }))
             }
             WidgetInput::PointerMove {
                 position,
                 modifiers,
                 timestamp,
+                sequence_range,
                 ..
             } if bounds.contains(position) => {
                 Some(WidgetOutput::typed(DoubleClickTimestampMessage::Move {
                     modifiers,
                     timestamp,
+                    sequence_range,
                 }))
             }
             _ => None,
@@ -547,6 +553,9 @@ fn internal_pointer_move_metadata_survives_event_to_widget_dispatch() {
         alt: true,
     };
     let point = Point::new(40.0, 20.0);
+    let sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(7),
+    ));
     let mut runtime = SurfaceRuntime::new(
         DoubleClickTimestampBridge::default(),
         Vector2::new(120.0, 40.0),
@@ -554,7 +563,10 @@ fn internal_pointer_move_metadata_survives_event_to_widget_dispatch() {
 
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move_with_metadata(
-            point, modifiers, timestamp,
+            point,
+            modifiers,
+            timestamp,
+            sequence_range,
         )),
         Some(40)
     );
@@ -563,6 +575,7 @@ fn internal_pointer_move_metadata_survives_event_to_widget_dispatch() {
         vec![DoubleClickTimestampMessage::Move {
             modifiers,
             timestamp,
+            sequence_range,
         }]
     );
 }
@@ -577,6 +590,9 @@ fn internal_scroll_metadata_survives_event_to_widget_dispatch() {
     };
     let point = Point::new(40.0, 20.0);
     let delta = Vector2::new(0.0, -24.0);
+    let sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(11),
+    ));
     let mut runtime = SurfaceRuntime::new(
         DoubleClickTimestampBridge::default(),
         Vector2::new(120.0, 40.0),
@@ -584,7 +600,11 @@ fn internal_scroll_metadata_survives_event_to_widget_dispatch() {
 
     assert_eq!(
         runtime.dispatch_event(Event::scroll_with_metadata(
-            point, delta, modifiers, timestamp,
+            point,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
         )),
         None
     );
@@ -595,6 +615,7 @@ fn internal_scroll_metadata_survives_event_to_widget_dispatch() {
             delta,
             modifiers,
             timestamp,
+            sequence_range,
         }]
     );
 }
@@ -629,6 +650,7 @@ fn pointer_move_fanout_preserves_one_sample_metadata_for_hover_capture_and_pass_
             second_point,
             modifiers,
             timestamp,
+            None,
         )),
         Some(50)
     );

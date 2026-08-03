@@ -10,6 +10,7 @@ use super::{
     CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceRenderer, PostGpuOverlayRenderer,
     RuntimeUserEvent,
 };
+use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
@@ -587,6 +588,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) modifiers: ModifiersState,
     pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
     pub(super) last_navigation_key_repeat: Option<Instant>,
+    pub(super) input_sequence_allocator: NativeInputSequenceAllocator,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scrollbar_drag: Option<PendingScrollbarDrag>,
@@ -604,10 +606,35 @@ impl Default for NativeRunnerInputState {
             modifiers: ModifiersState::default(),
             effective_pointer_gesture: None,
             last_navigation_key_repeat: None,
+            input_sequence_allocator: NativeInputSequenceAllocator::default(),
             pending_gpu_surface_wheel: None,
             pending_scroll_container_wheel: None,
             pending_scrollbar_drag: None,
         }
+    }
+}
+
+/// Checked, non-wrapping native input sequence allocator owned by one runner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeInputSequenceAllocator {
+    next_sequence: Option<u64>,
+}
+
+impl Default for NativeInputSequenceAllocator {
+    fn default() -> Self {
+        Self {
+            next_sequence: Some(1),
+        }
+    }
+}
+
+impl NativeInputSequenceAllocator {
+    pub(super) fn allocate(&mut self) -> Option<InputSequenceRange> {
+        let value = self.next_sequence?;
+        self.next_sequence = value.checked_add(1);
+        Some(InputSequenceRange::singleton(
+            InputSequence::from_runtime_value(value),
+        ))
     }
 }
 
@@ -747,8 +774,9 @@ impl NativeRunnerTimingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerTimingState,
-        NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration,
+        NativeInputSequenceAllocator, NativeResourceMaintenanceTurn, NativeResourceQuarantine,
+        NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+        NativeSurfaceRecoveryState, NativeTargetGeneration,
         NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuResources,
     };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
@@ -1113,6 +1141,48 @@ mod tests {
         );
         assert_eq!(allocator.allocate(), None);
         assert_eq!(allocator.next_identity, None);
+    }
+
+    #[test]
+    fn native_input_sequence_allocators_are_independent_per_runner_domain() {
+        let mut primary = NativeRunnerInputState::default();
+        let mut auxiliary = NativeRunnerInputState::default();
+
+        let primary_first = primary
+            .input_sequence_allocator
+            .allocate()
+            .expect("primary runner should allocate its first input sequence");
+        let primary_second = primary
+            .input_sequence_allocator
+            .allocate()
+            .expect("primary runner should allocate its second input sequence");
+        let auxiliary_first = auxiliary
+            .input_sequence_allocator
+            .allocate()
+            .expect("auxiliary runner should have its own first input sequence");
+
+        assert_eq!(primary_first.start().runtime_value(), 1);
+        assert_eq!(primary_first.end().runtime_value(), 1);
+        assert_eq!(primary_second.start().runtime_value(), 2);
+        assert_eq!(primary_second.end().runtime_value(), 2);
+        assert_eq!(auxiliary_first.start().runtime_value(), 1);
+        assert_eq!(auxiliary_first.end().runtime_value(), 1);
+    }
+
+    #[test]
+    fn native_input_sequence_allocator_exhaustion_is_checked_and_permanent() {
+        let mut allocator = NativeInputSequenceAllocator {
+            next_sequence: Some(u64::MAX),
+        };
+
+        let last = allocator
+            .allocate()
+            .expect("the maximum representable sequence remains allocatable");
+        assert_eq!(last.start().runtime_value(), u64::MAX);
+        assert_eq!(last.end().runtime_value(), u64::MAX);
+        assert_eq!(allocator.allocate(), None);
+        assert_eq!(allocator.allocate(), None);
+        assert_eq!(allocator.next_sequence, None);
     }
 
     #[test]

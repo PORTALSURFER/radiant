@@ -539,6 +539,7 @@ fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
         delta: Vector2::new(0.0, -20.0),
         modifiers: PointerModifiers::default(),
         timestamp: None,
+        sequence_range: None,
     });
 
     assert_ne!(press_target, Some(10));
@@ -569,6 +570,7 @@ fn scene_layer_block_input_allows_foreground_scroll_before_input_shield() {
         delta: Vector2::new(0.0, 44.0),
         modifiers: PointerModifiers::default(),
         timestamp: None,
+        sequence_range: None,
     });
 
     let base_after = runtime.layout().rects[&100];

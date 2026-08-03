@@ -25,10 +25,16 @@ where
                 position,
                 modifiers,
                 timestamp,
+                sequence_range,
             } => {
                 self.observe_pointer_position(position);
-                self.dispatch_pointer_move_target_with_metadata(position, modifiers, timestamp)
-                    .target
+                self.dispatch_pointer_move_target_with_metadata(
+                    position,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                )
+                .target
             }
             Event::PointerModifiersChanged {
                 modifiers,
@@ -80,9 +86,16 @@ where
                 delta,
                 modifiers,
                 timestamp,
+                sequence_range,
             } => {
                 self.observe_pointer_position(position);
-                self.wheel_or_scroll_at_with_metadata(position, delta, modifiers, timestamp);
+                self.wheel_or_scroll_at_with_metadata(
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                );
                 None
             }
         }

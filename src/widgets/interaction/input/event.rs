@@ -1,5 +1,5 @@
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::{Point, Rect, Vector2},
     widgets::interaction::input::{PointerButton, PointerModifiers, TextEditCommand, WidgetKey},
 };
@@ -15,6 +15,8 @@ pub enum WidgetInput {
         modifiers: PointerModifiers,
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
     },
     /// Pointer modifier state changed while the pointer remains active.
     PointerModifiersChanged {
@@ -77,6 +79,8 @@ pub enum WidgetInput {
         modifiers: PointerModifiers,
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
     },
     /// Keyboard focus changed for the widget.
     FocusChanged(
@@ -109,7 +113,7 @@ pub enum WidgetInput {
 impl WidgetInput {
     /// Build a pointer-move input at `position`.
     pub fn pointer_move(position: Point) -> Self {
-        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None)
+        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None, None)
     }
 
     /// Build a pointer-move input with native sample metadata.
@@ -117,11 +121,13 @@ impl WidgetInput {
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> Self {
         Self::PointerMove {
             position,
             modifiers,
             timestamp,
+            sequence_range,
         }
     }
 
@@ -259,7 +265,7 @@ impl WidgetInput {
 
     /// Build a wheel or trackpad-scroll input with explicit modifiers.
     pub fn wheel(position: Point, delta: Vector2, modifiers: PointerModifiers) -> Self {
-        Self::wheel_with_metadata(position, delta, modifiers, None)
+        Self::wheel_with_metadata(position, delta, modifiers, None, None)
     }
 
     /// Build a wheel or trackpad-scroll input with native sample metadata.
@@ -268,12 +274,14 @@ impl WidgetInput {
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> Self {
         Self::Wheel {
             position,
             delta,
             modifiers,
             timestamp,
+            sequence_range,
         }
     }
 
@@ -398,6 +406,7 @@ mod tests {
                 position: point,
                 modifiers: PointerModifiers::default(),
                 timestamp: None,
+                sequence_range: None,
             }
         );
         assert_eq!(
@@ -458,6 +467,7 @@ mod tests {
                 delta: Vector2::new(0.0, -120.0),
                 modifiers: PointerModifiers::default(),
                 timestamp: None,
+                sequence_range: None,
             }
         );
         assert_eq!(
@@ -467,6 +477,7 @@ mod tests {
                 delta: Vector2::new(0.0, -120.0),
                 modifiers,
                 timestamp: None,
+                sequence_range: None,
             }
         );
     }

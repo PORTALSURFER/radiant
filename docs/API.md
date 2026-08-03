@@ -2643,13 +2643,18 @@ Runtime event tests, automation, and embedded hosts can use `Event::resize(...)`
 `key_press(...)`, `character(...)`, `traverse_focus(...)`, `clear_focus(...)`,
 and `scroll(...)` instead of repeating backend-neutral event struct literals.
 `Event::PointerMove` and `WidgetInput::PointerMove` also carry observational
-`PointerModifiers` and optional `InputTimestamp` sample metadata. The
+`PointerModifiers`, optional `InputTimestamp`, and optional opaque
+`InputSequenceRange` sample metadata. A direct accepted native sample receives
+a singleton range; an existing coalescing owner extends the first endpoint to
+the newest contributing sample. Sequence values are allocated independently per
+native runner/window and provide no sample count, density, arithmetic, or
+cross-window ordering promise. The
 public position-only `Event::pointer_move(...)` and `WidgetInput::pointer_move(...)`
 constructors remain source-compatible and use default modifiers with no
 timestamp; native adapters preserve captured sample metadata while synthetic
 and backend-neutral paths omit it.
-`Event::Scroll` and `WidgetInput::Wheel` carry the same observational modifier and
-optional timestamp metadata. The public `Event::scroll(...)`, `WidgetInput::wheel(...)`,
+`Event::Scroll` and `WidgetInput::Wheel` carry the same observational modifier,
+optional timestamp, and optional sequence-range metadata. The public `Event::scroll(...)`, `WidgetInput::wheel(...)`,
 and `WidgetInput::plain_wheel(...)` constructors remain source-compatible:
 `scroll(...)` and `plain_wheel(...)` use default modifiers, `wheel(...)` preserves
 its supplied modifiers, and all three omit the timestamp. Native wheel adapters

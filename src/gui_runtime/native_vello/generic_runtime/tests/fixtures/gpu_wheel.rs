@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::gui::input::InputTimestamp;
+use crate::gui::input::{InputSequenceRange, InputTimestamp};
 use crate::gui::types::Point;
 use crate::runtime::{
     NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
@@ -13,6 +13,7 @@ pub(in super::super) struct GpuWheelMessage {
     pub(in super::super) delta: Vector2,
     pub(in super::super) modifiers: PointerModifiers,
     pub(in super::super) timestamp: Option<InputTimestamp>,
+    pub(in super::super) sequence_range: Option<InputSequenceRange>,
 }
 
 pub(in super::super) struct GpuWheelBridge {
@@ -22,6 +23,7 @@ pub(in super::super) struct GpuWheelBridge {
     pub(in super::super) last_delta: Vector2,
     pub(in super::super) last_modifiers: Option<PointerModifiers>,
     pub(in super::super) last_timestamp: Option<InputTimestamp>,
+    pub(in super::super) last_sequence_range: Option<InputSequenceRange>,
     pub(in super::super) capabilities: GpuSurfaceCapabilities,
 }
 
@@ -40,6 +42,7 @@ impl Default for GpuWheelBridge {
             last_delta: Vector2::new(0.0, 0.0),
             last_modifiers: None,
             last_timestamp: None,
+            last_sequence_range: None,
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
@@ -94,11 +97,14 @@ impl Widget for TestGpuWheelWidget {
                 delta,
                 modifiers,
                 timestamp,
+                sequence_range,
+                ..
             } => Some(WidgetOutput::typed(GpuWheelMessage {
                 position,
                 delta,
                 modifiers,
                 timestamp,
+                sequence_range,
             })),
             _ => None,
         }
@@ -203,6 +209,7 @@ impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
         self.last_delta = message.delta;
         self.last_modifiers = Some(message.modifiers);
         self.last_timestamp = message.timestamp;
+        self.last_sequence_range = message.sequence_range;
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, GpuWheelMessage> {

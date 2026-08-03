@@ -2,7 +2,7 @@ use super::*;
 use crate::application::IntoView;
 use crate::gui::{
     focus::FocusSurface,
-    input::{InputTimestamp, KeyCode, KeyPress},
+    input::{InputSequenceRange, InputTimestamp, KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
 use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
@@ -25,6 +25,7 @@ enum ModifierWheelMessage {
     Wheel {
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     },
 }
 
@@ -55,10 +56,12 @@ impl Widget for ModifierWheelWidget {
             WidgetInput::Wheel {
                 modifiers,
                 timestamp,
+                sequence_range,
                 ..
             } => Some(WidgetOutput::typed(ModifierWheelMessage::Wheel {
                 modifiers,
                 timestamp,
+                sequence_range,
             })),
             _ => None,
         }
@@ -91,7 +94,11 @@ impl Widget for ModifierWheelWidget {
 
 #[derive(Default)]
 struct ModifierWheelBridge {
-    samples: Vec<(PointerModifiers, Option<InputTimestamp>)>,
+    samples: Vec<(
+        PointerModifiers,
+        Option<InputTimestamp>,
+        Option<InputSequenceRange>,
+    )>,
 }
 
 impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
@@ -118,8 +125,9 @@ impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
         let ModifierWheelMessage::Wheel {
             modifiers,
             timestamp,
+            sequence_range,
         } = message;
-        self.samples.push((modifiers, timestamp));
+        self.samples.push((modifiers, timestamp, sequence_range));
     }
 }
 
@@ -202,6 +210,7 @@ struct NativeMoveSample {
     position: Point,
     modifiers: PointerModifiers,
     timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
 }
 
 #[derive(Default)]
@@ -229,11 +238,13 @@ impl Widget for NativeMoveMetadataWidget {
                 position,
                 modifiers,
                 timestamp,
+                sequence_range,
                 ..
             } if bounds.contains(position) => Some(WidgetOutput::typed(NativeMoveSample {
                 position,
                 modifiers,
                 timestamp,
+                sequence_range,
             })),
             _ => None,
         }
@@ -439,6 +450,7 @@ fn native_pointer_move_delivers_captured_timestamp_and_normalized_modifiers() {
         }
     );
     assert!(samples[0].timestamp.is_some());
+    assert!(samples[0].sequence_range.is_some());
 }
 
 #[test]
@@ -924,7 +936,7 @@ fn native_direct_wheel_preserves_effective_modifiers_and_timestamp() {
     );
     assert_eq!(
         synthetic.runtime.bridge().samples,
-        vec![(expected_modifiers, None)]
+        vec![(expected_modifiers, None, None)]
     );
 
     let mut harness =
@@ -941,6 +953,7 @@ fn native_direct_wheel_preserves_effective_modifiers_and_timestamp() {
     assert_eq!(samples.len(), 1);
     assert_eq!(samples[0].0, expected_modifiers);
     assert!(samples[0].1.is_some());
+    assert!(samples[0].2.is_some());
 }
 
 #[test]
@@ -1179,9 +1192,29 @@ fn native_scrollbar_drag_flushes_newest_position_and_sample_metadata() {
     };
     let first_position = Point::new(8.0, 8.0);
     let newest_position = Point::new(24.0, 8.0);
+    let first_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("first scrollbar sample should receive a sequence range");
+    let newest_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("newest scrollbar sample should receive a sequence range");
 
-    runner.queue_scrollbar_drag_with_metadata(first_position, first_modifiers, first_timestamp);
-    runner.queue_scrollbar_drag_with_metadata(newest_position, newest_modifiers, newest_timestamp);
+    runner.queue_scrollbar_drag_with_metadata(
+        first_position,
+        first_modifiers,
+        first_timestamp,
+        Some(first_sequence),
+    );
+    runner.queue_scrollbar_drag_with_metadata(
+        newest_position,
+        newest_modifiers,
+        newest_timestamp,
+        Some(newest_sequence),
+    );
 
     let pending = runner
         .input
@@ -1190,18 +1223,25 @@ fn native_scrollbar_drag_flushes_newest_position_and_sample_metadata() {
     assert_eq!(pending.position, newest_position);
     assert_eq!(pending.modifiers, newest_modifiers);
     assert_eq!(pending.timestamp, newest_timestamp);
+    let pending_sequence = pending
+        .sequence_range
+        .expect("pending scrollbar drag should retain sequence metadata");
+    assert_eq!(pending_sequence.start(), first_sequence.start());
+    assert_eq!(pending_sequence.end(), newest_sequence.end());
 
     runner.flush_pending_scrollbar_drag_now();
 
     assert!(runner.input.pending_scrollbar_drag.is_none());
-    assert_eq!(
-        runner.core.runtime.bridge().samples,
-        vec![NativeMoveSample {
-            position: newest_position,
-            modifiers: newest_modifiers,
-            timestamp: newest_timestamp,
-        }]
-    );
+    let samples = &runner.core.runtime.bridge().samples;
+    assert_eq!(samples.len(), 1);
+    assert_eq!(samples[0].position, newest_position);
+    assert_eq!(samples[0].modifiers, newest_modifiers);
+    assert_eq!(samples[0].timestamp, newest_timestamp);
+    let delivered_sequence = samples[0]
+        .sequence_range
+        .expect("flushed scrollbar drag should retain sequence metadata");
+    assert_eq!(delivered_sequence.start(), first_sequence.start());
+    assert_eq!(delivered_sequence.end(), newest_sequence.end());
 }
 
 #[test]

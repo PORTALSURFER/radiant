@@ -34,7 +34,7 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
     );
 
     let move_message = widget
-        .handle_input(bounds, WidgetInput::PointerMove { position: end })
+        .handle_input(bounds, WidgetInput::pointer_move(end))
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
         .expect("small velocity drags should publish live values for note repaint");
     match move_message {

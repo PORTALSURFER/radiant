@@ -182,9 +182,7 @@ fn devtools_snapshot_exposes_widget_automation_semantics() {
         |_state: &mut DemoState, _message| {},
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 80.0));
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(164.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(164.0, 12.0)));
 
     let snapshot = runtime.devtools_snapshot();
     let button = devtools_node(&snapshot.root, 11).expect("button node");

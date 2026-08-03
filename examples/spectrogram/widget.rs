@@ -61,7 +61,7 @@ impl Widget for SpectrogramWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.common.state.hovered = bounds.contains(position);
                 let plot = self.plot_rect(bounds);
                 self.hover_column = self.column_at_position(plot, position);

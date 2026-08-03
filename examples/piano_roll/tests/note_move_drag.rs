@@ -20,12 +20,10 @@ fn piano_roll_drag_routes_move_message() {
     );
     let output = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(
-                start.x + grid.width() / TOTAL_BEATS,
-                start.y - row_height_for(grid, state.viewport),
-            ),
-        },
+        WidgetInput::pointer_move(Point::new(
+            start.x + grid.width() / TOTAL_BEATS,
+            start.y - row_height_for(grid, state.viewport),
+        )),
     );
 
     assert!(output.is_none());
@@ -95,7 +93,7 @@ fn piano_roll_dragging_selected_note_moves_the_selected_group() {
         press.is_none(),
         "pressing an already selected note should keep the group selection"
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

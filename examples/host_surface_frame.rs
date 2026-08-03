@@ -79,7 +79,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
     let mut paint_plan = SurfacePaintPlan::empty(&theme);
     let point = Point::new(24.0, 48.0);
 
-    runtime.dispatch_event(Event::PointerMove { position: point });
+    runtime.dispatch_event(Event::pointer_move(point));
     runtime.dispatch_event(Event::PointerPress {
         position: point,
         button: PointerButton::Primary,

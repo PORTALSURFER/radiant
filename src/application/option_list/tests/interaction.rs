@@ -80,9 +80,7 @@ fn compact_option_list_interaction_maps_hovered_row_index() {
 
     runtime.dispatch_input_at(
         hover_rect.center(),
-        WidgetInput::PointerMove {
-            position: hover_rect.center(),
-        },
+        WidgetInput::pointer_move(hover_rect.center()),
     );
 
     assert_eq!(runtime.bridge().state(), &[1]);
@@ -119,12 +117,7 @@ fn compact_option_list_interaction_maps_hover_across_full_row_width() {
         .expect("second option should paint");
     let right_side = Point::new(168.0, snare_rect.center().y);
 
-    runtime.dispatch_input_at(
-        right_side,
-        WidgetInput::PointerMove {
-            position: right_side,
-        },
-    );
+    runtime.dispatch_input_at(right_side, WidgetInput::pointer_move(right_side));
 
     assert_eq!(runtime.bridge().state(), &[1]);
 }
@@ -203,9 +196,7 @@ fn compact_option_list_anchored_hover_maps_pointer_row_index() {
 
     runtime.dispatch_input_at(
         hover_rect.center(),
-        WidgetInput::PointerMove {
-            position: hover_rect.center(),
-        },
+        WidgetInput::pointer_move(hover_rect.center()),
     );
 
     assert_eq!(runtime.bridge().state(), &[1]);

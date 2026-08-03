@@ -118,12 +118,7 @@ fn text_input_pointer_drag_extends_selection_including_caret_character() {
     );
     assert_eq!(input.state.caret, 1);
     assert_eq!(
-        input.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(43.0, 20.0),
-            },
-        ),
+        input.handle_input(bounds, WidgetInput::pointer_move(Point::new(43.0, 20.0)),),
         None
     );
     assert_eq!(input.state.caret, 3);

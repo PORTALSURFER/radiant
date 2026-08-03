@@ -54,7 +54,7 @@ impl Widget for HoverPaintWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        if let WidgetInput::PointerMove { position } = input {
+        if let WidgetInput::PointerMove { position, .. } = input {
             self.common.state.hovered = bounds.contains(position);
         }
         None

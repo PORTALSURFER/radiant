@@ -27,9 +27,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
         Some(10)
     );
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(12.0, 72.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 72.0))),
         Some(10)
     );
 

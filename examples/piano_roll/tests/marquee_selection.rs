@@ -22,7 +22,7 @@ fn piano_roll_marquee_preview_lights_intersecting_notes_like_hover() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
@@ -69,7 +69,7 @@ fn piano_roll_shift_drag_uses_marquee_selection_in_paint_tool() {
             timestamp: None,
         },
     );
-    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(press.is_none());
     assert!(move_output.is_none());
@@ -125,7 +125,7 @@ fn piano_roll_shift_command_marquee_adds_to_existing_selection() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
     let release = widget
         .handle_input(
             bounds,

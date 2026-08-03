@@ -78,6 +78,10 @@ enum DoubleClickTimestampMessage {
     DoubleClick(Option<InputTimestamp>),
     Press(Option<InputTimestamp>),
     Modifiers(Option<InputTimestamp>),
+    Move {
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
 }
 
 #[derive(Clone)]
@@ -123,6 +127,17 @@ impl Widget for DoubleClickTimestampWidget {
             WidgetInput::PointerModifiersChanged { timestamp, .. } => Some(WidgetOutput::typed(
                 DoubleClickTimestampMessage::Modifiers(timestamp),
             )),
+            WidgetInput::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+                ..
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(DoubleClickTimestampMessage::Move {
+                    modifiers,
+                    timestamp,
+                }))
+            }
             _ => None,
         }
     }
@@ -153,6 +168,107 @@ impl RuntimeBridge<DoubleClickTimestampMessage> for DoubleClickTimestampBridge {
 
     fn reduce_message(&mut self, message: DoubleClickTimestampMessage) {
         self.messages.push(message);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MoveFanoutMessage {
+    Press,
+    Move {
+        widget_id: u64,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
+}
+
+#[derive(Clone)]
+struct MoveFanoutWidget {
+    common: WidgetCommon,
+}
+
+impl MoveFanoutWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(160.0, 28.0))),
+        }
+    }
+}
+
+impl Widget for MoveFanoutWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress { position, .. } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(MoveFanoutMessage::Press))
+            }
+            WidgetInput::PointerMove {
+                modifiers,
+                timestamp,
+                ..
+            } => Some(WidgetOutput::typed(MoveFanoutMessage::Move {
+                widget_id: self.common.id,
+                modifiers,
+                timestamp,
+            })),
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Default)]
+struct MoveFanoutBridge {
+    samples: Vec<(u64, PointerModifiers, Option<InputTimestamp>)>,
+}
+
+impl RuntimeBridge<MoveFanoutMessage> for MoveFanoutBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<MoveFanoutMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                fixed_child(
+                    28.0,
+                    SurfaceNode::widget(
+                        MoveFanoutWidget::new(50),
+                        WidgetMessageMapper::typed(|message: MoveFanoutMessage| message),
+                    ),
+                ),
+                fixed_child(
+                    28.0,
+                    SurfaceNode::widget(
+                        MoveFanoutWidget::new(60),
+                        WidgetMessageMapper::typed(|message: MoveFanoutMessage| message),
+                    ),
+                ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, message: MoveFanoutMessage) {
+        if let MoveFanoutMessage::Move {
+            widget_id,
+            modifiers,
+            timestamp,
+        } = message
+        {
+            self.samples.push((widget_id, modifiers, timestamp));
+        }
     }
 }
 
@@ -399,6 +515,87 @@ fn internal_modifier_timestamp_survives_event_to_widget_dispatch() {
 }
 
 #[test]
+fn internal_pointer_move_metadata_survives_event_to_widget_dispatch() {
+    let timestamp = Some(InputTimestamp::capture());
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        alt: true,
+    };
+    let point = Point::new(40.0, 20.0);
+    let mut runtime = SurfaceRuntime::new(
+        DoubleClickTimestampBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move_with_metadata(
+            point, modifiers, timestamp,
+        )),
+        Some(40)
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![DoubleClickTimestampMessage::Move {
+            modifiers,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn pointer_move_fanout_preserves_one_sample_metadata_for_hover_capture_and_pass_through() {
+    let first_point = Point::new(8.0, 8.0);
+    let second_point = Point::new(8.0, 36.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: false,
+        alt: true,
+    };
+    let timestamp = Some(InputTimestamp::capture());
+    let mut runtime = SurfaceRuntime::new(MoveFanoutBridge::default(), Vector2::new(160.0, 56.0));
+
+    assert_eq!(
+        runtime
+            .dispatch_pointer_move_with_outcome(first_point)
+            .target,
+        Some(50)
+    );
+    assert_eq!(runtime.widget_at(second_point), Some(60));
+    runtime.bridge_mut().samples.clear();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(first_point)),
+        Some(50)
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move_with_metadata(
+            second_point,
+            modifiers,
+            timestamp,
+        )),
+        Some(50)
+    );
+
+    let samples = &runtime.bridge().samples;
+    assert_eq!(samples.len(), 3);
+    assert_eq!(
+        samples
+            .iter()
+            .map(|(widget_id, ..)| *widget_id)
+            .collect::<Vec<_>>(),
+        vec![50, 60, 50]
+    );
+    assert!(
+        samples
+            .iter()
+            .all(|(_, sample_modifiers, sample_timestamp)| {
+                *sample_modifiers == modifiers && *sample_timestamp == timestamp
+            })
+    );
+}
+
+#[test]
 fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
     let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
 
@@ -539,12 +736,7 @@ fn refresh_clears_retained_hover_from_non_owner_widgets() {
 
     runtime.dispatch_pointer_move_with_outcome(Point::new(4.0, 32.0));
     assert_eq!(runtime.hovered_widget(), Some(20));
-    runtime.dispatch_input(
-        10,
-        WidgetInput::PointerMove {
-            position: Point::new(4.0, 4.0),
-        },
-    );
+    runtime.dispatch_input(10, WidgetInput::pointer_move(Point::new(4.0, 4.0)));
     assert!(
         runtime
             .surface()
@@ -585,12 +777,7 @@ fn refresh_clears_retained_hover_from_non_owner_widgets() {
 fn pointer_hover_transition_clears_retained_hover_from_non_owner_widgets() {
     let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
 
-    runtime.dispatch_input(
-        10,
-        WidgetInput::PointerMove {
-            position: Point::new(4.0, 4.0),
-        },
-    );
+    runtime.dispatch_input(10, WidgetInput::pointer_move(Point::new(4.0, 4.0)));
     assert!(
         runtime
             .surface()

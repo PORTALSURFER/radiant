@@ -41,7 +41,7 @@ where
     }
 
     pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
-        let input = WidgetInput::PointerMove { position: point };
+        let input = WidgetInput::pointer_move(point);
         self.stable_hovered_widget_at(point, &input)
             .or_else(|| self.widget_at_for_input(point, &input))
     }

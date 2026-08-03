@@ -101,9 +101,7 @@ struct StatefulVirtualizedStableHoverBench {
 impl StatefulVirtualizedStableHoverBench {
     fn new() -> Self {
         let mut runtime = SurfaceRuntime::new(VirtualWheelBridge, Vector2::new(220.0, 120.0));
-        let hovered = runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(24.0, 24.0),
-        });
+        let hovered = runtime.dispatch_event(Event::pointer_move(Point::new(24.0, 24.0)));
         assert!(hovered.is_some());
         Self { runtime, x: 24.0 }
     }
@@ -180,9 +178,8 @@ impl StatefulVirtualizedNestedScrollHoverBench {
             .runtime
             .wheel_or_scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, self.offset));
         assert!(scrolled);
-        self.runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(232.0, 20.0),
-        });
+        self.runtime
+            .dispatch_event(Event::pointer_move(Point::new(232.0, 20.0)));
         assert!(self.runtime.hovered_scroll_affordance().is_some());
         black_box(self.runtime.layout());
         ScenarioCounters::default()

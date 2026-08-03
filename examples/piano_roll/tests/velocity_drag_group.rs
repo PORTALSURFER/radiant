@@ -22,7 +22,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(press.is_none());
     assert!(matches!(
@@ -87,12 +87,8 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
         selected_handle.center().x,
         lane.min.y + lane.height() * 0.25,
     );
-    let move_output = selected_widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: drag_position,
-        },
-    );
+    let move_output =
+        selected_widget.handle_input(bounds, WidgetInput::pointer_move(drag_position));
     assert!(
         move_output
             .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -151,12 +147,7 @@ fn piano_roll_group_velocity_drag_preserves_offsets_until_floor_or_ceiling() {
     );
     let lower_position = Point::new(handle.center().x, lane.min.y + lane.height() * 0.72);
     let live_lower = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: lower_position,
-            },
-        )
+        .handle_input(bounds, WidgetInput::pointer_move(lower_position))
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
         .expect("small relative velocity drag should emit live values");
     assert!(matches!(live_lower, PianoRollMessage::SetVelocities { .. }));
@@ -172,9 +163,7 @@ fn piano_roll_group_velocity_drag_preserves_offsets_until_floor_or_ceiling() {
     let live_floor = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(handle.center().x, lane.max.y),
-            },
+            WidgetInput::pointer_move(Point::new(handle.center().x, lane.max.y)),
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
         .expect("small relative velocity drag should emit clamped live values");
@@ -214,12 +203,7 @@ fn piano_roll_stress_velocity_drag_updates_all_selected_notes_without_reselectin
         },
     );
     let drag_position = Point::new(handle.center().x, lane.min.y);
-    let move_output = widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: drag_position,
-        },
-    );
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(drag_position));
     assert!(
         move_output.is_none(),
         "stress velocity drag should not emit grouped updates on pointer moves"

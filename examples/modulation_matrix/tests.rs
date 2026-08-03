@@ -96,9 +96,7 @@ fn modulation_matrix_hover_uses_paint_only_runtime_overlay() {
 
     let output = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: widget.cell_rect(matrix, cell).center(),
-        },
+        WidgetInput::pointer_move(widget.cell_rect(matrix, cell).center()),
     );
 
     assert!(output.is_none());

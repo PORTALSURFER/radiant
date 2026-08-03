@@ -2642,6 +2642,12 @@ Runtime event tests, automation, and embedded hosts can use `Event::resize(...)`
 `pointer_release(...)`, `primary_release(...)`, `secondary_release(...)`,
 `key_press(...)`, `character(...)`, `traverse_focus(...)`, `clear_focus(...)`,
 and `scroll(...)` instead of repeating backend-neutral event struct literals.
+`Event::PointerMove` and `WidgetInput::PointerMove` also carry observational
+`PointerModifiers` and optional `InputTimestamp` sample metadata. The
+public position-only `Event::pointer_move(...)` and `WidgetInput::pointer_move(...)`
+constructors remain source-compatible and use default modifiers with no
+timestamp; native adapters preserve captured sample metadata while synthetic
+and backend-neutral paths omit it.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

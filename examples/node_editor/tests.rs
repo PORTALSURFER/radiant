@@ -51,12 +51,7 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
             timestamp: None,
         },
     );
-    let moved = runtime.dispatch_input(
-        101,
-        WidgetInput::PointerMove {
-            position: Point::new(650.0, 64.0),
-        },
-    );
+    let moved = runtime.dispatch_input(101, WidgetInput::pointer_move(Point::new(650.0, 64.0)));
     let ended = runtime.dispatch_input(
         101,
         WidgetInput::PointerRelease {

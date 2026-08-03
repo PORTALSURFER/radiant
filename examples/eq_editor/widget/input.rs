@@ -14,7 +14,7 @@ impl Widget for EqEditorWidget {
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         let plot = self.plot_rect(bounds);
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.handle_pointer_move(bounds, plot, position)
             }
             WidgetInput::PointerPress {

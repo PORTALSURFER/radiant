@@ -22,7 +22,7 @@ pub(super) fn handle_button_input(
         return None;
     }
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             button.common.state.hovered = bounds.contains(position);
             if button.common.state.pressed {
                 button.state.armed = button.common.state.hovered;

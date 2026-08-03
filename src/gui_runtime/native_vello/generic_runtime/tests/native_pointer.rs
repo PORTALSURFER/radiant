@@ -170,6 +170,73 @@ impl RuntimeBridge<Option<InputTimestamp>> for PressTimestampBridge {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct NativeMoveSample {
+    position: Point,
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+}
+
+#[derive(Default)]
+struct NativeMoveMetadataBridge {
+    samples: Vec<NativeMoveSample>,
+}
+
+#[derive(Clone)]
+struct NativeMoveMetadataWidget {
+    common: WidgetCommon,
+}
+
+impl Widget for NativeMoveMetadataWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+                ..
+            } if bounds.contains(position) => Some(WidgetOutput::typed(NativeMoveSample {
+                position,
+                modifiers,
+                timestamp,
+            })),
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl RuntimeBridge<NativeMoveSample> for NativeMoveMetadataBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<NativeMoveSample>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            NativeMoveMetadataWidget {
+                common: WidgetCommon::new(2, WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+            },
+            WidgetMessageMapper::typed(|sample: NativeMoveSample| sample),
+        )))
+    }
+
+    fn reduce_message(&mut self, sample: NativeMoveSample) {
+        self.samples.push(sample);
+    }
+}
+
 #[test]
 fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
     let mut runner = GenericNativeVelloRunner::new(
@@ -310,6 +377,32 @@ fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     assert!(harness.mouse_released(MouseButton::Left).routed);
 
     assert_eq!(harness.runner.core.runtime.bridge().state.count, 1);
+}
+
+#[test]
+fn native_pointer_move_delivers_captured_timestamp_and_normalized_modifiers() {
+    let mut harness = NativePointerHarness::new(
+        NativeMoveMetadataBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let point = Point::new(8.0, 8.0);
+
+    harness
+        .modifiers_changed(ModifiersState::CONTROL | ModifiersState::SHIFT | ModifiersState::ALT);
+    harness.cursor_moved_logical(point);
+
+    let samples = &harness.runner.core.runtime.bridge().samples;
+    assert_eq!(samples.len(), 1);
+    assert_eq!(samples[0].position, point);
+    assert_eq!(
+        samples[0].modifiers,
+        PointerModifiers {
+            command: true,
+            shift: true,
+            alt: true,
+        }
+    );
+    assert!(samples[0].timestamp.is_some());
 }
 
 #[test]
@@ -973,6 +1066,52 @@ fn native_scrollbar_drag_flushes_when_redraw_is_starved() {
             .paint_plan(&Default::default())
             .contains_text("Row 99"),
         "starved scrollbar redraw should refresh virtual rows immediately"
+    );
+}
+
+#[test]
+fn native_scrollbar_drag_flushes_newest_position_and_sample_metadata() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        NativeMoveMetadataBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let first_timestamp = Some(InputTimestamp::capture());
+    let newest_timestamp = Some(InputTimestamp::capture());
+    let first_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let newest_modifiers = PointerModifiers {
+        command: true,
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let first_position = Point::new(8.0, 8.0);
+    let newest_position = Point::new(24.0, 8.0);
+
+    runner.queue_scrollbar_drag_with_metadata(first_position, first_modifiers, first_timestamp);
+    runner.queue_scrollbar_drag_with_metadata(newest_position, newest_modifiers, newest_timestamp);
+
+    let pending = runner
+        .input
+        .pending_scrollbar_drag
+        .expect("latest scrollbar sample should remain pending");
+    assert_eq!(pending.position, newest_position);
+    assert_eq!(pending.modifiers, newest_modifiers);
+    assert_eq!(pending.timestamp, newest_timestamp);
+
+    runner.flush_pending_scrollbar_drag_now();
+
+    assert!(runner.input.pending_scrollbar_drag.is_none());
+    assert_eq!(
+        runner.core.runtime.bridge().samples,
+        vec![NativeMoveSample {
+            position: newest_position,
+            modifiers: newest_modifiers,
+            timestamp: newest_timestamp,
+        }]
     );
 }
 

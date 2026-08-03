@@ -87,7 +87,7 @@ fn piano_roll_moving_time_selection_previews_clipped_notes_at_target() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     let preview = widget.time_slice_preview_notes(grid);
     assert_eq!(preview.len(), 1);
@@ -121,7 +121,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     let mut move_overlay = Vec::new();
     widget.append_runtime_overlay_paint(

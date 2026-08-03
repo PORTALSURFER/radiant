@@ -15,12 +15,7 @@ fn bounds() -> Rect {
 fn canvas_gesture_state_projects_local_and_normalized_positions() {
     let mut state = CanvasGestureState::new();
     let event = state
-        .handle_input(
-            bounds(),
-            &WidgetInput::PointerMove {
-                position: Point::new(35.0, 45.0),
-            },
-        )
+        .handle_input(bounds(), &WidgetInput::pointer_move(Point::new(35.0, 45.0)))
         .unwrap();
 
     let CanvasGestureEvent::Hover(pointer) = event else {
@@ -53,12 +48,7 @@ fn canvas_gesture_state_tracks_press_drag_and_release() {
     assert!(state.is_dragging());
 
     let drag = state
-        .handle_input(
-            bounds(),
-            &WidgetInput::PointerMove {
-                position: Point::new(25.0, 42.0),
-            },
-        )
+        .handle_input(bounds(), &WidgetInput::pointer_move(Point::new(25.0, 42.0)))
         .unwrap();
     let CanvasGestureEvent::Drag {
         origin,
@@ -111,12 +101,7 @@ fn canvas_gesture_event_exposes_shared_pointer_metadata() {
         },
     );
     let event = state
-        .handle_input(
-            bounds(),
-            &WidgetInput::PointerMove {
-                position: Point::new(35.0, 40.0),
-            },
-        )
+        .handle_input(bounds(), &WidgetInput::pointer_move(Point::new(35.0, 40.0)))
         .unwrap();
 
     assert_eq!(
@@ -142,12 +127,7 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
     };
 
     let hover = state
-        .handle_input(
-            bounds(),
-            &WidgetInput::PointerMove {
-                position: Point::new(15.0, 25.0),
-            },
-        )
+        .handle_input(bounds(), &WidgetInput::pointer_move(Point::new(15.0, 25.0)))
         .unwrap();
     assert_eq!(
         hover.hover_pointer().map(|pointer| pointer.position),

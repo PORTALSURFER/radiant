@@ -10,15 +10,11 @@ fn surface_runtime_skips_stable_pointer_motion_for_opted_out_widgets() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
 
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(16.0, 16.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(16.0, 16.0))),
         Some(10)
     );
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(20.0, 20.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(20.0, 20.0))),
         Some(10)
     );
 
@@ -32,12 +28,8 @@ fn surface_runtime_preserves_stable_pointer_motion_for_continuous_widgets() {
     let bridge = pointer_motion_bridge(true);
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
 
-    let _ = runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(16.0, 16.0),
-    });
-    let _ = runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(20.0, 20.0),
-    });
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(16.0, 16.0)));
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(20.0, 20.0)));
 
     let probe = motion_probe(&runtime, 10, "motion probe");
     assert_eq!(probe.moves, 2);
@@ -49,12 +41,8 @@ fn surface_runtime_keeps_captured_pointer_motion_for_opted_out_widgets() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
 
     let _ = runtime.dispatch_event(primary_press(Point::new(16.0, 16.0)));
-    let _ = runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(18.0, 18.0),
-    });
-    let _ = runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(20.0, 20.0),
-    });
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(18.0, 18.0)));
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(20.0, 20.0)));
 
     let probe = motion_probe(&runtime, 10, "motion probe");
     assert_eq!(probe.moves, 2);

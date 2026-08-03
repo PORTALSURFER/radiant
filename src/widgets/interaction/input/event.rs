@@ -11,6 +11,10 @@ pub enum WidgetInput {
     PointerMove {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
+        /// Modifier state captured with this pointer sample.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer modifier state changed while the pointer remains active.
     PointerModifiersChanged {
@@ -88,7 +92,20 @@ pub enum WidgetInput {
 impl WidgetInput {
     /// Build a pointer-move input at `position`.
     pub fn pointer_move(position: Point) -> Self {
-        Self::PointerMove { position }
+        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None)
+    }
+
+    /// Build a pointer-move input with native sample metadata.
+    pub(crate) fn pointer_move_with_metadata(
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::PointerMove {
+            position,
+            modifiers,
+            timestamp,
+        }
     }
 
     /// Build a pointer-press input with explicit button and modifiers.
@@ -251,7 +268,7 @@ impl WidgetInput {
     /// Return the pointer position carried by this input, when it has one.
     pub fn pointer_position(&self) -> Option<Point> {
         match self {
-            Self::PointerMove { position }
+            Self::PointerMove { position, .. }
             | Self::PointerPress { position, .. }
             | Self::PointerDoubleClick { position, .. }
             | Self::PointerRelease { position, .. }
@@ -307,7 +324,11 @@ mod tests {
 
         assert_eq!(
             WidgetInput::pointer_move(point),
-            WidgetInput::PointerMove { position: point }
+            WidgetInput::PointerMove {
+                position: point,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
         );
         assert_eq!(
             WidgetInput::pointer_press(point, PointerButton::Secondary, modifiers),

@@ -14,7 +14,7 @@ pub(super) fn handle_drag_handle_input(
     }
 
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             let contains_pointer = bounds.contains(position);
             if handle.hover_suppressed_until_exit {
                 handle.common.state.hovered = false;

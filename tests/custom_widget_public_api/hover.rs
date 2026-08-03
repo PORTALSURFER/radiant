@@ -31,9 +31,7 @@ fn custom_widget_contract_can_suppress_surrounding_container_hover_chrome() {
     let before = runtime.paint_plan(&theme);
     let body_before = widget_fill_color(&before, 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(24.0, 20.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(24.0, 20.0)));
     let after = runtime.paint_plan(&theme);
 
     assert_eq!(runtime.hovered_widget(), Some(20));

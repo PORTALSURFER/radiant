@@ -83,7 +83,7 @@ impl Widget for PaintOnlyPointerWidget {
     }
 
     fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        if let WidgetInput::PointerMove { position } = input {
+        if let WidgetInput::PointerMove { position, .. } = input {
             self.last_position = position;
         }
         None

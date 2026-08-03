@@ -28,7 +28,7 @@ impl Widget for PianoRollWidget {
         let velocity = self.velocity_rect(bounds);
         let keyboard = self.keyboard_rect(bounds);
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.handle_pointer_move(grid, bounds, position)
             }
             WidgetInput::PointerModifiersChanged {

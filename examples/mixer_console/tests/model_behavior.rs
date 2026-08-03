@@ -145,9 +145,7 @@ fn mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_ga
         widget
             .handle_input(
                 bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(fader.center().x, fader.max.y),
-                },
+                WidgetInput::pointer_move(Point::new(fader.center().x, fader.max.y)),
             )
             .is_none()
     );
@@ -195,9 +193,10 @@ fn mixer_group_fader_drag_preview_moves_selected_channels_together() {
         widget
             .handle_input(
                 bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(fader.center().x, fader.min.y + fader.height() * 0.20),
-                },
+                WidgetInput::pointer_move(Point::new(
+                    fader.center().x,
+                    fader.min.y + fader.height() * 0.20
+                )),
             )
             .is_none()
     );

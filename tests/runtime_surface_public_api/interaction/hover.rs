@@ -14,18 +14,14 @@ fn surface_runtime_clears_hover_when_pointer_leaves_widget() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
 
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(150.0, 10.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 10.0))),
         Some(11)
     );
     assert_eq!(runtime.hovered_widget(), Some(11));
     assert!(button_hovered(runtime.surface(), 11));
 
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(410.0, 80.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(410.0, 80.0))),
         None
     );
     assert_eq!(runtime.hovered_widget(), None);
@@ -62,9 +58,7 @@ fn surface_runtime_clears_hover_when_refresh_removes_widget() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 40.0));
 
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(12.0, 12.0),
-        }),
+        runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0))),
         Some(11)
     );
     assert_eq!(runtime.hovered_widget(), Some(11));

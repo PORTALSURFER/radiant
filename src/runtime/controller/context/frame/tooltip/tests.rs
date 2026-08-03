@@ -61,9 +61,7 @@ fn hovered_widget_tooltip_paints_without_intercepting_activation() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(8.0, 8.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
 
     assert!(
         !runtime
@@ -122,15 +120,11 @@ fn tooltip_hover_intent_does_not_restart_for_same_target_motion() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(8.0, 8.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
     let first_deadline = runtime
         .timed_repaint_deadline()
         .expect("hover should arm tooltip deadline");
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(9.0, 9.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(9.0, 9.0)));
     assert_eq!(runtime.timed_repaint_deadline(), Some(first_deadline));
 }
 
@@ -153,12 +147,12 @@ fn tooltip_hover_intent_resets_on_leave_focus_loss_and_capture_release_rearms() 
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
     let inside = Point::new(8.0, 8.0);
 
-    runtime.dispatch_event(Event::PointerMove { position: inside });
+    runtime.dispatch_event(Event::pointer_move(inside));
     assert!(runtime.timed_repaint_deadline().is_some());
     runtime.clear_pointer_hover();
     assert_eq!(runtime.timed_repaint_deadline(), None);
 
-    runtime.dispatch_event(Event::PointerMove { position: inside });
+    runtime.dispatch_event(Event::pointer_move(inside));
     assert!(runtime.timed_repaint_deadline().is_some());
     runtime.dispatch_primary_click(inside);
     assert!(runtime.timed_repaint_deadline().is_some());
@@ -201,9 +195,7 @@ fn tooltip_release_reconciles_hover_target_after_exclusive_capture() {
     let capture_position = Point::new(8.0, 8.0);
     let target_position = Point::new(120.0, 8.0);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: capture_position,
-    });
+    runtime.dispatch_event(Event::pointer_move(capture_position));
     runtime.dispatch_event(Event::PointerPress {
         position: capture_position,
         button: crate::widgets::PointerButton::Primary,
@@ -211,9 +203,7 @@ fn tooltip_release_reconciles_hover_target_after_exclusive_capture() {
         timestamp: None,
     });
     assert_eq!(runtime.pointer_capture(), Some(401));
-    runtime.dispatch_event(Event::PointerMove {
-        position: target_position,
-    });
+    runtime.dispatch_event(Event::pointer_move(target_position));
     runtime.dispatch_event(Event::PointerRelease {
         position: target_position,
         button: crate::widgets::PointerButton::Primary,
@@ -264,9 +254,7 @@ fn tooltip_hover_intent_is_fenced_when_runtime_closes() {
         |_, _: ()| {},
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(8.0, 8.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
     assert!(runtime.timed_repaint_deadline().is_some());
 
     assert!(runtime.execute_command(Command::Exit).exit_requested);
@@ -291,9 +279,7 @@ fn tooltip_if_false_skips_hover_tooltip() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(8.0, 8.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
 
     assert!(
         !runtime

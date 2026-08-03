@@ -20,7 +20,7 @@ impl Widget for ArrangementOverviewWidget {
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         let timeline = self.timeline_rect(bounds);
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.handle_pointer_move(bounds, timeline, position);
                 None
             }

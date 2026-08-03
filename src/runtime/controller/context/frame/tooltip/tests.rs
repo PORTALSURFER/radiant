@@ -218,6 +218,7 @@ fn tooltip_release_reconciles_hover_target_after_exclusive_capture() {
         position: target_position,
         button: crate::widgets::PointerButton::Primary,
         modifiers: crate::widgets::PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(runtime.pointer_capture(), None);

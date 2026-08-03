@@ -82,6 +82,7 @@ fn canvas_gesture_state_tracks_press_drag_and_release() {
                 position: Point::new(30.0, 35.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -186,6 +187,7 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
                 position: Point::new(30.0, 35.0),
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .unwrap();

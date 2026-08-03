@@ -160,6 +160,7 @@ fn handle_input_mapped_routes_custom_row_output() {
                 position: pointer,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
             |message| message.is_single_activation().then_some("activated"),
         )

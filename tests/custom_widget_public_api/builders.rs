@@ -152,6 +152,7 @@ fn application_builder_routes_typed_custom_widget_output() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let surface = runtime.surface();

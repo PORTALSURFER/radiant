@@ -179,19 +179,28 @@ where
         self.route_pointer_release_with_modifiers(position, button, PointerModifiers::default())
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release_with_modifiers(
         &mut self,
         position: Point,
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
+        self.route_pointer_release_with_timestamp(position, button, modifiers, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_release_with_timestamp(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .dispatch_event(Event::PointerRelease {
-                position,
-                button,
-                modifiers,
-            })
+            .dispatch_event(Event::pointer_release_with_timestamp(
+                position, button, modifiers, timestamp,
+            ))
             .is_some();
         self.route_outcome(routed)
     }

@@ -49,9 +49,10 @@ where
                 position,
                 button,
                 modifiers,
+                timestamp,
             } => {
                 self.observe_pointer_position(position);
-                self.dispatch_pointer_release_event(position, button, modifiers)
+                self.dispatch_pointer_release_event(position, button, modifiers, timestamp)
             }
             Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
             Event::Character(character) => {
@@ -95,6 +96,7 @@ where
             position,
             button,
             modifiers,
+            timestamp: None,
         });
         PointerClickOutcome {
             press_target,

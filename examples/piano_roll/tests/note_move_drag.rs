@@ -52,6 +52,7 @@ fn piano_roll_drag_routes_move_message() {
             ),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     assert!(matches!(
@@ -118,6 +119,7 @@ fn piano_roll_dragging_selected_note_moves_the_selected_group() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

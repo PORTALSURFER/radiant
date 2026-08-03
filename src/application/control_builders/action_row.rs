@@ -166,6 +166,7 @@ mod tests {
                 position,
                 button: PointerButton::Secondary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
         assert_eq!(feedback_text(&runtime), Some("idle"));
@@ -185,6 +186,7 @@ mod tests {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 

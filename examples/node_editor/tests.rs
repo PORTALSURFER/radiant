@@ -39,6 +39,7 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
             position: Point::new(40.0, 40.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let dragged = runtime.dispatch_input(
@@ -62,6 +63,7 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
             position: Point::new(650.0, 64.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

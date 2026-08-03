@@ -59,6 +59,7 @@ fn piano_roll_marquee_selects_thousands_of_notes_with_paint_only_preview() {
             position: end,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let message = output

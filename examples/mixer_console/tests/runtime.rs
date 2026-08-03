@@ -47,6 +47,7 @@ fn mixer_runtime_fader_drag_motion_uses_paint_only_preview_until_release() {
         position: drag,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     assert!(runtime.take_repaint_requested());
 }

@@ -81,6 +81,7 @@ fn piano_roll_shift_drag_uses_marquee_selection_in_paint_tool() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -132,6 +133,7 @@ fn piano_roll_shift_command_marquee_adds_to_existing_selection() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

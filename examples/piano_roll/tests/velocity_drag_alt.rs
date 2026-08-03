@@ -57,6 +57,7 @@ fn piano_roll_alt_dragging_note_adjusts_velocity() {
                     alt: true,
                     ..PointerModifiers::default()
                 },
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

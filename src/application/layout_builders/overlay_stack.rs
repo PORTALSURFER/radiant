@@ -166,6 +166,7 @@ mod tests {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 

@@ -103,6 +103,7 @@ impl InteractiveRowWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                ..
             } => {
                 if self.props.droppable
                     && self.props.drag_active

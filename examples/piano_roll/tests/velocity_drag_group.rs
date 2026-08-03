@@ -53,6 +53,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -105,6 +106,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
                 position: drag_position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -229,6 +231,7 @@ fn piano_roll_stress_velocity_drag_updates_all_selected_notes_without_reselectin
                 position: drag_position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

@@ -51,6 +51,7 @@ fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
             position: row.center(),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     assert!(release.is_none());

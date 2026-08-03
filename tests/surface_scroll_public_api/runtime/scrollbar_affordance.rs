@@ -61,6 +61,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
         position: Point::new(thumb.center().x, thumb.center().y + 36.0),
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
 
     let after = runtime.layout().rects[&100];

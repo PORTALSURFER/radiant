@@ -135,6 +135,7 @@ fn animation_controls_survive_pending_frame_between_press_and_release() {
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
 
     assert!(!runtime.host_animation_activity().needs_animation());
@@ -172,6 +173,7 @@ where
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
 }
 

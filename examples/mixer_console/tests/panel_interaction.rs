@@ -169,6 +169,7 @@ fn mixer_strip_drag_drop_emits_reorder_message() {
             position: target_line.center(),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

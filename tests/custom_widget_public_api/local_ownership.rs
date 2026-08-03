@@ -181,6 +181,7 @@ fn ui_local_widget_builder_dispatches_ui_local_output_to_local_message() {
                 position: Point::new(12.0, 12.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("local widget should emit UI-local output");
@@ -251,6 +252,7 @@ fn ui_local_widget_semantics_and_state_survive_runtime_reprojection() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     ));
 

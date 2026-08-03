@@ -169,6 +169,7 @@ impl PointerShieldWidget {
                 position,
                 button,
                 modifiers,
+                ..
             } if self.props.pointer_release && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerRelease {
                     position,
@@ -180,6 +181,7 @@ impl PointerShieldWidget {
                 position,
                 button,
                 modifiers,
+                ..
             } if self.props.pointer_drop && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerDrop {
                     position,

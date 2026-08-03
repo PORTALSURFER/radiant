@@ -129,6 +129,11 @@ impl Widget for PressTimestampWidget {
                 position,
                 timestamp,
                 ..
+            }
+            | WidgetInput::PointerRelease {
+                position,
+                timestamp,
+                ..
             } if bounds.contains(position) => Some(WidgetOutput::typed(timestamp)),
             _ => None,
         }
@@ -309,6 +314,25 @@ fn native_pointer_press_delivers_one_captured_timestamp_to_widget_input() {
     assert!(
         harness
             .mouse_pressed_route(MouseButton::Left)
+            .outcome
+            .routed
+    );
+
+    let timestamps = &harness.runner.core.runtime.bridge().timestamps;
+    assert_eq!(timestamps.len(), 1);
+    assert!(timestamps[0].is_some());
+}
+
+#[test]
+fn native_pointer_release_delivers_one_captured_timestamp_to_widget_input() {
+    let mut harness =
+        NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
+    let point = Point::new(8.0, 8.0);
+
+    harness.cursor_moved_logical(point);
+    assert!(
+        harness
+            .mouse_released_route(MouseButton::Left)
             .outcome
             .routed
     );

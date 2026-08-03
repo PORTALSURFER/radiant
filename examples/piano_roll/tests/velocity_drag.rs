@@ -106,6 +106,7 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

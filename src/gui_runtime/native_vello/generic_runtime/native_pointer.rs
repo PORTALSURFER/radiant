@@ -113,7 +113,8 @@ where
         button: MouseButton,
         state: ElementState,
     ) -> NativeMouseInputRoute {
-        let timestamp = (state == ElementState::Pressed).then(InputTimestamp::capture);
+        let timestamp = (state == ElementState::Pressed || state == ElementState::Released)
+            .then(InputTimestamp::capture);
         let kind = match state {
             ElementState::Pressed => NativePointerEventKind::MousePress,
             ElementState::Released => NativePointerEventKind::MouseRelease,
@@ -203,7 +204,7 @@ where
                 .route_pointer_press_with_timestamp(position, button, modifiers, timestamp),
             ElementState::Released => self
                 .core
-                .route_pointer_release_with_modifiers(position, button, modifiers),
+                .route_pointer_release_with_timestamp(position, button, modifiers, timestamp),
         };
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);

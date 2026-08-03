@@ -129,7 +129,8 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     );
     assert!(
         interaction_input.contains("pub use text_edit::TextEditCommand;")
-            && interaction_input_event.contains("TextEdit(TextEditCommand)")
+            && interaction_input_event.contains("TextEdit {")
+            && interaction_input_event.contains("command: TextEditCommand")
             && text_edit_input.contains("MoveWordLeft")
             && text_edit_input.contains("MoveWordRight")
             && text_edit_input.contains("DeleteWordLeft")

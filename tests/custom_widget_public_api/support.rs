@@ -69,7 +69,10 @@ impl Widget for CustomStatusWidget {
                 self.activation_count += 1;
                 Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
             }
-            WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
+            WidgetInput::KeyPress {
+                key: WidgetKey::Enter,
+                ..
+            } if self.common.state.focused => {
                 self.activation_count += 1;
                 Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
             }

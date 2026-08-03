@@ -53,7 +53,9 @@ pub(super) fn handle_badge_input(
             }
             None
         }
-        WidgetInput::KeyPress(key) if badge.common.state.focused && activate_on_keyboard(key) => {
+        WidgetInput::KeyPress { key, .. }
+            if badge.common.state.focused && activate_on_keyboard(key) =>
+        {
             Some(BadgeMessage::Activate)
         }
         _ => None,

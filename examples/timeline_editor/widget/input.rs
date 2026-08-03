@@ -32,14 +32,18 @@ pub(super) fn handle_timeline_input(
             widget.common.state.focused = focused;
             None
         }
-        WidgetInput::KeyPress(WidgetKey::Space) if widget.common.state.focused => {
+        WidgetInput::KeyPress {
+            key: WidgetKey::Space,
+            ..
+        } if widget.common.state.focused => {
             Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
                 beat: widget.cursor.active_beat(widget.playhead_beat),
             }))
         }
-        WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
-            if widget.common.state.focused && widget.selected_clip.is_some() =>
-        {
+        WidgetInput::KeyPress {
+            key: WidgetKey::Delete | WidgetKey::Backspace,
+            ..
+        } if widget.common.state.focused && widget.selected_clip.is_some() => {
             Some(WidgetOutput::typed(TimelineSurfaceMessage::DeleteSelected))
         }
         _ => None,

@@ -236,9 +236,9 @@ impl Widget for PointerShieldWidget {
             WidgetInput::Wheel { .. } => self.props.wheel,
             WidgetInput::PointerModifiersChanged { .. }
             | WidgetInput::FocusChanged(_)
-            | WidgetInput::KeyPress(_)
-            | WidgetInput::Character(_)
-            | WidgetInput::TextEdit(_) => true,
+            | WidgetInput::KeyPress { .. }
+            | WidgetInput::Character { .. }
+            | WidgetInput::TextEdit { .. } => true,
         }
     }
 

@@ -55,7 +55,9 @@ pub(super) fn handle_toggle_input(
             }
             None
         }
-        WidgetInput::KeyPress(key) if toggle.common.state.focused && activate_on_keyboard(key) => {
+        WidgetInput::KeyPress { key, .. }
+            if toggle.common.state.focused && activate_on_keyboard(key) =>
+        {
             Some(toggle.toggle())
         }
         _ => None,

@@ -92,9 +92,10 @@ impl Widget for PianoRollWidget {
                 modifiers,
                 ..
             } if bounds.contains(position) => self.handle_wheel(grid, delta, modifiers),
-            WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
-                if self.common.state.focused =>
-            {
+            WidgetInput::KeyPress {
+                key: WidgetKey::Delete | WidgetKey::Backspace,
+                ..
+            } if self.common.state.focused => {
                 Some(WidgetOutput::custom(PianoRollMessage::DeleteSelected))
             }
             WidgetInput::FocusChanged(focused) => {

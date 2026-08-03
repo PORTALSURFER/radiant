@@ -47,7 +47,7 @@ fn focused_button_space_emits_activation() {
     let _ = button.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
 
     assert_eq!(
-        button.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Space)),
+        button.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Space)),
         Some(ButtonMessage::Activate)
     );
 }

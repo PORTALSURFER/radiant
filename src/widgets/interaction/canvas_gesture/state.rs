@@ -126,9 +126,9 @@ impl CanvasGestureState {
                 Some(CanvasGestureEvent::FocusChanged(*focused))
             }
             WidgetInput::PointerModifiersChanged { .. }
-            | WidgetInput::KeyPress(_)
-            | WidgetInput::Character(_)
-            | WidgetInput::TextEdit(_) => None,
+            | WidgetInput::KeyPress { .. }
+            | WidgetInput::Character { .. }
+            | WidgetInput::TextEdit { .. } => None,
         }
     }
 }

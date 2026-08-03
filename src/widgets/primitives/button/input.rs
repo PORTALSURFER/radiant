@@ -110,7 +110,9 @@ pub(super) fn handle_button_input(
             }
             None
         }
-        WidgetInput::KeyPress(key) if button.common.state.focused && activate_on_keyboard(key) => {
+        WidgetInput::KeyPress { key, .. }
+            if button.common.state.focused && activate_on_keyboard(key) =>
+        {
             Some(ButtonMessage::Activate)
         }
         _ => None,

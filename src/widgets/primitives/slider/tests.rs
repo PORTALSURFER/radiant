@@ -100,13 +100,13 @@ fn focused_slider_responds_to_keyboard_steps() {
     let _ = slider.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
     let Some(SliderMessage::ValueChanged { value }) = slider.handle_input(
         Rect::default(),
-        WidgetInput::KeyPress(WidgetKey::ArrowRight),
+        WidgetInput::key_press(WidgetKey::ArrowRight),
     ) else {
         panic!("focused slider should emit an arrow-key change");
     };
     assert!((value - 0.55).abs() < f32::EPSILON);
     assert_eq!(
-        slider.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Home)),
+        slider.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Home)),
         Some(SliderMessage::ValueChanged { value: 0.0 })
     );
 }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use super::{FocusTraversal, SurfaceRuntime};
 use crate::{
+    gui::input::InputTimestamp,
     gui::{focus::FocusSurface, input::KeyPress},
     runtime::RuntimeBridge,
     widgets::{WidgetId, WidgetInput, WidgetKey},
@@ -106,6 +107,18 @@ where
         widget_key: Option<WidgetKey>,
         focus: FocusSurface,
     ) -> bool {
+        self.dispatch_key_press_with_timestamp(press, widget_key, focus, None)
+    }
+
+    /// Resolve one keypress and preserve an optional native input timestamp on
+    /// focused-widget fallback routing.
+    pub(crate) fn dispatch_key_press_with_timestamp(
+        &mut self,
+        press: KeyPress,
+        widget_key: Option<WidgetKey>,
+        focus: FocusSurface,
+        timestamp: Option<InputTimestamp>,
+    ) -> bool {
         let resolution =
             self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
@@ -118,7 +131,9 @@ where
             return true;
         }
         widget_key
-            .and_then(|key| self.dispatch_focused_input(WidgetInput::KeyPress(key)))
+            .and_then(|key| {
+                self.dispatch_focused_input(WidgetInput::key_press_with_timestamp(key, timestamp))
+            })
             .is_some()
     }
 

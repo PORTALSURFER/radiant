@@ -82,7 +82,7 @@ fn timeline_editor_deletes_selected_clip_from_toolbar() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(860.0, 460.0));
 
     assert!(runtime.focus_widget(32));
-    assert!(runtime.dispatch_input(32, WidgetInput::KeyPress(WidgetKey::Enter)));
+    assert!(runtime.dispatch_input(32, WidgetInput::key_press(WidgetKey::Enter)));
 
     let status = status_text(&runtime);
     assert!(status.contains("clips 3"));

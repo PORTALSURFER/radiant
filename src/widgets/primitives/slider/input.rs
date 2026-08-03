@@ -61,7 +61,7 @@ pub(super) fn handle_slider_input(
             slider.common.state.focused = focused;
             None
         }
-        WidgetInput::KeyPress(key) if slider.common.state.focused => match key {
+        WidgetInput::KeyPress { key, .. } if slider.common.state.focused => match key {
             WidgetKey::ArrowLeft | WidgetKey::ArrowDown => {
                 slider.set_value(slider.state.value - slider.props.keyboard_step)
             }

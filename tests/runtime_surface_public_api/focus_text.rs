@@ -19,7 +19,7 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
     assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(12));
     assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(11));
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Enter)),
+        runtime.dispatch_focused_input(WidgetInput::key_press(WidgetKey::Enter)),
         Some(11)
     );
 
@@ -30,13 +30,13 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
 
     assert!(runtime.focus_widget(12));
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::Character('Q')),
+        runtime.dispatch_focused_input(WidgetInput::character('Q')),
         Some(12)
     );
     runtime.clear_focus();
     assert_eq!(runtime.focused_widget(), None);
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::Character('X')),
+        runtime.dispatch_focused_input(WidgetInput::character('X')),
         None
     );
 
@@ -65,13 +65,13 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
 
     assert!(runtime.focus_widget(12));
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::MoveHome {
+        runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::MoveHome {
             extend_selection: false,
         })),
         Some(12)
     );
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::MoveRight {
+        runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::MoveRight {
             extend_selection: true,
         })),
         Some(12)
@@ -79,7 +79,7 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
     assert_eq!(runtime.focused_text_selection_slice(), Some("ab"));
     assert_eq!(runtime.focused_text_selection().as_deref(), Some("ab"));
     assert_eq!(
-        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::InsertText(
+        runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::InsertText(
             String::from("z")
         ))),
         Some(12)

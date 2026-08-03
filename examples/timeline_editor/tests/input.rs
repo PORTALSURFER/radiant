@@ -100,7 +100,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
 
     let _ = widget.handle_input(bounds, WidgetInput::FocusChanged(true));
     let deleted = widget
-        .handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Delete))
+        .handle_input(bounds, WidgetInput::key_press(WidgetKey::Delete))
         .expect("focused timeline delete key emits deletion");
     assert_surface_message(&deleted, |message| {
         matches!(message, TimelineSurfaceMessage::DeleteSelected)

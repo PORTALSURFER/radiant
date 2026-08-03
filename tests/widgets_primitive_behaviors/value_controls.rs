@@ -9,7 +9,7 @@ fn toggle_updates_active_state_when_activated() {
         None
     );
     assert_eq!(
-        toggle.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Space)),
+        toggle.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Space)),
         Some(ToggleMessage::ValueChanged { checked: true })
     );
     assert!(toggle.common.state.active);
@@ -28,19 +28,22 @@ fn text_input_edits_and_submits_single_line_values() {
     input.state.selection_anchor = 1;
 
     assert_eq!(
-        input.handle_input(Rect::default(), WidgetInput::Character('z')),
+        input.handle_input(Rect::default(), WidgetInput::character('z')),
         Some(TextInputMessage::Changed {
             value: String::from("azb"),
         })
     );
     assert_eq!(
-        input.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Backspace)),
+        input.handle_input(
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::Backspace)
+        ),
         Some(TextInputMessage::Changed {
             value: String::from("ab"),
         })
     );
     assert_eq!(
-        input.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Enter)),
+        input.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Enter)),
         Some(TextInputMessage::Submitted {
             value: String::from("ab"),
         })
@@ -63,7 +66,7 @@ fn text_input_accepts_text_input_only_while_focused_and_editable() {
     input.common.state.read_only = true;
     assert!(!input.accepts_text_input());
     assert_eq!(
-        input.handle_input(Rect::default(), WidgetInput::Character('z')),
+        input.handle_input(Rect::default(), WidgetInput::character('z')),
         None
     );
     assert_eq!(input.state.value, "ab");
@@ -72,7 +75,10 @@ fn text_input_accepts_text_input_only_while_focused_and_editable() {
     input.common.state.disabled = true;
     assert!(!input.accepts_text_input());
     assert_eq!(
-        input.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Backspace)),
+        input.handle_input(
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::Backspace)
+        ),
         None
     );
     assert_eq!(input.state.value, "ab");
@@ -161,7 +167,7 @@ fn slider_drag_and_keyboard_emit_normalized_values() {
 
     let _ = slider.handle_input(bounds, WidgetInput::FocusChanged(true));
     assert_eq!(
-        slider.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Home)),
+        slider.handle_input(bounds, WidgetInput::key_press(WidgetKey::Home)),
         Some(SliderMessage::ValueChanged { value: 0.0 })
     );
 }

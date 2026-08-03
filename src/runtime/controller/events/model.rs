@@ -64,9 +64,19 @@ pub enum Event {
         timestamp: Option<InputTimestamp>,
     },
     /// One non-text key intent should route to the focused widget.
-    KeyPress(WidgetKey),
+    KeyPress {
+        /// Normalized key identity.
+        key: WidgetKey,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// One printable character should route to the focused widget.
-    Character(char),
+    Character {
+        /// Character produced by the active keyboard layout.
+        character: char,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// Move keyboard focus in declarative tree order.
     TraverseFocus(FocusTraversal),
     /// Clear current runtime focus ownership.
@@ -243,12 +253,31 @@ impl Event {
 
     /// Build a focused key-press event.
     pub fn key_press(key: WidgetKey) -> Self {
-        Self::KeyPress(key)
+        Self::key_press_with_timestamp(key, None)
+    }
+
+    /// Build a focused key-press event with an optional native input timestamp.
+    pub(crate) fn key_press_with_timestamp(
+        key: WidgetKey,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::KeyPress { key, timestamp }
     }
 
     /// Build a focused character-input event.
     pub fn character(character: char) -> Self {
-        Self::Character(character)
+        Self::character_with_timestamp(character, None)
+    }
+
+    /// Build a focused character-input event with an optional native input timestamp.
+    pub(crate) fn character_with_timestamp(
+        character: char,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::Character {
+            character,
+            timestamp,
+        }
     }
 
     /// Build a focus-traversal event.
@@ -311,6 +340,24 @@ mod tests {
                 position,
                 delta,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+    }
+
+    #[test]
+    fn public_keyboard_constructors_omit_sample_metadata() {
+        assert_eq!(
+            Event::key_press(WidgetKey::Enter),
+            Event::KeyPress {
+                key: WidgetKey::Enter,
+                timestamp: None,
+            }
+        );
+        assert_eq!(
+            Event::character('a'),
+            Event::Character {
+                character: 'a',
                 timestamp: None,
             }
         );

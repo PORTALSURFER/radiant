@@ -62,9 +62,14 @@ impl Widget for IconToggleButton {
                 self.common.state.pressed = false;
                 should_toggle.then(|| WidgetOutput::custom(ToolMessage::Toggle(self.tool)))
             }
-            WidgetInput::KeyPress(WidgetKey::Enter) | WidgetInput::KeyPress(WidgetKey::Space)
-                if self.common.state.focused =>
-            {
+            WidgetInput::KeyPress {
+                key: WidgetKey::Enter,
+                ..
+            }
+            | WidgetInput::KeyPress {
+                key: WidgetKey::Space,
+                ..
+            } if self.common.state.focused => {
                 Some(WidgetOutput::custom(ToolMessage::Toggle(self.tool)))
             }
             WidgetInput::FocusChanged(focused) => {

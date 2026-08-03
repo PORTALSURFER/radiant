@@ -406,6 +406,7 @@ where
         if work.is_empty() || !self.is_running() {
             return FrameScheduleAdmission::default();
         }
+        self.require_primary_frame_diagnostics_schedule_admission();
         if work.advance_timed_repaint && self.core.advance_timed_repaints(now) {
             self.rebuild_scene();
             self.request_redraw_for_frame_work(FrameWork::RebuildScene {

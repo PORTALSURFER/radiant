@@ -9,6 +9,9 @@ use crate::runtime::NativeFrameDiagnostics;
 #[derive(Default)]
 pub(crate) struct NativeFrameDiagnosticsPublication {
     pending: Option<NativeFrameDiagnostics>,
+    observation_finalized: bool,
+    schedule_admission_required: bool,
+    schedule_admission_recorded: bool,
 }
 
 impl NativeFrameDiagnosticsPublication {
@@ -21,10 +24,55 @@ impl NativeFrameDiagnosticsPublication {
             return;
         }
         self.pending = Some(diagnostics);
+        self.observation_finalized = false;
+        self.schedule_admission_recorded = false;
+    }
+
+    pub(crate) fn require_schedule_admission(&mut self) {
+        self.schedule_admission_required = true;
+    }
+
+    pub(crate) fn mark_observation_finalized(&mut self) {
+        self.observation_finalized = true;
+    }
+
+    pub(crate) fn mark_schedule_admission_recorded(&mut self) {
+        if self.pending.is_some() {
+            self.schedule_admission_recorded = true;
+        } else {
+            // A scheduled work item can be admitted without presenting a
+            // frame. Do not let that empty admission gate the next direct
+            // presentation.
+            self.schedule_admission_required = false;
+            self.schedule_admission_recorded = false;
+        }
+    }
+
+    pub(crate) fn take_ready(&mut self) -> Option<NativeFrameDiagnostics> {
+        if self.pending.is_some()
+            && (!self.observation_finalized
+                || (self.schedule_admission_required && !self.schedule_admission_recorded))
+        {
+            return None;
+        }
+        self.take()
     }
 
     pub(crate) fn take(&mut self) -> Option<NativeFrameDiagnostics> {
-        self.pending.take()
+        let pending = self.pending.take();
+        self.clear_state();
+        pending
+    }
+
+    pub(crate) fn discard(&mut self) {
+        self.pending = None;
+        self.clear_state();
+    }
+
+    fn clear_state(&mut self) {
+        self.observation_finalized = false;
+        self.schedule_admission_required = false;
+        self.schedule_admission_recorded = false;
     }
 }
 
@@ -44,18 +92,60 @@ mod tests {
     }
 
     #[test]
-    fn stage_and_take_are_one_slot_and_do_not_retain_stale_values() {
+    fn stage_and_take_ready_are_one_slot_and_do_not_retain_stale_values() {
         let mut publication = NativeFrameDiagnosticsPublication::default();
         let first = diagnostics(1, 7);
         let second = diagnostics(2, 11);
 
         publication.stage(first);
-        assert_eq!(publication.take(), Some(first));
-        assert_eq!(publication.take(), None);
+        publication.mark_observation_finalized();
+        assert_eq!(publication.take_ready(), Some(first));
+        assert_eq!(publication.take_ready(), None);
 
         publication.stage(second);
-        assert_eq!(publication.take(), Some(second));
-        assert_eq!(publication.take(), None);
+        publication.mark_observation_finalized();
+        assert_eq!(publication.take_ready(), Some(second));
+        assert_eq!(publication.take_ready(), None);
+    }
+
+    #[test]
+    fn early_take_preserves_the_pending_value_until_observation_is_finalized() {
+        let mut publication = NativeFrameDiagnosticsPublication::default();
+        let diagnostics = diagnostics(1, 7);
+
+        publication.stage(diagnostics);
+        assert_eq!(publication.take_ready(), None);
+
+        publication.mark_observation_finalized();
+        assert_eq!(publication.take_ready(), Some(diagnostics));
+    }
+
+    #[test]
+    fn scheduled_readiness_requires_observation_and_admission_marks() {
+        let mut publication = NativeFrameDiagnosticsPublication::default();
+        let diagnostics = diagnostics(1, 7);
+
+        publication.stage(diagnostics);
+        publication.require_schedule_admission();
+        assert_eq!(publication.take_ready(), None);
+
+        publication.mark_observation_finalized();
+        publication.mark_schedule_admission_recorded();
+        assert_eq!(publication.take_ready(), Some(diagnostics));
+    }
+
+    #[test]
+    fn a_scheduled_attempt_without_a_value_does_not_block_the_next_direct_value() {
+        let mut publication = NativeFrameDiagnosticsPublication::default();
+        let diagnostics = diagnostics(1, 7);
+
+        publication.require_schedule_admission();
+        assert_eq!(publication.take_ready(), None);
+        publication.mark_schedule_admission_recorded();
+
+        publication.stage(diagnostics);
+        publication.mark_observation_finalized();
+        assert_eq!(publication.take_ready(), Some(diagnostics));
     }
 
     #[cfg(debug_assertions)]
@@ -74,7 +164,8 @@ mod tests {
         let first = diagnostics(1, 7);
         publication.stage(first);
         publication.stage(diagnostics(2, 11));
+        publication.mark_observation_finalized();
 
-        assert_eq!(publication.take(), Some(first));
+        assert_eq!(publication.take_ready(), Some(first));
     }
 }

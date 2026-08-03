@@ -26,8 +26,37 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
         std::mem::take(&mut self.outbox)
     }
 
-    pub(super) fn take_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
-        self.frame_diagnostics_publication.take()
+    pub(super) fn require_schedule_admission(&mut self) {
+        if self.frame_diagnostics_enabled {
+            self.frame_diagnostics_publication
+                .require_schedule_admission();
+        }
+    }
+
+    pub(super) fn mark_observation_finalized(&mut self) {
+        if self.frame_diagnostics_enabled {
+            self.frame_diagnostics_publication
+                .mark_observation_finalized();
+        }
+    }
+
+    pub(super) fn mark_schedule_admission_recorded(&mut self) {
+        if self.frame_diagnostics_enabled {
+            self.frame_diagnostics_publication
+                .mark_schedule_admission_recorded();
+        }
+    }
+
+    pub(super) fn take_ready_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
+        if self.frame_diagnostics_enabled {
+            self.frame_diagnostics_publication.take_ready()
+        } else {
+            None
+        }
+    }
+
+    pub(super) fn discard_frame_diagnostics(&mut self) {
+        self.frame_diagnostics_publication.discard();
     }
 }
 
@@ -99,7 +128,7 @@ mod tests {
 
         assert!(!bridge.host_capabilities().has_frame_diagnostics());
         bridge.observe_frame_diagnostics(diagnostics);
-        assert_eq!(bridge.take_frame_diagnostics(), None);
+        assert_eq!(bridge.take_ready_frame_diagnostics(), None);
     }
 
     #[test]
@@ -122,11 +151,33 @@ mod tests {
 
         assert!(bridge.host_capabilities().has_frame_diagnostics());
         bridge.observe_frame_diagnostics(first);
-        assert_eq!(bridge.take_frame_diagnostics(), Some(first));
-        assert_eq!(bridge.take_frame_diagnostics(), None);
+        bridge.mark_observation_finalized();
+        assert_eq!(bridge.take_ready_frame_diagnostics(), Some(first));
+        assert_eq!(bridge.take_ready_frame_diagnostics(), None);
 
         bridge.observe_frame_diagnostics(second);
-        assert_eq!(bridge.take_frame_diagnostics(), Some(second));
-        assert_eq!(bridge.take_frame_diagnostics(), None);
+        bridge.mark_observation_finalized();
+        assert_eq!(bridge.take_ready_frame_diagnostics(), Some(second));
+        assert_eq!(bridge.take_ready_frame_diagnostics(), None);
+    }
+
+    #[test]
+    fn auxiliary_bridge_keeps_scheduled_value_until_admission_is_recorded() {
+        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), true);
+        let diagnostics = NativeFrameDiagnostics {
+            window_identity: Some(
+                crate::runtime::NativeWindowDiagnosticIdentity::from_runtime_value(2),
+            ),
+            frame_sequence: Some(11),
+            ..NativeFrameDiagnostics::default()
+        };
+
+        bridge.require_schedule_admission();
+        bridge.observe_frame_diagnostics(diagnostics);
+        bridge.mark_observation_finalized();
+        assert_eq!(bridge.take_ready_frame_diagnostics(), None);
+
+        bridge.mark_schedule_admission_recorded();
+        assert_eq!(bridge.take_ready_frame_diagnostics(), Some(diagnostics));
     }
 }

@@ -236,6 +236,13 @@ where
         self.cpu_frame_observation = None;
     }
 
+    pub(super) fn require_primary_frame_diagnostics_schedule_admission(&mut self) {
+        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+            self.frame_diagnostics_publication
+                .require_schedule_admission();
+        }
+    }
+
     pub(super) fn stage_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
         if !self.frame_diagnostics_enabled {
             return;
@@ -256,7 +263,7 @@ where
         if !self.frame_diagnostics_enabled {
             return;
         }
-        if let Some(diagnostics) = self.frame_diagnostics_publication.take() {
+        if let Some(diagnostics) = self.frame_diagnostics_publication.take_ready() {
             self.core
                 .runtime
                 .host_observe_frame_diagnostics(diagnostics);
@@ -270,10 +277,15 @@ where
     }
 
     pub(super) fn record_frame_schedule_admission(&mut self, key: FrameScheduleKey) {
+        let is_primary = matches!(&key, FrameScheduleKey::Primary);
         if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
             ledger.mark_admitted(&key);
         }
         self.frame_scheduler.record_admission(key);
+        if self.frame_diagnostics_enabled && !self.auxiliary_owner && is_primary {
+            self.frame_diagnostics_publication
+                .mark_schedule_admission_recorded();
+        }
     }
 
     pub(super) fn begin_cpu_frame_observation(
@@ -332,6 +344,10 @@ where
             return;
         };
         ledger.finish(admission, capture, redraw_failed);
+        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+            self.frame_diagnostics_publication
+                .mark_observation_finalized();
+        }
     }
 
     pub(super) fn finish_cpu_frame_observation_with_owner(
@@ -342,6 +358,10 @@ where
     ) {
         let capture = std::mem::take(&mut self.cpu_frame_observation_capture);
         owner.finish(admission, capture, redraw_failed);
+        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+            self.frame_diagnostics_publication
+                .mark_observation_finalized();
+        }
     }
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
@@ -1822,6 +1842,9 @@ mod tests {
         );
         let diagnostics = staged_diagnostics();
 
+        if scheduled {
+            runner.require_primary_frame_diagnostics_schedule_admission();
+        }
         runner.stage_frame_diagnostics(diagnostics);
         assert!(
             published
@@ -1829,6 +1852,9 @@ mod tests {
                 .expect("publication test events should not be poisoned")
                 .is_empty()
         );
+        runner
+            .frame_diagnostics_publication
+            .mark_observation_finalized();
         if scheduled {
             runner.record_frame_schedule_admission(FrameScheduleKey::Primary);
         }

@@ -111,7 +111,6 @@ where
             };
             let AuxiliaryWindowEventResult {
                 messages,
-                frame_diagnostics,
                 terminal_cause,
                 shutdown_requested,
             } = route_result;
@@ -123,6 +122,14 @@ where
             if became_retiring {
                 self.remove_cpu_frame_observation(&auxiliary_key);
             }
+            let frame_diagnostics =
+                if shutdown_requested || terminal_cause.is_some() || became_retiring {
+                    self.auxiliary_windows[index].discard_frame_diagnostics();
+                    None
+                } else {
+                    self.auxiliary_windows[index].mark_parent_observation_finalized();
+                    self.auxiliary_windows[index].take_ready_frame_diagnostics()
+                };
             forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
             if shutdown_requested {
                 self.admit_native_shutdown(event_loop, terminal_cause);
@@ -473,13 +480,32 @@ where
                     if let Some(result) = result {
                         let super::AuxiliaryWindowEventResult {
                             messages,
-                            frame_diagnostics,
                             terminal_cause,
                             shutdown_requested,
                         } = result;
-                        if !shutdown_requested && terminal_cause.is_none() {
+                        let frame_diagnostics = if !shutdown_requested && terminal_cause.is_none() {
                             self.record_frame_schedule_admission(selected.clone());
-                        }
+                            if let Some(window) = self
+                                .auxiliary_windows
+                                .iter_mut()
+                                .find(|window| window.key() == key)
+                            {
+                                window.mark_parent_observation_finalized();
+                                window.mark_scheduled_frame_admission_recorded();
+                                window.take_ready_frame_diagnostics()
+                            } else {
+                                None
+                            }
+                        } else {
+                            if let Some(window) = self
+                                .auxiliary_windows
+                                .iter_mut()
+                                .find(|window| window.key() == key)
+                            {
+                                window.discard_frame_diagnostics();
+                            }
+                            None
+                        };
                         forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
                         if shutdown_requested {
                             self.admit_native_shutdown(event_loop, terminal_cause);

@@ -20,6 +20,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let diagnostics = NativeFrameDiagnostics {
         window_identity: None,
         frame_sequence: Some(41),
+        input_to_present_latency_us: Some(1234),
         cpu_fairness: NativeCpuFrameFairnessDiagnostics {
             available: true,
             latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
@@ -136,6 +137,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(bridge.last, Some(diagnostics));
     assert_eq!(diagnostics.window_identity, None);
     assert_eq!(diagnostics.frame_sequence, Some(41));
+    assert_eq!(diagnostics.input_to_present_latency_us, Some(1234));
     assert_eq!(diagnostics.cpu_fairness.requested_target_fps, 120);
     assert_eq!(diagnostics.cpu_fairness.effective_target_fps, 24);
     assert_eq!(
@@ -224,6 +226,10 @@ fn native_surface_recovery_diagnostics_default_to_zero() {
     assert_eq!(
         NativeFrameDiagnostics::default().cpu_fairness,
         NativeCpuFrameFairnessDiagnostics::default()
+    );
+    assert_eq!(
+        NativeFrameDiagnostics::default().input_to_present_latency_us,
+        None
     );
     assert_eq!(
         NativeCpuFrameFairnessDiagnostics::default().latest_due_lateness_us,

@@ -2922,6 +2922,18 @@ scheduling or presentation. This diagnostic identity is distinct from the
 public logical `WindowKey` and from the auxiliary projection key. The native
 render-profile and slow-profile tracing lines expose the same numeric
 `window_identity` alongside `frame_sequence`.
+`NativeFrameDiagnostics::input_to_present_latency_us` is an opt-in,
+saturating-microsecond measurement from Radiant's native event-loop arrival of
+the latest tracked interactive event to the next successful presentation. It
+uses a bounded latest-wins slot: a newer tracked arrival replaces an older
+unpresented arrival, failed or absent presentations retain the arrival, and a
+successful presentation consumes it once. The measurement starts at
+event-loop arrival and does not include platform queue time before event-loop
+arrival; it is not a native host input timestamp. Radiant tracks the already
+routed `Focused`, `CursorEntered`, `CursorMoved`, `CursorLeft`, `MouseInput`,
+`MouseWheel`, `KeyboardInput`, and `ModifiersChanged` window events only.
+Auxiliary windows own their value and forward it through the existing parent
+diagnostics boundary without changing publication order.
 `NativeFrameTimingDiagnostics::gpu_timing_status` currently reports
 `NativeGpuTimingStatus::CpuEnvelopeOnly`, which makes the boundary explicit:
 these timing buckets are CPU-side encode/submit/present envelopes, not backend

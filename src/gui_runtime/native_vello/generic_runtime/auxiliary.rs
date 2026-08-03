@@ -143,6 +143,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .discard_frame_diagnostics();
     }
 
+    pub(super) fn record_native_interactive_arrival(&mut self, arrived_at: Instant) {
+        self.runner.record_native_interactive_arrival(arrived_at);
+    }
+
     fn event_result(
         &mut self,
         terminal_cause: Option<NativeGenericRunError>,

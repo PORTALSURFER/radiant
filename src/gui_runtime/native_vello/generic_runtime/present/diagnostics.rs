@@ -19,6 +19,7 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) retained_entries: usize,
     pub(super) gpu_surface_stats: gpu_surface::GpuSurfaceRenderStats,
     pub(super) profile: RenderFrameProfile,
+    pub(super) input_to_present_latency_us: Option<u64>,
     pub(super) render_to_texture_elapsed: Duration,
     pub(super) since_last_present: Duration,
     pub(super) frame_work: FrameWork,
@@ -35,6 +36,7 @@ pub(super) fn native_frame_diagnostics(
     crate::runtime::NativeFrameDiagnostics {
         window_identity: parts.profile.window_identity,
         frame_sequence: parts.profile.frame_sequence,
+        input_to_present_latency_us: parts.input_to_present_latency_us,
         cpu_fairness: crate::runtime::NativeCpuFrameFairnessDiagnostics::default(),
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
@@ -291,6 +293,7 @@ mod tests {
                 frame_sequence: Some(41),
                 ..RenderFrameProfile::default()
             },
+            input_to_present_latency_us: Some(29_000),
             render_to_texture_elapsed: Duration::ZERO,
             since_last_present: Duration::ZERO,
             frame_work: FrameWork::RebuildScene {
@@ -327,6 +330,7 @@ mod tests {
             Some(7)
         );
         assert_eq!(diagnostics.frame_sequence, Some(41));
+        assert_eq!(diagnostics.input_to_present_latency_us, Some(29_000));
         assert_eq!(diagnostics.surface_recovery.lost, 37);
         assert_eq!(diagnostics.surface_recovery.outdated, 41);
         assert_eq!(diagnostics.surface_recovery.timeouts, 43);

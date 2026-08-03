@@ -1075,6 +1075,13 @@ where
         self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
     }
 
+    pub(super) fn record_native_interactive_arrival(&mut self, arrived_at: Instant) {
+        self.timing.record_native_interactive_arrival_if_enabled(
+            self.frame_diagnostics_enabled,
+            arrived_at,
+        );
+    }
+
     pub(super) fn take_pending_frame_work(&mut self) -> FrameWork {
         if !self.frame_diagnostics_enabled {
             return FrameWork::None;

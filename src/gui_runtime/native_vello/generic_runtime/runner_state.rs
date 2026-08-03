@@ -654,6 +654,7 @@ impl NativeWindowDiagnosticIdentityAllocator {
 pub(super) struct NativeRunnerTimingState {
     pub(super) redraw_requested: bool,
     pub(super) redraw_requested_at: Option<Instant>,
+    pub(super) latest_native_interactive_arrival: Option<Instant>,
     pub(super) startup_timing: StartupTimingProfile,
     pub(super) first_frame_presented: bool,
     pub(super) native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
@@ -689,6 +690,7 @@ impl NativeRunnerTimingState {
         Self {
             redraw_requested: false,
             redraw_requested_at: None,
+            latest_native_interactive_arrival: None,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
             native_window_diagnostic_identity,
@@ -716,6 +718,30 @@ impl NativeRunnerTimingState {
         self.next_frame_sequence = frame_sequence.checked_add(1);
         Some(frame_sequence)
     }
+
+    pub(super) fn record_native_interactive_arrival_if_enabled(
+        &mut self,
+        diagnostics_enabled: bool,
+        arrived_at: Instant,
+    ) {
+        if diagnostics_enabled {
+            self.latest_native_interactive_arrival = Some(arrived_at);
+        }
+    }
+
+    pub(super) fn take_input_to_present_latency_us(
+        &mut self,
+        presented_at: Instant,
+    ) -> Option<u64> {
+        self.latest_native_interactive_arrival
+            .take()
+            .map(|arrived_at| {
+                let micros = presented_at
+                    .saturating_duration_since(arrived_at)
+                    .as_micros();
+                micros.min(u64::MAX as u128) as u64
+            })
+    }
 }
 
 #[cfg(test)]
@@ -730,6 +756,7 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+    use std::time::{Duration, Instant};
 
     struct DropTracked {
         ready: bool,
@@ -988,6 +1015,80 @@ mod tests {
         assert_eq!(timing.allocate_frame_sequence(), Some(u64::MAX));
         assert_eq!(timing.allocate_frame_sequence(), None);
         assert_eq!(timing.next_frame_sequence, None);
+    }
+
+    #[test]
+    fn native_input_arrival_is_latest_wins() {
+        let mut timing = NativeRunnerTimingState::default();
+        let first = Instant::now();
+        let second = first + Duration::from_micros(10);
+
+        timing.record_native_interactive_arrival_if_enabled(true, first);
+        timing.record_native_interactive_arrival_if_enabled(true, second);
+
+        assert_eq!(
+            timing.take_input_to_present_latency_us(second + Duration::from_micros(7)),
+            Some(7)
+        );
+    }
+
+    #[test]
+    fn native_input_arrival_is_retained_until_successful_presentation() {
+        let mut timing = NativeRunnerTimingState::default();
+        let arrived_at = Instant::now();
+
+        timing.record_native_interactive_arrival_if_enabled(true, arrived_at);
+
+        // A failed or skipped presentation does not call the consuming helper.
+        assert_eq!(timing.latest_native_interactive_arrival, Some(arrived_at));
+        assert_eq!(
+            timing.take_input_to_present_latency_us(arrived_at + Duration::from_micros(13)),
+            Some(13)
+        );
+    }
+
+    #[test]
+    fn native_input_arrival_is_consumed_once_after_successful_presentation() {
+        let mut timing = NativeRunnerTimingState::default();
+        let arrived_at = Instant::now();
+
+        timing.record_native_interactive_arrival_if_enabled(true, arrived_at);
+
+        assert_eq!(
+            timing.take_input_to_present_latency_us(arrived_at + Duration::from_micros(17)),
+            Some(17)
+        );
+        assert_eq!(
+            timing.take_input_to_present_latency_us(arrived_at + Duration::from_micros(23)),
+            None
+        );
+    }
+
+    #[test]
+    fn native_input_latency_saturates_when_presentation_clock_is_earlier() {
+        let mut timing = NativeRunnerTimingState::default();
+        let arrived_at = Instant::now();
+
+        timing.record_native_interactive_arrival_if_enabled(true, arrived_at);
+
+        assert_eq!(
+            timing.take_input_to_present_latency_us(arrived_at - Duration::from_micros(1)),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn disabled_native_input_diagnostics_do_not_create_state() {
+        let mut timing = NativeRunnerTimingState::default();
+        let arrived_at = Instant::now();
+
+        timing.record_native_interactive_arrival_if_enabled(false, arrived_at);
+
+        assert_eq!(timing.latest_native_interactive_arrival, None);
+        assert_eq!(
+            timing.take_input_to_present_latency_us(arrived_at + Duration::from_micros(1)),
+            None
+        );
     }
 
     #[test]

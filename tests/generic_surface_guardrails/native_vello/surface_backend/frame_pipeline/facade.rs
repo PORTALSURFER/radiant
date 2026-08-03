@@ -275,6 +275,59 @@ fn native_present_assigns_frame_sequence_after_each_successful_present() {
 }
 
 #[test]
+fn native_present_carries_input_latency_after_each_successful_present() {
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("present driver should define redraw");
+    let redraw_end = present
+        .find("pub(super) fn redraw_and_exit_on_error")
+        .expect("present driver should define redraw error handoff");
+    let redraw = &present[redraw_start..redraw_end];
+    assert_eq!(
+        redraw.matches("take_input_to_present_latency_us(").count(),
+        2,
+        "direct and composited presentation should consume input latency once each"
+    );
+    assert_eq!(
+        redraw.matches("input_to_present_latency_us,").count(),
+        2,
+        "normal diagnostics and the direct-resize handoff should carry the consumed input latency"
+    );
+    assert_eq!(
+        present.matches("input_to_present_latency_us,").count(),
+        3,
+        "the direct-resize diagnostics builder must also carry the consumed input latency"
+    );
+
+    let direct_present = redraw
+        .find("let (_, elapsed) = profile.measure(|| surface_texture.present());")
+        .expect("direct resize should present its surface texture");
+    let direct_latency = redraw[direct_present..]
+        .find("take_input_to_present_latency_us(")
+        .map(|offset| direct_present + offset)
+        .expect("direct resize should consume latency after presentation");
+    let direct_completion = redraw[direct_latency..]
+        .find("self.finish_direct_resize_present(")
+        .map(|offset| direct_latency + offset)
+        .expect("direct resize should pass latency through its completion seam");
+    assert!(direct_present < direct_latency && direct_latency < direct_completion);
+
+    let composited_present = redraw
+        .rfind("surface_texture.present()")
+        .expect("composited presentation should present its surface texture");
+    let composited_latency = redraw[composited_present..]
+        .find("take_input_to_present_latency_us(")
+        .map(|offset| composited_present + offset)
+        .expect("composited presentation should consume latency after presentation");
+    let composited_diagnostics = redraw[composited_latency..]
+        .find("native_frame_diagnostics(")
+        .map(|offset| composited_latency + offset)
+        .expect("composited diagnostics should receive the consumed latency");
+    assert!(composited_present < composited_latency && composited_latency < composited_diagnostics);
+}
+
+#[test]
 fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
     let scene_texture =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");

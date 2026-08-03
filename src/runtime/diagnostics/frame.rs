@@ -105,6 +105,13 @@ pub struct NativeFrameDiagnostics {
     /// recovery; `None` means no presentation has occurred yet or the `u64`
     /// counter is exhausted without wrapping or reusing a value.
     pub frame_sequence: Option<u64>,
+    /// Opt-in, saturating microseconds from Radiant's native event-loop
+    /// arrival of the latest tracked interactive event to this successful
+    /// presentation. This begins at event-loop arrival and does not include
+    /// platform queue time before that boundary. The value is `None` when no
+    /// tracked interactive event preceded this presentation or diagnostics
+    /// were disabled.
+    pub input_to_present_latency_us: Option<u64>,
     /// Opt-in, bounded CPU scheduler-turn fairness observations for this
     /// window. The default is unavailable/no state.
     pub cpu_fairness: NativeCpuFrameFairnessDiagnostics,

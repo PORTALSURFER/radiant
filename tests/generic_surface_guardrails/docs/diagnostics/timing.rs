@@ -76,3 +76,21 @@ fn api_docs_describe_cpu_due_lateness_as_observational() {
         "CPU due lateness should be documented as bounded observational evidence"
     );
 }
+
+#[test]
+fn api_docs_describe_input_to_present_latency_scope() {
+    let docs = normalized(&read_project_file("docs/API.md"));
+    let diagnostics = read_project_file("src/runtime/diagnostics/frame.rs");
+
+    assert!(
+        docs.contains("`NativeFrameDiagnostics::input_to_present_latency_us`")
+            && docs.contains("native event-loop arrival")
+            && docs.contains("next successful presentation")
+            && docs.contains("saturating-microsecond")
+            && docs.contains("platform queue time before event-loop arrival")
+            && docs.contains("latest-wins slot")
+            && docs.contains("consumes it once")
+            && diagnostics.contains("pub input_to_present_latency_us: Option<u64>"),
+        "input-to-present latency should document its event-loop scope and bounded consumption"
+    );
+}

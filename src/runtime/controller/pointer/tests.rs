@@ -77,6 +77,7 @@ struct PointerPolicyStackBridge;
 enum DoubleClickTimestampMessage {
     DoubleClick(Option<InputTimestamp>),
     Press(Option<InputTimestamp>),
+    Modifiers(Option<InputTimestamp>),
 }
 
 #[derive(Clone)]
@@ -118,6 +119,9 @@ impl Widget for DoubleClickTimestampWidget {
                 ..
             } if bounds.contains(position) => Some(WidgetOutput::typed(
                 DoubleClickTimestampMessage::Press(timestamp),
+            )),
+            WidgetInput::PointerModifiersChanged { timestamp, .. } => Some(WidgetOutput::typed(
+                DoubleClickTimestampMessage::Modifiers(timestamp),
             )),
             _ => None,
         }
@@ -359,6 +363,38 @@ fn synthetic_double_click_fallback_preserves_timestamp_on_pointer_press() {
     assert_eq!(
         runtime.bridge().messages,
         vec![DoubleClickTimestampMessage::Press(timestamp)]
+    );
+}
+
+#[test]
+fn internal_modifier_timestamp_survives_event_to_widget_dispatch() {
+    let timestamp = Some(InputTimestamp::capture());
+    let point = Point::new(40.0, 20.0);
+    let mut runtime = SurfaceRuntime::new(
+        DoubleClickTimestampBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(point)),
+        Some(40)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_modifiers_changed_with_timestamp(
+            PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+            timestamp,
+        )),
+        Some(40)
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![
+            DoubleClickTimestampMessage::Press(None),
+            DoubleClickTimestampMessage::Modifiers(timestamp),
+        ]
     );
 }
 

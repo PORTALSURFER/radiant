@@ -146,6 +146,6 @@ where
         }
         self.input.modifiers = ModifiersState::default();
         self.core
-            .route_pointer_modifiers_changed(crate::widgets::PointerModifiers::default())
+            .route_pointer_modifiers_changed(crate::widgets::PointerModifiers::default(), None)
     }
 }

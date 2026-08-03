@@ -31,7 +31,10 @@ impl Widget for PianoRollWidget {
             WidgetInput::PointerMove { position } => {
                 self.handle_pointer_move(grid, bounds, position)
             }
-            WidgetInput::PointerModifiersChanged { modifiers } => {
+            WidgetInput::PointerModifiersChanged {
+                modifiers,
+                timestamp: _,
+            } => {
                 self.pointer_modifiers = modifiers;
                 None
             }

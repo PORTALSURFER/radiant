@@ -131,6 +131,13 @@ fn backend_neutral_event_constructors_preserve_payloads() {
         }
     );
     assert_eq!(
+        Event::pointer_modifiers_changed(modifiers),
+        Event::PointerModifiersChanged {
+            modifiers,
+            timestamp: None,
+        }
+    );
+    assert_eq!(
         Event::scroll(point, delta),
         Event::Scroll {
             position: point,

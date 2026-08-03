@@ -25,9 +25,10 @@ where
                 self.observe_pointer_position(position);
                 self.dispatch_pointer_move_target(position).target
             }
-            Event::PointerModifiersChanged { modifiers } => {
-                self.dispatch_pointer_modifiers_changed(modifiers)
-            }
+            Event::PointerModifiersChanged {
+                modifiers,
+                timestamp,
+            } => self.dispatch_pointer_modifiers_changed(modifiers, timestamp),
             Event::PointerPress {
                 position,
                 button,

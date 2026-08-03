@@ -18,6 +18,7 @@ fn button_releases_inside_bounds_emit_activation() {
                 position: Point::new(20.0, 30.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None
@@ -63,6 +64,7 @@ fn secondary_click_only_emits_when_enabled() {
         position: Point::new(10.0, 10.0),
         button: PointerButton::Secondary,
         modifiers: Default::default(),
+        timestamp: None,
     };
 
     assert_eq!(
@@ -90,6 +92,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

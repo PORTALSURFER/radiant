@@ -44,6 +44,7 @@ impl Widget for PianoRollWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                ..
             } if velocity.contains(position) => {
                 self.handle_velocity_press(velocity, position, modifiers)
             }
@@ -51,6 +52,7 @@ impl Widget for PianoRollWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                ..
             } if grid.contains(position) => self.handle_primary_press(grid, position, modifiers),
             WidgetInput::PointerDoubleClick {
                 position,

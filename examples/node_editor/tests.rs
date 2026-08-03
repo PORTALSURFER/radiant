@@ -30,6 +30,7 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
             position: Point::new(40.0, 40.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let released_selectable = runtime.dispatch_input(
@@ -46,6 +47,7 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
             position: Point::new(34.0, 34.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let moved = runtime.dispatch_input(

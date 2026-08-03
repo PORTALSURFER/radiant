@@ -21,6 +21,7 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     assert!(

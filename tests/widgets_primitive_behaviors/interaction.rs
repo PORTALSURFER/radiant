@@ -16,6 +16,7 @@ fn list_item_invocation_is_public_and_deterministic() {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None
@@ -51,6 +52,7 @@ fn interactive_row_emits_secondary_activation() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Secondary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(InteractiveRowMessage::SecondaryActivate {
@@ -98,6 +100,7 @@ fn interactive_row_can_emit_modifier_aware_pointer_activation() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         ),
         None
@@ -258,6 +261,7 @@ fn widget_input_helpers_project_pointer_positions_and_start_bounds() {
         position: inside,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     };
     assert_eq!(press.pointer_position(), Some(inside));
     assert_eq!(press.pointer_start_position(), Some(inside));
@@ -480,6 +484,7 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
                 position: Point::new(18.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None
@@ -679,6 +684,7 @@ fn progress_bar_can_emit_activation_when_enabled() {
                 position: Point::new(20.0, 6.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None
@@ -831,6 +837,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
                 position: Point::new(12.0, 12.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(DragHandleMessage::started(Point::new(12.0, 12.0)))
@@ -883,6 +890,7 @@ fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

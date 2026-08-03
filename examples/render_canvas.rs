@@ -154,6 +154,7 @@ mod tests {
                 position: Point::new(48.0, 72.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         );
 

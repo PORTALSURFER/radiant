@@ -127,6 +127,7 @@ fn animation_controls_survive_pending_frame_between_press_and_release() {
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     let outcome = runtime.drain_runtime_messages();
     assert_eq!(outcome.messages_dispatched, 1);
@@ -165,6 +166,7 @@ where
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: point,

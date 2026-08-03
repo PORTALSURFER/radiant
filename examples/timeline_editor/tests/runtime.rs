@@ -56,6 +56,7 @@ fn timeline_editor_routes_surface_messages_through_runtime() {
             position: target,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     ));
     assert!(runtime.dispatch_input(

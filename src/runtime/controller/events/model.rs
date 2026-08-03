@@ -1,5 +1,6 @@
 use super::super::FocusTraversal;
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::{Point, Vector2},
     widgets::{PointerButton, PointerModifiers, WidgetKey},
 };
@@ -31,6 +32,8 @@ pub enum Event {
         button: PointerButton,
         /// Modifier state when the press started.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer button was pressed twice in quick succession.
     PointerDoubleClick {
@@ -89,10 +92,21 @@ impl Event {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_press_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer-press event with an optional native input timestamp.
+    pub(crate) fn pointer_press_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerPress {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 

@@ -58,6 +58,7 @@ fn eq_widget_routes_select_and_drag_messages_without_dsp() {
                 position: center,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .expect("pressing a band should emit selection");

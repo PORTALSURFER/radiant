@@ -6,7 +6,7 @@ use super::{
 };
 use crate::gui::{
     focus::FocusSurface,
-    input::KeyPress,
+    input::{InputTimestamp, KeyPress},
     types::{Point, Vector2},
 };
 use crate::runtime::WheelOrScrollRoute;
@@ -135,14 +135,32 @@ where
         self.route_pointer_press_with_modifiers(position, button, PointerModifiers::default())
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press_with_modifiers(
         &mut self,
         position: Point,
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
+        self.route_pointer_press_with_timestamp(position, button, modifiers, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_press_with_timestamp(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let now = Instant::now();
-        let event = pointer_press_event(self.last_pointer_press, now, position, button, modifiers);
+        let event = pointer_press_event(
+            self.last_pointer_press,
+            now,
+            position,
+            button,
+            modifiers,
+            timestamp,
+        );
         self.last_pointer_press = Some(PointerPressStamp {
             at: now,
             position,

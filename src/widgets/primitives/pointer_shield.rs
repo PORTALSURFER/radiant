@@ -157,6 +157,7 @@ impl PointerShieldWidget {
                 position,
                 button,
                 modifiers,
+                ..
             } if self.props.pointer_press && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerPress {
                     position,

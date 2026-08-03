@@ -1,6 +1,6 @@
 use super::PointerPressStamp;
 use crate::{
-    gui::types::Point,
+    gui::{input::InputTimestamp, types::Point},
     runtime::Event,
     widgets::{PointerButton, PointerModifiers},
 };
@@ -15,6 +15,7 @@ pub(in crate::gui_runtime::native_vello) fn pointer_press_event(
     position: Point,
     button: PointerButton,
     modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
 ) -> Event {
     if last.is_some_and(|last| is_double_click(last, now, position, button)) {
         return Event::PointerDoubleClick {
@@ -23,11 +24,7 @@ pub(in crate::gui_runtime::native_vello) fn pointer_press_event(
             modifiers,
         };
     }
-    Event::PointerPress {
-        position,
-        button,
-        modifiers,
-    }
+    Event::pointer_press_with_timestamp(position, button, modifiers, timestamp)
 }
 
 pub(super) fn is_double_click(
@@ -48,7 +45,7 @@ pub(super) fn is_double_click(
 mod tests {
     use super::pointer_press_event;
     use crate::{
-        gui::types::Point,
+        gui::{input::InputTimestamp, types::Point},
         gui_runtime::native_vello::generic_runtime::PointerPressStamp,
         runtime::Event,
         widgets::{PointerButton, PointerModifiers},
@@ -71,12 +68,37 @@ mod tests {
                 now,
                 position,
                 PointerButton::Primary,
-                PointerModifiers::default()
+                PointerModifiers::default(),
+                None
             ),
             Event::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn single_press_preserves_input_timestamp() {
+        let now = Instant::now();
+        let position = Point::new(12.0, 18.0);
+        let timestamp = Some(InputTimestamp::capture());
+
+        assert_eq!(
+            pointer_press_event(
+                None,
+                now,
+                position,
+                PointerButton::Primary,
+                PointerModifiers::default(),
+                timestamp,
+            ),
+            Event::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
             }
         );
     }
@@ -108,12 +130,14 @@ mod tests {
                     now,
                     position,
                     PointerButton::Primary,
-                    PointerModifiers::default()
+                    PointerModifiers::default(),
+                    None
                 ),
                 Event::PointerPress {
                     position,
                     button: PointerButton::Primary,
                     modifiers: PointerModifiers::default(),
+                    timestamp: None,
                 }
             );
         }

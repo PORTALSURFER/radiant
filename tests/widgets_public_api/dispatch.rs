@@ -71,6 +71,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
                 position: Point::new(10.0, 10.0),
                 button: radiant::widgets::PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         radiant::widgets::DragHandleMessage::started(Point::new(10.0, 10.0)),

@@ -119,6 +119,7 @@ fn preserve_state_keeps_compatible_button_state_through_sibling_reorder() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         }
     ));
     assert!(
@@ -193,6 +194,7 @@ fn preserve_state_reappearance_starts_widget_state_fresh_after_disappearance() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         }
     ));
     assert!(

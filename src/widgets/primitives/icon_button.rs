@@ -223,6 +223,7 @@ mod tests {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         );
         let mut pressed = Vec::new();

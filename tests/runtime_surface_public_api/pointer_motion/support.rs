@@ -82,6 +82,7 @@ pub(crate) fn primary_press(position: Point) -> Event {
         position,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     }
 }
 

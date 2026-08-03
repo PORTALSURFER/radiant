@@ -57,6 +57,7 @@ impl CanvasGestureState {
                 position,
                 button,
                 modifiers,
+                ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
                 self.active_press = Some(ActiveCanvasPress::new(pointer, *button, *modifiers));

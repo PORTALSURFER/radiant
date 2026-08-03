@@ -129,6 +129,7 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         position: Point::new(12.0, 8.0),
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     };
     let canvas_output = surface
         .dispatch_widget_input(

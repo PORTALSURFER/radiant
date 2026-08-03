@@ -24,6 +24,7 @@ where
         position,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position,

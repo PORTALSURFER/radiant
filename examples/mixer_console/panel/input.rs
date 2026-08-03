@@ -23,6 +23,7 @@ impl Widget for MixerPanelWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                ..
             } if bounds.contains(position) => {
                 self.handle_primary_press(bounds, position, modifiers)
             }

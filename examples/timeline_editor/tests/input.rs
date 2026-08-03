@@ -13,6 +13,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
                 position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("empty track press seeks");
@@ -61,6 +62,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
                 position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("clip press selects before moving");
@@ -116,6 +118,7 @@ fn timeline_widget_resizes_clips_from_edge_drag() {
                 position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("clip edge press selects before resizing");

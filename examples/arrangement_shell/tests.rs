@@ -99,6 +99,7 @@ fn arrangement_overview_click_selects_clip_or_seeks_empty_space() {
             position: widget.clip_rect(timeline, clip).center(),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let seek = widget.handle_input(
@@ -107,6 +108,7 @@ fn arrangement_overview_click_selects_clip_or_seeks_empty_space() {
             position: Point::new(x_for_beat(timeline, 30.0), timeline.max.y - 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

@@ -131,6 +131,7 @@ fn view_overlays_context_menu_survives_release_from_opening_secondary_press() {
         position: target,
         button: PointerButton::Secondary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: target,

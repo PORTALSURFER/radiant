@@ -19,6 +19,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -78,6 +79,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
             position: selected_handle.center(),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let drag_position = Point::new(
@@ -142,6 +144,7 @@ fn piano_roll_group_velocity_drag_preserves_offsets_until_floor_or_ceiling() {
             position: handle.center(),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let lower_position = Point::new(handle.center().x, lane.min.y + lane.height() * 0.72);
@@ -205,6 +208,7 @@ fn piano_roll_stress_velocity_drag_updates_all_selected_notes_without_reselectin
             position: handle.center(),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let drag_position = Point::new(handle.center().x, lane.min.y);

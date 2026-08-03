@@ -18,6 +18,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -126,6 +127,7 @@ fn piano_roll_dragging_time_selection_moves_selection_as_object() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -180,6 +182,7 @@ fn piano_roll_command_dragging_time_selection_copies_notes_to_target_range() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });

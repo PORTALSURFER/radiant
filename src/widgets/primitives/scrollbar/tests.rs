@@ -21,6 +21,7 @@ fn scrollbar_drag_emits_clamped_offset_changes() {
                 position: Point::new(6.0, grip_y),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None
@@ -57,6 +58,7 @@ fn scrollbar_track_click_centers_thumb() {
                 position: Point::new(90.0, 6.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(ScrollbarMessage::OffsetChanged {

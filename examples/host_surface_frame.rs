@@ -84,6 +84,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     let target_widget = runtime.dispatch_event(Event::PointerRelease {
         position: point,

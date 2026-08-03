@@ -43,6 +43,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
         position: thumb.center(),
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
     assert!(

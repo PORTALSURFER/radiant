@@ -2,14 +2,16 @@ use super::*;
 use crate::application::IntoView;
 use crate::gui::{
     focus::FocusSurface,
-    input::{KeyCode, KeyPress},
+    input::{InputTimestamp, KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
 use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
 use crate::{
     layout::LayoutOutput,
     theme::ThemeTokens,
-    widgets::{PointerModifiers, Widget, WidgetCommon, WidgetKey, WidgetOutput, WidgetSizing},
+    widgets::{
+        PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+    },
 };
 use std::time::{Duration, Instant};
 use winit::{
@@ -92,6 +94,67 @@ impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
     }
 
     fn reduce_message(&mut self, _message: ModifierWheelMessage) {}
+}
+
+#[derive(Default)]
+struct PressTimestampBridge {
+    timestamps: Vec<Option<InputTimestamp>>,
+}
+
+#[derive(Clone)]
+struct PressTimestampWidget {
+    common: WidgetCommon,
+}
+
+impl PressTimestampWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+        }
+    }
+}
+
+impl Widget for PressTimestampWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                position,
+                timestamp,
+                ..
+            } if bounds.contains(position) => Some(WidgetOutput::typed(timestamp)),
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl RuntimeBridge<Option<InputTimestamp>> for PressTimestampBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<Option<InputTimestamp>>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            PressTimestampWidget::new(1),
+            WidgetMessageMapper::typed(|timestamp: Option<InputTimestamp>| timestamp),
+        )))
+    }
+
+    fn reduce_message(&mut self, timestamp: Option<InputTimestamp>) {
+        self.timestamps.push(timestamp);
+    }
 }
 
 #[test]
@@ -234,6 +297,25 @@ fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     assert!(harness.mouse_released(MouseButton::Left).routed);
 
     assert_eq!(harness.runner.core.runtime.bridge().state.count, 1);
+}
+
+#[test]
+fn native_pointer_press_delivers_one_captured_timestamp_to_widget_input() {
+    let mut harness =
+        NativePointerHarness::new(PressTimestampBridge::default(), Vector2::new(120.0, 40.0));
+    let point = Point::new(8.0, 8.0);
+
+    harness.cursor_moved_logical(point);
+    assert!(
+        harness
+            .mouse_pressed_route(MouseButton::Left)
+            .outcome
+            .routed
+    );
+
+    let timestamps = &harness.runner.core.runtime.bridge().timestamps;
+    assert_eq!(timestamps.len(), 1);
+    assert!(timestamps[0].is_some());
 }
 
 #[test]

@@ -349,6 +349,7 @@ fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
             position: Point::new(8.0, 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 
@@ -404,6 +405,7 @@ fn synchronize_widget_state_from_paths_skips_incompatible_replacement() {
             position: Point::new(8.0, 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let paths = HashMap::from([(20, WidgetPath::from_slice(&[]))]);
@@ -548,6 +550,7 @@ fn scene_widget_state_sync_finds_widgets_inside_layers() {
             position: Point::new(8.0, 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 
@@ -609,6 +612,7 @@ fn exclusive_pointer_capture_sync_clears_non_captured_hover_state() {
             position: Point::new(8.0, 36.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

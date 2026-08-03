@@ -1,4 +1,5 @@
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::{Point, Rect, Vector2},
     widgets::interaction::input::{PointerButton, PointerModifiers, TextEditCommand, WidgetKey},
 };
@@ -24,6 +25,8 @@ pub enum WidgetInput {
         button: PointerButton,
         /// Modifier state at press time.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer button was pressed twice in quick succession at the given point.
     PointerDoubleClick {
@@ -86,10 +89,21 @@ impl WidgetInput {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_press_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer-press input with an optional native input timestamp.
+    pub(crate) fn pointer_press_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerPress {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 
@@ -249,6 +263,7 @@ mod tests {
                 position: point,
                 button: PointerButton::Secondary,
                 modifiers,
+                timestamp: None,
             }
         );
         assert_eq!(

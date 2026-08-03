@@ -108,6 +108,7 @@ fn anchored_popover_routes_clicks_after_flip_and_clamp() {
         position: painted_button,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: painted_button,
@@ -144,6 +145,7 @@ fn dismissible_anchored_popover_backing_emits_close_message() {
         position: outside,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: outside,
@@ -181,6 +183,7 @@ fn dismissible_anchored_popover_routes_foreground_clicks_before_backing_layer() 
         position: foreground_button_after_flip_and_clamp,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: foreground_button_after_flip_and_clamp,
@@ -194,6 +197,7 @@ fn dismissible_anchored_popover_routes_foreground_clicks_before_backing_layer() 
         position: outside_popover,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: outside_popover,

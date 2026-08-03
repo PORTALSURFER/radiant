@@ -20,6 +20,7 @@ fn slider_pointer_drag_emits_clamped_values() {
                 position: Point::new(60.0, 14.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(SliderMessage::ValueChanged { value: 0.5 })

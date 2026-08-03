@@ -239,6 +239,7 @@ fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
         position: Point::new(4.0, 4.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     assert_eq!(runtime.focused_widget(), Some(10));
 
@@ -246,6 +247,7 @@ fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
         position: Point::new(4.0, 32.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(runtime.focused_widget(), None);
@@ -292,6 +294,7 @@ fn cancel_pointer_capture_clears_captured_pressed_widget_state() {
         position: Point::new(4.0, 32.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     assert_eq!(runtime.pointer_capture(), Some(20));
     assert!(
@@ -330,6 +333,7 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
         position: Point::new(4.0, 4.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     assert_eq!(runtime.pointer_capture(), Some(30));
     assert!(

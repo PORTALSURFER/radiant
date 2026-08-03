@@ -335,6 +335,7 @@ fn scene_base_widget_receives_pointer_press_with_no_layers() {
         position,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(target, Some(10));
@@ -351,6 +352,7 @@ fn scene_base_custom_widget_receives_press_move_release() {
         position,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerMove { position });
     runtime.dispatch_event(Event::PointerRelease {
@@ -380,6 +382,7 @@ fn scene_base_pointer_capture_survives_refresh() {
         position: press,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     let release_target = runtime.dispatch_event(Event::PointerRelease {
         position: release,
@@ -488,6 +491,7 @@ fn scene_layer_pass_through_preserves_base_hit_target() {
         position: Point::new(16.0, 16.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(target, Some(10));
@@ -526,6 +530,7 @@ fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
         position: Point::new(80.0, 40.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::Scroll {
         position: Point::new(80.0, 40.0),
@@ -611,6 +616,7 @@ fn scene_layer_dismiss_on_outside_click_emits_message() {
         position: Point::new(80.0, 40.0),
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_ne!(target, Some(10));

@@ -22,6 +22,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(10)
     );
@@ -128,6 +129,7 @@ fn surface_runtime_preserves_badge_release_activation_across_refresh() {
             position: point,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(20)
     );
@@ -173,6 +175,7 @@ fn surface_runtime_preserves_toggle_release_activation_across_refresh() {
             position: point,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(20)
     );

@@ -59,6 +59,7 @@ fn interactive_badge_routes_row_interactions_through_badge_visual() {
             position,
             button: PointerButton::Secondary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 
@@ -106,6 +107,7 @@ fn interactive_badge_routes_common_row_actions() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     runtime.dispatch_input_at(

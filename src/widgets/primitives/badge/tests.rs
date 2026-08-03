@@ -15,6 +15,7 @@ fn badge_releases_inside_bounds_emit_activation() {
                 position: Point::new(20.0, 30.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

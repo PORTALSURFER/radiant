@@ -47,6 +47,7 @@ fn canvas_gesture_state_tracks_press_drag_and_release() {
             position: Point::new(20.0, 30.0),
             button: PointerButton::Primary,
             modifiers,
+            timestamp: None,
         },
     );
     assert!(state.is_dragging());
@@ -105,6 +106,7 @@ fn canvas_gesture_event_exposes_shared_pointer_metadata() {
             position: Point::new(20.0, 30.0),
             button: PointerButton::Secondary,
             modifiers,
+            timestamp: None,
         },
     );
     let event = state
@@ -159,6 +161,7 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
                 position: Point::new(20.0, 30.0),
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .unwrap();
@@ -300,6 +303,7 @@ fn canvas_gesture_state_clears_drag_on_focus_loss() {
             position: Point::new(20.0, 30.0),
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 

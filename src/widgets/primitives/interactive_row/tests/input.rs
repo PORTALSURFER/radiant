@@ -147,6 +147,7 @@ fn handle_input_mapped_routes_custom_row_output() {
             position: pointer,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
         |_| Some("activated"),
     );

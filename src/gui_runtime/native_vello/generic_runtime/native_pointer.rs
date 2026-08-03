@@ -7,6 +7,7 @@ use super::{
     pointer_modifiers_from_winit, render_profile_enabled, scroll_delta_to_logical,
 };
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::Point,
     runtime::RuntimeBridge,
     widgets::{PointerButton, PointerModifiers},
@@ -112,6 +113,7 @@ where
         button: MouseButton,
         state: ElementState,
     ) -> NativeMouseInputRoute {
+        let timestamp = (state == ElementState::Pressed).then(InputTimestamp::capture);
         let kind = match state {
             ElementState::Pressed => NativePointerEventKind::MousePress,
             ElementState::Released => NativePointerEventKind::MouseRelease,
@@ -198,7 +200,7 @@ where
         let outcome = match state {
             ElementState::Pressed => self
                 .core
-                .route_pointer_press_with_modifiers(position, button, modifiers),
+                .route_pointer_press_with_timestamp(position, button, modifiers, timestamp),
             ElementState::Released => self
                 .core
                 .route_pointer_release_with_modifiers(position, button, modifiers),

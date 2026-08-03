@@ -81,6 +81,7 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
             position: ui::Point::new(5.0, 5.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(1001)
     );
@@ -119,6 +120,7 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                 position: option_point,
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             })
             .is_some()
     );

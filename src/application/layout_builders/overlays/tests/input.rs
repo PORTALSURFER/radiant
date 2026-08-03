@@ -49,6 +49,7 @@ fn input_overlay_routes_transparent_input_above_content() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     runtime.dispatch_input_at(
@@ -97,6 +98,7 @@ fn input_underlay_routes_input_below_visible_content() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     runtime.dispatch_input_at(
@@ -152,6 +154,7 @@ fn dismissible_overlay_routes_outside_activation_to_dismiss_layer() {
         position: outside_overlay,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerRelease {
         position: outside_overlay,

@@ -157,6 +157,7 @@ mod tests {
                 position,
                 button: PointerButton::Secondary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
         runtime.dispatch_input_at(
@@ -175,6 +176,7 @@ mod tests {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
         runtime.dispatch_input_at(

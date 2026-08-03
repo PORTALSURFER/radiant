@@ -232,6 +232,7 @@ fn app_render_canvas_input_parts_route_through_normal_message_path() {
             position: radiant::layout::Point::new(24.0, 24.0),
             button: radiant::widgets::PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 
@@ -276,6 +277,7 @@ fn app_render_canvas_input_helper_routes_through_normal_message_path() {
             position: radiant::layout::Point::new(24.0, 24.0),
             button: radiant::widgets::PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

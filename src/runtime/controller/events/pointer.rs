@@ -1,5 +1,6 @@
 use super::super::SurfaceRuntime;
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::Point,
     runtime::RuntimeBridge,
     widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput},
@@ -14,6 +15,7 @@ where
         position: Point,
         button: PointerButton,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
         if self.start_scrollbar_drag_at(position) {
             self.interaction.pointer.capture = None;
@@ -22,11 +24,8 @@ where
             self.clear_focus();
             return None;
         }
-        let input = WidgetInput::PointerPress {
-            position,
-            button,
-            modifiers,
-        };
+        let input =
+            WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp);
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -69,6 +68,7 @@ where
                     position,
                     button,
                     modifiers,
+                    timestamp: None,
                 },
             ),
         }

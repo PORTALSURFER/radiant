@@ -32,9 +32,10 @@ where
                 position,
                 button,
                 modifiers,
+                timestamp,
             } => {
                 self.observe_pointer_position(position);
-                self.dispatch_pointer_press_event(position, button, modifiers)
+                self.dispatch_pointer_press_event(position, button, modifiers, timestamp)
             }
             Event::PointerDoubleClick {
                 position,
@@ -88,6 +89,7 @@ where
             position,
             button,
             modifiers,
+            timestamp: None,
         });
         let release_target = self.dispatch_event(Event::PointerRelease {
             position,

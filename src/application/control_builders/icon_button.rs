@@ -241,6 +241,7 @@ mod tests {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         );
         let output = widget.handle_input(

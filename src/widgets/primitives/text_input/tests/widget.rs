@@ -111,6 +111,7 @@ fn text_input_pointer_drag_extends_selection_including_caret_character() {
                 position: Point::new(26.0, 20.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

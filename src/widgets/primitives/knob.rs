@@ -148,6 +148,7 @@ impl KnobWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                ..
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;

@@ -18,6 +18,7 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
             position: start,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });

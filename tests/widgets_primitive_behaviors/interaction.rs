@@ -76,6 +76,7 @@ fn interactive_row_emits_double_activation() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(InteractiveRowMessage::DoubleActivate)

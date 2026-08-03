@@ -18,11 +18,7 @@ pub(in crate::gui_runtime::native_vello) fn pointer_press_event(
     timestamp: Option<InputTimestamp>,
 ) -> Event {
     if last.is_some_and(|last| is_double_click(last, now, position, button)) {
-        return Event::PointerDoubleClick {
-            position,
-            button,
-            modifiers,
-        };
+        return Event::pointer_double_click_with_timestamp(position, button, modifiers, timestamp);
     }
     Event::pointer_press_with_timestamp(position, button, modifiers, timestamp)
 }
@@ -75,6 +71,36 @@ mod tests {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+    }
+
+    #[test]
+    fn double_click_preserves_input_timestamp() {
+        let now = Instant::now();
+        let position = Point::new(12.0, 18.0);
+        let timestamp = Some(InputTimestamp::capture());
+        let last = PointerPressStamp {
+            at: now - Duration::from_millis(120),
+            position: Point::new(10.0, 16.0),
+            button: PointerButton::Primary,
+        };
+
+        assert_eq!(
+            pointer_press_event(
+                Some(last),
+                now,
+                position,
+                PointerButton::Primary,
+                PointerModifiers::default(),
+                timestamp,
+            ),
+            Event::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
             }
         );
     }

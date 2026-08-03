@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::{Rect, Vector2},
     layout::{Constraints, LayoutOutput, SizeModeCross, SizeModeMain, SlotParams},
     runtime::{
@@ -71,6 +72,85 @@ struct PointerSnapshotBridge {
 }
 
 struct PointerPolicyStackBridge;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DoubleClickTimestampMessage {
+    DoubleClick(Option<InputTimestamp>),
+    Press(Option<InputTimestamp>),
+}
+
+#[derive(Clone)]
+struct DoubleClickTimestampWidget {
+    common: WidgetCommon,
+    handles_double_click: bool,
+}
+
+impl DoubleClickTimestampWidget {
+    fn new(id: u64, handles_double_click: bool) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+            handles_double_click,
+        }
+    }
+}
+
+impl Widget for DoubleClickTimestampWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerDoubleClick {
+                position,
+                timestamp,
+                ..
+            } if self.handles_double_click && bounds.contains(position) => Some(
+                WidgetOutput::typed(DoubleClickTimestampMessage::DoubleClick(timestamp)),
+            ),
+            WidgetInput::PointerPress {
+                position,
+                timestamp,
+                ..
+            } if bounds.contains(position) => Some(WidgetOutput::typed(
+                DoubleClickTimestampMessage::Press(timestamp),
+            )),
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Default)]
+struct DoubleClickTimestampBridge {
+    messages: Vec<DoubleClickTimestampMessage>,
+    handles_double_click: bool,
+}
+
+impl RuntimeBridge<DoubleClickTimestampMessage> for DoubleClickTimestampBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DoubleClickTimestampMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            DoubleClickTimestampWidget::new(40, self.handles_double_click),
+            WidgetMessageMapper::typed(|message: DoubleClickTimestampMessage| message),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: DoubleClickTimestampMessage) {
+        self.messages.push(message);
+    }
+}
 
 impl RuntimeBridge<u64> for PointerPolicyStackBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<u64>> {
@@ -229,6 +309,57 @@ fn pointer_press_skips_stacked_widgets_that_reject_press_input() {
         Some(10)
     );
     assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+}
+
+#[test]
+fn synthetic_double_click_preserves_timestamp_through_widget_dispatch() {
+    let timestamp = Some(InputTimestamp::capture());
+    let point = Point::new(40.0, 20.0);
+    let mut runtime = SurfaceRuntime::new(
+        DoubleClickTimestampBridge {
+            handles_double_click: true,
+            ..DoubleClickTimestampBridge::default()
+        },
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_double_click_with_timestamp(
+            point,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+            timestamp,
+        )),
+        Some(40)
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![DoubleClickTimestampMessage::DoubleClick(timestamp)]
+    );
+}
+
+#[test]
+fn synthetic_double_click_fallback_preserves_timestamp_on_pointer_press() {
+    let timestamp = Some(InputTimestamp::capture());
+    let point = Point::new(40.0, 20.0);
+    let mut runtime = SurfaceRuntime::new(
+        DoubleClickTimestampBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_double_click_with_timestamp(
+            point,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+            timestamp,
+        )),
+        Some(40)
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![DoubleClickTimestampMessage::Press(timestamp)]
+    );
 }
 
 #[test]

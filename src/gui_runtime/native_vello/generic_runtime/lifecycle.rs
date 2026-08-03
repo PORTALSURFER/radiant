@@ -802,7 +802,7 @@ mod tests {
         let demand = FrameScheduleDemand::from_cadence_with_requested_target_fps(
             key.clone(),
             super::TimedFrameCadence::DrainNow {
-                due_at: now,
+                due_at: now - Duration::from_millis(7),
                 next_wake: now + Duration::from_millis(16),
             },
             120,
@@ -839,6 +839,7 @@ mod tests {
                     latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
                     requested_target_fps: 120,
                     effective_target_fps: 24,
+                    latest_due_lateness_us: Some(7_000),
                     selected_turns: 1,
                     ..NativeCpuFrameFairnessDiagnostics::default()
                 },
@@ -862,7 +863,7 @@ mod tests {
         let demand = FrameScheduleDemand::from_cadence_with_requested_target_fps(
             key.clone(),
             super::TimedFrameCadence::DrainNow {
-                due_at: now,
+                due_at: now - Duration::from_millis(7),
                 next_wake: now + Duration::from_millis(16),
             },
             120,
@@ -903,6 +904,7 @@ mod tests {
                         latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
                         requested_target_fps: 120,
                         effective_target_fps: 24,
+                        latest_due_lateness_us: Some(7_000),
                         selected_turns: 1,
                         cursor_admissions: 1,
                         latest_selected_was_admitted: true,

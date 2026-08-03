@@ -40,6 +40,7 @@ pub(super) struct CpuFrameFairnessSample {
     pub(super) disposition: CpuFrameTurnDisposition,
     pub(super) work: FrameScheduleWork,
     pub(super) cursor_admitted: bool,
+    pub(super) latest_due_lateness_us: Option<u64>,
 }
 
 /// Saturating scheduler-turn totals for one stable schedule key.
@@ -96,6 +97,7 @@ impl CpuFrameFairnessState {
         disposition: CpuFrameTurnDisposition,
         requested_target_fps: CpuFrameCadenceRate,
         effective_target_fps: CpuFrameCadenceRate,
+        cadence: CpuFrameCadencePressure,
         work: FrameScheduleWork,
     ) {
         self.counters.record_disposition(disposition);
@@ -105,6 +107,7 @@ impl CpuFrameFairnessState {
             disposition,
             work,
             cursor_admitted: false,
+            latest_due_lateness_us: due_lateness_us(cadence),
         });
         self.next_sample = (self.next_sample + 1) % CPU_FRAME_FAIRNESS_SAMPLE_CAPACITY;
         self.sample_count = self
@@ -200,6 +203,7 @@ impl CpuFrameFairnessLedger {
                     disposition,
                     evidence.requested_cadence,
                     evidence.effective_cadence,
+                    evidence.cadence,
                     evidence.work,
                 );
             }
@@ -227,6 +231,7 @@ impl CpuFrameFairnessLedger {
             latest_disposition: public_disposition(sample.disposition),
             requested_target_fps: cadence_rate_value(state.requested_target_fps),
             effective_target_fps: cadence_rate_value(state.effective_target_fps),
+            latest_due_lateness_us: sample.latest_due_lateness_us,
             not_due_turns: state.counters.not_due_turns,
             selected_turns: state.counters.selected_turns,
             due_but_deferred_turns: state.counters.due_but_deferred_turns,
@@ -281,6 +286,17 @@ fn cadence_rate_value(rate: CpuFrameCadenceRate) -> u32 {
     match rate {
         CpuFrameCadenceRate::Known(fps) => fps,
         CpuFrameCadenceRate::Unknown => 0,
+    }
+}
+
+fn due_lateness_us(cadence: CpuFrameCadencePressure) -> Option<u64> {
+    match cadence {
+        CpuFrameCadencePressure::Due { lateness } => {
+            Some(lateness.as_micros().min(u64::MAX as u128) as u64)
+        }
+        CpuFrameCadencePressure::NotApplicable
+        | CpuFrameCadencePressure::Waiting { .. }
+        | CpuFrameCadencePressure::Unknown => None,
     }
 }
 
@@ -653,6 +669,13 @@ mod tests {
                 lateness: Duration::from_millis(5)
             }
         );
+        assert_eq!(due_lateness_us(evidence.cadence), Some(5_000));
+        assert_eq!(
+            due_lateness_us(CpuFrameCadencePressure::Due {
+                lateness: Duration::new(u64::MAX, 999_999_999),
+            }),
+            Some(u64::MAX)
+        );
     }
 
     #[test]
@@ -881,6 +904,62 @@ mod tests {
             .window(key)
             .and_then(|window| window.latest_sample().copied())
             .expect("fairness turn should retain a latest sample")
+    }
+
+    #[test]
+    fn due_lateness_projection_uses_original_boundary_and_latest_turn() {
+        let now = Instant::now();
+        let stable_key = key("lateness");
+        let mut ledger = CpuFrameFairnessLedger::default();
+        let scheduler = NativeFrameScheduler::default();
+        let overdue = [demand(
+            stable_key.clone(),
+            TimedFrameCadence::DrainNow {
+                due_at: now - Duration::from_millis(5),
+                next_wake: now + Duration::from_secs(1),
+            },
+        )];
+        record_turn(&mut ledger, &scheduler, now, &overdue);
+        assert_eq!(
+            ledger
+                .project_frame_diagnostics(&stable_key)
+                .latest_due_lateness_us,
+            Some(5_000)
+        );
+
+        let waiting = [demand(
+            stable_key.clone(),
+            TimedFrameCadence::WaitUntil(now + Duration::from_millis(4)),
+        )];
+        record_turn(&mut ledger, &scheduler, now, &waiting);
+        assert_eq!(
+            ledger
+                .project_frame_diagnostics(&stable_key)
+                .latest_due_lateness_us,
+            None
+        );
+    }
+
+    #[test]
+    fn due_lateness_sample_is_none_for_non_due_pressure() {
+        let stable_key = key("no-lateness");
+        let mut state = CpuFrameFairnessState::new(stable_key);
+        for cadence in [
+            CpuFrameCadencePressure::NotApplicable,
+            CpuFrameCadencePressure::Waiting {
+                until: Instant::now() + Duration::from_millis(4),
+            },
+            CpuFrameCadencePressure::Unknown,
+        ] {
+            state.record(
+                CpuFrameTurnDisposition::NotDue,
+                CpuFrameCadenceRate::Known(60),
+                CpuFrameCadenceRate::Known(60),
+                cadence,
+                FrameScheduleWork::default(),
+            );
+            assert_eq!(state.latest_sample().unwrap().latest_due_lateness_us, None);
+        }
     }
 
     #[test]
@@ -1131,6 +1210,12 @@ mod tests {
         ledger.mark_admitted(&stable_key);
         ledger.remove(&stable_key);
         assert!(ledger.projection().window(&stable_key).is_none());
+        assert_eq!(
+            ledger
+                .project_frame_diagnostics(&stable_key)
+                .latest_due_lateness_us,
+            None
+        );
 
         let reinserted = [demand(stable_key.clone(), TimedFrameCadence::Idle)];
         record_turn(&mut ledger, &scheduler, now, &reinserted);
@@ -1142,6 +1227,12 @@ mod tests {
         ledger.clear();
         assert_eq!(ledger.len(), 0);
         assert!(ledger.projection().window(&stable_key).is_none());
+        assert_eq!(
+            ledger
+                .project_frame_diagnostics(&stable_key)
+                .latest_due_lateness_us,
+            None
+        );
     }
 
     #[derive(Debug, PartialEq, Eq)]

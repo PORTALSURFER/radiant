@@ -61,3 +61,18 @@ fn api_docs_describe_native_gpu_timing_status() {
         "native frame diagnostics and render profile should report CPU-envelope-only GPU timing status"
     );
 }
+
+#[test]
+fn api_docs_describe_cpu_due_lateness_as_observational() {
+    let docs = normalized(&read_project_file("docs/API.md"));
+    let diagnostics = read_project_file("src/runtime/diagnostics/frame.rs");
+
+    assert!(
+        docs.contains("`NativeCpuFrameFairnessDiagnostics::latest_due_lateness_us`")
+            && docs.contains("missed-presentation-deadline evidence")
+            && docs.contains("original cadence `due_at` boundary")
+            && docs.contains("never changes scheduling policy")
+            && diagnostics.contains("pub latest_due_lateness_us: Option<u64>"),
+        "CPU due lateness should be documented as bounded observational evidence"
+    );
+}

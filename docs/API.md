@@ -2892,7 +2892,12 @@ at its default no-state values. When available, `latest_disposition` reports
 `DueButDeferred`; the summary also separates requested and effective target FPS
 and exposes saturating turn and cursor-admission totals. The summary is
 observational only: it does not select work, change admission, impose quotas or
-budgets, defer stages, alter deadlines, or affect rendering. It is populated
+budgets, defer stages, alter deadlines, or affect rendering. The
+`NativeCpuFrameFairnessDiagnostics::latest_due_lateness_us` field is optional,
+saturating missed-presentation-deadline evidence in microseconds measured at
+the latest turn's original cadence `due_at` boundary; it is `None` for waiting,
+idle/not-applicable, unknown, absent, or evicted state. This field is
+observational and never changes scheduling policy. It is populated
 only when the explicitly registered `RuntimeFrameDiagnosticsHost` capability is
 enabled and is attached after the existing frame-observation and schedule-
 admission publication gates.

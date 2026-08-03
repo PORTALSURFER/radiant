@@ -20,6 +20,14 @@ fn api_docs_describe_native_gpu_timing_status() {
         "API docs should distinguish CPU timing envelopes from backend GPU timestamp timing"
     );
     assert!(
+        normalized_docs.contains("`NativeFrameDiagnostics::frame_sequence`")
+            && normalized_docs.contains("scoped to one native window")
+            && normalized_docs.contains("successful presentation")
+            && normalized_docs.contains("counter is exhausted")
+            && normalized_docs.contains("never wraps or reuses"),
+        "API docs should define the native frame sequence scope, assignment point, and exhaustion behavior"
+    );
+    assert!(
         runtime_diagnostics.contains("pub enum NativeGpuTimingStatus")
             && runtime_diagnostics.contains("CpuEnvelopeOnly")
             && runtime_diagnostics.contains("pub gpu_timing_status: NativeGpuTimingStatus")
@@ -32,7 +40,9 @@ fn api_docs_describe_native_gpu_timing_status() {
     assert!(
         native_diagnostics
             .contains("gpu_timing_status: crate::runtime::NativeGpuTimingStatus::CpuEnvelopeOnly")
+            && native_diagnostics.contains("frame_sequence: parts.profile.frame_sequence")
             && render_profile.contains("gpu_timing_status = \"cpu_envelope_only\"")
+            && render_profile.contains("frame_sequence = frame.frame_sequence")
             && render_profile.contains("frame_cpu_envelope_total_us"),
         "native frame diagnostics and render profile should report CPU-envelope-only GPU timing status"
     );

@@ -615,6 +615,7 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) redraw_requested_at: Option<Instant>,
     pub(super) startup_timing: StartupTimingProfile,
     pub(super) first_frame_presented: bool,
+    pub(super) next_frame_sequence: Option<u64>,
     pub(super) animation_origin: Instant,
     pub(super) last_redraw: Instant,
     pub(super) last_timed_frame_drain: Instant,
@@ -640,6 +641,7 @@ impl Default for NativeRunnerTimingState {
             redraw_requested_at: None,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
+            next_frame_sequence: Some(1),
             animation_origin: now,
             last_redraw: now,
             last_timed_frame_drain: now,
@@ -659,11 +661,20 @@ impl Default for NativeRunnerTimingState {
     }
 }
 
+impl NativeRunnerTimingState {
+    pub(super) fn allocate_frame_sequence(&mut self) -> Option<u64> {
+        let frame_sequence = self.next_frame_sequence?;
+        self.next_frame_sequence = frame_sequence.checked_add(1);
+        Some(frame_sequence)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerWindowState,
-        NativeSurfaceRecoveryState, NativeTargetGeneration, NativeWindowGpuResources,
+        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerTimingState,
+        NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration,
+        NativeWindowGpuResources,
     };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
     use std::sync::{
@@ -906,6 +917,28 @@ mod tests {
         assert!(!generation.advance());
         assert!(!generation.is_known());
         assert!(!generation.advance());
+    }
+
+    #[test]
+    fn native_frame_sequence_starts_at_one_and_increments_without_reuse() {
+        let mut timing = NativeRunnerTimingState::default();
+
+        assert_eq!(timing.allocate_frame_sequence(), Some(1));
+        assert_eq!(timing.allocate_frame_sequence(), Some(2));
+        assert_eq!(timing.allocate_frame_sequence(), Some(3));
+    }
+
+    #[test]
+    fn native_frame_sequence_exhaustion_does_not_wrap_or_reuse() {
+        let mut timing = NativeRunnerTimingState {
+            next_frame_sequence: Some(u64::MAX - 1),
+            ..NativeRunnerTimingState::default()
+        };
+
+        assert_eq!(timing.allocate_frame_sequence(), Some(u64::MAX - 1));
+        assert_eq!(timing.allocate_frame_sequence(), Some(u64::MAX));
+        assert_eq!(timing.allocate_frame_sequence(), None);
+        assert_eq!(timing.next_frame_sequence, None);
     }
 
     #[test]

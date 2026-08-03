@@ -52,6 +52,7 @@ where
         let mut profile = RenderFrameProfile::recording(
             profile_enabled || diagnostics_requested || slow_profile_enabled,
         );
+        profile.window_identity = self.timing.native_window_diagnostic_identity;
         let had_coalesced_wheel_route = self.input.pending_gpu_surface_wheel.is_some()
             || self.input.pending_scroll_container_wheel.is_some();
         let had_deferred_surface_refresh = self.timing.deferred_surface_refresh;

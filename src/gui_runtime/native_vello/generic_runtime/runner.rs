@@ -27,7 +27,7 @@ use super::{
 use super::{
     frame_state::NativeSceneValidityFingerprint,
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
-    runner_state::NativeTargetGeneration,
+    runner_state::{NativeTargetGeneration, NativeWindowDiagnosticIdentityAllocator},
     scene::{
         ArtifactFeasibilityObservation, NativePaintSegmentPayload,
         materialize_native_paint_segment_artifacts,
@@ -37,7 +37,9 @@ use super::{
 use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
-    runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
+    runtime::{
+        NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
+    },
 };
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -62,6 +64,7 @@ where
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
     pub(super) timing: NativeRunnerTimingState,
+    pub(super) native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
     pub(super) frame_scheduler: NativeFrameScheduler,
     pub(super) cpu_frame_fairness: Option<CpuFrameFairnessLedger>,
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
@@ -160,6 +163,24 @@ where
     const REDRAW_REISSUE_LOG_AFTER: Duration = Duration::from_millis(32);
 
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
+        let (native_window_diagnostic_identity_allocator, native_window_diagnostic_identity) =
+            NativeWindowDiagnosticIdentityAllocator::for_primary();
+        Self::new_with_diagnostic_identity(
+            options,
+            bridge,
+            viewport,
+            native_window_diagnostic_identity,
+            native_window_diagnostic_identity_allocator,
+        )
+    }
+
+    pub(super) fn new_with_diagnostic_identity(
+        options: NativeRunOptions,
+        bridge: Bridge,
+        viewport: Vector2,
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+        native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
+    ) -> Self {
         let activation_reveal = ActivationRevealController::new(&options);
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
@@ -183,7 +204,8 @@ where
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
-            timing: NativeRunnerTimingState::default(),
+            timing: NativeRunnerTimingState::new(native_window_diagnostic_identity),
+            native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
             cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
             cpu_frame_observation: Some(CpuFrameObservationLedger::default()),
@@ -204,8 +226,16 @@ where
 
     pub(super) fn mark_as_auxiliary(&mut self) {
         self.auxiliary_owner = true;
+        self.native_window_diagnostic_identity_allocator =
+            NativeWindowDiagnosticIdentityAllocator::exhausted();
         self.cpu_frame_fairness = None;
         self.cpu_frame_observation = None;
+    }
+
+    pub(super) fn allocate_auxiliary_window_diagnostic_identity(
+        &mut self,
+    ) -> Option<NativeWindowDiagnosticIdentity> {
+        self.native_window_diagnostic_identity_allocator.allocate()
     }
 
     pub(super) fn record_frame_schedule_admission(&mut self, key: FrameScheduleKey) {

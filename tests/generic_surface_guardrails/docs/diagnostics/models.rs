@@ -20,6 +20,7 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && root.contains("mod scene;")
             && root.contains("mod cache_policy;")
             && root.contains("pub use frame::NativeFrameDiagnostics")
+            && root.contains("pub use frame::NativeWindowDiagnosticIdentity")
             && root.contains("NativeTextDiagnostics")
             && root.contains("NativeTextQualityStatus")
             && root.contains("NativeGpuSurfaceCustomShaderDiagnostics")
@@ -28,7 +29,8 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
         "runtime diagnostics root should index focused public diagnostics modules"
     );
     assert!(
-        frame.contains("pub struct NativeFrameDiagnostics")
+        frame.contains("pub struct NativeWindowDiagnosticIdentity")
+            && frame.contains("pub struct NativeFrameDiagnostics")
             && text.contains("pub struct NativeTextDiagnostics")
             && text.contains("pub struct NativeTextCacheDiagnostics")
             && text.contains("pub struct NativeTextCacheCounters")

@@ -13,6 +13,7 @@ use super::{
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
+use crate::runtime::NativeWindowDiagnosticIdentity;
 use crate::widgets::WidgetCursor;
 use std::{
     collections::VecDeque,
@@ -610,11 +611,52 @@ impl Default for NativeRunnerInputState {
     }
 }
 
+/// Parent-owned allocator for native-window diagnostic identities.
+///
+/// The checked next value is consumed even when a prospective auxiliary
+/// runner later fails initialization, so an identity is never reused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeWindowDiagnosticIdentityAllocator {
+    next_identity: Option<u64>,
+}
+
+impl Default for NativeWindowDiagnosticIdentityAllocator {
+    fn default() -> Self {
+        Self {
+            next_identity: Some(1),
+        }
+    }
+}
+
+impl NativeWindowDiagnosticIdentityAllocator {
+    pub(super) const fn for_primary() -> (Self, Option<NativeWindowDiagnosticIdentity>) {
+        (
+            Self {
+                next_identity: Some(2),
+            },
+            Some(NativeWindowDiagnosticIdentity::from_runtime_value(1)),
+        )
+    }
+
+    pub(super) const fn exhausted() -> Self {
+        Self {
+            next_identity: None,
+        }
+    }
+
+    pub(super) fn allocate(&mut self) -> Option<NativeWindowDiagnosticIdentity> {
+        let value = self.next_identity?;
+        self.next_identity = value.checked_add(1);
+        Some(NativeWindowDiagnosticIdentity::from_runtime_value(value))
+    }
+}
+
 pub(super) struct NativeRunnerTimingState {
     pub(super) redraw_requested: bool,
     pub(super) redraw_requested_at: Option<Instant>,
     pub(super) startup_timing: StartupTimingProfile,
     pub(super) first_frame_presented: bool,
+    pub(super) native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
     pub(super) next_frame_sequence: Option<u64>,
     pub(super) animation_origin: Instant,
     pub(super) last_redraw: Instant,
@@ -635,12 +677,21 @@ pub(super) struct NativeRunnerTimingState {
 
 impl Default for NativeRunnerTimingState {
     fn default() -> Self {
+        Self::new(Some(NativeWindowDiagnosticIdentity::from_runtime_value(1)))
+    }
+}
+
+impl NativeRunnerTimingState {
+    pub(super) fn new(
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+    ) -> Self {
         let now = Instant::now();
         Self {
             redraw_requested: false,
             redraw_requested_at: None,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
+            native_window_diagnostic_identity,
             next_frame_sequence: Some(1),
             animation_origin: now,
             last_redraw: now,
@@ -659,9 +710,7 @@ impl Default for NativeRunnerTimingState {
             pending_frame_work: FrameWork::None,
         }
     }
-}
 
-impl NativeRunnerTimingState {
     pub(super) fn allocate_frame_sequence(&mut self) -> Option<u64> {
         let frame_sequence = self.next_frame_sequence?;
         self.next_frame_sequence = frame_sequence.checked_add(1);
@@ -674,7 +723,7 @@ mod tests {
     use super::{
         NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerTimingState,
         NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration,
-        NativeWindowGpuResources,
+        NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuResources,
     };
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
     use std::sync::{
@@ -939,6 +988,42 @@ mod tests {
         assert_eq!(timing.allocate_frame_sequence(), Some(u64::MAX));
         assert_eq!(timing.allocate_frame_sequence(), None);
         assert_eq!(timing.next_frame_sequence, None);
+    }
+
+    #[test]
+    fn native_window_diagnostic_identity_allocator_starts_at_one_and_increments() {
+        let (mut allocator, primary) = NativeWindowDiagnosticIdentityAllocator::for_primary();
+
+        assert_eq!(primary.map(|identity| identity.get()), Some(1));
+        assert_eq!(allocator.allocate().map(|identity| identity.get()), Some(2));
+        assert_eq!(allocator.allocate().map(|identity| identity.get()), Some(3));
+        assert_eq!(allocator.allocate().map(|identity| identity.get()), Some(4));
+    }
+
+    #[test]
+    fn native_window_diagnostic_identity_allocator_exhaustion_does_not_wrap_or_reuse() {
+        let mut allocator = NativeWindowDiagnosticIdentityAllocator {
+            next_identity: Some(u64::MAX),
+        };
+
+        assert_eq!(
+            allocator.allocate().map(|identity| identity.get()),
+            Some(u64::MAX)
+        );
+        assert_eq!(allocator.allocate(), None);
+        assert_eq!(allocator.next_identity, None);
+    }
+
+    #[test]
+    fn native_window_diagnostic_identity_stays_fixed_in_timing_state() {
+        let (_, identity) = NativeWindowDiagnosticIdentityAllocator::for_primary();
+        let mut timing = NativeRunnerTimingState::new(identity);
+
+        assert_eq!(timing.native_window_diagnostic_identity, identity);
+        assert_eq!(timing.allocate_frame_sequence(), Some(1));
+        timing.first_frame_presented = true;
+        timing.next_frame_sequence = None;
+        assert_eq!(timing.native_window_diagnostic_identity, identity);
     }
 
     #[test]

@@ -2887,6 +2887,21 @@ successful presentation, so it remains monotonic across recovery. It is `None`
 before the first presentation or after the counter is exhausted; it never wraps
 or reuses a value. The native render-profile and slow-profile tracing lines
 include the same `frame_sequence` field when a sequence is available.
+`NativeFrameDiagnostics::window_identity` is an opaque, read-only identity for
+the native runner that presented the frame. The pair
+`(window_identity, frame_sequence)` uniquely correlates a presented frame across
+the primary and auxiliary windows. Identities are allocated from `1` within one
+native runtime run: the primary runner receives `1`, and each newly admitted
+auxiliary runner receives a fresh checked value. An identity remains fixed for
+that runner across frames, hide/show, cache-on-close, surface or renderer
+reconstruction, target-generation changes, and device recovery. Destroying a
+runner does not make its identity reusable; a recreated runner gets a fresh
+identity. When the parent allocator is exhausted, new auxiliary admission
+receives `None` without wrapping or reusing an identity and without changing
+scheduling or presentation. This diagnostic identity is distinct from the
+public logical `WindowKey` and from the auxiliary projection key. The native
+render-profile and slow-profile tracing lines expose the same numeric
+`window_identity` alongside `frame_sequence`.
 `NativeFrameTimingDiagnostics::gpu_timing_status` currently reports
 `NativeGpuTimingStatus::CpuEnvelopeOnly`, which makes the boundary explicit:
 these timing buckets are CPU-side encode/submit/present envelopes, not backend

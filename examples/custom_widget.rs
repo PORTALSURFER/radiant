@@ -124,6 +124,7 @@ mod tests {
                 position: Point::new(20.0, 20.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         );
         let active = runtime

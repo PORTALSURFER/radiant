@@ -170,6 +170,7 @@ mod tests {
                 position: Point::new(8.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 
@@ -230,6 +231,7 @@ mod tests {
                 position: Point::new(8.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
         runtime.dispatch_input_at(
@@ -238,6 +240,7 @@ mod tests {
                 position: Point::new(48.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 
@@ -265,6 +268,7 @@ mod tests {
                 position: Point::new(8.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 
@@ -292,6 +296,7 @@ mod tests {
                 position: Point::new(8.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         );
 

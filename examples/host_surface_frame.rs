@@ -90,6 +90,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
         position: point,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     let frame = runtime.borrowed_frame_into(&theme, &mut paint_plan);
     let stats = frame.paint_plan.stats();

@@ -37,6 +37,7 @@ fn piano_roll_shift_forces_marquee_and_command_toggles_note_selection() {
                 shift: true,
                 ..PointerModifiers::default()
             },
+            timestamp: None,
         },
     );
 

@@ -32,6 +32,7 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(ButtonMessage::Activate)
@@ -70,6 +71,7 @@ fn badge_intrinsic_sizing_and_activation_are_public_and_deterministic() {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(BadgeMessage::Activate)

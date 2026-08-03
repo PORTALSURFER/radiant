@@ -79,6 +79,7 @@ fn runtime_lets_custom_widgets_reconcile_retained_state_after_refresh() {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     ));
 
@@ -128,6 +129,7 @@ fn custom_widget_travels_through_runtime_input_message_and_paint_paths() {
                 position: Point::new(12.0, 12.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("custom widget should emit output");

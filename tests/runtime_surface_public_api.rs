@@ -359,6 +359,7 @@ fn scene_base_custom_widget_receives_press_move_release() {
         position,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(
@@ -388,6 +389,7 @@ fn scene_base_pointer_capture_survives_refresh() {
         position: release,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_eq!(press_target, Some(10));

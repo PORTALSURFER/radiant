@@ -116,6 +116,7 @@ fn interactive_badge_routes_common_row_actions() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 

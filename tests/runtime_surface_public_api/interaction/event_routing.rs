@@ -118,6 +118,7 @@ fn backend_neutral_event_constructors_preserve_payloads() {
             position: point,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         }
     );
     assert_eq!(

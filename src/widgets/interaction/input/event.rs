@@ -45,6 +45,8 @@ pub enum WidgetInput {
         button: PointerButton,
         /// Modifier state at release time.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Captured pointer release happened over this widget while another widget owned the press.
     PointerDrop {
@@ -54,6 +56,8 @@ pub enum WidgetInput {
         button: PointerButton,
         /// Modifier state at release time.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer wheel or trackpad scroll occurred over the widget.
     Wheel {
@@ -144,10 +148,21 @@ impl WidgetInput {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_release_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer-release input with an optional native input timestamp.
+    pub(crate) fn pointer_release_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerRelease {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 
@@ -166,10 +181,21 @@ impl WidgetInput {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_drop_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a captured pointer-drop input with an optional native input timestamp.
+    pub(crate) fn pointer_drop_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerDrop {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 
@@ -272,6 +298,16 @@ mod tests {
                 position: point,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+        assert_eq!(
+            WidgetInput::primary_drop(point),
+            WidgetInput::PointerDrop {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
             }
         );
         assert_eq!(

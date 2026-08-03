@@ -48,6 +48,7 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
             position: end,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 
@@ -89,6 +90,7 @@ fn piano_roll_single_click_places_edit_cursor_without_creating_note() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 

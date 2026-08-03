@@ -58,6 +58,7 @@ fn resize_release_commits_final_selection_once() {
                 position: Point::new(SURFACE_WIDTH * 0.74, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("release should emit a commit message");
@@ -129,6 +130,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
         position: preview_position,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
 
     assert_eq!(selection_overlay(&runtime).drag_handle, None);

@@ -57,6 +57,7 @@ fn tree_row_builder_is_available_from_prelude() {
             position,
             button: ui::PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

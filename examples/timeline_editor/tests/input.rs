@@ -44,6 +44,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
                 position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         )
         .expect("selection release creates a clip");

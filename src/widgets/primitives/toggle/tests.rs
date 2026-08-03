@@ -34,6 +34,7 @@ fn toggle_keyboard_activation_flips_active_state() {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(ToggleMessage::ValueChanged { checked: false })

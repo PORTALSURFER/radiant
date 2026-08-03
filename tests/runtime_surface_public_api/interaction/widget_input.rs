@@ -142,6 +142,7 @@ fn surface_runtime_preserves_badge_release_activation_across_refresh() {
             position: point,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(20)
     );
@@ -187,6 +188,7 @@ fn surface_runtime_preserves_toggle_release_activation_across_refresh() {
             position: point,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         }),
         Some(20)
     );

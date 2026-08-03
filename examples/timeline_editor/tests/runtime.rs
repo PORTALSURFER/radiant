@@ -65,6 +65,7 @@ fn timeline_editor_routes_surface_messages_through_runtime() {
             position: Point::new(geometry.x_for_beat(56), target.y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     ));
 

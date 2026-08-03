@@ -45,6 +45,7 @@ fn tree_row_routes_interactive_actions() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 
@@ -119,6 +120,7 @@ fn tree_row_stable_row_identity_keys_row_and_hit_target() {
             position,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 
@@ -165,6 +167,7 @@ fn tree_row_routes_modifier_aware_activation() {
             position,
             button: PointerButton::Primary,
             modifiers,
+            timestamp: None,
         },
     );
 

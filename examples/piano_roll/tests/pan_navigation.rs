@@ -43,6 +43,7 @@ fn piano_roll_middle_mouse_drag_pans_view() {
             position: end,
             button: PointerButton::Auxiliary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     assert!(release.is_none());

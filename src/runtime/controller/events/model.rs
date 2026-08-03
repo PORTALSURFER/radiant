@@ -52,6 +52,8 @@ pub enum Event {
         button: PointerButton,
         /// Modifier state when the press ended.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// One non-text key intent should route to the focused widget.
     KeyPress(WidgetKey),
@@ -156,10 +158,21 @@ impl Event {
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Self {
+        Self::pointer_release_with_timestamp(position, button, modifiers, None)
+    }
+
+    /// Build a pointer-release event with an optional native input timestamp.
+    pub(crate) fn pointer_release_with_timestamp(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::PointerRelease {
             position,
             button,
             modifiers,
+            timestamp,
         }
     }
 

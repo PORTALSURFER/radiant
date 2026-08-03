@@ -250,6 +250,7 @@ mod tests {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         );
         assert!(output.is_some());

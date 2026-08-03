@@ -120,6 +120,7 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
                 position: Point::new(6.0, 96.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         None

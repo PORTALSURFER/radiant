@@ -48,6 +48,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -144,6 +145,7 @@ fn piano_roll_dragging_time_selection_moves_selection_as_object() {
                 position: end,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -196,6 +198,7 @@ fn piano_roll_command_dragging_time_selection_copies_notes_to_target_range() {
                     command: true,
                     ..PointerModifiers::default()
                 },
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

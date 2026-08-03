@@ -28,6 +28,7 @@ fn list_item_invocation_is_public_and_deterministic() {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(ListItemMessage::Invoked)
@@ -112,6 +113,7 @@ fn interactive_row_can_emit_modifier_aware_pointer_activation() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         ),
         Some(InteractiveRowMessage::ActivateWithModifiers { modifiers })
@@ -282,6 +284,7 @@ fn widget_input_helpers_project_pointer_positions_and_start_bounds() {
         position: outside,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     };
     assert_eq!(release.pointer_position(), Some(outside));
     assert_eq!(release.pointer_start_position(), None);
@@ -337,6 +340,7 @@ fn interactive_row_active_drag_source_releases_after_refresh() {
                 position: Point::new(220.0, 90.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
@@ -421,6 +425,7 @@ fn interactive_row_drop_only_accepts_release_without_hover_notification() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(InteractiveRowMessage::Drop)
@@ -469,6 +474,7 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
                 position: Point::new(18.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(PointerShieldMessage::PointerRelease {
@@ -512,6 +518,7 @@ fn pointer_shield_drop_only_reports_only_captured_drops() {
                 position: Point::new(16.0, 8.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(PointerShieldMessage::PointerDrop {
@@ -696,6 +703,7 @@ fn progress_bar_can_emit_activation_when_enabled() {
                 position: Point::new(20.0, 6.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(ProgressBarMessage::Activate)
@@ -862,6 +870,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
                 position: Point::new(12.0, 70.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(DragHandleMessage::Ended {
@@ -902,6 +911,7 @@ fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             },
         ),
         Some(SelectableMessage::SelectionChanged { selected: true })

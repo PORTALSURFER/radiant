@@ -75,11 +75,13 @@ impl Widget for PianoRollWidget {
                 position,
                 button: PointerButton::Primary | PointerButton::Auxiliary,
                 modifiers,
+                ..
             }
             | WidgetInput::PointerDrop {
                 position,
                 button: PointerButton::Primary | PointerButton::Auxiliary,
                 modifiers,
+                ..
             } => self.finish_drag(grid, bounds, position, modifiers),
             WidgetInput::Wheel {
                 position,

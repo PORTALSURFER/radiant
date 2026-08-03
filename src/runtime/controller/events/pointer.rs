@@ -79,6 +79,7 @@ where
         position: Point,
         button: PointerButton,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
         if self
             .interaction
@@ -98,22 +99,14 @@ where
         if let Some(drop_target) = drop_target {
             let _ = self.dispatch_input(
                 drop_target,
-                WidgetInput::PointerDrop {
-                    position,
-                    button,
-                    modifiers,
-                },
+                WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp),
             );
         }
         let widget_id = captured.or_else(|| self.widget_at(position))?;
         self.interaction.pointer.capture_state = None;
         let routed = self.dispatch_input(
             widget_id,
-            WidgetInput::PointerRelease {
-                position,
-                button,
-                modifiers,
-            },
+            WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
         );
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);

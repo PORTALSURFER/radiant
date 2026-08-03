@@ -60,6 +60,7 @@ fn press_strip_label(
             position,
             button: PointerButton::Primary,
             modifiers,
+            timestamp: None,
         },
     );
     output

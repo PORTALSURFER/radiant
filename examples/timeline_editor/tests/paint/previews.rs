@@ -13,6 +13,7 @@ fn timeline_widget_paints_new_clip_preview_while_selecting() {
             position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let _ = widget.handle_input(
@@ -63,6 +64,7 @@ fn timeline_widget_paints_clip_preview_while_moving() {
             position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let _ = widget.handle_input(
@@ -102,6 +104,7 @@ fn timeline_widget_keeps_move_preview_from_captured_drag_state() {
             position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let _ = widget.handle_input(
@@ -142,6 +145,7 @@ fn timeline_widget_paints_clip_preview_while_resizing() {
             position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let _ = widget.handle_input(
@@ -182,6 +186,7 @@ fn timeline_widget_keeps_resize_preview_from_captured_drag_state() {
             position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let _ = widget.handle_input(

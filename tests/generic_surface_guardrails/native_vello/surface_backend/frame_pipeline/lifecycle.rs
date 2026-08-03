@@ -39,7 +39,7 @@ fn native_lifecycle_uses_explicit_imports() {
             && lifecycle.contains("should_start_native_window_drag")
             && lifecycle.contains("timed_frame_cadence")
             && lifecycle.contains("timed_frame_target_fps")
-            && lifecycle.contains("use crate::runtime::RuntimeBridge;")
+            && lifecycle.contains("use crate::runtime::{NativeFrameDiagnostics, RuntimeBridge};")
             && lifecycle.contains("use std::time::{Duration, Instant};")
             && lifecycle.contains("use tracing::warn;")
             && lifecycle.contains("use winit::{")
@@ -146,7 +146,7 @@ fn native_auxiliary_windows_use_explicit_runtime_imports() {
             && auxiliary.contains("owner_window_handle")
             && auxiliary.contains("use crate::runtime::{")
             && auxiliary.contains(
-                "AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,"
+                "AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,\n    RuntimeBridge,"
             )
             && auxiliary.contains("use winit::{")
             && !auxiliary.starts_with("use super::*;"),

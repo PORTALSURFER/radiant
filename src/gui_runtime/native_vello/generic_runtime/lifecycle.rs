@@ -8,7 +8,7 @@ use super::{
     should_start_native_window_drag, should_toggle_native_window_maximized,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
-use crate::runtime::RuntimeBridge;
+use crate::runtime::{NativeFrameDiagnostics, RuntimeBridge};
 use std::time::{Duration, Instant};
 use tracing::warn;
 use winit::{
@@ -111,9 +111,11 @@ where
             };
             let AuxiliaryWindowEventResult {
                 messages,
+                frame_diagnostics,
                 terminal_cause,
                 shutdown_requested,
             } = route_result;
+            forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
             if let Some(Some(admission)) = admission {
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
                 self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
@@ -462,18 +464,24 @@ where
                             })
                     });
                     if let Some(result) = result {
-                        if result.shutdown_requested {
-                            self.admit_native_shutdown(event_loop, result.terminal_cause);
+                        let super::AuxiliaryWindowEventResult {
+                            messages,
+                            frame_diagnostics,
+                            terminal_cause,
+                            shutdown_requested,
+                        } = result;
+                        forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
+                        if shutdown_requested {
+                            self.admit_native_shutdown(event_loop, terminal_cause);
                             return;
                         }
-                        if let Some(error) = result.terminal_cause {
+                        if let Some(error) = terminal_cause {
                             self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                             return;
                         }
-                        if !result.messages.is_empty() {
+                        if !messages.is_empty() {
                             self.dispatch_auxiliary_messages_without_timed_frame(
-                                event_loop,
-                                result.messages,
+                                event_loop, messages,
                             );
                         }
                         self.record_frame_schedule_admission(selected);
@@ -505,6 +513,20 @@ fn native_resource_maintenance_deadline(now: Instant, pending: bool) -> Option<I
     pending.then(|| now + NATIVE_RESOURCE_MAINTENANCE_INTERVAL)
 }
 
+fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
+    runner: &mut GenericNativeVelloRunner<Bridge, Message>,
+    diagnostics: Option<NativeFrameDiagnostics>,
+) where
+    Bridge: RuntimeBridge<Message>,
+{
+    if let Some(diagnostics) = diagnostics {
+        runner
+            .core
+            .runtime
+            .host_observe_frame_diagnostics(diagnostics);
+    }
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -531,7 +553,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{NATIVE_RESOURCE_MAINTENANCE_INTERVAL, native_resource_maintenance_deadline};
+    use super::{
+        GenericNativeVelloRunner, NATIVE_RESOURCE_MAINTENANCE_INTERVAL,
+        forward_auxiliary_frame_diagnostics, native_resource_maintenance_deadline,
+    };
     use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_fairness::{
         CpuFrameCadencePressure, CpuFrameCadenceRate,
     };
@@ -540,8 +565,58 @@ mod tests {
         animation_frame_interval, assess_cpu_frame_fairness, timed_frame_cadence,
         timed_frame_target_fps,
     };
-    use crate::runtime::RuntimeAnimationActivity;
+    use crate::runtime::{
+        Command, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
+        RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
+    };
+    use crate::{application::empty, prelude::IntoView};
+    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum OrderedAuxiliaryEvent {
+        Diagnostics {
+            window_identity: Option<u64>,
+            frame_sequence: Option<u64>,
+        },
+        Message(u8),
+    }
+
+    struct OrderedAuxiliaryBridge {
+        events: Arc<Mutex<Vec<OrderedAuxiliaryEvent>>>,
+    }
+
+    impl RuntimeBridge<u8> for OrderedAuxiliaryBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<u8>> {
+            crate::runtime::test_arc_surface(empty::<u8>().into_surface())
+        }
+
+        fn update(&mut self, message: u8) -> Command<u8> {
+            self.events
+                .lock()
+                .expect("ordering test event log should not be poisoned")
+                .push(OrderedAuxiliaryEvent::Message(message));
+            Command::none()
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, u8> {
+            RuntimeHostCapabilities::new().with_frame_diagnostics()
+        }
+    }
+
+    impl RuntimeFrameDiagnosticsHost for OrderedAuxiliaryBridge {
+        fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
+            self.events
+                .lock()
+                .expect("ordering test event log should not be poisoned")
+                .push(OrderedAuxiliaryEvent::Diagnostics {
+                    window_identity: diagnostics
+                        .window_identity
+                        .map(NativeWindowDiagnosticIdentity::get),
+                    frame_sequence: diagnostics.frame_sequence,
+                });
+        }
+    }
 
     #[test]
     fn pending_maintenance_gets_a_bounded_future_opportunity() {
@@ -613,5 +688,38 @@ mod tests {
             evidence.cadence,
             CpuFrameCadencePressure::Due { .. }
         ));
+    }
+
+    #[test]
+    fn auxiliary_diagnostics_forward_before_messages_and_preserve_correlation() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut runner = GenericNativeVelloRunner::new(
+            crate::gui_runtime::NativeRunOptions::default(),
+            OrderedAuxiliaryBridge {
+                events: Arc::clone(&events),
+            },
+            crate::gui::types::Vector2::new(320.0, 40.0),
+        );
+        let diagnostics = NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
+            frame_sequence: Some(41),
+            ..NativeFrameDiagnostics::default()
+        };
+
+        forward_auxiliary_frame_diagnostics(&mut runner, Some(diagnostics));
+        let _ = runner.core.runtime.dispatch_message(7);
+
+        assert_eq!(
+            *events
+                .lock()
+                .expect("ordering test event log should not be poisoned"),
+            vec![
+                OrderedAuxiliaryEvent::Diagnostics {
+                    window_identity: Some(9),
+                    frame_sequence: Some(41),
+                },
+                OrderedAuxiliaryEvent::Message(7),
+            ]
+        );
     }
 }

@@ -552,6 +552,23 @@ Applications may request uncoalesced samples only for a named high-precision
 interaction; the runtime rate-limits and profiles that path, and it cannot
 create an unbounded frame queue.
 
+### Input timestamp ownership and compatibility
+
+`InputTimestamp` is an opaque, monotonic Radiant timestamp captured at the native
+event-loop boundary, not platform queue time or a host event clock. Native
+adapters attach it before routing and preserve it unchanged through normalized
+`Event` to `WidgetInput`. Synthetic and backend-neutral constructors may omit it,
+and omission remains semantically equivalent to current behavior.
+
+Each normalized input has at most one timestamp. Latest-wins coalescing carries
+the newest sample timestamp and sequence metadata, and no timestamp conversion or
+wall-clock ordering is allowed. Input timestamp propagation is observational
+metadata only and cannot change hit testing, capture, focus, routing order,
+message semantics, scheduling, or presentation.
+
+The migration order is timestamp type/ownership, then `Event`/`WidgetInput`
+payload propagation, then coalescing/profile consumers.
+
 ### Frame packets and backpressure
 
 A render packet contains only immutable references or owned frame data:

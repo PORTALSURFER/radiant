@@ -47,9 +47,10 @@ impl Widget for StatusChip {
                 button: PointerButton::Primary,
                 ..
             } if bounds.contains(position) => Some(WidgetOutput::custom(ChipOutput::Toggle)),
-            WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
-                Some(WidgetOutput::custom(ChipOutput::Toggle))
-            }
+            WidgetInput::KeyPress {
+                key: WidgetKey::Enter,
+                ..
+            } if self.common.state.focused => Some(WidgetOutput::custom(ChipOutput::Toggle)),
             WidgetInput::FocusChanged(focused) => {
                 self.common.state.focused = focused;
                 None

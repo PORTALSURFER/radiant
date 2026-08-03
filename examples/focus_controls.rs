@@ -133,7 +133,7 @@ mod tests {
         runtime.dispatch_message(FocusMessage::FocusSearch);
         assert_eq!(runtime.focused_widget(), Some(SEARCH_ID));
         assert_eq!(
-            runtime.dispatch_event(Event::Character('x')),
+            runtime.dispatch_event(Event::character('x')),
             Some(SEARCH_ID)
         );
 
@@ -146,7 +146,7 @@ mod tests {
 
         runtime.dispatch_message(FocusMessage::FocusName);
         assert_eq!(runtime.focused_widget(), Some(NAME_ID));
-        assert_eq!(runtime.dispatch_event(Event::Character('!')), Some(NAME_ID));
+        assert_eq!(runtime.dispatch_event(Event::character('!')), Some(NAME_ID));
 
         let name = widget_ref::<TextInputWidget, _>(runtime.surface(), NAME_ID, "name input");
         assert_eq!(name.state.value, "Radiant!");

@@ -9,7 +9,7 @@ fn toggle_keyboard_activation_flips_active_state() {
     let _ = toggle.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
 
     assert_eq!(
-        toggle.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Enter)),
+        toggle.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Enter)),
         Some(ToggleMessage::ValueChanged { checked: true })
     );
     assert!(toggle.common.state.active);

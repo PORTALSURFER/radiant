@@ -82,7 +82,7 @@ where
     Bridge: RuntimeBridge<NodeEditorMessage>,
 {
     assert!(runtime.focus_widget(widget_id));
-    assert!(runtime.dispatch_input(widget_id, WidgetInput::KeyPress(WidgetKey::Enter),));
+    assert!(runtime.dispatch_input(widget_id, WidgetInput::key_press(WidgetKey::Enter),));
 }
 
 fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, NodeEditorMessage>) -> String

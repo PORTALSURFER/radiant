@@ -2,7 +2,7 @@ use super::{
     CpuFrameObservationOwner, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
-use crate::gui::input::{KeyCode, KeyPress};
+use crate::gui::input::{InputTimestamp, KeyCode, KeyPress};
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
@@ -49,7 +49,7 @@ where
         let mut repeat_accepted = !repeat;
         let mut route_outcome = GenericRouteOutcome::default();
         let logical_text = keyboard_event_text(&event);
-        if let PhysicalKey::Code(code) = event.physical_key
+        let physical_key = if let PhysicalKey::Code(code) = event.physical_key
             && let Some(key) = key_code_from_winit(code)
         {
             let allow_text_deletion_repeat = repeat
@@ -66,7 +66,16 @@ where
                 return;
             }
             repeat_accepted = true;
-            if self.route_text_input_shortcut(key, &mut route_outcome) {
+            Some(key)
+        } else {
+            None
+        };
+        if !repeat_accepted {
+            return;
+        }
+        let timestamp = Some(InputTimestamp::capture());
+        if let Some(key) = physical_key {
+            if self.route_text_input_shortcut(key, timestamp, &mut route_outcome) {
                 self.route_keyboard_outcome(
                     event_loop,
                     route_outcome,
@@ -75,7 +84,7 @@ where
                 );
                 return;
             }
-            if self.route_text_navigation_key(key, &mut route_outcome) {
+            if self.route_text_navigation_key(key, timestamp, &mut route_outcome) {
                 self.route_keyboard_outcome(
                     event_loop,
                     route_outcome,
@@ -84,25 +93,7 @@ where
                 );
                 return;
             }
-            if self.route_focused_widget_preempting_shortcut_key(key, &mut route_outcome) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
-            }
-            if self.route_space_text_input(key, &mut route_outcome) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
-            }
-            if self.route_focused_text_input_before_shortcuts(key, logical_text, &mut route_outcome)
+            if self.route_focused_widget_preempting_shortcut_key(key, timestamp, &mut route_outcome)
             {
                 self.route_keyboard_outcome(
                     event_loop,
@@ -112,20 +103,43 @@ where
                 );
                 return;
             }
-            let outcome = self.core.route_key_press(
+            if self.route_space_text_input(key, timestamp, &mut route_outcome) {
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
+                return;
+            }
+            if self.route_focused_text_input_before_shortcuts(
+                key,
+                logical_text,
+                timestamp,
+                &mut route_outcome,
+            ) {
+                self.route_keyboard_outcome(
+                    event_loop,
+                    route_outcome,
+                    adapter.as_deref_mut(),
+                    observation.as_deref_mut(),
+                );
+                return;
+            }
+            let outcome = self.core.route_key_press_with_timestamp(
                 keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
+                timestamp,
             );
             route_outcome.merge(outcome);
-        }
-        if !repeat_accepted {
-            return;
         }
         if !route_outcome.routed
             && !self.core.has_focused_text_input()
             && let Some(press) = logical_shortcut_keypress_from_text(logical_text)
         {
-            let outcome = self.core.route_key_press(press, None);
+            let outcome = self
+                .core
+                .route_key_press_with_timestamp(press, None, timestamp);
             route_outcome.merge(outcome);
             if route_outcome.routed {
                 self.route_keyboard_outcome(
@@ -138,18 +152,26 @@ where
             }
         }
         if let Some(text) = event.text.as_ref() {
-            self.route_text_input_after_unhandled_keypress(text, &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(text, timestamp, &mut route_outcome);
         } else if matches!(event.logical_key, Key::Named(NamedKey::Space)) {
-            self.route_text_input_after_unhandled_keypress(" ", &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(" ", timestamp, &mut route_outcome);
         } else if let Key::Character(text) = &event.logical_key {
-            self.route_text_input_after_unhandled_keypress(text.as_str(), &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(
+                text.as_str(),
+                timestamp,
+                &mut route_outcome,
+            );
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
-            let outcome = self.core.route_widget_key(WidgetKey::Backspace);
+            let outcome = self
+                .core
+                .route_widget_key_with_timestamp(WidgetKey::Backspace, timestamp);
             route_outcome.merge(outcome);
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
-            let outcome = self.core.route_widget_key(WidgetKey::Delete);
+            let outcome = self
+                .core
+                .route_widget_key_with_timestamp(WidgetKey::Delete, timestamp);
             route_outcome.merge(outcome);
         }
         self.route_keyboard_outcome(event_loop, route_outcome, adapter, observation);

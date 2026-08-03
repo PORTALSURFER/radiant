@@ -21,7 +21,7 @@ fn text_input_editing_emits_changed_and_submitted_messages() {
     input.state.selection_anchor = 1;
 
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::Character('z')),
+        input.handle_input(bounds, WidgetInput::character('z')),
         Some(TextInputMessage::Changed {
             value: String::from("azb"),
         })
@@ -29,20 +29,20 @@ fn text_input_editing_emits_changed_and_submitted_messages() {
     assert_eq!(input.state.caret, 2);
 
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Backspace)),
+        input.handle_input(bounds, WidgetInput::key_press(WidgetKey::Backspace)),
         Some(TextInputMessage::Changed {
             value: String::from("ab"),
         })
     );
 
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        input.handle_input(bounds, WidgetInput::key_press(WidgetKey::Enter)),
         Some(TextInputMessage::Submitted {
             value: String::from("ab"),
         })
     );
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Tab)),
+        input.handle_input(bounds, WidgetInput::key_press(WidgetKey::Tab)),
         Some(TextInputMessage::CompletionRequested {
             value: String::from("ab"),
         })
@@ -61,14 +61,14 @@ fn text_input_selection_replaces_cuts_and_pastes_text() {
 
     let _ = input.handle_input(
         bounds,
-        WidgetInput::TextEdit(TextEditCommand::MoveHome {
+        WidgetInput::text_edit(TextEditCommand::MoveHome {
             extend_selection: false,
         }),
     );
     for _ in 0..4 {
         let _ = input.handle_input(
             bounds,
-            WidgetInput::TextEdit(TextEditCommand::MoveRight {
+            WidgetInput::text_edit(TextEditCommand::MoveRight {
                 extend_selection: true,
             }),
         );
@@ -78,17 +78,20 @@ fn text_input_selection_replaces_cuts_and_pastes_text() {
     assert_eq!(
         input.handle_input(
             bounds,
-            WidgetInput::TextEdit(TextEditCommand::InsertText(String::from("one\ntwo"))),
+            WidgetInput::text_edit(TextEditCommand::InsertText(String::from("one\ntwo"))),
         ),
         Some(TextInputMessage::Changed {
             value: String::from("onetwo beta"),
         })
     );
 
-    let _ = input.handle_input(bounds, WidgetInput::TextEdit(TextEditCommand::SelectAll));
+    let _ = input.handle_input(bounds, WidgetInput::text_edit(TextEditCommand::SelectAll));
     assert_eq!(input.selected_text().as_deref(), Some("onetwo beta"));
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::TextEdit(TextEditCommand::CutSelection)),
+        input.handle_input(
+            bounds,
+            WidgetInput::text_edit(TextEditCommand::CutSelection)
+        ),
         Some(TextInputMessage::Changed {
             value: String::new(),
         })

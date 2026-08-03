@@ -114,7 +114,12 @@ fn focused_text_input_typing_preempts_host_shortcuts() {
     focus_demo_text_input(&mut runner.core);
 
     let mut outcome = GenericRouteOutcome::default();
-    assert!(runner.route_focused_text_input_before_shortcuts(KeyCode::E, Some("e"), &mut outcome,));
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::E,
+        Some("e"),
+        None,
+        &mut outcome,
+    ));
 
     assert_eq!(runner.core.runtime.bridge().state.name, "e");
     assert_eq!(runner.core.runtime.bridge().state.count, 0);
@@ -135,7 +140,7 @@ fn handled_shortcut_text_does_not_enter_newly_focused_text_input() {
     );
     assert!(outcome.routed);
     assert!(runner.core.has_focused_text_input());
-    assert!(!runner.route_text_input_after_unhandled_keypress("§", &mut outcome));
+    assert!(!runner.route_text_input_after_unhandled_keypress("§", None, &mut outcome));
 
     assert_eq!(runner.core.runtime.bridge().state.name, "");
 }
@@ -151,9 +156,12 @@ fn focused_text_input_routes_all_scalars_from_one_text_event() {
     focus_demo_text_input(&mut runner.core);
 
     let mut outcome = GenericRouteOutcome::default();
-    assert!(
-        runner.route_focused_text_input_before_shortcuts(KeyCode::E, Some("éx"), &mut outcome,)
-    );
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::E,
+        Some("éx"),
+        None,
+        &mut outcome,
+    ));
 
     assert_eq!(runner.core.runtime.bridge().state.name, "éx");
     assert_eq!(runner.core.runtime.bridge().state.count, 0);
@@ -173,6 +181,7 @@ fn focused_text_input_backspace_preempts_host_shortcuts() {
     assert!(runner.route_focused_text_input_before_shortcuts(
         KeyCode::E,
         Some("e"),
+        None,
         &mut type_outcome,
     ));
     assert_eq!(runner.core.runtime.bridge().state.name, "e");
@@ -180,6 +189,7 @@ fn focused_text_input_backspace_preempts_host_shortcuts() {
     let mut backspace_outcome = GenericRouteOutcome::default();
     assert!(runner.route_focused_text_input_before_shortcuts(
         KeyCode::Backspace,
+        None,
         None,
         &mut backspace_outcome,
     ));
@@ -202,12 +212,16 @@ fn focused_text_input_tab_routes_completion_before_host_shortcuts() {
     assert!(runner.route_focused_text_input_before_shortcuts(
         KeyCode::E,
         Some("e"),
+        None,
         &mut type_outcome,
     ));
     let mut tab_outcome = GenericRouteOutcome::default();
-    assert!(
-        runner.route_focused_text_input_before_shortcuts(KeyCode::Tab, None, &mut tab_outcome,)
-    );
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::Tab,
+        None,
+        None,
+        &mut tab_outcome,
+    ));
 
     assert_eq!(runner.core.runtime.bridge().state.name, "e");
     assert_eq!(runner.core.runtime.bridge().state.count, 0);

@@ -158,11 +158,10 @@ impl InteractiveRowWidget {
                 }
                 None
             }
-            WidgetInput::KeyPress(WidgetKey::Enter | WidgetKey::Space)
-                if self.common.state.focused =>
-            {
-                Some(InteractiveRowMessage::Activate)
-            }
+            WidgetInput::KeyPress {
+                key: WidgetKey::Enter | WidgetKey::Space,
+                ..
+            } if self.common.state.focused => Some(InteractiveRowMessage::Activate),
             _ => {
                 if matches!(input, WidgetInput::PointerRelease { .. }) {
                     self.common.state.pressed = false;

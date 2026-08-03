@@ -44,7 +44,7 @@ fn focused_badge_enter_emits_activation() {
     let _ = badge.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
 
     assert_eq!(
-        badge.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Enter)),
+        badge.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Enter)),
         Some(BadgeMessage::Activate)
     );
 }

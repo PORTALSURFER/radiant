@@ -84,11 +84,26 @@ pub enum WidgetInput {
         bool,
     ),
     /// One non-text navigation or activation key was pressed.
-    KeyPress(WidgetKey),
+    KeyPress {
+        /// Normalized key identity.
+        key: WidgetKey,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// One printable character should be inserted into the widget value.
-    Character(char),
+    Character {
+        /// Character produced by the active keyboard layout.
+        character: char,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// One higher-level text editing command should be routed to a text field.
-    TextEdit(TextEditCommand),
+    TextEdit {
+        /// Normalized text-edit command.
+        command: TextEditCommand,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
 }
 
 impl WidgetInput {
@@ -273,6 +288,48 @@ impl WidgetInput {
         }
     }
 
+    /// Build a key-press input with an optional native input timestamp.
+    pub(crate) fn key_press_with_timestamp(
+        key: WidgetKey,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::KeyPress { key, timestamp }
+    }
+
+    /// Build a character input with an optional native input timestamp.
+    pub(crate) fn character_with_timestamp(
+        character: char,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::Character {
+            character,
+            timestamp,
+        }
+    }
+
+    /// Build a text-edit input with an optional native input timestamp.
+    pub(crate) fn text_edit_with_timestamp(
+        command: TextEditCommand,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::TextEdit { command, timestamp }
+    }
+
+    /// Build a synthetic key-press input without sample metadata.
+    pub fn key_press(key: WidgetKey) -> Self {
+        Self::key_press_with_timestamp(key, None)
+    }
+
+    /// Build a synthetic character input without sample metadata.
+    pub fn character(character: char) -> Self {
+        Self::character_with_timestamp(character, None)
+    }
+
+    /// Build a synthetic text-edit input without sample metadata.
+    pub fn text_edit(command: TextEditCommand) -> Self {
+        Self::text_edit_with_timestamp(command, None)
+    }
+
     /// Build a wheel or trackpad-scroll input with no keyboard modifiers.
     pub fn plain_wheel(position: Point, delta: Vector2) -> Self {
         Self::wheel(position, delta, PointerModifiers::default())
@@ -289,9 +346,9 @@ impl WidgetInput {
             | Self::Wheel { position, .. } => Some(*position),
             Self::PointerModifiersChanged { .. }
             | Self::FocusChanged(_)
-            | Self::KeyPress(_)
-            | Self::Character(_)
-            | Self::TextEdit(_) => None,
+            | Self::KeyPress { .. }
+            | Self::Character { .. }
+            | Self::TextEdit { .. } => None,
         }
     }
 
@@ -415,6 +472,31 @@ mod tests {
     }
 
     #[test]
+    fn public_keyboard_constructors_omit_sample_metadata() {
+        assert_eq!(
+            WidgetInput::key_press(WidgetKey::Enter),
+            WidgetInput::KeyPress {
+                key: WidgetKey::Enter,
+                timestamp: None,
+            }
+        );
+        assert_eq!(
+            WidgetInput::character('x'),
+            WidgetInput::Character {
+                character: 'x',
+                timestamp: None,
+            }
+        );
+        assert_eq!(
+            WidgetInput::text_edit(TextEditCommand::SelectAll),
+            WidgetInput::TextEdit {
+                command: TextEditCommand::SelectAll,
+                timestamp: None,
+            }
+        );
+    }
+
+    #[test]
     fn widget_input_reports_pointer_position_by_event_family() {
         let point = Point::new(4.0, 8.0);
         let bounds = Rect::from_xy_size(0.0, 0.0, 10.0, 10.0);
@@ -440,7 +522,7 @@ mod tests {
             None
         );
         assert_eq!(
-            WidgetInput::KeyPress(WidgetKey::Enter).pointer_position(),
+            WidgetInput::key_press(WidgetKey::Enter).pointer_position(),
             None
         );
     }

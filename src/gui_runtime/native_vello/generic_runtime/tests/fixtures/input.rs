@@ -107,7 +107,7 @@ impl RuntimeBridge<String> for CanvasBridge {
             WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
             |message| match message {
                 CanvasMessage::Input {
-                    input: WidgetInput::Character(character),
+                    input: WidgetInput::Character { character, .. },
                 } => character.to_string(),
                 CanvasMessage::Input {
                     input: WidgetInput::Wheel { .. },

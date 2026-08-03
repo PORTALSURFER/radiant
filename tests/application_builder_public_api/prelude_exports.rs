@@ -263,8 +263,14 @@ fn prelude_views_can_dispatch_widget_inputs_directly() {
         }
 
         fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-            matches!(input, WidgetInput::KeyPress(WidgetKey::Enter))
-                .then(|| WidgetOutput::typed("enter"))
+            matches!(
+                input,
+                WidgetInput::KeyPress {
+                    key: WidgetKey::Enter,
+                    ..
+                }
+            )
+            .then(|| WidgetOutput::typed("enter"))
         }
 
         fn append_paint(
@@ -288,7 +294,7 @@ fn prelude_views_can_dispatch_widget_inputs_directly() {
     let output = action_view().view_dispatch_widget_input(
         7,
         bounds,
-        WidgetInput::KeyPress(WidgetKey::Enter),
+        WidgetInput::key_press(WidgetKey::Enter),
     );
 
     assert_eq!(
@@ -376,9 +382,10 @@ fn prelude_exports_custom_widget_authoring_contract() {
             input: ui::WidgetInput,
         ) -> Option<ui::WidgetOutput> {
             match input {
-                ui::WidgetInput::KeyPress(ui::WidgetKey::Enter) => {
-                    Some(ui::WidgetOutput::custom(()))
-                }
+                ui::WidgetInput::KeyPress {
+                    key: ui::WidgetKey::Enter,
+                    ..
+                } => Some(ui::WidgetOutput::custom(())),
                 ui::WidgetInput::PointerRelease {
                     button: ui::PointerButton::Primary,
                     ..

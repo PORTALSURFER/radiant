@@ -67,13 +67,13 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
 
     assert_eq!(runtime.widget_at(Point::new(150.0, 10.0)), Some(11));
     assert!(runtime.dispatch_input(12, WidgetInput::FocusChanged(true)));
-    assert!(runtime.dispatch_input(12, WidgetInput::Character('F')));
+    assert!(runtime.dispatch_input(12, WidgetInput::character('F')));
     assert!(runtime.dispatch_input(11, WidgetInput::FocusChanged(true)));
     assert_eq!(
         runtime.dispatch_input_at(input_point, WidgetInput::FocusChanged(true)),
         Some(12)
     );
-    assert!(runtime.dispatch_input(11, WidgetInput::KeyPress(WidgetKey::Enter)));
+    assert!(runtime.dispatch_input(11, WidgetInput::key_press(WidgetKey::Enter)));
 
     assert_eq!(
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,

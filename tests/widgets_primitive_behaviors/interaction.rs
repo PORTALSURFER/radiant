@@ -36,7 +36,7 @@ fn list_item_invocation_is_public_and_deterministic() {
 
     let _ = item.handle_input(bounds, WidgetInput::FocusChanged(true));
     assert_eq!(
-        item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        item.handle_input(bounds, WidgetInput::key_press(WidgetKey::Enter)),
         Some(ListItemMessage::Invoked)
     );
 }
@@ -864,7 +864,7 @@ fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
 
     let _ = selectable.handle_input(bounds, WidgetInput::FocusChanged(true));
     assert_eq!(
-        selectable.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        selectable.handle_input(bounds, WidgetInput::key_press(WidgetKey::Space)),
         Some(SelectableMessage::SelectionChanged { selected: false })
     );
     assert!(!selectable.common.state.selected);

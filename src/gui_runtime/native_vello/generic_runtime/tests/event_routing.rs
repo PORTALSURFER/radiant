@@ -4,6 +4,8 @@ mod canvas;
 mod drag_drop;
 #[path = "event_routing/host.rs"]
 mod host;
+#[path = "event_routing/keyboard.rs"]
+mod keyboard;
 #[path = "event_routing/repaint.rs"]
 mod repaint;
 #[path = "event_routing/scroll.rs"]

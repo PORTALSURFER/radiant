@@ -2656,6 +2656,15 @@ its supplied modifiers, and all three omit the timestamp. Native wheel adapters
 capture one sample timestamp and preserve it, together with effective modifiers,
 through direct routing and coalesced delivery; scroll-update payloads remain
 unchanged.
+`Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
+`KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
+timestamps. The public `Event::key_press(...)`, `Event::character(...)`,
+`WidgetInput::key_press(...)`, `WidgetInput::character(...)`, and
+`WidgetInput::text_edit(...)` constructors omit the timestamp. Native keyboard
+adapters capture one timestamp after pressed/repeat acceptance and preserve it
+through physical and logical shortcut routing, focused-widget preemption,
+printable-character fan-out, and text-edit commands; this metadata does not
+change keyboard precedence or shortcut resolution.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

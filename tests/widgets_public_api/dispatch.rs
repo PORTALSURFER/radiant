@@ -30,7 +30,11 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         None
     );
     assert_typed_widget_output(
-        Widget::handle_input(&mut button, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(
+            &mut button,
+            bounds,
+            WidgetInput::key_press(WidgetKey::Enter),
+        ),
         radiant::widgets::ButtonMessage::Activate,
     );
 
@@ -39,7 +43,11 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         None
     );
     assert_typed_widget_output(
-        Widget::handle_input(&mut toggle, bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Widget::handle_input(
+            &mut toggle,
+            bounds,
+            WidgetInput::key_press(WidgetKey::Space),
+        ),
         radiant::widgets::ToggleMessage::ValueChanged { checked: true },
     );
 
@@ -48,7 +56,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         None
     );
     assert_typed_widget_output(
-        Widget::handle_input(&mut input, bounds, WidgetInput::Character('z')),
+        Widget::handle_input(&mut input, bounds, WidgetInput::character('z')),
         radiant::widgets::TextInputMessage::Changed {
             value: String::from("abz"),
         },
@@ -59,7 +67,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         None
     );
     assert_typed_widget_output(
-        Widget::handle_input(&mut badge, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(&mut badge, bounds, WidgetInput::key_press(WidgetKey::Enter)),
         radiant::widgets::BadgeMessage::Activate,
     );
 
@@ -92,7 +100,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         None
     );
     assert_typed_widget_output(
-        Widget::handle_input(&mut item, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(&mut item, bounds, WidgetInput::key_press(WidgetKey::Enter)),
         radiant::widgets::ListItemMessage::Invoked,
     );
 
@@ -104,7 +112,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         Widget::handle_input(
             &mut selectable,
             bounds,
-            WidgetInput::KeyPress(WidgetKey::Space),
+            WidgetInput::key_press(WidgetKey::Space),
         ),
         radiant::widgets::SelectableMessage::SelectionChanged { selected: true },
     );

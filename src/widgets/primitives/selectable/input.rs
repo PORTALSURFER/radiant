@@ -39,7 +39,7 @@ pub(super) fn handle_selectable_input(
             selectable.common.state.focused = focused;
             None
         }
-        WidgetInput::KeyPress(key)
+        WidgetInput::KeyPress { key, .. }
             if selectable.common.state.focused && activate_on_keyboard(key) =>
         {
             Some(toggle_selected(selectable))

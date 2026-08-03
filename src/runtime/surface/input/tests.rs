@@ -188,7 +188,7 @@ fn disabled_knob_reprojection_clears_pointer_gesture_state() {
             30,
             &[],
             bounds,
-            WidgetInput::KeyPress(crate::widgets::WidgetKey::ArrowRight)
+            WidgetInput::key_press(crate::widgets::WidgetKey::ArrowRight)
         ),
         Some(WidgetDispatchResult::NoOutput)
     ));

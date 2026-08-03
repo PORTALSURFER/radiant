@@ -38,9 +38,10 @@ impl Widget for ModulationMatrixWidget {
                 button: PointerButton::Primary,
                 ..
             } => self.finish_drag(matrix, position),
-            WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
-                if self.common.state.focused =>
-            {
+            WidgetInput::KeyPress {
+                key: WidgetKey::Delete | WidgetKey::Backspace,
+                ..
+            } if self.common.state.focused => {
                 Some(WidgetOutput::custom(MatrixMessage::ClearSelected))
             }
             WidgetInput::FocusChanged(focused) => {

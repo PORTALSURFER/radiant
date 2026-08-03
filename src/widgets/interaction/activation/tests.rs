@@ -54,7 +54,7 @@ fn focusable_activation_focuses_on_press_and_uses_keyboard() {
     let result = handle_activation_input(
         &mut state,
         bounds,
-        &WidgetInput::KeyPress(WidgetKey::Space),
+        &WidgetInput::key_press(WidgetKey::Space),
         ActivationInputPolicy::focusable(),
     );
     assert_eq!(result, ActivationInputResult::Activated);
@@ -71,7 +71,7 @@ fn disabled_activation_clears_pressed_and_ignores_input() {
     let result = handle_activation_input(
         &mut state,
         bounds(),
-        &WidgetInput::KeyPress(WidgetKey::Enter),
+        &WidgetInput::key_press(WidgetKey::Enter),
         ActivationInputPolicy::focusable(),
     );
 

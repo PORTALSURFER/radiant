@@ -61,10 +61,15 @@ where
                 self.observe_pointer_position(position);
                 self.dispatch_pointer_release_event(position, button, modifiers, timestamp)
             }
-            Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
-            Event::Character(character) => {
-                self.dispatch_focused_input(WidgetInput::Character(character))
+            Event::KeyPress { key, timestamp } => {
+                self.dispatch_focused_input(WidgetInput::key_press_with_timestamp(key, timestamp))
             }
+            Event::Character {
+                character,
+                timestamp,
+            } => self.dispatch_focused_input(WidgetInput::character_with_timestamp(
+                character, timestamp,
+            )),
             Event::TraverseFocus(direction) => self.traverse_focus(direction),
             Event::ClearFocus => {
                 self.clear_focus();

@@ -39,7 +39,9 @@ pub(super) fn handle_list_item_input(
             item.common.state.focused = focused;
             None
         }
-        WidgetInput::KeyPress(key) if item.common.state.focused && activate_on_keyboard(key) => {
+        WidgetInput::KeyPress { key, .. }
+            if item.common.state.focused && activate_on_keyboard(key) =>
+        {
             Some(ListItemMessage::Invoked)
         }
         _ => None,

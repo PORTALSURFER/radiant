@@ -1,4 +1,5 @@
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
+use crate::gui::input::InputTimestamp;
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
 use crate::widgets::TextEditCommand;
@@ -11,6 +12,7 @@ where
     pub(super) fn route_space_text_input(
         &mut self,
         key: KeyCode,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if key != KeyCode::Space
@@ -21,13 +23,14 @@ where
         {
             return false;
         }
-        self.route_text_input(" ", route_outcome);
+        self.route_text_input(" ", timestamp, route_outcome);
         route_outcome.routed
     }
 
     pub(super) fn route_text_input_shortcut(
         &mut self,
         key: KeyCode,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if !(self.input.modifiers.control_key() || self.input.modifiers.super_key()) {
@@ -35,7 +38,9 @@ where
         }
         match key {
             KeyCode::A => {
-                let outcome = self.core.route_text_edit(TextEditCommand::SelectAll);
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::SelectAll, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
@@ -54,7 +59,9 @@ where
                     if let Some(clipboard) = &mut self.input.clipboard {
                         let _ = clipboard.set_text(selection);
                     }
-                    let outcome = self.core.route_text_edit(TextEditCommand::CutSelection);
+                    let outcome = self
+                        .core
+                        .route_text_edit_with_timestamp(TextEditCommand::CutSelection, timestamp);
                     route_outcome.merge(outcome);
                     return outcome.routed;
                 }
@@ -67,17 +74,23 @@ where
                 let Ok(text) = clipboard.get_text() else {
                     return false;
                 };
-                let outcome = self.core.route_text_edit(TextEditCommand::InsertText(text));
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::InsertText(text), timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
             KeyCode::Backspace => {
-                let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordLeft);
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::DeleteWordLeft, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
             KeyCode::Delete => {
-                let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordRight);
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::DeleteWordRight, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
@@ -88,6 +101,7 @@ where
     pub(super) fn route_focused_widget_preempting_shortcut_key(
         &mut self,
         key: KeyCode,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if self.input.modifiers.control_key()
@@ -105,7 +119,9 @@ where
         {
             return false;
         }
-        let outcome = self.core.route_widget_key(widget_key);
+        let outcome = self
+            .core
+            .route_widget_key_with_timestamp(widget_key, timestamp);
         route_outcome.merge(outcome);
         outcome.routed
     }
@@ -114,6 +130,7 @@ where
         &mut self,
         key: KeyCode,
         text: Option<&str>,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if self.input.modifiers.control_key()
@@ -126,22 +143,30 @@ where
 
         match key {
             KeyCode::Backspace => {
-                let outcome = self.core.route_text_edit(TextEditCommand::Backspace);
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::Backspace, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
             KeyCode::Delete => {
-                let outcome = self.core.route_text_edit(TextEditCommand::Delete);
+                let outcome = self
+                    .core
+                    .route_text_edit_with_timestamp(TextEditCommand::Delete, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
             KeyCode::Enter => {
-                let outcome = self.core.route_widget_key(WidgetKey::Enter);
+                let outcome = self
+                    .core
+                    .route_widget_key_with_timestamp(WidgetKey::Enter, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
             KeyCode::Tab => {
-                let outcome = self.core.route_widget_key(WidgetKey::Tab);
+                let outcome = self
+                    .core
+                    .route_widget_key_with_timestamp(WidgetKey::Tab, timestamp);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
@@ -149,7 +174,7 @@ where
                 let Some(text) = text else {
                     return false;
                 };
-                self.route_text_input(text, route_outcome);
+                self.route_text_input(text, timestamp, route_outcome);
                 route_outcome.routed
             }
         }
@@ -158,6 +183,7 @@ where
     pub(super) fn route_text_navigation_key(
         &mut self,
         key: KeyCode,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         let extend_selection = self.input.modifiers.shift_key();
@@ -176,15 +202,22 @@ where
             KeyCode::End => TextEditCommand::MoveEnd { extend_selection },
             _ => return false,
         };
-        let outcome = self.core.route_text_edit(command);
+        let outcome = self.core.route_text_edit_with_timestamp(command, timestamp);
         route_outcome.merge(outcome);
         outcome.routed
     }
 
     /// Route printable text from a keyboard event into the focused widget.
-    pub(super) fn route_text_input(&mut self, text: &str, route_outcome: &mut GenericRouteOutcome) {
+    pub(super) fn route_text_input(
+        &mut self,
+        text: &str,
+        timestamp: Option<InputTimestamp>,
+        route_outcome: &mut GenericRouteOutcome,
+    ) {
         for character in text.chars().filter(|character| !character.is_control()) {
-            let outcome = self.core.route_character(character);
+            let outcome = self
+                .core
+                .route_character_with_timestamp(character, timestamp);
             route_outcome.merge(outcome);
         }
     }
@@ -192,12 +225,13 @@ where
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn route_text_input_after_unhandled_keypress(
         &mut self,
         text: &str,
+        timestamp: Option<InputTimestamp>,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if route_outcome.routed {
             return false;
         }
-        self.route_text_input(text, route_outcome);
+        self.route_text_input(text, timestamp, route_outcome);
         route_outcome.routed
     }
 }

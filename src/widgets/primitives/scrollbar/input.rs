@@ -57,7 +57,7 @@ pub(super) fn handle_scrollbar_input(
             }
             None
         }
-        WidgetInput::KeyPress(key) if scrollbar.common.state.focused => {
+        WidgetInput::KeyPress { key, .. } if scrollbar.common.state.focused => {
             handle_key_input(scrollbar, key)
         }
         _ => None,

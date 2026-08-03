@@ -322,14 +322,27 @@ where
         outcome
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_key_press(
         &mut self,
         press: KeyPress,
         widget_key: Option<WidgetKey>,
     ) -> GenericRouteOutcome {
-        let routed = self
-            .runtime
-            .dispatch_key_press(press, widget_key, FocusSurface::None);
+        self.route_key_press_with_timestamp(press, widget_key, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_key_press_with_timestamp(
+        &mut self,
+        press: KeyPress,
+        widget_key: Option<WidgetKey>,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let routed = self.runtime.dispatch_key_press_with_timestamp(
+            press,
+            widget_key,
+            FocusSurface::None,
+            timestamp,
+        );
         self.route_outcome(routed)
     }
 
@@ -339,35 +352,65 @@ where
         self.route_outcome(true)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_widget_key(
         &mut self,
         key: WidgetKey,
     ) -> GenericRouteOutcome {
-        let routed = self.runtime.dispatch_event(Event::KeyPress(key)).is_some();
+        self.route_widget_key_with_timestamp(key, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_widget_key_with_timestamp(
+        &mut self,
+        key: WidgetKey,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .dispatch_event(Event::key_press_with_timestamp(key, timestamp))
+            .is_some();
         self.route_outcome(routed)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_text_edit(
         &mut self,
         command: TextEditCommand,
+    ) -> GenericRouteOutcome {
+        self.route_text_edit_with_timestamp(command, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_text_edit_with_timestamp(
+        &mut self,
+        command: TextEditCommand,
+        timestamp: Option<InputTimestamp>,
     ) -> GenericRouteOutcome {
         if self.runtime.focused_text_input_id().is_none() {
             return self.route_outcome(false);
         }
         let routed = self
             .runtime
-            .dispatch_focused_input(WidgetInput::TextEdit(command))
+            .dispatch_focused_input(WidgetInput::text_edit_with_timestamp(command, timestamp))
             .is_some();
         self.route_outcome(routed)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_character(
         &mut self,
         character: char,
     ) -> GenericRouteOutcome {
+        self.route_character_with_timestamp(character, None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_character_with_timestamp(
+        &mut self,
+        character: char,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .dispatch_event(Event::Character(character))
+            .dispatch_event(Event::character_with_timestamp(character, timestamp))
             .is_some();
         self.route_outcome(routed)
     }

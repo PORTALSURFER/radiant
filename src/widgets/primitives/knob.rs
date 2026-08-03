@@ -229,7 +229,7 @@ impl KnobWidget {
                 self.common.state.focused = focused;
                 None
             }
-            WidgetInput::KeyPress(key) if self.common.state.focused => match key {
+            WidgetInput::KeyPress { key, .. } if self.common.state.focused => match key {
                 WidgetKey::ArrowLeft | WidgetKey::ArrowDown => {
                     self.keyboard_gesture(self.state.value - self.props.sensitivity * 16.0)
                 }
@@ -552,12 +552,12 @@ mod tests {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
         let mut knob = KnobWidget::new(1, 0.98).with_sensitivity(0.1);
         assert_eq!(
-            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowRight)),
+            knob.handle_input(bounds, WidgetInput::key_press(WidgetKey::ArrowRight)),
             None
         );
         knob.handle_input(bounds, WidgetInput::FocusChanged(true));
         let Some(KnobMessage::KeyboardGesture(batch)) =
-            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowRight))
+            knob.handle_input(bounds, WidgetInput::key_press(WidgetKey::ArrowRight))
         else {
             panic!("focused keyboard edit should emit a lifecycle batch");
         };
@@ -572,7 +572,7 @@ mod tests {
 
         knob.common.state.disabled = true;
         assert_eq!(
-            knob.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::ArrowLeft)),
+            knob.handle_input(bounds, WidgetInput::key_press(WidgetKey::ArrowLeft)),
             None
         );
     }

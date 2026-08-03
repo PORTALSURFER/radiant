@@ -52,13 +52,15 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = focused;
             None
         }
-        WidgetInput::Character(ch) if text_input.accepts_editing_input() && !ch.is_control() => {
+        WidgetInput::Character { character: ch, .. }
+            if text_input.accepts_editing_input() && !ch.is_control() =>
+        {
             text_input.insert_text(ch.encode_utf8(&mut [0; 4]))
         }
-        WidgetInput::KeyPress(key) if text_input.accepts_editing_input() => {
+        WidgetInput::KeyPress { key, .. } if text_input.accepts_editing_input() => {
             text_input.handle_key_input(key)
         }
-        WidgetInput::TextEdit(command) if text_input.accepts_editing_input() => {
+        WidgetInput::TextEdit { command, .. } if text_input.accepts_editing_input() => {
             text_input.handle_text_edit(command)
         }
         _ => None,

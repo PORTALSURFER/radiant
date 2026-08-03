@@ -77,6 +77,10 @@ pub enum Event {
         position: Point,
         /// Logical scroll delta. Positive values move content right/down.
         delta: Vector2,
+        /// Modifier state captured with this scroll sample.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
 }
 
@@ -259,7 +263,22 @@ impl Event {
 
     /// Build a pointer-positioned scroll event.
     pub fn scroll(position: Point, delta: Vector2) -> Self {
-        Self::Scroll { position, delta }
+        Self::scroll_with_metadata(position, delta, PointerModifiers::default(), None)
+    }
+
+    /// Build a pointer-positioned scroll event with native sample metadata.
+    pub(crate) fn scroll_with_metadata(
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::Scroll {
+            position,
+            delta,
+            modifiers,
+            timestamp,
+        }
     }
 }
 
@@ -275,6 +294,22 @@ mod tests {
             Event::pointer_move(position),
             Event::PointerMove {
                 position,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+    }
+
+    #[test]
+    fn public_scroll_constructor_omits_sample_metadata() {
+        let position = Point::new(12.0, 18.0);
+        let delta = Vector2::new(0.0, -24.0);
+
+        assert_eq!(
+            Event::scroll(position, delta),
+            Event::Scroll {
+                position,
+                delta,
                 modifiers: PointerModifiers::default(),
                 timestamp: None,
             }

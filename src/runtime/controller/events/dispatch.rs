@@ -70,9 +70,14 @@ where
                 self.clear_focus();
                 None
             }
-            Event::Scroll { position, delta } => {
+            Event::Scroll {
+                position,
+                delta,
+                modifiers,
+                timestamp,
+            } => {
                 self.observe_pointer_position(position);
-                self.wheel_or_scroll_at(position, delta);
+                self.wheel_or_scroll_at_with_metadata(position, delta, modifiers, timestamp);
                 None
             }
         }

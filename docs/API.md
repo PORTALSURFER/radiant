@@ -2648,6 +2648,14 @@ public position-only `Event::pointer_move(...)` and `WidgetInput::pointer_move(.
 constructors remain source-compatible and use default modifiers with no
 timestamp; native adapters preserve captured sample metadata while synthetic
 and backend-neutral paths omit it.
+`Event::Scroll` and `WidgetInput::Wheel` carry the same observational modifier and
+optional timestamp metadata. The public `Event::scroll(...)`, `WidgetInput::wheel(...)`,
+and `WidgetInput::plain_wheel(...)` constructors remain source-compatible:
+`scroll(...)` and `plain_wheel(...)` use default modifiers, `wheel(...)` preserves
+its supplied modifiers, and all three omit the timestamp. Native wheel adapters
+capture one sample timestamp and preserve it, together with effective modifiers,
+through direct routing and coalesced delivery; scroll-update payloads remain
+unchanged.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

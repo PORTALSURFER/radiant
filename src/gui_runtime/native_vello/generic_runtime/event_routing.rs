@@ -224,12 +224,24 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
+        self.route_scroll_with_metadata(position, delta, modifiers, None)
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_with_metadata(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .wheel_or_scroll_at_with_modifiers(position, delta, modifiers);
+            .wheel_or_scroll_at_with_metadata(position, delta, modifiers, timestamp);
         self.route_outcome(routed)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh_with_modifiers(
         &mut self,
         position: Point,
@@ -239,6 +251,25 @@ where
         let route = self
             .runtime
             .wheel_or_scroll_route_deferred_refresh_with_modifiers(position, delta, modifiers);
+        self.complete_scroll_route(route)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh_with_metadata(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let route = self
+            .runtime
+            .wheel_or_scroll_route_deferred_refresh_with_metadata(
+                position, delta, modifiers, timestamp,
+            );
+        self.complete_scroll_route(route)
+    }
+
+    fn complete_scroll_route(&mut self, route: WheelOrScrollRoute) -> GenericRouteOutcome {
         let pending = self.runtime.take_pending_input_command_outcome();
         let repaint_requested = self.runtime.take_repaint_requested();
         let exit_requested = self.runtime.take_exit_requested();

@@ -90,6 +90,7 @@ impl Widget for PianoRollWidget {
                 position,
                 delta,
                 modifiers,
+                ..
             } if bounds.contains(position) => self.handle_wheel(grid, delta, modifiers),
             WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
                 if self.common.state.focused =>

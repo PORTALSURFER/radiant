@@ -75,6 +75,8 @@ pub enum WidgetInput {
         delta: Vector2,
         /// Modifier state at wheel time.
         modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Keyboard focus changed for the widget.
     FocusChanged(
@@ -242,10 +244,21 @@ impl WidgetInput {
 
     /// Build a wheel or trackpad-scroll input with explicit modifiers.
     pub fn wheel(position: Point, delta: Vector2, modifiers: PointerModifiers) -> Self {
+        Self::wheel_with_metadata(position, delta, modifiers, None)
+    }
+
+    /// Build a wheel or trackpad-scroll input with native sample metadata.
+    pub(crate) fn wheel_with_metadata(
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
         Self::Wheel {
             position,
             delta,
             modifiers,
+            timestamp,
         }
     }
 
@@ -387,6 +400,16 @@ mod tests {
                 position: point,
                 delta: Vector2::new(0.0, -120.0),
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
+        assert_eq!(
+            WidgetInput::wheel(point, Vector2::new(0.0, -120.0), modifiers),
+            WidgetInput::Wheel {
+                position: point,
+                delta: Vector2::new(0.0, -120.0),
+                modifiers,
+                timestamp: None,
             }
         );
     }

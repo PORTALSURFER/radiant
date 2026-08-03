@@ -181,6 +181,7 @@ impl KnobWidget {
                 position,
                 delta,
                 modifiers,
+                ..
             } => {
                 // Wheel input is an independent hover gesture. Do not let it
                 // alter or terminate an active captured pointer drag.

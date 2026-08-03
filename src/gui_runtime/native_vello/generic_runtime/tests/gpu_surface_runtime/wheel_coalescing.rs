@@ -1,5 +1,7 @@
 use super::*;
+use crate::gui::input::InputTimestamp;
 use crate::runtime::{RepaintScope, SurfaceInvalidation};
+use crate::widgets::PointerModifiers;
 
 #[test]
 fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
@@ -157,6 +159,58 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
 }
 
 #[test]
+fn queued_gpu_surface_wheel_keeps_newest_sample_metadata() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let first_position = Point::new(40.0, 20.0);
+    let newest_position = Point::new(80.0, 24.0);
+    let first_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let newest_modifiers = PointerModifiers {
+        command: true,
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let first_timestamp = Some(InputTimestamp::capture());
+    let newest_timestamp = Some(InputTimestamp::capture());
+
+    runner.queue_gpu_surface_wheel_with_timestamp(
+        first_position,
+        Vector2::new(0.0, -20.0),
+        first_modifiers,
+        first_timestamp,
+    );
+    runner.queue_gpu_surface_wheel_with_timestamp(
+        newest_position,
+        Vector2::new(0.0, -30.0),
+        newest_modifiers,
+        newest_timestamp,
+    );
+
+    let pending = runner
+        .input
+        .pending_gpu_surface_wheel
+        .expect("same-axis wheel events should remain coalesced");
+    assert_eq!(pending.position, newest_position);
+    assert_eq!(pending.delta, Vector2::new(0.0, -50.0));
+    assert_eq!(pending.modifiers, newest_modifiers);
+    assert_eq!(pending.timestamp, newest_timestamp);
+
+    runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+
+    let bridge = runner.core.runtime.bridge();
+    assert_eq!(bridge.last_position, Some(newest_position));
+    assert_eq!(bridge.last_modifiers, Some(newest_modifiers));
+    assert_eq!(bridge.last_timestamp, newest_timestamp);
+}
+
+#[test]
 fn queued_gpu_surface_wheel_keeps_reversed_diagonal_horizontal_delta_out_of_vertical_axis() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -185,9 +239,29 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
     );
     runner.rebuild_scene();
     let point = Point::new(40.0, 20.0);
+    let first_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let newest_modifiers = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let first_timestamp = Some(InputTimestamp::capture());
+    let newest_timestamp = Some(InputTimestamp::capture());
 
-    runner.queue_gpu_surface_wheel(point, Vector2::new(20.0, 0.0), Default::default());
-    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -30.0), Default::default());
+    runner.queue_gpu_surface_wheel_with_timestamp(
+        point,
+        Vector2::new(20.0, 0.0),
+        first_modifiers,
+        first_timestamp,
+    );
+    runner.queue_gpu_surface_wheel_with_timestamp(
+        point,
+        Vector2::new(0.0, -30.0),
+        newest_modifiers,
+        newest_timestamp,
+    );
 
     assert_eq!(runner.core.runtime.bridge().wheel_count, 1);
     assert_eq!(
@@ -195,6 +269,11 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
         Vector2::new(20.0, 0.0),
         "changing semantic axis must route the prior pending delta before queuing the new one"
     );
+    assert_eq!(
+        runner.core.runtime.bridge().last_modifiers,
+        Some(first_modifiers)
+    );
+    assert_eq!(runner.core.runtime.bridge().last_timestamp, first_timestamp);
 
     runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
@@ -203,6 +282,58 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
         runner.core.runtime.bridge().last_delta,
         Vector2::new(0.0, -30.0)
     );
+    assert_eq!(
+        runner.core.runtime.bridge().last_modifiers,
+        Some(newest_modifiers)
+    );
+    assert_eq!(
+        runner.core.runtime.bridge().last_timestamp,
+        newest_timestamp
+    );
+}
+
+#[test]
+fn queued_scroll_container_wheel_keeps_newest_sample_metadata() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let first_position = Point::new(40.0, 20.0);
+    let newest_position = Point::new(80.0, 24.0);
+    let first_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let newest_modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+    let first_timestamp = Some(InputTimestamp::capture());
+    let newest_timestamp = Some(InputTimestamp::capture());
+
+    runner.queue_scroll_container_wheel_with_timestamp(
+        first_position,
+        Vector2::new(0.0, 20.0),
+        first_modifiers,
+        first_timestamp,
+    );
+    runner.queue_scroll_container_wheel_with_timestamp(
+        newest_position,
+        Vector2::new(0.0, 30.0),
+        newest_modifiers,
+        newest_timestamp,
+    );
+
+    let pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("same-axis scroll-container wheels should remain coalesced");
+    assert_eq!(pending.position, newest_position);
+    assert_eq!(pending.delta, Vector2::new(0.0, 50.0));
+    assert_eq!(pending.modifiers, newest_modifiers);
+    assert_eq!(pending.timestamp, newest_timestamp);
 }
 
 #[test]
@@ -214,15 +345,43 @@ fn focus_loss_discards_coalesced_input_without_retaining_frame_work() {
     );
     runner.rebuild_scene();
     let point = Point::new(40.0, 20.0);
+    let gpu_timestamp = Some(InputTimestamp::capture());
+    let scroll_timestamp = Some(InputTimestamp::capture());
 
-    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -20.0), Default::default());
-    runner.queue_scroll_container_wheel(point, Vector2::new(0.0, -20.0), Default::default());
+    runner.queue_gpu_surface_wheel_with_timestamp(
+        point,
+        Vector2::new(0.0, -20.0),
+        Default::default(),
+        gpu_timestamp,
+    );
+    runner.queue_scroll_container_wheel_with_timestamp(
+        point,
+        Vector2::new(0.0, -20.0),
+        Default::default(),
+        scroll_timestamp,
+    );
     runner.queue_scrollbar_drag(point);
 
     assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
     assert!(runner.input.pending_gpu_surface_wheel.is_some());
     assert!(runner.input.pending_scroll_container_wheel.is_some());
     assert!(runner.input.pending_scrollbar_drag.is_some());
+    assert_eq!(
+        runner
+            .input
+            .pending_gpu_surface_wheel
+            .expect("GPU wheel metadata should be pending")
+            .timestamp,
+        gpu_timestamp
+    );
+    assert_eq!(
+        runner
+            .input
+            .pending_scroll_container_wheel
+            .expect("scroll-container wheel metadata should be pending")
+            .timestamp,
+        scroll_timestamp
+    );
 
     runner.handle_focus_lost_before_external_drag();
 

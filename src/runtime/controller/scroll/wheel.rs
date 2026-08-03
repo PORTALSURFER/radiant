@@ -2,6 +2,7 @@
 
 use super::super::{CommandOutcome, SurfaceRuntime};
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::{Point, Vector2},
     runtime::{RuntimeBridge, WheelHitTarget, WidgetDispatchResult},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
@@ -25,7 +26,7 @@ where
     /// Route wheel input to the topmost widget under `point`, then fall back to
     /// scrolling the topmost scroll container under the pointer.
     pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
-        self.wheel_or_scroll_at_with_modifiers(point, delta, PointerModifiers::default())
+        self.wheel_or_scroll_at_with_metadata(point, delta, PointerModifiers::default(), None)
     }
 
     /// Route modified wheel input to the topmost widget under `point`, then
@@ -36,7 +37,17 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        self.wheel_or_scroll_route_with_modifiers(point, delta, modifiers, true)
+        self.wheel_or_scroll_at_with_metadata(point, delta, modifiers, None)
+    }
+
+    pub(crate) fn wheel_or_scroll_at_with_metadata(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> bool {
+        self.wheel_or_scroll_route_with_metadata(point, delta, modifiers, timestamp, true)
             != WheelOrScrollRoute::NotRouted
     }
 
@@ -44,10 +55,11 @@ where
     /// to refresh. This is intended for GPU-backed surfaces whose bounds do not
     /// change during rapid wheel updates.
     pub fn wheel_or_scroll_at_deferred_refresh(&mut self, point: Point, delta: Vector2) -> bool {
-        self.wheel_or_scroll_at_deferred_refresh_with_modifiers(
+        self.wheel_or_scroll_at_deferred_refresh_with_metadata(
             point,
             delta,
             PointerModifiers::default(),
+            None,
         )
     }
 
@@ -58,33 +70,52 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        self.wheel_or_scroll_route_deferred_refresh_with_modifiers(point, delta, modifiers)
-            != WheelOrScrollRoute::NotRouted
+        self.wheel_or_scroll_at_deferred_refresh_with_metadata(point, delta, modifiers, None)
+    }
+
+    pub(crate) fn wheel_or_scroll_at_deferred_refresh_with_metadata(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> bool {
+        self.wheel_or_scroll_route_deferred_refresh_with_metadata(
+            point, delta, modifiers, timestamp,
+        ) != WheelOrScrollRoute::NotRouted
     }
 
     /// Route modified wheel input while reporting whether widget handling or
     /// scroll-container fallback accepted it.
+    #[cfg(test)]
     pub(crate) fn wheel_or_scroll_route_deferred_refresh_with_modifiers(
         &mut self,
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> WheelOrScrollRoute {
-        self.wheel_or_scroll_route_with_modifiers(point, delta, modifiers, false)
+        self.wheel_or_scroll_route_deferred_refresh_with_metadata(point, delta, modifiers, None)
     }
 
-    fn wheel_or_scroll_route_with_modifiers(
+    pub(crate) fn wheel_or_scroll_route_deferred_refresh_with_metadata(
         &mut self,
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> WheelOrScrollRoute {
+        self.wheel_or_scroll_route_with_metadata(point, delta, modifiers, timestamp, false)
+    }
+
+    fn wheel_or_scroll_route_with_metadata(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
         refresh_after_message: bool,
     ) -> WheelOrScrollRoute {
-        let input = WidgetInput::Wheel {
-            position: point,
-            delta,
-            modifiers,
-        };
+        let input = WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp);
         match self.wheel_target_at(point, &input) {
             Some(WheelHitTarget::Widget(widget_id)) => {
                 if self.dispatch_wheel_to_widget_with_refresh(
@@ -92,6 +123,7 @@ where
                     point,
                     delta,
                     modifiers,
+                    timestamp,
                     refresh_after_message,
                 ) {
                     WheelOrScrollRoute::Widget
@@ -118,6 +150,7 @@ where
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
         refresh_after_message: bool,
     ) -> bool {
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
@@ -126,11 +159,7 @@ where
         let Some(result) = self.dispatch_surface_input(
             widget_id,
             bounds,
-            WidgetInput::Wheel {
-                position: point,
-                delta,
-                modifiers,
-            },
+            WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp),
         ) else {
             return false;
         };
@@ -152,13 +181,25 @@ where
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn wheel_widget_accepts_at(
         &self,
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        self.wheel_widget_at(point, delta, modifiers).is_some()
+        self.wheel_widget_accepts_at_with_metadata(point, delta, modifiers, None)
+    }
+
+    pub(crate) fn wheel_widget_accepts_at_with_metadata(
+        &self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> bool {
+        self.wheel_widget_at(point, delta, modifiers, timestamp)
+            .is_some()
     }
 
     fn wheel_widget_at(
@@ -166,12 +207,9 @@ where
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
-        let input = WidgetInput::Wheel {
-            position: point,
-            delta,
-            modifiers,
-        };
+        let input = WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp);
         self.traversal
             .widgets
             .wheel

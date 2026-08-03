@@ -142,6 +142,8 @@ fn backend_neutral_event_constructors_preserve_payloads() {
         Event::Scroll {
             position: point,
             delta,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
         }
     );
 }

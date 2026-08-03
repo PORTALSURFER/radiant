@@ -537,6 +537,8 @@ fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
     runtime.dispatch_event(Event::Scroll {
         position: Point::new(80.0, 40.0),
         delta: Vector2::new(0.0, -20.0),
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     assert_ne!(press_target, Some(10));
@@ -565,6 +567,8 @@ fn scene_layer_block_input_allows_foreground_scroll_before_input_shield() {
     runtime.dispatch_event(Event::Scroll {
         position: Point::new(16.0, 16.0),
         delta: Vector2::new(0.0, 44.0),
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
 
     let base_after = runtime.layout().rects[&100];

@@ -73,11 +73,17 @@ struct PointerSnapshotBridge {
 
 struct PointerPolicyStackBridge;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum DoubleClickTimestampMessage {
     DoubleClick(Option<InputTimestamp>),
     Press(Option<InputTimestamp>),
     Modifiers(Option<InputTimestamp>),
+    Wheel {
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
     Move {
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
@@ -127,6 +133,20 @@ impl Widget for DoubleClickTimestampWidget {
             WidgetInput::PointerModifiersChanged { timestamp, .. } => Some(WidgetOutput::typed(
                 DoubleClickTimestampMessage::Modifiers(timestamp),
             )),
+            WidgetInput::Wheel {
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                ..
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(DoubleClickTimestampMessage::Wheel {
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                }))
+            }
             WidgetInput::PointerMove {
                 position,
                 modifiers,
@@ -140,6 +160,10 @@ impl Widget for DoubleClickTimestampWidget {
             }
             _ => None,
         }
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
     }
 
     fn append_paint(
@@ -537,6 +561,38 @@ fn internal_pointer_move_metadata_survives_event_to_widget_dispatch() {
     assert_eq!(
         runtime.bridge().messages,
         vec![DoubleClickTimestampMessage::Move {
+            modifiers,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn internal_scroll_metadata_survives_event_to_widget_dispatch() {
+    let timestamp = Some(InputTimestamp::capture());
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        alt: true,
+    };
+    let point = Point::new(40.0, 20.0);
+    let delta = Vector2::new(0.0, -24.0);
+    let mut runtime = SurfaceRuntime::new(
+        DoubleClickTimestampBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::scroll_with_metadata(
+            point, delta, modifiers, timestamp,
+        )),
+        None
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![DoubleClickTimestampMessage::Wheel {
+            position: point,
+            delta,
             modifiers,
             timestamp,
         }]

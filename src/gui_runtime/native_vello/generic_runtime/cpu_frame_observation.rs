@@ -6,7 +6,10 @@
 //! parent to commit after their redraw path returns.
 
 use super::{FrameScheduleKey, FrameWork, FrameWorkReason};
-use crate::runtime::{RepaintScope, SurfaceInvalidation, SurfaceRefreshDiagnostics};
+use crate::runtime::{
+    NativeCpuFrameCompletionOutcome, NativeCpuFrameObservationDiagnostics, RepaintScope,
+    SurfaceInvalidation, SurfaceRefreshDiagnostics,
+};
 use std::time::Duration;
 
 pub(super) const LATEST_SAMPLE_CAPACITY: usize = 4;
@@ -444,6 +447,32 @@ impl CpuFrameObservationLedger {
         }
     }
 
+    /// Project one stable schedule key into the public, observational summary
+    /// without exposing the private ledger, sample, or stage types.
+    pub(super) fn project_frame_diagnostics(
+        &self,
+        key: &FrameScheduleKey,
+    ) -> NativeCpuFrameObservationDiagnostics {
+        let Some(window) = self.projection().window(key) else {
+            return NativeCpuFrameObservationDiagnostics::default();
+        };
+        let Some(sample) = window.latest_sample() else {
+            return NativeCpuFrameObservationDiagnostics::default();
+        };
+        let counters = window.counters();
+        NativeCpuFrameObservationDiagnostics {
+            available: true,
+            latest_outcome: public_completion_outcome(sample.outcome),
+            latest_exact_interaction: sample.exact_interaction,
+            admitted_redraws: counters.admitted_redraws,
+            successful_presentations: counters.successful_presentations,
+            skipped_or_vetoed_redraws: counters.skipped_or_vetoed_redraws,
+            incomplete_frames: counters.incomplete_frames,
+            failed_frames: counters.failed_frames,
+            recovery_triggered_frames: counters.recovery_triggered_frames,
+        }
+    }
+
     pub(super) fn clear(&mut self) {
         self.states.clear();
     }
@@ -559,10 +588,29 @@ impl CpuFrameObservationLedger {
     }
 }
 
+fn public_completion_outcome(
+    outcome: CpuFrameCompletionOutcome,
+) -> NativeCpuFrameCompletionOutcome {
+    match outcome {
+        CpuFrameCompletionOutcome::SuccessfulPresentation => {
+            NativeCpuFrameCompletionOutcome::SuccessfulPresentation
+        }
+        CpuFrameCompletionOutcome::SkippedOrVetoed => {
+            NativeCpuFrameCompletionOutcome::SkippedOrVetoed
+        }
+        CpuFrameCompletionOutcome::Incomplete => NativeCpuFrameCompletionOutcome::Incomplete,
+        CpuFrameCompletionOutcome::Failed => NativeCpuFrameCompletionOutcome::Failed,
+        CpuFrameCompletionOutcome::RecoveryTriggered => {
+            NativeCpuFrameCompletionOutcome::RecoveryTriggered
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::gui_runtime::native_vello::generic_runtime::{FrameWorkReason, SceneRebuildMode};
+    use crate::runtime::{NativeCpuFrameCompletionOutcome, NativeCpuFrameObservationDiagnostics};
     use std::time::Duration;
 
     fn key(name: &str) -> FrameScheduleKey {
@@ -649,6 +697,95 @@ mod tests {
             .expect("reinsertion should be fresh");
         assert_eq!(state.counters.admitted_redraws, 1);
         assert_eq!(state.sample_count, 1);
+    }
+
+    #[test]
+    fn public_projection_is_unavailable_without_a_completed_sample() {
+        let stable_key = key("settings");
+        let mut ledger = CpuFrameObservationLedger::default();
+        assert_eq!(
+            ledger.project_frame_diagnostics(&stable_key),
+            NativeCpuFrameObservationDiagnostics::default()
+        );
+
+        let _admission = ledger.begin(
+            stable_key.clone(),
+            FrameWork::None,
+            None,
+            CpuFramePendingRedrawAge::Unknown,
+        );
+        assert_eq!(
+            ledger.project_frame_diagnostics(&stable_key),
+            NativeCpuFrameObservationDiagnostics::default()
+        );
+    }
+
+    #[test]
+    fn public_projection_maps_each_completion_outcome_and_exact_interaction() {
+        for (private_outcome, public_outcome, redraw_failed, exact_interaction) in [
+            (
+                CpuFrameCompletionOutcome::SuccessfulPresentation,
+                NativeCpuFrameCompletionOutcome::SuccessfulPresentation,
+                false,
+                true,
+            ),
+            (
+                CpuFrameCompletionOutcome::SkippedOrVetoed,
+                NativeCpuFrameCompletionOutcome::SkippedOrVetoed,
+                false,
+                false,
+            ),
+            (
+                CpuFrameCompletionOutcome::Incomplete,
+                NativeCpuFrameCompletionOutcome::Incomplete,
+                false,
+                false,
+            ),
+            (
+                CpuFrameCompletionOutcome::Failed,
+                NativeCpuFrameCompletionOutcome::Failed,
+                true,
+                false,
+            ),
+            (
+                CpuFrameCompletionOutcome::RecoveryTriggered,
+                NativeCpuFrameCompletionOutcome::RecoveryTriggered,
+                true,
+                false,
+            ),
+        ] {
+            let stable_key = key("settings");
+            let mut ledger = CpuFrameObservationLedger::default();
+            let admission = ledger.begin(
+                stable_key.clone(),
+                FrameWork::None,
+                None,
+                CpuFramePendingRedrawAge::Unknown,
+            );
+            let mut capture = CpuFrameObservationCapture::default();
+            if exact_interaction {
+                capture.record_frame_work(FrameWork::PaintOnly {
+                    reason: FrameWorkReason::RoutedInput,
+                });
+            }
+            match private_outcome {
+                CpuFrameCompletionOutcome::SuccessfulPresentation => {
+                    capture.mark_successful_presentation();
+                }
+                CpuFrameCompletionOutcome::SkippedOrVetoed => {}
+                CpuFrameCompletionOutcome::Incomplete => capture.mark_frame_path_started(),
+                CpuFrameCompletionOutcome::Failed => {}
+                CpuFrameCompletionOutcome::RecoveryTriggered => {
+                    capture.mark_recovery_triggered();
+                }
+            }
+            ledger.finish(admission, capture, redraw_failed);
+
+            let projected = ledger.project_frame_diagnostics(&stable_key);
+            assert!(projected.available);
+            assert_eq!(projected.latest_outcome, public_outcome);
+            assert_eq!(projected.latest_exact_interaction, exact_interaction);
+        }
     }
 
     #[test]
@@ -791,6 +928,9 @@ mod tests {
         let state = ledger.state_or_insert(stable_key.clone()).unwrap();
         state.counters.admitted_redraws = u64::MAX;
         state.counters.successful_presentations = u64::MAX;
+        state.counters.skipped_or_vetoed_redraws = u64::MAX;
+        state.counters.incomplete_frames = u64::MAX;
+        state.counters.failed_frames = u64::MAX;
         state.counters.recovery_triggered_frames = u64::MAX;
 
         let admission = ledger.begin(
@@ -806,7 +946,19 @@ mod tests {
         let counters = ledger.state(&stable_key).unwrap().counters;
         assert_eq!(counters.admitted_redraws, u64::MAX);
         assert_eq!(counters.successful_presentations, u64::MAX);
+        assert_eq!(counters.skipped_or_vetoed_redraws, u64::MAX);
+        assert_eq!(counters.incomplete_frames, u64::MAX);
+        assert_eq!(counters.failed_frames, u64::MAX);
         assert_eq!(counters.recovery_triggered_frames, u64::MAX);
+
+        let projected = ledger.project_frame_diagnostics(&stable_key);
+        assert!(projected.available);
+        assert_eq!(projected.admitted_redraws, u64::MAX);
+        assert_eq!(projected.successful_presentations, u64::MAX);
+        assert_eq!(projected.skipped_or_vetoed_redraws, u64::MAX);
+        assert_eq!(projected.incomplete_frames, u64::MAX);
+        assert_eq!(projected.failed_frames, u64::MAX);
+        assert_eq!(projected.recovery_triggered_frames, u64::MAX);
     }
 
     #[test]

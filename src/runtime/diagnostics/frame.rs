@@ -93,6 +93,59 @@ pub struct NativeCpuFrameFairnessDiagnostics {
     pub latest_selected_was_admitted: bool,
 }
 
+/// Completion vocabulary for one latest bounded CPU frame observation.
+///
+/// `Unknown` is the conservative value when no completed observation is
+/// available for the window.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeCpuFrameCompletionOutcome {
+    /// No completed observation is available for this window.
+    #[default]
+    Unknown,
+    /// The observed redraw reached a successful presentation.
+    SuccessfulPresentation,
+    /// The observed redraw was admitted but did not start or complete frame
+    /// work.
+    SkippedOrVetoed,
+    /// The observed redraw started frame work but did not present it.
+    Incomplete,
+    /// The observed redraw failed without entering the recovery outcome.
+    Failed,
+    /// The observed redraw triggered native recovery.
+    RecoveryTriggered,
+}
+
+/// Bounded, observational CPU frame evidence for one native window.
+///
+/// This value projects the existing parent-owned CPU frame observation ledger;
+/// it does not select work, change admission, route input, render, or affect
+/// publication ordering. The default/zero state means that bounded evidence is
+/// unavailable, including when frame diagnostics are disabled or the window's
+/// observation key is not retained.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeCpuFrameObservationDiagnostics {
+    /// Whether a completed bounded observation exists for this window.
+    pub available: bool,
+    /// Completion outcome recorded by the latest bounded observation.
+    pub latest_outcome: NativeCpuFrameCompletionOutcome,
+    /// Whether the latest observed frame carried exact routed interaction
+    /// evidence.
+    pub latest_exact_interaction: bool,
+    /// Saturating number of redraws admitted to the bounded ledger.
+    pub admitted_redraws: u64,
+    /// Saturating number of redraws that reached successful presentation.
+    pub successful_presentations: u64,
+    /// Saturating number of admitted redraws that were skipped or vetoed.
+    pub skipped_or_vetoed_redraws: u64,
+    /// Saturating number of redraws that started but did not complete a frame.
+    pub incomplete_frames: u64,
+    /// Saturating number of redraws that failed, including recovery-triggered
+    /// redraws as recorded by the existing ledger.
+    pub failed_frames: u64,
+    /// Saturating number of redraws that triggered native recovery.
+    pub recovery_triggered_frames: u64,
+}
+
 /// Structured diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameDiagnostics {
@@ -115,6 +168,9 @@ pub struct NativeFrameDiagnostics {
     /// Opt-in, bounded CPU scheduler-turn fairness observations for this
     /// window. The default is unavailable/no state.
     pub cpu_fairness: NativeCpuFrameFairnessDiagnostics,
+    /// Opt-in, bounded CPU frame admission/completion observations for this
+    /// window. The default is unavailable/no state.
+    pub cpu_observation: NativeCpuFrameObservationDiagnostics,
     /// Redraw routing metadata for the presented native frame.
     pub presentation: NativeFramePresentationDiagnostics,
     /// Cumulative native surface recovery observations for the window.

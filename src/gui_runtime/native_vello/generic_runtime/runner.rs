@@ -39,8 +39,9 @@ use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{
-        NativeCpuFrameFairnessDiagnostics, NativeFrameDiagnostics, NativeRunOptions,
-        NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
+        NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
+        NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
+        RuntimeAnimationActivity, RuntimeBridge,
     },
 };
 use std::sync::Arc;
@@ -211,7 +212,8 @@ where
             native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
             cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
-            cpu_frame_observation: Some(CpuFrameObservationLedger::default()),
+            cpu_frame_observation: frame_diagnostics_enabled
+                .then(CpuFrameObservationLedger::default),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
@@ -268,6 +270,12 @@ where
                 .cpu_frame_fairness
                 .as_ref()
                 .map_or_else(NativeCpuFrameFairnessDiagnostics::default, |ledger| {
+                    ledger.project_frame_diagnostics(&FrameScheduleKey::Primary)
+                });
+            diagnostics.cpu_observation = self
+                .cpu_frame_observation
+                .as_ref()
+                .map_or_else(NativeCpuFrameObservationDiagnostics::default, |ledger| {
                     ledger.project_frame_diagnostics(&FrameScheduleKey::Primary)
                 });
             self.core
@@ -1780,8 +1788,8 @@ mod tests {
         assess_cpu_frame_fairness,
     };
     use super::{
-        FrameScheduleKey, GenericNativeVelloRunner, NativeLifecycle, TimedFrameCadence,
-        recovery_completion_is_admissible,
+        FrameScheduleKey, FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeLifecycle,
+        TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -1789,7 +1797,8 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
+            NativeCpuFrameCompletionOutcome, NativeCpuFrameFairnessDiagnostics,
+            NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
             NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
             RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
         },
@@ -1950,7 +1959,53 @@ mod tests {
         runner.publish_staged_frame_diagnostics();
 
         assert!(!runner.frame_diagnostics_enabled);
+        assert!(runner.cpu_frame_observation.is_none());
         assert_eq!(runner.frame_diagnostics_publication.take(), None);
+    }
+
+    #[test]
+    fn primary_publication_projects_finalized_cpu_observation() {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            RecordingFrameDiagnosticsBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        let admission = runner
+            .begin_cpu_frame_observation(FrameScheduleKey::Primary, Instant::now())
+            .expect("enabled diagnostics should retain the primary observation ledger");
+        runner
+            .cpu_frame_observation_capture
+            .record_frame_work(FrameWork::PaintOnly {
+                reason: FrameWorkReason::RoutedInput,
+            });
+        runner
+            .cpu_frame_observation_capture
+            .mark_successful_presentation();
+        let diagnostics = staged_diagnostics();
+
+        runner.stage_frame_diagnostics(diagnostics);
+        runner.finish_cpu_frame_observation(Some(admission), false);
+        runner.publish_staged_frame_diagnostics();
+
+        assert_eq!(
+            *published
+                .lock()
+                .expect("publication test events should not be poisoned"),
+            vec![NativeFrameDiagnostics {
+                cpu_observation: NativeCpuFrameObservationDiagnostics {
+                    available: true,
+                    latest_outcome: NativeCpuFrameCompletionOutcome::SuccessfulPresentation,
+                    latest_exact_interaction: true,
+                    admitted_redraws: 1,
+                    successful_presentations: 1,
+                    ..NativeCpuFrameObservationDiagnostics::default()
+                },
+                ..diagnostics
+            }]
+        );
     }
 
     fn runner() -> GenericNativeVelloRunner<EmptyBridge, ()> {

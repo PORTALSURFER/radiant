@@ -1,8 +1,9 @@
 use super::*;
 use radiant::runtime::{
-    NativeCompositedBaseTiming, NativeCpuFrameFairnessDiagnostics,
-    NativeCpuFrameFairnessDisposition, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
-    NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeCompositedBaseTiming, NativeCpuFrameCompletionOutcome, NativeCpuFrameFairnessDiagnostics,
+    NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
+    NativeFrameDiagnostics, NativeFramePresentationDiagnostics, NativeFrameTimingDiagnostics,
+    NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
@@ -32,6 +33,17 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             due_but_deferred_turns: 7,
             cursor_admissions: 5,
             latest_selected_was_admitted: true,
+        },
+        cpu_observation: NativeCpuFrameObservationDiagnostics {
+            available: true,
+            latest_outcome: NativeCpuFrameCompletionOutcome::SuccessfulPresentation,
+            latest_exact_interaction: true,
+            admitted_redraws: 29,
+            successful_presentations: 23,
+            skipped_or_vetoed_redraws: 2,
+            incomplete_frames: 1,
+            failed_frames: 3,
+            recovery_triggered_frames: 1,
         },
         presentation: NativeFramePresentationDiagnostics::default(),
         surface_recovery: NativeSurfaceRecoveryDiagnostics {
@@ -132,6 +144,8 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_copy::<NativeWindowDiagnosticIdentity>();
     assert_public_diagnostic_traits::<NativeCpuFrameFairnessDiagnostics>();
     assert_public_diagnostic_traits::<NativeCpuFrameFairnessDisposition>();
+    assert_public_diagnostic_traits::<NativeCpuFrameCompletionOutcome>();
+    assert_public_diagnostic_traits::<NativeCpuFrameObservationDiagnostics>();
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
@@ -149,6 +163,17 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         NativeCpuFrameFairnessDisposition::Selected
     );
     assert!(diagnostics.cpu_fairness.latest_selected_was_admitted);
+    assert_eq!(
+        diagnostics.cpu_observation.latest_outcome,
+        NativeCpuFrameCompletionOutcome::SuccessfulPresentation
+    );
+    assert!(diagnostics.cpu_observation.latest_exact_interaction);
+    assert_eq!(diagnostics.cpu_observation.admitted_redraws, 29);
+    assert_eq!(diagnostics.cpu_observation.successful_presentations, 23);
+    assert_eq!(diagnostics.cpu_observation.skipped_or_vetoed_redraws, 2);
+    assert_eq!(diagnostics.cpu_observation.incomplete_frames, 1);
+    assert_eq!(diagnostics.cpu_observation.failed_frames, 3);
+    assert_eq!(diagnostics.cpu_observation.recovery_triggered_frames, 1);
     assert_eq!(diagnostics.surface_recovery.lost, 2);
     assert_eq!(diagnostics.surface_recovery.outdated, 3);
     assert_eq!(diagnostics.surface_recovery.timeouts, 5);
@@ -226,6 +251,10 @@ fn native_surface_recovery_diagnostics_default_to_zero() {
     assert_eq!(
         NativeFrameDiagnostics::default().cpu_fairness,
         NativeCpuFrameFairnessDiagnostics::default()
+    );
+    assert_eq!(
+        NativeFrameDiagnostics::default().cpu_observation,
+        NativeCpuFrameObservationDiagnostics::default()
     );
     assert_eq!(
         NativeFrameDiagnostics::default().input_to_present_latency_us,

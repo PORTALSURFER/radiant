@@ -2901,6 +2901,23 @@ observational and never changes scheduling policy. It is populated
 only when the explicitly registered `RuntimeFrameDiagnosticsHost` capability is
 enabled and is attached after the existing frame-observation and schedule-
 admission publication gates.
+`NativeFrameDiagnostics::cpu_observation` is an opt-in, bounded observational
+summary of the existing parent-owned CPU frame observation ledger for one
+window. It exposes only whether a completed sample is available, the latest
+`NativeCpuFrameCompletionOutcome`, whether that latest frame had exact routed
+interaction evidence in `latest_exact_interaction`, and the ledger's
+saturating admitted, successful, skipped-or-vetoed, incomplete, failed, and
+recovery-triggered totals (`admitted_redraws`, `successful_presentations`,
+`skipped_or_vetoed_redraws`, `incomplete_frames`, `failed_frames`, and
+`recovery_triggered_frames`). When
+`available` is false, `latest_outcome` is `Unknown` and all boolean/counter
+fields remain at their zero/default values; this means the evidence is
+unavailable, including when frame diagnostics are disabled or the bounded
+window key was not retained. The summary is observational only: it does not
+select work, change admission, route input, render, or alter publication
+ordering. Primary evidence is attached at the existing
+`publish_staged_frame_diagnostics` boundary, while auxiliary evidence uses the
+existing parent-owned ledger/key at `forward_auxiliary_frame_diagnostics`.
 `NativeFrameDiagnostics::frame_sequence` is an `Option<u64>` monotonic sequence
 scoped to one native window. It starts at `1` and is allocated only after a
 successful presentation, so it remains monotonic across recovery. It is `None`

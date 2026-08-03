@@ -22,6 +22,20 @@ const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
 const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
 const NATIVE_RESOURCE_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(16);
 
+fn is_native_interactive_window_event(event: &WindowEvent) -> bool {
+    matches!(
+        event,
+        WindowEvent::Focused(_)
+            | WindowEvent::CursorEntered { .. }
+            | WindowEvent::CursorMoved { .. }
+            | WindowEvent::CursorLeft { .. }
+            | WindowEvent::MouseInput { .. }
+            | WindowEvent::MouseWheel { .. }
+            | WindowEvent::KeyboardInput { .. }
+            | WindowEvent::ModifiersChanged(_)
+    )
+}
+
 impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>
     for GenericNativeVelloRunner<Bridge, Message>
 where
@@ -59,6 +73,9 @@ where
         if !self.is_running() {
             return;
         }
+        let native_interactive_arrival = (self.frame_diagnostics_enabled
+            && is_native_interactive_window_event(&event))
+        .then(Instant::now);
         if Some(window_id) != self.window.id {
             let Some(index) = self
                 .auxiliary_windows
@@ -67,6 +84,9 @@ where
             else {
                 return;
             };
+            if let Some(arrived_at) = native_interactive_arrival {
+                self.auxiliary_windows[index].record_native_interactive_arrival(arrived_at);
+            }
             if self.adapter.is_none() {
                 self.record_initialization_error_and_exit(
                     event_loop,
@@ -142,6 +162,9 @@ where
                 self.dispatch_auxiliary_messages(event_loop, messages);
             }
             return;
+        }
+        if let Some(arrived_at) = native_interactive_arrival {
+            self.record_native_interactive_arrival(arrived_at);
         }
         match event {
             WindowEvent::CloseRequested if self.core.runtime.host_close_requested() => {
@@ -613,12 +636,17 @@ mod tests {
     use crate::{application::empty, prelude::IntoView};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
+    use winit::{
+        dpi::{PhysicalPosition, PhysicalSize},
+        event::{DeviceId, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent},
+    };
 
     #[derive(Debug, PartialEq, Eq)]
     enum OrderedAuxiliaryEvent {
         Diagnostics {
             window_identity: Option<u64>,
             frame_sequence: Option<u64>,
+            input_to_present_latency_us: Option<u64>,
             cpu_fairness: NativeCpuFrameFairnessDiagnostics,
         },
         Message(u8),
@@ -656,6 +684,7 @@ mod tests {
                         .window_identity
                         .map(NativeWindowDiagnosticIdentity::get),
                     frame_sequence: diagnostics.frame_sequence,
+                    input_to_present_latency_us: diagnostics.input_to_present_latency_us,
                     cpu_fairness: diagnostics.cpu_fairness,
                 });
         }
@@ -691,6 +720,50 @@ mod tests {
 
         assert_eq!(native_resource_maintenance_deadline(now, false), None);
         assert!(NATIVE_RESOURCE_MAINTENANCE_INTERVAL >= Duration::from_millis(1));
+    }
+
+    #[test]
+    fn native_interactive_event_scope_matches_routed_input_and_excludes_maintenance() {
+        let device_id = DeviceId::dummy();
+        let interactive_events = [
+            WindowEvent::Focused(true),
+            WindowEvent::CursorEntered { device_id },
+            WindowEvent::CursorMoved {
+                device_id,
+                position: PhysicalPosition::new(4.0, 8.0),
+            },
+            WindowEvent::CursorLeft { device_id },
+            WindowEvent::MouseInput {
+                device_id,
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+            },
+            WindowEvent::MouseWheel {
+                device_id,
+                delta: MouseScrollDelta::LineDelta(0.0, 1.0),
+                phase: TouchPhase::Moved,
+            },
+            WindowEvent::ModifiersChanged(Default::default()),
+        ];
+        assert!(
+            interactive_events
+                .iter()
+                .all(super::is_native_interactive_window_event)
+        );
+
+        let non_interactive_events = [
+            WindowEvent::CloseRequested,
+            WindowEvent::Resized(PhysicalSize::new(320, 240)),
+            WindowEvent::Moved(PhysicalPosition::new(10, 20)),
+            WindowEvent::DroppedFile(std::path::PathBuf::from("sample.wav")),
+            WindowEvent::HoveredFileCancelled,
+            WindowEvent::RedrawRequested,
+        ];
+        assert!(
+            non_interactive_events
+                .iter()
+                .all(|event| !super::is_native_interactive_window_event(event))
+        );
     }
 
     #[test]
@@ -761,6 +834,7 @@ mod tests {
         let diagnostics = NativeFrameDiagnostics {
             window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
             frame_sequence: Some(41),
+            input_to_present_latency_us: Some(1234),
             ..NativeFrameDiagnostics::default()
         };
 
@@ -779,6 +853,7 @@ mod tests {
                 OrderedAuxiliaryEvent::Diagnostics {
                     window_identity: Some(9),
                     frame_sequence: Some(41),
+                    input_to_present_latency_us: Some(1234),
                     cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
                 },
                 OrderedAuxiliaryEvent::Message(7),
@@ -834,6 +909,7 @@ mod tests {
             vec![OrderedAuxiliaryEvent::Diagnostics {
                 window_identity: Some(9),
                 frame_sequence: Some(41),
+                input_to_present_latency_us: None,
                 cpu_fairness: NativeCpuFrameFairnessDiagnostics {
                     available: true,
                     latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
@@ -899,6 +975,7 @@ mod tests {
                 OrderedAuxiliaryEvent::Diagnostics {
                     window_identity: Some(9),
                     frame_sequence: Some(42),
+                    input_to_present_latency_us: None,
                     cpu_fairness: NativeCpuFrameFairnessDiagnostics {
                         available: true,
                         latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
@@ -959,6 +1036,7 @@ mod tests {
                 OrderedAuxiliaryEvent::Diagnostics {
                     window_identity: Some(9),
                     frame_sequence: Some(42),
+                    input_to_present_latency_us: None,
                     cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
                 },
                 OrderedAuxiliaryEvent::Message(2),

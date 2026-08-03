@@ -164,12 +164,15 @@ where
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
             profile.frame_sequence = self.timing.allocate_frame_sequence();
+            let input_to_present_latency_us =
+                self.timing.take_input_to_present_latency_us(Instant::now());
             self.finish_direct_resize_present(
                 render_to_texture_elapsed,
                 profile,
                 profile_enabled,
                 diagnostics_requested,
                 frame_work,
+                input_to_present_latency_us,
             );
             return Ok(());
         }
@@ -257,6 +260,8 @@ where
         });
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
+        let now = Instant::now();
+        let input_to_present_latency_us = self.timing.take_input_to_present_latency_us(now);
         self.cpu_frame_observation_capture.record_profile_stage(
             CpuFrameStage::SubmitPresent,
             true,
@@ -270,7 +275,6 @@ where
         } else {
             Default::default()
         };
-        let now = Instant::now();
         let since_last_present = now.duration_since(self.timing.last_redraw);
         if profile_enabled {
             maybe_log_render_profile(
@@ -317,6 +321,7 @@ where
                 retained_entries: self.frame.retained_surface_cache.entry_count(),
                 gpu_surface_stats,
                 profile,
+                input_to_present_latency_us,
                 render_to_texture_elapsed,
                 since_last_present,
                 frame_work,
@@ -398,6 +403,7 @@ where
         profile_enabled: bool,
         diagnostics_requested: bool,
         frame_work: super::FrameWork,
+        input_to_present_latency_us: Option<u64>,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
@@ -460,6 +466,7 @@ where
                 retained_entries: self.frame.retained_surface_cache.entry_count(),
                 gpu_surface_stats,
                 profile,
+                input_to_present_latency_us,
                 render_to_texture_elapsed,
                 since_last_present,
                 frame_work,

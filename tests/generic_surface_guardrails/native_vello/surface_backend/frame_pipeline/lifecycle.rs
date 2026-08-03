@@ -69,6 +69,57 @@ fn native_lifecycle_uses_explicit_imports() {
 }
 
 #[test]
+fn native_input_latency_uses_the_exact_parent_event_scope() {
+    let lifecycle =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
+    let predicate_start = lifecycle
+        .find("fn is_native_interactive_window_event")
+        .expect("native lifecycle should define the interactive event predicate");
+    let predicate_end = lifecycle[predicate_start..]
+        .find("impl<Bridge, Message>")
+        .map(|offset| predicate_start + offset)
+        .expect("native lifecycle predicate should precede the application handler");
+    let predicate = &lifecycle[predicate_start..predicate_end];
+
+    for routed_variant in [
+        "WindowEvent::Focused(_)",
+        "WindowEvent::CursorEntered { .. }",
+        "WindowEvent::CursorMoved { .. }",
+        "WindowEvent::CursorLeft { .. }",
+        "WindowEvent::MouseInput { .. }",
+        "WindowEvent::MouseWheel { .. }",
+        "WindowEvent::KeyboardInput { .. }",
+        "WindowEvent::ModifiersChanged(_)",
+    ] {
+        assert!(
+            predicate.contains(routed_variant),
+            "interactive predicate should include {routed_variant}"
+        );
+    }
+    for excluded_variant in [
+        "WindowEvent::RedrawRequested",
+        "WindowEvent::Resized",
+        "WindowEvent::Moved",
+        "WindowEvent::ThemeChanged",
+        "WindowEvent::DroppedFile",
+        "WindowEvent::HoveredFile",
+    ] {
+        assert!(
+            !predicate.contains(excluded_variant),
+            "interactive predicate should exclude {excluded_variant}"
+        );
+    }
+
+    assert!(
+        lifecycle.contains("let native_interactive_arrival = (self.frame_diagnostics_enabled")
+            && lifecycle
+                .contains("self.auxiliary_windows[index].record_native_interactive_arrival")
+            && lifecycle.contains("self.record_native_interactive_arrival(arrived_at)"),
+        "native input arrival should be captured once at the parent event-loop boundary for both window owners"
+    );
+}
+
+#[test]
 fn native_runner_keeps_window_input_and_timing_state_grouped() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");

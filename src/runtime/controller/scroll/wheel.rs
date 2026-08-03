@@ -115,7 +115,7 @@ where
         timestamp: Option<InputTimestamp>,
         refresh_after_message: bool,
     ) -> WheelOrScrollRoute {
-        let input = WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp);
+        let input = WidgetInput::wheel(point, delta, modifiers);
         match self.wheel_target_at(point, &input) {
             Some(WheelHitTarget::Widget(widget_id)) => {
                 if self.dispatch_wheel_to_widget_with_refresh(
@@ -196,10 +196,9 @@ where
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
-        timestamp: Option<InputTimestamp>,
+        _timestamp: Option<InputTimestamp>,
     ) -> bool {
-        self.wheel_widget_at(point, delta, modifiers, timestamp)
-            .is_some()
+        self.wheel_widget_at(point, delta, modifiers).is_some()
     }
 
     fn wheel_widget_at(
@@ -207,9 +206,8 @@ where
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
-        timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
-        let input = WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp);
+        let input = WidgetInput::wheel(point, delta, modifiers);
         self.traversal
             .widgets
             .wheel

@@ -65,7 +65,14 @@ impl Widget for ModifierWheelWidget {
     }
 
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        matches!(input, WidgetInput::Wheel { modifiers, .. } if modifiers.shift)
+        matches!(
+            input,
+            WidgetInput::Wheel {
+                modifiers,
+                timestamp: None,
+                ..
+            } if modifiers.shift
+        )
     }
 
     fn accepts_wheel_input(&self) -> bool {
@@ -276,6 +283,15 @@ fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
             shift: true,
             ..PointerModifiers::default()
         }
+    ));
+    assert!(!runner.can_coalesce_scroll_container_wheel_with_timestamp(
+        point,
+        delta,
+        PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        },
+        Some(InputTimestamp::capture()),
     ));
 }
 
@@ -892,16 +908,31 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
 
 #[test]
 fn native_direct_wheel_preserves_effective_modifiers_and_timestamp() {
-    let mut harness =
-        NativePointerHarness::new(ModifierWheelBridge::default(), Vector2::new(120.0, 80.0));
-    harness.cursor_moved_logical(Point::new(40.0, 20.0));
-    harness.modifiers_changed(ModifiersState::SHIFT);
-
-    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
+    let point = Point::new(40.0, 20.0);
+    let delta = Vector2::new(0.0, -2.0);
     let expected_modifiers = PointerModifiers {
         shift: true,
         ..PointerModifiers::default()
     };
+
+    let mut synthetic =
+        GenericNativeRuntimeCore::new(ModifierWheelBridge::default(), Vector2::new(120.0, 80.0));
+    assert!(
+        synthetic
+            .route_scroll_with_modifiers(point, delta, expected_modifiers)
+            .routed
+    );
+    assert_eq!(
+        synthetic.runtime.bridge().samples,
+        vec![(expected_modifiers, None)]
+    );
+
+    let mut harness =
+        NativePointerHarness::new(ModifierWheelBridge::default(), Vector2::new(120.0, 80.0));
+    harness.cursor_moved_logical(point);
+    harness.modifiers_changed(ModifiersState::SHIFT);
+
+    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
 
     assert!(route.outcome.routed);
     assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);

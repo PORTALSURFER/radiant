@@ -102,7 +102,7 @@ fn synchronize_from_previous_embedded_preserves_custom_row_state() {
     };
     let _ = previous
         .row
-        .handle_input(bounds, WidgetInput::PointerMove { position: pointer });
+        .handle_input(bounds, WidgetInput::pointer_move(pointer));
 
     let mut next = RowHost {
         row: InteractiveRowWidget::new(11, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),

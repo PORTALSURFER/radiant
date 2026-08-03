@@ -1,6 +1,7 @@
 //! Wheel coalescing fast paths for retained GPU surface primitives.
 
 use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
+use crate::gui::input::InputTimestamp;
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
@@ -38,6 +39,8 @@ pub(super) struct PendingGpuSurfaceWheel {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingScrollbarDrag {
     pub(super) position: Point,
+    pub(super) modifiers: PointerModifiers,
+    pub(super) timestamp: Option<InputTimestamp>,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -105,8 +108,22 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
+    #[cfg(test)]
     pub(super) fn queue_scrollbar_drag(&mut self, position: Point) {
-        self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag { position });
+        self.queue_scrollbar_drag_with_metadata(position, PointerModifiers::default(), None);
+    }
+
+    pub(super) fn queue_scrollbar_drag_with_metadata(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) {
+        self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag {
+            position,
+            modifiers,
+            timestamp,
+        });
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
@@ -114,7 +131,11 @@ where
         let Some(pending) = self.input.pending_scrollbar_drag.take() else {
             return;
         };
-        let outcome = self.core.route_pointer_move(pending.position);
+        let outcome = self.core.route_pointer_move_with_metadata(
+            pending.position,
+            pending.modifiers,
+            pending.timestamp,
+        );
         maybe_log_route_profile(
             "coalesced_scrollbar_drag",
             std::time::Duration::ZERO,

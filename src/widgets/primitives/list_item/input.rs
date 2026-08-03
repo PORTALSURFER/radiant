@@ -14,7 +14,7 @@ pub(super) fn handle_list_item_input(
     }
 
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             item.common.state.hovered = bounds.contains(position);
             None
         }

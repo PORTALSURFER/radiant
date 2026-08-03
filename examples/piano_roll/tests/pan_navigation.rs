@@ -28,7 +28,7 @@ fn piano_roll_middle_mouse_drag_pans_view() {
     assert!(press.is_none());
     assert!(matches!(widget.drag, Some(PianoDrag::Pan { .. })));
 
-    let output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(matches!(
         output.and_then(|output| output.typed_ref::<PianoRollMessage>().cloned()),
@@ -72,15 +72,11 @@ fn piano_roll_middle_mouse_vertical_pan_accumulates_sub_row_motion() {
     );
     let first = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(start.x, start.y + row_height * 0.4),
-        },
+        WidgetInput::pointer_move(Point::new(start.x, start.y + row_height * 0.4)),
     );
     let second = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(start.x, start.y + row_height * 0.8),
-        },
+        WidgetInput::pointer_move(Point::new(start.x, start.y + row_height * 0.8)),
     );
 
     assert!(

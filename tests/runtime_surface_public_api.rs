@@ -354,7 +354,7 @@ fn scene_base_custom_widget_receives_press_move_release() {
         modifiers: PointerModifiers::default(),
         timestamp: None,
     });
-    runtime.dispatch_event(Event::PointerMove { position });
+    runtime.dispatch_event(Event::pointer_move(position));
     runtime.dispatch_event(Event::PointerRelease {
         position,
         button: PointerButton::Primary,

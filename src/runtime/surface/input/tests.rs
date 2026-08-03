@@ -26,9 +26,7 @@ fn scene_without_layers_routes_base_widget_at_transparent_path() {
         10,
         &[],
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 8.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 8.0)),
     );
 
     assert!(matches!(result, Some(WidgetDispatchResult::NoOutput)));
@@ -251,9 +249,7 @@ fn dispatch_input_at_child_path_routes_without_tree_search() {
         20,
         &[1],
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 8.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 8.0)),
     );
 
     assert!(matches!(result, Some(WidgetDispatchResult::NoOutput)));
@@ -600,9 +596,7 @@ fn exclusive_pointer_capture_sync_clears_non_captured_hover_state() {
         10,
         &[0],
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 8.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 8.0)),
     );
     let _ = previous.dispatch_input_at_path(
         20,
@@ -675,17 +669,13 @@ fn retained_state_sync_keeps_only_current_hover_owner() {
         10,
         &[0],
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 8.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 8.0)),
     );
     let _ = previous.dispatch_input_at_path(
         20,
         &[1],
         Rect::from_min_size(Point::new(0.0, 28.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 36.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 36.0)),
     );
 
     let previous_paths = HashMap::from([
@@ -741,9 +731,7 @@ fn retained_state_sync_clears_all_hover_when_pointer_has_no_owner() {
         10,
         &[0],
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
-        WidgetInput::PointerMove {
-            position: Point::new(8.0, 8.0),
-        },
+        WidgetInput::pointer_move(Point::new(8.0, 8.0)),
     );
 
     let paths = HashMap::from([(10, WidgetPath::from_slice(&[0]))]);

@@ -33,7 +33,7 @@ fn piano_roll_alt_dragging_note_adjusts_velocity() {
     ));
 
     let live = widget
-        .handle_input(bounds, WidgetInput::PointerMove { position: raised })
+        .handle_input(bounds, WidgetInput::pointer_move(raised))
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
         .expect("alt note velocity drag should publish live values for small selections");
     match live {

@@ -21,7 +21,7 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
             timestamp: None,
         },
     );
-    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert_eq!(
         press_output.and_then(|output| output.typed_ref::<PianoRollMessage>().cloned()),
@@ -115,7 +115,7 @@ fn piano_roll_snap_on_hover_cursor_uses_nearest_snap_point() {
         pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
 
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: hover });
+    widget.handle_input(bounds, WidgetInput::pointer_move(hover));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

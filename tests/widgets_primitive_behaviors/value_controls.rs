@@ -103,12 +103,7 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
         None
     );
     assert_eq!(
-        scrollbar.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(6.0, 96.0),
-            },
-        ),
+        scrollbar.handle_input(bounds, WidgetInput::pointer_move(Point::new(6.0, 96.0)),),
         Some(ScrollbarMessage::OffsetChanged {
             offset_fraction: 0.9,
         })
@@ -160,12 +155,7 @@ fn slider_drag_and_keyboard_emit_normalized_values() {
         Some(SliderMessage::ValueChanged { value: 0.5 })
     );
     assert_eq!(
-        slider.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(180.0, 14.0),
-            },
-        ),
+        slider.handle_input(bounds, WidgetInput::pointer_move(Point::new(180.0, 14.0)),),
         Some(SliderMessage::ValueChanged { value: 1.0 })
     );
 

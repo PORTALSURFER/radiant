@@ -50,9 +50,10 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
         runtime.take_repaint_requested(),
         "pressing the painted scroll thumb should request a redraw"
     );
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(thumb.center().x, thumb.center().y + 36.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(
+        thumb.center().x,
+        thumb.center().y + 36.0,
+    )));
     assert!(
         runtime.take_repaint_requested(),
         "dragging the painted scroll thumb should request a redraw"
@@ -105,9 +106,7 @@ fn surface_runtime_highlights_painted_scrollbar_thumb_on_hover() {
         })
         .expect("scroll area should paint a hoverable thumb");
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: thumb.center(),
-    });
+    runtime.dispatch_event(Event::pointer_move(thumb.center()));
 
     let hovered_color = runtime
         .paint_plan(&theme)
@@ -122,9 +121,7 @@ fn surface_runtime_highlights_painted_scrollbar_thumb_on_hover() {
     assert!(runtime.take_repaint_requested());
     assert_eq!(hovered_color, theme.accent_copper);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(8.0, 8.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
     let idle_color = runtime
         .paint_plan(&theme)
         .primitives
@@ -188,9 +185,7 @@ fn surface_runtime_clears_scrollbar_hover_when_refresh_removes_scroll_area() {
         })
         .expect("scroll area should paint a hoverable thumb");
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: thumb.center(),
-    });
+    runtime.dispatch_event(Event::pointer_move(thumb.center()));
     assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
 
     runtime.dispatch_message(DemoMessage::Increment);

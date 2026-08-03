@@ -313,7 +313,7 @@ where
         outcome
     }
 
-    fn pointer_modifiers(&self) -> PointerModifiers {
+    pub(super) fn pointer_modifiers(&self) -> PointerModifiers {
         pointer_modifiers_from_winit(self.input.modifiers)
     }
 

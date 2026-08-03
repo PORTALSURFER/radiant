@@ -95,9 +95,7 @@ fn piano_roll_grid_hover_lights_matching_left_keyboard_note_row() {
 
     widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(grid.center().x, y),
-        },
+        WidgetInput::pointer_move(Point::new(grid.center().x, y)),
     );
 
     assert_eq!(widget.hover_pitch, Some(pitch));

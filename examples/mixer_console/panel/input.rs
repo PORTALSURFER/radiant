@@ -18,7 +18,7 @@ impl Widget for MixerPanelWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
-            WidgetInput::PointerMove { position } => self.handle_pointer_move(bounds, position),
+            WidgetInput::PointerMove { position, .. } => self.handle_pointer_move(bounds, position),
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,

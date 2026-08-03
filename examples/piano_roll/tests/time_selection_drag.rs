@@ -21,7 +21,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
             timestamp: None,
         },
     );
-    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(move_output.is_none());
     assert!(matches!(widget.drag, Some(PianoDrag::TimeSelection { .. })));
@@ -131,7 +131,7 @@ fn piano_roll_dragging_time_selection_moves_selection_as_object() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(press.is_none());
     assert!(matches!(
@@ -187,7 +187,7 @@ fn piano_roll_command_dragging_time_selection_copies_notes_to_target_range() {
             timestamp: None,
         },
     );
-    widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    widget.handle_input(bounds, WidgetInput::pointer_move(end));
     let release = widget
         .handle_input(
             bounds,

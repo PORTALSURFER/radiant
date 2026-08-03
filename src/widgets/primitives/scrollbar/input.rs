@@ -18,7 +18,7 @@ pub(super) fn handle_scrollbar_input(
         return None;
     }
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             scrollbar.common.state.hovered = bounds.contains(position);
             drag_to(scrollbar, bounds, position)
         }

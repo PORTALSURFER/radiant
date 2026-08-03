@@ -148,7 +148,7 @@ impl PointerShieldWidget {
             return None;
         }
         match input {
-            WidgetInput::PointerMove { position }
+            WidgetInput::PointerMove { position, .. }
                 if self.props.pointer_move && bounds.contains(position) =>
             {
                 Some(PointerShieldMessage::PointerMove { position })

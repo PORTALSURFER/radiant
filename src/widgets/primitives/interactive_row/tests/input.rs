@@ -181,12 +181,7 @@ fn small_pressed_motion_does_not_start_row_drag() {
         None
     );
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: tiny_move
-            }
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(tiny_move)),
         None
     );
     assert!(!row.dragged);
@@ -236,7 +231,7 @@ fn focus_loss_preserves_started_row_drag() {
         None
     );
     assert_eq!(
-        row.handle_input(bounds, WidgetInput::PointerMove { position: moved }),
+        row.handle_input(bounds, WidgetInput::pointer_move(moved)),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Started {
             origin: start,
             position: moved,

@@ -99,12 +99,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
         None
     );
     assert_eq!(
-        button.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(12.0, 14.0),
-            },
-        ),
+        button.handle_input(bounds, WidgetInput::pointer_move(Point::new(12.0, 14.0)),),
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: Point::new(10.0, 10.0),
             position: Point::new(12.0, 14.0),

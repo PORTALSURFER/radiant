@@ -67,7 +67,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         "host_surface_frame",
         &[
             "SurfaceRuntime::new(",
-            "dispatch_event(Event::PointerMove",
+            "dispatch_event(Event::pointer_move",
             "runtime.borrowed_frame_into(&theme",
             "paint_plan.stats()",
             "radiant_host_surface_frame",

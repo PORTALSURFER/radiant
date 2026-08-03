@@ -27,12 +27,7 @@ fn scrollbar_drag_emits_clamped_offset_changes() {
         None
     );
 
-    let message = scrollbar.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(6.0, 96.0),
-        },
-    );
+    let message = scrollbar.handle_input(bounds, WidgetInput::pointer_move(Point::new(6.0, 96.0)));
     assert_eq!(
         message,
         Some(ScrollbarMessage::OffsetChanged {

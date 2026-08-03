@@ -31,9 +31,7 @@ fn resize_preview_stays_widget_local_until_release() {
 
     let output = overlay.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(SURFACE_WIDTH * 0.32, 10.0),
-        },
+        WidgetInput::pointer_move(Point::new(SURFACE_WIDTH * 0.32, 10.0)),
     );
 
     assert!(output.is_none());
@@ -113,9 +111,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
         modifiers: Default::default(),
         timestamp: None,
     });
-    runtime.dispatch_event(Event::PointerMove {
-        position: preview_position,
-    });
+    runtime.dispatch_event(Event::pointer_move(preview_position));
 
     let overlay = selection_overlay(&runtime);
     assert_eq!(overlay.selection_start, 0.32);

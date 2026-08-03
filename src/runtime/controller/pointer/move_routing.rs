@@ -1,26 +1,43 @@
 use super::{PointerMoveDispatch, SurfaceRuntime};
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::Point,
     runtime::RuntimeBridge,
-    widgets::{WidgetId, WidgetInput},
+    widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
+
+#[derive(Clone, Copy)]
+struct PointerMoveMetadata {
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+}
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(in crate::runtime::controller) fn dispatch_pointer_move_target(
+    pub(in crate::runtime::controller) fn dispatch_pointer_move_target_with_metadata(
         &mut self,
         position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> PointerMoveDispatch {
-        self.dispatch_pointer_move_target_with_refresh(position, true)
+        self.dispatch_pointer_move_target_with_refresh_and_metadata(
+            position, true, modifiers, timestamp,
+        )
     }
 
-    pub(in crate::runtime::controller) fn dispatch_pointer_move_target_with_refresh(
+    pub(in crate::runtime::controller) fn dispatch_pointer_move_target_with_refresh_and_metadata(
         &mut self,
         position: Point,
         refresh_after_message: bool,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> PointerMoveDispatch {
+        let metadata = PointerMoveMetadata {
+            modifiers,
+            timestamp,
+        };
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
         if self.interaction.pointer.capture.is_some() {
@@ -36,6 +53,7 @@ where
                 PointerHoverTransition::default(),
                 false,
                 refresh_after_message,
+                metadata,
             );
         }
         self.update_hovered_scroll_affordance(position);
@@ -45,10 +63,14 @@ where
 
         let hover_widget = self.hover_widget_for_move(position, pointer_widget);
         let hover_changed =
-            self.route_hover_transition(position, hover_widget, refresh_after_message);
+            self.route_hover_transition(position, hover_widget, refresh_after_message, metadata);
         emitted_output |= hover_changed.emitted_output;
-        emitted_output |=
-            self.route_captured_pass_through_move(position, pointer_widget, refresh_after_message);
+        emitted_output |= self.route_captured_pass_through_move(
+            position,
+            pointer_widget,
+            refresh_after_message,
+            metadata,
+        );
 
         let Some(target) = self.interaction.pointer.capture.or(pointer_widget) else {
             return PointerMoveDispatch {
@@ -62,6 +84,7 @@ where
             hover_changed,
             emitted_output,
             refresh_after_message,
+            metadata,
         )
     }
 
@@ -91,6 +114,7 @@ where
         hover_changed: PointerHoverTransition,
         mut emitted_output: bool,
         refresh_after_message: bool,
+        metadata: PointerMoveMetadata,
     ) -> PointerMoveDispatch {
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
         if !hover_changed.changed
@@ -104,7 +128,11 @@ where
         }
         let routed = self.dispatch_input_output_with_refresh(
             target,
-            WidgetInput::PointerMove { position },
+            WidgetInput::pointer_move_with_metadata(
+                position,
+                metadata.modifiers,
+                metadata.timestamp,
+            ),
             refresh_after_message,
         );
         if let Some(emitted) = routed {
@@ -204,6 +232,7 @@ where
         position: Point,
         hover_widget: Option<WidgetId>,
         refresh_after_message: bool,
+        metadata: PointerMoveMetadata,
     ) -> PointerHoverTransition {
         if self.interaction.hover.widget == hover_widget {
             return PointerHoverTransition {
@@ -218,7 +247,11 @@ where
             .and_then(|previous| {
                 self.dispatch_input_output_with_refresh(
                     previous,
-                    WidgetInput::PointerMove { position },
+                    WidgetInput::pointer_move_with_metadata(
+                        position,
+                        metadata.modifiers,
+                        metadata.timestamp,
+                    ),
                     refresh_after_message,
                 )
             })
@@ -236,6 +269,7 @@ where
         position: Point,
         pointer_widget: Option<WidgetId>,
         refresh_after_message: bool,
+        metadata: PointerMoveMetadata,
     ) -> bool {
         let (Some(captured), Some(pointer_widget)) =
             (self.interaction.pointer.capture, pointer_widget)
@@ -250,7 +284,11 @@ where
         }
         let emitted = self.dispatch_input_output_with_refresh(
             pointer_widget,
-            WidgetInput::PointerMove { position },
+            WidgetInput::pointer_move_with_metadata(
+                position,
+                metadata.modifiers,
+                metadata.timestamp,
+            ),
             refresh_after_message,
         );
         if emitted.is_some_and(|emitted| !emitted || refresh_after_message) {

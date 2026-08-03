@@ -191,9 +191,10 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
         modifiers: Default::default(),
         timestamp: None,
     });
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(thumb.center().x, thumb.center().y + 36.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(
+        thumb.center().x,
+        thumb.center().y + 36.0,
+    )));
 
     let observed = observed_scroll_y
         .lock()

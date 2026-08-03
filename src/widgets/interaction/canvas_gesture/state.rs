@@ -40,7 +40,7 @@ impl CanvasGestureState {
         input: &WidgetInput,
     ) -> Option<CanvasGestureEvent> {
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 let pointer = canvas_pointer(bounds, *position)?;
                 Some(match self.active_press {
                     Some(active) => CanvasGestureEvent::Drag {

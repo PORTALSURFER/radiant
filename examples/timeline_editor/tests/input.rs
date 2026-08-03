@@ -24,9 +24,10 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
     let moved = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
-            },
+            WidgetInput::pointer_move(Point::new(
+                geometry.x_for_beat(56),
+                geometry.lane_rect(0).center().y,
+            )),
         )
         .expect("selection drag updates range");
     assert_surface_message(&moved, |message| {
@@ -80,9 +81,10 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
     let moved_clip = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
-            },
+            WidgetInput::pointer_move(Point::new(
+                geometry.x_for_beat(20),
+                geometry.lane_rect(2).center().y,
+            )),
         )
         .expect("dragged clip emits a move");
     assert_surface_message(&moved_clip, |message| {
@@ -136,9 +138,7 @@ fn timeline_widget_resizes_clips_from_edge_drag() {
     let resized = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
-            },
+            WidgetInput::pointer_move(Point::new(geometry.x_for_beat(22), clip_rect.center().y)),
         )
         .expect("edge drag emits resize");
     assert_surface_message(&resized, |message| {

@@ -11,7 +11,7 @@ pub(super) fn handle_slider_input(
     input: WidgetInput,
 ) -> Option<SliderMessage> {
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             slider.common.state.hovered = bounds.contains(position);
             slider
                 .common

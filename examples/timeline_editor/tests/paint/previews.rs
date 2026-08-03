@@ -18,9 +18,10 @@ fn timeline_widget_paints_new_clip_preview_while_selecting() {
     );
     let _ = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
-        },
+        WidgetInput::pointer_move(Point::new(
+            geometry.x_for_beat(56),
+            geometry.lane_rect(0).center().y,
+        )),
     );
 
     let mut primitives = Vec::new();
@@ -69,9 +70,10 @@ fn timeline_widget_paints_clip_preview_while_moving() {
     );
     let _ = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
-        },
+        WidgetInput::pointer_move(Point::new(
+            geometry.x_for_beat(20),
+            geometry.lane_rect(2).center().y,
+        )),
     );
 
     let mut primitives = Vec::new();
@@ -109,9 +111,10 @@ fn timeline_widget_keeps_move_preview_from_captured_drag_state() {
     );
     let _ = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
-        },
+        WidgetInput::pointer_move(Point::new(
+            geometry.x_for_beat(20),
+            geometry.lane_rect(2).center().y,
+        )),
     );
     widget.clips.retain(|clip| clip.id != 1);
 
@@ -150,9 +153,7 @@ fn timeline_widget_paints_clip_preview_while_resizing() {
     );
     let _ = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(geometry.x_for_beat(22), clip_rect.center().y)),
     );
 
     let mut primitives = Vec::new();
@@ -191,9 +192,7 @@ fn timeline_widget_keeps_resize_preview_from_captured_drag_state() {
     );
     let _ = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(geometry.x_for_beat(22), clip_rect.center().y)),
     );
     widget.clips.retain(|clip| clip.id != 1);
 

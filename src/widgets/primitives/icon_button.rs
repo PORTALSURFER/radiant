@@ -203,12 +203,7 @@ mod tests {
             WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
         );
 
-        widget.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(10.0, 10.0),
-            },
-        );
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(10.0, 10.0)));
         let mut hover = Vec::new();
         widget.append_paint(&mut hover, bounds, &Default::default(), &theme);
         let hover_tokens = crate::widgets::resolve_widget_visual_tokens(
@@ -316,12 +311,7 @@ mod tests {
         let mut idle = Vec::new();
         widget.append_paint(&mut idle, bounds, &Default::default(), &theme);
 
-        widget.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(11.0, 9.0),
-            },
-        );
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(11.0, 9.0)));
         let mut hovered = Vec::new();
         widget.append_paint(&mut hovered, bounds, &Default::default(), &theme);
 

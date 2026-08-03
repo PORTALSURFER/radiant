@@ -8,12 +8,7 @@ fn mixer_panel_hover_uses_paint_only_runtime_overlay() {
     let bounds = mixer_bounds();
     let strip = widget.strip_rect(bounds, 2);
 
-    let output = widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: strip.center(),
-        },
-    );
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(strip.center()));
 
     assert!(output.is_none());
     assert_eq!(widget.interaction.hover_channel, Some(2));
@@ -110,12 +105,7 @@ fn mixer_strip_drag_paints_insertion_line_without_spreading_strips() {
             timestamp: None,
         },
     );
-    let move_output = widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: target_line.center(),
-        },
-    );
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(target_line.center()));
 
     assert!(move_output.is_none());
     assert_eq!(
@@ -157,12 +147,7 @@ fn mixer_strip_drag_drop_emits_reorder_message() {
             timestamp: None,
         },
     );
-    widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: target_line.center(),
-        },
-    );
+    widget.handle_input(bounds, WidgetInput::pointer_move(target_line.center()));
     let output = widget.handle_input(
         bounds,
         WidgetInput::PointerRelease {

@@ -10,9 +10,7 @@ fn piano_roll_hover_uses_paint_only_runtime_overlay() {
 
     let output = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: widget.note_rect(grid, note).center(),
-        },
+        WidgetInput::pointer_move(widget.note_rect(grid, note).center()),
     );
 
     assert!(output.is_none());
@@ -42,12 +40,7 @@ fn piano_roll_hover_lights_entire_note_tail() {
     let note = widget.note_by_id(2).expect("default note should exist");
     let note_rect = widget.note_rect(grid, note);
 
-    widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: note_rect.center(),
-        },
-    );
+    widget.handle_input(bounds, WidgetInput::pointer_move(note_rect.center()));
 
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
@@ -83,9 +76,7 @@ fn piano_roll_hover_paints_left_resize_bracket_cursor() {
 
     widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(note_rect.min.x + 2.0, note_rect.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(note_rect.min.x + 2.0, note_rect.center().y)),
     );
 
     let mut overlay = Vec::new();
@@ -128,9 +119,7 @@ fn piano_roll_hover_paints_right_resize_bracket_cursor() {
 
     widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(note_rect.max.x - 2.0, note_rect.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(note_rect.max.x - 2.0, note_rect.center().y)),
     );
 
     let mut overlay = Vec::new();
@@ -171,12 +160,7 @@ fn piano_roll_hover_lights_left_keyboard_note_row() {
     let pitch = 60;
     let row = widget.keyboard_pitch_rect(keyboard, pitch);
 
-    let output = widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: row.center(),
-        },
-    );
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(row.center()));
 
     assert!(output.is_none());
     assert_eq!(widget.hover_pitch, Some(pitch));

@@ -136,9 +136,7 @@ fn arrangement_shell_hover_uses_paint_only_runtime_overlay() {
 
     let output = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: widget.clip_rect(timeline, clip).center(),
-        },
+        WidgetInput::pointer_move(widget.clip_rect(timeline, clip).center()),
     );
 
     assert!(output.is_none());

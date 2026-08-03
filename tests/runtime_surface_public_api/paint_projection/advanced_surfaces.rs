@@ -90,9 +90,7 @@ fn retained_canvas_input_mapper_accepts_ui_local_capture() {
         .size(120.0, 40.0)
         .into_surface();
 
-    let input = WidgetInput::PointerMove {
-        position: Point::new(8.0, 12.0),
-    };
+    let input = WidgetInput::pointer_move(Point::new(8.0, 12.0));
     assert_eq!(
         surface.dispatch_widget_output(
             45,
@@ -131,9 +129,7 @@ fn gpu_leaf_input_mapper_accepts_ui_local_capture() {
     .size(120.0, 40.0)
     .into_surface();
 
-    let input = WidgetInput::PointerMove {
-        position: Point::new(8.0, 12.0),
-    };
+    let input = WidgetInput::pointer_move(Point::new(8.0, 12.0));
     assert_eq!(
         surface.dispatch_widget_output(
             77,

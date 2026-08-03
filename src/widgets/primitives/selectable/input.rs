@@ -14,7 +14,7 @@ pub(super) fn handle_selectable_input(
     }
 
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             selectable.common.state.hovered = bounds.contains(position);
             None
         }

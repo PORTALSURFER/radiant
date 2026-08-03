@@ -19,7 +19,7 @@ impl InteractiveRowWidget {
         input: WidgetInput,
     ) -> Option<InteractiveRowMessage> {
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 if self.props.suppress_hover
                     || (self.props.drag_active && !self.props.drag_source && !self.props.droppable)
                 {

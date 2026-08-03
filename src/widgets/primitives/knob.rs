@@ -162,7 +162,7 @@ impl KnobWidget {
                     value: self.state.value,
                 })
             }
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.common.state.hovered = bounds.contains(position);
                 if !self.common.state.pressed {
                     return None;

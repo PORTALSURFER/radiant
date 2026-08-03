@@ -17,7 +17,7 @@ pub(super) fn handle_toggle_input(
         return None;
     }
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             toggle.common.state.hovered = bounds.contains(position);
             if toggle.common.state.pressed {
                 toggle.state.armed = toggle.common.state.hovered;

@@ -18,6 +18,10 @@ pub enum Event {
     PointerMove {
         /// Pointer position in surface logical coordinates.
         position: Point,
+        /// Modifier state captured with this pointer sample.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
     },
     /// Pointer modifier state changed while the pointer remains active.
     PointerModifiersChanged {
@@ -84,7 +88,20 @@ impl Event {
 
     /// Build a pointer-move event at `position`.
     pub fn pointer_move(position: Point) -> Self {
-        Self::PointerMove { position }
+        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None)
+    }
+
+    /// Build a pointer-move event with native sample metadata.
+    pub(crate) fn pointer_move_with_metadata(
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::PointerMove {
+            position,
+            modifiers,
+            timestamp,
+        }
     }
 
     /// Build a pointer-modifier state change event.
@@ -243,5 +260,24 @@ impl Event {
     /// Build a pointer-positioned scroll event.
     pub fn scroll(position: Point, delta: Vector2) -> Self {
         Self::Scroll { position, delta }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_pointer_move_constructor_omits_sample_metadata() {
+        let position = Point::new(12.0, 18.0);
+
+        assert_eq!(
+            Event::pointer_move(position),
+            Event::PointerMove {
+                position,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            }
+        );
     }
 }

@@ -94,7 +94,7 @@ impl Widget for SelectionOverlay {
                 }
                 Some(WidgetOutput::custom(DemoMessage::ToggleSelection))
             }
-            WidgetInput::PointerMove { position } if self.drag_handle.is_some() => {
+            WidgetInput::PointerMove { position, .. } if self.drag_handle.is_some() => {
                 self.resize_selection(
                     HorizontalValueAxis::normalized(bounds).value_for_x(position.x),
                 );

@@ -12,7 +12,7 @@ pub(super) fn handle_text_input(
     input: WidgetInput,
 ) -> Option<TextInputMessage> {
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             text_input.common.state.hovered = bounds.contains(position);
             if text_input.common.state.pressed {
                 text_input.set_caret(caret_for_pointer_x(bounds, position.x), true);

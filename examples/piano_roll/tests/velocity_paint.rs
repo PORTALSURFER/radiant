@@ -53,12 +53,7 @@ fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
     let note = widget.note_by_id(2).expect("default note should exist");
     let handle = widget.velocity_handle_rect(lane, note);
 
-    widget.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: handle.center(),
-        },
-    );
+    widget.handle_input(bounds, WidgetInput::pointer_move(handle.center()));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

@@ -21,9 +21,14 @@ where
                 self.set_viewport(viewport);
                 None
             }
-            Event::PointerMove { position } => {
+            Event::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+            } => {
                 self.observe_pointer_position(position);
-                self.dispatch_pointer_move_target(position).target
+                self.dispatch_pointer_move_target_with_metadata(position, modifiers, timestamp)
+                    .target
             }
             Event::PointerModifiersChanged {
                 modifiers,

@@ -73,7 +73,7 @@ impl Widget for WaveformWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
-            WidgetInput::PointerMove { position } if bounds.contains(position) => {
+            WidgetInput::PointerMove { position, .. } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 None
             }

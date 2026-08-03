@@ -15,7 +15,7 @@ pub(super) fn handle_timeline_input(
 ) -> Option<WidgetOutput> {
     let geometry = widget.geometry(bounds);
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             pointer::handle_pointer_move(widget, bounds, geometry, position)
         }
         WidgetInput::PointerPress {

@@ -12,9 +12,7 @@ fn timeline_widget_paints_one_vertical_cursor_indicator() {
     let geometry = widget.geometry(bounds);
     let handled = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(24), bounds.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(geometry.x_for_beat(24), bounds.center().y)),
     );
     assert!(handled.is_none());
     let mut primitives = Vec::new();
@@ -47,9 +45,7 @@ fn timeline_cursor_overlay_tracks_unsnapped_pointer_position() {
 
     let handled = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(pointer_x, geometry.lane_rect(1).center().y),
-        },
+        WidgetInput::pointer_move(Point::new(pointer_x, geometry.lane_rect(1).center().y)),
     );
     assert!(handled.is_none());
 
@@ -81,9 +77,10 @@ fn timeline_widget_highlights_hovered_clip() {
 
     let handled = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
-        },
+        WidgetInput::pointer_move(Point::new(
+            geometry.x_for_beat(4),
+            geometry.lane_rect(0).center().y,
+        )),
     );
     assert!(handled.is_none());
     assert_eq!(widget.hover_clip_id, Some(1));

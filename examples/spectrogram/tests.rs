@@ -75,9 +75,7 @@ fn spectrogram_hover_uses_paint_only_widget_local_state() {
 
     let output = widget.handle_input(
         bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(plot.min.x + plot.width() * 0.5, plot.center().y),
-        },
+        WidgetInput::pointer_move(Point::new(plot.min.x + plot.width() * 0.5, plot.center().y)),
     );
 
     assert!(output.is_none());

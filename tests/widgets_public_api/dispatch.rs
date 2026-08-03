@@ -80,9 +80,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         Widget::handle_input(
             &mut drag,
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(10.0, 38.0),
-            },
+            WidgetInput::pointer_move(Point::new(10.0, 38.0)),
         ),
         radiant::widgets::DragHandleMessage::Moved {
             position: Point::new(10.0, 38.0),

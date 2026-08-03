@@ -54,9 +54,18 @@ where
         &mut self,
         position: Point,
     ) -> GenericRouteOutcome {
+        self.route_pointer_move_with_metadata(position, PointerModifiers::default(), None)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_move_with_metadata(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let outcome = self
             .runtime
-            .dispatch_pointer_move_deferred_refresh_with_outcome(position);
+            .dispatch_pointer_move_deferred_refresh_with_metadata(position, modifiers, timestamp);
         let pending = self.runtime.take_pending_input_command_outcome();
         let captured_pointer_refresh =
             outcome.pointer_captured && pending.surface_refresh_requested;

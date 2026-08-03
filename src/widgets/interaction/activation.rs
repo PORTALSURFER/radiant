@@ -68,7 +68,7 @@ pub fn handle_activation_input(
         return ActivationInputResult::None;
     }
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             state.hovered = bounds.contains(*position);
             ActivationInputResult::None
         }

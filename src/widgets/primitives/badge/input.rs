@@ -15,7 +15,7 @@ pub(super) fn handle_badge_input(
         return None;
     }
     match input {
-        WidgetInput::PointerMove { position } => {
+        WidgetInput::PointerMove { position, .. } => {
             badge.common.state.hovered = bounds.contains(position);
             if badge.common.state.pressed {
                 badge.state.armed = badge.common.state.hovered;

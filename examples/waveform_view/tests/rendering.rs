@@ -35,12 +35,7 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
     let mut primitives = Vec::new();
 
     assert_eq!(
-        widget.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(160.0, 48.0)
-            }
-        ),
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 48.0))),
         None,
         "hover cursor updates should stay local to the widget"
     );

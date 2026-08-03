@@ -20,7 +20,7 @@ impl Widget for ModulationMatrixWidget {
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         let matrix = self.matrix_rect(bounds);
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.handle_pointer_move(bounds, matrix, position)
             }
             WidgetInput::PointerPress {

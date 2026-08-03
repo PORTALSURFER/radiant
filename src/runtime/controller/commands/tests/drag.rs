@@ -29,9 +29,7 @@ fn drag_command_paints_runtime_preview_and_tracks_pointer_move() {
         "active drag should paint its preview label"
     );
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(80.0, 90.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(80.0, 90.0)));
     plan = runtime.paint_plan(&ThemeTokens::default());
     assert!(
         plan.primitives.iter().any(|primitive| matches!(
@@ -52,9 +50,7 @@ fn drag_command_paints_runtime_preview_and_tracks_pointer_move() {
         "drag preview should hide when the pointer leaves the surface"
     );
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(30.0, 40.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(30.0, 40.0)));
     plan = runtime.paint_plan(&ThemeTokens::default());
     assert!(
         plan.primitives.iter().any(|primitive| matches!(

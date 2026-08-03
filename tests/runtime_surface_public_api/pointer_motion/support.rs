@@ -162,7 +162,7 @@ impl Widget for PointerMotionProbeWidget {
         input: WidgetInput,
     ) -> Option<radiant::widgets::WidgetOutput> {
         match input {
-            WidgetInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position, .. } => {
                 self.moves += 1;
                 self.common.state.hovered = bounds.contains(position);
             }

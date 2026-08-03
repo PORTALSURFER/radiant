@@ -4,6 +4,7 @@ use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
     logical_point_from_winit, maybe_log_route_profile,
 };
+use crate::gui::input::InputTimestamp;
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
 use tracing::debug;
@@ -19,6 +20,7 @@ where
     }
 
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
+        let timestamp = Some(InputTimestamp::capture());
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
             self.input.last_cursor = None;
             self.set_native_cursor_visible(true);
@@ -28,16 +30,19 @@ where
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
         self.core.set_current_pointer_position(Some(position));
+        let modifiers = self.pointer_modifiers();
         if previous.is_none() {
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
         }
         if self.core.runtime.scrollbar_drag_active() {
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
-                let outcome = self.core.route_pointer_move(position);
+                let outcome = self
+                    .core
+                    .route_pointer_move_with_metadata(position, modifiers, timestamp);
                 self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
                 return;
             }
-            self.queue_scrollbar_drag(position);
+            self.queue_scrollbar_drag_with_metadata(position, modifiers, timestamp);
             return;
         }
         if self.can_fast_path_native_hover_move(position) {
@@ -58,7 +63,9 @@ where
             });
         }
         let started = Instant::now();
-        let outcome = self.core.route_pointer_move(position);
+        let outcome = self
+            .core
+            .route_pointer_move_with_metadata(position, modifiers, timestamp);
         if self.core.runtime.pointer_capture().is_none() {
             self.update_native_cursor_at_last_position();
         }

@@ -26,12 +26,7 @@ fn slider_pointer_drag_emits_clamped_values() {
         Some(SliderMessage::ValueChanged { value: 0.5 })
     );
     assert_eq!(
-        slider.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(180.0, 14.0),
-            },
-        ),
+        slider.handle_input(bounds, WidgetInput::pointer_move(Point::new(180.0, 14.0)),),
         Some(SliderMessage::ValueChanged { value: 1.0 })
     );
 }

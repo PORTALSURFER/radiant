@@ -163,7 +163,7 @@ fn interactive_badge_tracked_drag_source_with_motion_routes_source_moves() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 44.0));
     let position = Point::new(8.0, 8.0);
 
-    runtime.dispatch_input_at(position, WidgetInput::PointerMove { position });
+    runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
 
     assert_eq!(
         runtime
@@ -204,7 +204,7 @@ fn interactive_badge_tracked_drop_candidate_routes_stale_target_clear() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 44.0));
     let position = Point::new(8.0, 8.0);
 
-    runtime.dispatch_input_at(position, WidgetInput::PointerMove { position });
+    runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
 
     assert_eq!(
         runtime

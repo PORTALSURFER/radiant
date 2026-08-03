@@ -26,7 +26,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && pointer.contains("use super::{PointerMoveOutcome, SurfaceRuntime};")
             && pointer.contains("gui::types::Point")
             && pointer.contains("runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge}")
-            && pointer.contains("widgets::{WidgetId, WidgetInput}")
+            && pointer.contains("widgets::{PointerModifiers, WidgetId, WidgetInput}")
             && !pointer.starts_with("use super::*;")
             && !pointer.contains("fn route_pointer_move_to_target")
             && !pointer.contains("fn update_drag_preview_position"),
@@ -37,7 +37,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && move_routing.contains("use super::{PointerMoveDispatch, SurfaceRuntime};")
             && move_routing.contains("gui::types::Point")
             && move_routing.contains("runtime::RuntimeBridge")
-            && move_routing.contains("widgets::{WidgetId, WidgetInput}")
+            && move_routing.contains("widgets::{PointerModifiers, WidgetId, WidgetInput}")
             && !move_routing.starts_with("use super::*;")
             && move_routing.contains("fn route_pointer_move_to_target")
             && move_routing.contains("fn update_drag_preview_position")

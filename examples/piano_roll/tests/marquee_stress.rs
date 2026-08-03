@@ -34,7 +34,7 @@ fn piano_roll_marquee_selects_thousands_of_notes_with_paint_only_preview() {
             timestamp: None,
         },
     );
-    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(end));
 
     assert!(press_output.is_none());
     assert!(move_output.is_none());

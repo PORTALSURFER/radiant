@@ -300,12 +300,7 @@ fn interactive_row_clears_stale_hover_when_requested() {
     let mut previous =
         InteractiveRowWidget::new(32, WidgetSizing::fixed(Vector2::new(120.0, 18.0)));
     assert_eq!(
-        previous.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         None
     );
     assert!(previous.common.state.hovered);
@@ -325,12 +320,7 @@ fn interactive_row_active_drag_source_releases_after_refresh() {
         .with_drag_source(true);
 
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(34.0, 8.0),
-            },
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),),
         None,
         "runtime drag previews should own movement while the row is only the retained source"
     );
@@ -359,12 +349,7 @@ fn interactive_row_can_report_active_drag_source_motion_after_refresh() {
         .with_drag_source_motion(true);
 
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(34.0, 8.0),
-            },
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Moved {
             position: Point::new(34.0, 8.0),
         }))
@@ -393,12 +378,7 @@ fn interactive_row_suppresses_hover_during_external_drag() {
     row.common.state.hovered = true;
 
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         None
     );
     assert!(!row.common.state.hovered);
@@ -411,12 +391,7 @@ fn interactive_row_drop_only_accepts_release_without_hover_notification() {
         .with_drop_only(true);
 
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         None
     );
     assert_eq!(
@@ -440,12 +415,7 @@ fn interactive_row_drop_hover_reports_pointer_position() {
         .with_drop_target(true);
 
     assert_eq!(
-        row.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         Some(InteractiveRowMessage::HoverDropTarget {
             position: Point::new(16.0, 8.0),
         })
@@ -458,12 +428,7 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
     let shield = PointerShieldWidget::pointer_move_only(true).with_pointer_release(true);
 
     assert_eq!(
-        shield.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        shield.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         Some(PointerShieldMessage::PointerMove {
             position: Point::new(16.0, 8.0),
         })
@@ -504,12 +469,7 @@ fn pointer_shield_drop_only_reports_only_captured_drops() {
     let shield = PointerShieldWidget::pointer_drop_only(true);
 
     assert_eq!(
-        shield.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        shield.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         None
     );
     assert_eq!(
@@ -582,21 +542,11 @@ fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
     assert!(!inactive.accepts_pointer_move());
     assert!(inactive.common.state.disabled);
     assert_eq!(
-        inactive.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 8.0),
-            },
-        ),
+        inactive.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         None
     );
     assert_eq!(
-        active.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(160.0, 8.0),
-            },
-        ),
+        active.handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0)),),
         None
     );
 }
@@ -830,12 +780,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));
 
     assert_eq!(
-        handle.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(12.0, 12.0),
-            },
-        ),
+        handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(12.0, 12.0)),),
         None
     );
     assert!(handle.common.state.hovered);
@@ -854,12 +799,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
     assert!(handle.common.state.pressed);
     assert!(handle.common.state.active);
     assert_eq!(
-        handle.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(12.0, 70.0),
-            },
-        ),
+        handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(12.0, 70.0)),),
         Some(DragHandleMessage::Moved {
             position: Point::new(12.0, 70.0),
         })

@@ -70,9 +70,7 @@ fn eq_widget_routes_select_and_drag_messages_without_dsp() {
     let drag = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(x_for_freq(plot, 1_000.0), y_for_gain(plot, 6.0)),
-            },
+            WidgetInput::pointer_move(Point::new(x_for_freq(plot, 1_000.0), y_for_gain(plot, 6.0))),
         )
         .expect("dragging a band should emit a parameter-style GUI message");
     assert!(matches!(

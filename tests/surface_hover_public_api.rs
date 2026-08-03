@@ -64,9 +64,7 @@ fn checkbox_hover_changes_paint_chrome() {
     let theme = ThemeTokens::default();
     let before = widget_stroke_color(&runtime.paint_plan(&theme), 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(12.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)));
     let after = widget_stroke_color(&runtime.paint_plan(&theme), 10);
 
     assert_ne!(before, after);
@@ -91,9 +89,7 @@ fn styled_list_row_hover_changes_container_chrome() {
     let before = widget_fill_color(&before_plan, 10);
     let border_before = widget_stroke_color(&before_plan, 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(12.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)));
     let after_plan = runtime.paint_plan(&theme);
     let after = widget_fill_color(&after_plan, 10);
     let border_after = widget_stroke_color(&after_plan, 10);
@@ -135,9 +131,7 @@ fn runtime_frame_reflects_hover_aware_paint_state() {
     let theme = ThemeTokens::default();
     let before = widget_fill_color(&runtime.frame(&theme).paint_plan, 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(12.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)));
     let frame = runtime.frame(&theme);
     let after = widget_fill_color(&frame.paint_plan, 10);
 
@@ -166,9 +160,7 @@ fn static_styled_container_does_not_hover_without_opt_in() {
     let theme = ThemeTokens::default();
     let before = widget_fill_color(&runtime.paint_plan(&theme), 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(12.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)));
     let after = widget_fill_color(&runtime.paint_plan(&theme), 10);
 
     assert_eq!(runtime.hovered_container(), None);
@@ -199,9 +191,7 @@ fn control_hover_suppresses_surrounding_container_hover_chrome() {
     let body_before = widget_fill_color(&before, 10);
     let input_before = widget_stroke_color(&before, 20);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(12.0, 12.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)));
     let after = runtime.paint_plan(&theme);
 
     assert_eq!(runtime.hovered_widget(), Some(20));
@@ -234,9 +224,7 @@ fn input_only_controls_do_not_suppress_surrounding_container_hover_chrome() {
     let before = runtime.paint_plan(&theme);
     let body_before = widget_fill_color(&before, 10);
 
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(24.0, 20.0),
-    });
+    runtime.dispatch_event(Event::pointer_move(Point::new(24.0, 20.0)));
     let after = runtime.paint_plan(&theme);
 
     assert_eq!(runtime.hovered_widget(), Some(20));

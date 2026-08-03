@@ -1,8 +1,9 @@
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
+    gui::input::InputTimestamp,
     gui::types::Point,
     runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
-    widgets::{WidgetId, WidgetInput},
+    widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
 mod move_routing;
@@ -19,7 +20,12 @@ where
     /// scene rebuilds from paint-only runtime overlays. Application-level event
     /// routing can keep using [`Self::dispatch_event`].
     pub fn dispatch_pointer_move_with_outcome(&mut self, position: Point) -> PointerMoveOutcome {
-        self.dispatch_pointer_move_with_refresh_outcome(position, true)
+        self.dispatch_pointer_move_with_refresh_outcome(
+            position,
+            true,
+            PointerModifiers::default(),
+            None,
+        )
     }
 
     /// Route pointer motion while deferring host-surface refresh from emitted
@@ -32,18 +38,38 @@ where
         &mut self,
         position: Point,
     ) -> PointerMoveOutcome {
-        self.dispatch_pointer_move_with_refresh_outcome(position, false)
+        self.dispatch_pointer_move_with_refresh_outcome(
+            position,
+            false,
+            PointerModifiers::default(),
+            None,
+        )
+    }
+
+    pub(crate) fn dispatch_pointer_move_deferred_refresh_with_metadata(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> PointerMoveOutcome {
+        self.dispatch_pointer_move_with_refresh_outcome(position, false, modifiers, timestamp)
     }
 
     fn dispatch_pointer_move_with_refresh_outcome(
         &mut self,
         position: Point,
         refresh_after_message: bool,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) -> PointerMoveOutcome {
         let previous_hovered_widget = self.interaction.hover.widget;
         let previous_hovered_container = self.interaction.hover.container;
-        let dispatch =
-            self.dispatch_pointer_move_target_with_refresh(position, refresh_after_message);
+        let dispatch = self.dispatch_pointer_move_target_with_refresh_and_metadata(
+            position,
+            refresh_after_message,
+            modifiers,
+            timestamp,
+        );
         let target = dispatch.target;
         let hover_changed = previous_hovered_widget != self.interaction.hover.widget
             || previous_hovered_container != self.interaction.hover.container;

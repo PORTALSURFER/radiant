@@ -22,7 +22,10 @@ use winit::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ModifierWheelMessage {
-    Wheel,
+    Wheel {
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -48,12 +51,28 @@ impl Widget for ModifierWheelWidget {
     }
 
     fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        matches!(input, WidgetInput::Wheel { .. })
-            .then(|| WidgetOutput::typed(ModifierWheelMessage::Wheel))
+        match input {
+            WidgetInput::Wheel {
+                modifiers,
+                timestamp,
+                ..
+            } => Some(WidgetOutput::typed(ModifierWheelMessage::Wheel {
+                modifiers,
+                timestamp,
+            })),
+            _ => None,
+        }
     }
 
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        matches!(input, WidgetInput::Wheel { modifiers, .. } if modifiers.shift)
+        matches!(
+            input,
+            WidgetInput::Wheel {
+                modifiers,
+                timestamp: None,
+                ..
+            } if modifiers.shift
+        )
     }
 
     fn accepts_wheel_input(&self) -> bool {
@@ -71,7 +90,9 @@ impl Widget for ModifierWheelWidget {
 }
 
 #[derive(Default)]
-struct ModifierWheelBridge;
+struct ModifierWheelBridge {
+    samples: Vec<(PointerModifiers, Option<InputTimestamp>)>,
+}
 
 impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<ModifierWheelMessage>> {
@@ -93,7 +114,13 @@ impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
         .into()
     }
 
-    fn reduce_message(&mut self, _message: ModifierWheelMessage) {}
+    fn reduce_message(&mut self, message: ModifierWheelMessage) {
+        let ModifierWheelMessage::Wheel {
+            modifiers,
+            timestamp,
+        } = message;
+        self.samples.push((modifiers, timestamp));
+    }
 }
 
 #[derive(Default)]
@@ -241,7 +268,7 @@ impl RuntimeBridge<NativeMoveSample> for NativeMoveMetadataBridge {
 fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
-        ModifierWheelBridge,
+        ModifierWheelBridge::default(),
         Vector2::new(120.0, 80.0),
     );
     runner.rebuild_scene();
@@ -256,6 +283,15 @@ fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
             shift: true,
             ..PointerModifiers::default()
         }
+    ));
+    assert!(!runner.can_coalesce_scroll_container_wheel_with_timestamp(
+        point,
+        delta,
+        PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        },
+        Some(InputTimestamp::capture()),
     ));
 }
 
@@ -852,6 +888,59 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
         harness.runner.core.runtime.bridge().last_delta,
         Vector2::new(0.0, 80.0)
     );
+    assert_eq!(
+        harness.runner.core.runtime.bridge().last_modifiers,
+        Some(PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        })
+    );
+    assert!(
+        harness
+            .runner
+            .core
+            .runtime
+            .bridge()
+            .last_timestamp
+            .is_some()
+    );
+}
+
+#[test]
+fn native_direct_wheel_preserves_effective_modifiers_and_timestamp() {
+    let point = Point::new(40.0, 20.0);
+    let delta = Vector2::new(0.0, -2.0);
+    let expected_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+
+    let mut synthetic =
+        GenericNativeRuntimeCore::new(ModifierWheelBridge::default(), Vector2::new(120.0, 80.0));
+    assert!(
+        synthetic
+            .route_scroll_with_modifiers(point, delta, expected_modifiers)
+            .routed
+    );
+    assert_eq!(
+        synthetic.runtime.bridge().samples,
+        vec![(expected_modifiers, None)]
+    );
+
+    let mut harness =
+        NativePointerHarness::new(ModifierWheelBridge::default(), Vector2::new(120.0, 80.0));
+    harness.cursor_moved_logical(point);
+    harness.modifiers_changed(ModifiersState::SHIFT);
+
+    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
+
+    assert!(route.outcome.routed);
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
+    assert_eq!(route.diagnostic.modifiers, expected_modifiers);
+    let samples = &harness.runner.core.runtime.bridge().samples;
+    assert_eq!(samples.len(), 1);
+    assert_eq!(samples[0].0, expected_modifiers);
+    assert!(samples[0].1.is_some());
 }
 
 #[test]

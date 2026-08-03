@@ -193,6 +193,7 @@ impl PointerShieldWidget {
                 position,
                 delta,
                 modifiers,
+                ..
             } if self.props.wheel && bounds.contains(position) => {
                 Some(PointerShieldMessage::Wheel {
                     position,

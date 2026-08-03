@@ -1,18 +1,27 @@
 use super::super::*;
+use crate::gui::input::InputTimestamp;
+use crate::gui::types::Point;
 use crate::runtime::{
     NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
+use crate::widgets::PointerModifiers;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in super::super) struct GpuWheelMessage {
+    pub(in super::super) position: Point,
     pub(in super::super) delta: Vector2,
+    pub(in super::super) modifiers: PointerModifiers,
+    pub(in super::super) timestamp: Option<InputTimestamp>,
 }
 
 pub(in super::super) struct GpuWheelBridge {
     pub(in super::super) wheel_count: usize,
     pub(in super::super) project_count: usize,
+    pub(in super::super) last_position: Option<Point>,
     pub(in super::super) last_delta: Vector2,
+    pub(in super::super) last_modifiers: Option<PointerModifiers>,
+    pub(in super::super) last_timestamp: Option<InputTimestamp>,
     pub(in super::super) capabilities: GpuSurfaceCapabilities,
 }
 
@@ -27,7 +36,10 @@ impl Default for GpuWheelBridge {
         Self {
             wheel_count: 0,
             project_count: 0,
+            last_position: None,
             last_delta: Vector2::new(0.0, 0.0),
+            last_modifiers: None,
+            last_timestamp: None,
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
@@ -77,9 +89,17 @@ impl Widget for TestGpuWheelWidget {
 
     fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
-            WidgetInput::Wheel { delta, .. } => {
-                Some(WidgetOutput::typed(GpuWheelMessage { delta }))
-            }
+            WidgetInput::Wheel {
+                position,
+                delta,
+                modifiers,
+                timestamp,
+            } => Some(WidgetOutput::typed(GpuWheelMessage {
+                position,
+                delta,
+                modifiers,
+                timestamp,
+            })),
             _ => None,
         }
     }
@@ -179,7 +199,10 @@ impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
 
     fn reduce_message(&mut self, message: GpuWheelMessage) {
         self.wheel_count += 1;
+        self.last_position = Some(message.position);
         self.last_delta = message.delta;
+        self.last_modifiers = Some(message.modifiers);
+        self.last_timestamp = message.timestamp;
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, GpuWheelMessage> {

@@ -33,6 +33,7 @@ pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
     pub(super) delta: Vector2,
     pub(super) modifiers: PointerModifiers,
+    pub(super) timestamp: Option<InputTimestamp>,
     axis: GpuSurfaceWheelAxis,
 }
 
@@ -47,11 +48,22 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: crate::runtime::RuntimeBridge<Message>,
 {
+    #[cfg(test)]
     pub(super) fn queue_gpu_surface_wheel(
         &mut self,
         position: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
+    ) {
+        self.queue_gpu_surface_wheel_with_timestamp(position, delta, modifiers, None);
+    }
+
+    pub(super) fn queue_gpu_surface_wheel_with_timestamp(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
@@ -68,12 +80,14 @@ where
                 pending.position = position;
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
                 pending.modifiers = modifiers;
+                pending.timestamp = timestamp;
             }
             None => {
                 self.input.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel {
                     position,
                     delta,
                     modifiers,
+                    timestamp,
                     axis,
                 });
             }
@@ -82,11 +96,12 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
-    pub(super) fn queue_scroll_container_wheel(
+    pub(super) fn queue_scroll_container_wheel_with_timestamp(
         &mut self,
         position: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
@@ -95,12 +110,14 @@ where
                 pending.position = position;
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
                 pending.modifiers = modifiers;
+                pending.timestamp = timestamp;
             }
             None => {
                 self.input.pending_scroll_container_wheel = Some(PendingGpuSurfaceWheel {
                     position,
                     delta,
                     modifiers,
+                    timestamp,
                     axis,
                 });
             }
@@ -159,10 +176,11 @@ where
             return;
         };
         let (outcome, elapsed) = profile.measure(|| {
-            self.core.route_scroll_deferred_refresh_with_modifiers(
+            self.core.route_scroll_deferred_refresh_with_metadata(
                 pending.position,
                 pending.delta,
                 pending.modifiers,
+                pending.timestamp,
             )
         });
         profile.coalesced_wheel_route = elapsed;
@@ -207,10 +225,11 @@ where
             return;
         };
         let (outcome, elapsed) = profile.measure(|| {
-            self.core.route_scroll_deferred_refresh_with_modifiers(
+            self.core.route_scroll_deferred_refresh_with_metadata(
                 pending.position,
                 pending.delta,
                 pending.modifiers,
+                pending.timestamp,
             )
         });
         profile.coalesced_wheel_route += elapsed;
@@ -277,6 +296,7 @@ where
         has_delta && self.paint_plan_has_coalescing_gpu_surface_at(position, delta)
     }
 
+    #[cfg(test)]
     pub(super) fn can_coalesce_scroll_container_wheel(
         &self,
         position: Point,
@@ -289,6 +309,25 @@ where
                 .core
                 .runtime
                 .wheel_widget_accepts_at(position, delta, modifiers)
+            && self
+                .core
+                .runtime
+                .scroll_container_accepts_wheel_at(position)
+    }
+
+    pub(super) fn can_coalesce_scroll_container_wheel_with_timestamp(
+        &self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> bool {
+        let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
+        is_vertical
+            && !self
+                .core
+                .runtime
+                .wheel_widget_accepts_at_with_metadata(position, delta, modifiers, timestamp)
             && self
                 .core
                 .runtime

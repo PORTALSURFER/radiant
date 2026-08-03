@@ -224,6 +224,7 @@ where
     }
 
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {
+        let timestamp = Some(InputTimestamp::capture());
         let position = self.input.last_cursor;
         let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
         let consume_control = self
@@ -245,7 +246,7 @@ where
             return NativeWheelRoute::new(GenericRouteOutcome::default(), diagnostic);
         };
         if self.can_coalesce_gpu_surface_wheel(position, delta) {
-            self.queue_gpu_surface_wheel(position, delta, modifiers);
+            self.queue_gpu_surface_wheel_with_timestamp(position, delta, modifiers, timestamp);
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
@@ -254,12 +255,13 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(outcome, diagnostic);
         }
-        let can_queue_scroll_container_wheel = self
-            .can_coalesce_scroll_container_wheel(position, delta, modifiers)
-            && self.timing.redraw_requested
-            && !self.pending_interactive_scroll_flush_is_due(now);
+        let can_queue_scroll_container_wheel =
+            self.can_coalesce_scroll_container_wheel_with_timestamp(
+                position, delta, modifiers, timestamp,
+            ) && self.timing.redraw_requested
+                && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
-            self.queue_scroll_container_wheel(position, delta, modifiers);
+            self.queue_scroll_container_wheel_with_timestamp(position, delta, modifiers, timestamp);
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
@@ -271,7 +273,7 @@ where
         let started = Instant::now();
         let outcome = self
             .core
-            .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers);
+            .route_scroll_deferred_refresh_with_metadata(position, delta, modifiers, timestamp);
         maybe_log_route_profile("wheel", started.elapsed(), outcome);
         self.handle_gpu_surface_route_outcome(outcome, position, delta);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);

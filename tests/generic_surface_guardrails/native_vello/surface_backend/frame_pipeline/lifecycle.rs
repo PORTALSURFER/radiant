@@ -144,8 +144,9 @@ fn native_auxiliary_windows_use_explicit_runtime_imports() {
             && auxiliary.contains("GenericNativeVelloRunner")
             && auxiliary.contains("GenericRouteOutcome")
             && auxiliary.contains("owner_window_handle")
+            && auxiliary.contains("use crate::runtime::{")
             && auxiliary.contains(
-                "use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};"
+                "AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,"
             )
             && auxiliary.contains("use winit::{")
             && !auxiliary.starts_with("use super::*;"),

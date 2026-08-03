@@ -1,5 +1,5 @@
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
-use super::runner_state::NativeWindowResourceBundle;
+use super::runner_state::{NativeWindowDiagnosticIdentityAllocator, NativeWindowResourceBundle};
 #[cfg(test)]
 use super::scene_texture::NativeFrameRenderFailure;
 use super::{
@@ -10,7 +10,9 @@ use super::{
     RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
-use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
+use crate::runtime::{
+    AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
+};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
 use std::time::Instant;
@@ -43,6 +45,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     pub(super) fn new(
         projection: AuxiliaryWindow<Message>,
         parent_options: &NativeRunOptions,
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
         let cache_on_close = projection.caches_on_close();
@@ -52,7 +55,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             options.text = parent_options.text.clone();
         }
         let bridge = AuxiliarySurfaceBridge::new(projection.surface);
-        let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
+        let mut runner = GenericNativeVelloRunner::new_with_diagnostic_identity(
+            options,
+            bridge,
+            viewport,
+            native_window_diagnostic_identity,
+            NativeWindowDiagnosticIdentityAllocator::exhausted(),
+        );
         runner.mark_as_auxiliary();
         Self {
             key: projection.key,
@@ -734,9 +743,15 @@ where
                 // generation-bound child is still retiring.
                 continue;
             } else {
+                let native_window_diagnostic_identity =
+                    self.allocate_auxiliary_window_diagnostic_identity();
                 let initialized = {
                     let parent_window = self.window.window.as_deref();
-                    let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
+                    let mut window = AuxiliaryNativeWindow::new(
+                        projection,
+                        &self.options,
+                        native_window_diagnostic_identity,
+                    );
                     window
                         .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
                         .map(|()| window)
@@ -846,8 +861,10 @@ mod tests {
     };
     use crate::gui::types::Vector2;
     use crate::{
-        application::empty, gui_runtime::NativeRunOptions, prelude::IntoView,
-        runtime::AuxiliaryWindow,
+        application::empty,
+        gui_runtime::NativeRunOptions,
+        prelude::IntoView,
+        runtime::{AuxiliaryWindow, NativeWindowDiagnosticIdentity},
     };
     use std::sync::Arc;
 
@@ -860,7 +877,11 @@ mod tests {
         } else {
             projection
         };
-        AuxiliaryNativeWindow::new(projection, &NativeRunOptions::default())
+        AuxiliaryNativeWindow::new(
+            projection,
+            &NativeRunOptions::default(),
+            Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+        )
     }
 
     #[test]

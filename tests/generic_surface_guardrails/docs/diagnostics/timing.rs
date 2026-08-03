@@ -28,6 +28,16 @@ fn api_docs_describe_native_gpu_timing_status() {
         "API docs should define the native frame sequence scope, assignment point, and exhaustion behavior"
     );
     assert!(
+        normalized_docs.contains("`NativeFrameDiagnostics::window_identity`")
+            && normalized_docs.contains("`(window_identity, frame_sequence)`")
+            && normalized_docs.contains("native runtime run")
+            && normalized_docs.contains("hide/show")
+            && normalized_docs.contains("cache-on-close")
+            && normalized_docs.contains("public logical `WindowKey`")
+            && normalized_docs.contains("auxiliary projection key"),
+        "API docs should define native-window identity lifetime, correlation, exhaustion, and key separation"
+    );
+    assert!(
         runtime_diagnostics.contains("pub enum NativeGpuTimingStatus")
             && runtime_diagnostics.contains("CpuEnvelopeOnly")
             && runtime_diagnostics.contains("pub gpu_timing_status: NativeGpuTimingStatus")
@@ -40,8 +50,12 @@ fn api_docs_describe_native_gpu_timing_status() {
     assert!(
         native_diagnostics
             .contains("gpu_timing_status: crate::runtime::NativeGpuTimingStatus::CpuEnvelopeOnly")
+            && native_diagnostics.contains("window_identity: parts.profile.window_identity")
             && native_diagnostics.contains("frame_sequence: parts.profile.frame_sequence")
             && render_profile.contains("gpu_timing_status = \"cpu_envelope_only\"")
+            && render_profile.contains(
+                "window_identity = frame.window_identity.map(NativeWindowDiagnosticIdentity::get)",
+            )
             && render_profile.contains("frame_sequence = frame.frame_sequence")
             && render_profile.contains("frame_cpu_envelope_total_us"),
         "native frame diagnostics and render profile should report CPU-envelope-only GPU timing status"

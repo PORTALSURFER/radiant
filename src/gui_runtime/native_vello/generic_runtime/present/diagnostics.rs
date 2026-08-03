@@ -33,6 +33,7 @@ pub(super) fn native_frame_diagnostics(
     let surface_invalidation =
         surface_invalidation_name(parts.frame_work, parts.surface_refresh.invalidation);
     crate::runtime::NativeFrameDiagnostics {
+        window_identity: parts.profile.window_identity,
         frame_sequence: parts.profile.frame_sequence,
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
@@ -283,6 +284,9 @@ mod tests {
             retained_entries: 0,
             gpu_surface_stats: Default::default(),
             profile: RenderFrameProfile {
+                window_identity: Some(
+                    crate::runtime::NativeWindowDiagnosticIdentity::from_runtime_value(7),
+                ),
                 frame_sequence: Some(41),
                 ..RenderFrameProfile::default()
             },
@@ -317,6 +321,10 @@ mod tests {
         });
 
         assert_eq!(diagnostics.presentation.surface_invalidation, "layout");
+        assert_eq!(
+            diagnostics.window_identity.map(|identity| identity.get()),
+            Some(7)
+        );
         assert_eq!(diagnostics.frame_sequence, Some(41));
         assert_eq!(diagnostics.surface_recovery.lost, 37);
         assert_eq!(diagnostics.surface_recovery.outdated, 41);

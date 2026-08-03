@@ -3,6 +3,25 @@ use super::{
     NativeSceneDiagnostics, NativeTextDiagnostics,
 };
 
+/// Opaque identity for one native window runner within one native runtime run.
+///
+/// The value is allocated by the native runtime and can only be inspected
+/// through [`Self::get`]. Pair it with a frame sequence when correlating
+/// diagnostics across primary and auxiliary windows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeWindowDiagnosticIdentity(u64);
+
+impl NativeWindowDiagnosticIdentity {
+    /// Return the numeric identity for host diagnostics or export.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    pub(crate) const fn from_runtime_value(value: u64) -> Self {
+        Self(value)
+    }
+}
+
 /// Cumulative, bounded observations of native surface recovery for one window.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeSurfaceRecoveryDiagnostics {
@@ -30,6 +49,10 @@ pub struct NativeSurfaceRecoveryDiagnostics {
 /// Structured diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameDiagnostics {
+    /// Opaque identity of the native window runner that presented this frame.
+    /// Pair it with [`Self::frame_sequence`] to correlate frames across
+    /// primary and auxiliary windows.
+    pub window_identity: Option<NativeWindowDiagnosticIdentity>,
     /// Monotonic sequence for this native window's successfully presented
     /// frames. It starts at one and remains scoped to the window across
     /// recovery; `None` means no presentation has occurred yet or the `u64`

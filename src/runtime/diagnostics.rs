@@ -20,6 +20,7 @@ pub use cache_policy::RetainedSurfaceCachePolicy;
 pub use frame::NativeFrameDiagnostics;
 pub use frame::NativeFramePresentationDiagnostics;
 pub use frame::NativeSurfaceRecoveryDiagnostics;
+pub use frame::NativeWindowDiagnosticIdentity;
 pub use gpu_surface::{
     GpuSurfaceOcclusionPlanningDiagnostics, NativeGpuSurfaceAtlasDiagnostics,
     NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,

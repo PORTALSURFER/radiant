@@ -8,8 +8,8 @@ use radiant::runtime::{
     NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics,
     NativeSurfaceRecoveryDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
     NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
-    NativeTransientOverlayTiming, RuntimeBridge, RuntimeFrameDiagnosticsHost,
-    RuntimeHostCapabilities,
+    NativeTransientOverlayTiming, NativeWindowDiagnosticIdentity, RuntimeBridge,
+    RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
 use std::time::Duration;
 
@@ -17,6 +17,7 @@ use std::time::Duration;
 fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
+        window_identity: None,
         frame_sequence: Some(41),
         presentation: NativeFramePresentationDiagnostics::default(),
         surface_recovery: NativeSurfaceRecoveryDiagnostics {
@@ -112,9 +113,12 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     };
 
     assert!(bridge.host_capabilities().has_frame_diagnostics());
+    fn assert_copy<T: Copy>() {}
+    assert_copy::<NativeWindowDiagnosticIdentity>();
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
+    assert_eq!(diagnostics.window_identity, None);
     assert_eq!(diagnostics.frame_sequence, Some(41));
     assert_eq!(diagnostics.surface_recovery.lost, 2);
     assert_eq!(diagnostics.surface_recovery.outdated, 3);

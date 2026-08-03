@@ -109,7 +109,8 @@ pub use devtools::{
 pub use diagnostics::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
     DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, GpuSurfaceOcclusionPlanningDiagnostics,
-    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
+    NativeCompositedBaseTiming, NativeCpuFrameFairnessDiagnostics,
+    NativeCpuFrameFairnessDisposition, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
     NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics,
     NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,

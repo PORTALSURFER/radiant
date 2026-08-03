@@ -46,6 +46,49 @@ pub struct NativeSurfaceRecoveryDiagnostics {
     pub other_retry_requests: u64,
 }
 
+/// The latest bounded CPU scheduler-turn disposition for one native window.
+///
+/// `Unknown` is the conservative value when no fairness ledger state is
+/// available for the window.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeCpuFrameFairnessDisposition {
+    /// No bounded scheduler-turn state is available for this window.
+    #[default]
+    Unknown,
+    /// The window was present in the turn but had no due work.
+    NotDue,
+    /// The window was selected by the existing scheduler cursor.
+    Selected,
+    /// The window had due work but another key was selected.
+    DueButDeferred,
+}
+
+/// Bounded, observational CPU fairness evidence for one native window.
+///
+/// This summary describes the existing scheduler's recent turn observations;
+/// it does not change selection, admission, quotas, deadlines, or rendering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeCpuFrameFairnessDiagnostics {
+    /// Whether a bounded scheduler-turn state exists for this window.
+    pub available: bool,
+    /// Disposition recorded by the latest observed scheduler turn.
+    pub latest_disposition: NativeCpuFrameFairnessDisposition,
+    /// Native target FPS requested before runtime activity caps.
+    pub requested_target_fps: u32,
+    /// Effective target FPS used by the existing cadence policy.
+    pub effective_target_fps: u32,
+    /// Saturating number of observed turns with no due work.
+    pub not_due_turns: u64,
+    /// Saturating number of observed turns where this key was selected.
+    pub selected_turns: u64,
+    /// Saturating number of observed turns where due work was deferred.
+    pub due_but_deferred_turns: u64,
+    /// Saturating number of exact cursor admissions for this key.
+    pub cursor_admissions: u64,
+    /// Whether the latest selected turn reached the cursor-admission boundary.
+    pub latest_selected_was_admitted: bool,
+}
+
 /// Structured diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameDiagnostics {
@@ -58,6 +101,9 @@ pub struct NativeFrameDiagnostics {
     /// recovery; `None` means no presentation has occurred yet or the `u64`
     /// counter is exhausted without wrapping or reusing a value.
     pub frame_sequence: Option<u64>,
+    /// Opt-in, bounded CPU scheduler-turn fairness observations for this
+    /// window. The default is unavailable/no state.
+    pub cpu_fairness: NativeCpuFrameFairnessDiagnostics,
     /// Redraw routing metadata for the presented native frame.
     pub presentation: NativeFramePresentationDiagnostics,
     /// Cumulative native surface recovery observations for the window.

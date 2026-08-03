@@ -8,7 +8,7 @@ use super::{
     should_start_native_window_drag, should_toggle_native_window_maximized,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
-use crate::runtime::{NativeFrameDiagnostics, RuntimeBridge};
+use crate::runtime::{NativeCpuFrameFairnessDiagnostics, NativeFrameDiagnostics, RuntimeBridge};
 use std::time::{Duration, Instant};
 use tracing::warn;
 use winit::{
@@ -129,7 +129,7 @@ where
                 } else {
                     self.auxiliary_windows[index].finalize_parent_frame_diagnostics(false)
                 };
-            forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
+            forward_auxiliary_frame_diagnostics(self, &auxiliary_key, frame_diagnostics);
             if shutdown_requested {
                 self.admit_native_shutdown(event_loop, terminal_cause);
                 return;
@@ -503,7 +503,7 @@ where
                             }
                             None
                         };
-                        forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
+                        forward_auxiliary_frame_diagnostics(self, &selected, frame_diagnostics);
                         if shutdown_requested {
                             self.admit_native_shutdown(event_loop, terminal_cause);
                             return;
@@ -547,11 +547,18 @@ fn native_resource_maintenance_deadline(now: Instant, pending: bool) -> Option<I
 
 fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
     runner: &mut GenericNativeVelloRunner<Bridge, Message>,
+    key: &FrameScheduleKey,
     diagnostics: Option<NativeFrameDiagnostics>,
 ) where
     Bridge: RuntimeBridge<Message>,
 {
-    if let Some(diagnostics) = diagnostics {
+    if let Some(mut diagnostics) = diagnostics {
+        diagnostics.cpu_fairness = runner
+            .cpu_frame_fairness
+            .as_ref()
+            .map_or_else(NativeCpuFrameFairnessDiagnostics::default, |ledger| {
+                ledger.project_frame_diagnostics(key)
+            });
         runner
             .core
             .runtime
@@ -594,12 +601,13 @@ mod tests {
         CpuFrameCadencePressure, CpuFrameCadenceRate,
     };
     use crate::gui_runtime::native_vello::generic_runtime::{
-        FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence,
+        FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence,
         animation_frame_interval, assess_cpu_frame_fairness, timed_frame_cadence,
         timed_frame_target_fps,
     };
     use crate::runtime::{
-        Command, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
+        Command, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
+        NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
         RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
     };
     use crate::{application::empty, prelude::IntoView};
@@ -611,6 +619,7 @@ mod tests {
         Diagnostics {
             window_identity: Option<u64>,
             frame_sequence: Option<u64>,
+            cpu_fairness: NativeCpuFrameFairnessDiagnostics,
         },
         Message(u8),
     }
@@ -647,6 +656,7 @@ mod tests {
                         .window_identity
                         .map(NativeWindowDiagnosticIdentity::get),
                     frame_sequence: diagnostics.frame_sequence,
+                    cpu_fairness: diagnostics.cpu_fairness,
                 });
         }
     }
@@ -757,7 +767,8 @@ mod tests {
         auxiliary.stage_frame_diagnostics_for_test(diagnostics);
         assert_eq!(auxiliary.take_ready_frame_diagnostics(), None);
         let diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
-        forward_auxiliary_frame_diagnostics(&mut runner, diagnostics);
+        let key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
         let _ = runner.core.runtime.dispatch_message(7);
 
         assert_eq!(
@@ -768,6 +779,135 @@ mod tests {
                 OrderedAuxiliaryEvent::Diagnostics {
                     window_identity: Some(9),
                     frame_sequence: Some(41),
+                    cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
+                },
+                OrderedAuxiliaryEvent::Message(7),
+            ]
+        );
+    }
+
+    #[test]
+    fn auxiliary_direct_diagnostics_project_the_keyed_parent_fairness_after_finalization() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut auxiliary = auxiliary_window_with_diagnostics();
+        let mut runner = GenericNativeVelloRunner::new(
+            crate::gui_runtime::NativeRunOptions::default(),
+            OrderedAuxiliaryBridge {
+                events: Arc::clone(&events),
+            },
+            crate::gui::types::Vector2::new(320.0, 40.0),
+        );
+        let key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        let now = Instant::now();
+        let demand = FrameScheduleDemand::from_cadence_with_requested_target_fps(
+            key.clone(),
+            super::TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + Duration::from_millis(16),
+            },
+            120,
+            24,
+            RuntimeAnimationActivity::paint_only_at(24),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        );
+        let demands = [demand];
+        let plan = runner
+            .frame_scheduler
+            .observe(now, &demands, FrameScheduleDeadlines::default());
+        assert_eq!(plan.selected, Some(key.clone()));
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+
+        auxiliary.stage_frame_diagnostics_for_test(NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
+            frame_sequence: Some(41),
+            ..NativeFrameDiagnostics::default()
+        });
+        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
+
+        assert_eq!(
+            *events
+                .lock()
+                .expect("direct fairness event log should not be poisoned"),
+            vec![OrderedAuxiliaryEvent::Diagnostics {
+                window_identity: Some(9),
+                frame_sequence: Some(41),
+                cpu_fairness: NativeCpuFrameFairnessDiagnostics {
+                    available: true,
+                    latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
+                    requested_target_fps: 120,
+                    effective_target_fps: 24,
+                    selected_turns: 1,
+                    ..NativeCpuFrameFairnessDiagnostics::default()
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn auxiliary_scheduled_diagnostics_project_admission_after_parent_finalization() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut auxiliary = auxiliary_window_with_diagnostics();
+        let mut runner = GenericNativeVelloRunner::new(
+            crate::gui_runtime::NativeRunOptions::default(),
+            OrderedAuxiliaryBridge {
+                events: Arc::clone(&events),
+            },
+            crate::gui::types::Vector2::new(320.0, 40.0),
+        );
+        let key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        let now = Instant::now();
+        let demand = FrameScheduleDemand::from_cadence_with_requested_target_fps(
+            key.clone(),
+            super::TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + Duration::from_millis(16),
+            },
+            120,
+            24,
+            RuntimeAnimationActivity::paint_only_at(24),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        );
+        let demands = [demand];
+        let plan = runner
+            .frame_scheduler
+            .observe(now, &demands, FrameScheduleDeadlines::default());
+        assert_eq!(plan.selected, Some(key.clone()));
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+
+        auxiliary.require_scheduled_frame_admission();
+        auxiliary.stage_frame_diagnostics_for_test(NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
+            frame_sequence: Some(42),
+            ..NativeFrameDiagnostics::default()
+        });
+        runner.record_frame_schedule_admission(key.clone());
+        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(true);
+        forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
+        let _ = runner.core.runtime.dispatch_message(7);
+
+        assert_eq!(
+            *events
+                .lock()
+                .expect("scheduled fairness event log should not be poisoned"),
+            vec![
+                OrderedAuxiliaryEvent::Diagnostics {
+                    window_identity: Some(9),
+                    frame_sequence: Some(42),
+                    cpu_fairness: NativeCpuFrameFairnessDiagnostics {
+                        available: true,
+                        latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
+                        requested_target_fps: 120,
+                        effective_target_fps: 24,
+                        selected_turns: 1,
+                        cursor_admissions: 1,
+                        latest_selected_was_admitted: true,
+                        ..NativeCpuFrameFairnessDiagnostics::default()
+                    },
                 },
                 OrderedAuxiliaryEvent::Message(7),
             ]
@@ -794,7 +934,8 @@ mod tests {
         auxiliary.require_scheduled_frame_admission();
         let no_present_diagnostics = auxiliary.finalize_parent_frame_diagnostics(true);
         assert_eq!(no_present_diagnostics, None);
-        forward_auxiliary_frame_diagnostics(&mut runner, no_present_diagnostics);
+        let key = FrameScheduleKey::Auxiliary("settings".to_owned());
+        forward_auxiliary_frame_diagnostics(&mut runner, &key, no_present_diagnostics);
         let _ = runner.core.runtime.dispatch_message(1);
         assert_eq!(
             *events
@@ -805,7 +946,7 @@ mod tests {
 
         auxiliary.stage_frame_diagnostics_for_test(diagnostics);
         let frame_diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
-        forward_auxiliary_frame_diagnostics(&mut runner, frame_diagnostics);
+        forward_auxiliary_frame_diagnostics(&mut runner, &key, frame_diagnostics);
         let _ = runner.core.runtime.dispatch_message(2);
         assert_eq!(
             *events
@@ -816,6 +957,7 @@ mod tests {
                 OrderedAuxiliaryEvent::Diagnostics {
                     window_identity: Some(9),
                     frame_sequence: Some(42),
+                    cpu_fairness: NativeCpuFrameFairnessDiagnostics::default(),
                 },
                 OrderedAuxiliaryEvent::Message(2),
             ]

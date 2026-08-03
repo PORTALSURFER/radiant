@@ -127,8 +127,7 @@ where
                     self.auxiliary_windows[index].discard_frame_diagnostics();
                     None
                 } else {
-                    self.auxiliary_windows[index].mark_parent_observation_finalized();
-                    self.auxiliary_windows[index].take_ready_frame_diagnostics()
+                    self.auxiliary_windows[index].finalize_parent_frame_diagnostics(false)
                 };
             forward_auxiliary_frame_diagnostics(self, frame_diagnostics);
             if shutdown_requested {
@@ -490,9 +489,7 @@ where
                                 .iter_mut()
                                 .find(|window| window.key() == key)
                             {
-                                window.mark_parent_observation_finalized();
-                                window.mark_scheduled_frame_admission_recorded();
-                                window.take_ready_frame_diagnostics()
+                                window.finalize_parent_frame_diagnostics(true)
                             } else {
                                 None
                             }
@@ -588,6 +585,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::AuxiliaryNativeWindow;
     use super::{
         GenericNativeVelloRunner, NATIVE_RESOURCE_MAINTENANCE_INTERVAL,
         forward_auxiliary_frame_diagnostics, native_resource_maintenance_deadline,
@@ -651,6 +649,20 @@ mod tests {
                     frame_sequence: diagnostics.frame_sequence,
                 });
         }
+    }
+
+    fn auxiliary_window_with_diagnostics() -> AuxiliaryNativeWindow<u8> {
+        let surface = crate::runtime::test_arc_surface(empty::<u8>().into_surface());
+        AuxiliaryNativeWindow::new(
+            crate::runtime::AuxiliaryWindow::new(
+                "settings",
+                crate::gui_runtime::NativeRunOptions::default(),
+                surface,
+            ),
+            &crate::gui_runtime::NativeRunOptions::default(),
+            Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            true,
+        )
     }
 
     #[test]
@@ -728,6 +740,7 @@ mod tests {
     #[test]
     fn auxiliary_diagnostics_forward_before_messages_and_preserve_correlation() {
         let events = Arc::new(Mutex::new(Vec::new()));
+        let mut auxiliary = auxiliary_window_with_diagnostics();
         let mut runner = GenericNativeVelloRunner::new(
             crate::gui_runtime::NativeRunOptions::default(),
             OrderedAuxiliaryBridge {
@@ -741,7 +754,10 @@ mod tests {
             ..NativeFrameDiagnostics::default()
         };
 
-        forward_auxiliary_frame_diagnostics(&mut runner, Some(diagnostics));
+        auxiliary.stage_frame_diagnostics_for_test(diagnostics);
+        assert_eq!(auxiliary.take_ready_frame_diagnostics(), None);
+        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        forward_auxiliary_frame_diagnostics(&mut runner, diagnostics);
         let _ = runner.core.runtime.dispatch_message(7);
 
         assert_eq!(
@@ -761,6 +777,7 @@ mod tests {
     #[test]
     fn auxiliary_scheduled_work_without_synchronous_present_publishes_nothing_until_later_redraw() {
         let events = Arc::new(Mutex::new(Vec::new()));
+        let mut auxiliary = auxiliary_window_with_diagnostics();
         let mut runner = GenericNativeVelloRunner::new(
             crate::gui_runtime::NativeRunOptions::default(),
             OrderedAuxiliaryBridge {
@@ -774,7 +791,10 @@ mod tests {
             ..NativeFrameDiagnostics::default()
         };
 
-        forward_auxiliary_frame_diagnostics(&mut runner, None);
+        auxiliary.require_scheduled_frame_admission();
+        let no_present_diagnostics = auxiliary.finalize_parent_frame_diagnostics(true);
+        assert_eq!(no_present_diagnostics, None);
+        forward_auxiliary_frame_diagnostics(&mut runner, no_present_diagnostics);
         let _ = runner.core.runtime.dispatch_message(1);
         assert_eq!(
             *events
@@ -783,7 +803,9 @@ mod tests {
             vec![OrderedAuxiliaryEvent::Message(1)]
         );
 
-        forward_auxiliary_frame_diagnostics(&mut runner, Some(diagnostics));
+        auxiliary.stage_frame_diagnostics_for_test(diagnostics);
+        let frame_diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        forward_auxiliary_frame_diagnostics(&mut runner, frame_diagnostics);
         let _ = runner.core.runtime.dispatch_message(2);
         assert_eq!(
             *events

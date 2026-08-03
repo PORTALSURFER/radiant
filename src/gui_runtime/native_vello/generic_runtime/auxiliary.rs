@@ -116,6 +116,25 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .take_ready_frame_diagnostics()
     }
 
+    pub(super) fn finalize_parent_frame_diagnostics(
+        &mut self,
+        scheduled_admission_recorded: bool,
+    ) -> Option<NativeFrameDiagnostics> {
+        self.mark_parent_observation_finalized();
+        if scheduled_admission_recorded {
+            self.mark_scheduled_frame_admission_recorded();
+        }
+        self.take_ready_frame_diagnostics()
+    }
+
+    #[cfg(test)]
+    pub(super) fn stage_frame_diagnostics_for_test(&mut self, diagnostics: NativeFrameDiagnostics) {
+        self.runner
+            .core
+            .runtime
+            .host_observe_frame_diagnostics(diagnostics);
+    }
+
     pub(super) fn discard_frame_diagnostics(&mut self) {
         self.runner
             .core
@@ -479,6 +498,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if !self.is_admitted() {
             return;
         }
+        self.discard_frame_diagnostics();
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
         self.recovery_rebuild_pending = false;
         self.hide();
@@ -1040,11 +1060,18 @@ mod tests {
 
     #[test]
     fn whole_run_retirement_reuses_retiring_transition_without_dispatching_close_message() {
-        let mut window = auxiliary_window(false);
+        let mut window = auxiliary_window_with_diagnostics(false, true);
+        window.stage_frame_diagnostics_for_test(NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            frame_sequence: Some(13),
+            ..NativeFrameDiagnostics::default()
+        });
 
         window.begin_retiring();
 
         assert!(window.is_retiring());
+        window.mark_parent_observation_finalized();
+        assert_eq!(window.take_ready_frame_diagnostics(), None);
         let late_close = window.handle_close_requested();
         assert!(late_close.messages.is_empty());
         assert!(!late_close.shutdown_requested);

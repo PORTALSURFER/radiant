@@ -1,6 +1,7 @@
 use super::*;
 use radiant::runtime::{
-    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
+    NativeCompositedBaseTiming, NativeCpuFrameFairnessDiagnostics,
+    NativeCpuFrameFairnessDisposition, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
     NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
@@ -19,6 +20,17 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let diagnostics = NativeFrameDiagnostics {
         window_identity: None,
         frame_sequence: Some(41),
+        cpu_fairness: NativeCpuFrameFairnessDiagnostics {
+            available: true,
+            latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
+            requested_target_fps: 120,
+            effective_target_fps: 24,
+            not_due_turns: 3,
+            selected_turns: 5,
+            due_but_deferred_turns: 7,
+            cursor_admissions: 5,
+            latest_selected_was_admitted: true,
+        },
         presentation: NativeFramePresentationDiagnostics::default(),
         surface_recovery: NativeSurfaceRecoveryDiagnostics {
             lost: 2,
@@ -114,12 +126,22 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
 
     assert!(bridge.host_capabilities().has_frame_diagnostics());
     fn assert_copy<T: Copy>() {}
+    fn assert_public_diagnostic_traits<T: Copy + Default + std::fmt::Debug + Eq>() {}
     assert_copy::<NativeWindowDiagnosticIdentity>();
+    assert_public_diagnostic_traits::<NativeCpuFrameFairnessDiagnostics>();
+    assert_public_diagnostic_traits::<NativeCpuFrameFairnessDisposition>();
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
     assert_eq!(diagnostics.window_identity, None);
     assert_eq!(diagnostics.frame_sequence, Some(41));
+    assert_eq!(diagnostics.cpu_fairness.requested_target_fps, 120);
+    assert_eq!(diagnostics.cpu_fairness.effective_target_fps, 24);
+    assert_eq!(
+        diagnostics.cpu_fairness.latest_disposition,
+        NativeCpuFrameFairnessDisposition::Selected
+    );
+    assert!(diagnostics.cpu_fairness.latest_selected_was_admitted);
     assert_eq!(diagnostics.surface_recovery.lost, 2);
     assert_eq!(diagnostics.surface_recovery.outdated, 3);
     assert_eq!(diagnostics.surface_recovery.timeouts, 5);
@@ -193,6 +215,10 @@ fn native_surface_recovery_diagnostics_default_to_zero() {
     assert_eq!(
         NativeFrameDiagnostics::default().surface_recovery,
         default_recovery
+    );
+    assert_eq!(
+        NativeFrameDiagnostics::default().cpu_fairness,
+        NativeCpuFrameFairnessDiagnostics::default()
     );
 }
 

@@ -2884,6 +2884,18 @@ transient-overlay primitive counts, and timing for surface
 refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
 or cache hits for transient overlays, transient-overlay paint callbacks,
 GPU-surface composition, and presentation.
+`NativeFrameDiagnostics::cpu_fairness` is an opt-in, bounded one-window summary
+of the existing native CPU scheduler's observed turns. When `available` is
+false, the window has no retained scheduler-turn state and the summary remains
+at its default no-state values. When available, `latest_disposition` reports
+`NativeCpuFrameFairnessDisposition::Unknown`, `NotDue`, `Selected`, or
+`DueButDeferred`; the summary also separates requested and effective target FPS
+and exposes saturating turn and cursor-admission totals. The summary is
+observational only: it does not select work, change admission, impose quotas or
+budgets, defer stages, alter deadlines, or affect rendering. It is populated
+only when the explicitly registered `RuntimeFrameDiagnosticsHost` capability is
+enabled and is attached after the existing frame-observation and schedule-
+admission publication gates.
 `NativeFrameDiagnostics::frame_sequence` is an `Option<u64>` monotonic sequence
 scoped to one native window. It starts at `1` and is allocated only after a
 successful presentation, so it remains monotonic across recovery. It is `None`

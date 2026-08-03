@@ -12,6 +12,7 @@ use super::cpu_frame_observation::{
 use super::{
     FrameScheduleDemand, FrameScheduleKey, FrameScheduleWork, FrameSchedulerPlan, TimedFrameCadence,
 };
+use crate::runtime::{NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition};
 use std::time::{Duration, Instant};
 
 /// The parent keeps a bounded number of stable schedule identities. A key that
@@ -70,6 +71,8 @@ impl CpuFrameFairnessCounters {
 struct CpuFrameFairnessState {
     key: FrameScheduleKey,
     counters: CpuFrameFairnessCounters,
+    requested_target_fps: CpuFrameCadenceRate,
+    effective_target_fps: CpuFrameCadenceRate,
     samples: [Option<CpuFrameFairnessSample>; CPU_FRAME_FAIRNESS_SAMPLE_CAPACITY],
     next_sample: usize,
     sample_count: usize,
@@ -80,14 +83,24 @@ impl CpuFrameFairnessState {
         Self {
             key,
             counters: CpuFrameFairnessCounters::default(),
+            requested_target_fps: CpuFrameCadenceRate::Unknown,
+            effective_target_fps: CpuFrameCadenceRate::Unknown,
             samples: std::array::from_fn(|_| None),
             next_sample: 0,
             sample_count: 0,
         }
     }
 
-    fn record(&mut self, disposition: CpuFrameTurnDisposition, work: FrameScheduleWork) {
+    fn record(
+        &mut self,
+        disposition: CpuFrameTurnDisposition,
+        requested_target_fps: CpuFrameCadenceRate,
+        effective_target_fps: CpuFrameCadenceRate,
+        work: FrameScheduleWork,
+    ) {
         self.counters.record_disposition(disposition);
+        self.requested_target_fps = requested_target_fps;
+        self.effective_target_fps = effective_target_fps;
         self.samples[self.next_sample] = Some(CpuFrameFairnessSample {
             disposition,
             work,
@@ -183,8 +196,45 @@ impl CpuFrameFairnessLedger {
                 self.state_or_insert(demand.key())
             };
             if let Some(state) = state {
-                state.record(disposition, evidence.work);
+                state.record(
+                    disposition,
+                    evidence.requested_cadence,
+                    evidence.effective_cadence,
+                    evidence.work,
+                );
             }
+        }
+    }
+
+    /// Project one stable scheduler key into the public, observational
+    /// summary without exposing the private ledger, state, or sample types.
+    pub(super) fn project_frame_diagnostics(
+        &self,
+        key: &FrameScheduleKey,
+    ) -> NativeCpuFrameFairnessDiagnostics {
+        let Some(state) = self
+            .states
+            .iter()
+            .find_map(|state| state.as_ref().filter(|state| &state.key == key))
+        else {
+            return NativeCpuFrameFairnessDiagnostics::default();
+        };
+        let Some(sample) = state.latest_sample() else {
+            return NativeCpuFrameFairnessDiagnostics::default();
+        };
+        NativeCpuFrameFairnessDiagnostics {
+            available: true,
+            latest_disposition: public_disposition(sample.disposition),
+            requested_target_fps: cadence_rate_value(state.requested_target_fps),
+            effective_target_fps: cadence_rate_value(state.effective_target_fps),
+            not_due_turns: state.counters.not_due_turns,
+            selected_turns: state.counters.selected_turns,
+            due_but_deferred_turns: state.counters.due_but_deferred_turns,
+            cursor_admissions: state.counters.cursor_admissions,
+            latest_selected_was_admitted: matches!(
+                sample.disposition,
+                CpuFrameTurnDisposition::Selected
+            ) && sample.cursor_admitted,
         }
     }
 
@@ -224,6 +274,23 @@ impl CpuFrameFairnessLedger {
     #[cfg(test)]
     fn len(&self) -> usize {
         self.states.iter().filter(|state| state.is_some()).count()
+    }
+}
+
+fn cadence_rate_value(rate: CpuFrameCadenceRate) -> u32 {
+    match rate {
+        CpuFrameCadenceRate::Known(fps) => fps,
+        CpuFrameCadenceRate::Unknown => 0,
+    }
+}
+
+fn public_disposition(disposition: CpuFrameTurnDisposition) -> NativeCpuFrameFairnessDisposition {
+    match disposition {
+        CpuFrameTurnDisposition::NotDue => NativeCpuFrameFairnessDisposition::NotDue,
+        CpuFrameTurnDisposition::Selected => NativeCpuFrameFairnessDisposition::Selected,
+        CpuFrameTurnDisposition::DueButDeferred => {
+            NativeCpuFrameFairnessDisposition::DueButDeferred
+        }
     }
 }
 

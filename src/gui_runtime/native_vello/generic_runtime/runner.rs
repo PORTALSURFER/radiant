@@ -39,8 +39,8 @@ use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{
-        NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
-        RuntimeAnimationActivity, RuntimeBridge,
+        NativeCpuFrameFairnessDiagnostics, NativeFrameDiagnostics, NativeRunOptions,
+        NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
     },
 };
 use std::sync::Arc;
@@ -263,7 +263,13 @@ where
         if !self.frame_diagnostics_enabled {
             return;
         }
-        if let Some(diagnostics) = self.frame_diagnostics_publication.take_ready() {
+        if let Some(mut diagnostics) = self.frame_diagnostics_publication.take_ready() {
+            diagnostics.cpu_fairness = self
+                .cpu_frame_fairness
+                .as_ref()
+                .map_or_else(NativeCpuFrameFairnessDiagnostics::default, |ledger| {
+                    ledger.project_frame_diagnostics(&FrameScheduleKey::Primary)
+                });
             self.core
                 .runtime
                 .host_observe_frame_diagnostics(diagnostics);
@@ -1776,6 +1782,7 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
+            NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
             NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
             RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
         },
@@ -1793,7 +1800,7 @@ mod tests {
         }
     }
 
-    type PublishedFrameEvents = Arc<Mutex<Vec<(Option<u64>, Option<u64>)>>>;
+    type PublishedFrameEvents = Arc<Mutex<Vec<NativeFrameDiagnostics>>>;
 
     struct RecordingFrameDiagnosticsBridge {
         published: PublishedFrameEvents,
@@ -1814,12 +1821,7 @@ mod tests {
             self.published
                 .lock()
                 .expect("publication test events should not be poisoned")
-                .push((
-                    diagnostics
-                        .window_identity
-                        .map(NativeWindowDiagnosticIdentity::get),
-                    diagnostics.frame_sequence,
-                ));
+                .push(diagnostics);
         }
     }
 
@@ -1856,16 +1858,60 @@ mod tests {
             .frame_diagnostics_publication
             .mark_observation_finalized();
         if scheduled {
-            runner.record_frame_schedule_admission(FrameScheduleKey::Primary);
+            runner.publish_staged_frame_diagnostics();
+            assert!(
+                published
+                    .lock()
+                    .expect("publication test events should not be poisoned")
+                    .is_empty()
+            );
+        }
+        let now = Instant::now();
+        let primary_key = FrameScheduleKey::Primary;
+        let demand = FrameScheduleDemand::from_cadence_with_requested_target_fps(
+            primary_key.clone(),
+            TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + std::time::Duration::from_millis(16),
+            },
+            120,
+            24,
+            RuntimeAnimationActivity::paint_only_at(24),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        );
+        let demands = [demand];
+        let plan = runner
+            .frame_scheduler
+            .observe(now, &demands, FrameScheduleDeadlines::default());
+        assert_eq!(plan.selected, Some(primary_key.clone()));
+        assess_cpu_frame_fairness(now, &demands, None)
+            .record_turn(runner.cpu_frame_fairness.as_mut().unwrap(), &plan);
+        if scheduled {
+            runner.record_frame_schedule_admission(primary_key);
         }
         runner.publish_staged_frame_diagnostics();
         runner.publish_staged_frame_diagnostics();
 
+        let fairness = NativeCpuFrameFairnessDiagnostics {
+            available: true,
+            latest_disposition: NativeCpuFrameFairnessDisposition::Selected,
+            requested_target_fps: 120,
+            effective_target_fps: 24,
+            selected_turns: 1,
+            cursor_admissions: u64::from(scheduled),
+            latest_selected_was_admitted: scheduled,
+            ..NativeCpuFrameFairnessDiagnostics::default()
+        };
+        let expected = NativeFrameDiagnostics {
+            cpu_fairness: fairness,
+            ..diagnostics
+        };
         assert_eq!(
             *published
                 .lock()
                 .expect("publication test events should not be poisoned"),
-            vec![(Some(1), Some(7))]
+            vec![expected]
         );
     }
 

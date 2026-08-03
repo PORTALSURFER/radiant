@@ -35,6 +35,7 @@ pub(super) fn native_frame_diagnostics(
     crate::runtime::NativeFrameDiagnostics {
         window_identity: parts.profile.window_identity,
         frame_sequence: parts.profile.frame_sequence,
+        cpu_fairness: crate::runtime::NativeCpuFrameFairnessDiagnostics::default(),
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
             frame_work_reason: parts.frame_work.reason().name(),

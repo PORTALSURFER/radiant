@@ -19,6 +19,8 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && root.contains("mod retained_surface;")
             && root.contains("mod scene;")
             && root.contains("mod cache_policy;")
+            && root.contains("pub use frame::NativeCpuFrameFairnessDiagnostics")
+            && root.contains("pub use frame::NativeCpuFrameFairnessDisposition")
             && root.contains("pub use frame::NativeFrameDiagnostics")
             && root.contains("pub use frame::NativeWindowDiagnosticIdentity")
             && root.contains("NativeTextDiagnostics")
@@ -30,6 +32,8 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
     );
     assert!(
         frame.contains("pub struct NativeWindowDiagnosticIdentity")
+            && frame.contains("pub enum NativeCpuFrameFairnessDisposition")
+            && frame.contains("pub struct NativeCpuFrameFairnessDiagnostics")
             && frame.contains("pub struct NativeFrameDiagnostics")
             && text.contains("pub struct NativeTextDiagnostics")
             && text.contains("pub struct NativeTextCacheDiagnostics")

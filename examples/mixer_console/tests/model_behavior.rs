@@ -138,6 +138,7 @@ fn mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_ga
             position: Point::new(fader.center().x, fader.min.y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     assert!(
@@ -187,6 +188,7 @@ fn mixer_group_fader_drag_preview_moves_selected_channels_together() {
             position: Point::new(fader.center().x, fader.min.y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     assert!(

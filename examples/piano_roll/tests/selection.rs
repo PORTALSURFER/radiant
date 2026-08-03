@@ -19,6 +19,7 @@ fn piano_roll_shift_forces_marquee_and_command_toggles_note_selection() {
                     shift: true,
                     ..PointerModifiers::default()
                 },
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned());
@@ -49,6 +50,7 @@ fn piano_roll_shift_forces_marquee_and_command_toggles_note_selection() {
                     command: true,
                     ..PointerModifiers::default()
                 },
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned());

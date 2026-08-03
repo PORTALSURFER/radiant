@@ -68,6 +68,7 @@ fn modulation_matrix_drag_routes_bipolar_amount_change() {
             position: Point::new(rect.center().x, rect.min.y + 1.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

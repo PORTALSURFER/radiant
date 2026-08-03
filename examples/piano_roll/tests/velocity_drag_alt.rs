@@ -19,6 +19,7 @@ fn piano_roll_alt_dragging_note_adjusts_velocity() {
                 alt: true,
                 ..PointerModifiers::default()
             },
+            timestamp: None,
         },
     );
 
@@ -86,6 +87,7 @@ fn piano_roll_alt_dragging_unselected_note_selects_it_before_velocity_drag() {
                     alt: true,
                     ..PointerModifiers::default()
                 },
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
@@ -119,6 +121,7 @@ fn piano_roll_velocity_drag_starts_only_from_handle_rect() {
             position: outside_handle,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
 
@@ -149,6 +152,7 @@ fn piano_roll_velocity_drag_selects_unselected_handle_on_press_without_modifiers
                 position: handle.center(),
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())

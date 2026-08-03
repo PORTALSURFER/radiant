@@ -46,6 +46,7 @@ fn mixer_panel_fader_drag_routes_gain_change() {
             position: Point::new(fader.center().x, fader.min.y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 
@@ -106,6 +107,7 @@ fn mixer_strip_drag_paints_insertion_line_without_spreading_strips() {
             position: Point::new(source.center().x, source.min.y + 22.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let move_output = widget.handle_input(
@@ -152,6 +154,7 @@ fn mixer_strip_drag_drop_emits_reorder_message() {
             position: Point::new(source.center().x, source.min.y + 22.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(
@@ -189,6 +192,7 @@ fn mixer_panel_send_drag_routes_dense_aux_control_change() {
             position: Point::new(send.min.x + send.width() * 0.75, send.center().y),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
 

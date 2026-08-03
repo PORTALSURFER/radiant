@@ -19,6 +19,7 @@ fn piano_roll_marquee_preview_lights_intersecting_notes_like_hover() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -65,6 +66,7 @@ fn piano_roll_shift_drag_uses_marquee_selection_in_paint_tool() {
             position: start,
             button: PointerButton::Primary,
             modifiers,
+            timestamp: None,
         },
     );
     let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -119,6 +121,7 @@ fn piano_roll_shift_command_marquee_adds_to_existing_selection() {
             position: start,
             button: PointerButton::Primary,
             modifiers,
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });

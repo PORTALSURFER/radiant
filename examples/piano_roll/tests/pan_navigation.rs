@@ -22,6 +22,7 @@ fn piano_roll_middle_mouse_drag_pans_view() {
             position: start,
             button: PointerButton::Auxiliary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     assert!(press.is_none());
@@ -65,6 +66,7 @@ fn piano_roll_middle_mouse_vertical_pan_accumulates_sub_row_motion() {
             position: start,
             button: PointerButton::Auxiliary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     let first = widget.handle_input(

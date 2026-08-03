@@ -32,6 +32,7 @@ fn mixer_runtime_fader_drag_motion_uses_paint_only_preview_until_release() {
         position: press,
         button: PointerButton::Primary,
         modifiers: PointerModifiers::default(),
+        timestamp: None,
     });
     let _ = runtime.take_repaint_requested();
     let first_drag = runtime.dispatch_pointer_move_with_outcome(drag);

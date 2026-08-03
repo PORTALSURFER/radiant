@@ -110,6 +110,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
         position: handle_position,
         button: PointerButton::Primary,
         modifiers: Default::default(),
+        timestamp: None,
     });
     runtime.dispatch_event(Event::PointerMove {
         position: preview_position,

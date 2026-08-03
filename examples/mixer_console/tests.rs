@@ -50,6 +50,7 @@ fn press_strip_label(
                 position,
                 button: PointerButton::Primary,
                 modifiers,
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<MixerPanelMessage>().copied());

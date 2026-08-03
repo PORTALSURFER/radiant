@@ -84,6 +84,7 @@ fn piano_roll_moving_time_selection_previews_clipped_notes_at_target() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
@@ -117,6 +118,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     widget.handle_input(bounds, WidgetInput::PointerMove { position: end });

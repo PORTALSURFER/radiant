@@ -79,6 +79,7 @@ fn piano_roll_single_click_places_edit_cursor_without_creating_note() {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned());
@@ -158,6 +159,7 @@ fn piano_roll_snap_off_places_cursor_at_exact_pointer_beat() {
                 position,
                 button: PointerButton::Primary,
                 modifiers: PointerModifiers::default(),
+                timestamp: None,
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned());

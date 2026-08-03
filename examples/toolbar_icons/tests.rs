@@ -56,6 +56,7 @@ fn toolbar_button_routes_toggle_through_runtime() {
             position: Point::new(70.0, 60.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     ));
     assert!(runtime.dispatch_input(

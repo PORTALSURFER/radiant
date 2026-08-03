@@ -15,6 +15,7 @@ fn piano_roll_drag_routes_move_message() {
             position: start,
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         },
     );
     let output = widget.handle_input(
@@ -86,6 +87,7 @@ fn piano_roll_dragging_selected_note_moves_the_selected_group() {
             position: start,
             button: PointerButton::Primary,
             modifiers: PointerModifiers::default(),
+            timestamp: None,
         },
     );
     assert!(

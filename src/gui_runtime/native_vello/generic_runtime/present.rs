@@ -162,6 +162,7 @@ where
             }
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
+            profile.frame_sequence = self.timing.allocate_frame_sequence();
             self.finish_direct_resize_present(
                 render_to_texture_elapsed,
                 profile,
@@ -254,6 +255,7 @@ where
             surface_texture.present();
         });
         profile.submit_present = elapsed;
+        profile.frame_sequence = self.timing.allocate_frame_sequence();
         self.cpu_frame_observation_capture.record_profile_stage(
             CpuFrameStage::SubmitPresent,
             true,

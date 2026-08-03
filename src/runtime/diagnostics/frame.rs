@@ -30,6 +30,11 @@ pub struct NativeSurfaceRecoveryDiagnostics {
 /// Structured diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameDiagnostics {
+    /// Monotonic sequence for this native window's successfully presented
+    /// frames. It starts at one and remains scoped to the window across
+    /// recovery; `None` means no presentation has occurred yet or the `u64`
+    /// counter is exhausted without wrapping or reusing a value.
+    pub frame_sequence: Option<u64>,
     /// Redraw routing metadata for the presented native frame.
     pub presentation: NativeFramePresentationDiagnostics,
     /// Cumulative native surface recovery observations for the window.

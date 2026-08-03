@@ -223,6 +223,58 @@ fn native_present_propagates_direct_and_cached_scene_failures_before_completion(
 }
 
 #[test]
+fn native_present_assigns_frame_sequence_after_each_successful_present() {
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("present driver should define redraw");
+    let redraw_end = present
+        .find("pub(super) fn redraw_and_exit_on_error")
+        .expect("present driver should define redraw error handoff");
+    let redraw = &present[redraw_start..redraw_end];
+    let sequence_assignment = "profile.frame_sequence = self.timing.allocate_frame_sequence();";
+    assert_eq!(
+        redraw.matches(sequence_assignment).count(),
+        2,
+        "direct and composited presentation paths should allocate one sequence each"
+    );
+
+    let direct_present = redraw
+        .find("let (_, elapsed) = profile.measure(|| surface_texture.present());")
+        .expect("direct resize should present its surface texture");
+    let direct_sequence = redraw[direct_present..]
+        .find(sequence_assignment)
+        .map(|offset| direct_present + offset)
+        .expect("direct resize should assign its sequence after presentation");
+    let direct_completion = redraw[direct_sequence..]
+        .find("self.finish_direct_resize_present(")
+        .map(|offset| direct_sequence + offset)
+        .expect("direct resize should log and publish after sequence assignment");
+    assert!(direct_present < direct_sequence && direct_sequence < direct_completion);
+
+    let composited_present = redraw
+        .rfind("surface_texture.present()")
+        .expect("composited presentation should present its surface texture");
+    let composited_sequence = redraw[composited_present..]
+        .find(sequence_assignment)
+        .map(|offset| composited_present + offset)
+        .expect("composited presentation should assign its sequence after presentation");
+    let composited_profile = redraw[composited_sequence..]
+        .find("maybe_log_render_profile(")
+        .map(|offset| composited_sequence + offset)
+        .expect("composited profile logging should follow sequence assignment");
+    let composited_diagnostics = redraw[composited_sequence..]
+        .find("native_frame_diagnostics(")
+        .map(|offset| composited_sequence + offset)
+        .expect("composited diagnostics should follow sequence assignment");
+    assert!(
+        composited_present < composited_sequence
+            && composited_sequence < composited_profile
+            && composited_sequence < composited_diagnostics
+    );
+}
+
+#[test]
 fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
     let scene_texture =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");

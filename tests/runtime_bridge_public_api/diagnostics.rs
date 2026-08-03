@@ -17,6 +17,7 @@ use std::time::Duration;
 fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
+        frame_sequence: Some(41),
         presentation: NativeFramePresentationDiagnostics::default(),
         surface_recovery: NativeSurfaceRecoveryDiagnostics {
             lost: 2,
@@ -114,6 +115,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
+    assert_eq!(diagnostics.frame_sequence, Some(41));
     assert_eq!(diagnostics.surface_recovery.lost, 2);
     assert_eq!(diagnostics.surface_recovery.outdated, 3);
     assert_eq!(diagnostics.surface_recovery.timeouts, 5);

@@ -2881,6 +2881,12 @@ transient-overlay primitive counts, and timing for surface
 refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
 or cache hits for transient overlays, transient-overlay paint callbacks,
 GPU-surface composition, and presentation.
+`NativeFrameDiagnostics::frame_sequence` is an `Option<u64>` monotonic sequence
+scoped to one native window. It starts at `1` and is allocated only after a
+successful presentation, so it remains monotonic across recovery. It is `None`
+before the first presentation or after the counter is exhausted; it never wraps
+or reuses a value. The native render-profile and slow-profile tracing lines
+include the same `frame_sequence` field when a sequence is available.
 `NativeFrameTimingDiagnostics::gpu_timing_status` currently reports
 `NativeGpuTimingStatus::CpuEnvelopeOnly`, which makes the boundary explicit:
 these timing buckets are CPU-side encode/submit/present envelopes, not backend

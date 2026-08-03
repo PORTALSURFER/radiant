@@ -14,6 +14,7 @@ const SLOW_RENDER_CADENCE_THRESHOLD: Duration = Duration::from_millis(30);
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct RenderFrameProfile {
     pub(super) record_timings: bool,
+    pub(super) frame_sequence: Option<u64>,
     pub(super) coalesced_wheel_route: Duration,
     pub(super) refresh_surface: Duration,
     pub(super) paint_plan: Duration,
@@ -59,6 +60,7 @@ pub(super) fn maybe_log_render_profile(
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     info!(
         reason,
+        frame_sequence = frame.frame_sequence,
         paint_plan_primitives = stats.paint_plan_primitives,
         scene_clip_layers = stats.clip_layer_count,
         scene_text_primitives = stats.text_primitive_count,
@@ -175,6 +177,7 @@ pub(super) fn maybe_log_slow_render_profile(
     warn!(
         target: "radiant::debug::frame_profile",
         reason,
+        frame_sequence = frame.frame_sequence,
         paint_plan_primitives = stats.paint_plan_primitives,
         scene_text_primitives = stats.text_primitive_count,
         scene_text_runs = stats.text_run_count,

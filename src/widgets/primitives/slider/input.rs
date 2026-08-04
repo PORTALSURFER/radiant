@@ -3,13 +3,85 @@
 use crate::gui::types::Rect;
 use crate::widgets::interaction::{
     EditEvent, InteractionProvenance, PointerButton, PointerModifiers, SliderEditBatch,
-    WidgetInput, WidgetKey,
+    SliderMessage, WidgetInput, WidgetKey,
 };
 
 use super::{SliderWidget, geometry::value_for_position};
 
+pub(super) fn handle_slider_input(
+    slider: &mut SliderWidget,
+    bounds: Rect,
+    input: WidgetInput,
+) -> Option<SliderMessage> {
+    match input {
+        WidgetInput::PointerMove { position, .. } => {
+            slider.common.state.hovered = bounds.contains(position);
+            slider
+                .common
+                .state
+                .pressed
+                .then(|| {
+                    slider.set_value(value_for_position(
+                        bounds,
+                        position,
+                        slider.props.track_height,
+                    ))
+                })
+                .flatten()
+        }
+        WidgetInput::PointerPress {
+            position,
+            button: PointerButton::Primary,
+            ..
+        } if bounds.contains(position) => {
+            slider.common.state.hovered = true;
+            slider.common.state.pressed = true;
+            slider.common.state.focused = true;
+            slider.set_value(value_for_position(
+                bounds,
+                position,
+                slider.props.track_height,
+            ))
+        }
+        WidgetInput::PointerRelease {
+            position,
+            button: PointerButton::Primary,
+            ..
+        } => {
+            let was_pressed = slider.common.state.pressed;
+            slider.common.state.pressed = false;
+            was_pressed
+                .then(|| {
+                    slider.set_value(value_for_position(
+                        bounds,
+                        position,
+                        slider.props.track_height,
+                    ))
+                })
+                .flatten()
+        }
+        WidgetInput::FocusChanged(focused) => {
+            slider.common.state.focused = focused;
+            None
+        }
+        WidgetInput::KeyPress { key, .. } if slider.common.state.focused => match key {
+            WidgetKey::ArrowLeft | WidgetKey::ArrowDown => {
+                slider.set_value(slider.state.value - slider.props.keyboard_step)
+            }
+            WidgetKey::ArrowRight | WidgetKey::ArrowUp => {
+                slider.set_value(slider.state.value + slider.props.keyboard_step)
+            }
+            WidgetKey::Home => slider.set_value(0.0),
+            WidgetKey::End => slider.set_value(1.0),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 pub(super) fn handle_slider_edit_input(
     slider: &mut SliderWidget,
+    active_edit: &mut Option<EditEvent<f32>>,
     bounds: Rect,
     input: WidgetInput,
 ) -> Option<SliderEditBatch> {
@@ -21,17 +93,17 @@ pub(super) fn handle_slider_edit_input(
             sequence_range,
         } => {
             slider.common.state.hovered = bounds.contains(position);
-            if !slider.is_editable() || slider.state.active_edit.is_none() {
+            if !slider.is_editable() || active_edit.is_none() {
                 return None;
             }
             let candidate = finite_value_for_position(bounds, position, slider.props.track_height)?;
-            if !slider.set_value_if_changed(candidate) {
+            if !set_value_if_changed(slider, candidate) {
                 return None;
             }
             let provenance = pointer_provenance(modifiers, timestamp, sequence_range);
-            let previous = slider.state.active_edit?;
+            let previous = (*active_edit)?;
             let update = previous.update(candidate, provenance)?;
-            slider.state.active_edit = Some(update);
+            *active_edit = Some(update);
             Some(SliderEditBatch::single(update))
         }
         WidgetInput::PointerPress {
@@ -41,7 +113,7 @@ pub(super) fn handle_slider_edit_input(
             timestamp,
         } if bounds.contains(position)
             && slider.is_editable()
-            && slider.state.active_edit.is_none()
+            && active_edit.is_none()
             && !slider.common.state.pressed =>
         {
             let candidate = finite_value_for_position(bounds, position, slider.props.track_height)?;
@@ -53,13 +125,13 @@ pub(super) fn handle_slider_edit_input(
             slider.common.state.focused = true;
 
             if !values_differ(start_value, candidate) {
-                slider.state.active_edit = Some(begin);
+                *active_edit = Some(begin);
                 return Some(SliderEditBatch::single(begin));
             }
 
             slider.state.value = candidate;
             let update = begin.update(candidate, begin_provenance)?;
-            slider.state.active_edit = Some(update);
+            *active_edit = Some(update);
             SliderEditBatch::from_events(&[begin, update])
         }
         WidgetInput::PointerRelease {
@@ -68,15 +140,15 @@ pub(super) fn handle_slider_edit_input(
             modifiers,
             timestamp,
         } => {
-            slider.state.active_edit?;
+            (*active_edit)?;
             if !slider.is_editable() {
-                return cancel_active_pointer_edit(slider);
+                return cancel_active_pointer_edit(slider, active_edit);
             }
 
             let candidate = finite_value_for_position(bounds, position, slider.props.track_height)
                 .or_else(|| finite_clamped(slider.state.value))?;
             let provenance = pointer_provenance(modifiers, timestamp, None);
-            let previous = slider.state.active_edit?;
+            let previous = (*active_edit)?;
             let batch = if values_differ(slider.state.value, candidate) {
                 let update = previous.update(candidate, provenance)?;
                 let commit = update.commit(candidate, provenance)?;
@@ -87,7 +159,7 @@ pub(super) fn handle_slider_edit_input(
                     .commit(candidate, provenance)
                     .map(SliderEditBatch::single)
             };
-            slider.state.active_edit = None;
+            *active_edit = None;
             slider.common.state.pressed = false;
             batch
         }
@@ -96,7 +168,7 @@ pub(super) fn handle_slider_edit_input(
             if focused {
                 None
             } else {
-                cancel_active_pointer_edit(slider)
+                cancel_active_pointer_edit(slider, active_edit)
             }
         }
         WidgetInput::KeyPress { key, timestamp }
@@ -104,7 +176,7 @@ pub(super) fn handle_slider_edit_input(
         {
             let candidate =
                 keyboard_candidate(slider.state.value, slider.props.keyboard_step, key)?;
-            slider.state.active_edit = None;
+            *active_edit = None;
             let start_value = slider.state.value;
             if !values_differ(start_value, candidate) {
                 return None;
@@ -121,8 +193,11 @@ pub(super) fn handle_slider_edit_input(
     }
 }
 
-fn cancel_active_pointer_edit(slider: &mut SliderWidget) -> Option<SliderEditBatch> {
-    let Some(previous) = slider.state.active_edit.take() else {
+fn cancel_active_pointer_edit(
+    slider: &mut SliderWidget,
+    active_edit: &mut Option<EditEvent<f32>>,
+) -> Option<SliderEditBatch> {
+    let Some(previous) = active_edit.take() else {
         slider.common.state.pressed = false;
         return None;
     };
@@ -134,6 +209,14 @@ fn cancel_active_pointer_edit(slider: &mut SliderWidget) -> Option<SliderEditBat
     }
     let provenance = pointer_provenance(PointerModifiers::default(), None, None);
     previous.cancel(provenance).map(SliderEditBatch::rollback)
+}
+
+fn set_value_if_changed(slider: &mut SliderWidget, value: f32) -> bool {
+    if (slider.state.value - value).abs() <= f32::EPSILON {
+        return false;
+    }
+    slider.state.value = value;
+    true
 }
 
 fn pointer_provenance(

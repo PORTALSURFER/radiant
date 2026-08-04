@@ -874,8 +874,14 @@ concise `SliderMessage::ValueChanged` and `on_change` paths project only
 effective value changes, while `WidgetMessageMapper::slider_edits`,
 `SurfaceNode::slider_edits_mapped`, `SliderBuilder::on_edit`, and
 `application::slider_edit_mapped` receive the complete ordered batch. These
-lifecycle APIs are qualified and are not exported through the common prelude;
-`Knob` is the next shared-edit adopter.
+lifecycle APIs are qualified and are not exported through the common prelude.
+The public `SliderState` remains the source-compatible one-field
+`SliderState { value }` model, and `SliderWidget` retains its public
+`{ common, props, state }` fields. Official Slider constructors lower a
+crate-private retained adapter that owns the active transaction; a bare public
+`SliderWidget` keeps the concise `handle_input(...) -> Option<SliderMessage>`
+contract and does not carry typed lifecycle state. `Knob` is the next
+shared-edit adopter.
 
 These types are intentionally not exported through the common prelude.
 

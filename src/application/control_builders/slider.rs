@@ -1,3 +1,4 @@
+use crate::widgets::RetainedSliderWidget;
 use crate::{
     application::{
         MappedWidget, ViewNode, default_slider_sizing, primary_style, view_node_from_widget,
@@ -95,7 +96,10 @@ impl SliderBuilder {
             slider = slider.with_track_height(track_height);
         }
         slider = slider.with_track_border(self.paints_track_border);
-        let mut node = view_node_from_widget(MappedWidget::new(slider, messages));
+        let mut node = view_node_from_widget(MappedWidget::new(
+            RetainedSliderWidget::new(slider),
+            messages,
+        ));
         node.style = self.style;
         node
     }

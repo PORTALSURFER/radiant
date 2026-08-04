@@ -1591,8 +1591,11 @@ Pointer scrubbing and arrow-key increments use the same mapping,
 is the first production shared-edit consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and
-`on_change` APIs project only effective value changes. Focus loss and explicit
-capture cancellation restore the transaction start without committing. Wheel,
+`on_change` APIs project only effective value changes. Official Slider lowering
+uses a crate-private retained adapter for the active transaction, so the public
+`SliderState { value }` and `SliderWidget { common, props, state }` shapes stay
+source-compatible. Focus loss and explicit capture cancellation restore the
+transaction start without committing. Wheel,
 accessibility actions, and domain mapping remain outside this adoption slice;
 `Knob` is next.
 Applications may provide a custom mapping only when it is total, finite, and

@@ -4,7 +4,7 @@ use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase,
     FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance, MarkerRunWidget,
-    PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch, SliderMessage, SliderWidget,
+    PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch, SliderMessage,
     TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetOutput, WidgetProminence,
     WidgetStyle, WidgetTone,
 };
@@ -401,10 +401,16 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
             .as_deref(),
         Some("What needs to be done?")
     );
-    let slider = widget_ref::<SliderWidget, _>(&surface, 15, "slider");
-    assert_eq!(slider.state.value, 0.4);
-    assert_eq!(slider.common.style.tone, WidgetTone::Accent);
-    assert_eq!(slider.common.style.prominence, WidgetProminence::Strong);
+    let slider = surface
+        .find_widget(15)
+        .expect("slider widget should exist")
+        .widget();
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("0.400")
+    );
+    assert_eq!(slider.common().style.tone, WidgetTone::Accent);
+    assert_eq!(slider.common().style.prominence, WidgetProminence::Strong);
     assert_eq!(
         surface.dispatch_widget_output(
             15,

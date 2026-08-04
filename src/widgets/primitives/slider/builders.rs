@@ -4,7 +4,7 @@ use crate::runtime::{SurfaceNode, WidgetMessageMapper};
 use crate::widgets::contract::{WidgetId, WidgetSizing};
 use crate::widgets::interaction::{SliderEditBatch, SliderMessage};
 
-use super::SliderWidget;
+use super::{SliderWidget, retained::RetainedSliderWidget};
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a slider-message mapper.
@@ -46,7 +46,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(SliderMessage) -> Message + 'static,
     ) -> Self {
         Self::widget(
-            SliderWidget::new(id, value, sizing),
+            RetainedSliderWidget::new(SliderWidget::new(id, value, sizing)),
             WidgetMessageMapper::slider(map),
         )
     }
@@ -59,7 +59,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(SliderEditBatch) -> Message + 'static,
     ) -> Self {
         Self::widget(
-            SliderWidget::new(id, value, sizing),
+            RetainedSliderWidget::new(SliderWidget::new(id, value, sizing)),
             WidgetMessageMapper::slider_edits(map),
         )
     }

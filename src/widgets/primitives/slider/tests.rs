@@ -33,6 +33,14 @@ fn phases(batch: SliderEditBatch) -> Vec<EditPhase> {
     batch.events().iter().map(|event| event.phase).collect()
 }
 
+fn retained_slider(id: u64, value: f32) -> RetainedSliderWidget {
+    RetainedSliderWidget::new(SliderWidget::new(
+        id,
+        value,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    ))
+}
+
 #[test]
 fn slider_pointer_drag_emits_clamped_values() {
     let mut slider = SliderWidget::new(9, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
@@ -201,11 +209,21 @@ fn slider_edit_batch_is_copyable_bounded_and_projects_lifecycle_values() {
             .value_change(),
         None
     );
+
+    let ordinary_cancel = SliderEditBatch::from_events(&[no_op_cancel]).expect("ordinary cancel");
+    let rollback_cancel = SliderEditBatch::rollback(no_op_cancel);
+    assert_ne!(ordinary_cancel, rollback_cancel);
+    assert_ne!(
+        format!("{ordinary_cancel:?}"),
+        format!("{rollback_cancel:?}")
+    );
+    assert_eq!(ordinary_cancel.value_change(), None);
+    assert_eq!(rollback_cancel.value_change(), Some(0.25));
 }
 
 #[test]
 fn slider_pointer_batches_preserve_boundaries_and_exact_sample_provenance() {
-    let mut slider = SliderWidget::new(12, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut slider = retained_slider(12, 0.25);
     let bounds = bounds();
     let press_modifiers = PointerModifiers {
         command: true,
@@ -293,8 +311,8 @@ fn slider_pointer_batches_preserve_boundaries_and_exact_sample_provenance() {
         released.events()[0].transaction,
         press.events()[0].transaction
     );
-    assert_eq!(slider.state.value, 1.0);
-    assert!(!slider.common.state.pressed);
+    assert_eq!(slider.slider.state.value, 1.0);
+    assert!(!slider.slider.common.state.pressed);
     assert_eq!(
         slider.handle_edit_input(
             bounds,
@@ -306,7 +324,7 @@ fn slider_pointer_batches_preserve_boundaries_and_exact_sample_provenance() {
 
 #[test]
 fn slider_same_value_press_and_release_keep_typed_boundaries_without_concise_changes() {
-    let mut slider = SliderWidget::new(13, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut slider = retained_slider(13, 0.5);
     let bounds = bounds();
     let Some(begin) =
         slider.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)))
@@ -315,7 +333,9 @@ fn slider_same_value_press_and_release_keep_typed_boundaries_without_concise_cha
     };
     assert_eq!(phases(begin), vec![EditPhase::Begin]);
     assert_eq!(
-        slider.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 14.0))),
+        slider
+            .handle_edit_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 14.0)))
+            .and_then(|batch| batch.value_change()),
         None
     );
     let Some(commit) =
@@ -325,7 +345,9 @@ fn slider_same_value_press_and_release_keep_typed_boundaries_without_concise_cha
     };
     assert_eq!(phases(commit), vec![EditPhase::Commit]);
     assert_eq!(
-        slider.handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0))),
+        slider
+            .handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)))
+            .and_then(|batch| batch.value_change()),
         None
     );
 }
@@ -333,7 +355,7 @@ fn slider_same_value_press_and_release_keep_typed_boundaries_without_concise_cha
 #[test]
 fn slider_pointer_admission_ignores_repeated_secondary_and_noop_cancellation_inputs() {
     let bounds = bounds();
-    let mut slider = SliderWidget::new(131, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut slider = retained_slider(131, 0.25);
     assert_eq!(
         slider.handle_edit_input(
             bounds,
@@ -380,22 +402,22 @@ fn slider_pointer_admission_ignores_repeated_secondary_and_noop_cancellation_inp
         ),
         None
     );
-    assert!(slider.common.state.pressed);
+    assert!(slider.slider.common.state.pressed);
     let _ = slider.handle_edit_input(bounds, WidgetInput::primary_release(Point::new(96.0, 14.0)));
 
-    let mut noop = SliderWidget::new(132, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut noop = retained_slider(132, 0.5);
     let _ = noop.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)));
     assert_eq!(
         noop.handle_edit_input(bounds, WidgetInput::FocusChanged(false)),
         None
     );
-    assert_eq!(noop.state.value, 0.5);
-    assert!(!noop.common.state.pressed);
+    assert_eq!(noop.slider.state.value, 0.5);
+    assert!(!noop.slider.common.state.pressed);
 }
 
 #[test]
 fn slider_focus_and_capture_cancellation_restore_start_without_commit() {
-    let mut slider = SliderWidget::new(14, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut slider = retained_slider(14, 0.25);
     let bounds = bounds();
     let _ = slider.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)));
     let _ = slider.handle_edit_input(bounds, WidgetInput::pointer_move(Point::new(96.0, 14.0)));
@@ -408,8 +430,8 @@ fn slider_focus_and_capture_cancellation_restore_start_without_commit() {
         cancel.events()[0].provenance,
         pointer_provenance(PointerModifiers::default(), None, None)
     );
-    assert_eq!(slider.state.value, 0.25);
-    assert!(!slider.common.state.pressed);
+    assert_eq!(slider.slider.state.value, 0.25);
+    assert!(!slider.slider.common.state.pressed);
     assert_eq!(
         slider.handle_edit_input(bounds, WidgetInput::primary_release(Point::new(96.0, 14.0))),
         None
@@ -424,8 +446,8 @@ fn slider_focus_and_capture_cancellation_restore_start_without_commit() {
         .typed_copied::<SliderEditBatch>()
         .expect("typed cancel batch");
     assert_eq!(phases(cancel), vec![EditPhase::Cancel]);
-    assert_eq!(slider.state.value, 0.25);
-    assert!(!slider.common.state.pressed);
+    assert_eq!(slider.slider.state.value, 0.25);
+    assert!(!slider.slider.common.state.pressed);
     assert_eq!(
         slider.handle_edit_input(
             bounds,
@@ -437,7 +459,7 @@ fn slider_focus_and_capture_cancellation_restore_start_without_commit() {
 
 #[test]
 fn slider_keyboard_batches_are_atomic_timestamped_and_noop_keys_emit_nothing() {
-    let mut slider = SliderWidget::new(15, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut slider = retained_slider(15, 0.5);
     let bounds = bounds();
     let _ = slider.handle_edit_input(bounds, WidgetInput::FocusChanged(true));
     let timestamp = InputTimestamp::capture();
@@ -459,45 +481,36 @@ fn slider_keyboard_batches_are_atomic_timestamped_and_noop_keys_emit_nothing() {
             timestamp: Some(timestamp)
         }));
     assert_eq!(batch.value_change(), Some(0.55));
-    assert_eq!(slider.state.active_edit, None);
+    assert_eq!(slider.slider.state.value, 0.55);
 
-    let mut endpoint = SliderWidget::new(16, 1.0, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut endpoint = retained_slider(16, 1.0);
     let _ = endpoint.handle_edit_input(bounds, WidgetInput::FocusChanged(true));
     assert_eq!(
         endpoint.handle_edit_input(bounds, WidgetInput::key_press(WidgetKey::End)),
         None
     );
-    assert_eq!(endpoint.state.active_edit, None);
+    assert_eq!(endpoint.slider.state.value, 1.0);
 }
 
 #[test]
 fn slider_reprojection_preserves_pointer_transaction_but_keeps_fresh_value_authoritative() {
     let bounds = bounds();
-    let mut previous = SliderWidget::new(17, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
-    let _ = previous.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)));
+    let mut previous = retained_slider(17, 0.25);
+    let Some(press) =
+        previous.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)))
+    else {
+        panic!("pointer press should begin the retained transaction");
+    };
     let _ = previous.handle_edit_input(bounds, WidgetInput::pointer_move(Point::new(72.0, 14.0)));
-    let transaction = previous
-        .state
-        .active_edit
-        .expect("active pointer edit")
-        .transaction;
+    let transaction = press.events()[0].transaction;
 
-    let mut current = SliderWidget::new(17, 0.75, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut current = retained_slider(17, 0.75);
     current.synchronize_from_previous(&previous);
-    assert_eq!(current.state.value, 0.75);
-    assert_eq!(
-        current
-            .state
-            .active_edit
-            .expect("retained pointer edit")
-            .transaction,
-        transaction
-    );
-    assert!(current.common.state.pressed);
-    assert!(current.common.state.focused);
+    assert_eq!(current.slider.state.value, 0.75);
+    assert!(current.slider.common.state.pressed);
+    assert!(current.slider.common.state.focused);
 
-    let mut continuing =
-        SliderWidget::new(17, 0.75, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut continuing = retained_slider(17, 0.75);
     continuing.synchronize_from_previous(&previous);
     let Some(update) =
         continuing.handle_edit_input(bounds, WidgetInput::pointer_move(Point::new(96.0, 14.0)))
@@ -505,15 +518,16 @@ fn slider_reprojection_preserves_pointer_transaction_but_keeps_fresh_value_autho
         panic!("retained pointer edit should accept a changed move");
     };
     assert_eq!(update.events()[0].phase, EditPhase::Update);
+    assert_eq!(update.events()[0].transaction, transaction);
     assert_eq!(
         update.events()[0].value,
         value_for_position(
             bounds,
             Point::new(96.0, 14.0),
-            continuing.props.track_height
+            continuing.slider.props.track_height
         )
     );
-    assert_eq!(continuing.state.value, update.events()[0].value);
+    assert_eq!(continuing.slider.state.value, update.events()[0].value);
     let Some(commit) =
         continuing.handle_edit_input(bounds, WidgetInput::primary_release(Point::new(96.0, 14.0)))
     else {
@@ -521,31 +535,29 @@ fn slider_reprojection_preserves_pointer_transaction_but_keeps_fresh_value_autho
     };
     assert_eq!(commit.events().len(), 1);
     assert_eq!(commit.events()[0].phase, EditPhase::Commit);
-    assert_eq!(commit.events()[0].value, continuing.state.value);
+    assert_eq!(commit.events()[0].value, continuing.slider.state.value);
 
     let Some(cancel) = current.handle_edit_input(bounds, WidgetInput::FocusChanged(false)) else {
         panic!("fresh value differing from the original start should cancel");
     };
     assert_eq!(phases(cancel), vec![EditPhase::Cancel]);
     assert_eq!(cancel.events()[0].start_value, 0.25);
-    assert_eq!(current.state.value, 0.25);
+    assert_eq!(current.slider.state.value, 0.25);
 }
 
 #[test]
 fn slider_disabled_or_read_only_reprojection_drops_retained_pointer_transaction() {
     let bounds = bounds();
-    let mut previous = SliderWidget::new(18, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let mut previous = retained_slider(18, 0.25);
     let _ = previous.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(60.0, 14.0)));
     let _ = previous.handle_edit_input(bounds, WidgetInput::pointer_move(Point::new(96.0, 14.0)));
 
     for read_only in [false, true] {
-        let mut current =
-            SliderWidget::new(18, 0.75, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
-        current.common.state.disabled = !read_only;
-        current.common.state.read_only = read_only;
+        let mut current = retained_slider(18, 0.75);
+        current.slider.common.state.disabled = !read_only;
+        current.slider.common.state.read_only = read_only;
         current.synchronize_from_previous(&previous);
-        assert_eq!(current.state.active_edit, None);
-        assert!(!current.common.state.pressed);
+        assert!(!current.slider.common.state.pressed);
         assert_eq!(
             current.handle_edit_input(
                 bounds,
@@ -553,7 +565,7 @@ fn slider_disabled_or_read_only_reprojection_drops_retained_pointer_transaction(
             ),
             None
         );
-        assert_eq!(current.state.value, 0.75);
+        assert_eq!(current.slider.state.value, 0.75);
     }
 }
 

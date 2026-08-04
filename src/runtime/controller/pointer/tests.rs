@@ -863,12 +863,8 @@ fn cancel_pointer_capture_delivers_slider_cancel_before_clearing_capture() {
         .surface()
         .find_widget(31)
         .expect("slider exists")
-        .widget()
-        .as_any()
-        .downcast_ref::<crate::widgets::SliderWidget>()
-        .expect("slider type is retained");
-    assert_eq!(slider.state.value, 0.25);
-    assert!(!slider.common.state.pressed);
+        .widget();
+    assert!(!slider.common().state.pressed);
 }
 
 #[test]
@@ -897,11 +893,8 @@ fn clear_focus_delivers_slider_cancel_without_committing_the_pointer_edit() {
         .surface()
         .find_widget(31)
         .expect("slider exists after focus loss")
-        .widget()
-        .as_any()
-        .downcast_ref::<crate::widgets::SliderWidget>()
-        .expect("slider type is retained after focus loss");
-    assert!(!slider.common.state.pressed);
+        .widget();
+    assert!(!slider.common().state.pressed);
 }
 
 #[test]

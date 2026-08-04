@@ -14,9 +14,10 @@ use radiant::{
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
         InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidget, ListItemWidgetParts,
         ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
-        SelectableWidgetParts, SliderEditBatch, SliderWidget, SliderWidgetParts, TextInputWidget,
-        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
+        SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
+        ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput,
+        WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{cell::RefCell, fmt::Debug, rc::Rc, sync::Arc};
@@ -73,9 +74,15 @@ fn widget_output_supports_ui_local_payloads_and_clone_identity() {
 }
 
 #[test]
-fn slider_public_contract_emits_typed_edit_batches_and_capture_cancel() {
+fn slider_public_contract_keeps_bare_struct_literals_and_concise_output() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
-    let mut slider = SliderWidget::new(43, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let template = SliderWidget::new(43, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    let SliderWidget { common, props, .. } = template;
+    let mut slider = SliderWidget {
+        common,
+        props,
+        state: SliderState { value: 0.25 },
+    };
 
     let output = Widget::handle_input(
         &mut slider,
@@ -83,23 +90,42 @@ fn slider_public_contract_emits_typed_edit_batches_and_capture_cancel() {
         WidgetInput::primary_press(Point::new(60.0, 14.0)),
     );
     let batch = output
-        .and_then(|output| output.typed_copied::<SliderEditBatch>())
-        .expect("changed press should emit a public typed slider batch");
+        .and_then(|output| output.typed_copied::<SliderMessage>())
+        .expect("bare public SliderWidget should emit its concise message");
+    assert_eq!(batch, SliderMessage::ValueChanged { value: 0.5 });
+
     assert_eq!(
-        batch
+        Widget::handle_pointer_capture_cancelled(&mut slider, bounds),
+        None
+    );
+}
+
+#[test]
+fn slider_runtime_constructor_owns_typed_edit_lifecycle() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let mut surface: UiSurface<SliderEditBatch> = UiSurface::new(SurfaceNode::slider_edits_mapped(
+        44,
+        0.25,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        |batch| batch,
+    ));
+
+    let output = surface
+        .dispatch_widget_input(
+            44,
+            bounds,
+            WidgetInput::primary_press(Point::new(60.0, 14.0)),
+        )
+        .and_then(|output| output.typed_copied::<SliderEditBatch>())
+        .expect("official Slider constructor should use the retained typed adapter");
+    assert_eq!(
+        output
             .events()
             .iter()
             .map(|event| event.phase)
             .collect::<Vec<_>>(),
         [EditPhase::Begin, EditPhase::Update]
     );
-
-    let cancel = Widget::handle_pointer_capture_cancelled(&mut slider, bounds)
-        .and_then(|output| output.typed_copied::<SliderEditBatch>())
-        .expect("public capture cancellation should preserve the typed batch");
-    assert_eq!(cancel.events().len(), 1);
-    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
-    assert_eq!(cancel.value_change(), Some(0.25));
 }
 
 #[test]

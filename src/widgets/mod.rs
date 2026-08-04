@@ -81,6 +81,7 @@ pub use interaction::{
     TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput,
     WidgetKey, WidgetOutput, handle_activation_input,
 };
+pub(crate) use primitives::RetainedSliderWidget;
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,
     ButtonWidgetParts, CanvasWidget, CanvasWidgetParts, CardWidget, CardWidgetParts,

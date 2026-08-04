@@ -42,13 +42,14 @@ impl std::fmt::Debug for SliderEditBatch {
         formatter
             .debug_struct("SliderEditBatch")
             .field("events", &self.events())
+            .field("meaningful_rollback", &self.meaningful_rollback)
             .finish()
     }
 }
 
 impl PartialEq for SliderEditBatch {
     fn eq(&self, other: &Self) -> bool {
-        self.events() == other.events()
+        self.events() == other.events() && self.meaningful_rollback == other.meaningful_rollback
     }
 }
 

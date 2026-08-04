@@ -54,6 +54,57 @@ fn mapped_knob(value: f32, disabled: bool) -> SurfaceNode<KnobMessage> {
 }
 
 #[test]
+fn mapped_knob_routes_double_click_reset_metadata_from_second_sample() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let mut root = SurfaceNode::widget(
+        KnobWidget::new(30, 0.8).with_default_value(0.25),
+        WidgetMessageMapper::typed(|message: KnobMessage| message),
+    );
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = InputTimestamp::capture();
+    let metadata = KnobPointerMetadata {
+        modifiers,
+        timestamp: Some(timestamp),
+        sequence_range: None,
+    };
+
+    let Some(WidgetDispatchResult::Message(message)) = root.dispatch_input_at_path(
+        30,
+        &[],
+        bounds,
+        WidgetInput::pointer_double_click_with_timestamp(
+            Point::new(20.0, 20.0),
+            PointerButton::Primary,
+            modifiers,
+            Some(timestamp),
+        ),
+    ) else {
+        panic!("mapped accepted double-click reset should emit one message");
+    };
+    assert_eq!(
+        message,
+        KnobMessage::Reset {
+            value: 0.25,
+            metadata,
+        }
+    );
+    assert_eq!(message.pointer_gesture_metadata(), Some(metadata));
+    assert!(matches!(
+        root.dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+}
+
+#[test]
 fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
     let paths = HashMap::from([(30, WidgetPath::from_slice(&[]))]);

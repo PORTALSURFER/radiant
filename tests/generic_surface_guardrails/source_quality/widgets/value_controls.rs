@@ -96,9 +96,8 @@ fn knob_pointer_provenance_stays_incremental_and_observational() {
         messages.contains("pub struct KnobPointerMetadata")
             && messages.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]")
             && messages.contains("pub const fn pointer_gesture_metadata")
-            && messages.contains(
-                "Self::Reset { .. } | Self::KeyboardGesture(_) | Self::WheelGesture(_) => None"
-            ),
+            && messages.contains("Self::Reset { metadata, .. } => Some(*metadata)")
+            && messages.contains("Self::KeyboardGesture(_) | Self::WheelGesture(_) => None"),
         "knob pointer provenance should be a copy-only pointer-message API"
     );
     assert!(
@@ -115,9 +114,11 @@ fn knob_pointer_provenance_stays_incremental_and_observational() {
     for test in [
         "fn knob_pointer_gesture_forwards_native_metadata_by_phase",
         "fn knob_pointer_gesture_uses_empty_metadata_for_synthetic_and_focus_loss",
-        "fn knob_pointer_gesture_metadata_is_not_reported_for_other_message_kinds",
+        "fn knob_pointer_gesture_metadata_is_not_reported_for_keyboard_or_wheel",
         "fn knob_pointer_gesture_omits_clamped_noop_moves",
         "fn knob_pointer_drop_forwards_terminal_metadata",
+        "fn knob_reset_forwards_native_metadata_and_cleans_pointer_state",
+        "fn knob_reset_emits_once_when_value_already_equals_default",
     ] {
         assert!(
             knob.contains(test),

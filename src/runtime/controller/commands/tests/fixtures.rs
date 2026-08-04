@@ -43,6 +43,7 @@ pub(super) struct DeferredScrollFocusBridge {
     pub(super) show_focus_target: bool,
     pub(super) project_count: usize,
     pub(super) scroll_updates: usize,
+    pub(super) last_scroll_update: Option<crate::runtime::ScrollUpdate>,
 }
 
 impl RuntimeBridge<usize> for PlatformCommandBridge {
@@ -189,8 +190,9 @@ impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
 }
 
 impl RuntimeInputHost<usize> for DeferredScrollFocusBridge {
-    fn scroll_updated(&mut self, _update: crate::runtime::ScrollUpdate) -> Option<Command<usize>> {
+    fn scroll_updated(&mut self, update: crate::runtime::ScrollUpdate) -> Option<Command<usize>> {
         self.scroll_updates += 1;
+        self.last_scroll_update = Some(update);
         self.show_focus_target = true;
         Some(Command::focus(42))
     }

@@ -36,7 +36,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
         move_routing.contains("fn dispatch_pointer_move_target")
             && move_routing.contains("use super::{PointerMoveDispatch, SurfaceRuntime};")
             && move_routing.contains("gui::types::Point")
-            && move_routing.contains("runtime::RuntimeBridge")
+            && move_routing.contains("runtime::{RuntimeBridge, ScrollUpdateMetadata}")
             && move_routing.contains("widgets::{PointerModifiers, WidgetId, WidgetInput}")
             && !move_routing.starts_with("use super::*;")
             && move_routing.contains("fn route_pointer_move_to_target")

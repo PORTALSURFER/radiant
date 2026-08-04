@@ -71,7 +71,7 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
                     "runtime::{\n    ExternalDragCompletion, ExternalDragIdentity, ExternalDragLaunch, ExternalDragOutcome,\n    ExternalDragRequest, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,\n}"
                 )
             && !external_drag.starts_with("use super::*;")
-            && scrolling.contains("use super::super::{ScrollUpdate, SurfaceRuntime};")
+            && scrolling.contains("use super::super::{ScrollUpdate, ScrollUpdateMetadata, SurfaceRuntime};")
             && scrolling.contains("gui::types::{Point, Vector2}")
             && scrolling.contains("layout::NodeId")
             && scrolling.contains("runtime::RuntimeBridge")
@@ -79,7 +79,8 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         "external drag and scrolling command helpers should own their drag, scroll, geometry, layout, and bridge dependencies"
     );
     assert!(
-        scroll_wheel.contains("use super::super::{CommandOutcome, SurfaceRuntime};")
+        scroll_wheel.contains("use super::super::CommandOutcome;")
+            && scroll_wheel.contains("use super::{ScrollUpdateMetadata, SurfaceRuntime};")
             && scroll_wheel.contains("gui::types::{Point, Vector2}")
             && scroll_wheel
                 .contains("runtime::{RuntimeBridge, WheelHitTarget, WidgetDispatchResult}")

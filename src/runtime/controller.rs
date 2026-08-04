@@ -34,8 +34,8 @@ pub use refresh::{
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
     SurfaceRefreshTimings,
 };
-pub use scroll::ScrollUpdate;
 pub(crate) use scroll::WheelOrScrollRoute;
+pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
 
 use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,

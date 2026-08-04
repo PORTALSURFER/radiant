@@ -1,6 +1,7 @@
 //! Wheel routing for scrollable and wheel-aware runtime surfaces.
 
-use super::super::{CommandOutcome, SurfaceRuntime};
+use super::super::CommandOutcome;
+use super::{ScrollUpdateMetadata, SurfaceRuntime};
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::{Point, Vector2},
@@ -24,6 +25,16 @@ struct WheelInputMetadata {
     modifiers: PointerModifiers,
     timestamp: Option<InputTimestamp>,
     sequence_range: Option<InputSequenceRange>,
+}
+
+impl From<WheelInputMetadata> for ScrollUpdateMetadata {
+    fn from(metadata: WheelInputMetadata) -> Self {
+        Self {
+            modifiers: metadata.modifiers,
+            timestamp: metadata.timestamp,
+            sequence_range: metadata.sequence_range,
+        }
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -162,14 +173,24 @@ where
                     refresh_after_message,
                 ) {
                     WheelOrScrollRoute::Widget
-                } else if self.scroll_at_with_refresh(point, delta, refresh_after_message) {
+                } else if self.scroll_at_with_refresh_and_metadata(
+                    point,
+                    delta,
+                    metadata.into(),
+                    refresh_after_message,
+                ) {
                     WheelOrScrollRoute::ScrollContainer
                 } else {
                     WheelOrScrollRoute::NotRouted
                 }
             }
             Some(WheelHitTarget::ScrollContainer(_)) => {
-                if self.scroll_at_with_refresh(point, delta, refresh_after_message) {
+                if self.scroll_at_with_refresh_and_metadata(
+                    point,
+                    delta,
+                    metadata.into(),
+                    refresh_after_message,
+                ) {
                     WheelOrScrollRoute::ScrollContainer
                 } else {
                     WheelOrScrollRoute::NotRouted

@@ -4,6 +4,7 @@ mod activation;
 mod canvas_gesture;
 mod cursor;
 mod edit;
+mod format;
 mod input;
 mod messages;
 mod output;
@@ -16,6 +17,7 @@ pub use canvas_gesture::{
 };
 pub use cursor::WidgetCursor;
 pub use edit::{EditEvent, EditPhase, EditTransaction};
+pub use format::{DecimalSeparator, ValueFormat, ValueFormatError, ValueFormatKind};
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,

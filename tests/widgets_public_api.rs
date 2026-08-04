@@ -59,6 +59,29 @@ fn value_mapping_is_available_through_qualified_interaction_module() {
 }
 
 #[test]
+fn value_format_is_available_through_qualified_and_widgets_root_exports() {
+    let qualified = radiant::widgets::interaction::ValueFormat::frequency();
+    let root: radiant::widgets::ValueFormat =
+        qualified.with_decimal_separator(radiant::widgets::DecimalSeparator::Comma);
+    let kind: radiant::widgets::interaction::ValueFormatKind = root.kind();
+    let separator: radiant::widgets::DecimalSeparator = root.decimal_separator();
+    let error: radiant::widgets::interaction::ValueFormatError =
+        radiant::widgets::ValueFormatError::NonFiniteValue;
+
+    assert_eq!(kind, radiant::widgets::ValueFormatKind::Frequency);
+    assert_eq!(separator, radiant::widgets::DecimalSeparator::Comma);
+    assert_eq!(
+        error,
+        radiant::widgets::interaction::ValueFormatError::NonFiniteValue
+    );
+
+    let mut output = String::new();
+    root.write_into(440.0, &mut output)
+        .expect("finite value should format");
+    assert_eq!(output, "440,00 Hz");
+}
+
+#[test]
 fn widget_output_exposes_typed_and_custom_value_helpers() {
     let copied = WidgetOutput::typed(42_u8);
     assert_eq!(copied.typed_ref::<u8>(), Some(&42));

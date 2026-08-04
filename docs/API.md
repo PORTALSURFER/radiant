@@ -947,7 +947,43 @@ Both conversion methods reject nonfinite input and clamp finite input to the
 normalized or domain range, respectively. They use `f64` intermediates and
 return `Option<f32>` so invalid input or an unexpected nonfinite result cannot
 enter a control state. This foundation currently covers only linear and
-logarithmic mappings; formatting and widget integration remain separate APIs.
+logarithmic mappings; `ValueFormat` is a separate shipped policy API, while
+control attachment and widget integration remain separate APIs.
+
+### Value formatting
+
+`ValueFormat` is the qualified, backend-neutral policy foundation for displaying
+common numeric values. `decimal(...)`, `percent(...)`, and `frequency()` select
+the decimal, percent, and frequency forms; `frequency()` uses two fractional
+digits by default, and `frequency_with_digits(...)` selects another precision.
+
+```rust
+use radiant::widgets::{DecimalSeparator, ValueFormat};
+
+let format = ValueFormat::frequency()
+    .with_decimal_separator(DecimalSeparator::Comma);
+let mut display = String::new();
+format.write_into(440.0, &mut display).expect("finite value");
+assert_eq!(display, "440,00 Hz");
+```
+
+`write_into(...)` writes into caller-owned `fmt::Write` storage without an
+internal `String` allocation. Decimal output is fixed to the selected number
+of fractional digits; percent output scales by 100 and appends `%`, while
+frequency output appends ` Hz`. The default separator is `Period`, and
+`with_decimal_separator(DecimalSeparator::Comma)` changes only the emitted
+decimal separator. The policy never inspects ambient operating-system locale.
+Requests above `ValueFormat::MAX_FRACTION_DIGITS` (nine) are clamped to that
+named maximum.
+Nonfinite values are rejected before writing, and caller writer failures return
+the typed `ValueFormatError::WriteFailed` variant.
+
+This slice ships only the policy foundation and the decimal, percent, and
+frequency forms. It does not attach formatting through `.format(...)`, add
+`numeric_input`, change widgets or runtime behavior, or add grouping, decibel,
+tempo, or arbitrary custom formatting. These types are qualified exports from
+`radiant::widgets::interaction` and `radiant::widgets`; they are intentionally
+not exported through the common prelude.
 
 `ActivationInputResult::Activated { provenance }` preserves the accepted input
 source and native evidence while `.activated()` remains the compatibility

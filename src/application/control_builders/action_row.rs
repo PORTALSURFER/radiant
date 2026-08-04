@@ -47,7 +47,7 @@ impl ActionRowBuilder {
                 WidgetMessageMapper::constant(message, |output| {
                     matches!(
                         output.typed_ref::<InteractiveRowMessage>(),
-                        Some(InteractiveRowMessage::Activate)
+                        Some(InteractiveRowMessage::Activate { .. })
                     )
                 }),
             ),
@@ -73,7 +73,7 @@ impl ActionRowBuilder {
                 self.style,
                 WidgetMessageMapper::dynamic(move |output| {
                     let message = output.typed_ref::<InteractiveRowMessage>()?;
-                    matches!(message, InteractiveRowMessage::Activate).then(|| map(*message))
+                    matches!(message, InteractiveRowMessage::Activate { .. }).then(|| map(*message))
                 }),
             ),
             text(label)

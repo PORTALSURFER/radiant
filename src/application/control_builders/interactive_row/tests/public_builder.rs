@@ -1,5 +1,11 @@
 use super::*;
 
+fn programmatic_activation() -> InteractiveRowMessage {
+    InteractiveRowMessage::Activate {
+        provenance: crate::widgets::InteractionProvenance::Programmatic,
+    }
+}
+
 #[test]
 fn interactive_row_underlay_preserves_input_widget_identity() {
     let view = interactive_row_underlay(text("Collection"))
@@ -12,7 +18,7 @@ fn interactive_row_underlay_preserves_input_widget_identity() {
         .size(140.0, 22.0);
 
     assert_eq!(
-        view.view_dispatch_widget_output(770, WidgetOutput::typed(InteractiveRowMessage::Activate)),
+        view.view_dispatch_widget_output(770, WidgetOutput::typed(programmatic_activation())),
         Some(DemoMessage::Activate)
     );
 }
@@ -102,10 +108,7 @@ fn interactive_row_underlay_derives_stable_text_input_id() {
     let input_id = crate::widgets::stable_widget_id(42, "source-a");
 
     assert_eq!(
-        view.view_dispatch_widget_output(
-            input_id,
-            WidgetOutput::typed(InteractiveRowMessage::Activate),
-        ),
+        view.view_dispatch_widget_output(input_id, WidgetOutput::typed(programmatic_activation()),),
         Some(DemoMessage::Activate)
     );
 }
@@ -122,10 +125,8 @@ fn interactive_row_underlay_stable_row_identity_keys_row_and_input() {
     let input_id = crate::widgets::stable_widget_id(42, row_key);
 
     assert_eq!(
-        keyed_row(row_key).view_dispatch_widget_output(
-            input_id,
-            WidgetOutput::typed(InteractiveRowMessage::Activate),
-        ),
+        keyed_row(row_key)
+            .view_dispatch_widget_output(input_id, WidgetOutput::typed(programmatic_activation()),),
         Some(DemoMessage::Activate)
     );
     let layout = keyed_row(row_key).view_layout_at_size(Vector2::new(140.0, 22.0));
@@ -146,10 +147,7 @@ fn interactive_row_underlay_derives_stable_numeric_input_id() {
     let input_id = crate::widgets::stable_widget_id_u64(43, 7);
 
     assert_eq!(
-        view.view_dispatch_widget_output(
-            input_id,
-            WidgetOutput::typed(InteractiveRowMessage::Activate),
-        ),
+        view.view_dispatch_widget_output(input_id, WidgetOutput::typed(programmatic_activation()),),
         Some(DemoMessage::Activate)
     );
 }

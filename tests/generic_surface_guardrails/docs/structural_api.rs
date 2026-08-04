@@ -111,10 +111,14 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "Focus-loss `Cancelled` messages return `DragHandleMetadata::empty()`",
         "`DragHandleMetadata` is exported from `radiant::widgets` and the prelude",
         "The shared `InteractionSource` and `InteractionProvenance` enums",
+        "`ActivationInputResult::Activated { provenance }`",
+        "`InteractiveRowMessage::Activate { provenance }`",
+        "`ActivateWithModifiers { provenance }`",
         "`InteractiveRowMessage::DoubleActivate { provenance }`",
         "accepted second native double-click sample",
+        "intentional source-level",
         "`InteractiveRowMetadata` remains move-only",
-        "intentionally discard double-activation provenance",
+        "The concise shared and UI-local `InteractiveRowActions` helpers intentionally discard both single- and double-activation provenance; modifier-aware callbacks retain only the compatibility modifier projection, and host message values remain unchanged.",
     ] {
         assert!(
             normalized_docs.contains(required),

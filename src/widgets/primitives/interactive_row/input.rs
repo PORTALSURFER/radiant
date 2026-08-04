@@ -177,10 +177,15 @@ impl InteractiveRowWidget {
                 if !activated {
                     return None;
                 }
+                let provenance = InteractionProvenance::Pointer {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                };
                 if self.props.activation_modifiers {
-                    Some(InteractiveRowMessage::ActivateWithModifiers { modifiers })
+                    Some(InteractiveRowMessage::ActivateWithModifiers { provenance })
                 } else {
-                    Some(InteractiveRowMessage::Activate)
+                    Some(InteractiveRowMessage::Activate { provenance })
                 }
             }
             WidgetInput::PointerDrop {
@@ -202,8 +207,10 @@ impl InteractiveRowWidget {
             }
             WidgetInput::KeyPress {
                 key: WidgetKey::Enter | WidgetKey::Space,
-                ..
-            } if self.common.state.focused => Some(InteractiveRowMessage::Activate),
+                timestamp,
+            } if self.common.state.focused => Some(InteractiveRowMessage::Activate {
+                provenance: InteractionProvenance::Keyboard { timestamp },
+            }),
             _ => {
                 if matches!(input, WidgetInput::PointerRelease { .. }) {
                     self.common.state.pressed = false;

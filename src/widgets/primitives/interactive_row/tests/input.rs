@@ -194,6 +194,125 @@ fn native_primary_double_click_preserves_second_sample_provenance() {
 }
 
 #[test]
+fn native_plain_primary_release_preserves_exact_single_activation_provenance() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = InputTimestamp::capture();
+    let provenance = InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: Some(timestamp),
+        sequence_range: None,
+    };
+    let mut row = InteractiveRowWidget::new(35, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_press(position)),
+        None
+    );
+    let message = row
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release_with_timestamp(
+                position,
+                PointerButton::Primary,
+                modifiers,
+                Some(timestamp),
+            ),
+        )
+        .expect("native plain release should activate the row");
+
+    assert_eq!(message, InteractiveRowMessage::Activate { provenance });
+    assert_eq!(message.activation_provenance(), Some(provenance));
+    assert_eq!(
+        message.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+}
+
+#[test]
+fn native_modifier_aware_primary_release_preserves_exact_single_activation_provenance() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let modifiers = PointerModifiers {
+        alt: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = InputTimestamp::capture();
+    let provenance = InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: Some(timestamp),
+        sequence_range: None,
+    };
+    let mut row = InteractiveRowWidget::new(36, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_activation_modifiers();
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_press(position)),
+        None
+    );
+    let message = row
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release_with_timestamp(
+                position,
+                PointerButton::Primary,
+                modifiers,
+                Some(timestamp),
+            ),
+        )
+        .expect("native modifier-aware release should activate the row");
+
+    assert_eq!(
+        message,
+        InteractiveRowMessage::ActivateWithModifiers { provenance }
+    );
+    assert_eq!(message.activation_provenance(), Some(provenance));
+    assert_eq!(message.activation_modifiers(), Some(modifiers));
+}
+
+#[test]
+fn row_keyboard_activation_preserves_native_and_synthetic_timestamp_sources() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let timestamp = InputTimestamp::capture();
+    let mut native_row =
+        InteractiveRowWidget::new(37, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    assert_eq!(
+        native_row.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        native_row.handle_input(
+            bounds,
+            WidgetInput::key_press_with_timestamp(WidgetKey::Enter, Some(timestamp)),
+        ),
+        Some(InteractiveRowMessage::Activate {
+            provenance: InteractionProvenance::Keyboard {
+                timestamp: Some(timestamp),
+            },
+        })
+    );
+
+    let mut synthetic_row =
+        InteractiveRowWidget::new(38, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    assert_eq!(
+        synthetic_row.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        synthetic_row.handle_input(bounds, WidgetInput::key_press(WidgetKey::Space)),
+        Some(InteractiveRowMessage::Activate {
+            provenance: InteractionProvenance::Keyboard { timestamp: None },
+        })
+    );
+}
+
+#[test]
 fn double_click_outside_or_non_primary_is_vetoed_without_state_mutation() {
     let bounds = Rect::from_size(120.0, 22.0);
     let position = Point::new(8.0, 6.0);
@@ -258,7 +377,10 @@ fn synthetic_pointer_move_and_non_move_messages_use_default_metadata() {
         InteractiveRowMetadata::default()
     );
     assert_eq!(
-        InteractiveRowMessage::Activate.input_metadata(),
+        InteractiveRowMessage::Activate {
+            provenance: InteractionProvenance::Programmatic,
+        }
+        .input_metadata(),
         InteractiveRowMetadata::default()
     );
     assert_eq!(
@@ -376,7 +498,13 @@ fn small_pressed_motion_does_not_start_row_drag() {
     assert!(!row.dragged);
     assert_eq!(
         row.handle_input(bounds, WidgetInput::primary_release(tiny_move)),
-        Some(InteractiveRowMessage::Activate)
+        Some(InteractiveRowMessage::Activate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
     );
 }
 

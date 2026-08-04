@@ -96,11 +96,14 @@ pub enum InteractiveRowMessage {
         metadata: InteractiveRowMetadata,
     },
     /// The row was activated by pointer or keyboard input.
-    Activate,
+    Activate {
+        /// Provenance captured from the accepted activation input.
+        provenance: InteractionProvenance,
+    },
     /// The row was activated by primary pointer input with modifier state.
     ActivateWithModifiers {
-        /// Modifier state at release time.
-        modifiers: PointerModifiers,
+        /// Provenance captured from the accepted activation input.
+        provenance: InteractionProvenance,
     },
     /// The row received a primary-button double activation.
     DoubleActivate {
@@ -135,21 +138,28 @@ pub enum InteractiveRowMessage {
 impl InteractiveRowMessage {
     /// Return modifier state when this message is an activation.
     ///
-    /// Plain activation and double activation use default modifiers. This is
-    /// useful for custom-painted row widgets that map Radiant's generic row
-    /// interaction model into host-specific row actions.
+    /// Plain activation and double activation use default modifiers. A
+    /// modifier-aware activation projects exact pointer modifiers while
+    /// keyboard, accessibility, and programmatic provenance projects default
+    /// modifiers for existing action callbacks.
     pub fn activation_modifiers(self) -> Option<PointerModifiers> {
         match self {
-            Self::Activate | Self::DoubleActivate { .. } => Some(PointerModifiers::default()),
-            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            Self::Activate { .. } | Self::DoubleActivate { .. } => {
+                Some(PointerModifiers::default())
+            }
+            Self::ActivateWithModifiers { provenance } => {
+                Some(pointer_modifiers_or_default(provenance))
+            }
             _ => None,
         }
     }
 
-    /// Return provenance for a double activation, when present.
+    /// Return provenance for any primary activation, when present.
     pub const fn activation_provenance(&self) -> Option<InteractionProvenance> {
         match self {
-            Self::DoubleActivate { provenance } => Some(*provenance),
+            Self::Activate { provenance }
+            | Self::ActivateWithModifiers { provenance }
+            | Self::DoubleActivate { provenance } => Some(*provenance),
             _ => None,
         }
     }
@@ -158,7 +168,9 @@ impl InteractiveRowMessage {
     pub fn is_activation(self) -> bool {
         matches!(
             self,
-            Self::Activate | Self::ActivateWithModifiers { .. } | Self::DoubleActivate { .. }
+            Self::Activate { .. }
+                | Self::ActivateWithModifiers { .. }
+                | Self::DoubleActivate { .. }
         )
     }
 
@@ -169,8 +181,10 @@ impl InteractiveRowMessage {
     /// or open-in-place flows.
     pub fn single_activation_modifiers(self) -> Option<PointerModifiers> {
         match self {
-            Self::Activate => Some(PointerModifiers::default()),
-            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            Self::Activate { .. } => Some(PointerModifiers::default()),
+            Self::ActivateWithModifiers { provenance } => {
+                Some(pointer_modifiers_or_default(provenance))
+            }
             _ => None,
         }
     }
@@ -240,5 +254,14 @@ impl InteractiveRowMessage {
     /// Return whether this message is a completed drop.
     pub fn is_drop(self) -> bool {
         matches!(self, Self::Drop)
+    }
+}
+
+fn pointer_modifiers_or_default(provenance: InteractionProvenance) -> PointerModifiers {
+    match provenance {
+        InteractionProvenance::Pointer { modifiers, .. } => modifiers,
+        InteractionProvenance::Keyboard { .. }
+        | InteractionProvenance::Accessibility
+        | InteractionProvenance::Programmatic => PointerModifiers::default(),
     }
 }

@@ -109,7 +109,9 @@ fn tree_row_local_actions_accept_ui_only_capture() {
     let message = surface
         .dispatch_widget_output(
             input_id,
-            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         )
         .expect("tree row local action should dispatch");
     assert_eq!(*calls.borrow(), 1);

@@ -13,6 +13,24 @@ fn double_activation_message() -> InteractiveRowMessage {
     }
 }
 
+fn activation_message() -> InteractiveRowMessage {
+    InteractiveRowMessage::Activate {
+        provenance: crate::widgets::InteractionProvenance::Programmatic,
+    }
+}
+
+fn modifier_activation_message(
+    modifiers: crate::widgets::PointerModifiers,
+) -> InteractiveRowMessage {
+    InteractiveRowMessage::ActivateWithModifiers {
+        provenance: crate::widgets::InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    }
+}
+
 #[test]
 fn dense_row_policy_drag_session_motion_clears_hover_for_input_only_rows() {
     let surface = interactive_row_underlay(text("Sample"))
@@ -129,13 +147,13 @@ fn interactive_row_actions_route_modifier_activation_for_embedded_rows() {
         .activate_with_modifiers(DemoMessage::ActivateWithModifiers);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(DemoMessage::ActivateWithModifiers(
             crate::widgets::PointerModifiers::default()
         ))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        actions.route(modifier_activation_message(modifiers)),
         Some(DemoMessage::ActivateWithModifiers(modifiers))
     );
 }
@@ -149,7 +167,7 @@ fn interactive_row_actions_route_keyed_activation_and_secondary_actions() {
     let secondary = Point::new(8.0, 14.0);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(DemoMessage::ActivateKey(String::from("target-a")))
     );
     assert_eq!(
@@ -177,7 +195,7 @@ fn interactive_row_actions_route_keyed_primary_and_secondary_actions() {
     let secondary = Point::new(8.0, 14.0);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(DemoMessage::ActivateKey(String::from("target-a")))
     );
     assert_eq!(
@@ -206,7 +224,7 @@ fn interactive_row_actions_route_keyed_modifier_activation_and_drag() {
         .drag_key(String::from("target-b"), DemoMessage::DragKey);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        actions.route(modifier_activation_message(modifiers)),
         Some(DemoMessage::ActivateWithModifiersKey(
             String::from("target-a"),
             modifiers

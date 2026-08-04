@@ -928,6 +928,27 @@ work.
 
 These types are intentionally not exported through the common prelude.
 
+### Value mappings
+
+`ValueMapping` is the qualified domain-mapping foundation for numeric controls.
+`ValueMapping::linear(...)` and `ValueMapping::logarithmic(...)` accept finite,
+strictly increasing `f32` ranges and return a typed `ValueMappingError` when
+validation fails; logarithmic ranges must also be positive.
+
+```rust
+use radiant::widgets::ValueMapping;
+
+let cutoff = ValueMapping::logarithmic(20.0..=20_000.0).expect("valid cutoff range");
+assert_eq!(cutoff.normalized_to_value(0.0), Some(20.0));
+assert_eq!(cutoff.value_to_normalized(20_000.0), Some(1.0));
+```
+
+Both conversion methods reject nonfinite input and clamp finite input to the
+normalized or domain range, respectively. They use `f64` intermediates and
+return `Option<f32>` so invalid input or an unexpected nonfinite result cannot
+enter a control state. This foundation currently covers only linear and
+logarithmic mappings; formatting and widget integration remain separate APIs.
+
 `ActivationInputResult::Activated { provenance }` preserves the accepted input
 source and native evidence while `.activated()` remains the compatibility
 boolean projection. Accepted pointer releases carry exact release modifiers and

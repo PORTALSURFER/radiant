@@ -57,7 +57,7 @@
 //! ```
 
 mod contract;
-mod interaction;
+pub mod interaction;
 mod primitives;
 mod theme;
 
@@ -78,8 +78,9 @@ pub use interaction::{
     KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata,
     ListItemMessage, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
     ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand,
-    TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor,
-    WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
+    TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage, ValueMapping,
+    ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+    handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

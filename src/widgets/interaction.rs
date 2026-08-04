@@ -8,6 +8,7 @@ mod input;
 mod messages;
 mod output;
 mod provenance;
+mod value;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
 pub use canvas_gesture::{
@@ -27,3 +28,4 @@ pub use messages::{
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
+pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};

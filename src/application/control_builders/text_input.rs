@@ -375,7 +375,9 @@ mod tests {
         assert_eq!(
             surface.dispatch_widget_output(
                 clear_button_id,
-                WidgetOutput::typed(ButtonMessage::Activate)
+                WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                })
             ),
             Some(Message::Clear)
         );
@@ -400,7 +402,9 @@ mod tests {
         assert_eq!(
             surface.dispatch_widget_output(
                 clear_button_id,
-                WidgetOutput::typed(ButtonMessage::Activate)
+                WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                })
             ),
             None
         );

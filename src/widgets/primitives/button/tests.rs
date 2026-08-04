@@ -5,7 +5,8 @@ use crate::gui::{
 };
 use crate::widgets::contract::WidgetState;
 use crate::widgets::interaction::{
-    DragHandleMessage, DragHandleMetadata, PointerButton, PointerModifiers, WidgetInput, WidgetKey,
+    DragHandleMessage, DragHandleMetadata, InteractionProvenance, PointerButton, PointerModifiers,
+    WidgetInput, WidgetKey,
 };
 use std::sync::Arc;
 
@@ -15,6 +16,17 @@ use super::*;
 fn button_releases_inside_bounds_emit_activation() {
     let mut button = ButtonWidget::new(5, "Play", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(80.0, 28.0));
+    let press_modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+    let release_modifiers = PointerModifiers {
+        shift: true,
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let press_timestamp = InputTimestamp::capture();
+    let release_timestamp = InputTimestamp::capture();
 
     assert_eq!(
         button.handle_input(
@@ -22,8 +34,8 @@ fn button_releases_inside_bounds_emit_activation() {
             WidgetInput::PointerPress {
                 position: Point::new(20.0, 30.0),
                 button: PointerButton::Primary,
-                modifiers: Default::default(),
-                timestamp: None,
+                modifiers: press_modifiers,
+                timestamp: Some(press_timestamp),
             },
         ),
         None
@@ -36,11 +48,17 @@ fn button_releases_inside_bounds_emit_activation() {
             WidgetInput::PointerRelease {
                 position: Point::new(24.0, 32.0),
                 button: PointerButton::Primary,
-                modifiers: Default::default(),
-                timestamp: None,
+                modifiers: release_modifiers,
+                timestamp: Some(release_timestamp),
             },
         ),
-        Some(ButtonMessage::Activate)
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: release_modifiers,
+                timestamp: Some(release_timestamp),
+                sequence_range: None,
+            },
+        })
     );
     assert!(!button.common.state.pressed);
 }
@@ -51,9 +69,55 @@ fn focused_button_space_emits_activation() {
 
     let _ = button.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
 
+    for key in [WidgetKey::Enter, WidgetKey::Space] {
+        let timestamp = InputTimestamp::capture();
+        assert_eq!(
+            button.handle_input(
+                Rect::default(),
+                WidgetInput::KeyPress {
+                    key,
+                    timestamp: Some(timestamp),
+                },
+            ),
+            Some(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Keyboard {
+                    timestamp: Some(timestamp),
+                },
+            })
+        );
+    }
+}
+
+#[test]
+fn synthetic_button_inputs_keep_pointer_and_keyboard_sources_without_evidence() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(80.0, 28.0));
+    let mut button = ButtonWidget::new(
+        19,
+        "Synthetic",
+        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+    );
+
     assert_eq!(
-        button.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Space)),
-        Some(ButtonMessage::Activate)
+        button.handle_input(bounds, WidgetInput::primary_press(Point::new(10.0, 10.0))),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_release(Point::new(10.0, 10.0))),
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
+    );
+
+    let _ = button.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::key_press(WidgetKey::Enter)),
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Keyboard { timestamp: None },
+        })
     );
 }
 
@@ -214,7 +278,95 @@ fn draggable_button_ignores_tiny_pointer_jitter_before_click_release() {
     );
     assert_eq!(
         button.handle_input(bounds, WidgetInput::primary_release(jitter_point)),
-        Some(ButtonMessage::Activate)
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
+    );
+}
+
+#[test]
+fn button_activation_vetoes_unarmed_bounds_focus_loss_disabled_and_unsupported_inputs() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(80.0, 28.0));
+    let inside = Point::new(10.0, 10.0);
+    let outside = Point::new(100.0, 10.0);
+
+    let mut unarmed = ButtonWidget::new(24, "Veto", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    assert_eq!(
+        unarmed.handle_input(bounds, WidgetInput::primary_release(inside)),
+        None
+    );
+
+    let mut rearming =
+        ButtonWidget::new(25, "Rearm", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    assert_eq!(
+        rearming.handle_input(bounds, WidgetInput::primary_press(inside)),
+        None
+    );
+    assert_eq!(
+        rearming.handle_input(bounds, WidgetInput::pointer_move(outside)),
+        None
+    );
+    assert!(!rearming.state.armed);
+    assert_eq!(
+        rearming.handle_input(bounds, WidgetInput::pointer_move(inside)),
+        None
+    );
+    assert!(rearming.state.armed);
+    assert!(matches!(
+        rearming.handle_input(bounds, WidgetInput::primary_release(inside)),
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Pointer { .. }
+        })
+    ));
+
+    let mut out_of_bounds =
+        ButtonWidget::new(26, "Bounds", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    out_of_bounds.handle_input(bounds, WidgetInput::primary_press(inside));
+    assert_eq!(
+        out_of_bounds.handle_input(bounds, WidgetInput::primary_release(outside)),
+        None
+    );
+
+    let mut focus_loss =
+        ButtonWidget::new(27, "Focus", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    focus_loss.handle_input(bounds, WidgetInput::primary_press(inside));
+    assert_eq!(
+        focus_loss.handle_input(bounds, WidgetInput::FocusChanged(false)),
+        None
+    );
+    assert_eq!(
+        focus_loss.handle_input(bounds, WidgetInput::primary_release(inside)),
+        None
+    );
+
+    let mut disabled = ButtonWidget::new(
+        28,
+        "Disabled",
+        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+    );
+    disabled.common.state.disabled = true;
+    assert_eq!(
+        disabled.handle_input(bounds, WidgetInput::primary_press(inside)),
+        None
+    );
+    assert_eq!(
+        disabled.handle_input(bounds, WidgetInput::primary_release(inside)),
+        None
+    );
+
+    let mut keyboard = ButtonWidget::new(29, "Keys", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    assert_eq!(
+        keyboard.handle_input(bounds, WidgetInput::key_press(WidgetKey::Enter)),
+        None
+    );
+    keyboard.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(
+        keyboard.handle_input(bounds, WidgetInput::key_press(WidgetKey::Tab)),
+        None
     );
 }
 
@@ -295,19 +447,83 @@ fn button_message_helpers_classify_common_outputs() {
         metadata: DragHandleMetadata::empty(),
     };
 
-    assert!(ButtonMessage::Activate.is_activate());
-    assert_eq!(ButtonMessage::Activate.secondary_position(), None);
-    assert_eq!(ButtonMessage::Activate.drag_message(), None);
+    let pointer_modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let plain_pointer = ButtonMessage::Activate {
+        provenance: InteractionProvenance::Pointer {
+            modifiers: pointer_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    };
+    let modifier_aware_pointer = ButtonMessage::ActivateWithModifiers {
+        provenance: InteractionProvenance::Pointer {
+            modifiers: pointer_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    };
+
+    assert!(plain_pointer.is_activate());
+    assert_eq!(
+        plain_pointer.activation_provenance(),
+        Some(InteractionProvenance::Pointer {
+            modifiers: pointer_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        })
+    );
+    assert_eq!(
+        plain_pointer.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(
+        modifier_aware_pointer.activation_modifiers(),
+        Some(pointer_modifiers)
+    );
+    assert_eq!(
+        modifier_aware_pointer.activation_provenance(),
+        Some(InteractionProvenance::Pointer {
+            modifiers: pointer_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        })
+    );
+    assert_eq!(
+        ButtonMessage::ActivateWithModifiers {
+            provenance: InteractionProvenance::Keyboard { timestamp: None },
+        }
+        .activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    for provenance in [
+        InteractionProvenance::Accessibility,
+        InteractionProvenance::Programmatic,
+    ] {
+        let direct = ButtonMessage::ActivateWithModifiers { provenance };
+        assert_eq!(direct.activation_provenance(), Some(provenance));
+        assert_eq!(
+            direct.activation_modifiers(),
+            Some(PointerModifiers::default())
+        );
+    }
+    assert_eq!(plain_pointer.secondary_position(), None);
+    assert_eq!(plain_pointer.drag_message(), None);
 
     let secondary = ButtonMessage::SecondaryActivate {
         position: secondary_position,
     };
     assert!(!secondary.is_activate());
+    assert_eq!(secondary.activation_provenance(), None);
     assert_eq!(secondary.secondary_position(), Some(secondary_position));
     assert_eq!(secondary.drag_message(), None);
 
     let drag_message = ButtonMessage::Drag(drag);
     assert!(!drag_message.is_activate());
+    assert_eq!(drag_message.activation_provenance(), None);
     assert_eq!(drag_message.secondary_position(), None);
     assert_eq!(drag_message.drag_message(), Some(drag));
 }

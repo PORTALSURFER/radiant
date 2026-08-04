@@ -2,7 +2,7 @@ use super::{DemoMessage, DemoState, widget_ref};
 use radiant::{
     layout::Vector2,
     runtime::{PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceRuntime},
-    widgets::{ButtonMessage, TextWidget},
+    widgets::TextWidget,
 };
 use std::{
     thread,

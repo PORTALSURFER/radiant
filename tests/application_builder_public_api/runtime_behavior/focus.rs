@@ -31,7 +31,7 @@ fn application_builder_ui_update_context_can_move_keyboard_focus() {
         .surface()
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("button should emit focus message");
     let outcome = runtime.dispatch_message(focus);

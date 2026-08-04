@@ -6,7 +6,7 @@ use crate::runtime::{PaintPrimitive, inset_rect};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
-    ActivationInputPolicy, ButtonMessage, PointerButton, WidgetInput, WidgetOutput,
+    ActivationInputPolicy, ButtonMessage, InteractionProvenance, WidgetInput, WidgetOutput,
     handle_activation_input,
 };
 use crate::widgets::primitives::support::{
@@ -97,14 +97,14 @@ impl Widget for IconButtonWidget {
             &input,
             ActivationInputPolicy::focusable(),
         );
-        result.activated().then(|| {
-            WidgetOutput::typed(match input {
-                WidgetInput::PointerRelease {
-                    button: PointerButton::Primary,
-                    modifiers,
-                    ..
-                } => ButtonMessage::ActivateWithModifiers { modifiers },
-                _ => ButtonMessage::Activate,
+        result.provenance().map(|provenance| {
+            WidgetOutput::typed(match provenance {
+                InteractionProvenance::Pointer { .. } => {
+                    ButtonMessage::ActivateWithModifiers { provenance }
+                }
+                InteractionProvenance::Keyboard { .. }
+                | InteractionProvenance::Accessibility
+                | InteractionProvenance::Programmatic => ButtonMessage::Activate { provenance },
             })
         })
     }

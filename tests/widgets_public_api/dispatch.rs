@@ -35,7 +35,9 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
             bounds,
             WidgetInput::key_press(WidgetKey::Enter),
         ),
-        radiant::widgets::ButtonMessage::Activate,
+        radiant::widgets::ButtonMessage::Activate {
+            provenance: radiant::widgets::InteractionProvenance::Keyboard { timestamp: None },
+        },
     );
 
     assert_eq!(

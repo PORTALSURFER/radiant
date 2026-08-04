@@ -123,8 +123,9 @@ impl ButtonWidget {
 
     /// Route one backend-neutral interaction into the button.
     ///
-    /// The button emits [`ButtonMessage::Activate`] when a primary press is
-    /// released inside bounds or when the focused widget receives Enter/Space.
+    /// The button emits [`ButtonMessage::Activate { provenance }`] when a
+    /// primary press is released inside bounds or when the focused widget
+    /// receives Enter/Space.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ButtonMessage> {
         input::handle_button_input(self, bounds, input)
     }

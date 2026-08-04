@@ -26,7 +26,9 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
         .project_surface()
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: radiant::widgets::InteractionProvenance::Programmatic,
+            }),
         )
         .expect("button should emit a host-defined increment message");
     bridge.reduce_message(increment);

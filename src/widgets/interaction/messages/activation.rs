@@ -11,11 +11,14 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ButtonMessage {
     /// The button was activated by pointer or keyboard input.
-    Activate,
+    Activate {
+        /// Provenance captured from the accepted activation input.
+        provenance: InteractionProvenance,
+    },
     /// The button was activated by primary pointer input with modifier state.
     ActivateWithModifiers {
-        /// Modifier state at release time.
-        modifiers: PointerModifiers,
+        /// Provenance captured from the accepted activation input.
+        provenance: InteractionProvenance,
     },
     /// The button received a secondary/right pointer click.
     SecondaryActivate {
@@ -29,16 +32,33 @@ pub enum ButtonMessage {
 impl ButtonMessage {
     /// Return whether this message is a primary button activation.
     pub fn is_activate(self) -> bool {
-        matches!(self, Self::Activate | Self::ActivateWithModifiers { .. })
+        matches!(
+            self,
+            Self::Activate { .. } | Self::ActivateWithModifiers { .. }
+        )
     }
 
     /// Return modifier state when this message is an activation.
     ///
-    /// Keyboard activation and legacy plain activation use default modifiers.
+    /// Plain activation uses default modifiers. Modifier-aware activation
+    /// projects exact pointer modifiers and default modifiers for keyboard,
+    /// accessibility, and programmatic provenance.
     pub fn activation_modifiers(self) -> Option<PointerModifiers> {
         match self {
-            Self::Activate => Some(PointerModifiers::default()),
-            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            Self::Activate { .. } => Some(PointerModifiers::default()),
+            Self::ActivateWithModifiers { provenance } => {
+                Some(pointer_modifiers_or_default(provenance))
+            }
+            _ => None,
+        }
+    }
+
+    /// Return provenance for any primary activation, when present.
+    pub const fn activation_provenance(&self) -> Option<InteractionProvenance> {
+        match self {
+            Self::Activate { provenance } | Self::ActivateWithModifiers { provenance } => {
+                Some(*provenance)
+            }
             _ => None,
         }
     }

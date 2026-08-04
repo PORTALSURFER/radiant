@@ -55,7 +55,7 @@ fn application_builder_context_menu_overlay_routes_items() {
     let message = surface
         .dispatch_widget_output(
             focus_order[1],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("context menu item should emit a state action");
     let command = bridge.update(message);
@@ -119,7 +119,7 @@ fn application_builder_context_menu_exposes_fluent_advanced_configuration() {
     let message = surface
         .dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("fluent menu item should emit a state action");
     let command = bridge.update(message);

@@ -36,7 +36,7 @@ fn application_builder_background_spawn_routes_worker_result() {
         .surface()
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("load button should emit a start message");
 

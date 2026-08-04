@@ -2,7 +2,7 @@ use radiant::{
     application as app, prelude as ui,
     runtime::{Event, PaintPrimitive, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
-    widgets::{ButtonMessage, PointerButton, WidgetOutput},
+    widgets::{PointerButton, WidgetOutput},
 };
 use std::sync::{Arc, Mutex};
 use std::{cell::RefCell, rc::Rc};
@@ -26,7 +26,10 @@ fn dismiss_overlay_accepts_rc_backed_ui_message() {
         .into_surface();
 
     let message = surface
-        .dispatch_widget_output(1002, WidgetOutput::typed(ButtonMessage::Activate))
+        .dispatch_widget_output(
+            1002,
+            WidgetOutput::typed(crate::programmatic_button_message()),
+        )
         .expect("dismiss overlay should emit its UI-local message");
     assert!(Rc::ptr_eq(&message.0, &state));
 }

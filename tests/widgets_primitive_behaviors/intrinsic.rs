@@ -35,7 +35,13 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
                 timestamp: None,
             },
         ),
-        Some(ButtonMessage::Activate)
+        Some(ButtonMessage::Activate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
     );
 }
 

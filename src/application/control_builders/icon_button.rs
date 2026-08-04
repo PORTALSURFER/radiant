@@ -193,10 +193,16 @@ mod tests {
     use super::*;
     use crate::{
         application::IntoView,
-        gui::types::{Point, Rect},
+        gui::{
+            input::InputTimestamp,
+            types::{Point, Rect},
+        },
         layout::{LayoutOutput, Vector2},
         runtime::{PaintPrimitive, UiSurface},
-        widgets::{PointerButton, Widget, WidgetInput},
+        widgets::{
+            ButtonMessage, InteractionProvenance, PointerButton, PointerModifiers, Widget,
+            WidgetInput, WidgetKey,
+        },
     };
 
     #[test]
@@ -240,20 +246,92 @@ mod tests {
             WidgetInput::PointerPress {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
-                modifiers: Default::default(),
-                timestamp: None,
+                modifiers: PointerModifiers {
+                    command: true,
+                    ..Default::default()
+                },
+                timestamp: Some(InputTimestamp::capture()),
             },
         );
+        let release_modifiers = PointerModifiers {
+            shift: true,
+            alt: true,
+            ..Default::default()
+        };
+        let release_timestamp = InputTimestamp::capture();
         let output = widget.handle_input(
             bounds,
             WidgetInput::PointerRelease {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
-                modifiers: Default::default(),
-                timestamp: None,
+                modifiers: release_modifiers,
+                timestamp: Some(release_timestamp),
             },
         );
-        assert!(output.is_some());
+        assert_eq!(
+            output.and_then(|output| output.typed_cloned::<ButtonMessage>()),
+            Some(ButtonMessage::ActivateWithModifiers {
+                provenance: InteractionProvenance::Pointer {
+                    modifiers: release_modifiers,
+                    timestamp: Some(release_timestamp),
+                    sequence_range: None,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn icon_button_keyboard_activation_keeps_key_timestamp_and_synthetic_sources() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect fill="#fff" x="4" y="4" width="8" height="8"/></svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 20.0));
+        let mut widget = IconButtonWidget::new(
+            109,
+            icon.clone(),
+            WidgetSizing::fixed(Vector2::new(24.0, 20.0)),
+        );
+        widget.handle_input(bounds, WidgetInput::FocusChanged(true));
+
+        for key in [WidgetKey::Enter, WidgetKey::Space] {
+            let timestamp = InputTimestamp::capture();
+            assert_eq!(
+                widget
+                    .handle_input(
+                        bounds,
+                        WidgetInput::KeyPress {
+                            key,
+                            timestamp: Some(timestamp),
+                        },
+                    )
+                    .and_then(|output| output.typed_cloned::<ButtonMessage>()),
+                Some(ButtonMessage::Activate {
+                    provenance: InteractionProvenance::Keyboard {
+                        timestamp: Some(timestamp),
+                    },
+                })
+            );
+        }
+
+        let mut synthetic =
+            IconButtonWidget::new(110, icon, WidgetSizing::fixed(Vector2::new(24.0, 20.0)));
+        assert_eq!(
+            synthetic.handle_input(bounds, WidgetInput::primary_press(Point::new(12.0, 10.0)),),
+            None
+        );
+        assert_eq!(
+            synthetic
+                .handle_input(bounds, WidgetInput::primary_release(Point::new(12.0, 10.0)),)
+                .and_then(|output| output.typed_cloned::<ButtonMessage>()),
+            Some(ButtonMessage::ActivateWithModifiers {
+                provenance: InteractionProvenance::Pointer {
+                    modifiers: PointerModifiers::default(),
+                    timestamp: None,
+                    sequence_range: None,
+                },
+            })
+        );
     }
 
     #[test]

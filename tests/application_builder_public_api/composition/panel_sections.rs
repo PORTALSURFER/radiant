@@ -26,7 +26,7 @@ fn application_builder_panel_section_applies_fixed_height_and_routes_trailing_ac
     assert!(matches!(
         surface.dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(DemoMessage::Increment)
     ));
@@ -104,7 +104,7 @@ fn closeable_panel_section_routes_standard_close_button_message() {
     assert_eq!(
         surface.dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(DemoMessage::Increment)
     );
@@ -157,7 +157,7 @@ fn closeable_panel_section_layer_routes_standard_close_button_message() {
     assert_eq!(
         surface.dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(DemoMessage::Increment)
     );
@@ -223,7 +223,7 @@ fn closeable_dialog_layer_parts_route_standard_close_button_message() {
     assert_eq!(
         surface.dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(DemoMessage::Increment)
     );

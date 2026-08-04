@@ -1,5 +1,5 @@
 use super::{
-    event::CanvasGestureEvent,
+    event::{CanvasGestureEvent, CanvasGestureMetadata},
     pointer::{canvas_pointer, point_delta},
 };
 use crate::{
@@ -40,8 +40,18 @@ impl CanvasGestureState {
         input: &WidgetInput,
     ) -> Option<CanvasGestureEvent> {
         match input {
-            WidgetInput::PointerMove { position, .. } => {
+            WidgetInput::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            } => {
                 let pointer = canvas_pointer(bounds, *position)?;
+                let metadata = CanvasGestureMetadata {
+                    modifiers: *modifiers,
+                    timestamp: *timestamp,
+                    sequence_range: *sequence_range,
+                };
                 Some(match self.active_press {
                     Some(active) => CanvasGestureEvent::Drag {
                         pointer,
@@ -49,14 +59,16 @@ impl CanvasGestureState {
                         delta: point_delta(active.origin.position, *position),
                         button: active.button,
                         modifiers: active.modifiers,
+                        metadata,
                     },
-                    None => CanvasGestureEvent::Hover(pointer),
+                    None => CanvasGestureEvent::Hover { pointer, metadata },
                 })
             }
             WidgetInput::PointerPress {
                 position,
                 button,
                 modifiers,
+                timestamp,
                 ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
@@ -65,12 +77,18 @@ impl CanvasGestureState {
                     pointer,
                     button: *button,
                     modifiers: *modifiers,
+                    metadata: CanvasGestureMetadata {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
             WidgetInput::PointerDoubleClick {
                 position,
                 button,
                 modifiers,
+                timestamp,
                 ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
@@ -78,12 +96,18 @@ impl CanvasGestureState {
                     pointer,
                     button: *button,
                     modifiers: *modifiers,
+                    metadata: CanvasGestureMetadata {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
             WidgetInput::PointerRelease {
                 position,
                 button,
                 modifiers,
+                timestamp,
                 ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
@@ -96,12 +120,18 @@ impl CanvasGestureState {
                     }),
                     button: *button,
                     modifiers: *modifiers,
+                    metadata: CanvasGestureMetadata {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
             WidgetInput::PointerDrop {
                 position,
                 button,
                 modifiers,
+                timestamp,
                 ..
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
@@ -111,13 +141,27 @@ impl CanvasGestureState {
                     origin: active.map(|active| active.origin),
                     button: *button,
                     modifiers: *modifiers,
+                    metadata: CanvasGestureMetadata {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
             WidgetInput::Wheel {
-                position, delta, ..
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                sequence_range,
             } => Some(CanvasGestureEvent::Wheel {
                 pointer: canvas_pointer(bounds, *position)?,
                 delta: *delta,
+                metadata: CanvasGestureMetadata {
+                    modifiers: *modifiers,
+                    timestamp: *timestamp,
+                    sequence_range: *sequence_range,
+                },
             }),
             WidgetInput::FocusChanged(focused) => {
                 if !focused {

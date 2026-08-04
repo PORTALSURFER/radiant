@@ -417,7 +417,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `CanvasGestureState`, `CanvasGestureEvent`, `CanvasGestureMetadata`, `CanvasPointer`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
 | Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
@@ -1058,6 +1058,16 @@ actions such as range selection or marker editing.
 Use `CanvasPointer::is_inside(...)`, `normalized_x()`, and `normalized_y()` to
 classify projected pointer events and read normalized axes without repeating
 host-coordinate bounds checks or raw vector-field access in app widgets.
+Each pointer-like `CanvasGestureEvent` also carries a `CanvasGestureMetadata`
+value. Use `input_metadata()` to preserve the current normalized input's
+`PointerModifiers`, optional `InputTimestamp`, and optional opaque
+`InputSequenceRange` through canvas gesture delivery. Move and wheel events
+carry the current modifiers, timestamp, and sequence range; press, release,
+double-click, and drop events carry the current modifiers and timestamp without
+a sequence range. `Drag::modifiers` remains the original press modifiers for
+backward-compatible gesture semantics, while `input_metadata().modifiers`
+reports the current move modifiers. Public `WidgetInput` constructors leave
+these metadata fields absent.
 Use `CanvasGestureEvent::pointer()`, `origin()`, `button()`, `modifiers()`,
 `delta()`, and `pointer_is_inside(...)` when a custom canvas needs shared
 gesture metadata without matching every hover, press, drag, release,

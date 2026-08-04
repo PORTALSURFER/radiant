@@ -48,7 +48,15 @@ pub(super) fn handle_button_input(
                     } else {
                         button.state.dragged = true;
                         button.common.state.active = true;
-                        DragHandleMessage::started_with_metadata(press_position, position, metadata)
+                        DragHandleMessage::started_with_metadata(
+                            press_position,
+                            position,
+                            DragHandleMetadata {
+                                modifiers: metadata.modifiers,
+                                timestamp: metadata.timestamp,
+                                sequence_range: None,
+                            },
+                        )
                     };
                     return Some(ButtonMessage::Drag(message));
                 }

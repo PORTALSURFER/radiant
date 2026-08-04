@@ -57,7 +57,11 @@ impl InteractiveRowWidget {
                         DragHandleMessage::started_with_metadata(
                             self.pressed_position.unwrap_or(position),
                             position,
-                            metadata,
+                            DragHandleMetadata {
+                                modifiers: metadata.modifiers,
+                                timestamp: metadata.timestamp,
+                                sequence_range: None,
+                            },
                         )
                     };
                     return Some(InteractiveRowMessage::Drag(message));

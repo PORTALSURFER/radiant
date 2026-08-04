@@ -619,12 +619,17 @@ The migration order is explicit:
 3. Migrate other discrete controls in bounded groups.
 4. Ship `Slider` as the first provenance-aware shared edit-event consumer,
    including its bounded typed batch and concise compatibility projection.
-5. Adopt `Knob` next, then reconcile remaining continuous controls after the
-   shared-edit compatibility review.
+5. Adopt `Knob` next, then move the migration past Knob to the next shared-edit
+   consumer.
+6. Ship `PanelResizeState` as the splitter-resize shared-edit consumer with a
+   qualified typed boundary API, concise compatibility projection, and
+   deterministic cancellation rollback.
+7. Reconcile remaining continuous controls after the shared-edit compatibility
+   review.
 
-The shared edit-event foundation and the Slider adoption are shipped API. The
-qualified lifecycle APIs remain outside the common prelude; `Knob` is the next
-adopter.
+The shared edit-event foundation, Slider, Knob, and PanelResizeState adoption
+are shipped API. The qualified lifecycle APIs remain outside the common prelude;
+numeric input and other continuous controls are later adopters.
 
 ### Frame packets and backpressure
 
@@ -1239,6 +1244,15 @@ split_pane(library_panel(state), detail_panel(state))
     .keyboard_resize(KeyboardResize::enabled());
 ```
 
+This target builder and its generic `LayoutInteraction` runtime capability are
+future work. The shipped slice stops at the host-facing `PanelResizeState`
+model: its qualified `resize_edit(...)` and
+`resize_collapsible_edit(...)` methods deliver one typed `EditEvent<f32>` per
+accepted drag boundary, while the concise resize methods remain compatible
+size projections. An interrupted drag restores its transaction start and
+delivers typed `Cancel`; collapsible double activation remains a discrete
+collapse/restore command outside the continuous edit stream.
+
 The divider has separator semantics, a visible focus treatment when keyboard
 reachable, logical arrow-key resizing, and an explicit collapse policy. Nested
 split panes use the same constraint, transaction, persistence, and accessibility
@@ -1599,8 +1613,10 @@ transaction start without committing. Official retained Knob lowering also
 delivers typed `Cancel` for both interruption reasons, including no-op active
 gestures; its legacy projections keep focus-loss `GestureEnded` with the last
 value and suppress pointer-capture cancellation. Wheel,
-accessibility actions, and domain mapping remain outside this adoption slice;
-Knob is also shipped, and the remaining continuous controls are next.
+accessibility actions, domain mapping, and `numeric_input` remain outside this
+adoption slice. Knob is also shipped, and PanelResizeState is the next shipped
+shared-edit consumer; the generic `LayoutInteraction` capability and runtime
+`split_pane` construction remain future work.
 Applications may provide a custom mapping only when it is total, finite, and
 monotonic over the declared range; Radiant rejects ambiguous inverse mappings
 rather than allowing a displayed value and edited value to diverge. Mapping and
@@ -1616,8 +1632,11 @@ An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
 `Cancel` phase, current and starting value, and `InteractionProvenance` from the
 shared vocabulary. `EditTransaction` selects its `InteractionSource` at
 `Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
-`Slider` and `Knob` are adopted; the remaining continuous controls are the next
-shared-edit slices. Begin,
+`Slider`, `Knob`, and `PanelResizeState` are adopted; the remaining continuous
+controls are the next shared-edit slices. Panel splitter edits use the
+qualified `resize_edit(...)` and `resize_collapsible_edit(...)` boundaries;
+their concise projections preserve existing size APIs, and an interrupted
+drag restores the transaction start before typed `Cancel`. Begin,
 commit, and cancellation are never coalesced. High-rate updates may be latest-wins per
 presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation

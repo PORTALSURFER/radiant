@@ -903,7 +903,20 @@ capture cancellation emits no legacy message. `WidgetMessageMapper::knob_edits`,
 `application::knob_edit_mapped` receive complete ordered batches. These Knob
 lifecycle APIs are qualified and are not exported through the common prelude;
 the public `KnobWidget { common, props, state }` shape and legacy automation
-gesture types remain source-compatible.
+gesture types remain source-compatible. `PanelResizeState` is now the next
+shipped shared-edit consumer alongside Slider and Knob. Its qualified
+`resize_edit(...)` and `resize_collapsible_edit(...)` methods return one
+accepted `EditEvent<f32>` boundary for each drag-handle input while the state
+owns the active transaction beside its existing drag state. `Begin`, `Update`,
+and `Commit` preserve the transaction and start size; `Cancelled` restores the
+start size and emits `Cancel` with pointer provenance and no native evidence.
+The concise `resize(...)` and `resize_collapsible(...)` methods remain the
+compatibility projections: changed cancellation returns the restored size,
+no-op cancellation remains lifecycle-only, and collapsible double activation
+stays a discrete collapse/restore command outside the edit stream while
+clearing active state. These APIs do not add `numeric_input`, generic
+`LayoutInteraction`, or runtime `split_pane` construction; those remain future
+work.
 
 These types are intentionally not exported through the common prelude.
 
@@ -3792,6 +3805,13 @@ splitter-driven pane resizing. Use `PanelResizeConstraints::left(...)`,
 resize handles. Use `PanelResizeState::resize_collapsible(...)` when a resize
 handle should collapse the panel to a host-chosen size on double activation,
 then restore the last expanded size on the next double activation.
+For typed shared-edit delivery, use the qualified
+`PanelResizeState::resize_edit(...)` or
+`PanelResizeState::resize_collapsible_edit(...)` methods; each accepted drag
+boundary returns one `EditEvent<f32>`, and cancellation rolls the size back to
+the transaction start. The existing concise methods remain available for
+hosts that only need size projection. The target `split_pane` runtime builder
+and generic `LayoutInteraction` capability are not shipped by this model yet.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

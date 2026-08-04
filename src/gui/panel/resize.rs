@@ -1,4 +1,7 @@
-use crate::{gui::types::Point, widgets::DragHandleMessage};
+use crate::{
+    gui::types::Point,
+    widgets::{DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase, InteractionProvenance},
+};
 
 /// Panel edge that is being resized by a drag handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,12 +125,13 @@ impl CollapsiblePanelResizeConstraints {
     }
 }
 
-/// Durable panel size plus transient resize-drag state.
+/// Durable panel size plus transient resize-drag and shared-edit state.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PanelResizeState {
     size: f32,
     last_expanded_size: Option<f32>,
     active_drag: Option<PanelResizeDrag>,
+    active_edit: Option<EditEvent<f32>>,
 }
 
 impl PanelResizeState {
@@ -138,6 +142,7 @@ impl PanelResizeState {
             size,
             last_expanded_size: Some(size),
             active_drag: None,
+            active_edit: None,
         }
     }
 
@@ -171,17 +176,30 @@ impl PanelResizeState {
         message: DragHandleMessage,
         constraints: PanelResizeConstraints,
     ) -> Option<f32> {
-        let constraints = constraints.normalized();
-        let size = update_panel_resize_drag(
-            &mut self.active_drag,
-            message,
-            constraints.edge,
-            self.size,
-            constraints.min_size,
-            constraints.max_size,
-        )?;
-        self.size = size;
-        Some(size)
+        let previous_size = self.size;
+        let event = self.resize_edit(message, constraints)?;
+        match event.phase {
+            EditPhase::Begin => None,
+            EditPhase::Update | EditPhase::Commit => Some(event.value),
+            EditPhase::Cancel if previous_size != event.value => Some(event.value),
+            EditPhase::Cancel => None,
+        }
+    }
+
+    /// Apply one drag-handle message and return its accepted typed edit boundary.
+    ///
+    /// The returned event is one boundary for the active pointer transaction.
+    /// A start emits `Begin`, active motion emits `Update`, release emits
+    /// `Commit`, and cancellation emits `Cancel` after restoring the captured
+    /// start size. Orphaned motion, release, and cancellation messages return
+    /// `None`. The typed lifecycle is intentionally qualified; use
+    /// [`Self::resize`] when only the concise size projection is needed.
+    pub fn resize_edit(
+        &mut self,
+        message: DragHandleMessage,
+        constraints: PanelResizeConstraints,
+    ) -> Option<EditEvent<f32>> {
+        self.apply_resize_edit(message, constraints.normalized(), None)
     }
 
     /// Apply one drag-handle message to this collapsible panel's resize state.
@@ -196,23 +214,107 @@ impl PanelResizeState {
             .resize
             .normalized()
             .collapsible(constraints.collapsed_size);
+        let previous_size = self.size;
         if message.is_double_activate() {
-            self.active_drag = None;
-            self.size = self.double_activate_collapsible_size(constraints);
+            let _ = self.resize_collapsible_edit(message, constraints);
             return Some(self.size);
         }
-        let size = update_collapsible_panel_resize_drag(
-            &mut self.active_drag,
+
+        let event = self.resize_collapsible_edit(message, constraints)?;
+        match event.phase {
+            EditPhase::Begin => None,
+            EditPhase::Update | EditPhase::Commit => Some(event.value),
+            EditPhase::Cancel if previous_size != event.value => Some(event.value),
+            EditPhase::Cancel => None,
+        }
+    }
+
+    /// Apply one drag-handle message to a collapsible panel and return its
+    /// accepted typed edit boundary.
+    ///
+    /// Double activation is a discrete collapse/restore command, not a
+    /// continuous edit boundary. It therefore clears any active drag and edit,
+    /// applies the existing collapse/restore behavior, and returns `None`.
+    /// Normal pointer boundaries follow [`Self::resize_edit`], including
+    /// cancellation rollback to the transaction's start size.
+    pub fn resize_collapsible_edit(
+        &mut self,
+        message: DragHandleMessage,
+        constraints: CollapsiblePanelResizeConstraints,
+    ) -> Option<EditEvent<f32>> {
+        let constraints = constraints
+            .resize
+            .normalized()
+            .collapsible(constraints.collapsed_size);
+        if message.is_double_activate() {
+            self.active_drag = None;
+            self.active_edit = None;
+            self.size = self.double_activate_collapsible_size(constraints);
+            return None;
+        }
+
+        self.apply_resize_edit(
             message,
-            constraints.resize.edge,
-            self.size,
-            constraints.resize.min_size,
-            constraints.resize.max_size,
-            constraints.collapsed_size,
-        )?;
-        self.size = size;
-        self.remember_expanded_size_above(size, constraints.collapsed_size);
-        Some(size)
+            constraints.resize,
+            Some(constraints.collapsed_size),
+        )
+    }
+
+    fn apply_resize_edit(
+        &mut self,
+        message: DragHandleMessage,
+        constraints: PanelResizeConstraints,
+        collapsed_size: Option<f32>,
+    ) -> Option<EditEvent<f32>> {
+        if message.is_double_activate() {
+            self.active_drag = None;
+            self.active_edit = None;
+            return None;
+        }
+
+        let provenance = pointer_provenance(message.input_metadata());
+        match message {
+            DragHandleMessage::Started { origin, .. } => {
+                self.active_drag = Some(PanelResizeDrag::new(constraints.edge, origin, self.size));
+                let begin = EditEvent::begin(self.size, provenance);
+                self.active_edit = Some(begin);
+                Some(begin)
+            }
+            DragHandleMessage::Moved { position, .. } => {
+                let drag = self.active_drag?;
+                let previous = self.active_edit?;
+                let size = drag.size_at(position, constraints.min_size, constraints.max_size);
+                let update = previous.update(size, provenance)?;
+                self.size = size;
+                self.active_edit = Some(update);
+                Some(update)
+            }
+            DragHandleMessage::Ended { position, .. } => {
+                let drag = self.active_drag?;
+                let previous = self.active_edit?;
+                let size = drag.size_at(position, constraints.min_size, constraints.max_size);
+                let commit = previous.commit(size, provenance)?;
+                self.size = size;
+                self.remember_collapsible_size(size, collapsed_size);
+                self.active_drag = None;
+                self.active_edit = None;
+                Some(commit)
+            }
+            DragHandleMessage::Cancelled { .. } => {
+                let previous = self.active_edit.take()?;
+                let cancel = previous.cancel(provenance)?;
+                self.size = cancel.value;
+                self.active_drag = None;
+                Some(cancel)
+            }
+            DragHandleMessage::DoubleActivate { .. } => None,
+        }
+    }
+
+    fn remember_collapsible_size(&mut self, size: f32, collapsed_size: Option<f32>) {
+        if let Some(collapsed_size) = collapsed_size {
+            self.remember_expanded_size_above(size, collapsed_size);
+        }
     }
 
     fn double_activate_collapsible_size(
@@ -336,6 +438,14 @@ fn clamped_panel_size(size: f32, min_size: f32, max_size: f32) -> f32 {
     let min_size = finite_or(min_size, 0.0).max(0.0);
     let max_size = finite_or(max_size, min_size).max(min_size);
     finite_or(size, min_size).clamp(min_size, max_size)
+}
+
+fn pointer_provenance(metadata: DragHandleMetadata) -> InteractionProvenance {
+    InteractionProvenance::Pointer {
+        modifiers: metadata.modifiers,
+        timestamp: metadata.timestamp,
+        sequence_range: metadata.sequence_range,
+    }
 }
 
 fn finite_or(value: f32, fallback: f32) -> f32 {

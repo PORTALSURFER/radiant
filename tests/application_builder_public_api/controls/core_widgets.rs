@@ -3,10 +3,10 @@ use radiant::runtime::EventMapper;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase,
-    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance, MarkerRunWidget,
-    PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch, SliderMessage,
-    TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetOutput, WidgetProminence,
-    WidgetStyle, WidgetTone,
+    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance, KnobEditBatch,
+    MarkerRunWidget, PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch,
+    SliderMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetInput,
+    WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -449,6 +449,39 @@ fn qualified_slider_edit_builders_forward_complete_batches() {
                 .map(|event| event.phase)
                 .collect::<Vec<_>>(),
             [EditPhase::Begin, EditPhase::Update]
+        );
+    }
+}
+
+#[test]
+fn qualified_knob_edit_builders_forward_complete_batches() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let mut on_edit: UiSurface<KnobEditBatch> =
+        ui::knob(0.5).on_edit(|batch| batch).id(42).into_surface();
+    let mut free_function: UiSurface<KnobEditBatch> =
+        radiant::application::knob_edit_mapped(0.5, |batch| batch)
+            .id(43)
+            .into_surface();
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+
+    for (surface, widget_id) in [(&mut on_edit, 42), (&mut free_function, 43)] {
+        let output = surface
+            .dispatch_widget_input(
+                widget_id,
+                bounds,
+                WidgetInput::primary_press(Point::new(20.0, 20.0)),
+            )
+            .expect("official Knob builder should emit a typed batch")
+            .typed_copied::<KnobEditBatch>()
+            .expect("official Knob builder should retain typed output");
+        assert_eq!(
+            output
+                .events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            [EditPhase::Begin]
         );
     }
 }

@@ -12,7 +12,7 @@ pub use activation::{
 pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{
-    KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
+    KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ScrollbarMessage, SliderEditBatch,
     SliderMessage,
 };

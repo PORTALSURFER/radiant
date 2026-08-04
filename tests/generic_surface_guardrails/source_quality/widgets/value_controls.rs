@@ -128,6 +128,90 @@ fn knob_pointer_provenance_stays_incremental_and_observational() {
 }
 
 #[test]
+fn knob_typed_edit_adoption_stays_bounded_and_retained() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob.rs"))
+        .expect("knob primitive should be readable");
+    let input = fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob/input.rs"))
+        .expect("knob input should be readable");
+    let retained = fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob/retained.rs"))
+        .expect("retained knob adapter should be readable");
+    let builders = fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob/builders.rs"))
+        .expect("knob builders should be readable");
+    let typed_tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob/typed_tests.rs"))
+            .expect("knob typed tests should be readable");
+    let messages =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/messages/range.rs"))
+            .expect("range messages should be readable");
+    let prelude_widgets =
+        fs::read_to_string(manifest_dir.join("src/prelude/widgets.rs")).expect("widgets prelude");
+    let prelude_controls =
+        fs::read_to_string(manifest_dir.join("src/prelude/application/controls.rs"))
+            .expect("application controls prelude");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("mod input;")
+            && root.contains("mod retained;")
+            && root.contains("pub struct KnobWidget")
+            && root.contains("pub common: WidgetCommon")
+            && root.contains("pub props: KnobProps")
+            && root.contains("pub state: KnobState")
+            && !root.contains("active_edit: Option<EditEvent<f32>>"),
+        "public KnobWidget should keep its three-field source shape"
+    );
+    assert!(
+        input.contains("active_edit: &mut Option<EditEvent<f32>>")
+            && input.contains("KnobEditBatch::pointer")
+            && input.contains("KnobEditBatch::keyboard")
+            && input.contains("KnobEditBatch::wheel")
+            && input.contains("KnobEditBatch::reset"),
+        "typed Knob input should own no lifecycle state and cover each accepted source"
+    );
+    assert!(
+        retained.contains("pub(crate) struct RetainedKnobWidget")
+            && retained.contains("knob: KnobWidget")
+            && retained.contains("active_edit: Option<EditEvent<f32>>")
+            && retained.contains("handle_pointer_capture_cancelled")
+            && !retained.contains("Box<")
+            && !retained.contains("HashMap"),
+        "typed Knob lifecycle state should have one bounded retained owner"
+    );
+    assert!(
+        builders.contains("pub fn knob_edits_mapped(")
+            && builders.contains("pub fn knob_edits(")
+            && builders.contains("WidgetMessageMapper::knob_edits")
+            && builders.contains("RetainedKnobWidget::new"),
+        "Knob runtime constructors should lower through the retained typed adapter"
+    );
+    assert!(
+        typed_tests.contains("fn retained_knob_pointer_lifecycle")
+            && typed_tests.contains("fn retained_knob_cancellation")
+            && typed_tests.contains("fn retained_knob_keyboard_wheel_and_reset")
+            && typed_tests.contains("fn retained_knob_reprojection"),
+        "typed Knob behavior should keep focused lifecycle and continuity coverage"
+    );
+    assert!(
+        messages.contains("pub struct KnobEditBatch")
+            && messages.contains("events: [EditEvent<f32>; 4]")
+            && messages.contains("pub fn events(&self) -> &[EditEvent<f32>]")
+            && messages.contains("pub const fn transaction(&self) -> EditTransaction")
+            && messages.contains("pub fn value_change(&self) -> Option<f32>")
+            && !messages.contains("Vec<")
+            && !messages.contains("SmallVec")
+            && !messages.contains("Mutex")
+            && !messages.contains("channel"),
+        "KnobEditBatch should remain fixed-capacity and allocation-free"
+    );
+    assert!(
+        !prelude_widgets.contains("KnobEditBatch")
+            && !prelude_controls.contains("knob_edit_mapped"),
+        "Knob lifecycle APIs should remain qualified rather than entering the common prelude"
+    );
+}
+
+#[test]
 fn slider_primitive_keeps_surface_builders_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider.rs"))

@@ -19,7 +19,7 @@ pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, W
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, InteractiveRowMetadata,
-    KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
+    KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
     PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
     SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind, TextInputMessageParts,

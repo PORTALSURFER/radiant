@@ -863,7 +863,7 @@ policy may keep only the latest `Update`. For `Copy` values such as `f32`, the
 bounded transitions are allocation-free after the process-local transaction
 identity is allocated.
 
-`SliderWidget` is the first production consumer. Its qualified
+`SliderWidget` is a shipped production consumer. Its qualified
 `SliderEditBatch` message contains one to three ordered `EditEvent<f32>` values
 in fixed-capacity copy-only storage; `events()` exposes the used slice and every
 non-empty batch shares one transaction. Pointer press, move, release, focus
@@ -880,8 +880,30 @@ The public `SliderState` remains the source-compatible one-field
 `{ common, props, state }` fields. Official Slider constructors lower a
 crate-private retained adapter that owns the active transaction; a bare public
 `SliderWidget` keeps the concise `handle_input(...) -> Option<SliderMessage>`
-contract and does not carry typed lifecycle state. `Knob` is the next
-shared-edit adopter.
+contract and does not carry typed lifecycle state. `Knob` is also a shipped
+shared-edit adopter, and the remaining continuous controls are next.
+`KnobWidget` follows the same contract through the
+qualified `KnobEditBatch` message. It carries one to four ordered
+`EditEvent<f32>` values in fixed-capacity copy-only storage and exposes the
+shared transaction plus concise value projection. Official Knob builders lower
+a crate-private retained adapter that owns the active pointer transaction;
+pointer relative-motion boundaries preserve their exact provenance, focused
+keyboard, wheel, and reset inputs emit atomic `Begin`/`Update`/`Commit`
+batches, and official retained focus-loss or pointer-capture interruption emits
+a typed `Cancel`, including for a no-op active gesture. A meaningful changed
+gesture projects a rollback through `value_change()`. Wheel input is ignored during an active
+captured pointer gesture, and fresh same-ID projections remain authoritative
+for value while compatible retained interaction state continues. The concise
+`KnobBuilder::message`, `WidgetMessageMapper::knob`, and
+`SurfaceNode::knob_mapped` paths project typed batches back to the existing
+`KnobMessage` lifecycle. Those legacy projections preserve focus-loss
+`GestureEnded` with the last value, including a no-op gesture, while pointer
+capture cancellation emits no legacy message. `WidgetMessageMapper::knob_edits`,
+`SurfaceNode::knob_edits_mapped`, `KnobBuilder::on_edit`, and
+`application::knob_edit_mapped` receive complete ordered batches. These Knob
+lifecycle APIs are qualified and are not exported through the common prelude;
+the public `KnobWidget { common, props, state }` shape and legacy automation
+gesture types remain source-compatible.
 
 These types are intentionally not exported through the common prelude.
 
@@ -2052,9 +2074,11 @@ the default policy implementation.
 Native focus loss and external drag handoff cancel pointer capture without
 routing a synthetic release to the host. Radiant clears the captured widget's
 transient retained state through the widget input path and requests repaint
-only when that local state changed. Slider opts into the capture-cancellation
-hook to deliver its typed `Cancel` batch before cleanup; the default hook keeps
-legacy custom-widget and Knob focus-loss outputs suppressed. Hosts should model
+only when that local state changed. Slider and the official retained Knob
+adapter opt into the capture-cancellation hook to deliver their typed `Cancel`
+batch before cleanup. The bare public `KnobWidget` and legacy Knob mappings
+retain their compatibility behavior: focus loss emits the legacy terminal
+message, while pointer-capture cancellation remains suppressed. Hosts should model
 durable drag/drop results as messages, but they should not duplicate generic
 pressed, capture, or focus-loss cleanup in application reducers.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
@@ -2862,7 +2886,9 @@ release/drop messages preserve their current `PointerModifiers` and optional
 move preserves the move's current modifiers, timestamp, and complete opaque
 sequence range. Moves that leave the clamped value unchanged emit no message.
 Focus-loss cancellation emits exactly one ended message with
-`KnobPointerMetadata::empty()` and a later release emits no message. Pointer
+`KnobPointerMetadata::empty()` and a later release emits no message. Legacy
+pointer-capture cancellation emits no message, while the official retained
+typed path emits a `Cancel` batch for both focus loss and capture loss. Pointer
 provenance is observational only: it is copy-only and is not retained in widget
 state, and does not alter capture, fine adjustment, reprojection,
 disabled-terminal, reset, or value behavior.

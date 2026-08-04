@@ -74,14 +74,13 @@ pub use interaction::{
     CanvasGestureMetadata, CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput,
     DragHandleMessage, DragHandleMetadata, DragHandlePhase, EditEvent, EditPhase, EditTransaction,
     GpuSurfaceMessage, InteractionProvenance, InteractionSource, InteractiveRowMessage,
-    InteractiveRowMetadata, KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata,
-    KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
-    PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
-    SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
-    TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput,
-    WidgetKey, WidgetOutput, handle_activation_input,
+    InteractiveRowMetadata, KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture,
+    KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata,
+    ListItemMessage, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
+    ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand,
+    TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor,
+    WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };
-pub(crate) use primitives::RetainedSliderWidget;
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,
     ButtonWidgetParts, CanvasWidget, CanvasWidgetParts, CardWidget, CardWidgetParts,
@@ -104,4 +103,5 @@ pub use primitives::{
     TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap, ToggleProps, ToggleState,
     ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
+pub(crate) use primitives::{RetainedKnobWidget, RetainedSliderWidget};
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};

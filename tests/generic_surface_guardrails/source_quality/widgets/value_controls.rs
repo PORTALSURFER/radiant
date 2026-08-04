@@ -170,6 +170,8 @@ fn toggle_primitive_keeps_surface_builders_and_tests_focused() {
     let builders =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle/builders.rs"))
             .expect("toggle primitive builders should be readable");
+    let input = fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle/input.rs"))
+        .expect("toggle primitive input should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle/tests.rs"))
         .expect("toggle primitive tests should be readable");
 
@@ -195,5 +197,12 @@ fn toggle_primitive_keeps_surface_builders_and_tests_focused() {
     assert!(
         tests.contains("fn toggle_keyboard_activation_flips_active_state"),
         "toggle behavior tests should live in toggle/tests.rs"
+    );
+    assert!(
+        input.contains("InteractionProvenance::Pointer")
+            && input.contains("sequence_range: None")
+            && input.contains("InteractionProvenance::Keyboard")
+            && input.contains("timestamp"),
+        "toggle input should attach provenance only after accepted pointer and keyboard input"
     );
 }

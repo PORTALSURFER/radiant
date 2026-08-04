@@ -4,10 +4,10 @@ use radiant::{
     layout::{Point, Rect, Vector2},
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
     widgets::{
-        BadgeMessage, ButtonMessage, CanvasMessage, CanvasWidget, ListItemMessage, ListItemWidget,
-        PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage,
-        SelectableWidget, TextInputMessage, TextWidget, ToggleMessage, Widget, WidgetInput,
-        WidgetSizing,
+        BadgeMessage, ButtonMessage, CanvasMessage, CanvasWidget, InteractionProvenance,
+        ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage, TextWidget,
+        ToggleMessage, Widget, WidgetInput, WidgetSizing,
     },
 };
 
@@ -23,6 +23,10 @@ enum DemoMessage {
     Increment,
     Rename(String),
     SetActive(bool),
+    ToggleChanged {
+        checked: bool,
+        provenance: InteractionProvenance,
+    },
     CanvasInput(WidgetInput),
 }
 

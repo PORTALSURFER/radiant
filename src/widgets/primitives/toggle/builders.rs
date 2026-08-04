@@ -33,7 +33,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(bool) -> Message + 'static,
     ) -> Self {
         Self::toggle_mapped_with_checked(id, label, checked, sizing, move |message| match message {
-            ToggleMessage::ValueChanged { checked } => map(checked),
+            ToggleMessage::ValueChanged { checked, .. } => map(checked),
         })
     }
 

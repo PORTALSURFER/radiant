@@ -1,3 +1,5 @@
+use crate::widgets::interaction::InteractionProvenance;
+
 /// Message emitted by a reusable selectable primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SelectableMessage {
@@ -15,5 +17,7 @@ pub enum ToggleMessage {
     ValueChanged {
         /// New boolean value after the interaction completed.
         checked: bool,
+        /// Provenance captured from the accepted interaction input.
+        provenance: InteractionProvenance,
     },
 }

@@ -10,9 +10,12 @@ fn toggle_updates_active_state_when_activated() {
     );
     assert_eq!(
         toggle.handle_input(Rect::default(), WidgetInput::key_press(WidgetKey::Space)),
-        Some(ToggleMessage::ValueChanged { checked: true })
+        Some(ToggleMessage::ValueChanged {
+            checked: true,
+            provenance: InteractionProvenance::Keyboard { timestamp: None },
+        })
     );
-    assert!(toggle.common.state.active);
+    assert_eq!(toggle.common.state.active, toggle.state.checked);
 }
 
 #[test]

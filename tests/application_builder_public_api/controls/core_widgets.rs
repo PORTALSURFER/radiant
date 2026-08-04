@@ -1,13 +1,22 @@
 use super::super::*;
+use radiant::runtime::EventMapper;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, FeedbackOverlayWidget, FocusBehavior,
-    IconButtonWidget, MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget,
-    TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle,
-    WidgetTone,
+    IconButtonWidget, InteractionProvenance, MarkerRunWidget, PaintBounds, PointerModifiers,
+    SelectableWidget, SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleMessage,
+    ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
+
+#[derive(Clone, Debug, PartialEq)]
+enum ToggleMappedMessage {
+    ValueChanged {
+        checked: bool,
+        provenance: InteractionProvenance,
+    },
+}
 
 #[test]
 fn mapped_control_accepts_ui_local_capture() {
@@ -28,6 +37,98 @@ fn mapped_control_accepts_ui_local_capture() {
             .is_some()
     );
     assert_eq!(*calls.borrow(), 1);
+}
+
+#[test]
+fn typed_toggle_builders_forward_complete_provenance_payloads() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    fn map_toggle(message: ToggleMessage) -> ToggleMappedMessage {
+        match message {
+            ToggleMessage::ValueChanged {
+                checked,
+                provenance,
+            } => ToggleMappedMessage::ValueChanged {
+                checked,
+                provenance,
+            },
+        }
+    }
+
+    let surface: UiSurface<ToggleMappedMessage> = ui::column([
+        ui::toggle("Message with", false)
+            .message_with(EventMapper::with_revision(1_u8, map_toggle))
+            .id(30),
+        ui::toggle("Mapped with", false)
+            .mapped_with(EventMapper::with_revision(2_u8, map_toggle))
+            .id(31),
+        ui::toggle_mapped_with(
+            "Free function",
+            false,
+            EventMapper::with_revision(3_u8, map_toggle),
+        )
+        .id(32),
+    ])
+    .into_surface();
+    let provenance = InteractionProvenance::Pointer {
+        modifiers: PointerModifiers {
+            command: true,
+            shift: false,
+            alt: true,
+        },
+        timestamp: None,
+        sequence_range: None,
+    };
+
+    for widget_id in [30, 31, 32] {
+        assert_eq!(
+            surface.dispatch_widget_output(
+                widget_id,
+                WidgetOutput::typed(ToggleMessage::ValueChanged {
+                    checked: true,
+                    provenance,
+                }),
+            ),
+            Some(ToggleMappedMessage::ValueChanged {
+                checked: true,
+                provenance,
+            })
+        );
+    }
+}
+
+#[test]
+fn concise_toggle_builders_keep_checked_only_host_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<bool> = ui::column([
+        ui::toggle("Message", false)
+            .message(|checked| checked)
+            .id(33),
+        ui::toggle_mapped("Mapped", false, |checked| !checked).id(34),
+    ])
+    .into_surface();
+
+    assert_eq!(
+        surface.dispatch_widget_output(
+            33,
+            WidgetOutput::typed(ToggleMessage::ValueChanged {
+                checked: true,
+                provenance: InteractionProvenance::Programmatic,
+            }),
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            34,
+            WidgetOutput::typed(ToggleMessage::ValueChanged {
+                checked: true,
+                provenance: InteractionProvenance::Keyboard { timestamp: None },
+            }),
+        ),
+        Some(false)
+    );
 }
 
 #[test]

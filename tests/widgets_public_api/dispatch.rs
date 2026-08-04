@@ -48,7 +48,10 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
             bounds,
             WidgetInput::key_press(WidgetKey::Space),
         ),
-        radiant::widgets::ToggleMessage::ValueChanged { checked: true },
+        radiant::widgets::ToggleMessage::ValueChanged {
+            checked: true,
+            provenance: radiant::widgets::InteractionProvenance::Keyboard { timestamp: None },
+        },
     );
 
     assert_eq!(
@@ -117,4 +120,40 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         ),
         radiant::widgets::SelectableMessage::SelectionChanged { selected: true },
     );
+}
+
+#[test]
+fn toggle_message_exposes_explicit_programmatic_provenance_and_hashes_it() {
+    use std::collections::{HashSet, hash_map::DefaultHasher};
+    use std::hash::{Hash, Hasher};
+
+    fn assert_toggle_message_traits<T: Clone + Copy + Debug + PartialEq + Eq + Hash>() {}
+
+    assert_toggle_message_traits::<radiant::widgets::ToggleMessage>();
+
+    let programmatic = radiant::widgets::ToggleMessage::ValueChanged {
+        checked: true,
+        provenance: radiant::widgets::InteractionProvenance::Programmatic,
+    };
+    let keyboard = radiant::widgets::ToggleMessage::ValueChanged {
+        checked: true,
+        provenance: radiant::widgets::InteractionProvenance::Keyboard { timestamp: None },
+    };
+    assert_ne!(programmatic, keyboard);
+    assert_eq!(
+        programmatic,
+        radiant::widgets::ToggleMessage::ValueChanged {
+            checked: true,
+            provenance: radiant::widgets::InteractionProvenance::Programmatic,
+        }
+    );
+
+    let mut programmatic_hasher = DefaultHasher::new();
+    programmatic.hash(&mut programmatic_hasher);
+    let mut keyboard_hasher = DefaultHasher::new();
+    keyboard.hash(&mut keyboard_hasher);
+    assert_ne!(programmatic_hasher.finish(), keyboard_hasher.finish());
+
+    let messages = HashSet::from([programmatic, keyboard]);
+    assert_eq!(messages.len(), 2);
 }

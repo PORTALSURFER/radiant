@@ -4,7 +4,7 @@ use crate::{
 };
 
 /// Shared category for discrete and continuous interaction input.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InteractionSource {
     /// Input from a pointer or other pointing device.
     Pointer,
@@ -17,7 +17,7 @@ pub enum InteractionSource {
 }
 
 /// Optional native evidence associated with one interaction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InteractionProvenance {
     /// Pointer input with the evidence available at the input boundary.
     Pointer {

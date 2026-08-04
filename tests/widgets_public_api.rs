@@ -14,7 +14,7 @@ use radiant::{
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
         InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidget, ListItemWidgetParts,
         ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
-        SelectableWidgetParts, SliderWidget, SliderWidgetParts, TextInputWidget,
+        SelectableWidgetParts, SliderEditBatch, SliderWidget, SliderWidgetParts, TextInputWidget,
         TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
@@ -70,6 +70,36 @@ fn widget_output_supports_ui_local_payloads_and_clone_identity() {
         output.typed_ref::<Rc<RefCell<usize>>>().expect("payload"),
         &payload,
     ));
+}
+
+#[test]
+fn slider_public_contract_emits_typed_edit_batches_and_capture_cancel() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let mut slider = SliderWidget::new(43, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+
+    let output = Widget::handle_input(
+        &mut slider,
+        bounds,
+        WidgetInput::primary_press(Point::new(60.0, 14.0)),
+    );
+    let batch = output
+        .and_then(|output| output.typed_copied::<SliderEditBatch>())
+        .expect("changed press should emit a public typed slider batch");
+    assert_eq!(
+        batch
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update]
+    );
+
+    let cancel = Widget::handle_pointer_capture_cancelled(&mut slider, bounds)
+        .and_then(|output| output.typed_copied::<SliderEditBatch>())
+        .expect("public capture cancellation should preserve the typed batch");
+    assert_eq!(cancel.events().len(), 1);
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.value_change(), Some(0.25));
 }
 
 #[test]

@@ -15,7 +15,7 @@ use super::support::{WidgetCommon, clamp_fraction};
 use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
-use crate::widgets::interaction::{SliderMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{SliderEditBatch, SliderMessage, WidgetInput, WidgetOutput};
 
 pub use model::{SliderProps, SliderState};
 
@@ -59,6 +59,7 @@ impl SliderWidget {
             },
             state: SliderState {
                 value: clamp_fraction(parts.value),
+                active_edit: None,
             },
         }
     }
@@ -93,16 +94,31 @@ impl SliderWidget {
 
     /// Route one backend-neutral interaction into the slider.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<SliderMessage> {
-        input::handle_slider_input(self, bounds, input)
+        self.handle_edit_input(bounds, input)
+            .and_then(|batch| batch.value_change())
+            .map(|value| SliderMessage::ValueChanged { value })
     }
 
-    pub(super) fn set_value(&mut self, value: f32) -> Option<SliderMessage> {
-        let value = clamp_fraction(value);
+    /// Route one backend-neutral interaction into the complete typed edit
+    /// lifecycle emitted by the slider.
+    pub fn handle_edit_input(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<SliderEditBatch> {
+        input::handle_slider_edit_input(self, bounds, input)
+    }
+
+    pub(super) fn set_value_if_changed(&mut self, value: f32) -> bool {
         if (self.state.value - value).abs() <= f32::EPSILON {
-            return None;
+            return false;
         }
         self.state.value = value;
-        Some(SliderMessage::ValueChanged { value })
+        true
+    }
+
+    pub(super) fn is_editable(&self) -> bool {
+        !self.common.state.disabled && !self.common.state.read_only
     }
 }
 
@@ -126,7 +142,30 @@ impl Widget for SliderWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        SliderWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+        SliderWidget::handle_edit_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+        SliderWidget::handle_edit_input(self, bounds, WidgetInput::FocusChanged(false))
+            .map(WidgetOutput::typed)
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        // The fresh projection remains authoritative for value, props, sizing,
+        // style, and semantics. Only runtime-owned interaction state crosses a
+        // compatible same-ID Slider refresh.
+        self.common.state.hovered = previous.common.state.hovered;
+        self.common.state.focused = previous.common.state.focused;
+        if self.common.state.disabled || self.common.state.read_only {
+            self.common.state.pressed = false;
+            self.state.active_edit = None;
+        } else {
+            self.common.state.pressed = previous.common.state.pressed;
+            self.state.active_edit = previous.state.active_edit;
+        }
     }
 
     fn accepts_pointer_move(&self) -> bool {

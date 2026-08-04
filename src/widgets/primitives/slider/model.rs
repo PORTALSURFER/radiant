@@ -1,5 +1,7 @@
 //! Slider data model types.
 
+use crate::widgets::interaction::EditEvent;
+
 /// Immutable slider configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SliderProps {
@@ -16,4 +18,5 @@ pub struct SliderProps {
 pub struct SliderState {
     /// Current normalized value in the inclusive range `0.0..=1.0`.
     pub value: f32,
+    pub(super) active_edit: Option<EditEvent<f32>>,
 }

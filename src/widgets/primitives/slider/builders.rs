@@ -2,13 +2,25 @@
 
 use crate::runtime::{SurfaceNode, WidgetMessageMapper};
 use crate::widgets::contract::{WidgetId, WidgetSizing};
-use crate::widgets::interaction::SliderMessage;
+use crate::widgets::interaction::{SliderEditBatch, SliderMessage};
 
 use super::SliderWidget;
 
 impl<Message> WidgetMessageMapper<Message> {
     /// Build a slider-message mapper.
     pub fn slider(map: impl Fn(SliderMessage) -> Message + 'static) -> Self {
+        Self::dynamic(move |output| {
+            if let Some(batch) = output.typed_cloned::<SliderEditBatch>() {
+                return batch
+                    .value_change()
+                    .map(|value| map(SliderMessage::ValueChanged { value }));
+            }
+            output.typed_cloned::<SliderMessage>().map(&map)
+        })
+    }
+
+    /// Build a mapper that receives the slider's complete ordered edit batch.
+    pub fn slider_edits(map: impl Fn(SliderEditBatch) -> Message + 'static) -> Self {
         Self::typed(map)
     }
 }
@@ -36,6 +48,19 @@ impl<Message> SurfaceNode<Message> {
         Self::widget(
             SliderWidget::new(id, value, sizing),
             WidgetMessageMapper::slider(map),
+        )
+    }
+
+    /// Build a slider leaf that forwards the complete ordered edit batch.
+    pub fn slider_edits_mapped(
+        id: WidgetId,
+        value: f32,
+        sizing: WidgetSizing,
+        map: impl Fn(SliderEditBatch) -> Message + 'static,
+    ) -> Self {
+        Self::widget(
+            SliderWidget::new(id, value, sizing),
+            WidgetMessageMapper::slider_edits(map),
         )
     }
 }

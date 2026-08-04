@@ -61,7 +61,7 @@ pub use progress_bar::{
 };
 pub use scrollbar::{ScrollbarBuilder, scrollbar};
 pub use selectable::{SelectableBuilder, selectable, selectable_mapped};
-pub use slider::{SliderBuilder, slider, slider_mapped};
+pub use slider::{SliderBuilder, slider, slider_edit_mapped, slider_mapped};
 pub use text_input::{
     TextInputBuilder, TextInputWithClearButtonBuilder, text_input, text_input_clear_button_id,
     text_input_mapped,

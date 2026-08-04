@@ -7,9 +7,9 @@ use crate::{
     },
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
-        ButtonWidget, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
-        PointerModifiers, ScrollbarAxis, ScrollbarWidget, Widget, WidgetCommon, WidgetInput,
-        WidgetOutput, WidgetRevision, WidgetSizing,
+        ButtonWidget, EditPhase, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
+        PointerModifiers, ScrollbarAxis, ScrollbarWidget, SliderWidget, Widget, WidgetCommon,
+        WidgetInput, WidgetOutput, WidgetRevision, WidgetSizing,
     },
 };
 use std::collections::HashMap;
@@ -51,6 +51,64 @@ fn mapped_knob(value: f32, disabled: bool) -> SurfaceNode<KnobMessage> {
         knob,
         WidgetMessageMapper::typed(|message: KnobMessage| message),
     )
+}
+
+#[test]
+fn slider_capture_cancellation_routes_typed_cancel_while_knob_default_stays_suppressed() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let mut slider = SurfaceNode::widget(
+        SliderWidget::new(31, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+        WidgetMessageMapper::slider_edits(|batch| batch),
+    );
+    assert!(matches!(
+        slider.dispatch_input_at_path(
+            31,
+            &[],
+            bounds,
+            WidgetInput::primary_press(Point::new(60.0, 14.0)),
+        ),
+        Some(WidgetDispatchResult::Message(batch))
+            if batch.events().iter().map(|event| event.phase).collect::<Vec<_>>()
+                == [EditPhase::Begin, EditPhase::Update]
+    ));
+    let Some(WidgetDispatchResult::Message(cancel)) =
+        slider.dispatch_pointer_capture_cancelled_at_path(31, &[], bounds)
+    else {
+        panic!("Slider should route an opted-in capture cancellation");
+    };
+    assert_eq!(cancel.events().len(), 1);
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.value_change(), Some(0.25));
+
+    let mut knob = mapped_knob(0.5, false);
+    assert!(matches!(
+        knob.dispatch_input_at_path(
+            30,
+            &[],
+            Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0)),
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::Message(
+            KnobMessage::GestureStarted { .. }
+        ))
+    ));
+    assert!(matches!(
+        knob.dispatch_pointer_capture_cancelled_at_path(
+            30,
+            &[],
+            Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0)),
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    let knob = knob
+        .find_widget_at_path(&[])
+        .expect("knob exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<KnobWidget>()
+        .expect("knob type is retained");
+    assert!(!knob.common.state.pressed);
+    assert_eq!(knob.state.gesture_origin, None);
 }
 
 #[test]

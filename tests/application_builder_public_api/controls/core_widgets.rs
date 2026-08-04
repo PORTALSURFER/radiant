@@ -2,10 +2,11 @@ use super::super::*;
 use radiant::runtime::EventMapper;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
-    ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, FeedbackOverlayWidget, FocusBehavior,
-    IconButtonWidget, InteractionProvenance, MarkerRunWidget, PaintBounds, PointerModifiers,
-    SelectableWidget, SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleMessage,
-    ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase,
+    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance, MarkerRunWidget,
+    PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch, SliderMessage, SliderWidget,
+    TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetOutput, WidgetProminence,
+    WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -411,6 +412,39 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
         ),
         Some(())
     );
+}
+
+#[test]
+fn qualified_slider_edit_builders_forward_complete_batches() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let on_edit: UiSurface<SliderEditBatch> = ui::slider(0.25)
+        .on_edit(|batch| batch)
+        .id(40)
+        .into_surface();
+    let free_function: UiSurface<SliderEditBatch> =
+        radiant::application::slider_edit_mapped(0.25, |batch| batch)
+            .id(41)
+            .into_surface();
+    let provenance = InteractionProvenance::Keyboard { timestamp: None };
+    let begin = EditEvent::begin(0.25, provenance);
+    let update = begin.update(0.5, provenance).expect("slider update");
+    let batch = SliderEditBatch::from_events(&[begin, update]).expect("slider edit batch");
+
+    for (surface, widget_id) in [(&on_edit, 40), (&free_function, 41)] {
+        assert_eq!(
+            surface.dispatch_widget_output(widget_id, WidgetOutput::typed(batch)),
+            Some(batch)
+        );
+        assert_eq!(
+            batch
+                .events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            [EditPhase::Begin, EditPhase::Update]
+        );
+    }
 }
 
 #[test]

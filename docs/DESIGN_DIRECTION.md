@@ -617,12 +617,14 @@ The migration order is explicit:
 2. Preserve the source through `ActivationInputResult` and `InteractiveRow`
    single activation.
 3. Migrate other discrete controls in bounded groups.
-4. Add the shared edit-event foundation, then migrate `Slider` to provenance-aware
-   edit events.
-5. Reconcile remaining controls and `Knob` metadata after compatibility review.
+4. Ship `Slider` as the first provenance-aware shared edit-event consumer,
+   including its bounded typed batch and concise compatibility projection.
+5. Adopt `Knob` next, then reconcile remaining continuous controls after the
+   shared-edit compatibility review.
 
-The current shipped API remains unchanged in this documentation-only slice;
-`API.md` is intentionally not edited.
+The shared edit-event foundation and the Slider adoption are shipped API. The
+qualified lifecycle APIs remain outside the common prelude; `Knob` is the next
+adopter.
 
 ### Frame packets and backpressure
 
@@ -1584,12 +1586,15 @@ numeric_input(state.cutoff)
     .on_edit(Message::CutoffEdit);
 ```
 
-Pointer scrubbing, arrow-key increments, page increments, wheel adjustment, and
-accessibility actions all use the same mapping, `InteractionProvenance`
-vocabulary, and `EditTransaction` lifecycle. `Slider` already ships;
-provenance-aware `Slider` migration/adoption is explicitly deferred until the
-shared edit-event foundation is shipped; Slider adoption remains a separate next
-slice.
+Pointer scrubbing and arrow-key increments use the same mapping,
+`InteractionProvenance` vocabulary, and `EditTransaction` lifecycle. `Slider`
+is the first production shared-edit consumer: its fixed-capacity
+`SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
+typed hosts, while the existing concise `SliderMessage::ValueChanged` and
+`on_change` APIs project only effective value changes. Focus loss and explicit
+capture cancellation restore the transaction start without committing. Wheel,
+accessibility actions, and domain mapping remain outside this adoption slice;
+`Knob` is next.
 Applications may provide a custom mapping only when it is total, finite, and
 monotonic over the declared range; Radiant rejects ambiguous inverse mappings
 rather than allowing a displayed value and edited value to diverge. Mapping and
@@ -1605,9 +1610,8 @@ An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
 `Cancel` phase, current and starting value, and `InteractionProvenance` from the
 shared vocabulary. `EditTransaction` selects its `InteractionSource` at
 `Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
-`Slider` already ships; provenance-aware `Slider` adoption is the separate next
-slice now that the shared edit-event foundation is shipped. Begin, commit, and
-cancellation are never coalesced. High-rate updates may be latest-wins per
+`Slider` is adopted; `Knob` is the separate next shared-edit slice. Begin,
+commit, and cancellation are never coalesced. High-rate updates may be latest-wins per
 presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation
 deterministically.

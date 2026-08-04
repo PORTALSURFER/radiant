@@ -21,8 +21,9 @@ pub use messages::{
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, InteractiveRowMetadata,
     KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
-    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderMessage,
-    TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage,
+    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
+    SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
+    ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};

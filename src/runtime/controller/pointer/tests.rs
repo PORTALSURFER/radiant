@@ -8,9 +8,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, PointerShieldMessage,
-        PointerShieldWidget, TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetSizing,
+        EditPhase, FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers,
+        PointerShieldMessage, PointerShieldWidget, SliderEditBatch, TextInputWidget, Widget,
+        WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -63,6 +63,26 @@ impl RuntimeBridge<usize> for FocusLossOutputBridge {
 
     fn reduce_message(&mut self, message: usize) {
         self.dispatched.push(message);
+    }
+}
+
+#[derive(Default)]
+struct SliderCaptureBridge {
+    batches: Vec<SliderEditBatch>,
+}
+
+impl RuntimeBridge<SliderEditBatch> for SliderCaptureBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<SliderEditBatch>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::slider_edits_mapped(
+            31,
+            0.25,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            |batch| batch,
+        )))
+    }
+
+    fn reduce_message(&mut self, message: SliderEditBatch) {
+        self.batches.push(message);
     }
 }
 
@@ -806,6 +826,82 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
 
     assert!(runtime.dispatch_input(30, WidgetInput::FocusChanged(false)));
     assert_eq!(runtime.bridge().dispatched, vec![99]);
+}
+
+#[test]
+fn cancel_pointer_capture_delivers_slider_cancel_before_clearing_capture() {
+    let mut runtime =
+        SurfaceRuntime::new(SliderCaptureBridge::default(), Vector2::new(120.0, 28.0));
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(60.0, 14.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
+    });
+    assert_eq!(runtime.pointer_capture(), Some(31));
+    assert_eq!(runtime.bridge().batches.len(), 1);
+    assert_eq!(
+        runtime.bridge().batches[0]
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update]
+    );
+    runtime.cancel_pointer_capture();
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().batches.len(), 2);
+    assert_eq!(runtime.bridge().batches[1].events().len(), 1);
+    assert_eq!(
+        runtime.bridge().batches[1].events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert_eq!(runtime.bridge().batches[1].value_change(), Some(0.25));
+    let slider = runtime
+        .surface()
+        .find_widget(31)
+        .expect("slider exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::SliderWidget>()
+        .expect("slider type is retained");
+    assert_eq!(slider.state.value, 0.25);
+    assert!(!slider.common.state.pressed);
+}
+
+#[test]
+fn clear_focus_delivers_slider_cancel_without_committing_the_pointer_edit() {
+    let mut runtime =
+        SurfaceRuntime::new(SliderCaptureBridge::default(), Vector2::new(120.0, 28.0));
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(60.0, 14.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
+    });
+    runtime.clear_focus();
+
+    assert_eq!(runtime.bridge().batches.len(), 2);
+    assert_eq!(runtime.bridge().batches[1].events().len(), 1);
+    assert_eq!(
+        runtime.bridge().batches[1].events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert_eq!(runtime.bridge().batches[1].value_change(), Some(0.25));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.pointer_capture(), Some(31));
+    let slider = runtime
+        .surface()
+        .find_widget(31)
+        .expect("slider exists after focus loss")
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::SliderWidget>()
+        .expect("slider type is retained after focus loss");
+    assert!(!slider.common.state.pressed);
 }
 
 #[test]

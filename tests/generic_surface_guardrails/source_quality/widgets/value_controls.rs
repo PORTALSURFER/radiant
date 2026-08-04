@@ -152,13 +152,45 @@ fn slider_primitive_keeps_surface_builders_and_tests_focused() {
         builders.contains("impl<Message> SurfaceNode<Message>")
             && builders.contains("pub fn slider(")
             && builders.contains("pub fn slider_mapped(")
+            && builders.contains("pub fn slider_edits_mapped(")
+            && builders.contains("pub fn slider_edits(")
             && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
         "slider runtime builder helpers should live in slider/builders.rs"
     );
     assert!(
         tests.contains("fn slider_pointer_drag_emits_clamped_values")
-            && tests.contains("fn focused_slider_responds_to_keyboard_steps"),
+            && tests.contains("fn focused_slider_responds_to_keyboard_steps")
+            && tests
+                .contains("fn slider_edit_batch_is_copyable_bounded_and_projects_lifecycle_values"),
         "slider behavior tests should live in slider/tests.rs"
+    );
+}
+
+#[test]
+fn slider_edit_batch_is_fixed_capacity_and_kept_out_of_the_prelude() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let batch = fs::read_to_string(manifest_dir.join("src/widgets/interaction/messages/range.rs"))
+        .expect("range interaction messages should be readable");
+    let prelude_widgets =
+        fs::read_to_string(manifest_dir.join("src/prelude/widgets.rs")).expect("widgets prelude");
+    let prelude_controls =
+        fs::read_to_string(manifest_dir.join("src/prelude/application/controls.rs"))
+            .expect("application controls prelude");
+
+    assert!(
+        batch.contains("pub struct SliderEditBatch")
+            && batch.contains("events: [EditEvent<f32>; 3]")
+            && batch.contains("pub fn events(&self) -> &[EditEvent<f32>]")
+            && !batch.contains("Vec<")
+            && !batch.contains("SmallVec")
+            && !batch.contains("Mutex")
+            && !batch.contains("channel"),
+        "SliderEditBatch should remain a bounded copy-only typed payload"
+    );
+    assert!(
+        !prelude_widgets.contains("SliderEditBatch")
+            && !prelude_controls.contains("slider_edit_mapped"),
+        "Slider lifecycle APIs should remain qualified rather than entering the prelude"
     );
 }
 

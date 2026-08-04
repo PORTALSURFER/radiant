@@ -861,8 +861,21 @@ The lifecycle foundation performs no dispatch, callbacks, or event coalescing.
 `Begin`, `Commit`, and `Cancel` are delivery boundaries; a future delivery
 policy may keep only the latest `Update`. For `Copy` values such as `f32`, the
 bounded transitions are allocation-free after the process-local transaction
-identity is allocated. No built-in widget consumes these events yet; Slider
-adoption is a separate next slice.
+identity is allocated.
+
+`SliderWidget` is the first production consumer. Its qualified
+`SliderEditBatch` message contains one to three ordered `EditEvent<f32>` values
+in fixed-capacity copy-only storage; `events()` exposes the used slice and every
+non-empty batch shares one transaction. Pointer press, move, release, focus
+loss, and capture cancellation preserve their accepted provenance rules and
+emit deterministic `Begin`, `Update`, `Commit`, or `Cancel` boundaries.
+Focused keyboard changes are atomic `Begin`/`Update`/`Commit` batches. The
+concise `SliderMessage::ValueChanged` and `on_change` paths project only
+effective value changes, while `WidgetMessageMapper::slider_edits`,
+`SurfaceNode::slider_edits_mapped`, `SliderBuilder::on_edit`, and
+`application::slider_edit_mapped` receive the complete ordered batch. These
+lifecycle APIs are qualified and are not exported through the common prelude;
+`Knob` is the next shared-edit adopter.
 
 These types are intentionally not exported through the common prelude.
 
@@ -2033,9 +2046,11 @@ the default policy implementation.
 Native focus loss and external drag handoff cancel pointer capture without
 routing a synthetic release to the host. Radiant clears the captured widget's
 transient retained state through the widget input path and requests repaint
-only when that local state changed. Hosts should model durable drag/drop
-results as messages, but they should not duplicate generic pressed, capture, or
-focus-loss cleanup in application reducers.
+only when that local state changed. Slider opts into the capture-cancellation
+hook to deliver its typed `Cancel` batch before cleanup; the default hook keeps
+legacy custom-widget and Knob focus-loss outputs suppressed. Hosts should model
+durable drag/drop results as messages, but they should not duplicate generic
+pressed, capture, or focus-loss cleanup in application reducers.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
 run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
 or paint-only overlay widgets that should skip keyboard traversal, or

@@ -62,8 +62,8 @@ impl Widget for RetainedKnobWidget {
             .map(WidgetOutput::typed)
     }
 
-    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
-        self.handle_edit_input(bounds, WidgetInput::FocusChanged(false))
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(&mut self.knob, &mut self.active_edit)
             .map(WidgetOutput::typed)
     }
 

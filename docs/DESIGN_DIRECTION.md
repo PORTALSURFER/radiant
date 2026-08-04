@@ -1588,16 +1588,19 @@ numeric_input(state.cutoff)
 
 Pointer scrubbing and arrow-key increments use the same mapping,
 `InteractionProvenance` vocabulary, and `EditTransaction` lifecycle. `Slider`
-is the first production shared-edit consumer: its fixed-capacity
+is a shipped production shared-edit consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and
 `on_change` APIs project only effective value changes. Official Slider lowering
 uses a crate-private retained adapter for the active transaction, so the public
 `SliderState { value }` and `SliderWidget { common, props, state }` shapes stay
 source-compatible. Focus loss and explicit capture cancellation restore the
-transaction start without committing. Wheel,
+transaction start without committing. Official retained Knob lowering also
+delivers typed `Cancel` for both interruption reasons, including no-op active
+gestures; its legacy projections keep focus-loss `GestureEnded` with the last
+value and suppress pointer-capture cancellation. Wheel,
 accessibility actions, and domain mapping remain outside this adoption slice;
-`Knob` is next.
+Knob is also shipped, and the remaining continuous controls are next.
 Applications may provide a custom mapping only when it is total, finite, and
 monotonic over the declared range; Radiant rejects ambiguous inverse mappings
 rather than allowing a displayed value and edited value to diverge. Mapping and
@@ -1613,7 +1616,8 @@ An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
 `Cancel` phase, current and starting value, and `InteractionProvenance` from the
 shared vocabulary. `EditTransaction` selects its `InteractionSource` at
 `Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
-`Slider` is adopted; `Knob` is the separate next shared-edit slice. Begin,
+`Slider` and `Knob` are adopted; the remaining continuous controls are the next
+shared-edit slices. Begin,
 commit, and cancellation are never coalesced. High-rate updates may be latest-wins per
 presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation

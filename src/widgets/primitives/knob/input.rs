@@ -93,6 +93,7 @@ pub(super) fn handle_knob_edit_input(
                     knob,
                     active_edit,
                     pointer_provenance(modifiers, timestamp, None),
+                    None,
                 );
             }
 
@@ -174,7 +175,12 @@ pub(super) fn handle_knob_edit_input(
             if focused {
                 None
             } else {
-                cancel_active_pointer_edit(knob, active_edit, pointer_provenance_empty())
+                cancel_active_pointer_edit(
+                    knob,
+                    active_edit,
+                    pointer_provenance_empty(),
+                    Some(CancellationReason::FocusLoss),
+                )
             }
         }
         WidgetInput::KeyPress { key, timestamp }
@@ -200,22 +206,54 @@ pub(super) fn handle_knob_edit_input(
     }
 }
 
+pub(super) fn handle_pointer_capture_cancelled(
+    knob: &mut KnobWidget,
+    active_edit: &mut Option<EditEvent<f32>>,
+) -> Option<KnobEditBatch> {
+    knob.common.state.focused = false;
+    cancel_active_pointer_edit(
+        knob,
+        active_edit,
+        pointer_provenance_empty(),
+        Some(CancellationReason::PointerCapture),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum CancellationReason {
+    FocusLoss,
+    PointerCapture,
+}
+
 fn cancel_active_pointer_edit(
     knob: &mut KnobWidget,
     active_edit: &mut Option<EditEvent<f32>>,
     provenance: InteractionProvenance,
+    reason: Option<CancellationReason>,
 ) -> Option<KnobEditBatch> {
     let Some(previous) = active_edit.take() else {
         clear_pointer_state(knob);
         return None;
     };
-    let meaningful = values_differ(previous.value, previous.start_value);
+    let legacy_terminal_value = knob.state.value;
+    let meaningful = values_differ(legacy_terminal_value, previous.start_value);
     knob.state.value = previous.start_value;
     clear_pointer_state(knob);
-    if !meaningful {
-        return None;
+    let cancel = previous.cancel(provenance)?;
+    match reason {
+        Some(CancellationReason::FocusLoss) => Some(KnobEditBatch::focus_loss(
+            cancel,
+            meaningful,
+            legacy_terminal_value,
+        )),
+        Some(CancellationReason::PointerCapture) => Some(KnobEditBatch::pointer_capture(
+            cancel,
+            meaningful,
+            legacy_terminal_value,
+        )),
+        None if meaningful => Some(KnobEditBatch::rollback(cancel)),
+        None => None,
     }
-    previous.cancel(provenance).map(KnobEditBatch::rollback)
 }
 
 fn clear_pointer_state(knob: &mut KnobWidget) {

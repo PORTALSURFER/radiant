@@ -189,6 +189,12 @@ enum KnobEditKind {
     Reset,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KnobCancellationReason {
+    FocusLoss,
+    PointerCapture,
+}
+
 /// One bounded, ordered batch of shared edit events emitted by a knob.
 ///
 /// The storage has room for every lifecycle phase while each accepted knob
@@ -202,6 +208,8 @@ pub struct KnobEditBatch {
     len: u8,
     kind: KnobEditKind,
     meaningful_rollback: bool,
+    cancellation_reason: Option<KnobCancellationReason>,
+    legacy_terminal_value: Option<f32>,
 }
 
 impl std::fmt::Debug for KnobEditBatch {
@@ -209,7 +217,6 @@ impl std::fmt::Debug for KnobEditBatch {
         formatter
             .debug_struct("KnobEditBatch")
             .field("events", &self.events())
-            .field("kind", &self.kind)
             .field("meaningful_rollback", &self.meaningful_rollback)
             .finish()
     }
@@ -217,9 +224,7 @@ impl std::fmt::Debug for KnobEditBatch {
 
 impl PartialEq for KnobEditBatch {
     fn eq(&self, other: &Self) -> bool {
-        self.events() == other.events()
-            && self.kind == other.kind
-            && self.meaningful_rollback == other.meaningful_rollback
+        self.events() == other.events() && self.meaningful_rollback == other.meaningful_rollback
     }
 }
 
@@ -234,6 +239,8 @@ impl KnobEditBatch {
             len: 1,
             kind: inferred_kind(event.provenance),
             meaningful_rollback: false,
+            cancellation_reason: None,
+            legacy_terminal_value: None,
         }
     }
 
@@ -270,7 +277,7 @@ impl KnobEditBatch {
         self.events[0].transaction
     }
 
-    /// Project the latest effective value or a meaningful cancellation
+    /// Project the latest accepted update or a meaningful cancellation
     /// rollback.
     ///
     /// Lifecycle-only pointer boundaries do not project a concise value. A
@@ -279,20 +286,10 @@ impl KnobEditBatch {
     pub fn value_change(&self) -> Option<f32> {
         let mut latest_update = None;
         let mut rollback = None;
-        let mut current_value = None;
         for event in self.events() {
             match event.phase {
-                EditPhase::Begin => current_value = Some(event.value),
-                EditPhase::Update => {
-                    let previous_value = current_value.unwrap_or(event.start_value);
-                    if self.kind == KnobEditKind::Reset
-                        || values_differ(previous_value, event.value)
-                    {
-                        latest_update = Some(event.value);
-                    }
-                    current_value = Some(event.value);
-                }
-                EditPhase::Commit => current_value = Some(event.value),
+                EditPhase::Begin | EditPhase::Commit => {}
+                EditPhase::Update => latest_update = Some(event.value),
                 EditPhase::Cancel if self.meaningful_rollback => rollback = Some(event.start_value),
                 EditPhase::Cancel => {}
             }
@@ -316,13 +313,46 @@ impl KnobEditBatch {
         Self::from_events_with_kind(events, KnobEditKind::Reset)
     }
 
-    pub(crate) fn rollback(event: EditEvent<f32>) -> Self {
+    /// Build a batch whose terminal cancel event represents a meaningful
+    /// rollback to its starting value.
+    ///
+    /// The explicit constructor keeps the rollback meaning reproducible when
+    /// the batch contains only its terminal `Cancel` event.
+    pub fn rollback(event: EditEvent<f32>) -> Self {
         Self {
             events: [event; Self::MAX_EVENTS],
             len: 1,
             kind: KnobEditKind::Pointer,
             meaningful_rollback: true,
+            cancellation_reason: None,
+            legacy_terminal_value: None,
         }
+    }
+
+    pub(crate) fn focus_loss(
+        event: EditEvent<f32>,
+        meaningful_rollback: bool,
+        legacy_terminal_value: f32,
+    ) -> Self {
+        Self::cancellation(
+            event,
+            meaningful_rollback,
+            KnobCancellationReason::FocusLoss,
+            legacy_terminal_value,
+        )
+    }
+
+    pub(crate) fn pointer_capture(
+        event: EditEvent<f32>,
+        meaningful_rollback: bool,
+        legacy_terminal_value: f32,
+    ) -> Self {
+        Self::cancellation(
+            event,
+            meaningful_rollback,
+            KnobCancellationReason::PointerCapture,
+            legacy_terminal_value,
+        )
     }
 
     pub(crate) fn legacy_message(&self) -> Option<KnobMessage> {
@@ -355,11 +385,34 @@ impl KnobEditBatch {
             len: events.len() as u8,
             kind,
             meaningful_rollback,
+            cancellation_reason: None,
+            legacy_terminal_value: None,
         })
+    }
+
+    fn cancellation(
+        event: EditEvent<f32>,
+        meaningful_rollback: bool,
+        cancellation_reason: KnobCancellationReason,
+        legacy_terminal_value: f32,
+    ) -> Self {
+        Self {
+            events: [event; Self::MAX_EVENTS],
+            len: 1,
+            kind: KnobEditKind::Pointer,
+            meaningful_rollback,
+            cancellation_reason: Some(cancellation_reason),
+            legacy_terminal_value: Some(legacy_terminal_value),
+        }
     }
 
     fn pointer_message(&self) -> Option<KnobMessage> {
         let event = self.events().last()?;
+        if event.phase == EditPhase::Cancel
+            && self.cancellation_reason == Some(KnobCancellationReason::PointerCapture)
+        {
+            return None;
+        }
         let metadata = pointer_metadata(event.provenance);
         Some(match event.phase {
             EditPhase::Begin => KnobMessage::GestureStarted {
@@ -370,8 +423,12 @@ impl KnobEditBatch {
                 value: event.value,
                 metadata,
             },
-            EditPhase::Commit | EditPhase::Cancel => KnobMessage::GestureEnded {
+            EditPhase::Commit => KnobMessage::GestureEnded {
                 value: event.value,
+                metadata,
+            },
+            EditPhase::Cancel => KnobMessage::GestureEnded {
+                value: self.legacy_terminal_value.unwrap_or(event.value),
                 metadata,
             },
         })

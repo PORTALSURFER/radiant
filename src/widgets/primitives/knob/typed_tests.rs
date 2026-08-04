@@ -56,6 +56,14 @@ fn knob_edit_batch_is_bounded_copyable_and_projects_rollbacks() {
     let cancel = update.cancel(provenance).expect("cancel");
     let rollback = KnobEditBatch::from_events(&[begin, update, cancel]).expect("rollback");
     assert_eq!(rollback.value_change(), Some(0.25));
+    let explicit_rollback = KnobEditBatch::rollback(cancel);
+    let reproduced_rollback = KnobEditBatch::rollback(explicit_rollback.events()[0]);
+    assert_eq!(explicit_rollback, reproduced_rollback);
+    assert_eq!(explicit_rollback.value_change(), Some(0.25));
+    assert_ne!(
+        explicit_rollback,
+        KnobEditBatch::from_events(&[cancel]).expect("ordinary cancel")
+    );
     assert!(KnobEditBatch::from_events(&[]).is_none());
     let other_begin = EditEvent::begin(0.25_f32, provenance);
     assert!(KnobEditBatch::from_events(&[begin, other_begin]).is_none());
@@ -191,6 +199,29 @@ fn retained_knob_cancellation_rolls_back_on_focus_and_capture_loss() {
         knob.handle_edit_input(bounds, WidgetInput::primary_release(Point::new(20.0, 10.0))),
         None
     );
+
+    let mut no_op_focus = retained_knob(9, 0.5);
+    let _ =
+        no_op_focus.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0)));
+    let Some(no_op_cancel) =
+        no_op_focus.handle_edit_input(bounds, WidgetInput::FocusChanged(false))
+    else {
+        panic!("focus loss should emit a typed cancel for a no-op gesture");
+    };
+    assert_eq!(phases(no_op_cancel), vec![EditPhase::Cancel]);
+    assert_eq!(no_op_cancel.value_change(), None);
+
+    let mut no_op_capture = retained_knob(10, 0.5);
+    let _ =
+        no_op_capture.handle_edit_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0)));
+    let Some(output) = Widget::handle_pointer_capture_cancelled(&mut no_op_capture, bounds) else {
+        panic!("capture loss should emit a typed cancel for a no-op gesture");
+    };
+    let no_op_cancel = output
+        .typed_copied::<KnobEditBatch>()
+        .expect("typed no-op capture cancellation");
+    assert_eq!(phases(no_op_cancel), vec![EditPhase::Cancel]);
+    assert_eq!(no_op_cancel.value_change(), None);
 }
 
 #[test]
@@ -244,6 +275,11 @@ fn retained_knob_keyboard_wheel_and_reset_are_atomic_and_preserve_metadata() {
     assert!(wheel_batch.events().iter().all(|event| event.provenance
         == pointer_provenance(wheel_modifiers, Some(wheel_timestamp), Some(wheel_range))));
     assert_eq!(wheel_batch.value_change(), Some(0.55));
+    let wheel_round_trip =
+        KnobEditBatch::from_events(wheel_batch.events()).expect("wheel round trip");
+    assert_eq!(wheel_batch, wheel_round_trip);
+    assert_eq!(format!("{wheel_batch:?}"), format!("{wheel_round_trip:?}"));
+    assert_eq!(wheel_batch.value_change(), wheel_round_trip.value_change());
 
     let mut reset = retained_knob(5, 0.8);
     reset.knob = reset.knob.with_default_value(0.25);
@@ -272,6 +308,138 @@ fn retained_knob_keyboard_wheel_and_reset_are_atomic_and_preserve_metadata() {
     assert!(reset_batch.events().iter().all(|event| event.provenance
         == pointer_provenance(reset_modifiers, Some(reset_timestamp), None)));
     assert_eq!(reset.knob.state.value, 0.25);
+
+    let mut no_op_reset = retained_knob(11, 0.25);
+    no_op_reset.knob = no_op_reset.knob.with_default_value(0.25);
+    let Some(no_op_reset_batch) = no_op_reset.handle_edit_input(
+        bounds,
+        WidgetInput::pointer_double_click(
+            Point::new(20.0, 20.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ),
+    ) else {
+        panic!("no-op reset should emit an atomic batch");
+    };
+    let no_op_reset_round_trip =
+        KnobEditBatch::from_events(no_op_reset_batch.events()).expect("reset round trip");
+    assert_eq!(no_op_reset_batch, no_op_reset_round_trip);
+    assert_eq!(
+        format!("{no_op_reset_batch:?}"),
+        format!("{no_op_reset_round_trip:?}")
+    );
+    assert_eq!(no_op_reset_batch.value_change(), Some(0.25));
+    assert_eq!(
+        no_op_reset_batch.value_change(),
+        no_op_reset_round_trip.value_change()
+    );
+}
+
+#[test]
+fn legacy_knob_paths_preserve_focus_terminal_value_and_suppress_capture_cancel() {
+    use crate::application::IntoView;
+
+    let bounds = bounds();
+    let mut builder_surface: UiSurface<KnobMessage> = crate::application::knob(0.5)
+        .sensitivity(0.01)
+        .message(|message| message)
+        .id(20)
+        .into_surface();
+    let press = builder_surface
+        .dispatch_widget_input(
+            20,
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        )
+        .expect("builder press output");
+    assert_eq!(
+        builder_surface.dispatch_widget_output(20, press),
+        Some(KnobMessage::GestureStarted {
+            value: 0.5,
+            metadata: KnobPointerMetadata::default(),
+        })
+    );
+    let update = builder_surface
+        .dispatch_widget_input(
+            20,
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+        )
+        .expect("builder update output");
+    assert!(matches!(
+        builder_surface.dispatch_widget_output(20, update),
+        Some(KnobMessage::ValueChanged { value, .. }) if (value - 0.6).abs() < f32::EPSILON
+    ));
+    let focus_loss = builder_surface
+        .dispatch_widget_input(20, bounds, WidgetInput::FocusChanged(false))
+        .expect("builder focus-loss output");
+    assert_eq!(
+        builder_surface.dispatch_widget_output(20, focus_loss),
+        Some(KnobMessage::GestureEnded {
+            value: 0.6,
+            metadata: KnobPointerMetadata::empty(),
+        })
+    );
+
+    let mut builder_no_op: UiSurface<KnobMessage> = crate::application::knob(0.5)
+        .message(|message| message)
+        .id(21)
+        .into_surface();
+    let _ = builder_no_op.dispatch_widget_input(
+        21,
+        bounds,
+        WidgetInput::primary_press(Point::new(20.0, 20.0)),
+    );
+    let focus_loss = builder_no_op
+        .dispatch_widget_input(21, bounds, WidgetInput::FocusChanged(false))
+        .expect("builder no-op focus-loss output");
+    assert_eq!(
+        builder_no_op.dispatch_widget_output(21, focus_loss),
+        Some(KnobMessage::GestureEnded {
+            value: 0.5,
+            metadata: KnobPointerMetadata::empty(),
+        })
+    );
+
+    let mut builder_capture_source = retained_knob(22, 0.5);
+    let _ = builder_capture_source
+        .handle_edit_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0)));
+    let builder_capture_cancel =
+        Widget::handle_pointer_capture_cancelled(&mut builder_capture_source, bounds)
+            .expect("builder capture cancellation output");
+    assert_eq!(
+        builder_no_op.dispatch_widget_output(21, builder_capture_cancel),
+        None
+    );
+
+    let mut surface: UiSurface<KnobMessage> = UiSurface::new(SurfaceNode::knob_mapped(
+        23,
+        0.5,
+        WidgetSizing::fixed(Vector2::new(40.0, 40.0)),
+        |message| message,
+    ));
+    let _ = surface.dispatch_widget_input(
+        23,
+        bounds,
+        WidgetInput::primary_press(Point::new(20.0, 20.0)),
+    );
+    let focus_loss = surface
+        .dispatch_widget_input(23, bounds, WidgetInput::FocusChanged(false))
+        .expect("SurfaceNode focus-loss output");
+    assert_eq!(
+        surface.dispatch_widget_output(23, focus_loss),
+        Some(KnobMessage::GestureEnded {
+            value: 0.5,
+            metadata: KnobPointerMetadata::empty(),
+        })
+    );
+
+    let mut capture_source = retained_knob(24, 0.5);
+    let _ = capture_source
+        .handle_edit_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0)));
+    let capture_cancel = Widget::handle_pointer_capture_cancelled(&mut capture_source, bounds)
+        .expect("capture cancellation output");
+    assert_eq!(surface.dispatch_widget_output(23, capture_cancel), None);
 }
 
 #[test]

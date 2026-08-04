@@ -241,3 +241,48 @@ fn deferred_scroll_updated_command_refreshes_before_focus_followup() {
     let pending = runtime.take_pending_input_command_outcome();
     assert!(pending.surface_refresh_requested);
 }
+
+#[test]
+fn wheel_scroll_fallback_preserves_metadata_and_programmatic_scroll_defaults() {
+    let mut runtime = SurfaceRuntime::new(
+        DeferredScrollFocusBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let point = Point::new(10.0, 10.0);
+    let delta = Vector2::new(0.0, 30.0);
+    let modifiers = crate::widgets::PointerModifiers {
+        shift: true,
+        alt: true,
+        ..crate::widgets::PointerModifiers::default()
+    };
+    let timestamp = Some(crate::gui::input::InputTimestamp::capture());
+    let sequence_range = Some(crate::gui::input::InputSequenceRange::singleton(
+        crate::gui::input::InputSequence::from_runtime_value(7),
+    ));
+
+    assert!(runtime.wheel_or_scroll_at_with_metadata(
+        point,
+        delta,
+        modifiers,
+        timestamp,
+        sequence_range,
+    ));
+    let wheel_update = runtime
+        .bridge()
+        .last_scroll_update
+        .expect("scroll-container fallback should report its update to the bridge");
+    assert_eq!(wheel_update.metadata.modifiers, modifiers);
+    assert_eq!(wheel_update.metadata.timestamp, timestamp);
+    assert_eq!(wheel_update.metadata.sequence_range, sequence_range);
+
+    assert!(runtime.scroll_at(point, delta));
+    let programmatic_update = runtime
+        .bridge()
+        .last_scroll_update
+        .expect("programmatic scroll should report its later update to the bridge");
+    assert_eq!(runtime.bridge().scroll_updates, 2);
+    assert_eq!(
+        programmatic_update.metadata,
+        crate::runtime::ScrollUpdateMetadata::default()
+    );
+}

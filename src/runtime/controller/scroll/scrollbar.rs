@@ -2,7 +2,7 @@
 
 use super::{
     super::{ScrollDragCapture, SurfaceRuntime},
-    ScrollUpdate,
+    ScrollUpdate, ScrollUpdateMetadata,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -34,6 +34,7 @@ where
         &mut self,
         point: Point,
         refresh_after_message: bool,
+        metadata: ScrollUpdateMetadata,
     ) -> bool {
         let Some(capture) = self.interaction.pointer.scroll_drag_capture else {
             return false;
@@ -87,6 +88,7 @@ where
                     previous_offset,
                     offset,
                     viewport,
+                    metadata,
                 },
                 refresh_after_message,
             );

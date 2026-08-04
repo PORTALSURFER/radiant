@@ -5,11 +5,26 @@ pub(crate) use wheel::WheelOrScrollRoute;
 
 use super::SurfaceRuntime;
 use crate::{
-    gui::types::{Point, Vector2},
+    gui::{
+        input::{InputSequenceRange, InputTimestamp},
+        types::{Point, Vector2},
+    },
     layout::{NodeId, OverflowPolicy},
     runtime::CommandOutcome,
     runtime::RuntimeBridge,
+    widgets::PointerModifiers,
 };
+
+/// Observational input provenance carried by a runtime-owned scroll update.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScrollUpdateMetadata {
+    /// Effective modifiers captured for the contributing native sample.
+    pub modifiers: PointerModifiers,
+    /// Opaque timestamp of the newest contributing native sample, when present.
+    pub timestamp: Option<InputTimestamp>,
+    /// Opaque range from the first through newest contributing native sample.
+    pub sequence_range: Option<InputSequenceRange>,
+}
 
 /// Runtime-owned scroll movement reported to host bridges.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -26,6 +41,8 @@ pub struct ScrollUpdate {
     pub offset: Vector2,
     /// Logical viewport size of the scroll container that accepted the update.
     pub viewport: Vector2,
+    /// Observational provenance for the input that caused this update.
+    pub metadata: ScrollUpdateMetadata,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -36,17 +53,38 @@ where
     ///
     /// Returns `true` when a scroll container accepted the delta.
     pub fn scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
-        self.scroll_at_with_refresh(point, delta, true)
+        self.scroll_at_with_refresh_and_metadata(
+            point,
+            delta,
+            ScrollUpdateMetadata::default(),
+            true,
+        )
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::runtime::controller) fn scroll_at_with_refresh(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        refresh_after_message: bool,
+    ) -> bool {
+        self.scroll_at_with_refresh_and_metadata(
+            point,
+            delta,
+            ScrollUpdateMetadata::default(),
+            refresh_after_message,
+        )
     }
 
     pub(crate) fn scroll_container_accepts_wheel_at(&self, point: Point) -> bool {
         self.scroll_container_at(point).is_some()
     }
 
-    pub(in crate::runtime::controller) fn scroll_at_with_refresh(
+    pub(in crate::runtime::controller) fn scroll_at_with_refresh_and_metadata(
         &mut self,
         point: Point,
         delta: Vector2,
+        metadata: ScrollUpdateMetadata,
         refresh_after_message: bool,
     ) -> bool {
         let Some(node_id) = self.scroll_container_at(point) else {
@@ -80,6 +118,7 @@ where
             previous_offset: current,
             offset,
             viewport,
+            metadata,
         };
         self.report_scroll_update_with_refresh(update, refresh_after_message);
         true

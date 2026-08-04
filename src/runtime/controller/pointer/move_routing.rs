@@ -2,7 +2,7 @@ use super::{PointerMoveDispatch, SurfaceRuntime};
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::Point,
-    runtime::RuntimeBridge,
+    runtime::{RuntimeBridge, ScrollUpdateMetadata},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
@@ -51,7 +51,15 @@ where
         if self.interaction.pointer.capture.is_some() {
             self.reset_tooltip_hover_intent();
         }
-        if self.drag_scrollbar_to(position, refresh_after_message) {
+        if self.drag_scrollbar_to(
+            position,
+            refresh_after_message,
+            ScrollUpdateMetadata {
+                modifiers: metadata.modifiers,
+                timestamp: metadata.timestamp,
+                sequence_range: metadata.sequence_range,
+            },
+        ) {
             return PointerMoveDispatch::default();
         }
         if let Some(captured) = self.non_passthrough_pointer_capture() {

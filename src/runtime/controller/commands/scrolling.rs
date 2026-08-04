@@ -1,4 +1,4 @@
-use super::super::{ScrollUpdate, SurfaceRuntime};
+use super::super::{ScrollUpdate, ScrollUpdateMetadata, SurfaceRuntime};
 use crate::{
     gui::types::{Point, Vector2},
     layout::NodeId,
@@ -33,6 +33,7 @@ where
             previous_offset,
             offset,
             viewport,
+            metadata: ScrollUpdateMetadata::default(),
         });
     }
 

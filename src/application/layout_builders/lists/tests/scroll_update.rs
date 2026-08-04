@@ -25,6 +25,7 @@ fn virtual_list_window_change_for_scroll_maps_offset_to_window() {
         previous_offset: Vector2::new(0.0, 0.0),
         offset: Vector2::new(0.0, 220.0),
         viewport: Vector2::new(200.0, 220.0),
+        metadata: Default::default(),
     };
 
     let change = virtual_list_window_change_for_scroll(update, 22.0, current, 2);
@@ -53,6 +54,7 @@ fn virtual_list_window_change_uses_runtime_viewport_height() {
         previous_offset: Vector2::new(0.0, 0.0),
         offset: Vector2::new(0.0, 880.0),
         viewport: Vector2::new(200.0, 220.0),
+        metadata: Default::default(),
     };
 
     let change = virtual_list_window_change_for_scroll(update, 22.0, current, 2);

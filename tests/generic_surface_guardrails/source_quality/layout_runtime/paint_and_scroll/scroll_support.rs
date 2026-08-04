@@ -33,8 +33,11 @@ fn runtime_scroll_support_keeps_affordance_and_hit_tests_focused() {
     );
     assert!(
         controller_scroll.contains("use super::SurfaceRuntime;")
-            && controller_scroll.contains("gui::types::{Point, Vector2}")
+            && controller_scroll.contains("gui::{")
+            && controller_scroll.contains("input::{InputSequenceRange, InputTimestamp}")
+            && controller_scroll.contains("types::{Point, Vector2}")
             && controller_scroll.contains("layout::{NodeId, OverflowPolicy}")
+            && controller_scroll.contains("runtime::CommandOutcome")
             && controller_scroll.contains("runtime::RuntimeBridge")
             && !controller_scroll.starts_with("use super::*;")
             && controller_scroll.contains("pub struct ScrollUpdate")

@@ -131,6 +131,7 @@ mod tests {
                 previous_offset: Vector2::default(),
                 offset: Vector2::new(0.0, 128_000.0),
                 viewport: Vector2::new(400.0, ROW_HEIGHT * VIEWPORT_ROWS as f32),
+                metadata: Default::default(),
             },
             ROW_HEIGHT,
             current,

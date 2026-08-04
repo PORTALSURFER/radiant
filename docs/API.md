@@ -421,7 +421,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
-| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
+| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate`, `ScrollUpdateMetadata` |
 | Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
 | Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
 | Platform-service inputs/results | `FileDialogRequest`, `FileDialogFilter`, `ConfirmDialogRequest`, `ConfirmationLevel`, `ConfirmationButtons`, `ConfirmationResponse`, `PlatformResult`, `PlatformResultExt` |
@@ -2659,8 +2659,13 @@ and `WidgetInput::plain_wheel(...)` constructors remain source-compatible:
 `scroll(...)` and `plain_wheel(...)` use default modifiers, `wheel(...)` preserves
 its supplied modifiers, and all three omit the timestamp. Native wheel adapters
 capture one sample timestamp and preserve it, together with effective modifiers,
-through direct routing and coalesced delivery; scroll-update payloads remain
-unchanged.
+through direct routing and coalesced delivery. Scroll-container fallback and
+scrollbar-drag delivery expose that provenance in the `ScrollUpdate::metadata`
+value: modifiers and timestamp come from the newest contributing sample, while
+the opaque sequence range spans the first through newest sample. Axis changes
+flush the prior coalescing owner, and focus loss discards pending input. Synthetic,
+programmatic, command, and backend-neutral scroll paths use
+`ScrollUpdateMetadata::default()`.
 `Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
 `KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
 timestamps. The public `Event::key_press(...)`, `Event::character(...)`,

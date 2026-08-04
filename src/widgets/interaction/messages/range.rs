@@ -118,7 +118,7 @@ impl SliderEditBatch {
         self.events[0].transaction
     }
 
-    /// Project the latest effective update or meaningful rollback value.
+    /// Project a meaningful rollback or the latest effective update.
     ///
     /// Lifecycle-only boundaries (`Begin` and `Commit`) do not project a
     /// concise value.  A slider that cancels without changing its value does
@@ -143,7 +143,7 @@ impl SliderEditBatch {
                 EditPhase::Cancel => {}
             }
         }
-        latest_update.or(rollback)
+        rollback.or(latest_update)
     }
 
     pub(crate) fn rollback(event: EditEvent<f32>) -> Self {

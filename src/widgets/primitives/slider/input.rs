@@ -172,7 +172,7 @@ pub(super) fn handle_slider_edit_input(
             }
         }
         WidgetInput::KeyPress { key, timestamp }
-            if slider.common.state.focused && slider.is_editable() =>
+            if slider.common.state.focused && slider.is_editable() && active_edit.is_none() =>
         {
             let candidate =
                 keyboard_candidate(slider.state.value, slider.props.keyboard_step, key)?;

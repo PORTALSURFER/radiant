@@ -603,6 +603,19 @@ fn slider_typed_mapper_accepts_batches_and_direct_messages() {
         Some(0.75)
     );
     assert_eq!(
+        concise_surface.dispatch_widget_output(20, WidgetOutput::typed(batch)),
+        Some(0.5)
+    );
+
+    let cancel = update.cancel(provenance).expect("cancel");
+    let rollback_batch =
+        SliderEditBatch::from_events(&[begin, update, cancel]).expect("rollback batch");
+    assert_eq!(rollback_batch.value_change(), Some(0.25));
+    assert_eq!(
+        concise_surface.dispatch_widget_output(20, WidgetOutput::typed(rollback_batch)),
+        Some(0.25)
+    );
+    assert_eq!(
         concise_surface
             .dispatch_widget_output(20, WidgetOutput::typed(SliderEditBatch::single(begin))),
         None

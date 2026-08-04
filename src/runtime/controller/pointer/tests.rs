@@ -8,9 +8,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        EditPhase, FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers,
-        PointerShieldMessage, PointerShieldWidget, SliderEditBatch, TextInputWidget, Widget,
-        WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        EditPhase, FocusBehavior, InteractionSource, InteractiveRowWidget, PointerButton,
+        PointerModifiers, PointerShieldMessage, PointerShieldWidget, SliderEditBatch,
+        TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -865,6 +865,120 @@ fn cancel_pointer_capture_delivers_slider_cancel_before_clearing_capture() {
         .expect("slider exists")
         .widget();
     assert!(!slider.common().state.pressed);
+}
+
+#[test]
+fn captured_slider_ignores_keyboard_edits_until_pointer_release() {
+    let mut runtime =
+        SurfaceRuntime::new(SliderCaptureBridge::default(), Vector2::new(120.0, 28.0));
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(60.0, 14.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
+    });
+    assert_eq!(runtime.pointer_capture(), Some(31));
+    assert_eq!(runtime.focused_widget(), Some(31));
+    assert_eq!(runtime.bridge().batches.len(), 1);
+    let pointer_transaction = runtime.bridge().batches[0].events()[0].transaction;
+    assert_eq!(
+        runtime.bridge().batches[0]
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update]
+    );
+    assert!(
+        runtime.bridge().batches[0]
+            .events()
+            .iter()
+            .all(|event| event.transaction.source() == InteractionSource::Pointer)
+    );
+    let value_after_press = runtime
+        .surface()
+        .find_widget(31)
+        .expect("slider exists")
+        .widget()
+        .automation_semantics()
+        .value_text;
+
+    for key in [WidgetKey::ArrowRight, WidgetKey::Home, WidgetKey::End] {
+        assert_eq!(
+            runtime.dispatch_event(Event::KeyPress {
+                key,
+                timestamp: None,
+            }),
+            Some(31)
+        );
+        assert_eq!(runtime.bridge().batches.len(), 1);
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(31)
+                .expect("slider exists")
+                .widget()
+                .automation_semantics()
+                .value_text,
+            value_after_press
+        );
+        assert!(
+            runtime
+                .surface()
+                .find_widget(31)
+                .expect("slider exists")
+                .widget()
+                .common()
+                .state
+                .pressed
+        );
+    }
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(96.0, 14.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(31)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().batches.len(), 2);
+    let release = runtime.bridge().batches[1];
+    assert_eq!(
+        release
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Update, EditPhase::Commit]
+    );
+    assert!(
+        release
+            .events()
+            .iter()
+            .all(|event| event.transaction == pointer_transaction)
+    );
+    assert!(
+        runtime
+            .bridge()
+            .batches
+            .iter()
+            .flat_map(|batch| batch.events())
+            .all(|event| event.transaction.source() == InteractionSource::Pointer)
+    );
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(31)
+            .expect("slider exists")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
 }
 
 #[test]

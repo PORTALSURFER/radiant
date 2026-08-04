@@ -828,6 +828,44 @@ common `radiant::prelude`; both are
 intentionally have no `Default`. `InteractionProvenance::source()` returns the
 explicit `InteractionSource` category, so missing native evidence is not
 inferred as `Programmatic`.
+
+### Shared edit-event lifecycle
+
+The consumer-free shared edit lifecycle is available through the qualified
+`radiant::widgets` import:
+
+```rust
+use radiant::widgets::{EditEvent, EditPhase, EditTransaction, InteractionProvenance};
+```
+
+`EditPhase` has `Begin`, `Update`, `Commit`, and `Cancel` variants;
+`is_terminal()` is true only for `Commit` and `Cancel`. `EditTransaction` is an
+opaque process-local identity allocated once by `EditEvent::begin(...)`. Copies
+remain equal and hash-equivalent, but the identity has no raw-ID accessor or
+constructor and has no ordering, persistence, timestamp, serialization, or
+cross-process meaning. `transaction.source()` is selected at `Begin` and stays
+fixed for the lifecycle.
+
+`EditEvent<T>` is non-exhaustive and exposes readable `transaction`, `phase`,
+`start_value`, `value`, and `provenance` fields. `begin(start_value,
+provenance)` creates a `Begin` event with equal starting and current values.
+`update(value, provenance)` and `commit(value, provenance)` preserve the
+transaction and starting value. `cancel(provenance)` creates a terminal event
+whose current value is restored to the starting value. A transition returns
+`None` when its predecessor is terminal or when the new provenance's source
+does not match the fixed transaction source; native metadata may change between
+phases within the same source, and missing metadata never becomes
+`Programmatic`.
+
+The lifecycle foundation performs no dispatch, callbacks, or event coalescing.
+`Begin`, `Commit`, and `Cancel` are delivery boundaries; a future delivery
+policy may keep only the latest `Update`. For `Copy` values such as `f32`, the
+bounded transitions are allocation-free after the process-local transaction
+identity is allocated. No built-in widget consumes these events yet; Slider
+adoption is a separate next slice.
+
+These types are intentionally not exported through the common prelude.
+
 `ActivationInputResult::Activated { provenance }` preserves the accepted input
 source and native evidence while `.activated()` remains the compatibility
 boolean projection. Accepted pointer releases carry exact release modifiers and

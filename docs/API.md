@@ -371,19 +371,19 @@ explicit imports from their owning modules.
 Advanced host-control APIs, renderer or windowing implementation details, and
 platform-specific adapters never enter the common wildcard surface.
 
-The reviewed inventory currently contains 415 named exports. The guardrail cap
-is 475, leaving 60 exports (14.5% of the current surface) for genuinely common
+The reviewed inventory currently contains 428 named exports. The guardrail cap
+is 475, leaving 47 exports (11.0% of the current surface) for genuinely common
 future API without forcing local reshuffles. Source-quality tests compute and
 verify both the aggregate and this per-subsystem inventory:
 
 | Prelude subsystem | Named exports | Ordinary caller role |
 | --- | ---: | --- |
-| Application | 236 | Canonical app/view/control builders and required signature types |
+| Application | 245 | Canonical app/view/control builders and required signature types |
 | GUI | 102 | Common state/update models, geometry, input, text, and list policies |
 | Layout | 1 | Layout signature output |
-| Runtime | 31 | Common commands, resources, platform-service inputs/results, and callback signature types |
-| Theme | 1 | Theme signature tokens |
-| Widgets | 44 | Common widget contracts, messages, sizing, and style models |
+| Runtime | 32 | Common commands, resources, platform-service inputs/results, and callback signature types |
+| Theme | 3 | Theme signature tokens |
+| Widgets | 45 | Common widget contracts, messages, sizing, and style models |
 
 | API family | Prelude disposition | Explicit owner when excluded |
 | --- | --- | --- |

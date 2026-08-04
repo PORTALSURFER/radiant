@@ -2714,18 +2714,25 @@ field. This metadata is observational only and does not affect Shift fine-step
 selection, direction, clamping, routing, acceptance, or repaint behavior.
 Accepted primary pointer edits from `KnobWidget` emit the existing incremental
 `KnobMessage::GestureStarted`, `ValueChanged`, and `GestureEnded` lifecycle with
-a copyable `KnobPointerMetadata` field. Use
-`KnobMessage::pointer_gesture_metadata()` to read it; reset, keyboard, and wheel
-messages return `None`. Press and terminal release/drop messages preserve their
-current `PointerModifiers` and optional `InputTimestamp` without a sequence
-range. Each accepted value-changing captured move preserves the move's current
-modifiers, timestamp, and complete opaque sequence range. Moves that leave the
-clamped value unchanged emit no message. Synthetic pointer inputs use
-`KnobPointerMetadata::default()`, while focus-loss cancellation emits exactly
-one ended message with `KnobPointerMetadata::empty()` and a later release emits
-no message. Pointer provenance is observational only: it is copy-only and is
-not retained in widget state, and does not alter capture, fine adjustment,
-reprojection, disabled-terminal, reset, or value behavior.
+a copyable `KnobPointerMetadata` field. The public reset variant is
+`KnobMessage::Reset { value, metadata }`; update public constructions and
+destructuring patterns to account for that field. For an accepted primary
+double-click reset, `metadata` copies the modifiers and optional timestamp from
+the second accepted double-click sample and always has an absent sequence range.
+`WidgetInput::primary_double_click(...)` is synthetic, so it produces default
+metadata. Reset emits exactly one message even when the value already equals the
+configured default. Use `KnobMessage::pointer_gesture_metadata()` to read pointer
+provenance; it returns `Some(metadata)` for reset and the incremental pointer
+lifecycle, and `None` for keyboard and wheel messages. Press and terminal
+release/drop messages preserve their current `PointerModifiers` and optional
+`InputTimestamp` without a sequence range. Each accepted value-changing captured
+move preserves the move's current modifiers, timestamp, and complete opaque
+sequence range. Moves that leave the clamped value unchanged emit no message.
+Focus-loss cancellation emits exactly one ended message with
+`KnobPointerMetadata::empty()` and a later release emits no message. Pointer
+provenance is observational only: it is copy-only and is not retained in widget
+state, and does not alter capture, fine adjustment, reprojection,
+disabled-terminal, reset, or value behavior.
 Accepted keyboard edits from `KnobWidget` emit one
 `KnobMessage::KeyboardGesture` with the existing three ordered
 `KnobAutomationEvent` values and a copyable `KnobKeyboardMetadata` payload.

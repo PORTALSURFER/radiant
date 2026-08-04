@@ -211,6 +211,8 @@ pub enum KnobMessage {
     Reset {
         /// Default normalized value restored by the reset gesture.
         value: f32,
+        /// Normalized provenance from the accepted primary double-click.
+        metadata: KnobPointerMetadata,
     },
     /// Ordered keyboard lifecycle batch for host automation.
     KeyboardGesture(KnobKeyboardGesture),
@@ -219,13 +221,14 @@ pub enum KnobMessage {
 }
 
 impl KnobMessage {
-    /// Return normalized provenance carried by an incremental pointer gesture.
+    /// Return normalized provenance carried by a pointer gesture.
     pub const fn pointer_gesture_metadata(&self) -> Option<KnobPointerMetadata> {
         match self {
             Self::GestureStarted { metadata, .. }
             | Self::ValueChanged { metadata, .. }
-            | Self::GestureEnded { metadata, .. } => Some(*metadata),
-            Self::Reset { .. } | Self::KeyboardGesture(_) | Self::WheelGesture(_) => None,
+            | Self::GestureEnded { metadata, .. }
+            | Self::Reset { metadata, .. } => Some(*metadata),
+            Self::KeyboardGesture(_) | Self::WheelGesture(_) => None,
         }
     }
 }

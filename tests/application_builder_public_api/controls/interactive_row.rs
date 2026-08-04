@@ -143,15 +143,25 @@ fn knob_pointer_metadata_and_message_accessor_are_available_from_prelude() {
         value: 0.25,
         metadata,
     };
+    let reset = ui::KnobMessage::Reset {
+        value: 0.25,
+        metadata,
+    };
 
     assert_eq!(message.pointer_gesture_metadata(), Some(metadata));
+    assert_eq!(reset.pointer_gesture_metadata(), Some(metadata));
+    let ui::KnobMessage::Reset {
+        value: reset_value,
+        metadata: reset_metadata,
+    } = reset
+    else {
+        panic!("prelude reset construction should match the public enum variant");
+    };
+    assert_eq!(reset_value, 0.25);
+    assert_eq!(reset_metadata, metadata);
     assert_eq!(
         ui::KnobPointerMetadata::empty(),
         ui::KnobPointerMetadata::default()
-    );
-    assert_eq!(
-        ui::KnobMessage::Reset { value: 0.25 }.pointer_gesture_metadata(),
-        None
     );
 }
 

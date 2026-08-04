@@ -254,7 +254,8 @@ impl KnobWidget {
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
-                ..
+                modifiers,
+                timestamp,
             } if self.props.reset_on_double_click && bounds.contains(position) => {
                 self.common.state.pressed = false;
                 self.state.fine_adjustment = false;
@@ -262,6 +263,11 @@ impl KnobWidget {
                 self.state.value = self.props.default_value;
                 Some(KnobMessage::Reset {
                     value: self.state.value,
+                    metadata: KnobPointerMetadata {
+                        modifiers,
+                        timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
             WidgetInput::FocusChanged(focused) => {
@@ -526,8 +532,98 @@ mod tests {
                 bounds,
                 WidgetInput::primary_double_click(Point::new(20.0, 20.0))
             ),
-            Some(KnobMessage::Reset { value: 0.25 })
+            Some(KnobMessage::Reset {
+                value: 0.25,
+                metadata: KnobPointerMetadata::default(),
+            })
         );
+    }
+
+    #[test]
+    fn knob_reset_forwards_native_metadata_and_cleans_pointer_state() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5).with_default_value(0.25);
+        assert!(matches!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_press(
+                    Point::new(20.0, 20.0),
+                    PointerButton::Primary,
+                    PointerModifiers {
+                        shift: true,
+                        ..PointerModifiers::default()
+                    },
+                ),
+            ),
+            Some(KnobMessage::GestureStarted { .. })
+        ));
+        assert!(knob.common.state.pressed);
+        assert!(knob.state.fine_adjustment);
+        assert_eq!(knob.state.gesture_origin, Some(Point::new(20.0, 20.0)));
+
+        let modifiers = PointerModifiers {
+            command: true,
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let timestamp = InputTimestamp::capture();
+        let metadata = KnobPointerMetadata {
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range: None,
+        };
+        let reset = knob.handle_input(
+            bounds,
+            WidgetInput::pointer_double_click_with_timestamp(
+                Point::new(20.0, 20.0),
+                PointerButton::Primary,
+                modifiers,
+                Some(timestamp),
+            ),
+        );
+        assert_eq!(
+            reset,
+            Some(KnobMessage::Reset {
+                value: 0.25,
+                metadata,
+            })
+        );
+        assert_eq!(
+            reset
+                .as_ref()
+                .and_then(KnobMessage::pointer_gesture_metadata),
+            Some(metadata)
+        );
+        assert_eq!(knob.state.value, 0.25);
+        assert!(!knob.common.state.pressed);
+        assert!(!knob.state.fine_adjustment);
+        assert_eq!(knob.state.gesture_origin, None);
+        assert!(knob.common.state.focused);
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
+            None
+        );
+    }
+
+    #[test]
+    fn knob_reset_emits_once_when_value_already_equals_default() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.25).with_default_value(0.25);
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::primary_double_click(Point::new(20.0, 20.0)),
+            ),
+            Some(KnobMessage::Reset {
+                value: 0.25,
+                metadata: KnobPointerMetadata::default(),
+            })
+        );
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
+            None
+        );
+        assert_eq!(knob.state.value, 0.25);
     }
 
     #[test]
@@ -682,7 +778,7 @@ mod tests {
     }
 
     #[test]
-    fn knob_pointer_gesture_metadata_is_not_reported_for_other_message_kinds() {
+    fn knob_pointer_gesture_metadata_is_not_reported_for_keyboard_or_wheel() {
         let metadata = KnobPointerMetadata {
             modifiers: PointerModifiers {
                 shift: true,
@@ -699,8 +795,12 @@ mod tests {
             Some(metadata)
         );
         assert_eq!(
-            KnobMessage::Reset { value: 0.25 }.pointer_gesture_metadata(),
-            None
+            KnobMessage::Reset {
+                value: 0.25,
+                metadata,
+            }
+            .pointer_gesture_metadata(),
+            Some(metadata)
         );
         assert_eq!(
             KnobMessage::KeyboardGesture(KnobKeyboardGesture::new(0.25, 0.35))
@@ -1241,9 +1341,29 @@ mod tests {
     }
 
     #[test]
-    fn knob_double_click_reset_ignores_outside_and_disabled_inputs() {
+    fn knob_reset_ignores_outside_disabled_and_disabled_inputs() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
         let mut knob = KnobWidget::new(1, 0.8).with_default_value(0.2);
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::primary_double_click(Point::new(80.0, 80.0))
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 0.8);
+
+        knob = knob.with_reset_on_double_click(false);
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::primary_double_click(Point::new(20.0, 20.0))
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 0.8);
+
+        knob = knob.with_reset_on_double_click(true);
         knob.common.state.disabled = true;
         assert_eq!(
             knob.handle_input(

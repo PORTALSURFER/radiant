@@ -18,6 +18,11 @@ enum ToggleMappedMessage {
     },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum ButtonMappedMessage {
+    Output(ButtonMessage),
+}
+
 #[test]
 fn mapped_control_accepts_ui_local_capture() {
     use radiant::prelude::{self as ui, IntoView};
@@ -33,7 +38,10 @@ fn mapped_control_accepts_ui_local_capture() {
     let widget_id = surface.root().id();
     assert!(
         surface
-            .dispatch_widget_output(widget_id, WidgetOutput::typed(ButtonMessage::Activate))
+            .dispatch_widget_output(
+                widget_id,
+                WidgetOutput::typed(crate::programmatic_button_message())
+            )
             .is_some()
     );
     assert_eq!(*calls.borrow(), 1);
@@ -98,6 +106,56 @@ fn typed_toggle_builders_forward_complete_provenance_payloads() {
 }
 
 #[test]
+fn typed_button_builders_forward_complete_provenance_payloads() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    fn map_button(message: ButtonMessage) -> ButtonMappedMessage {
+        ButtonMappedMessage::Output(message)
+    }
+
+    let surface: UiSurface<ButtonMappedMessage> = ui::column([
+        ui::button("Mapped").mapped(map_button).id(34),
+        ui::button("Mapped with")
+            .mapped_with(EventMapper::with_revision(4_u8, map_button))
+            .id(35),
+        ui::button_mapped("Free mapped", map_button).id(36),
+        ui::button_mapped_with(
+            "Free mapped with",
+            EventMapper::with_revision(5_u8, map_button),
+        )
+        .id(37),
+        ui::button("Filtered")
+            .filter_mapped(|message| {
+                message
+                    .activation_provenance()
+                    .is_some()
+                    .then_some(ButtonMappedMessage::Output(message))
+            })
+            .id(38),
+        ui::disclosure_button(false).mapped(map_button).id(39),
+    ])
+    .into_surface();
+    let expected = ButtonMessage::ActivateWithModifiers {
+        provenance: InteractionProvenance::Pointer {
+            modifiers: PointerModifiers {
+                command: true,
+                shift: false,
+                alt: true,
+            },
+            timestamp: None,
+            sequence_range: None,
+        },
+    };
+
+    for widget_id in [34, 35, 36, 37, 38, 39] {
+        assert_eq!(
+            surface.dispatch_widget_output(widget_id, WidgetOutput::typed(expected),),
+            Some(ButtonMappedMessage::Output(expected))
+        );
+    }
+}
+
+#[test]
 fn concise_toggle_builders_keep_checked_only_host_messages() {
     use radiant::prelude::{self as ui, IntoView};
 
@@ -145,7 +203,10 @@ fn constant_button_message_accepts_rc_backed_ui_message() {
         .into_surface();
 
     let message = surface
-        .dispatch_widget_output(29, WidgetOutput::typed(ButtonMessage::Activate))
+        .dispatch_widget_output(
+            29,
+            WidgetOutput::typed(crate::programmatic_button_message()),
+        )
         .expect("button should emit its UI-local message");
     assert!(Rc::ptr_eq(&message.0, &state));
 }
@@ -281,7 +342,10 @@ fn button_row_groups_app_owned_buttons_with_compact_geometry() {
     assert_eq!(layout.rects[&20].height(), 24.0);
     assert!((layout.rects[&21].min.x - layout.rects[&20].max.x - 6.0).abs() < 0.01);
     assert_eq!(
-        surface.dispatch_widget_output(20, WidgetOutput::typed(ButtonMessage::Activate)),
+        surface.dispatch_widget_output(
+            20,
+            WidgetOutput::typed(crate::programmatic_button_message())
+        ),
         Some(DemoMessage::Increment)
     );
 }
@@ -387,7 +451,10 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
         .into_surface();
 
     assert_eq!(
-        surface.dispatch_widget_output(27, WidgetOutput::typed(ButtonMessage::Activate)),
+        surface.dispatch_widget_output(
+            27,
+            WidgetOutput::typed(crate::programmatic_button_message())
+        ),
         Some("sort")
     );
     assert_eq!(
@@ -423,14 +490,21 @@ fn constant_button_message_maps_all_enabled_button_outputs() {
         .into_surface();
 
     assert_eq!(
-        surface.dispatch_widget_output(28, WidgetOutput::typed(ButtonMessage::Activate)),
+        surface.dispatch_widget_output(
+            28,
+            WidgetOutput::typed(crate::programmatic_button_message())
+        ),
         Some("run")
     );
     assert_eq!(
         surface.dispatch_widget_output(
             28,
             WidgetOutput::typed(ButtonMessage::ActivateWithModifiers {
-                modifiers: Default::default(),
+                provenance: radiant::widgets::InteractionProvenance::Pointer {
+                    modifiers: Default::default(),
+                    timestamp: None,
+                    sequence_range: None,
+                },
             }),
         ),
         Some("run")
@@ -489,7 +563,10 @@ fn dynamic_button_mappers_keep_secondary_and_filtered_behavior() {
         .id(30)
         .into_surface();
     assert_eq!(
-        filtered.dispatch_widget_output(30, WidgetOutput::typed(ButtonMessage::Activate)),
+        filtered.dispatch_widget_output(
+            30,
+            WidgetOutput::typed(crate::programmatic_button_message())
+        ),
         Some("activate")
     );
     assert_eq!(
@@ -518,7 +595,10 @@ fn icon_button_builder_supports_message_and_passive_apps() {
             .active
     );
     assert_eq!(
-        message_surface.dispatch_widget_output(31, WidgetOutput::typed(ButtonMessage::Activate)),
+        message_surface.dispatch_widget_output(
+            31,
+            WidgetOutput::typed(crate::programmatic_button_message())
+        ),
         Some(DemoMessage::Increment)
     );
     assert_eq!(

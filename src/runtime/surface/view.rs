@@ -140,12 +140,22 @@ mod tests {
 
         assert!(
             surface
-                .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+                .dispatch_widget_output(
+                    1,
+                    WidgetOutput::typed(ButtonMessage::Activate {
+                        provenance: crate::widgets::InteractionProvenance::Programmatic,
+                    }),
+                )
                 .is_some()
         );
         assert!(
             cloned
-                .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+                .dispatch_widget_output(
+                    1,
+                    WidgetOutput::typed(ButtonMessage::Activate {
+                        provenance: crate::widgets::InteractionProvenance::Programmatic,
+                    }),
+                )
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 2);

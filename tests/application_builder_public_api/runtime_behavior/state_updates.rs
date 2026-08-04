@@ -89,7 +89,7 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
     let increment = before
         .dispatch_widget_output(
             button_id,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("generated button should route through the same surface mapper");
 
@@ -259,7 +259,7 @@ fn stateful_runtime_keeps_ordinary_messages_and_worker_mappers_ui_local() {
         .surface()
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("button should emit its UI-only message");
 

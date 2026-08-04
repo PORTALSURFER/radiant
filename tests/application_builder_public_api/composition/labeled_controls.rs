@@ -23,7 +23,7 @@ fn application_builder_labeled_control_routes_inner_control() {
     assert!(matches!(
         surface.dispatch_widget_output(
             focus_order[0],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(DemoMessage::Increment)
     ));

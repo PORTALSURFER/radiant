@@ -35,7 +35,7 @@ fn application_builder_property_panel_routes_row_selection() {
     let message = surface
         .dispatch_widget_output(
             focus_order[1],
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("property value button should emit a state action");
     let command = bridge.update(message);

@@ -840,6 +840,33 @@ with absent native evidence.
 provenance, while `InteractiveRowMessage::DoubleActivate { provenance }` preserves the exact modifiers
 and optional timestamp from the accepted second native double-click sample as
 `InteractionProvenance::Pointer { .. }`; its sequence range is always `None`.
+`ButtonMessage::Activate { provenance }` and
+`ActivateWithModifiers { provenance }` use the same shared provenance shape.
+`ButtonWidget` keeps plain `Activate` for pointer and keyboard activation:
+accepted primary pointer releases and focused Enter/Space key presses.
+`IconButtonWidget` keeps `ActivateWithModifiers` for pointer activation and
+plain `Activate` for focused Enter/Space key presses. Pointer activation owns the
+accepted release sample, including its exact release modifiers and optional
+timestamp with `sequence_range: None`; keyboard activation owns the accepted
+key-press timestamp. Press evidence is not reused, and synthetic pointer and
+keyboard inputs retain explicit `Pointer` and `Keyboard` sources with absent
+evidence. Direct `Accessibility` and `Programmatic` constructions round-trip
+through `ButtonMessage::activation_provenance()` and project default modifiers
+through `activation_modifiers()`; `ActivateWithModifiers` projects exact
+modifiers only for `Pointer` provenance. Secondary and drag messages return
+no activation provenance. The plain `Activate` and modifier-aware variants
+retain `Clone + Copy + Debug + PartialEq` without adding `Eq` or `Hash`.
+The concise `ButtonBuilder::message`, free `button_message`, `SurfaceNode::button`,
+`IconButtonBuilder::message`, constant button/icon-button mappers, and
+`ButtonBuilder::click_or_drag` helpers intentionally discard provenance while
+preserving their existing host messages and drag routing. Typed
+`ButtonBuilder::mapped`/`mapped_with`/`filter_mapped`, free
+`button_mapped`/`button_mapped_with`, `SurfaceNode::button_mapped`,
+`IconButtonBuilder::mapped`, and typed `WidgetMessageMapper` paths forward the
+complete `ButtonMessage`. Adding provenance fields is an intentional
+source-level migration for direct enum construction and exhaustive matching;
+it does not add provenance to retained widget state, revisions, routing, or
+paint state.
 `ToggleMessage::ValueChanged { checked, provenance }` carries the new checked
 value together with the accepted interaction provenance. Accepted primary
 pointer releases copy their exact release modifiers and optional timestamp with

@@ -420,7 +420,9 @@ impl<Message> WidgetMessageMapper<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{ButtonMessage, TextInputMessage};
+    use crate::widgets::{
+        ButtonMessage, InteractionProvenance, PointerModifiers, TextInputMessage,
+    };
     use std::cell::RefCell;
     use std::sync::{
         Arc,
@@ -466,7 +468,9 @@ mod tests {
 
         assert!(
             mapper
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 1);
@@ -494,17 +498,23 @@ mod tests {
 
         assert!(
             mapper
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert!(
             cloned
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert!(
             cloned_again
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 3);
@@ -514,7 +524,9 @@ mod tests {
     fn dynamic_and_filter_mapped_callbacks_remain_available() {
         let mapped = WidgetMessageMapper::button(|message| message.is_activate());
         assert_eq!(
-            mapped.map_output(WidgetOutput::typed(ButtonMessage::Activate)),
+            mapped.map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: crate::widgets::InteractionProvenance::Programmatic,
+            })),
             Some(true)
         );
         assert_eq!(
@@ -531,7 +543,9 @@ mod tests {
                 .map(|_| "activated")
         });
         assert_eq!(
-            filtered.map_output(WidgetOutput::typed(ButtonMessage::Activate)),
+            filtered.map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: crate::widgets::InteractionProvenance::Programmatic,
+            })),
             Some("activated")
         );
         assert_eq!(
@@ -554,12 +568,16 @@ mod tests {
 
         assert!(
             mapper
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert!(
             clone
-                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }))
                 .is_some()
         );
         assert_eq!(*calls.borrow(), 2);
@@ -582,7 +600,9 @@ mod tests {
         });
 
         assert_eq!(
-            mapper.map_output(WidgetOutput::typed(ButtonMessage::Activate)),
+            mapper.map_output(WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: crate::widgets::InteractionProvenance::Programmatic,
+            })),
             Some(())
         );
         assert_eq!(*calls.borrow(), 1);
@@ -670,10 +690,22 @@ mod tests {
     #[test]
     fn typed_mapped_preserves_evidence_and_invokes_only_on_output() {
         let calls = Rc::new(RefCell::new(0usize));
+        let expected = ButtonMessage::ActivateWithModifiers {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers {
+                    command: true,
+                    shift: false,
+                    alt: true,
+                },
+                timestamp: None,
+                sequence_range: None,
+            },
+        };
+        let expected_for_mapper = expected;
         let calls_for_mapper = Rc::clone(&calls);
         let mapper = EventMapper::with_revision(Revision(4), move |message: ButtonMessage| {
             *calls_for_mapper.borrow_mut() += 1;
-            assert!(matches!(message, ButtonMessage::Activate));
+            assert_eq!(message, expected_for_mapper);
         })
         .typed_mapped();
         let equal =
@@ -684,10 +716,7 @@ mod tests {
             MapperRelation::Unchanged
         );
         assert_eq!(*calls.borrow(), 0);
-        assert_eq!(
-            mapper.invoke(WidgetOutput::typed(ButtonMessage::Activate)),
-            Some(())
-        );
+        assert_eq!(mapper.invoke(WidgetOutput::typed(expected)), Some(()));
         assert_eq!(*calls.borrow(), 1);
         assert_eq!(
             mapper.invoke(WidgetOutput::typed(TextInputMessage::Changed {

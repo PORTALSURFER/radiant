@@ -13,7 +13,9 @@ fn static_widget_helper_builds_non_emitting_leaf() {
     assert_eq!(
         surface.dispatch_widget_output(
             30,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Programmatic,
+            })
         ),
         None
     );
@@ -61,14 +63,18 @@ fn text_and_button_helpers_build_common_leaf_nodes() {
     assert_eq!(
         surface.dispatch_widget_output(
             41,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Programmatic,
+            })
         ),
         Some(DemoMessage::Increment)
     );
     assert_eq!(
         surface.dispatch_widget_output(
             42,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Programmatic,
+            })
         ),
         Some(DemoMessage::Rename(String::from("Mapped")))
     );
@@ -85,5 +91,31 @@ fn text_and_button_helpers_build_common_leaf_nodes() {
             radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate)
         ),
         Some(DemoMessage::Rename(String::from("Badge")))
+    );
+}
+
+#[test]
+fn surface_button_mapped_forwards_complete_provenance_payload() {
+    let surface: UiSurface<ButtonMessage> = UiSurface::new(SurfaceNode::button_mapped(
+        45,
+        "Mapped",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+        |message| message,
+    ));
+    let expected = ButtonMessage::ActivateWithModifiers {
+        provenance: InteractionProvenance::Pointer {
+            modifiers: radiant::widgets::PointerModifiers {
+                command: true,
+                shift: false,
+                alt: true,
+            },
+            timestamp: None,
+            sequence_range: None,
+        },
+    };
+
+    assert_eq!(
+        surface.dispatch_widget_output(45, radiant::widgets::WidgetOutput::typed(expected),),
+        Some(expected)
     );
 }

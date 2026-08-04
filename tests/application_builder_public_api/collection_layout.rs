@@ -107,7 +107,7 @@ fn application_builder_toolbar_splits_main_and_trailing_controls() {
     assert_eq!(
         surface.dispatch_widget_output(
             10,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message())
         ),
         Some(DemoMessage::Increment)
     );

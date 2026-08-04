@@ -3,12 +3,20 @@
 use radiant::{
     layout::{Point, Rect, Vector2, layout_tree},
     runtime::{RuntimeBridge, UiSurface},
-    widgets::{ButtonMessage, ButtonWidget, TextWidget, Widget, WidgetSizing},
+    widgets::{
+        ButtonMessage, ButtonWidget, InteractionProvenance, TextWidget, Widget, WidgetSizing,
+    },
 };
 use std::sync::Arc;
 
 fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
     Arc::new(surface)
+}
+
+pub(crate) fn programmatic_button_message() -> ButtonMessage {
+    ButtonMessage::Activate {
+        provenance: InteractionProvenance::Programmatic,
+    }
 }
 
 #[path = "application_builder_public_api/builder_core.rs"]

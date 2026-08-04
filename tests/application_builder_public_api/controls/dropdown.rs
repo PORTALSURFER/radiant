@@ -54,7 +54,7 @@ fn application_builder_gallery_widgets_lower_and_route_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             10,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message())
         ),
         None
     );
@@ -104,7 +104,7 @@ fn application_builder_dropdown_exports_and_routes_messages() {
         .filter_map(|widget_id| {
             surface.dispatch_widget_output(
                 *widget_id,
-                radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+                radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
             )
         })
         .collect::<Vec<_>>();
@@ -127,7 +127,7 @@ fn application_builder_dropdown_trigger_exports_and_routes_message() {
     assert_eq!(
         surface.dispatch_widget_output(
             1,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(GalleryMessage::ToggleDropdown)
     );

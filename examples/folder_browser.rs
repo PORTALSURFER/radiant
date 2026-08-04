@@ -117,7 +117,7 @@ fn update(
         BrowserMessage::CommitFolderRename => state.commit_rename(),
         BrowserMessage::CancelFolderRename => state.cancel_folder_rename(),
         BrowserMessage::FolderLabel { folder_id, event } => match event {
-            ButtonMessage::Activate | ButtonMessage::ActivateWithModifiers { .. } => {
+            ButtonMessage::Activate { .. } | ButtonMessage::ActivateWithModifiers { .. } => {
                 state.activate_folder(folder_id);
             }
             ButtonMessage::SecondaryActivate { position } => {
@@ -137,7 +137,7 @@ fn update(
         BrowserMessage::CommitFileRename => state.commit_file_rename(),
         BrowserMessage::CancelFileRename => state.cancel_file_rename(),
         BrowserMessage::FileButton { file_id, event } => match event {
-            ButtonMessage::Activate | ButtonMessage::ActivateWithModifiers { .. } => {
+            ButtonMessage::Activate { .. } | ButtonMessage::ActivateWithModifiers { .. } => {
                 state.select_file_id(file_id);
             }
             ButtonMessage::SecondaryActivate { position } => {
@@ -146,7 +146,7 @@ fn update(
             ButtonMessage::Drag(_) => {}
         },
         BrowserMessage::ColumnHeader { column_id, event } => match event {
-            ButtonMessage::Activate | ButtonMessage::ActivateWithModifiers { .. } => {
+            ButtonMessage::Activate { .. } | ButtonMessage::ActivateWithModifiers { .. } => {
                 state.sort_by(column_id);
             }
             ButtonMessage::SecondaryActivate { position } => {

@@ -2,9 +2,7 @@ use super::{DemoMessage, DemoState, widget_ref};
 use radiant::{
     layout::Vector2,
     runtime::{RuntimeBridge, UiSurface, WidgetMessageMapper},
-    widgets::{
-        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetSizing,
-    },
+    widgets::{ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetSizing},
 };
 
 #[test]
@@ -66,7 +64,7 @@ fn application_builder_accepts_widgets_through_widget_view_trait() {
     assert_eq!(
         surface.dispatch_widget_output(
             21,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message())
         ),
         Some(DemoMessage::Increment)
     );
@@ -95,7 +93,7 @@ fn application_view_builders_lower_into_runtime_surface_nodes() {
     let message = surface
         .dispatch_widget_output(
             42,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("button should emit the configured host message");
     assert_eq!(message, DemoMessage::Increment);
@@ -155,7 +153,7 @@ fn application_builders_support_message_callbacks_scroll_and_sizing_helpers() {
     let increment = before
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("direct button should emit a state action");
     let command = bridge.update(increment);

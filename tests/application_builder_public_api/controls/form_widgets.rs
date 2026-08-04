@@ -141,7 +141,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     assert_eq!(
         surface.dispatch_widget_output(
             22,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some("icon")
     );
@@ -165,7 +165,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     assert_eq!(
         surface.dispatch_widget_output(
             25,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         None
     );
@@ -304,7 +304,7 @@ fn keyed_runtime_icon_buttons_reproject_active_and_disabled_markers() {
         assert_eq!(marker_count(&runtime, id), 0);
     }
 
-    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
+    dispatch(&mut runtime, 501, crate::programmatic_button_message());
     for id in [501, 502] {
         let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
         assert!(button.common.state.active);
@@ -312,7 +312,7 @@ fn keyed_runtime_icon_buttons_reproject_active_and_disabled_markers() {
         assert_eq!(marker_count(&runtime, id), 1);
     }
 
-    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
+    dispatch(&mut runtime, 501, crate::programmatic_button_message());
     for id in [501, 502] {
         let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
         assert!(!button.common.state.active);
@@ -320,8 +320,8 @@ fn keyed_runtime_icon_buttons_reproject_active_and_disabled_markers() {
         assert_eq!(marker_count(&runtime, id), 0);
     }
 
-    dispatch(&mut runtime, 501, radiant::widgets::ButtonMessage::Activate);
-    dispatch(&mut runtime, 502, radiant::widgets::ButtonMessage::Activate);
+    dispatch(&mut runtime, 501, crate::programmatic_button_message());
+    dispatch(&mut runtime, 502, crate::programmatic_button_message());
     for id in [501, 502] {
         let button = widget_ref::<IconButtonWidget, _>(runtime.surface(), id, "icon button");
         assert!(button.common.state.active);
@@ -390,7 +390,7 @@ fn text_input_clear_button_builder_keeps_clear_slot_stable_and_routes_messages()
     assert_eq!(
         surface.dispatch_widget_output(
             clear_button_id,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(Message::Clear)
     );
@@ -406,7 +406,7 @@ fn text_input_clear_button_builder_keeps_clear_slot_stable_and_routes_messages()
     assert_eq!(
         empty_surface.dispatch_widget_output(
             empty_clear_button_id,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         None
     );
@@ -435,7 +435,7 @@ fn text_input_clear_button_builder_supports_mapped_clear_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             clear_button_id,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(crate::programmatic_button_message()),
         ),
         Some(Message::Clear(String::from("name-filter")))
     );

@@ -2,7 +2,8 @@
 
 use crate::gui::types::Rect;
 use crate::widgets::interaction::{
-    ButtonMessage, DragHandleMessage, DragHandleMetadata, PointerButton, WidgetInput,
+    ButtonMessage, DragHandleMessage, DragHandleMetadata, InteractionProvenance, PointerButton,
+    WidgetInput,
 };
 
 use super::ButtonWidget;
@@ -115,7 +116,13 @@ pub(super) fn handle_button_input(
             button.state.armed = false;
             button.state.dragged = false;
             button.state.press_position = None;
-            activated.then_some(ButtonMessage::Activate)
+            activated.then_some(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Pointer {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                },
+            })
         }
         WidgetInput::FocusChanged(focused) => {
             let cancel_drag = !focused
@@ -138,10 +145,12 @@ pub(super) fn handle_button_input(
             }
             None
         }
-        WidgetInput::KeyPress { key, .. }
+        WidgetInput::KeyPress { key, timestamp }
             if button.common.state.focused && activate_on_keyboard(key) =>
         {
-            Some(ButtonMessage::Activate)
+            Some(ButtonMessage::Activate {
+                provenance: InteractionProvenance::Keyboard { timestamp },
+            })
         }
         _ => None,
     }

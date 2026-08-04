@@ -272,6 +272,62 @@ fn interactive_row_provenance_stays_copy_only_hashable_and_transient() {
 }
 
 #[test]
+fn button_provenance_stays_copy_only_and_transient_at_accepted_outputs() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let messages =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/messages/activation.rs"))
+            .expect("activation messages should be readable");
+    let button = fs::read_to_string(manifest_dir.join("src/widgets/primitives/button/input.rs"))
+        .expect("button input should be readable");
+    let button_state =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/button/model.rs"))
+            .expect("button state should be readable");
+    let icon_button =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/icon_button.rs"))
+            .expect("icon-button input should be readable");
+
+    let enum_start = messages
+        .find("pub enum ButtonMessage {")
+        .expect("button message should remain a public enum");
+    let message_start = messages[..enum_start]
+        .rfind("#[derive(Clone, Copy, Debug, PartialEq)]")
+        .expect("button message should retain its partial-equality derive");
+    let message_end = messages[enum_start..]
+        .find("\n}\n\nimpl ButtonMessage")
+        .expect("button message should have a closed variant list");
+    let message = &messages[message_start..enum_start + message_end];
+
+    assert!(
+        message.contains("#[derive(Clone, Copy, Debug, PartialEq)]")
+            && !message.contains(", Eq")
+            && !message.contains(", Hash")
+            && message.contains("Activate {")
+            && message.contains("ActivateWithModifiers {")
+            && message.contains("provenance: InteractionProvenance"),
+        "ButtonMessage should keep its copy/debug/partial-equality contract without Eq or Hash"
+    );
+    assert!(
+        button.contains("activated.then_some(ButtonMessage::Activate")
+            && button.contains("InteractionProvenance::Pointer")
+            && button.contains("InteractionProvenance::Keyboard")
+            && button.contains("sequence_range: None"),
+        "ButtonWidget should attach provenance only in accepted pointer/key output branches"
+    );
+    assert!(
+        icon_button.contains("result.provenance()")
+            && icon_button.contains("ActivateWithModifiers { provenance }")
+            && icon_button.contains("Activate { provenance }"),
+        "IconButtonWidget should project the complete accepted provenance into its message"
+    );
+    assert!(
+        !button_state.contains("InteractionProvenance")
+            && !button_state.contains("timestamp")
+            && !button_state.contains("sequence_range"),
+        "button retained interaction state should not retain transient provenance"
+    );
+}
+
+#[test]
 fn list_item_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))

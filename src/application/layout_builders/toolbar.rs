@@ -227,7 +227,12 @@ mod tests {
             .into_surface();
 
         assert_eq!(
-            surface.dispatch_widget_output(10, WidgetOutput::typed(ButtonMessage::Activate)),
+            surface.dispatch_widget_output(
+                10,
+                WidgetOutput::typed(ButtonMessage::Activate {
+                    provenance: crate::widgets::InteractionProvenance::Programmatic,
+                }),
+            ),
             Some(Message::Run)
         );
     }

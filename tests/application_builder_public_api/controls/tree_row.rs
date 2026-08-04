@@ -1,6 +1,5 @@
 use radiant::gui::list as gui_list;
 use radiant::prelude::{self as ui, IntoView};
-use radiant::widgets::ButtonMessage;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -84,7 +83,7 @@ fn tree_row_toggle_accepts_rc_backed_ui_message() {
     let message = surface
         .dispatch_widget_output(
             expander_id,
-            ui::WidgetOutput::typed(ButtonMessage::Activate),
+            ui::WidgetOutput::typed(crate::programmatic_button_message()),
         )
         .expect("tree expander should emit its UI-local message");
     assert!(Rc::ptr_eq(&message.0, &state));

@@ -569,6 +569,61 @@ message semantics, scheduling, or presentation.
 The migration order is timestamp type/ownership, then `Event`/`WidgetInput`
 payload propagation, then coalescing/profile consumers.
 
+### Shared interaction source and provenance
+
+Discrete activation and continuous value edits use one shared source vocabulary:
+`InteractionSource::{Pointer, Keyboard, Accessibility, Programmatic}`. The
+tagged provenance shape is:
+
+```rust
+enum InteractionProvenance {
+    Pointer {
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+    },
+    Keyboard {
+        timestamp: Option<InputTimestamp>,
+    },
+    Accessibility,
+    Programmatic,
+}
+```
+
+`InteractionProvenance::source()` returns the shared `InteractionSource`
+category. The source category is separate from optional native sample evidence:
+missing a timestamp or sequence range never means `Programmatic`. Pointer
+boundary press, release, drop, and double-click samples may carry modifiers and
+a timestamp but no sequence range; pointer moves and wheel samples may carry
+complete sequence ranges. Wheel input uses `InteractionSource::Pointer`, while
+the containing event or message distinguishes wheel from press, drag, and
+double-click. Keyboard provenance may carry a timestamp but never pointer
+modifiers or sequence ranges. Synthetic and direct-construction pointer and
+keyboard inputs retain their known `Pointer` or `Keyboard` source while omitting
+native timestamp and sequence evidence. `Accessibility` and `Programmatic`
+are explicit and are never inferred. Neither shared source nor provenance has
+an ambiguous `Default`.
+
+Provenance is `Copy` and observational in spirit. It does not alter routing,
+hit testing, focus, capture, value calculation, clamping, coalescing, repaint,
+or retained state. Concise APIs may discard it; low-level APIs must expose it.
+`EditTransaction` selects its `InteractionSource` at `Begin` and preserves that
+source through `Update`, `Commit`, and `Cancel`.
+
+The migration order is explicit:
+
+1. Add the shared types, with `InteractiveRow` double activation as the first
+   adopter using the second accepted double-click sample.
+2. Preserve the source through `ActivationInputResult` and `InteractiveRow`
+   single activation.
+3. Migrate other discrete controls in bounded groups.
+4. Add the shared edit-event foundation, then migrate `Slider` to provenance-aware
+   edit events.
+5. Reconcile remaining controls and `Knob` metadata after compatibility review.
+
+The current shipped API remains unchanged in this documentation-only slice;
+`API.md` is intentionally not edited.
+
 ### Frame packets and backpressure
 
 A render packet contains only immutable references or owned frame data:
@@ -1469,6 +1524,11 @@ row([
 An icon-only button supplies a text label for accessibility. It is not a
 separate product-specific button type.
 
+Discrete activation for buttons, icon buttons, toggles, and `InteractiveRow`
+single or double activation uses `InteractionProvenance`. Double activation
+uses the second accepted double-click sample. Concise activation helpers may
+discard provenance, but low-level activation APIs expose it.
+
 ### Text input and selection controls
 
 Input widgets expose their value, presentation options, and output mapping.
@@ -1525,7 +1585,10 @@ numeric_input(state.cutoff)
 ```
 
 Pointer scrubbing, arrow-key increments, page increments, wheel adjustment, and
-accessibility actions all use the same mapping and `EditTransaction` lifecycle.
+accessibility actions all use the same mapping, `InteractionProvenance`
+vocabulary, and `EditTransaction` lifecycle. `Slider` already ships;
+provenance-aware `Slider` migration/adoption is explicitly deferred until the
+shared edit-event foundation exists.
 Applications may provide a custom mapping only when it is total, finite, and
 monotonic over the declared range; Radiant rejects ambiguous inverse mappings
 rather than allowing a displayed value and edited value to diverge. Mapping and
@@ -1538,11 +1601,15 @@ changed visible control or a relevant input candidate.
 shared `EditTransaction` model used by sliders, knobs, numeric fields,
 splitters, timeline drags, coordinate edits, and custom continuous widgets.
 An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
-`Cancel` phase, current and starting value, and source (`Pointer`, `Keyboard`,
-`Accessibility`, or `Programmatic`). Begin, commit, and cancellation are never
-coalesced. High-rate updates may be latest-wins per presentation opportunity,
-while preserving accumulated deltas where relevant. Capture loss, focus loss,
-or an interrupted gesture produces cancellation deterministically.
+`Cancel` phase, current and starting value, and `InteractionProvenance` from the
+shared vocabulary. `EditTransaction` selects its `InteractionSource` at
+`Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
+`Slider` already ships; provenance-aware `Slider` migration/adoption remains
+deferred until the shared edit-event foundation exists. Begin, commit, and
+cancellation are never coalesced. High-rate updates may be latest-wins per
+presentation opportunity, while preserving accumulated deltas where relevant.
+Capture loss, focus loss, or an interrupted gesture produces cancellation
+deterministically.
 
 ```rust
 knob(state.cutoff, 20.0..=20_000.0)

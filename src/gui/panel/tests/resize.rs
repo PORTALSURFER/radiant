@@ -546,6 +546,87 @@ fn panel_resize_typed_cancel_rolls_back_with_pointer_without_native_evidence() {
 }
 
 #[test]
+fn panel_resize_typed_double_activation_preserves_cancel_transaction() {
+    let mut state = PanelResizeState::new(240.0);
+    let constraints = PanelResizeConstraints::right(48.0, 420.0);
+    let begin = state
+        .resize_edit(
+            DragHandleMessage::started(Point::new(100.0, 0.0)),
+            constraints,
+        )
+        .expect("typed resize start should be accepted");
+    let update = state
+        .resize_edit(
+            DragHandleMessage::moved(Point::new(160.0, 0.0)),
+            constraints,
+        )
+        .expect("typed resize update should be accepted");
+    assert_eq!(update.value, 300.0);
+
+    assert_eq!(
+        state.resize_edit(
+            DragHandleMessage::double_activate(Point::new(160.0, 0.0)),
+            constraints,
+        ),
+        None
+    );
+    assert_eq!(state.size(), 300.0);
+    assert!(state.is_resizing());
+
+    let cancel = state
+        .resize_edit(
+            DragHandleMessage::cancelled(Point::new(160.0, 0.0)),
+            constraints,
+        )
+        .expect("typed resize cancellation should be accepted");
+    assert_eq!(cancel.phase, EditPhase::Cancel);
+    assert_eq!(cancel.transaction, begin.transaction);
+    assert_eq!(cancel.start_value, 240.0);
+    assert_eq!(cancel.value, 240.0);
+    assert_eq!(state.size(), 240.0);
+    assert!(!state.is_resizing());
+}
+
+#[test]
+fn panel_resize_concise_double_activation_projects_changed_rollback() {
+    let mut state = PanelResizeState::new(240.0);
+    let constraints = PanelResizeConstraints::right(48.0, 420.0);
+
+    assert_eq!(
+        state.resize(
+            DragHandleMessage::started(Point::new(100.0, 0.0)),
+            constraints,
+        ),
+        None
+    );
+    assert_eq!(
+        state.resize(
+            DragHandleMessage::moved(Point::new(160.0, 0.0)),
+            constraints,
+        ),
+        Some(300.0)
+    );
+    assert_eq!(
+        state.resize(
+            DragHandleMessage::double_activate(Point::new(160.0, 0.0)),
+            constraints,
+        ),
+        None
+    );
+    assert_eq!(state.size(), 300.0);
+    assert!(state.is_resizing());
+    assert_eq!(
+        state.resize(
+            DragHandleMessage::cancelled(Point::new(160.0, 0.0)),
+            constraints,
+        ),
+        Some(240.0)
+    );
+    assert_eq!(state.size(), 240.0);
+    assert!(!state.is_resizing());
+}
+
+#[test]
 fn panel_resize_concise_cancel_projects_only_a_changed_rollback() {
     let constraints = PanelResizeConstraints::right(48.0, 420.0);
     let mut changed = PanelResizeState::new(240.0);

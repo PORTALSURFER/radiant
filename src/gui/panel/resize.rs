@@ -266,12 +266,6 @@ impl PanelResizeState {
         constraints: PanelResizeConstraints,
         collapsed_size: Option<f32>,
     ) -> Option<EditEvent<f32>> {
-        if message.is_double_activate() {
-            self.active_drag = None;
-            self.active_edit = None;
-            return None;
-        }
-
         let provenance = pointer_provenance(message.input_metadata());
         match message {
             DragHandleMessage::Started { origin, .. } => {

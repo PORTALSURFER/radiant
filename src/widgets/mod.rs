@@ -57,7 +57,7 @@
 //! ```
 
 mod contract;
-mod interaction;
+pub mod interaction;
 mod primitives;
 mod theme;
 

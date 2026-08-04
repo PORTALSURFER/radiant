@@ -1590,23 +1590,29 @@ row([
 ```
 
 Numeric controls separate the stored domain value from its interaction and
-display mapping. The target mapping model includes linear, logarithmic, decibel,
-tempo, and custom monotonic mappings. The current `ValueMapping` foundation
-exposes only finite `f32` linear and logarithmic mappings; it validates finite
-bounds and monotonicity at construction, so pointer position, keyboard
-increments, accessibility range semantics, and displayed value always agree.
-`numeric_input` uses the same
-mapping with a runtime-local editing buffer: a locale-aware parser and validator
-can show an incomplete or invalid string without replacing the last valid domain
-value. Enter or focus commit emits a typed accepted value; Escape or explicit
-cancel restores the displayed value without an accidental domain mutation.
+display mapping.
 
-The current deterministic foundation implements the finite `f32` linear and
-logarithmic forms. Their constructors return a typed error for invalid bounds;
-conversion rejects nonfinite inputs, clamps finite inputs at the relevant
-boundary, and uses `f64` intermediates before returning a finite `f32` result.
+The shipped `ValueMapping` foundation exposes only finite `f32` linear and
+logarithmic mappings. It validates finite bounds and monotonicity at
+construction. Its conversions reject nonfinite inputs, clamp finite inputs at
+the relevant boundary, and use `f64` intermediates before returning a finite
+`f32` result.
+
+The future numeric-control contract will include linear, logarithmic, decibel,
+tempo, and custom monotonic mappings. It will use one mapping for pointer
+position, keyboard increments, accessibility range semantics, and displayed
+values so those views agree. A future `numeric_input` will use the same mapping
+with a runtime-local editing buffer: a locale-aware parser and validator will
+be able to show an incomplete or invalid string without replacing the last
+valid domain value. Enter or focus commit will emit a typed accepted value;
+Escape or explicit cancel will restore the displayed value without an
+accidental domain mutation.
+
 Formatting, widget integration, and the remaining mapping forms are separate
 follow-up slices.
+
+The following `numeric_input`/`ValueFormat` example is target API and is not
+currently shipped:
 
 ```rust
 numeric_input(state.cutoff)
@@ -1617,9 +1623,10 @@ numeric_input(state.cutoff)
     .on_edit(Message::CutoffEdit);
 ```
 
-Pointer scrubbing and arrow-key increments use the same mapping,
-`InteractionProvenance` vocabulary, and `EditTransaction` lifecycle. `Slider`
-is a shipped production shared-edit consumer: its fixed-capacity
+Under the future numeric-control contract, pointer scrubbing and arrow-key
+increments will use the same mapping, `InteractionProvenance` vocabulary, and
+`EditTransaction` lifecycle. `Slider` is a shipped production shared-edit
+consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and
 `on_change` APIs project only effective value changes. Official Slider lowering
@@ -1634,13 +1641,14 @@ accessibility actions, domain mapping, and `numeric_input` remain outside this
 adoption slice. Knob is also shipped, and PanelResizeState is the next shipped
 shared-edit consumer; the generic `LayoutInteraction` capability and runtime
 `split_pane` construction remain future work.
-Applications may provide a custom mapping only when it is total, finite, and
-monotonic over the declared range; Radiant rejects ambiguous inverse mappings
-rather than allowing a displayed value and edited value to diverge. Mapping and
-formatting hooks on the interaction path are pure, bounded, and allocation-free;
-they may not query application state, block, or retain mutable callbacks. The
-runtime caches quantized display results and invokes a custom mapping only for a
-changed visible control or a relevant input candidate.
+The target API will allow applications to provide a custom mapping only when it
+is total, finite, and monotonic over the declared range; the target runtime will
+reject ambiguous inverse mappings rather than allowing a displayed value and
+edited value to diverge. Mapping and formatting hooks on the interaction path
+will be pure, bounded, and allocation-free; they will not query application
+state, block, or retain mutable callbacks. The target runtime will cache
+quantized display results and invoke a custom mapping only for a changed visible
+control or a relevant input candidate.
 
 `on_change` is the concise form for ordinary controls. It is sugar over a
 shared `EditTransaction` model used by sliders, knobs, numeric fields,

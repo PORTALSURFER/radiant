@@ -40,6 +40,25 @@ where
 }
 
 #[test]
+fn value_mapping_is_available_through_qualified_interaction_module() {
+    let mapping = radiant::widgets::interaction::ValueMapping::linear(0.0..=1.0)
+        .expect("valid linear mapping");
+    let kind: radiant::widgets::interaction::ValueMappingKind = mapping.kind();
+    let error: radiant::widgets::interaction::ValueMappingError =
+        radiant::widgets::interaction::ValueMapping::linear(1.0..=1.0)
+            .expect_err("equal bounds should be rejected");
+
+    assert_eq!(
+        kind,
+        radiant::widgets::interaction::ValueMappingKind::Linear
+    );
+    assert_eq!(
+        error,
+        radiant::widgets::interaction::ValueMappingError::InvalidRange { min: 1.0, max: 1.0 }
+    );
+}
+
+#[test]
 fn widget_output_exposes_typed_and_custom_value_helpers() {
     let copied = WidgetOutput::typed(42_u8);
     assert_eq!(copied.typed_ref::<u8>(), Some(&42));

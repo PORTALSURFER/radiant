@@ -32,10 +32,19 @@ impl EditPhase {
 /// meaningful only within the current process and must not be persisted,
 /// ordered, serialized, or interpreted as a timestamp. Its source is fixed at
 /// the beginning of the transaction and remains stable for every later phase.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EditTransaction {
     id: u64,
     source: InteractionSource,
+}
+
+impl std::fmt::Debug for EditTransaction {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("EditTransaction")
+            .field("source", &self.source)
+            .finish()
+    }
 }
 
 impl EditTransaction {
@@ -203,6 +212,20 @@ mod tests {
         assert_eq!(first.phase, EditPhase::Begin);
         assert_eq!(first.start_value, first.value);
         assert_eq!(first.transaction.source(), InteractionSource::Keyboard);
+    }
+
+    #[test]
+    fn transaction_debug_redacts_process_local_identity() {
+        let event = EditEvent::begin(
+            0.25_f32,
+            InteractionProvenance::Keyboard { timestamp: None },
+        );
+        let transaction_id = event.transaction.id;
+        let formatted = format!("{:?}", event.transaction);
+
+        assert_eq!(formatted, "EditTransaction { source: Keyboard }");
+        assert!(!formatted.contains("id"));
+        assert!(!formatted.contains(&transaction_id.to_string()));
     }
 
     #[test]

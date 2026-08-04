@@ -10,12 +10,20 @@ use crate::{
 /// Message emitted by a reusable button primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ButtonMessage {
-    /// The button was activated by pointer or keyboard input.
+    /// A primary activation carrying `InteractionProvenance`.
+    ///
+    /// The plain compatibility modifier projection uses default modifiers for
+    /// every provenance source.
     Activate {
         /// Provenance captured from the accepted activation input.
         provenance: InteractionProvenance,
     },
-    /// The button was activated by primary pointer input with modifier state.
+    /// A primary activation carrying `InteractionProvenance` with a
+    /// modifier-aware compatibility projection.
+    ///
+    /// `Pointer` provenance preserves its modifiers; `Keyboard`,
+    /// `Accessibility`, and `Programmatic` provenance project default
+    /// modifiers.
     ActivateWithModifiers {
         /// Provenance captured from the accepted activation input.
         provenance: InteractionProvenance,

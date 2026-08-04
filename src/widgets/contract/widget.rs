@@ -98,6 +98,17 @@ pub trait Widget: WidgetClone + Any {
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
 
+    /// Cancel widget-local pointer-capture state without delivering a legacy
+    /// focus-loss output to the host.
+    ///
+    /// The default routes the existing focus-loss cleanup through
+    /// [`Self::handle_input`] and discards any output. Widgets with an explicit
+    /// typed capture-cancellation contract may override this hook.
+    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+        let _ = self.handle_input(bounds, WidgetInput::FocusChanged(false));
+        None
+    }
+
     /// Reconcile retained widget-local state from the previous projected widget.
     ///
     /// The generic runtime calls this when a host message reprojects the

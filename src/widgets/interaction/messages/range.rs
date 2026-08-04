@@ -1,6 +1,6 @@
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
-    widgets::interaction::PointerModifiers,
+    widgets::interaction::{EditEvent, EditPhase, EditTransaction, PointerModifiers},
 };
 
 /// Message emitted by a reusable scrollbar primitive.
@@ -21,6 +21,164 @@ pub enum SliderMessage {
         /// Clamped normalized value in the inclusive range `0.0..=1.0`.
         value: f32,
     },
+}
+
+/// One bounded, ordered batch of shared edit events emitted by a slider.
+///
+/// A batch contains between one and three events and never allocates.  The
+/// trailing storage is private implementation capacity; [`Self::events`] only
+/// exposes the ordered events that belong to the batch.  Slider input creates
+/// at most one batch for each accepted input sample, so the batch is also the
+/// runtime's one-output boundary for one interaction.
+#[derive(Clone, Copy)]
+pub struct SliderEditBatch {
+    events: [EditEvent<f32>; 3],
+    len: u8,
+    meaningful_rollback: bool,
+}
+
+impl std::fmt::Debug for SliderEditBatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SliderEditBatch")
+            .field("events", &self.events())
+            .field("meaningful_rollback", &self.meaningful_rollback)
+            .finish()
+    }
+}
+
+impl PartialEq for SliderEditBatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.events() == other.events() && self.meaningful_rollback == other.meaningful_rollback
+    }
+}
+
+impl SliderEditBatch {
+    /// Maximum number of ordered events carried by one slider batch.
+    pub const MAX_EVENTS: usize = 3;
+
+    /// Build a one-event batch.
+    pub fn new(event: EditEvent<f32>) -> Self {
+        Self {
+            events: [event; Self::MAX_EVENTS],
+            len: 1,
+            meaningful_rollback: false,
+        }
+    }
+
+    /// Build a one-event batch.
+    pub fn single(event: EditEvent<f32>) -> Self {
+        Self::new(event)
+    }
+
+    /// Build a batch from one to three ordered events.
+    ///
+    /// The events must share one transaction.  An empty or over-capacity slice
+    /// and a mixed-transaction slice return `None`.
+    pub fn from_events(events: &[EditEvent<f32>]) -> Option<Self> {
+        if !(1..=Self::MAX_EVENTS).contains(&events.len()) {
+            return None;
+        }
+        let transaction = events.first()?.transaction;
+        if events.iter().any(|event| event.transaction != transaction) {
+            return None;
+        }
+
+        let mut stored = [events[0]; Self::MAX_EVENTS];
+        for (slot, event) in stored.iter_mut().zip(events.iter().copied()) {
+            *slot = event;
+        }
+        let meaningful_rollback = events.iter().enumerate().any(|(index, event)| {
+            event.phase == EditPhase::Cancel && has_effective_update(&events[..index])
+        });
+        Some(Self {
+            events: stored,
+            len: events.len() as u8,
+            meaningful_rollback,
+        })
+    }
+
+    /// Return the ordered edit events in this batch.
+    pub fn events(&self) -> &[EditEvent<f32>] {
+        &self.events[..usize::from(self.len)]
+    }
+
+    /// Return the number of ordered events in this batch.
+    pub const fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Return whether this batch contains no events.
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Return the transaction shared by every event in this batch.
+    pub const fn transaction(&self) -> EditTransaction {
+        self.events[0].transaction
+    }
+
+    /// Project a meaningful rollback or the latest effective update.
+    ///
+    /// Lifecycle-only boundaries (`Begin` and `Commit`) do not project a
+    /// concise value.  A slider that cancels without changing its value does
+    /// not emit a batch; the internal rollback constructor marks the emitted
+    /// cancellation as meaningful without adding another event to the batch.
+    pub fn value_change(&self) -> Option<f32> {
+        let mut latest_update = None;
+        let mut rollback = None;
+        let mut current_value = None;
+        for event in self.events() {
+            match event.phase {
+                EditPhase::Begin => current_value = Some(event.value),
+                EditPhase::Update => {
+                    let previous_value = current_value.unwrap_or(event.start_value);
+                    if values_differ(previous_value, event.value) {
+                        latest_update = Some(event.value);
+                    }
+                    current_value = Some(event.value);
+                }
+                EditPhase::Commit => current_value = Some(event.value),
+                EditPhase::Cancel if self.meaningful_rollback => rollback = Some(event.start_value),
+                EditPhase::Cancel => {}
+            }
+        }
+        rollback.or(latest_update)
+    }
+
+    pub(crate) fn rollback(event: EditEvent<f32>) -> Self {
+        Self {
+            events: [event; Self::MAX_EVENTS],
+            len: 1,
+            meaningful_rollback: true,
+        }
+    }
+}
+
+fn has_effective_update(events: &[EditEvent<f32>]) -> bool {
+    let mut current_value = None;
+    for event in events {
+        match event.phase {
+            EditPhase::Begin => current_value = Some(event.value),
+            EditPhase::Update => {
+                let previous_value = current_value.unwrap_or(event.start_value);
+                if values_differ(previous_value, event.value) {
+                    return true;
+                }
+                current_value = Some(event.value);
+            }
+            EditPhase::Commit | EditPhase::Cancel => {}
+        }
+    }
+    false
+}
+
+fn values_differ(left: f32, right: f32) -> bool {
+    if left.is_finite() && right.is_finite() {
+        (left - right).abs() > f32::EPSILON
+    } else {
+        left != right
+    }
 }
 
 /// One ordered event in a knob automation gesture.

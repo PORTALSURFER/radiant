@@ -77,10 +77,11 @@ pub use interaction::{
     InteractiveRowMetadata, KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata,
     KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
     PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
-    SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    handle_activation_input,
+    SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput,
+    WidgetKey, WidgetOutput, handle_activation_input,
 };
+pub(crate) use primitives::RetainedSliderWidget;
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,
     ButtonWidgetParts, CanvasWidget, CanvasWidgetParts, CardWidget, CardWidgetParts,

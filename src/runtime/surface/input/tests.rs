@@ -7,7 +7,7 @@ use crate::{
     },
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
-        ButtonWidget, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
+        ButtonWidget, EditPhase, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
         PointerModifiers, ScrollbarAxis, ScrollbarWidget, Widget, WidgetCommon, WidgetInput,
         WidgetOutput, WidgetRevision, WidgetSizing,
     },
@@ -51,6 +51,146 @@ fn mapped_knob(value: f32, disabled: bool) -> SurfaceNode<KnobMessage> {
         knob,
         WidgetMessageMapper::typed(|message: KnobMessage| message),
     )
+}
+
+#[test]
+fn slider_capture_cancellation_routes_typed_cancel_while_knob_default_stays_suppressed() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let mut slider = SurfaceNode::slider_edits_mapped(
+        31,
+        0.25,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        |batch| batch,
+    );
+    assert!(matches!(
+        slider.dispatch_input_at_path(
+            31,
+            &[],
+            bounds,
+            WidgetInput::primary_press(Point::new(60.0, 14.0)),
+        ),
+        Some(WidgetDispatchResult::Message(batch))
+            if batch.events().iter().map(|event| event.phase).collect::<Vec<_>>()
+                == [EditPhase::Begin, EditPhase::Update]
+    ));
+    let Some(WidgetDispatchResult::Message(cancel)) =
+        slider.dispatch_pointer_capture_cancelled_at_path(31, &[], bounds)
+    else {
+        panic!("Slider should route an opted-in capture cancellation");
+    };
+    assert_eq!(cancel.events().len(), 1);
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.value_change(), Some(0.25));
+
+    let mut knob = mapped_knob(0.5, false);
+    assert!(matches!(
+        knob.dispatch_input_at_path(
+            30,
+            &[],
+            Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0)),
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::Message(
+            KnobMessage::GestureStarted { .. }
+        ))
+    ));
+    assert!(matches!(
+        knob.dispatch_pointer_capture_cancelled_at_path(
+            30,
+            &[],
+            Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0)),
+        ),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+    let knob = knob
+        .find_widget_at_path(&[])
+        .expect("knob exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<KnobWidget>()
+        .expect("knob type is retained");
+    assert!(!knob.common.state.pressed);
+    assert_eq!(knob.state.gesture_origin, None);
+}
+
+#[test]
+fn slider_typed_reprojection_retains_transaction_but_keeps_fresh_value_authoritative() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let mut previous = SurfaceNode::slider_edits_mapped(
+        32,
+        0.25,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        |batch| batch,
+    );
+    let Some(WidgetDispatchResult::Message(press)) = previous.dispatch_input_at_path(
+        32,
+        &[],
+        bounds,
+        WidgetInput::primary_press(Point::new(60.0, 14.0)),
+    ) else {
+        panic!("Slider press should emit the typed begin/update batch");
+    };
+    let transaction = press.events()[0].transaction;
+    let _ = previous.dispatch_input_at_path(
+        32,
+        &[],
+        bounds,
+        WidgetInput::pointer_move(Point::new(72.0, 14.0)),
+    );
+
+    let mut current = SurfaceNode::slider_edits_mapped(
+        32,
+        0.75,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        |batch| batch,
+    );
+    let paths = HashMap::from([(32, WidgetPath::from_slice(&[]))]);
+    current.synchronize_widget_state_from_paths(
+        &[32],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::default(),
+    );
+    let current_widget = current
+        .find_widget_at_path(&[])
+        .expect("current Slider exists")
+        .widget();
+    assert!(current_widget.common().state.pressed);
+    assert_eq!(
+        current_widget.automation_semantics().value_text.as_deref(),
+        Some("0.750")
+    );
+
+    let Some(WidgetDispatchResult::Message(update)) = current.dispatch_input_at_path(
+        32,
+        &[],
+        bounds,
+        WidgetInput::pointer_move(Point::new(96.0, 14.0)),
+    ) else {
+        panic!("retained Slider transaction should accept a typed update");
+    };
+    assert_eq!(update.events()[0].phase, EditPhase::Update);
+    assert_eq!(update.events()[0].transaction, transaction);
+
+    let Some(WidgetDispatchResult::Message(cancel)) =
+        current.dispatch_input_at_path(32, &[], bounds, WidgetInput::FocusChanged(false))
+    else {
+        panic!("retained Slider transaction should cancel on focus loss");
+    };
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.events()[0].start_value, 0.25);
+    assert_eq!(cancel.value_change(), Some(0.25));
+    assert_eq!(
+        current
+            .find_widget_at_path(&[])
+            .expect("cancelled Slider exists")
+            .widget()
+            .automation_semantics()
+            .value_text
+            .as_deref(),
+        Some("0.250")
+    );
 }
 
 #[test]

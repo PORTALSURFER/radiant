@@ -227,7 +227,7 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return;
         };
-        let _ = self.dispatch_surface_input(widget_id, bounds, WidgetInput::FocusChanged(false));
+        let result = self.dispatch_surface_pointer_capture_cancelled(widget_id, bounds);
         let Some(next_state) = self
             .surface_widget(widget_id)
             .map(|widget| widget.widget_object().common().state)
@@ -236,6 +236,14 @@ where
         };
         if previous_state != next_state {
             self.repaint_requested = true;
+        }
+        match result {
+            Some(crate::runtime::WidgetDispatchResult::Message(message)) => {
+                let outcome = self.dispatch_message(message);
+                self.pending_input_command_outcome.merge(outcome);
+            }
+            Some(crate::runtime::WidgetDispatchResult::UnmappedOutput) => self.relayout(),
+            Some(crate::runtime::WidgetDispatchResult::NoOutput) | None => {}
         }
     }
 

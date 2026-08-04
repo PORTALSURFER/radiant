@@ -41,4 +41,26 @@ impl<Message> UiSurface<Message> {
         self.root
             .dispatch_input_at_path(widget_id, child_path.as_slice(), bounds, input)
     }
+
+    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: crate::gui::types::Rect,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_pointer_capture_cancelled(widget_id, bounds))
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &WidgetPath,
+        bounds: crate::gui::types::Rect,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.root.dispatch_pointer_capture_cancelled_at_path(
+            widget_id,
+            child_path.as_slice(),
+            bounds,
+        )
+    }
 }

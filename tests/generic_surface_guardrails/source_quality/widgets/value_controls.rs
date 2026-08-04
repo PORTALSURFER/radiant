@@ -152,13 +152,105 @@ fn slider_primitive_keeps_surface_builders_and_tests_focused() {
         builders.contains("impl<Message> SurfaceNode<Message>")
             && builders.contains("pub fn slider(")
             && builders.contains("pub fn slider_mapped(")
+            && builders.contains("pub fn slider_edits_mapped(")
+            && builders.contains("pub fn slider_edits(")
             && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
         "slider runtime builder helpers should live in slider/builders.rs"
     );
     assert!(
         tests.contains("fn slider_pointer_drag_emits_clamped_values")
-            && tests.contains("fn focused_slider_responds_to_keyboard_steps"),
+            && tests.contains("fn focused_slider_responds_to_keyboard_steps")
+            && tests
+                .contains("fn slider_edit_batch_is_copyable_bounded_and_projects_lifecycle_values"),
         "slider behavior tests should live in slider/tests.rs"
+    );
+}
+
+#[test]
+fn slider_public_state_stays_source_compatible_and_retention_stays_private() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let model = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/model.rs"))
+        .expect("slider model should be readable");
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider.rs"))
+        .expect("slider primitive root should be readable");
+    let input = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/input.rs"))
+        .expect("slider input should be readable");
+    let retained =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/retained.rs"))
+            .expect("retained slider adapter should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/builders.rs"))
+            .expect("slider builders should be readable");
+    let application_builder =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/slider.rs"))
+            .expect("application slider builder should be readable");
+
+    let state_start = model
+        .find("pub struct SliderState")
+        .expect("SliderState should remain public");
+    let state_end = model[state_start..]
+        .find("}\n")
+        .expect("SliderState should have a closed field list");
+    let state = &model[state_start..state_start + state_end];
+    assert!(
+        state.contains("pub value: f32") && !state.contains("active_edit"),
+        "SliderState must remain the public one-field value model"
+    );
+    assert!(
+        root.contains("pub common: WidgetCommon")
+            && root.contains("pub props: SliderProps")
+            && root.contains("pub state: SliderState")
+            && root.contains("pub fn handle_input(")
+            && !root.contains("active_edit"),
+        "bare SliderWidget must keep its public three-field concise contract"
+    );
+    assert!(
+        retained.contains("pub(crate) struct RetainedSliderWidget")
+            && retained.contains("slider: SliderWidget")
+            && retained.contains("active_edit: Option<EditEvent<f32>>")
+            && !retained.contains("Box<")
+            && !retained.contains("HashMap"),
+        "Slider lifecycle state must have one private retained adapter owner"
+    );
+    assert!(
+        input.contains("active_edit: &mut Option<EditEvent<f32>>")
+            && !input.contains("state.active_edit"),
+        "Slider input must receive lifecycle state separately from public value/configuration"
+    );
+    assert!(
+        builders.matches("RetainedSliderWidget::new").count() >= 2
+            && application_builder.contains("RetainedSliderWidget::new"),
+        "official Slider constructors must consistently lower through the retained adapter"
+    );
+}
+
+#[test]
+fn slider_edit_batch_is_fixed_capacity_and_kept_out_of_the_prelude() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let batch = fs::read_to_string(manifest_dir.join("src/widgets/interaction/messages/range.rs"))
+        .expect("range interaction messages should be readable");
+    let prelude_widgets =
+        fs::read_to_string(manifest_dir.join("src/prelude/widgets.rs")).expect("widgets prelude");
+    let prelude_controls =
+        fs::read_to_string(manifest_dir.join("src/prelude/application/controls.rs"))
+            .expect("application controls prelude");
+
+    assert!(
+        batch.contains("pub struct SliderEditBatch")
+            && batch.contains("events: [EditEvent<f32>; 3]")
+            && batch.contains("field(\"meaningful_rollback\"")
+            && batch.contains("self.meaningful_rollback == other.meaningful_rollback")
+            && batch.contains("pub fn events(&self) -> &[EditEvent<f32>]")
+            && !batch.contains("Vec<")
+            && !batch.contains("SmallVec")
+            && !batch.contains("Mutex")
+            && !batch.contains("channel"),
+        "SliderEditBatch should remain a bounded copy-only typed payload"
+    );
+    assert!(
+        !prelude_widgets.contains("SliderEditBatch")
+            && !prelude_controls.contains("slider_edit_mapped"),
+        "Slider lifecycle APIs should remain qualified rather than entering the prelude"
     );
 }
 

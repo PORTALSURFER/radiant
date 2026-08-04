@@ -2,7 +2,7 @@ use super::super::*;
 use radiant::runtime::SurfaceRuntime;
 use radiant::widgets::{
     IconButtonWidget, InteractiveRowWidget, PointerShieldMessage, PointerShieldWidget,
-    ProgressBarMessage, ProgressBarWidget, SliderWidget, TextInputMessage, TextInputWidget,
+    ProgressBarMessage, ProgressBarWidget, TextInputMessage, TextInputWidget,
 };
 
 #[test]
@@ -146,8 +146,11 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         Some("icon")
     );
 
-    let slider = widget_ref::<SliderWidget, _>(&surface, 23, "slider");
-    assert_eq!(slider.common.sizing.preferred, Vector2::new(92.0, 20.0));
+    let slider = surface
+        .find_widget(23)
+        .expect("slider widget should exist")
+        .widget();
+    assert_eq!(slider.common().sizing.preferred, Vector2::new(92.0, 20.0));
     let progress = widget_ref::<ProgressBarWidget, _>(&surface, 25, "progress bar");
     assert_eq!(
         progress.props.mode,

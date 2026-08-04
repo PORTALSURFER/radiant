@@ -279,6 +279,23 @@ impl<Message> SurfaceWidget<Message> {
             .flatten()
     }
 
+    pub(in crate::runtime) fn dispatch_pointer_capture_cancelled(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_pointer_capture_cancelled(bounds))
+            .flatten()
+        else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
     pub(in crate::runtime) fn dispatch_input(
         &mut self,
         widget_id: WidgetId,

@@ -94,6 +94,17 @@ impl<Message> SurfaceNode<Message> {
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
     }
 
+    pub(super) fn dispatch_pointer_capture_cancelled_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_pointer_capture_cancelled(widget_id, bounds))
+    }
+
     pub(super) fn dispatch_output(
         &self,
         widget_id: WidgetId,

@@ -1,9 +1,12 @@
+use crate::widgets::RetainedSliderWidget;
 use crate::{
     application::{
         MappedWidget, ViewNode, default_slider_sizing, primary_style, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
-    widgets::{SliderMessage, SliderWidget, WidgetProminence, WidgetSizing, WidgetStyle},
+    widgets::{
+        SliderEditBatch, SliderMessage, SliderWidget, WidgetProminence, WidgetSizing, WidgetStyle,
+    },
 };
 
 /// Builder for horizontal sliders that emit explicit host messages.
@@ -65,6 +68,20 @@ impl SliderBuilder {
         self,
         map: impl Fn(f32) -> Message + 'static,
     ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::slider(move |message| match message {
+            SliderMessage::ValueChanged { value } => map(value),
+        }))
+    }
+
+    /// Emit a host message for the complete ordered slider edit lifecycle.
+    pub fn on_edit<Message: 'static>(
+        self,
+        map: impl Fn(SliderEditBatch) -> Message + 'static,
+    ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::slider_edits(map))
+    }
+
+    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
         let mut slider = SliderWidget::new(
             0,
             self.value,
@@ -80,10 +97,8 @@ impl SliderBuilder {
         }
         slider = slider.with_track_border(self.paints_track_border);
         let mut node = view_node_from_widget(MappedWidget::new(
-            slider,
-            WidgetMessageMapper::slider(move |message| match message {
-                SliderMessage::ValueChanged { value } => map(value),
-            }),
+            RetainedSliderWidget::new(slider),
+            messages,
         ));
         node.style = self.style;
         node
@@ -108,4 +123,12 @@ pub fn slider_mapped<Message: 'static>(
     map: impl Fn(f32) -> Message + 'static,
 ) -> ViewNode<Message> {
     slider(value).message(map)
+}
+
+/// Build a horizontal normalized slider that forwards complete edit batches.
+pub fn slider_edit_mapped<Message: 'static>(
+    value: f32,
+    map: impl Fn(SliderEditBatch) -> Message + 'static,
+) -> ViewNode<Message> {
+    slider(value).on_edit(map)
 }

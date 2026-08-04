@@ -24,6 +24,22 @@ where
             .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
     }
 
+    pub(super) fn dispatch_surface_pointer_capture_cancelled(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
+            return self
+                .surface
+                .dispatch_widget_pointer_capture_cancelled_message(widget_id, bounds);
+        };
+        self.surface
+            .dispatch_widget_pointer_capture_cancelled_message_at_path(
+                widget_id, child_path, bounds,
+            )
+    }
+
     pub(super) fn surface_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
         self.traversal
             .widgets

@@ -5,6 +5,9 @@ mod geometry;
 mod input;
 mod model;
 mod paint;
+mod retained;
+
+pub(crate) use retained::RetainedSliderWidget;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
@@ -103,6 +106,10 @@ impl SliderWidget {
         }
         self.state.value = value;
         Some(SliderMessage::ValueChanged { value })
+    }
+
+    pub(super) fn is_editable(&self) -> bool {
+        !self.common.state.disabled && !self.common.state.read_only
     }
 }
 

@@ -35,7 +35,13 @@ fn text_input_and_toggle_helpers_map_value_messages() {
                 "Raw toggle",
                 WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
                 |message| match message {
-                    ToggleMessage::ValueChanged { checked } => DemoMessage::SetActive(!checked),
+                    ToggleMessage::ValueChanged {
+                        checked,
+                        provenance,
+                    } => DemoMessage::ToggleChanged {
+                        checked,
+                        provenance,
+                    },
                 },
             )),
             SurfaceChild::fill(SurfaceNode::toggle_with_checked(
@@ -51,7 +57,13 @@ fn text_input_and_toggle_helpers_map_value_messages() {
                 true,
                 WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
                 |message| match message {
-                    ToggleMessage::ValueChanged { checked } => DemoMessage::SetActive(!checked),
+                    ToggleMessage::ValueChanged {
+                        checked,
+                        provenance,
+                    } => DemoMessage::ToggleChanged {
+                        checked,
+                        provenance,
+                    },
                 },
             )),
         ],
@@ -78,16 +90,41 @@ fn text_input_and_toggle_helpers_map_value_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             52,
-            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged { checked: true })
+            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged {
+                checked: true,
+                provenance: InteractionProvenance::Programmatic,
+            })
         ),
         Some(DemoMessage::SetActive(true))
     );
     assert_eq!(
         surface.dispatch_widget_output(
             53,
-            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged { checked: true })
+            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged {
+                checked: true,
+                provenance: InteractionProvenance::Pointer {
+                    modifiers: radiant::widgets::PointerModifiers {
+                        command: true,
+                        shift: false,
+                        alt: false,
+                    },
+                    timestamp: None,
+                    sequence_range: None,
+                },
+            })
         ),
-        Some(DemoMessage::SetActive(false))
+        Some(DemoMessage::ToggleChanged {
+            checked: true,
+            provenance: InteractionProvenance::Pointer {
+                modifiers: radiant::widgets::PointerModifiers {
+                    command: true,
+                    shift: false,
+                    alt: false,
+                },
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
     );
     assert_eq!(
         surface

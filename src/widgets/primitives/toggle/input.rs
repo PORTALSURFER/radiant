@@ -1,7 +1,9 @@
 //! Toggle pointer and keyboard event routing.
 
 use crate::gui::types::Rect;
-use crate::widgets::interaction::{PointerButton, ToggleMessage, WidgetInput};
+use crate::widgets::interaction::{
+    InteractionProvenance, PointerButton, ToggleMessage, WidgetInput,
+};
 
 use super::ToggleWidget;
 use crate::widgets::primitives::support::activate_on_keyboard;
@@ -38,14 +40,21 @@ pub(super) fn handle_toggle_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
-            ..
+            modifiers,
+            timestamp,
         } => {
             let should_toggle =
                 toggle.common.state.pressed && toggle.state.armed && bounds.contains(position);
             toggle.common.state.pressed = false;
             toggle.common.state.hovered = bounds.contains(position);
             toggle.state.armed = false;
-            should_toggle.then(|| toggle.toggle())
+            should_toggle.then(|| {
+                toggle.toggle(InteractionProvenance::Pointer {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                })
+            })
         }
         WidgetInput::FocusChanged(focused) => {
             toggle.common.state.focused = focused;
@@ -55,10 +64,10 @@ pub(super) fn handle_toggle_input(
             }
             None
         }
-        WidgetInput::KeyPress { key, .. }
+        WidgetInput::KeyPress { key, timestamp }
             if toggle.common.state.focused && activate_on_keyboard(key) =>
         {
-            Some(toggle.toggle())
+            Some(toggle.toggle(InteractionProvenance::Keyboard { timestamp }))
         }
         _ => None,
     }

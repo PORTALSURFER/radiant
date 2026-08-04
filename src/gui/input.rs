@@ -9,7 +9,7 @@ pub use key::{KeyCode, KeyPress};
 pub use pointer::logical_point_to_u16_coords;
 
 /// Opaque monotonic timestamp captured at the native input boundary.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputTimestamp(Instant);
 
 impl InputTimestamp {
@@ -20,7 +20,7 @@ impl InputTimestamp {
 }
 
 /// Opaque sequence identity allocated for one accepted native input sample.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InputSequence(u64);
 
 impl InputSequence {
@@ -35,7 +35,7 @@ impl InputSequence {
 }
 
 /// Opaque range of native input samples contributed to one delivery.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InputSequenceRange {
     start: InputSequence,
     end: InputSequence,

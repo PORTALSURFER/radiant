@@ -49,7 +49,7 @@ impl ToggleBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(
             ToggleWidget::new(0, self.label, sizing).with_checked(self.checked),
             WidgetMessageMapper::toggle(move |message| match message {
-                ToggleMessage::ValueChanged { checked } => map(checked),
+                ToggleMessage::ValueChanged { checked, .. } => map(checked),
             }),
         ));
         node.style = self.style;

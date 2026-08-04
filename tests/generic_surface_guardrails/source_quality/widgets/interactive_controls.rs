@@ -227,7 +227,7 @@ fn interactive_row_actions_name_legacy_transfer_and_local_ui_boundaries() {
 }
 
 #[test]
-fn interactive_row_provenance_stays_copy_only_and_transient() {
+fn interactive_row_provenance_stays_copy_only_hashable_and_transient() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let provenance = fs::read_to_string(manifest_dir.join("src/widgets/interaction/provenance.rs"))
         .expect("shared interaction provenance should be readable");
@@ -246,10 +246,10 @@ fn interactive_row_provenance_stays_copy_only_and_transient() {
 
     assert_eq!(
         provenance
-            .matches("#[derive(Clone, Copy, Debug, PartialEq, Eq)]")
+            .matches("#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]")
             .count(),
         2,
-        "shared source and provenance should both be copy-only equality types"
+        "shared source and provenance should both be copy-only hashable equality types"
     );
     assert!(
         !provenance.contains("Default") && provenance.contains("pub const fn source(self)"),

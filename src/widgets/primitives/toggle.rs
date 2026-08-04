@@ -21,7 +21,9 @@ use crate::widgets::contract::{
     FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics,
     WidgetSemanticsRevision, WidgetSizing,
 };
-use crate::widgets::interaction::{ToggleMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{
+    InteractionProvenance, ToggleMessage, WidgetInput, WidgetOutput,
+};
 
 pub use model::{ToggleProps, ToggleState};
 
@@ -82,11 +84,12 @@ impl ToggleWidget {
 }
 
 impl ToggleWidget {
-    pub(super) fn toggle(&mut self) -> ToggleMessage {
+    pub(super) fn toggle(&mut self, provenance: InteractionProvenance) -> ToggleMessage {
         self.state.checked = !self.state.checked;
         self.common.state.active = self.state.checked;
         ToggleMessage::ValueChanged {
             checked: self.state.checked,
+            provenance,
         }
     }
 }

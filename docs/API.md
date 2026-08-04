@@ -823,7 +823,8 @@ Radiant row interactions into host-specific row messages without repeating
 exhaustive event-shape matches.
 The shared `InteractionSource` and `InteractionProvenance` enums are owned by
 `widgets::interaction` and exported explicitly from `radiant::widgets` and the
-common `radiant::prelude`; both are `Clone + Copy + Debug + PartialEq + Eq` and
+common `radiant::prelude`; both are
+`Clone + Copy + Debug + PartialEq + Eq + Hash` and
 intentionally have no `Default`. `InteractionProvenance::source()` returns the
 explicit `InteractionSource` category, so missing native evidence is not
 inferred as `Programmatic`.
@@ -839,6 +840,21 @@ with absent native evidence.
 provenance, while `InteractiveRowMessage::DoubleActivate { provenance }` preserves the exact modifiers
 and optional timestamp from the accepted second native double-click sample as
 `InteractionProvenance::Pointer { .. }`; its sequence range is always `None`.
+`ToggleMessage::ValueChanged { checked, provenance }` carries the new checked
+value together with the accepted interaction provenance. Accepted primary
+pointer releases copy their exact release modifiers and optional timestamp with
+`sequence_range: None`; accepted focused Enter/Space key presses copy their
+optional key-press timestamp. Synthetic pointer and keyboard constructors keep
+the `Pointer` and `Keyboard` source categories with absent evidence, and missing
+timestamps never imply `Programmatic`. Provenance is observational only: it does
+not change acceptance, flipping, retained interaction state, or host-message
+behavior. `ToggleBuilder::message`, application `toggle_mapped`,
+`SurfaceNode::toggle`, and `SurfaceNode::toggle_with_checked` intentionally
+project only `checked`; `ToggleBuilder::message_with`/`mapped_with`,
+`SurfaceNode::toggle_mapped`/`toggle_mapped_with_checked`, and
+`WidgetMessageMapper::toggle`/`toggle_mapped` forward the complete typed
+`ToggleMessage`. `Accessibility` and `Programmatic` remain explicit direct
+provenance values; no input routes are added for them.
 `WidgetInput::primary_double_click(...)` is still synthetic pointer input, so it
 emits `Pointer` provenance with default modifiers and no timestamp or sequence
 range. `activation_modifiers()` remains a compatibility projection: plain and

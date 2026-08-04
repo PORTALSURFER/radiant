@@ -159,3 +159,28 @@ fn toggle_message_exposes_explicit_programmatic_provenance_and_hashes_it() {
     let messages = HashSet::from([programmatic, keyboard]);
     assert_eq!(messages.len(), 2);
 }
+
+#[test]
+fn public_edit_events_are_readable_copyable_and_typed_output_routable() {
+    fn assert_copyable<T: Clone + Copy + Debug + PartialEq>() {}
+
+    assert_copyable::<EditEvent<f32>>();
+    assert_copyable::<EditPhase>();
+    assert_copyable::<EditTransaction>();
+
+    let provenance = InteractionProvenance::Keyboard { timestamp: None };
+    let event = EditEvent::begin(0.25_f32, provenance);
+    assert_eq!(event.phase, EditPhase::Begin);
+    assert_eq!(event.start_value, event.value);
+    assert_eq!(event.transaction.source(), InteractionSource::Keyboard);
+    assert_eq!(event.provenance, provenance);
+
+    let surface: UiSurface<EditEvent<f32>> = UiSurface::new(SurfaceNode::widget(
+        ButtonWidget::new(91, "Edit", WidgetSizing::fixed(Vector2::new(64.0, 24.0))),
+        WidgetMessageMapper::typed(|edit: EditEvent<f32>| edit),
+    ));
+    let output = WidgetOutput::typed(event);
+
+    assert_eq!(output.typed_copied::<EditEvent<f32>>(), Some(event));
+    assert_eq!(surface.dispatch_widget_output(91, output), Some(event));
+}

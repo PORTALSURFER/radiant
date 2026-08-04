@@ -1588,7 +1588,8 @@ Pointer scrubbing, arrow-key increments, page increments, wheel adjustment, and
 accessibility actions all use the same mapping, `InteractionProvenance`
 vocabulary, and `EditTransaction` lifecycle. `Slider` already ships;
 provenance-aware `Slider` migration/adoption is explicitly deferred until the
-shared edit-event foundation exists.
+shared edit-event foundation is shipped; Slider adoption remains a separate next
+slice.
 Applications may provide a custom mapping only when it is total, finite, and
 monotonic over the declared range; Radiant rejects ambiguous inverse mappings
 rather than allowing a displayed value and edited value to diverge. Mapping and
@@ -1604,8 +1605,8 @@ An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
 `Cancel` phase, current and starting value, and `InteractionProvenance` from the
 shared vocabulary. `EditTransaction` selects its `InteractionSource` at
 `Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
-`Slider` already ships; provenance-aware `Slider` migration/adoption remains
-deferred until the shared edit-event foundation exists. Begin, commit, and
+`Slider` already ships; provenance-aware `Slider` adoption is the separate next
+slice now that the shared edit-event foundation is shipped. Begin, commit, and
 cancellation are never coalesced. High-rate updates may be latest-wins per
 presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation

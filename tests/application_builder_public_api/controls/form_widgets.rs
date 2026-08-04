@@ -179,6 +179,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
                 position: ui::Point::new(1.0, 2.0),
                 button: ui::PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             }),
         ),
         Some("pointer-drop")
@@ -190,6 +191,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
                 position: ui::Point::new(1.0, 2.0),
                 button: ui::PointerButton::Primary,
                 modifiers: Default::default(),
+                timestamp: None,
             }),
         ),
         Some("drop-message")
@@ -199,6 +201,8 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             27,
             radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
                 position: ui::Point::new(1.0, 2.0),
+                timestamp: None,
+                sequence_range: None,
             }),
         ),
         None
@@ -208,6 +212,8 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             28,
             radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
                 position: ui::Point::new(4.0, 2.0),
+                timestamp: None,
+                sequence_range: None,
             }),
         ),
         Some("move-right")
@@ -217,6 +223,8 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             29,
             radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
                 position: ui::Point::new(4.0, 2.0),
+                timestamp: None,
+                sequence_range: None,
             }),
         ),
         None

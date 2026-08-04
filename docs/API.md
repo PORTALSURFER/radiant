@@ -1095,6 +1095,13 @@ modal/loading states or clear stale drag-hover state without app-local invisible
 hit-test widgets. `PointerShieldProps::wheel` and
 `PointerShieldBuilder::wheel(...)` control wheel interception; existing
 move-only and drop-only convenience constructors leave wheel disabled.
+Each emitted message preserves the optional `InputTimestamp` carried by normalized
+`WidgetInput`; high-rate move and wheel messages also preserve its optional opaque
+`InputSequenceRange`. Press, release, and drop messages intentionally carry no
+sequence range. Public and synthetic `WidgetInput` constructors leave these
+metadata fields absent. The metadata is observational only: it does not change
+shield bounds, acceptance, routing, focus, capture, refresh, scheduling, paint,
+or application mapping behavior.
 Convenience constructors such as `.pointer_move_only(...)` and
 `.pointer_drop_only(...)` cover common transparent overlay policies.
 Container-owned pointer targets can use

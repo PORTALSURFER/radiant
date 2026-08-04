@@ -112,7 +112,7 @@ impl PointerShieldBuilder {
                 output
                     .typed_ref::<PointerShieldMessage>()
                     .and_then(|message| match message {
-                        PointerShieldMessage::PointerMove { position } => Some(map(*position)),
+                        PointerShieldMessage::PointerMove { position, .. } => Some(map(*position)),
                         _ => None,
                     })
             }),

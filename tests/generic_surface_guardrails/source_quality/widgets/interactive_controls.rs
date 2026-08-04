@@ -227,6 +227,47 @@ fn interactive_row_actions_name_legacy_transfer_and_local_ui_boundaries() {
 }
 
 #[test]
+fn interactive_row_provenance_stays_copy_only_and_transient() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let provenance = fs::read_to_string(manifest_dir.join("src/widgets/interaction/provenance.rs"))
+        .expect("shared interaction provenance should be readable");
+    let row = fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row.rs"))
+        .expect("interactive-row primitive should be readable");
+    let input =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/input.rs"))
+            .expect("interactive-row input should be readable");
+    let state_start = row
+        .find("pub struct InteractiveRowWidget {")
+        .expect("interactive-row state should remain a named struct");
+    let state_end = row[state_start..]
+        .find("}\n")
+        .expect("interactive-row state should have a closed field list");
+    let state = &row[state_start..state_start + state_end];
+
+    assert_eq!(
+        provenance
+            .matches("#[derive(Clone, Copy, Debug, PartialEq, Eq)]")
+            .count(),
+        2,
+        "shared source and provenance should both be copy-only equality types"
+    );
+    assert!(
+        !provenance.contains("Default") && provenance.contains("pub const fn source(self)"),
+        "shared provenance should have no ambiguous Default and should expose exhaustive source mapping"
+    );
+    assert!(
+        input.contains("InteractionProvenance::Pointer")
+            && input.contains("timestamp")
+            && input.contains("sequence_range: None"),
+        "interactive-row input should attach provenance only at the accepted double-click boundary"
+    );
+    assert!(
+        !state.contains("InteractionProvenance"),
+        "interactive-row retained state should not retain transient provenance"
+    );
+}
+
+#[test]
 fn list_item_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))

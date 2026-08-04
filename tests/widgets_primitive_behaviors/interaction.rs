@@ -79,7 +79,13 @@ fn interactive_row_emits_double_activation() {
                 timestamp: None,
             },
         ),
-        Some(InteractiveRowMessage::DoubleActivate)
+        Some(InteractiveRowMessage::DoubleActivate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
     );
     assert!(row.common.state.hovered);
     assert!(row.common.state.pressed);
@@ -131,6 +137,14 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
         position: Point::new(18.0, 9.0),
         metadata: DragHandleMetadata::empty(),
     };
+    let double_provenance = InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: None,
+        sequence_range: None,
+    };
+    let double = InteractiveRowMessage::DoubleActivate {
+        provenance: double_provenance,
+    };
 
     assert_eq!(
         InteractiveRowMessage::Activate.activation_modifiers(),
@@ -141,13 +155,12 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
         Some(PointerModifiers::default())
     );
     assert_eq!(
-        InteractiveRowMessage::DoubleActivate.activation_modifiers(),
+        double.activation_modifiers(),
         Some(PointerModifiers::default())
     );
-    assert_eq!(
-        InteractiveRowMessage::DoubleActivate.single_activation_modifiers(),
-        None
-    );
+    assert_eq!(double.activation_provenance(), Some(double_provenance));
+    assert_eq!(double.input_metadata(), InteractiveRowMetadata::default());
+    assert_eq!(double.single_activation_modifiers(), None);
     assert_eq!(
         InteractiveRowMessage::ActivateWithModifiers { modifiers }.activation_modifiers(),
         Some(modifiers)
@@ -159,9 +172,13 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     assert!(InteractiveRowMessage::Activate.is_activation());
     assert!(InteractiveRowMessage::Activate.is_single_activation());
     assert!(!InteractiveRowMessage::Activate.is_double_activation());
-    assert!(InteractiveRowMessage::DoubleActivate.is_activation());
-    assert!(!InteractiveRowMessage::DoubleActivate.is_single_activation());
-    assert!(InteractiveRowMessage::DoubleActivate.is_double_activation());
+    assert_eq!(
+        InteractiveRowMessage::Activate.activation_provenance(),
+        None
+    );
+    assert!(double.is_activation());
+    assert!(!double.is_single_activation());
+    assert!(double.is_double_activation());
     assert_eq!(
         InteractiveRowMessage::SecondaryActivate {
             position: Point::new(12.0, 4.0)

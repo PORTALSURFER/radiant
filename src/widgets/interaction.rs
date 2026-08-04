@@ -6,6 +6,7 @@ mod cursor;
 mod input;
 mod messages;
 mod output;
+mod provenance;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
 pub use canvas_gesture::{
@@ -22,3 +23,4 @@ pub use messages::{
     TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};
+pub use provenance::{InteractionProvenance, InteractionSource};

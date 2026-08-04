@@ -9,7 +9,7 @@ use std::{
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
-const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 477;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 479;
 const MIN_COMMON_PRELUDE_HEADROOM_PERCENT: usize = 10;
 
 const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
@@ -18,7 +18,7 @@ const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
     ("layout", 1),
     ("runtime", 32),
     ("theme", 3),
-    ("widgets", 50),
+    ("widgets", 52),
 ];
 
 const SPECIALIST_DETAILS_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[

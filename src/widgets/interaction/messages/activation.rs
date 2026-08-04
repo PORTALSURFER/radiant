@@ -4,7 +4,7 @@ use crate::{
         input::{InputSequenceRange, InputTimestamp},
         types::Point,
     },
-    widgets::interaction::input::PointerModifiers,
+    widgets::interaction::{InteractionProvenance, input::PointerModifiers},
 };
 
 /// Message emitted by a reusable button primitive.
@@ -103,7 +103,10 @@ pub enum InteractiveRowMessage {
         modifiers: PointerModifiers,
     },
     /// The row received a primary-button double activation.
-    DoubleActivate,
+    DoubleActivate {
+        /// Provenance captured from the accepted second double-click sample.
+        provenance: InteractionProvenance,
+    },
     /// The row received a secondary/right pointer click.
     SecondaryActivate {
         /// Pointer position where the secondary activation occurred.
@@ -137,15 +140,26 @@ impl InteractiveRowMessage {
     /// interaction model into host-specific row actions.
     pub fn activation_modifiers(self) -> Option<PointerModifiers> {
         match self {
-            Self::Activate | Self::DoubleActivate => Some(PointerModifiers::default()),
+            Self::Activate | Self::DoubleActivate { .. } => Some(PointerModifiers::default()),
             Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            _ => None,
+        }
+    }
+
+    /// Return provenance for a double activation, when present.
+    pub const fn activation_provenance(&self) -> Option<InteractionProvenance> {
+        match self {
+            Self::DoubleActivate { provenance } => Some(*provenance),
             _ => None,
         }
     }
 
     /// Return whether this message is any primary activation.
     pub fn is_activation(self) -> bool {
-        self.activation_modifiers().is_some()
+        matches!(
+            self,
+            Self::Activate | Self::ActivateWithModifiers { .. } | Self::DoubleActivate { .. }
+        )
     }
 
     /// Return modifier state when this message is a single primary activation.
@@ -168,7 +182,7 @@ impl InteractiveRowMessage {
 
     /// Return whether this message is a primary double activation.
     pub fn is_double_activation(self) -> bool {
-        matches!(self, Self::DoubleActivate)
+        matches!(self, Self::DoubleActivate { .. })
     }
 
     /// Return the secondary/right-click activation position, when present.

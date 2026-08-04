@@ -973,7 +973,8 @@ of fractional digits; percent output scales by 100 and appends `%`, while
 frequency output appends ` Hz`. The default separator is `Period`, and
 `with_decimal_separator(DecimalSeparator::Comma)` changes only the emitted
 decimal separator. The policy never inspects ambient operating-system locale.
-Requests above the bounded nine-digit precision maximum are clamped to nine.
+Requests above `ValueFormat::MAX_FRACTION_DIGITS` (nine) are clamped to that
+named maximum.
 Nonfinite values are rejected before writing, and caller writer failures return
 the typed `ValueFormatError::WriteFailed` variant.
 

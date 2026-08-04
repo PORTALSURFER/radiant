@@ -1605,8 +1605,9 @@ the relevant boundary, and use `f64` intermediates before returning a finite
 The shipped `ValueFormat` policy foundation is backend-neutral and exposes only
 decimal, percent, and frequency forms. It writes fixed-precision output into
 caller-owned `fmt::Write` storage without an internal `String` allocation,
-rejects nonfinite values before writing, and caps requested precision at nine
-fractional digits. Its decimal separator is explicit (`Period` or `Comma`)
+rejects nonfinite values before writing, and caps requested precision at
+`ValueFormat::MAX_FRACTION_DIGITS` (nine) fractional digits. Its decimal
+separator is explicit (`Period` or `Comma`)
 and never comes from ambient operating-system locale. Frequency defaults to two
 fractional digits; percent scales by 100 and frequency appends ` Hz`.
 

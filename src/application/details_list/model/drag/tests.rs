@@ -183,6 +183,57 @@ fn update_details_column_resize_drag_manages_drag_lifecycle() {
 }
 
 #[test]
+fn update_details_column_resize_drag_cancel_restores_start_width_and_clears() {
+    let mut drag = None;
+
+    assert_eq!(
+        update_details_column_resize_drag(
+            &mut drag,
+            "name",
+            DragHandleMessage::started(crate::gui::types::Point::new(100.0, 0.0)),
+            Some(240.0),
+            48.0,
+            420.0,
+        ),
+        None
+    );
+    assert_eq!(
+        update_details_column_resize_drag(
+            &mut drag,
+            "ignored",
+            DragHandleMessage::Moved {
+                position: crate::gui::types::Point::new(140.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
+            },
+            None,
+            48.0,
+            420.0,
+        ),
+        Some(DetailsColumnWidthUpdate {
+            column_id: String::from("name"),
+            width: 280.0,
+        })
+    );
+    assert_eq!(
+        update_details_column_resize_drag(
+            &mut drag,
+            "ignored",
+            DragHandleMessage::Cancelled {
+                position: crate::gui::types::Point::new(140.0, 0.0),
+            },
+            None,
+            48.0,
+            420.0,
+        ),
+        Some(DetailsColumnWidthUpdate {
+            column_id: String::from("name"),
+            width: 240.0,
+        })
+    );
+    assert_eq!(drag, None);
+}
+
+#[test]
 fn update_details_column_resize_drag_ignores_unknown_starts_and_orphaned_motion() {
     let mut drag = None;
 
@@ -213,6 +264,21 @@ fn update_details_column_resize_drag_ignores_unknown_starts_and_orphaned_motion(
         ),
         None
     );
+
+    assert_eq!(
+        update_details_column_resize_drag(
+            &mut drag,
+            "name",
+            DragHandleMessage::Cancelled {
+                position: crate::gui::types::Point::new(140.0, 0.0),
+            },
+            None,
+            48.0,
+            420.0,
+        ),
+        None
+    );
+    assert_eq!(drag, None);
 }
 
 #[test]

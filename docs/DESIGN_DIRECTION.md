@@ -1341,6 +1341,14 @@ messages, not widget focus state. Repeated selection, range selection, typeahead
 Tab/arrow navigation, accessibility traversal, drag/drop insertion, and culling
 use the same keyed visible-window model.
 
+The current host-facing details-column helpers are concise layout-interaction
+projections, not typed `EditEvent` boundaries or a runtime `LayoutInteraction`
+implementation. An active resize cancellation restores the captured start width
+and column id after any moved width has been projected, while an orphaned resize
+cancellation produces no update. Reorder cancellation still clears its transient
+drag without producing a durable reorder. The generic typed and runtime layout
+interaction contracts remain future work.
+
 `virtual_list` and `virtual_grid` share this contract but use their respective
 placement policies. Collection sorting, filtering, and domain membership remain
 application state; Radiant only virtualizes their projected result.

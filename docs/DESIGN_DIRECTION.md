@@ -1574,8 +1574,11 @@ column([
 
 ### Numeric controls
 
-Sliders and other range controls use a value, a range, optional formatting,
-and a change message. Their layout is still owned by the enclosing container.
+`Slider` is a shipped control. The target API for sliders and other range
+controls includes a value, a range, optional formatting, and a change message;
+the `.format(ValueFormat::percent(0))` call below is illustrative target API
+only and is not currently shipped. Their layout is still owned by the
+enclosing container.
 
 ```rust
 row([
@@ -1666,6 +1669,9 @@ commit, and cancellation are never coalesced. High-rate updates may be latest-wi
 presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation
 deterministically.
+
+The following `Knob` snippet illustrates target API only: `Knob` is shipped,
+but its `.format(ValueFormat::frequency())` call is not currently shipped.
 
 ```rust
 knob(state.cutoff, 20.0..=20_000.0)

@@ -19,6 +19,13 @@ pub(crate) enum WheelOrScrollRoute {
     ScrollContainer,
 }
 
+#[derive(Clone, Copy)]
+struct WheelInputMetadata {
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -139,16 +146,19 @@ where
         sequence_range: Option<InputSequenceRange>,
         refresh_after_message: bool,
     ) -> WheelOrScrollRoute {
-        let input = WidgetInput::wheel(point, delta, modifiers);
+        let metadata = WheelInputMetadata {
+            modifiers,
+            timestamp,
+            sequence_range,
+        };
+        let input = WidgetInput::wheel(point, delta, metadata.modifiers);
         match self.wheel_target_at(point, &input) {
             Some(WheelHitTarget::Widget(widget_id)) => {
                 if self.dispatch_wheel_to_widget_with_refresh(
                     widget_id,
                     point,
                     delta,
-                    modifiers,
-                    timestamp,
-                    sequence_range,
+                    metadata,
                     refresh_after_message,
                 ) {
                     WheelOrScrollRoute::Widget
@@ -174,9 +184,7 @@ where
         widget_id: WidgetId,
         point: Point,
         delta: Vector2,
-        modifiers: PointerModifiers,
-        timestamp: Option<InputTimestamp>,
-        sequence_range: Option<InputSequenceRange>,
+        metadata: WheelInputMetadata,
         refresh_after_message: bool,
     ) -> bool {
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
@@ -185,7 +193,13 @@ where
         let Some(result) = self.dispatch_surface_input(
             widget_id,
             bounds,
-            WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp, sequence_range),
+            WidgetInput::wheel_with_metadata(
+                point,
+                delta,
+                metadata.modifiers,
+                metadata.timestamp,
+                metadata.sequence_range,
+            ),
         ) else {
             return false;
         };

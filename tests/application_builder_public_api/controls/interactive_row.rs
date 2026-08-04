@@ -119,6 +119,18 @@ fn knob_wheel_metadata_and_compatibility_constructor_are_available_from_prelude(
 }
 
 #[test]
+fn knob_keyboard_metadata_and_compatibility_constructor_are_available_from_prelude() {
+    let metadata = ui::KnobKeyboardMetadata::default();
+    let gesture = ui::KnobKeyboardGesture::new_with_metadata(0.25, 0.35, metadata);
+
+    assert_eq!(gesture.input_metadata(), metadata);
+    assert_eq!(
+        ui::KnobKeyboardGesture::new(0.25, 0.3).input_metadata(),
+        ui::KnobKeyboardMetadata::default()
+    );
+}
+
+#[test]
 fn local_interactive_row_actions_accept_ui_only_capture() {
     #[derive(Clone, Debug, PartialEq)]
     struct UiOnlyMessage(Rc<RefCell<usize>>);

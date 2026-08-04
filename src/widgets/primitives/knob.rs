@@ -2,7 +2,10 @@
 
 use std::f32::consts::TAU;
 
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::{
+    input::InputTimestamp,
+    types::{Point, Rect, Vector2},
+};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintStrokePolyline};
 use crate::theme::ThemeTokens;
@@ -10,8 +13,8 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, KnobWheelMetadata, PointerButton,
-    WidgetInput, WidgetKey, WidgetOutput,
+    KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobWheelGesture, KnobWheelMetadata,
+    PointerButton, WidgetInput, WidgetKey, WidgetOutput,
 };
 
 use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker};
@@ -237,15 +240,13 @@ impl KnobWidget {
                 self.common.state.focused = focused;
                 None
             }
-            WidgetInput::KeyPress { key, .. } if self.common.state.focused => match key {
-                WidgetKey::ArrowLeft | WidgetKey::ArrowDown => {
-                    self.keyboard_gesture(self.state.value - self.props.sensitivity * 16.0)
-                }
-                WidgetKey::ArrowRight | WidgetKey::ArrowUp => {
-                    self.keyboard_gesture(self.state.value + self.props.sensitivity * 16.0)
-                }
-                WidgetKey::Home => self.keyboard_gesture(0.0),
-                WidgetKey::End => self.keyboard_gesture(1.0),
+            WidgetInput::KeyPress { key, timestamp } if self.common.state.focused => match key {
+                WidgetKey::ArrowLeft | WidgetKey::ArrowDown => self
+                    .keyboard_gesture(self.state.value - self.props.sensitivity * 16.0, timestamp),
+                WidgetKey::ArrowRight | WidgetKey::ArrowUp => self
+                    .keyboard_gesture(self.state.value + self.props.sensitivity * 16.0, timestamp),
+                WidgetKey::Home => self.keyboard_gesture(0.0, timestamp),
+                WidgetKey::End => self.keyboard_gesture(1.0, timestamp),
                 _ => None,
             },
             _ => None,
@@ -261,13 +262,20 @@ impl KnobWidget {
         Some(value)
     }
 
-    fn keyboard_gesture(&mut self, value: f32) -> Option<KnobMessage> {
+    fn keyboard_gesture(
+        &mut self,
+        value: f32,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<KnobMessage> {
         let start_value = self.state.value;
         let final_value = self.set_value(value)?;
-        Some(KnobMessage::KeyboardGesture(KnobKeyboardGesture::new(
-            start_value,
-            final_value,
-        )))
+        Some(KnobMessage::KeyboardGesture(
+            KnobKeyboardGesture::new_with_metadata(
+                start_value,
+                final_value,
+                KnobKeyboardMetadata { timestamp },
+            ),
+        ))
     }
 
     fn finish_terminal_gesture(&mut self, focus_lost: bool) -> Option<KnobMessage> {
@@ -447,7 +455,10 @@ mod tests {
         },
         runtime::PaintPrimitive,
         widgets::interaction::PointerModifiers,
-        widgets::{KnobAutomationEvent, KnobWheelMetadata, WidgetState, WidgetVisualCue},
+        widgets::{
+            KnobAutomationEvent, KnobKeyboardMetadata, KnobWheelMetadata, WidgetState,
+            WidgetVisualCue,
+        },
     };
 
     #[test]
@@ -580,12 +591,89 @@ mod tests {
                 crate::widgets::KnobAutomationEvent::GestureEnded { value: 1.0 },
             ]
         );
+        assert_eq!(batch.input_metadata(), KnobKeyboardMetadata::default());
 
         knob.common.state.disabled = true;
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::key_press(WidgetKey::ArrowLeft)),
             None
         );
+    }
+
+    #[test]
+    fn knob_keyboard_gesture_preserves_timestamp_for_an_accepted_value_change() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5).with_sensitivity(0.01);
+        knob.handle_input(bounds, WidgetInput::FocusChanged(true));
+        let timestamp = InputTimestamp::capture();
+
+        let Some(KnobMessage::KeyboardGesture(batch)) = knob.handle_input(
+            bounds,
+            WidgetInput::key_press_with_timestamp(WidgetKey::ArrowRight, Some(timestamp)),
+        ) else {
+            panic!("focused keyboard edit should emit a lifecycle batch");
+        };
+
+        assert_eq!(
+            batch.events[0],
+            KnobAutomationEvent::GestureStarted { value: 0.5 }
+        );
+        assert!(matches!(
+            batch.events[1],
+            KnobAutomationEvent::ValueChanged { value } if (value - 0.66).abs() < 0.00001
+        ));
+        assert!(matches!(
+            batch.events[2],
+            KnobAutomationEvent::GestureEnded { value } if (value - 0.66).abs() < 0.00001
+        ));
+        assert_eq!(
+            batch.input_metadata(),
+            KnobKeyboardMetadata {
+                timestamp: Some(timestamp),
+            }
+        );
+    }
+
+    #[test]
+    fn knob_keyboard_gesture_vetoes_unfocused_disabled_unsupported_and_noop_keys() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let timestamp = Some(InputTimestamp::capture());
+        let mut knob = KnobWidget::new(1, 0.5);
+
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::key_press_with_timestamp(WidgetKey::ArrowRight, timestamp),
+            ),
+            None
+        );
+        knob.handle_input(bounds, WidgetInput::FocusChanged(true));
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::key_press_with_timestamp(WidgetKey::Enter, timestamp),
+            ),
+            None
+        );
+
+        knob.state.value = 1.0;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::key_press_with_timestamp(WidgetKey::ArrowRight, timestamp),
+            ),
+            None
+        );
+
+        knob.common.state.disabled = true;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::key_press_with_timestamp(WidgetKey::ArrowLeft, timestamp),
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 1.0);
     }
 
     #[test]

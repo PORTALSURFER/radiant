@@ -2712,6 +2712,20 @@ or `input_metadata()` for explicit provenance. The added public `metadata`
 field means external destructuring of `KnobWheelGesture` must account for that
 field. This metadata is observational only and does not affect Shift fine-step
 selection, direction, clamping, routing, acceptance, or repaint behavior.
+Accepted keyboard edits from `KnobWidget` emit one
+`KnobMessage::KeyboardGesture` with the existing three ordered
+`KnobAutomationEvent` values and a copyable `KnobKeyboardMetadata` payload.
+Its optional timestamp is copied unchanged from an accepted focused, enabled,
+value-changing `WidgetInput::KeyPress`; unsupported, unfocused, disabled, and
+no-op key inputs emit no keyboard gesture. `KnobKeyboardGesture::new(...)`
+remains the compatibility constructor and uses
+`KnobKeyboardMetadata::default()`; use
+`KnobKeyboardGesture::new_with_metadata(...)` or `input_metadata()` for
+explicit provenance. Synthetic `WidgetInput::key_press(...)` inputs and
+inputs with no timestamp retain absent timestamp metadata. The added public
+`metadata` field means external destructuring of `KnobKeyboardGesture` must
+account for that field. This metadata is observational only and does not
+affect key mapping, focus, clamping, routing, acceptance, or repaint behavior.
 `Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
 `KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
 timestamps. The public `Event::key_press(...)`, `Event::character(...)`,

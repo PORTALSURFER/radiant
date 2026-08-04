@@ -1,7 +1,10 @@
 use crate::runtime::{LayerKind, SurfaceLayer, surface::WidgetStateSyncPolicy};
 use crate::runtime::{SurfaceChild, SurfaceNode, WidgetMessageMapper};
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::{
+        input::InputTimestamp,
+        types::{Point, Rect, Vector2},
+    },
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
         ButtonWidget, KnobMessage, KnobWidget, PointerButton, ScrollbarAxis, ScrollbarWidget,
@@ -139,6 +142,44 @@ fn mapped_knob_routes_hover_wheel_to_a_distinct_automation_gesture() {
                     crate::widgets::KnobAutomationEvent::GestureEnded { value: 0.55 },
                 ]
     ));
+}
+
+#[test]
+fn mapped_knob_routes_keyboard_timestamp_for_an_accepted_edit() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let mut root = mapped_knob(0.5, false);
+    assert!(matches!(
+        root.dispatch_input_at_path(30, &[], bounds, WidgetInput::FocusChanged(true)),
+        Some(WidgetDispatchResult::NoOutput)
+    ));
+
+    let timestamp = InputTimestamp::capture();
+    let Some(WidgetDispatchResult::Message(KnobMessage::KeyboardGesture(batch))) = root
+        .dispatch_input_at_path(
+            30,
+            &[],
+            bounds,
+            WidgetInput::key_press_with_timestamp(
+                crate::widgets::WidgetKey::ArrowRight,
+                Some(timestamp),
+            ),
+        )
+    else {
+        panic!("mapped focused keyboard edit should emit a lifecycle batch");
+    };
+    assert_eq!(
+        batch.events[0],
+        crate::widgets::KnobAutomationEvent::GestureStarted { value: 0.5 }
+    );
+    assert!(matches!(
+        batch.events[1],
+        crate::widgets::KnobAutomationEvent::ValueChanged { value } if (value - 0.596).abs() < 0.00001
+    ));
+    assert!(matches!(
+        batch.events[2],
+        crate::widgets::KnobAutomationEvent::GestureEnded { value } if (value - 0.596).abs() < 0.00001
+    ));
+    assert_eq!(batch.input_metadata().timestamp, Some(timestamp));
 }
 
 #[test]

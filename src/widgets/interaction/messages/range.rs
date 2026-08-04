@@ -48,18 +48,49 @@ pub enum KnobAutomationEvent {
 pub struct KnobKeyboardGesture {
     /// Exactly three ordered events: start, final value, end.
     pub events: [KnobAutomationEvent; 3],
+    /// Normalized provenance from the accepted keyboard input sample.
+    pub metadata: KnobKeyboardMetadata,
 }
 
 impl KnobKeyboardGesture {
     /// Build a complete keyboard lifecycle batch.
     pub const fn new(start_value: f32, final_value: f32) -> Self {
+        Self::new_with_metadata(start_value, final_value, KnobKeyboardMetadata::empty())
+    }
+
+    /// Build a complete keyboard lifecycle batch with normalized input provenance.
+    pub const fn new_with_metadata(
+        start_value: f32,
+        final_value: f32,
+        metadata: KnobKeyboardMetadata,
+    ) -> Self {
         Self {
             events: [
                 KnobAutomationEvent::GestureStarted { value: start_value },
                 KnobAutomationEvent::ValueChanged { value: final_value },
                 KnobAutomationEvent::GestureEnded { value: final_value },
             ],
+            metadata,
         }
+    }
+
+    /// Return normalized input provenance carried by this keyboard gesture.
+    pub const fn input_metadata(&self) -> KnobKeyboardMetadata {
+        self.metadata
+    }
+}
+
+/// Normalized input provenance carried by a keyboard automation gesture.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KnobKeyboardMetadata {
+    /// Optional timestamp captured at the native input boundary.
+    pub timestamp: Option<InputTimestamp>,
+}
+
+impl KnobKeyboardMetadata {
+    /// Build metadata with no native sample provenance.
+    pub const fn empty() -> Self {
+        Self { timestamp: None }
     }
 }
 

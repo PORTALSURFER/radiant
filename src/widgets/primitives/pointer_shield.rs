@@ -148,57 +148,70 @@ impl PointerShieldWidget {
             return None;
         }
         match input {
-            WidgetInput::PointerMove { position, .. }
-                if self.props.pointer_move && bounds.contains(position) =>
-            {
-                Some(PointerShieldMessage::PointerMove { position })
+            WidgetInput::PointerMove {
+                position,
+                timestamp,
+                sequence_range,
+                ..
+            } if self.props.pointer_move && bounds.contains(position) => {
+                Some(PointerShieldMessage::PointerMove {
+                    position,
+                    timestamp,
+                    sequence_range,
+                })
             }
             WidgetInput::PointerPress {
                 position,
                 button,
                 modifiers,
-                ..
+                timestamp,
             } if self.props.pointer_press && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerPress {
                     position,
                     button,
                     modifiers,
+                    timestamp,
                 })
             }
             WidgetInput::PointerRelease {
                 position,
                 button,
                 modifiers,
-                ..
+                timestamp,
             } if self.props.pointer_release && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerRelease {
                     position,
                     button,
                     modifiers,
+                    timestamp,
                 })
             }
             WidgetInput::PointerDrop {
                 position,
                 button,
                 modifiers,
-                ..
+                timestamp,
             } if self.props.pointer_drop && bounds.contains(position) => {
                 Some(PointerShieldMessage::PointerDrop {
                     position,
                     button,
                     modifiers,
+                    timestamp,
                 })
             }
             WidgetInput::Wheel {
                 position,
                 delta,
                 modifiers,
-                ..
+                timestamp,
+                sequence_range,
             } if self.props.wheel && bounds.contains(position) => {
                 Some(PointerShieldMessage::Wheel {
                     position,
                     delta,
                     modifiers,
+                    timestamp,
+                    sequence_range,
                 })
             }
             _ => None,
@@ -257,5 +270,195 @@ impl Widget for PointerShieldWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::{
+            input::{InputSequence, InputSequenceRange, InputTimestamp},
+            types::Point,
+        },
+        layout::Vector2,
+        widgets::{PointerButton, PointerModifiers},
+    };
+
+    #[test]
+    fn preserves_normalized_pointer_metadata_in_messages() {
+        let bounds = Rect::from_xy_size(0.0, 0.0, 120.0, 18.0);
+        let position = Point::new(16.0, 8.0);
+        let delta = Vector2::new(0.0, -18.0);
+        let timestamp = Some(InputTimestamp::capture());
+        let sequence_range = Some(InputSequenceRange::singleton(
+            InputSequence::from_runtime_value(17),
+        ));
+        let shield = PointerShieldWidget::fill(true);
+
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::pointer_move_with_metadata(
+                    position,
+                    PointerModifiers::default(),
+                    timestamp,
+                    sequence_range,
+                ),
+            ),
+            Some(PointerShieldMessage::PointerMove {
+                position,
+                timestamp,
+                sequence_range,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position,
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                    timestamp,
+                },
+            ),
+            Some(PointerShieldMessage::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position,
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                    timestamp,
+                },
+            ),
+            Some(PointerShieldMessage::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::PointerDrop {
+                    position,
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                    timestamp,
+                },
+            ),
+            Some(PointerShieldMessage::PointerDrop {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::wheel_with_metadata(
+                    position,
+                    delta,
+                    PointerModifiers::default(),
+                    timestamp,
+                    sequence_range,
+                ),
+            ),
+            Some(PointerShieldMessage::Wheel {
+                position,
+                delta,
+                modifiers: PointerModifiers::default(),
+                timestamp,
+                sequence_range,
+            })
+        );
+    }
+
+    #[test]
+    fn public_widget_input_constructors_keep_message_metadata_absent() {
+        let bounds = Rect::from_xy_size(0.0, 0.0, 120.0, 18.0);
+        let position = Point::new(16.0, 8.0);
+        let delta = Vector2::new(0.0, -18.0);
+        let shield = PointerShieldWidget::fill(true);
+
+        assert_eq!(
+            shield.handle_input(bounds, WidgetInput::pointer_move(position)),
+            Some(PointerShieldMessage::PointerMove {
+                position,
+                timestamp: None,
+                sequence_range: None,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::pointer_press(
+                    position,
+                    PointerButton::Primary,
+                    PointerModifiers::default(),
+                ),
+            ),
+            Some(PointerShieldMessage::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::pointer_release(
+                    position,
+                    PointerButton::Primary,
+                    PointerModifiers::default(),
+                ),
+            ),
+            Some(PointerShieldMessage::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::pointer_drop(
+                    position,
+                    PointerButton::Primary,
+                    PointerModifiers::default(),
+                ),
+            ),
+            Some(PointerShieldMessage::PointerDrop {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            })
+        );
+        assert_eq!(
+            shield.handle_input(
+                bounds,
+                WidgetInput::wheel(position, delta, PointerModifiers::default()),
+            ),
+            Some(PointerShieldMessage::Wheel {
+                position,
+                delta,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            })
+        );
     }
 }

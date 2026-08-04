@@ -433,6 +433,8 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
         shield.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         Some(PointerShieldMessage::PointerMove {
             position: Point::new(16.0, 8.0),
+            timestamp: None,
+            sequence_range: None,
         })
     );
     assert_eq!(
@@ -449,6 +451,7 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
             position: Point::new(18.0, 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         })
     );
     assert_eq!(
@@ -488,6 +491,7 @@ fn pointer_shield_drop_only_reports_only_captured_drops() {
             position: Point::new(16.0, 8.0),
             button: PointerButton::Primary,
             modifiers: Default::default(),
+            timestamp: None,
         })
     );
 }
@@ -514,6 +518,8 @@ fn pointer_shield_consumes_wheel_when_enabled() {
             position: Point::new(16.0, 8.0),
             delta,
             modifiers: Default::default(),
+            timestamp: None,
+            sequence_range: None,
         })
     );
 }

@@ -1590,14 +1590,23 @@ row([
 ```
 
 Numeric controls separate the stored domain value from its interaction and
-display mapping. `ValueMapping` provides linear, logarithmic, decibel, tempo,
-and custom monotonic mappings; it validates finite bounds and monotonicity at
-construction, so pointer position, keyboard increments, accessibility range
-semantics, and displayed value always agree. `numeric_input` uses the same
+display mapping. The target mapping model includes linear, logarithmic, decibel,
+tempo, and custom monotonic mappings. The current `ValueMapping` foundation
+exposes only finite `f32` linear and logarithmic mappings; it validates finite
+bounds and monotonicity at construction, so pointer position, keyboard
+increments, accessibility range semantics, and displayed value always agree.
+`numeric_input` uses the same
 mapping with a runtime-local editing buffer: a locale-aware parser and validator
 can show an incomplete or invalid string without replacing the last valid domain
 value. Enter or focus commit emits a typed accepted value; Escape or explicit
 cancel restores the displayed value without an accidental domain mutation.
+
+The current deterministic foundation implements the finite `f32` linear and
+logarithmic forms. Their constructors return a typed error for invalid bounds;
+conversion rejects nonfinite inputs, clamps finite inputs at the relevant
+boundary, and uses `f64` intermediates before returning a finite `f32` result.
+Formatting, widget integration, and the remaining mapping forms are separate
+follow-up slices.
 
 ```rust
 numeric_input(state.cutoff)

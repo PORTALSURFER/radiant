@@ -10,8 +10,8 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, PointerButton, WidgetInput, WidgetKey,
-    WidgetOutput,
+    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, KnobWheelMetadata, PointerButton,
+    WidgetInput, WidgetKey, WidgetOutput,
 };
 
 use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker};
@@ -181,7 +181,8 @@ impl KnobWidget {
                 position,
                 delta,
                 modifiers,
-                ..
+                timestamp,
+                sequence_range,
             } => {
                 // Wheel input is an independent hover gesture. Do not let it
                 // alter or terminate an active captured pointer drag.
@@ -207,10 +208,17 @@ impl KnobWidget {
                 };
                 let start_value = self.state.value;
                 let final_value = self.set_value(start_value + direction * step)?;
-                Some(KnobMessage::WheelGesture(KnobWheelGesture::new(
-                    start_value,
-                    final_value,
-                )))
+                Some(KnobMessage::WheelGesture(
+                    KnobWheelGesture::new_with_metadata(
+                        start_value,
+                        final_value,
+                        KnobWheelMetadata {
+                            modifiers,
+                            timestamp,
+                            sequence_range,
+                        },
+                    ),
+                ))
             }
             WidgetInput::PointerDoubleClick {
                 position,
@@ -433,10 +441,13 @@ fn arc_points(center: Point, radius: f32, start: f32, sweep: f32, segments: usiz
 mod tests {
     use super::*;
     use crate::{
-        gui::types::Point,
+        gui::{
+            input::{InputSequence, InputSequenceRange, InputTimestamp},
+            types::Point,
+        },
         runtime::PaintPrimitive,
         widgets::interaction::PointerModifiers,
-        widgets::{KnobAutomationEvent, WidgetState, WidgetVisualCue},
+        widgets::{KnobAutomationEvent, KnobWheelMetadata, WidgetState, WidgetVisualCue},
     };
 
     #[test]
@@ -628,6 +639,157 @@ mod tests {
             KnobAutomationEvent::GestureEnded { value } if (value - 0.548).abs() < 0.00001
         ));
         assert!((knob.state.value - 0.548).abs() < 0.00001);
+        assert_eq!(
+            batch.input_metadata(),
+            KnobWheelMetadata {
+                modifiers: PointerModifiers {
+                    shift: true,
+                    command: true,
+                    alt: true,
+                },
+                ..KnobWheelMetadata::default()
+            }
+        );
+    }
+
+    #[test]
+    fn knob_wheel_gesture_preserves_native_metadata_and_sequence_ranges() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+        let positive_modifiers = PointerModifiers {
+            command: true,
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let positive_timestamp = InputTimestamp::capture();
+        let mut positive_range =
+            InputSequenceRange::singleton(InputSequence::from_runtime_value(21));
+        positive_range.extend_end(InputSequence::from_runtime_value(24));
+
+        let Some(KnobMessage::WheelGesture(positive)) = knob.handle_input(
+            bounds,
+            WidgetInput::wheel_with_metadata(
+                Point::new(20.0, 20.0),
+                Vector2::new(6.0, 120.0),
+                positive_modifiers,
+                Some(positive_timestamp),
+                Some(positive_range),
+            ),
+        ) else {
+            panic!("metadata-bearing positive wheel should emit a gesture");
+        };
+        assert_eq!(
+            positive.events,
+            [
+                KnobAutomationEvent::GestureStarted { value: 0.5 },
+                KnobAutomationEvent::ValueChanged { value: 0.55 },
+                KnobAutomationEvent::GestureEnded { value: 0.55 },
+            ]
+        );
+        assert_eq!(
+            positive.input_metadata(),
+            KnobWheelMetadata {
+                modifiers: positive_modifiers,
+                timestamp: Some(positive_timestamp),
+                sequence_range: Some(positive_range),
+            }
+        );
+
+        let negative_modifiers = PointerModifiers {
+            shift: true,
+            command: true,
+            ..PointerModifiers::default()
+        };
+        let negative_timestamp = InputTimestamp::capture();
+        let mut negative_range =
+            InputSequenceRange::singleton(InputSequence::from_runtime_value(31));
+        negative_range.extend_end(InputSequence::from_runtime_value(35));
+
+        let Some(KnobMessage::WheelGesture(negative)) = knob.handle_input(
+            bounds,
+            WidgetInput::wheel_with_metadata(
+                Point::new(20.0, 20.0),
+                Vector2::new(-8.0, -120.0),
+                negative_modifiers,
+                Some(negative_timestamp),
+                Some(negative_range),
+            ),
+        ) else {
+            panic!("metadata-bearing negative wheel should emit a gesture");
+        };
+        assert_eq!(
+            negative.events[0],
+            KnobAutomationEvent::GestureStarted { value: 0.55 }
+        );
+        assert!(matches!(
+            negative.events[1],
+            KnobAutomationEvent::ValueChanged { value } if (value - 0.548).abs() < 0.00001
+        ));
+        assert!(matches!(
+            negative.events[2],
+            KnobAutomationEvent::GestureEnded { value } if (value - 0.548).abs() < 0.00001
+        ));
+        assert_eq!(
+            negative.input_metadata(),
+            KnobWheelMetadata {
+                modifiers: negative_modifiers,
+                timestamp: Some(negative_timestamp),
+                sequence_range: Some(negative_range),
+            }
+        );
+    }
+
+    #[test]
+    fn knob_wheel_synthetic_and_missing_metadata_use_default_options() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let inside = Point::new(20.0, 20.0);
+        let mut knob = KnobWidget::new(1, 0.2);
+
+        let Some(KnobMessage::WheelGesture(plain)) = knob.handle_input(
+            bounds,
+            WidgetInput::plain_wheel(inside, Vector2::new(0.0, 120.0)),
+        ) else {
+            panic!("plain wheel should emit a gesture");
+        };
+        assert_eq!(plain.input_metadata(), KnobWheelMetadata::default());
+
+        let modifiers = PointerModifiers {
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let Some(KnobMessage::WheelGesture(public)) = knob.handle_input(
+            bounds,
+            WidgetInput::wheel(inside, Vector2::new(0.0, -120.0), modifiers),
+        ) else {
+            panic!("public wheel should emit a gesture");
+        };
+        assert_eq!(
+            public.input_metadata(),
+            KnobWheelMetadata {
+                modifiers,
+                ..KnobWheelMetadata::default()
+            }
+        );
+
+        let Some(KnobMessage::WheelGesture(missing)) = knob.handle_input(
+            bounds,
+            WidgetInput::wheel_with_metadata(
+                inside,
+                Vector2::new(0.0, 120.0),
+                modifiers,
+                None,
+                None,
+            ),
+        ) else {
+            panic!("wheel without optional metadata should emit a gesture");
+        };
+        assert_eq!(
+            missing.input_metadata(),
+            KnobWheelMetadata {
+                modifiers,
+                ..KnobWheelMetadata::default()
+            }
+        );
     }
 
     #[test]
@@ -645,6 +807,16 @@ mod tests {
             assert_eq!(knob.handle_input(bounds, input), None);
             assert_eq!(knob.state.value, 0.0);
         }
+        knob.common.state.disabled = true;
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::plain_wheel(inside, Vector2::new(0.0, 120.0)),
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 0.0);
+        knob.common.state.disabled = false;
         assert_eq!(
             knob.handle_input(
                 bounds,

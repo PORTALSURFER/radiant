@@ -16,8 +16,9 @@ pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, W
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, InteractiveRowMetadata,
-    KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ListItemMessage,
-    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderMessage,
-    TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage,
+    KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, KnobWheelGesture, KnobWheelMetadata,
+    ListItemMessage, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
+    SelectableMessage, SliderMessage, TextInputMessage, TextInputMessageKind,
+    TextInputMessageParts, ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};

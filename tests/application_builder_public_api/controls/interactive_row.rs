@@ -1,4 +1,5 @@
 use radiant::prelude::{self as ui, IntoView};
+use radiant::widgets::PointerModifiers;
 use radiant::{gui::list as gui_list, widgets as widget_api};
 use std::{cell::RefCell, rc::Rc};
 
@@ -96,6 +97,24 @@ fn interactive_row_metadata_is_available_from_prelude() {
     assert_eq!(
         ui::InteractiveRowMessage::Activate.input_metadata(),
         ui::InteractiveRowMetadata::default()
+    );
+}
+
+#[test]
+fn knob_wheel_metadata_and_compatibility_constructor_are_available_from_prelude() {
+    let metadata = ui::KnobWheelMetadata {
+        modifiers: PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        },
+        ..ui::KnobWheelMetadata::default()
+    };
+    let gesture = ui::KnobWheelGesture::new_with_metadata(0.25, 0.252, metadata);
+
+    assert_eq!(gesture.input_metadata(), metadata);
+    assert_eq!(
+        ui::KnobWheelGesture::new(0.25, 0.3).input_metadata(),
+        ui::KnobWheelMetadata::default()
     );
 }
 

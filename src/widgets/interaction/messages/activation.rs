@@ -1,5 +1,11 @@
 use super::drag::DragHandleMessage;
-use crate::{gui::types::Point, widgets::interaction::input::PointerModifiers};
+use crate::{
+    gui::{
+        input::{InputSequenceRange, InputTimestamp},
+        types::Point,
+    },
+    widgets::interaction::input::PointerModifiers,
+};
 
 /// Message emitted by a reusable button primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -68,6 +74,17 @@ pub enum ListItemMessage {
     Invoked,
 }
 
+/// Normalized input provenance carried by move-derived interactive-row messages.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InteractiveRowMetadata {
+    /// Modifier state captured with the current normalized input sample.
+    pub modifiers: PointerModifiers,
+    /// Optional timestamp captured at the native input boundary.
+    pub timestamp: Option<InputTimestamp>,
+    /// Optional opaque native sample sequence range.
+    pub sequence_range: Option<InputSequenceRange>,
+}
+
 /// Message emitted by a reusable interactive row primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InteractiveRowMessage {
@@ -75,6 +92,8 @@ pub enum InteractiveRowMessage {
     Hover {
         /// Pointer position where the hover occurred.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: InteractiveRowMetadata,
     },
     /// The row was activated by pointer or keyboard input.
     Activate,
@@ -98,11 +117,15 @@ pub enum InteractiveRowMessage {
     HoverDropTarget {
         /// Pointer position where the drop target hover occurred.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: InteractiveRowMetadata,
     },
     /// The row was hovered while a tracked drop target should be cleared.
     ClearDropTarget {
         /// Pointer position where the stale drop target should be cleared.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: InteractiveRowMetadata,
     },
 }
 
@@ -159,8 +182,20 @@ impl InteractiveRowMessage {
     /// Return the row-hover position, when present.
     pub fn hover_position(self) -> Option<Point> {
         match self {
-            Self::Hover { position } => Some(position),
+            Self::Hover { position, .. } => Some(position),
             _ => None,
+        }
+    }
+
+    /// Return normalized input provenance for a move-derived row message.
+    ///
+    /// Non-move messages, including nested drag messages, use default metadata.
+    pub fn input_metadata(&self) -> InteractiveRowMetadata {
+        match self {
+            Self::Hover { metadata, .. }
+            | Self::HoverDropTarget { metadata, .. }
+            | Self::ClearDropTarget { metadata, .. } => *metadata,
+            _ => InteractiveRowMetadata::default(),
         }
     }
 
@@ -175,7 +210,7 @@ impl InteractiveRowMessage {
     /// Return the drop-hover position, when present.
     pub fn hover_drop_position(self) -> Option<Point> {
         match self {
-            Self::HoverDropTarget { position } => Some(position),
+            Self::HoverDropTarget { position, .. } => Some(position),
             _ => None,
         }
     }
@@ -183,7 +218,7 @@ impl InteractiveRowMessage {
     /// Return the drop-target clear position, when present.
     pub fn clear_drop_position(self) -> Option<Point> {
         match self {
-            Self::ClearDropTarget { position } => Some(position),
+            Self::ClearDropTarget { position, .. } => Some(position),
             _ => None,
         }
     }

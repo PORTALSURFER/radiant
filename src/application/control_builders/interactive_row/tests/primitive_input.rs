@@ -66,7 +66,10 @@ fn interactive_row_actions_route_common_row_messages() {
     assert_eq!(
         action_row().view_dispatch_widget_output(
             771,
-            WidgetOutput::typed(InteractiveRowMessage::Hover { position: hover }),
+            WidgetOutput::typed(InteractiveRowMessage::Hover {
+                position: hover,
+                metadata: Default::default(),
+            }),
         ),
         Some(DemoMessage::HoverDrop(hover))
     );
@@ -78,7 +81,10 @@ fn interactive_row_actions_route_common_row_messages() {
     assert_eq!(
         action_row().view_dispatch_widget_output(
             771,
-            WidgetOutput::typed(InteractiveRowMessage::HoverDropTarget { position: hover }),
+            WidgetOutput::typed(InteractiveRowMessage::HoverDropTarget {
+                position: hover,
+                metadata: Default::default(),
+            }),
         ),
         Some(DemoMessage::HoverDrop(hover))
     );

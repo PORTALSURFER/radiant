@@ -71,7 +71,10 @@ fn interactive_row_actions_route_keyed_drop_targets() {
         Some(DemoMessage::DropKey(String::from("target-a")))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::HoverDropTarget { position: hover }),
+        actions.route(InteractiveRowMessage::HoverDropTarget {
+            position: hover,
+            metadata: Default::default(),
+        }),
         Some(DemoMessage::HoverDropKey(String::from("target-a"), hover))
     );
 }

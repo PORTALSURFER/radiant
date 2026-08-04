@@ -4,8 +4,8 @@ use super::InteractiveRowWidget;
 use crate::{
     gui::types::{Point, Rect},
     widgets::interaction::{
-        DragHandleMessage, DragHandleMetadata, InteractiveRowMessage, PointerButton, WidgetInput,
-        WidgetKey,
+        DragHandleMessage, DragHandleMetadata, InteractiveRowMessage, InteractiveRowMetadata,
+        PointerButton, WidgetInput, WidgetKey,
     },
 };
 
@@ -27,6 +27,11 @@ impl InteractiveRowWidget {
                 sequence_range,
             } => {
                 let metadata = DragHandleMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                };
+                let row_metadata = InteractiveRowMetadata {
                     modifiers,
                     timestamp,
                     sequence_range,
@@ -72,12 +77,21 @@ impl InteractiveRowWidget {
                     && self.props.drop_hover
                 {
                     if self.props.clear_drop_on_hover {
-                        return Some(InteractiveRowMessage::ClearDropTarget { position });
+                        return Some(InteractiveRowMessage::ClearDropTarget {
+                            position,
+                            metadata: row_metadata,
+                        });
                     }
-                    return Some(InteractiveRowMessage::HoverDropTarget { position });
+                    return Some(InteractiveRowMessage::HoverDropTarget {
+                        position,
+                        metadata: row_metadata,
+                    });
                 }
                 if self.common.state.hovered && self.props.hover_messages {
-                    return Some(InteractiveRowMessage::Hover { position });
+                    return Some(InteractiveRowMessage::Hover {
+                        position,
+                        metadata: row_metadata,
+                    });
                 }
                 None
             }

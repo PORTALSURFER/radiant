@@ -85,6 +85,21 @@ fn dense_row_policy_is_available_from_prelude() {
 }
 
 #[test]
+fn interactive_row_metadata_is_available_from_prelude() {
+    let metadata = ui::InteractiveRowMetadata::default();
+    let message = ui::InteractiveRowMessage::Hover {
+        position: ui::Point::new(8.0, 12.0),
+        metadata,
+    };
+
+    assert_eq!(message.input_metadata(), metadata);
+    assert_eq!(
+        ui::InteractiveRowMessage::Activate.input_metadata(),
+        ui::InteractiveRowMetadata::default()
+    );
+}
+
+#[test]
 fn local_interactive_row_actions_accept_ui_only_capture() {
     #[derive(Clone, Debug, PartialEq)]
     struct UiOnlyMessage(Rc<RefCell<usize>>);

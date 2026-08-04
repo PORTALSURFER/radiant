@@ -9,7 +9,8 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        DragHandleMessage, DragHandleMetadata, PointerButton, PointerModifiers, WidgetInput,
+        DragHandleMessage, DragHandleMetadata, InteractiveRowMetadata, PointerButton,
+        PointerModifiers, WidgetInput,
     },
 };
 

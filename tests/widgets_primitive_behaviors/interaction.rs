@@ -172,14 +172,16 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     assert_eq!(InteractiveRowMessage::Drag(drag).drag_message(), Some(drag));
     assert_eq!(
         InteractiveRowMessage::HoverDropTarget {
-            position: Point::new(20.0, 10.0)
+            position: Point::new(20.0, 10.0),
+            metadata: Default::default(),
         }
         .hover_drop_position(),
         Some(Point::new(20.0, 10.0))
     );
     assert_eq!(
         InteractiveRowMessage::ClearDropTarget {
-            position: Point::new(22.0, 12.0)
+            position: Point::new(22.0, 12.0),
+            metadata: Default::default(),
         }
         .clear_drop_position(),
         Some(Point::new(22.0, 12.0))
@@ -425,6 +427,7 @@ fn interactive_row_drop_hover_reports_pointer_position() {
         row.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),
         Some(InteractiveRowMessage::HoverDropTarget {
             position: Point::new(16.0, 8.0),
+            metadata: Default::default(),
         })
     );
 }

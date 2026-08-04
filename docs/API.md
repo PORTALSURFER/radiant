@@ -2702,6 +2702,16 @@ the opaque sequence range spans the first through newest sample. Axis changes
 flush the prior coalescing owner, and focus loss discards pending input. Synthetic,
 programmatic, command, and backend-neutral scroll paths use
 `ScrollUpdateMetadata::default()`.
+Accepted wheel edits from `KnobWidget` emit one `KnobMessage::WheelGesture` with
+the existing three ordered `KnobAutomationEvent` values and a copyable
+`KnobWheelMetadata` payload. Its modifiers, optional timestamp, and optional
+sequence range are copied unchanged from the accepted `WidgetInput::Wheel`.
+`KnobWheelGesture::new(...)` remains the compatibility constructor and uses
+`KnobWheelMetadata::default()`; use `KnobWheelGesture::new_with_metadata(...)`
+or `input_metadata()` for explicit provenance. The added public `metadata`
+field means external destructuring of `KnobWheelGesture` must account for that
+field. This metadata is observational only and does not affect Shift fine-step
+selection, direction, clamping, routing, acceptance, or repaint behavior.
 `Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
 `KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
 timestamps. The public `Event::key_press(...)`, `Event::character(...)`,

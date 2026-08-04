@@ -1,5 +1,18 @@
 use super::*;
 
+fn double_activation_message() -> InteractiveRowMessage {
+    InteractiveRowMessage::DoubleActivate {
+        provenance: crate::widgets::InteractionProvenance::Pointer {
+            modifiers: crate::widgets::PointerModifiers {
+                shift: true,
+                ..crate::widgets::PointerModifiers::default()
+            },
+            timestamp: None,
+            sequence_range: None,
+        },
+    }
+}
+
 #[test]
 fn dense_row_policy_drag_session_motion_clears_hover_for_input_only_rows() {
     let surface = interactive_row_underlay(text("Sample"))
@@ -98,10 +111,8 @@ fn interactive_row_actions_route_common_row_messages() {
         Some(DemoMessage::Secondary(secondary))
     );
     assert_eq!(
-        action_row().view_dispatch_widget_output(
-            771,
-            WidgetOutput::typed(InteractiveRowMessage::DoubleActivate),
-        ),
+        action_row()
+            .view_dispatch_widget_output(771, WidgetOutput::typed(double_activation_message()),),
         Some(DemoMessage::DoubleActivate)
     );
 }
@@ -142,7 +153,7 @@ fn interactive_row_actions_route_keyed_activation_and_secondary_actions() {
         Some(DemoMessage::ActivateKey(String::from("target-a")))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some(DemoMessage::DoubleActivateKey(String::from("target-b")))
     );
     assert_eq!(

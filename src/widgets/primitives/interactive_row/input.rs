@@ -4,8 +4,8 @@ use super::InteractiveRowWidget;
 use crate::{
     gui::types::{Point, Rect},
     widgets::interaction::{
-        DragHandleMessage, DragHandleMetadata, InteractiveRowMessage, InteractiveRowMetadata,
-        PointerButton, WidgetInput, WidgetKey,
+        DragHandleMessage, DragHandleMetadata, InteractionProvenance, InteractiveRowMessage,
+        InteractiveRowMetadata, PointerButton, WidgetInput, WidgetKey,
     },
 };
 
@@ -119,7 +119,8 @@ impl InteractiveRowWidget {
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
-                ..
+                modifiers,
+                timestamp,
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;
@@ -127,7 +128,13 @@ impl InteractiveRowWidget {
                 self.pressed_position = Some(position);
                 self.dragged = false;
                 self.double_activated = true;
-                Some(InteractiveRowMessage::DoubleActivate)
+                Some(InteractiveRowMessage::DoubleActivate {
+                    provenance: InteractionProvenance::Pointer {
+                        modifiers,
+                        timestamp,
+                        sequence_range: None,
+                    },
+                })
             }
             WidgetInput::PointerRelease {
                 position,

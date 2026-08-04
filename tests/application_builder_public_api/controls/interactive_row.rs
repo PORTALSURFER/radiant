@@ -101,6 +101,27 @@ fn interactive_row_metadata_is_available_from_prelude() {
 }
 
 #[test]
+fn interaction_provenance_is_available_from_widget_and_common_preludes() {
+    let modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+    let provenance = ui::InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: None,
+        sequence_range: None,
+    };
+    let message = ui::InteractiveRowMessage::DoubleActivate { provenance };
+
+    assert_eq!(provenance.source(), ui::InteractionSource::Pointer);
+    assert_eq!(message.activation_provenance(), Some(provenance));
+    assert_eq!(
+        radiant::widgets::InteractionProvenance::Accessibility.source(),
+        radiant::widgets::InteractionSource::Accessibility
+    );
+}
+
+#[test]
 fn knob_wheel_metadata_and_compatibility_constructor_are_available_from_prelude() {
     let metadata = ui::KnobWheelMetadata {
         modifiers: PointerModifiers {

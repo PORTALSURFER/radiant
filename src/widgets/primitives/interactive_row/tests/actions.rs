@@ -3,6 +3,19 @@ use std::{cell::RefCell, rc::Rc};
 
 fn assert_send_sync<T: Send + Sync>() {}
 
+fn double_activation_message() -> InteractiveRowMessage {
+    InteractiveRowMessage::DoubleActivate {
+        provenance: InteractionProvenance::Pointer {
+            modifiers: PointerModifiers {
+                command: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: None,
+            sequence_range: None,
+        },
+    }
+}
+
 #[test]
 fn legacy_interactive_row_actions_remain_send_sync() {
     assert_send_sync::<InteractiveRowActions<()>>();
@@ -18,10 +31,7 @@ fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
         actions.route(InteractiveRowMessage::Activate),
         Some("activate")
     );
-    assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
-        Some("activate")
-    );
+    assert_eq!(actions.route(double_activation_message()), Some("activate"));
 }
 
 #[test]
@@ -35,7 +45,7 @@ fn interactive_row_actions_routes_single_or_double_activation_with_key() {
         Some(("folder", "activate"))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some(("folder", "activate"))
     );
 }
@@ -56,7 +66,7 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
         Some(modifiers)
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some(PointerModifiers::default())
     );
 }
@@ -79,7 +89,7 @@ fn interactive_row_actions_routes_modifier_primary_and_double_with_one_key() {
         Some(("file", "activate", modifiers))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some(("file", "double", PointerModifiers::default()))
     );
 }
@@ -126,7 +136,7 @@ fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag()
         Some(("file", "activate", modifiers, Point::new(0.0, 0.0)))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some((
             "file",
             "activate",
@@ -184,7 +194,7 @@ fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
         Some(("folder", "activate", Point::new(0.0, 0.0)))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::DoubleActivate),
+        actions.route(double_activation_message()),
         Some(("folder", "activate", Point::new(0.0, 0.0)))
     );
     assert_eq!(
@@ -303,7 +313,7 @@ fn local_actions_route_full_matrix_with_non_send_key_and_release_callbacks() {
             },
             "activate",
         ),
-        (InteractiveRowMessage::DoubleActivate, "double"),
+        (double_activation_message(), "double"),
         (
             InteractiveRowMessage::SecondaryActivate { position },
             "secondary",

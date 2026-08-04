@@ -110,6 +110,11 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "DragHandleMessage::input_metadata()",
         "Focus-loss `Cancelled` messages return `DragHandleMetadata::empty()`",
         "`DragHandleMetadata` is exported from `radiant::widgets` and the prelude",
+        "The shared `InteractionSource` and `InteractionProvenance` enums",
+        "`InteractiveRowMessage::DoubleActivate { provenance }`",
+        "accepted second native double-click sample",
+        "`InteractiveRowMetadata` remains move-only",
+        "intentionally discard double-activation provenance",
     ] {
         assert!(
             normalized_docs.contains(required),

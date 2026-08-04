@@ -821,14 +821,31 @@ row needs that standard chrome followed by one centered dense-row label. Use
 `clear_drop_position()`, and `is_drop()` when custom row widgets need to map
 Radiant row interactions into host-specific row messages without repeating
 exhaustive event-shape matches.
+The shared `InteractionSource` and `InteractionProvenance` enums are owned by
+`widgets::interaction` and exported explicitly from `radiant::widgets` and the
+common `radiant::prelude`; both are `Clone + Copy + Debug + PartialEq + Eq` and
+intentionally have no `Default`. `InteractionProvenance::source()` returns the
+explicit `InteractionSource` category, so missing native evidence is not
+inferred as `Programmatic`.
+`InteractiveRowMessage::DoubleActivate { provenance }` preserves the exact
+modifiers and optional timestamp from the accepted second native double-click
+sample as `InteractionProvenance::Pointer { .. }`; its sequence range is always
+`None`. `WidgetInput::primary_double_click(...)` is still synthetic pointer
+input, so it emits `Pointer` provenance with default modifiers and no timestamp
+or sequence range. `activation_modifiers()` remains a compatibility projection
+and returns default `PointerModifiers` for double activation rather than
+exposing its exact double-click modifiers. The concise shared and UI-local
+`InteractiveRowActions` helpers intentionally discard double-activation
+provenance while preserving their existing host message values.
 Move-derived `InteractiveRowMessage::Hover`, `HoverDropTarget`, and
 `ClearDropTarget` carry `InteractiveRowMetadata`. Its `modifiers`, optional
 `timestamp`, and optional `sequence_range` preserve the normalized native
 `PointerMove` sample; use `InteractiveRowMessage::input_metadata()` to read
 that contract. Synthetic pointer moves and non-move messages, including
 nested `Drag` messages, return default metadata. Drag provenance remains on
-`DragHandleMetadata`; activation, double-click, secondary-click, and drop
-messages do not gain row metadata.
+`DragHandleMetadata`; `InteractiveRowMetadata` remains move-only and is not
+merged with activation provenance. Secondary-click and drop messages do not
+gain row metadata.
 `InteractiveRowActions` is a widget-layer router; use `row_actions()` to build
 the router from the application facade and
 `InteractiveRowActions::route(...)` when custom row wrappers need the same

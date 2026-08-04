@@ -147,6 +147,103 @@ fn native_pointer_move_metadata_reaches_each_move_derived_row_message() {
 }
 
 #[test]
+fn native_primary_double_click_preserves_second_sample_provenance() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = InputTimestamp::capture();
+    let provenance = InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: Some(timestamp),
+        sequence_range: None,
+    };
+    let mut row = InteractiveRowWidget::new(33, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+
+    let message = row
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_double_click_with_timestamp(
+                position,
+                PointerButton::Primary,
+                modifiers,
+                Some(timestamp),
+            ),
+        )
+        .expect("native primary double-click should emit a row message");
+
+    assert_eq!(
+        message,
+        InteractiveRowMessage::DoubleActivate { provenance }
+    );
+    assert_eq!(message.activation_provenance(), Some(provenance));
+    assert_eq!(
+        message.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(message.input_metadata(), InteractiveRowMetadata::default());
+    assert!(row.common.state.hovered);
+    assert!(row.common.state.pressed);
+    assert!(row.common.state.focused);
+    assert_eq!(row.pressed_position, Some(position));
+    assert!(!row.dragged);
+    assert!(row.double_activated);
+}
+
+#[test]
+fn double_click_outside_or_non_primary_is_vetoed_without_state_mutation() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = Some(InputTimestamp::capture());
+    let mut row = InteractiveRowWidget::new(34, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::pointer_double_click_with_timestamp(
+                Point::new(121.0, 6.0),
+                PointerButton::Primary,
+                modifiers,
+                timestamp,
+            ),
+        ),
+        None
+    );
+    assert!(!row.common.state.hovered);
+    assert!(!row.common.state.pressed);
+    assert!(!row.common.state.focused);
+    assert!(row.pressed_position.is_none());
+    assert!(!row.dragged);
+    assert!(!row.double_activated);
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::pointer_double_click_with_timestamp(
+                position,
+                PointerButton::Secondary,
+                modifiers,
+                timestamp,
+            ),
+        ),
+        None
+    );
+    assert!(!row.common.state.hovered);
+    assert!(!row.common.state.pressed);
+    assert!(!row.common.state.focused);
+    assert!(row.pressed_position.is_none());
+    assert!(!row.dragged);
+    assert!(!row.double_activated);
+}
+
+#[test]
 fn synthetic_pointer_move_and_non_move_messages_use_default_metadata() {
     let bounds = Rect::from_size(120.0, 22.0);
     let position = Point::new(8.0, 6.0);
@@ -443,7 +540,13 @@ fn double_click_press_keeps_visual_pressed_until_release_without_single_activati
 
     assert_eq!(
         row.handle_input(bounds, WidgetInput::primary_double_click(position)),
-        Some(InteractiveRowMessage::DoubleActivate)
+        Some(InteractiveRowMessage::DoubleActivate {
+            provenance: InteractionProvenance::Pointer {
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+                sequence_range: None,
+            },
+        })
     );
     assert!(row.common.state.pressed);
     assert!(row.double_activated);

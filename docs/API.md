@@ -779,6 +779,14 @@ only exposes a filtered subset.
 `current_feedback(...)` so host applications can render drag previews and local
 insertion markers without duplicating the generic drag lifecycle or marker
 projection math.
+The details-column resize helper is a concise layout-interaction projection: an
+active `Cancelled` message returns one `DetailsColumnWidthUpdate` for the
+captured starting width and original column id before clearing the active drag,
+so a host can durably restore a width already applied from a move. An orphaned
+resize cancellation returns no update. Reorder cancellation still clears the
+active drag without producing a reorder. These helpers are not typed
+`EditEvent` boundaries or a runtime `LayoutInteraction` implementation; those
+remain separate future work.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the

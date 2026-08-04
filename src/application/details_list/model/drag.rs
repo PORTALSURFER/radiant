@@ -83,8 +83,10 @@ pub fn update_details_column_resize_drag(
             update
         }
         DragHandleMessage::Cancelled { .. } => {
-            *active_drag = None;
-            None
+            active_drag.take().map(|drag| DetailsColumnWidthUpdate {
+                column_id: drag.column_id,
+                width: drag.start_width,
+            })
         }
         DragHandleMessage::DoubleActivate { .. } => None,
     }

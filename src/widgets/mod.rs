@@ -71,10 +71,10 @@ pub use contract::{
 };
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,
-    CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput, DragHandleMessage,
-    DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, KnobAutomationEvent,
-    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ListItemMessage, PointerButton,
-    PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
+    CanvasGestureMetadata, CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput,
+    DragHandleMessage, DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage,
+    KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ListItemMessage,
+    PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
     SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
     TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
     handle_activation_input,

@@ -4,6 +4,6 @@ mod event;
 mod pointer;
 mod state;
 
-pub use event::CanvasGestureEvent;
+pub use event::{CanvasGestureEvent, CanvasGestureMetadata};
 pub use pointer::CanvasPointer;
 pub use state::CanvasGestureState;

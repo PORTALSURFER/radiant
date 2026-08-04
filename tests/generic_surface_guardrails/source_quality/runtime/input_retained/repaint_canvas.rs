@@ -51,7 +51,7 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
         "mod event;",
         "mod pointer;",
         "mod state;",
-        "pub use event::CanvasGestureEvent;",
+        "pub use event::{CanvasGestureEvent, CanvasGestureMetadata};",
         "pub use pointer::CanvasPointer;",
         "pub use state::CanvasGestureState;",
     ] {
@@ -68,7 +68,9 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
     );
     assert!(
         event.contains("pub enum CanvasGestureEvent")
-            && event.contains("Hover(CanvasPointer)")
+            && event.contains("pub struct CanvasGestureMetadata")
+            && event.contains("Hover {")
+            && event.contains("metadata: CanvasGestureMetadata")
             && event.contains("FocusChanged(bool)"),
         "canvas gesture event variants should live in canvas_gesture/event.rs"
     );

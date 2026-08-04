@@ -1,8 +1,9 @@
 use super::*;
 use crate::{
+    gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::Point,
     widgets::{
-        CanvasPointer,
+        CanvasGestureMetadata, CanvasPointer,
         interaction::{PointerButton, PointerModifiers},
     },
 };
@@ -18,7 +19,7 @@ fn canvas_gesture_state_projects_local_and_normalized_positions() {
         .handle_input(bounds(), &WidgetInput::pointer_move(Point::new(35.0, 45.0)))
         .unwrap();
 
-    let CanvasGestureEvent::Hover(pointer) = event else {
+    let CanvasGestureEvent::Hover { pointer, .. } = event else {
         panic!("expected hover event");
     };
     assert_eq!(pointer.local, Point::new(25.0, 25.0));
@@ -235,6 +236,7 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
         },
         button: PointerButton::Primary,
         modifiers,
+        metadata: CanvasGestureMetadata::default(),
     };
     assert!(
         outside_press
@@ -255,6 +257,7 @@ fn canvas_gesture_event_accessors_handle_non_pointer_events() {
     assert_eq!(event.origin(), None);
     assert_eq!(event.button(), None);
     assert_eq!(event.modifiers(), None);
+    assert_eq!(event.input_metadata(), CanvasGestureMetadata::default());
     assert_eq!(event.delta(), None);
     assert_eq!(event.hover_pointer(), None);
     assert_eq!(event.press_pointer(PointerButton::Primary), None);
@@ -295,4 +298,214 @@ fn canvas_gesture_state_clears_drag_on_focus_loss() {
         Some(CanvasGestureEvent::FocusChanged(false))
     ));
     assert!(!state.is_dragging());
+}
+
+#[test]
+fn canvas_gesture_state_preserves_native_input_metadata_for_every_pointer_gesture() {
+    let mut state = CanvasGestureState::new();
+    let press_modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let move_modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+    let release_modifiers = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let press_timestamp = InputTimestamp::capture();
+    let move_timestamp = InputTimestamp::capture();
+    let release_timestamp = InputTimestamp::capture();
+    let double_click_timestamp = InputTimestamp::capture();
+    let wheel_timestamp = InputTimestamp::capture();
+    let drop_timestamp = InputTimestamp::capture();
+    let mut move_sequence_range =
+        InputSequenceRange::singleton(InputSequence::from_runtime_value(4));
+    move_sequence_range.extend_end(InputSequence::from_runtime_value(9));
+    let mut wheel_sequence_range =
+        InputSequenceRange::singleton(InputSequence::from_runtime_value(12));
+    wheel_sequence_range.extend_end(InputSequence::from_runtime_value(15));
+
+    let hover = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_move_with_metadata(
+                Point::new(20.0, 30.0),
+                move_modifiers,
+                Some(move_timestamp),
+                Some(move_sequence_range),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        hover.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: move_modifiers,
+            timestamp: Some(move_timestamp),
+            sequence_range: Some(move_sequence_range),
+        }
+    );
+
+    let press = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_press_with_timestamp(
+                Point::new(20.0, 30.0),
+                PointerButton::Primary,
+                press_modifiers,
+                Some(press_timestamp),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        press.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: press_modifiers,
+            timestamp: Some(press_timestamp),
+            sequence_range: None,
+        }
+    );
+
+    let drag = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_move_with_metadata(
+                Point::new(35.0, 40.0),
+                move_modifiers,
+                Some(move_timestamp),
+                Some(move_sequence_range),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        drag.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: move_modifiers,
+            timestamp: Some(move_timestamp),
+            sequence_range: Some(move_sequence_range),
+        }
+    );
+    assert_eq!(drag.modifiers(), Some(press_modifiers));
+
+    let release = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_release_with_timestamp(
+                Point::new(40.0, 45.0),
+                PointerButton::Primary,
+                release_modifiers,
+                Some(release_timestamp),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        release.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: release_modifiers,
+            timestamp: Some(release_timestamp),
+            sequence_range: None,
+        }
+    );
+
+    let double_click = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_double_click_with_timestamp(
+                Point::new(45.0, 50.0),
+                PointerButton::Secondary,
+                press_modifiers,
+                Some(double_click_timestamp),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        double_click.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: press_modifiers,
+            timestamp: Some(double_click_timestamp),
+            sequence_range: None,
+        }
+    );
+
+    let wheel = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::wheel_with_metadata(
+                Point::new(50.0, 55.0),
+                Vector2::new(0.0, -120.0),
+                move_modifiers,
+                Some(wheel_timestamp),
+                Some(wheel_sequence_range),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        wheel.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: move_modifiers,
+            timestamp: Some(wheel_timestamp),
+            sequence_range: Some(wheel_sequence_range),
+        }
+    );
+
+    let drop = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::pointer_drop_with_timestamp(
+                Point::new(55.0, 60.0),
+                PointerButton::Auxiliary,
+                release_modifiers,
+                Some(drop_timestamp),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        drop.input_metadata(),
+        CanvasGestureMetadata {
+            modifiers: release_modifiers,
+            timestamp: Some(drop_timestamp),
+            sequence_range: None,
+        }
+    );
+}
+
+#[test]
+fn canvas_gesture_state_leaves_public_constructor_metadata_absent() {
+    let mut state = CanvasGestureState::new();
+    let inputs = [
+        WidgetInput::pointer_move(Point::new(20.0, 30.0)),
+        WidgetInput::pointer_press(
+            Point::new(20.0, 30.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ),
+        WidgetInput::pointer_double_click(
+            Point::new(20.0, 30.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ),
+        WidgetInput::pointer_release(
+            Point::new(20.0, 30.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ),
+        WidgetInput::pointer_drop(
+            Point::new(20.0, 30.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ),
+        WidgetInput::wheel(
+            Point::new(20.0, 30.0),
+            Vector2::new(0.0, 1.0),
+            PointerModifiers::default(),
+        ),
+        WidgetInput::plain_wheel(Point::new(20.0, 30.0), Vector2::new(0.0, 1.0)),
+    ];
+
+    for input in inputs {
+        let event = state.handle_input(bounds(), &input).unwrap();
+        assert_eq!(event.input_metadata(), CanvasGestureMetadata::default());
+    }
 }

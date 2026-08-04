@@ -1,14 +1,33 @@
 use super::pointer::CanvasPointer;
 use crate::{
-    gui::types::{Rect, Vector2},
+    gui::{
+        input::{InputSequenceRange, InputTimestamp},
+        types::{Rect, Vector2},
+    },
     widgets::interaction::{PointerButton, PointerModifiers},
 };
+
+/// Normalized input provenance carried by a canvas gesture event.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CanvasGestureMetadata {
+    /// Modifier state captured with the current normalized input sample.
+    pub modifiers: PointerModifiers,
+    /// Optional timestamp captured at the native input boundary.
+    pub timestamp: Option<InputTimestamp>,
+    /// Optional opaque native sample sequence range.
+    pub sequence_range: Option<InputSequenceRange>,
+}
 
 /// High-level canvas gesture event resolved from [`crate::widgets::interaction::WidgetInput`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum CanvasGestureEvent {
     /// Pointer moved without an active drag.
-    Hover(CanvasPointer),
+    Hover {
+        /// Pointer information at hover time.
+        pointer: CanvasPointer,
+        /// Normalized input provenance for this hover sample.
+        metadata: CanvasGestureMetadata,
+    },
     /// Pointer button pressed.
     Press {
         /// Pointer information at press time.
@@ -17,6 +36,8 @@ pub enum CanvasGestureEvent {
         button: PointerButton,
         /// Modifier state at press time.
         modifiers: PointerModifiers,
+        /// Normalized input provenance for this press sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Pointer moved while the same button is captured.
     Drag {
@@ -30,6 +51,8 @@ pub enum CanvasGestureEvent {
         button: PointerButton,
         /// Modifier state from the original press.
         modifiers: PointerModifiers,
+        /// Normalized input provenance for this move sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Captured pointer button was released.
     Release {
@@ -43,6 +66,8 @@ pub enum CanvasGestureEvent {
         button: PointerButton,
         /// Modifier state at release time.
         modifiers: PointerModifiers,
+        /// Normalized input provenance for this release sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Pointer button was double-clicked.
     DoubleClick {
@@ -52,6 +77,8 @@ pub enum CanvasGestureEvent {
         button: PointerButton,
         /// Modifier state at double-click time.
         modifiers: PointerModifiers,
+        /// Normalized input provenance for this double-click sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Pointer wheel or trackpad scroll occurred.
     Wheel {
@@ -59,6 +86,8 @@ pub enum CanvasGestureEvent {
         pointer: CanvasPointer,
         /// Logical scroll delta. Positive values move content right/down.
         delta: Vector2,
+        /// Normalized input provenance for this wheel sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Captured pointer was dropped or canceled.
     Drop {
@@ -70,16 +99,32 @@ pub enum CanvasGestureEvent {
         button: PointerButton,
         /// Modifier state at drop time.
         modifiers: PointerModifiers,
+        /// Normalized input provenance for this drop sample.
+        metadata: CanvasGestureMetadata,
     },
     /// Keyboard focus changed.
     FocusChanged(bool),
 }
 
 impl CanvasGestureEvent {
+    /// Return normalized input provenance for this event.
+    pub fn input_metadata(&self) -> CanvasGestureMetadata {
+        match self {
+            Self::Hover { metadata, .. }
+            | Self::Press { metadata, .. }
+            | Self::Drag { metadata, .. }
+            | Self::Release { metadata, .. }
+            | Self::DoubleClick { metadata, .. }
+            | Self::Wheel { metadata, .. }
+            | Self::Drop { metadata, .. } => *metadata,
+            Self::FocusChanged(_) => CanvasGestureMetadata::default(),
+        }
+    }
+
     /// Return the pointer for a hover event.
     pub fn hover_pointer(&self) -> Option<CanvasPointer> {
         match self {
-            Self::Hover(pointer) => Some(*pointer),
+            Self::Hover { pointer, .. } => Some(*pointer),
             _ => None,
         }
     }
@@ -153,7 +198,7 @@ impl CanvasGestureEvent {
     /// Return the pointer and delta for a wheel event.
     pub fn wheel_pointer_delta(&self) -> Option<(CanvasPointer, Vector2)> {
         match self {
-            Self::Wheel { pointer, delta } => Some((*pointer, *delta)),
+            Self::Wheel { pointer, delta, .. } => Some((*pointer, *delta)),
             _ => None,
         }
     }
@@ -167,7 +212,7 @@ impl CanvasGestureEvent {
     /// Return the current pointer carried by pointer-like gesture events.
     pub fn pointer(&self) -> Option<CanvasPointer> {
         match self {
-            Self::Hover(pointer)
+            Self::Hover { pointer, .. }
             | Self::Press { pointer, .. }
             | Self::Drag { pointer, .. }
             | Self::Release { pointer, .. }
@@ -183,7 +228,7 @@ impl CanvasGestureEvent {
         match self {
             Self::Drag { origin, .. } | Self::Release { origin, .. } => Some(*origin),
             Self::Drop { origin, .. } => *origin,
-            Self::Hover(_)
+            Self::Hover { .. }
             | Self::Press { .. }
             | Self::DoubleClick { .. }
             | Self::Wheel { .. }
@@ -199,7 +244,7 @@ impl CanvasGestureEvent {
             | Self::Release { button, .. }
             | Self::DoubleClick { button, .. }
             | Self::Drop { button, .. } => Some(*button),
-            Self::Hover(_) | Self::Wheel { .. } | Self::FocusChanged(_) => None,
+            Self::Hover { .. } | Self::Wheel { .. } | Self::FocusChanged(_) => None,
         }
     }
 
@@ -211,7 +256,7 @@ impl CanvasGestureEvent {
             | Self::Release { modifiers, .. }
             | Self::DoubleClick { modifiers, .. }
             | Self::Drop { modifiers, .. } => Some(*modifiers),
-            Self::Hover(_) | Self::Wheel { .. } | Self::FocusChanged(_) => None,
+            Self::Hover { .. } | Self::Wheel { .. } | Self::FocusChanged(_) => None,
         }
     }
 
@@ -221,7 +266,7 @@ impl CanvasGestureEvent {
             Self::Drag { delta, .. } | Self::Release { delta, .. } | Self::Wheel { delta, .. } => {
                 Some(*delta)
             }
-            Self::Hover(_)
+            Self::Hover { .. }
             | Self::Press { .. }
             | Self::DoubleClick { .. }
             | Self::Drop { .. }

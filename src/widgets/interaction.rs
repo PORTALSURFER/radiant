@@ -8,7 +8,9 @@ mod messages;
 mod output;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
-pub use canvas_gesture::{CanvasGestureEvent, CanvasGestureState, CanvasPointer};
+pub use canvas_gesture::{
+    CanvasGestureEvent, CanvasGestureMetadata, CanvasGestureState, CanvasPointer,
+};
 pub use cursor::WidgetCursor;
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{

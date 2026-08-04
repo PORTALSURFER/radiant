@@ -1058,6 +1058,16 @@ actions such as range selection or marker editing.
 Use `CanvasPointer::is_inside(...)`, `normalized_x()`, and `normalized_y()` to
 classify projected pointer events and read normalized axes without repeating
 host-coordinate bounds checks or raw vector-field access in app widgets.
+Each pointer-like `CanvasGestureEvent` also carries a `CanvasGestureMetadata`
+value. Use `input_metadata()` to preserve the current normalized input's
+`PointerModifiers`, optional `InputTimestamp`, and optional opaque
+`InputSequenceRange` through canvas gesture delivery. Move and wheel events
+carry the current modifiers, timestamp, and sequence range; press, release,
+double-click, and drop events carry the current modifiers and timestamp without
+a sequence range. `Drag::modifiers` remains the original press modifiers for
+backward-compatible gesture semantics, while `input_metadata().modifiers`
+reports the current move modifiers. Public `WidgetInput` constructors leave
+these metadata fields absent.
 Use `CanvasGestureEvent::pointer()`, `origin()`, `button()`, `modifiers()`,
 `delta()`, and `pointer_is_inside(...)` when a custom canvas needs shared
 gesture metadata without matching every hover, press, drag, release,

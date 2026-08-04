@@ -181,6 +181,288 @@ fn values_differ(left: f32, right: f32) -> bool {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KnobEditKind {
+    Pointer,
+    Keyboard,
+    Wheel,
+    Reset,
+}
+
+/// One bounded, ordered batch of shared edit events emitted by a knob.
+///
+/// The storage has room for every lifecycle phase while each accepted knob
+/// input emits at most three events: pointer boundaries carry one or two
+/// events, and keyboard, wheel, and reset inputs carry an atomic
+/// `Begin`/`Update`/`Commit` batch. The private kind preserves the legacy
+/// [`KnobMessage`] projection without adding state to the public widget.
+#[derive(Clone, Copy)]
+pub struct KnobEditBatch {
+    events: [EditEvent<f32>; 4],
+    len: u8,
+    kind: KnobEditKind,
+    meaningful_rollback: bool,
+}
+
+impl std::fmt::Debug for KnobEditBatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("KnobEditBatch")
+            .field("events", &self.events())
+            .field("kind", &self.kind)
+            .field("meaningful_rollback", &self.meaningful_rollback)
+            .finish()
+    }
+}
+
+impl PartialEq for KnobEditBatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.events() == other.events()
+            && self.kind == other.kind
+            && self.meaningful_rollback == other.meaningful_rollback
+    }
+}
+
+impl KnobEditBatch {
+    /// Maximum number of ordered events carried by one knob batch.
+    pub const MAX_EVENTS: usize = 4;
+
+    /// Build a one-event batch with the kind inferred from its provenance.
+    pub fn new(event: EditEvent<f32>) -> Self {
+        Self {
+            events: [event; Self::MAX_EVENTS],
+            len: 1,
+            kind: inferred_kind(event.provenance),
+            meaningful_rollback: false,
+        }
+    }
+
+    /// Build a one-event batch with the kind inferred from its provenance.
+    pub fn single(event: EditEvent<f32>) -> Self {
+        Self::new(event)
+    }
+
+    /// Build a batch from one to four ordered events.
+    ///
+    /// The events must share one transaction. An empty or over-capacity slice
+    /// and a mixed-transaction slice return `None`.
+    pub fn from_events(events: &[EditEvent<f32>]) -> Option<Self> {
+        Self::from_events_with_kind(events, inferred_kind(events.first()?.provenance))
+    }
+
+    /// Return the ordered edit events in this batch.
+    pub fn events(&self) -> &[EditEvent<f32>] {
+        &self.events[..usize::from(self.len)]
+    }
+
+    /// Return the number of ordered events in this batch.
+    pub const fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Return whether this batch contains no events.
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Return the transaction shared by every event in this batch.
+    pub const fn transaction(&self) -> EditTransaction {
+        self.events[0].transaction
+    }
+
+    /// Project the latest effective value or a meaningful cancellation
+    /// rollback.
+    ///
+    /// Lifecycle-only pointer boundaries do not project a concise value. A
+    /// reset remains observable even when it already equals its configured
+    /// default, matching the legacy `KnobMessage::Reset` contract.
+    pub fn value_change(&self) -> Option<f32> {
+        let mut latest_update = None;
+        let mut rollback = None;
+        let mut current_value = None;
+        for event in self.events() {
+            match event.phase {
+                EditPhase::Begin => current_value = Some(event.value),
+                EditPhase::Update => {
+                    let previous_value = current_value.unwrap_or(event.start_value);
+                    if self.kind == KnobEditKind::Reset
+                        || values_differ(previous_value, event.value)
+                    {
+                        latest_update = Some(event.value);
+                    }
+                    current_value = Some(event.value);
+                }
+                EditPhase::Commit => current_value = Some(event.value),
+                EditPhase::Cancel if self.meaningful_rollback => rollback = Some(event.start_value),
+                EditPhase::Cancel => {}
+            }
+        }
+        rollback.or(latest_update)
+    }
+
+    pub(crate) fn pointer(events: &[EditEvent<f32>]) -> Option<Self> {
+        Self::from_events_with_kind(events, KnobEditKind::Pointer)
+    }
+
+    pub(crate) fn keyboard(events: &[EditEvent<f32>]) -> Option<Self> {
+        Self::from_events_with_kind(events, KnobEditKind::Keyboard)
+    }
+
+    pub(crate) fn wheel(events: &[EditEvent<f32>]) -> Option<Self> {
+        Self::from_events_with_kind(events, KnobEditKind::Wheel)
+    }
+
+    pub(crate) fn reset(events: &[EditEvent<f32>]) -> Option<Self> {
+        Self::from_events_with_kind(events, KnobEditKind::Reset)
+    }
+
+    pub(crate) fn rollback(event: EditEvent<f32>) -> Self {
+        Self {
+            events: [event; Self::MAX_EVENTS],
+            len: 1,
+            kind: KnobEditKind::Pointer,
+            meaningful_rollback: true,
+        }
+    }
+
+    pub(crate) fn legacy_message(&self) -> Option<KnobMessage> {
+        match self.kind {
+            KnobEditKind::Pointer => self.pointer_message(),
+            KnobEditKind::Keyboard => self.keyboard_message(),
+            KnobEditKind::Wheel => self.wheel_message(),
+            KnobEditKind::Reset => self.reset_message(),
+        }
+    }
+
+    fn from_events_with_kind(events: &[EditEvent<f32>], kind: KnobEditKind) -> Option<Self> {
+        if !(1..=Self::MAX_EVENTS).contains(&events.len()) {
+            return None;
+        }
+        let transaction = events.first()?.transaction;
+        if events.iter().any(|event| event.transaction != transaction) {
+            return None;
+        }
+
+        let mut stored = [events[0]; Self::MAX_EVENTS];
+        for (slot, event) in stored.iter_mut().zip(events.iter().copied()) {
+            *slot = event;
+        }
+        let meaningful_rollback = events.iter().enumerate().any(|(index, event)| {
+            event.phase == EditPhase::Cancel && has_effective_update(&events[..index])
+        });
+        Some(Self {
+            events: stored,
+            len: events.len() as u8,
+            kind,
+            meaningful_rollback,
+        })
+    }
+
+    fn pointer_message(&self) -> Option<KnobMessage> {
+        let event = self.events().last()?;
+        let metadata = pointer_metadata(event.provenance);
+        Some(match event.phase {
+            EditPhase::Begin => KnobMessage::GestureStarted {
+                value: event.value,
+                metadata,
+            },
+            EditPhase::Update => KnobMessage::ValueChanged {
+                value: event.value,
+                metadata,
+            },
+            EditPhase::Commit | EditPhase::Cancel => KnobMessage::GestureEnded {
+                value: event.value,
+                metadata,
+            },
+        })
+    }
+
+    fn keyboard_message(&self) -> Option<KnobMessage> {
+        let start_value = self.events().first()?.start_value;
+        let final_value = self.events().last()?.value;
+        let timestamp = self
+            .events()
+            .iter()
+            .find_map(|event| match event.provenance {
+                crate::widgets::interaction::InteractionProvenance::Keyboard { timestamp } => {
+                    Some(timestamp)
+                }
+                _ => None,
+            })
+            .flatten();
+        Some(KnobMessage::KeyboardGesture(
+            KnobKeyboardGesture::new_with_metadata(
+                start_value,
+                final_value,
+                KnobKeyboardMetadata { timestamp },
+            ),
+        ))
+    }
+
+    fn wheel_message(&self) -> Option<KnobMessage> {
+        let start_value = self.events().first()?.start_value;
+        let final_value = self.events().last()?.value;
+        let metadata = self
+            .events()
+            .last()
+            .map(|event| wheel_metadata(event.provenance))?;
+        Some(KnobMessage::WheelGesture(
+            KnobWheelGesture::new_with_metadata(start_value, final_value, metadata),
+        ))
+    }
+
+    fn reset_message(&self) -> Option<KnobMessage> {
+        let event = self.events().last()?;
+        Some(KnobMessage::Reset {
+            value: event.value,
+            metadata: pointer_metadata(event.provenance),
+        })
+    }
+}
+
+fn inferred_kind(provenance: crate::widgets::interaction::InteractionProvenance) -> KnobEditKind {
+    match provenance {
+        crate::widgets::interaction::InteractionProvenance::Keyboard { .. } => {
+            KnobEditKind::Keyboard
+        }
+        _ => KnobEditKind::Pointer,
+    }
+}
+
+fn pointer_metadata(
+    provenance: crate::widgets::interaction::InteractionProvenance,
+) -> KnobPointerMetadata {
+    match provenance {
+        crate::widgets::interaction::InteractionProvenance::Pointer {
+            modifiers,
+            timestamp,
+            sequence_range,
+        } => KnobPointerMetadata {
+            modifiers,
+            timestamp,
+            sequence_range,
+        },
+        _ => KnobPointerMetadata::empty(),
+    }
+}
+
+fn wheel_metadata(
+    provenance: crate::widgets::interaction::InteractionProvenance,
+) -> KnobWheelMetadata {
+    match provenance {
+        crate::widgets::interaction::InteractionProvenance::Pointer {
+            modifiers,
+            timestamp,
+            sequence_range,
+        } => KnobWheelMetadata {
+            modifiers,
+            timestamp,
+            sequence_range,
+        },
+        _ => KnobWheelMetadata::empty(),
+    }
+}
+
 /// One ordered event in a knob automation gesture.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum KnobAutomationEvent {

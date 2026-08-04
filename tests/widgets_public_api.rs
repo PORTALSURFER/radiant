@@ -12,7 +12,8 @@ use radiant::{
         CanvasWidgetParts, CardWidget, CardWidgetParts, DragHandleWidget, DragHandleWidgetParts,
         EditEvent, EditPhase, EditTransaction, IconButtonWidget, IconButtonWidgetParts,
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
-        InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidget, ListItemWidgetParts,
+        InteractiveRowWidget, InteractiveRowWidgetParts, KnobEditBatch, KnobMessage,
+        KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget, ListItemWidgetParts,
         ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
         SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
         SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
@@ -125,6 +126,57 @@ fn slider_runtime_constructor_owns_typed_edit_lifecycle() {
             .map(|event| event.phase)
             .collect::<Vec<_>>(),
         [EditPhase::Begin, EditPhase::Update]
+    );
+}
+
+#[test]
+fn knob_public_contract_keeps_legacy_shape_and_official_typed_lifecycle() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let template = KnobWidget::new(45, 0.5);
+    let KnobWidget { common, props, .. } = template;
+    let mut knob = KnobWidget {
+        common,
+        props,
+        state: KnobState {
+            value: 0.5,
+            gesture_origin: None,
+            fine_adjustment: false,
+        },
+    };
+    let output = Widget::handle_input(
+        &mut knob,
+        bounds,
+        WidgetInput::primary_press(Point::new(20.0, 20.0)),
+    );
+    assert_eq!(
+        output.and_then(|output| output.typed_copied::<KnobMessage>()),
+        Some(KnobMessage::GestureStarted {
+            value: 0.5,
+            metadata: KnobPointerMetadata::default(),
+        })
+    );
+
+    let mut surface: UiSurface<KnobEditBatch> = UiSurface::new(SurfaceNode::knob_edits_mapped(
+        46,
+        0.5,
+        WidgetSizing::fixed(Vector2::new(40.0, 40.0)),
+        |batch| batch,
+    ));
+    let output = surface
+        .dispatch_widget_input(
+            46,
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        )
+        .and_then(|output| output.typed_copied::<KnobEditBatch>())
+        .expect("official Knob constructor should emit the typed lifecycle");
+    assert_eq!(
+        output
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin]
     );
 }
 

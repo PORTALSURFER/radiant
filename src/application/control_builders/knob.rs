@@ -1,7 +1,10 @@
 use crate::{
     application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     runtime::WidgetMessageMapper,
-    widgets::{KnobMessage, KnobWidget, WidgetProminence, WidgetSizing, WidgetStyle},
+    widgets::{
+        KnobEditBatch, KnobMessage, KnobWidget, RetainedKnobWidget, WidgetProminence, WidgetSizing,
+        WidgetStyle,
+    },
 };
 
 /// Builder for radial knobs with explicit automation lifecycle mapping.
@@ -70,6 +73,18 @@ impl KnobBuilder {
         self,
         map: impl Fn(KnobMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::knob(map))
+    }
+
+    /// Emit a host message for the complete ordered knob edit lifecycle.
+    pub fn on_edit<Message: 'static>(
+        self,
+        map: impl Fn(KnobEditBatch) -> Message + 'static,
+    ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::knob_edits(map))
+    }
+
+    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
         let mut knob = KnobWidget::new(0, self.value);
         if let Some(default_value) = self.default_value {
             knob = knob.with_default_value(default_value);
@@ -82,10 +97,8 @@ impl KnobBuilder {
         }
         knob.common.state.disabled = !self.enabled;
         knob.common.state.automation_active = self.automation_active;
-        let mut node = view_node_from_widget(MappedWidget::new(
-            knob,
-            WidgetMessageMapper::typed(move |message: KnobMessage| map(message)),
-        ));
+        let mut node =
+            view_node_from_widget(MappedWidget::new(RetainedKnobWidget::new(knob), messages));
         node.style = self.style;
         node
     }
@@ -110,4 +123,12 @@ pub fn knob_mapped<Message: 'static>(
     map: impl Fn(KnobMessage) -> Message + 'static,
 ) -> ViewNode<Message> {
     knob(value).message(map)
+}
+
+/// Build a radial knob that forwards complete edit batches.
+pub fn knob_edit_mapped<Message: 'static>(
+    value: f32,
+    map: impl Fn(KnobEditBatch) -> Message + 'static,
+) -> ViewNode<Message> {
+    knob(value).on_edit(map)
 }

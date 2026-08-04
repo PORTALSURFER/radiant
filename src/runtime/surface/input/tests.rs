@@ -114,6 +114,55 @@ fn slider_capture_cancellation_routes_typed_cancel_while_knob_default_stays_supp
 }
 
 #[test]
+fn knob_typed_surface_routes_pointer_transaction_and_capture_cancellation() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let mut root = SurfaceNode::knob_edits_mapped(
+        33,
+        0.5,
+        WidgetSizing::fixed(Vector2::new(40.0, 40.0)),
+        |batch| batch,
+    );
+    let Some(WidgetDispatchResult::Message(press)) = root.dispatch_input_at_path(
+        33,
+        &[],
+        bounds,
+        WidgetInput::primary_press(Point::new(20.0, 20.0)),
+    ) else {
+        panic!("Knob typed press should emit a begin batch");
+    };
+    assert_eq!(press.events()[0].phase, EditPhase::Begin);
+    let transaction = press.transaction();
+
+    let Some(WidgetDispatchResult::Message(update)) = root.dispatch_input_at_path(
+        33,
+        &[],
+        bounds,
+        WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+    ) else {
+        panic!("Knob typed move should emit an update batch");
+    };
+    assert_eq!(update.events()[0].phase, EditPhase::Update);
+    assert_eq!(update.events()[0].transaction, transaction);
+
+    let Some(WidgetDispatchResult::Message(cancel)) =
+        root.dispatch_pointer_capture_cancelled_at_path(33, &[], bounds)
+    else {
+        panic!("Knob capture cancellation should emit a typed cancel batch");
+    };
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.value_change(), Some(0.5));
+    assert_eq!(
+        root.find_widget_at_path(&[])
+            .expect("Knob exists")
+            .widget()
+            .automation_semantics()
+            .value_text
+            .as_deref(),
+        Some("0.500")
+    );
+}
+
+#[test]
 fn slider_typed_reprojection_retains_transaction_but_keeps_fresh_value_authoritative() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
     let mut previous = SurfaceNode::slider_edits_mapped(

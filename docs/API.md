@@ -881,7 +881,25 @@ The public `SliderState` remains the source-compatible one-field
 crate-private retained adapter that owns the active transaction; a bare public
 `SliderWidget` keeps the concise `handle_input(...) -> Option<SliderMessage>`
 contract and does not carry typed lifecycle state. `Knob` is the next
-shared-edit adopter.
+shared-edit adopter. `KnobWidget` now follows the same contract through the
+qualified `KnobEditBatch` message. It carries one to four ordered
+`EditEvent<f32>` values in fixed-capacity copy-only storage and exposes the
+shared transaction plus concise value projection. Official Knob builders lower
+a crate-private retained adapter that owns the active pointer transaction;
+pointer relative-motion boundaries preserve their exact provenance, focused
+keyboard, wheel, and reset inputs emit atomic `Begin`/`Update`/`Commit`
+batches, and focus or capture interruption emits a true `Cancel` rollback when
+the gesture changed its start value. Wheel input is ignored during an active
+captured pointer gesture, and fresh same-ID projections remain authoritative
+for value while compatible retained interaction state continues. The concise
+`KnobBuilder::message`, `WidgetMessageMapper::knob`, and
+`SurfaceNode::knob_mapped` paths project typed batches back to the existing
+`KnobMessage` lifecycle, while `WidgetMessageMapper::knob_edits`,
+`SurfaceNode::knob_edits_mapped`, `KnobBuilder::on_edit`, and
+`application::knob_edit_mapped` receive complete ordered batches. These Knob
+lifecycle APIs are qualified and are not exported through the common prelude;
+the public `KnobWidget { common, props, state }` shape and legacy automation
+gesture types remain source-compatible.
 
 These types are intentionally not exported through the common prelude.
 

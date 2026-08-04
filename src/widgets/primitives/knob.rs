@@ -1,5 +1,11 @@
 //! Reusable radial knob primitive with explicit host-automation gestures.
 
+mod builders;
+mod input;
+mod retained;
+
+pub(crate) use retained::RetainedKnobWidget;
+
 use std::f32::consts::TAU;
 
 use crate::gui::{
@@ -296,6 +302,10 @@ impl KnobWidget {
         Some(value)
     }
 
+    pub(super) fn is_editable(&self) -> bool {
+        !self.common.state.disabled && !self.common.state.read_only
+    }
+
     fn keyboard_gesture(
         &mut self,
         value: f32,
@@ -483,6 +493,10 @@ fn arc_points(center: Point, radius: f32, start: f32, sweep: f32, segments: usiz
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "knob/typed_tests.rs"]
+mod typed_tests;
 
 #[cfg(test)]
 mod tests {

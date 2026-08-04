@@ -29,11 +29,11 @@ pub use controls::{
     disclosure_button, dropdown, dropdown_from_parts, dropdown_height, dropdown_menu,
     dropdown_menu_height, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
     icon_button, indeterminate_progress_bar, interactive_badge, interactive_row,
-    interactive_row_underlay, knob, knob_mapped, pointer_drop_target, pointer_move_target,
-    pointer_target, progress_bar, progress_bar_for_snapshot, row_actions, row_actions_local,
-    selectable, selectable_mapped, slider, slider_edit_mapped, slider_mapped, text_input,
-    text_input_clear_button_id, text_input_mapped, toggle, toggle_mapped, toggle_mapped_with,
-    tree_row,
+    interactive_row_underlay, knob, knob_edit_mapped, knob_mapped, pointer_drop_target,
+    pointer_move_target, pointer_target, progress_bar, progress_bar_for_snapshot, row_actions,
+    row_actions_local, selectable, selectable_mapped, slider, slider_edit_mapped, slider_mapped,
+    text_input, text_input_clear_button_id, text_input_mapped, toggle, toggle_mapped,
+    toggle_mapped_with, tree_row,
 };
 pub use details::{
     CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,

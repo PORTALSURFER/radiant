@@ -11,13 +11,13 @@ impl BrowserState {
                     target_id: self.folder_drop_target_for_y(position.y),
                 });
             }
-            ui::DragHandleMessage::Moved { position } => {
+            ui::DragHandleMessage::Moved { position, .. } => {
                 let target_id = self.folder_drop_target_for_y(position.y);
                 if let Some(drag) = self.tree.folder_drag.as_mut() {
                     drag.target_id = target_id;
                 }
             }
-            ui::DragHandleMessage::Ended { position } => {
+            ui::DragHandleMessage::Ended { position, .. } => {
                 let source_id = self
                     .tree
                     .folder_drag

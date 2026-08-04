@@ -296,7 +296,7 @@ pub fn update_panel_resize_drag(
             *active_drag = Some(PanelResizeDrag::new(edge, origin, current_size));
             None
         }
-        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Moved { position, .. } | DragHandleMessage::Ended { position, .. } => {
             let size = active_drag.map(|drag| drag.size_at(position, min_size, max_size));
             if message.is_ended() {
                 *active_drag = None;

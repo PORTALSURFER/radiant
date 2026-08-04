@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::input::{InputSequence, InputSequenceRange, InputTimestamp};
 
 #[test]
 fn accessors_expose_identity_and_common_contract_for_custom_row_wrappers() {
@@ -218,6 +219,74 @@ fn coalesced_row_drag_preserves_press_origin_and_current_pointer() {
 }
 
 #[test]
+fn threshold_crossing_row_drag_sanitizes_start_sequence_range_but_preserves_moved_range() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row =
+        InteractiveRowWidget::new(28, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    let origin = Point::new(8.0, 6.0);
+    let threshold = Point::new(16.0, 12.0);
+    let moved = Point::new(24.0, 12.0);
+    let modifiers = PointerModifiers {
+        command: false,
+        shift: true,
+        alt: true,
+    };
+    let timestamp = InputTimestamp::capture();
+    let sequence_range = InputSequenceRange::singleton(InputSequence::from_runtime_value(42));
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_press(origin)),
+        None
+    );
+
+    let started = row
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_move_with_metadata(
+                threshold,
+                modifiers,
+                Some(timestamp),
+                Some(sequence_range),
+            ),
+        )
+        .expect("threshold-crossing move should start a drag")
+        .drag_message()
+        .expect("row output should contain a drag message");
+    assert!(started.is_started());
+    assert_eq!(
+        started.input_metadata(),
+        DragHandleMetadata {
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range: None,
+        }
+    );
+
+    let moved = row
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_move_with_metadata(
+                moved,
+                modifiers,
+                Some(timestamp),
+                Some(sequence_range),
+            ),
+        )
+        .expect("subsequent move should remain active")
+        .drag_message()
+        .expect("row output should contain a drag message");
+    assert!(moved.is_moved());
+    assert_eq!(
+        moved.input_metadata(),
+        DragHandleMetadata {
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range: Some(sequence_range),
+        }
+    );
+}
+
+#[test]
 fn focus_loss_preserves_started_row_drag() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row =
@@ -235,6 +304,7 @@ fn focus_loss_preserves_started_row_drag() {
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Started {
             origin: start,
             position: moved,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -246,7 +316,8 @@ fn focus_loss_preserves_started_row_drag() {
     assert_eq!(
         row.handle_input(bounds, WidgetInput::primary_release(release)),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
-            position: release
+            position: release,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert!(!row.common.state.pressed);

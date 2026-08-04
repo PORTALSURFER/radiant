@@ -24,11 +24,12 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleWidget, GpuSurfaceMessage,
-        GpuSurfaceWidget, PointerButton, PointerModifiers, RetainedSurfaceDescriptor,
-        TextEditCommand, TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetCursor,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSemantics, WidgetSizing,
-        WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
+        ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleMetadata, DragHandleWidget,
+        GpuSurfaceMessage, GpuSurfaceWidget, PointerButton, PointerModifiers,
+        RetainedSurfaceDescriptor, TextEditCommand, TextInputWidget, TextWidget, Widget,
+        WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence,
+        WidgetSemantics, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::{Arc, Mutex};

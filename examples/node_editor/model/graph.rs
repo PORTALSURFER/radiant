@@ -19,7 +19,7 @@ pub(crate) fn move_node_from_drag(
             state.selected_node = node_id;
             state.status = format!("{node_id} drag started");
         }
-        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Moved { position, .. } | DragHandleMessage::Ended { position, .. } => {
             let phase = drag_phase(message);
             let target_index = slot_index_for_x(position.x, state.node_order.len());
             reorder_node(state, node_id, target_index);

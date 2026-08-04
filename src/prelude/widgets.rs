@@ -2,7 +2,7 @@
 
 pub use crate::widgets::{
     ActivationInputPolicy, ActivationInputResult, ColorMarkerAlign, ColorMarkerProps,
-    DragHandleMessage, DragHandlePhase, FocusBehavior, InteractiveRowMessage,
+    DragHandleMessage, DragHandleMetadata, DragHandlePhase, FocusBehavior, InteractiveRowMessage,
     InteractiveRowPointerMotion, KnobAutomationEvent, KnobKeyboardGesture, KnobMessage,
     KnobWheelGesture, PointerButton, PointerCapturePolicy, PointerShieldMessage,
     ProgressBarMessage, ProgressBarMode, ScrollbarAxis, ScrollbarMessage, SliderMessage, TextAlign,

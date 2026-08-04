@@ -1,6 +1,6 @@
 use super::super::DetailsColumnPlacement;
 use super::*;
-use crate::widgets::DragHandleMessage;
+use crate::widgets::{DragHandleMessage, DragHandleMetadata};
 
 #[test]
 fn details_column_resize_drag_clamps_width() {
@@ -149,7 +149,8 @@ fn update_details_column_resize_drag_manages_drag_lifecycle() {
             &mut drag,
             "ignored",
             DragHandleMessage::Moved {
-                position: crate::gui::types::Point::new(140.0, 0.0)
+                position: crate::gui::types::Point::new(140.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             None,
             48.0,
@@ -166,7 +167,8 @@ fn update_details_column_resize_drag_manages_drag_lifecycle() {
             &mut drag,
             "ignored",
             DragHandleMessage::Ended {
-                position: crate::gui::types::Point::new(200.0, 0.0)
+                position: crate::gui::types::Point::new(200.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             None,
             48.0,
@@ -202,7 +204,8 @@ fn update_details_column_resize_drag_ignores_unknown_starts_and_orphaned_motion(
             &mut drag,
             "name",
             DragHandleMessage::Moved {
-                position: crate::gui::types::Point::new(140.0, 0.0)
+                position: crate::gui::types::Point::new(140.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             Some(240.0),
             48.0,
@@ -249,7 +252,8 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         &mut columns,
         "ignored",
         DragHandleMessage::Moved {
-            position: crate::gui::types::Point::new(410.0, 0.0)
+            position: crate::gui::types::Point::new(410.0, 0.0),
+            metadata: DragHandleMetadata::empty(),
         },
         &placements(),
         10.0,
@@ -271,7 +275,8 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         &mut columns,
         "ignored",
         DragHandleMessage::Ended {
-            position: crate::gui::types::Point::new(520.0, 0.0)
+            position: crate::gui::types::Point::new(520.0, 0.0),
+            metadata: DragHandleMetadata::empty(),
         },
         &placements(),
         10.0,
@@ -355,7 +360,8 @@ fn update_details_column_reorder_drag_cancel_clears_without_reorder() {
         &mut columns,
         "ignored",
         DragHandleMessage::Moved {
-            position: crate::gui::types::Point::new(410.0, 0.0)
+            position: crate::gui::types::Point::new(410.0, 0.0),
+            metadata: DragHandleMetadata::empty(),
         },
         &placements,
         10.0,
@@ -414,7 +420,8 @@ fn update_visible_details_column_reorder_drag_preserves_hidden_columns() {
         &mut columns,
         "ignored",
         DragHandleMessage::Ended {
-            position: crate::gui::types::Point::new(8.0, 0.0)
+            position: crate::gui::types::Point::new(8.0, 0.0),
+            metadata: DragHandleMetadata::empty(),
         },
         &placements,
         10.0,

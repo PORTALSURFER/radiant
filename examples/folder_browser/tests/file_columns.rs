@@ -47,6 +47,7 @@ fn file_column_resize_clamps_width() {
         String::from("kind"),
         ui::DragHandleMessage::Moved {
             position: radiant::layout::Point::new(-200.0, 0.0),
+            metadata: ui::DragHandleMetadata::empty(),
         },
     );
 

@@ -6,11 +6,13 @@ fn splitter_clamps_folder_tree_width() {
 
     state.resize_tree(ui::DragHandleMessage::Moved {
         position: radiant::layout::Point::new(20.0, 0.0),
+        metadata: ui::DragHandleMetadata::empty(),
     });
     assert_eq!(state.tree.tree_width, MIN_TREE_WIDTH);
 
     state.resize_tree(ui::DragHandleMessage::Moved {
         position: radiant::layout::Point::new(600.0, 0.0),
+        metadata: ui::DragHandleMetadata::empty(),
     });
     assert_eq!(state.tree.tree_width, MAX_TREE_WIDTH);
 }

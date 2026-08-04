@@ -37,6 +37,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
             DragHandleMessage::started(Point::new(12.0, 12.0)),
             DragHandleMessage::Moved {
                 position: Point::new(12.0, 72.0),
+                metadata: DragHandleMetadata::empty(),
             },
         ]
     );

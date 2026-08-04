@@ -1,7 +1,12 @@
 use crate::gui::svg::{IconName, SvgIcon};
-use crate::gui::types::{Point, Vector2};
+use crate::gui::{
+    input::{InputSequence, InputSequenceRange, InputTimestamp},
+    types::{Point, Vector2},
+};
 use crate::widgets::contract::WidgetState;
-use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
+use crate::widgets::interaction::{
+    DragHandleMessage, DragHandleMetadata, PointerButton, PointerModifiers, WidgetInput, WidgetKey,
+};
 use std::sync::Arc;
 
 use super::*;
@@ -103,6 +108,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: Point::new(10.0, 10.0),
             position: Point::new(12.0, 14.0),
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -116,8 +122,77 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             },
         ),
         Some(ButtonMessage::Drag(DragHandleMessage::Ended {
-            position: Point::new(20.0, 22.0)
+            position: Point::new(20.0, 22.0),
+            metadata: DragHandleMetadata::empty(),
         }))
+    );
+}
+
+#[test]
+fn draggable_button_sanitizes_threshold_start_sequence_range_but_preserves_moved_range() {
+    let bounds = Rect::from_size(80.0, 28.0);
+    let mut button =
+        ButtonWidget::new(18, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    let origin = Point::new(10.0, 10.0);
+    let threshold = Point::new(14.0, 10.0);
+    let moved = Point::new(18.0, 12.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: false,
+        alt: true,
+    };
+    let timestamp = InputTimestamp::capture();
+    let sequence_range = InputSequenceRange::singleton(InputSequence::from_runtime_value(42));
+
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_press(origin)),
+        None
+    );
+
+    let started = button
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_move_with_metadata(
+                threshold,
+                modifiers,
+                Some(timestamp),
+                Some(sequence_range),
+            ),
+        )
+        .expect("threshold-crossing move should start a drag")
+        .drag_message()
+        .expect("button output should contain a drag message");
+    assert!(started.is_started());
+    assert_eq!(
+        started.input_metadata(),
+        DragHandleMetadata {
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range: None,
+        }
+    );
+
+    let moved = button
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_move_with_metadata(
+                moved,
+                modifiers,
+                Some(timestamp),
+                Some(sequence_range),
+            ),
+        )
+        .expect("subsequent move should remain active")
+        .drag_message()
+        .expect("button output should contain a drag message");
+    assert!(moved.is_moved());
+    assert_eq!(
+        moved.input_metadata(),
+        DragHandleMetadata {
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range: Some(sequence_range),
+        }
     );
 }
 
@@ -161,6 +236,7 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: press_point,
             position: move_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
 
@@ -172,7 +248,8 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
     assert_eq!(
         refreshed.handle_input(bounds, WidgetInput::primary_release(release_point)),
         Some(ButtonMessage::Drag(DragHandleMessage::Ended {
-            position: release_point
+            position: release_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert!(!refreshed.common.state.active);
@@ -195,6 +272,7 @@ fn draggable_button_focus_loss_cancels_drag() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: press_point,
             position: move_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -214,6 +292,7 @@ fn button_message_helpers_classify_common_outputs() {
     let drag_position = Point::new(18.0, 20.0);
     let drag = DragHandleMessage::Moved {
         position: drag_position,
+        metadata: DragHandleMetadata::empty(),
     };
 
     assert!(ButtonMessage::Activate.is_activate());

@@ -72,7 +72,7 @@ pub fn update_details_column_resize_drag(
             ));
             None
         }
-        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Moved { position, .. } | DragHandleMessage::Ended { position, .. } => {
             let update = active_drag.as_ref().map(|drag| DetailsColumnWidthUpdate {
                 column_id: drag.column_id.clone(),
                 width: drag.width_at(position.x, min_width, max_width),
@@ -287,7 +287,9 @@ pub fn update_details_column_reorder_drag<T>(
     id: impl Fn(&T) -> &str,
 ) -> bool {
     match message {
-        DragHandleMessage::Started { origin, position } => {
+        DragHandleMessage::Started {
+            origin, position, ..
+        } => {
             let column_id = column_id.to_string();
             let Some(content_left) =
                 details_column_drag_content_left(placements, &column_id, origin.x, column_gap)
@@ -301,11 +303,11 @@ pub fn update_details_column_reorder_drag<T>(
             ));
             false
         }
-        DragHandleMessage::Moved { position } => active_drag.as_mut().is_some_and(|drag| {
+        DragHandleMessage::Moved { position, .. } => active_drag.as_mut().is_some_and(|drag| {
             drag.pointer = position;
             false
         }),
-        DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Ended { position, .. } => {
             let changed = active_drag.as_mut().is_some_and(|drag| {
                 drag.pointer = position;
                 drag.current_target_index(placements, column_gap)
@@ -346,7 +348,9 @@ pub fn update_visible_details_column_reorder_drag<T>(
     is_visible: impl Fn(&T) -> bool,
 ) -> bool {
     match message {
-        DragHandleMessage::Started { origin, position } => {
+        DragHandleMessage::Started {
+            origin, position, ..
+        } => {
             let column_id = column_id.to_string();
             let Some(content_left) =
                 details_column_drag_content_left(placements, &column_id, origin.x, column_gap)
@@ -360,11 +364,11 @@ pub fn update_visible_details_column_reorder_drag<T>(
             ));
             false
         }
-        DragHandleMessage::Moved { position } => active_drag.as_mut().is_some_and(|drag| {
+        DragHandleMessage::Moved { position, .. } => active_drag.as_mut().is_some_and(|drag| {
             drag.pointer = position;
             false
         }),
-        DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Ended { position, .. } => {
             let changed = active_drag.as_mut().is_some_and(|drag| {
                 drag.pointer = position;
                 drag.current_target_index(placements, column_gap)

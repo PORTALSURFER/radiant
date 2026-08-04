@@ -878,6 +878,17 @@ need generic drag lifecycle information or cancellation cleanup without duplicat
 widgets need to construct drag lifecycle messages directly. Threshold-based
 controls use `started_from(...)` so reducers can preserve displacement from the
 primary-press origin while painting immediate feedback at the current pointer.
+Each pointer-bearing drag variant also carries a `DragHandleMetadata` value.
+Use `DragHandleMessage::input_metadata()` to preserve the current normalized
+`PointerModifiers`, optional `InputTimestamp`, and optional opaque
+`InputSequenceRange`. `Started`, `Ended`, and `DoubleActivate` preserve the
+current modifiers and timestamp without a sequence range; `Moved` preserves
+the current modifiers, timestamp, and sequence range. Focus-loss
+`Cancelled` messages return `DragHandleMetadata::empty()`. The public drag
+constructors intentionally leave metadata absent, so synthetic and legacy
+messages remain observationally equivalent. `DragHandleMetadata` is exported
+from `radiant::widgets` and the prelude for hosts that need to inspect or
+construct explicit enum values.
 Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed

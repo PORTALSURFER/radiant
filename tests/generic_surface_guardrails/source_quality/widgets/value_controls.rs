@@ -43,6 +43,9 @@ fn drag_handle_primitive_keeps_surface_builders_focused() {
     let builders =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/drag_handle/builders.rs"))
             .expect("drag-handle primitive builders should be readable");
+    let input =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/drag_handle/input.rs"))
+            .expect("drag-handle input module should be readable");
 
     assert!(
         root.contains("mod builders;")
@@ -58,6 +61,18 @@ fn drag_handle_primitive_keeps_surface_builders_focused() {
             && builders.contains("impl<Message> WidgetMessageMapper<Message>")
             && builders.contains("pub fn drag_handle("),
         "drag-handle runtime builder helpers should live in drag_handle/builders.rs"
+    );
+    assert!(
+        input.contains("DragHandleMetadata")
+            && input.contains("modifiers")
+            && input.contains("timestamp")
+            && input.contains("sequence_range")
+            && input.contains("pointer_move_with_metadata")
+            && input.contains("sequence_range: None")
+            && input
+                .contains("drag_handle_preserves_native_metadata_and_only_moves_carry_sequences")
+            && input.contains("DragHandleMetadata::empty()"),
+        "drag-handle input should preserve native modifiers/timestamps, restrict sequences to moves, and test synthetic/cancellation absence"
     );
 }
 

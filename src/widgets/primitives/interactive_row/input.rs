@@ -4,7 +4,8 @@ use super::InteractiveRowWidget;
 use crate::{
     gui::types::{Point, Rect},
     widgets::interaction::{
-        DragHandleMessage, InteractiveRowMessage, PointerButton, WidgetInput, WidgetKey,
+        DragHandleMessage, DragHandleMetadata, InteractiveRowMessage, PointerButton, WidgetInput,
+        WidgetKey,
     },
 };
 
@@ -19,7 +20,17 @@ impl InteractiveRowWidget {
         input: WidgetInput,
     ) -> Option<InteractiveRowMessage> {
         match input {
-            WidgetInput::PointerMove { position, .. } => {
+            WidgetInput::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            } => {
+                let metadata = DragHandleMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                };
                 if self.props.suppress_hover
                     || (self.props.drag_active && !self.props.drag_source && !self.props.droppable)
                 {
@@ -29,9 +40,9 @@ impl InteractiveRowWidget {
                 self.common.state.hovered = bounds.contains(position);
                 if self.props.drag_source {
                     if self.props.drag_source_motion {
-                        return Some(InteractiveRowMessage::Drag(DragHandleMessage::Moved {
-                            position,
-                        }));
+                        return Some(InteractiveRowMessage::Drag(
+                            DragHandleMessage::moved_with_metadata(position, metadata),
+                        ));
                     }
                     return None;
                 }
@@ -40,12 +51,17 @@ impl InteractiveRowWidget {
                         return None;
                     }
                     let message = if self.dragged {
-                        DragHandleMessage::Moved { position }
+                        DragHandleMessage::moved_with_metadata(position, metadata)
                     } else {
                         self.dragged = true;
-                        DragHandleMessage::started_from(
+                        DragHandleMessage::started_with_metadata(
                             self.pressed_position.unwrap_or(position),
                             position,
+                            DragHandleMetadata {
+                                modifiers: metadata.modifiers,
+                                timestamp: metadata.timestamp,
+                                sequence_range: None,
+                            },
                         )
                     };
                     return Some(InteractiveRowMessage::Drag(message));
@@ -103,8 +119,13 @@ impl InteractiveRowWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
-                ..
+                timestamp,
             } => {
+                let metadata = DragHandleMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                };
                 if self.props.droppable
                     && self.props.drag_active
                     && !self.props.drag_source
@@ -128,9 +149,9 @@ impl InteractiveRowWidget {
                 self.dragged = false;
                 self.double_activated = false;
                 if dragged {
-                    return Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
-                        position,
-                    }));
+                    return Some(InteractiveRowMessage::Drag(
+                        DragHandleMessage::ended_with_metadata(position, metadata),
+                    ));
                 }
                 if !activated {
                     return None;

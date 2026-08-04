@@ -1,4 +1,36 @@
-use crate::gui::types::Point;
+use crate::{
+    gui::{
+        input::{InputSequenceRange, InputTimestamp},
+        types::Point,
+    },
+    widgets::interaction::PointerModifiers,
+};
+
+/// Normalized input provenance carried by a drag-handle message.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DragHandleMetadata {
+    /// Modifier state captured with the current normalized input sample.
+    pub modifiers: PointerModifiers,
+    /// Optional timestamp captured at the native input boundary.
+    pub timestamp: Option<InputTimestamp>,
+    /// Optional opaque native sample sequence range.
+    pub sequence_range: Option<InputSequenceRange>,
+}
+
+impl DragHandleMetadata {
+    /// Build metadata with no native sample provenance.
+    pub const fn empty() -> Self {
+        Self {
+            modifiers: PointerModifiers {
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            timestamp: None,
+            sequence_range: None,
+        }
+    }
+}
 
 /// Message emitted by a reusable drag handle primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -9,21 +41,29 @@ pub enum DragHandleMessage {
         origin: Point,
         /// Current pointer position when the drag crossed its start threshold.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: DragHandleMetadata,
     },
     /// Captured pointer moved while the drag is active.
     Moved {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: DragHandleMetadata,
     },
     /// Primary pointer drag ended or was released.
     Ended {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: DragHandleMetadata,
     },
     /// Primary pointer double-clicked the drag handle.
     DoubleActivate {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
+        /// Normalized input provenance for the current pointer sample.
+        metadata: DragHandleMetadata,
     },
     /// Active drag was cancelled before a normal release.
     Cancelled {
@@ -66,32 +106,73 @@ impl DragHandleMessage {
         Self::Started {
             origin: position,
             position,
+            metadata: DragHandleMetadata::empty(),
         }
     }
 
     /// Build a threshold-crossing drag start from `origin` to `position`.
     pub const fn started_from(origin: Point, position: Point) -> Self {
-        Self::Started { origin, position }
+        Self::Started {
+            origin,
+            position,
+            metadata: DragHandleMetadata::empty(),
+        }
     }
 
     /// Build an active drag-motion message at `position`.
     pub const fn moved(position: Point) -> Self {
-        Self::Moved { position }
+        Self::Moved {
+            position,
+            metadata: DragHandleMetadata::empty(),
+        }
     }
 
     /// Build a drag-ended message at `position`.
     pub const fn ended(position: Point) -> Self {
-        Self::Ended { position }
+        Self::Ended {
+            position,
+            metadata: DragHandleMetadata::empty(),
+        }
     }
 
     /// Build a double-activation message at `position`.
     pub const fn double_activate(position: Point) -> Self {
-        Self::DoubleActivate { position }
+        Self::DoubleActivate {
+            position,
+            metadata: DragHandleMetadata::empty(),
+        }
     }
 
     /// Build a drag-cancelled message at `position`.
     pub const fn cancelled(position: Point) -> Self {
         Self::Cancelled { position }
+    }
+
+    pub(crate) const fn started_with_metadata(
+        origin: Point,
+        position: Point,
+        metadata: DragHandleMetadata,
+    ) -> Self {
+        Self::Started {
+            origin,
+            position,
+            metadata,
+        }
+    }
+
+    pub(crate) const fn moved_with_metadata(position: Point, metadata: DragHandleMetadata) -> Self {
+        Self::Moved { position, metadata }
+    }
+
+    pub(crate) const fn ended_with_metadata(position: Point, metadata: DragHandleMetadata) -> Self {
+        Self::Ended { position, metadata }
+    }
+
+    pub(crate) const fn double_activate_with_metadata(
+        position: Point,
+        metadata: DragHandleMetadata,
+    ) -> Self {
+        Self::DoubleActivate { position, metadata }
     }
 
     /// Return this drag message's lifecycle phase.
@@ -109,10 +190,21 @@ impl DragHandleMessage {
     pub fn position(self) -> Point {
         match self {
             Self::Started { position, .. }
-            | Self::Moved { position }
-            | Self::Ended { position }
-            | Self::DoubleActivate { position }
+            | Self::Moved { position, .. }
+            | Self::Ended { position, .. }
+            | Self::DoubleActivate { position, .. }
             | Self::Cancelled { position } => position,
+        }
+    }
+
+    /// Return normalized input provenance for this drag message.
+    pub fn input_metadata(&self) -> DragHandleMetadata {
+        match self {
+            Self::Started { metadata, .. }
+            | Self::Moved { metadata, .. }
+            | Self::Ended { metadata, .. }
+            | Self::DoubleActivate { metadata, .. } => *metadata,
+            Self::Cancelled { .. } => DragHandleMetadata::empty(),
         }
     }
 
@@ -135,7 +227,7 @@ impl DragHandleMessage {
     /// Return the pointer position when this message is active drag motion.
     pub fn moved_position(self) -> Option<Point> {
         match self {
-            Self::Moved { position } => Some(position),
+            Self::Moved { position, .. } => Some(position),
             _ => None,
         }
     }
@@ -143,7 +235,7 @@ impl DragHandleMessage {
     /// Return the pointer position when this message ends an interaction.
     pub fn ended_position(self) -> Option<Point> {
         match self {
-            Self::Ended { position } => Some(position),
+            Self::Ended { position, .. } => Some(position),
             _ => None,
         }
     }
@@ -151,7 +243,7 @@ impl DragHandleMessage {
     /// Return the pointer position when this message ends or cancels an interaction.
     pub fn finished_position(self) -> Option<Point> {
         match self {
-            Self::Ended { position } | Self::Cancelled { position } => Some(position),
+            Self::Ended { position, .. } | Self::Cancelled { position } => Some(position),
             _ => None,
         }
     }
@@ -194,7 +286,7 @@ impl DragHandleMessage {
 mod tests {
     use crate::gui::types::Point;
 
-    use super::{DragHandleMessage, DragHandlePhase};
+    use super::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 
     #[test]
     fn drag_handle_phase_exposes_stable_diagnostic_labels() {
@@ -209,12 +301,14 @@ mod tests {
     fn drag_handle_message_classifies_terminal_drag_phases() {
         let ended = DragHandleMessage::Ended {
             position: Point::new(10.0, 20.0),
+            metadata: DragHandleMetadata::empty(),
         };
         let cancelled = DragHandleMessage::Cancelled {
             position: Point::new(30.0, 40.0),
         };
         let moved = DragHandleMessage::Moved {
             position: Point::new(50.0, 60.0),
+            metadata: DragHandleMetadata::empty(),
         };
 
         assert!(ended.is_finished());
@@ -239,6 +333,7 @@ mod tests {
             DragHandleMessage::Started {
                 origin: start,
                 position: start,
+                metadata: DragHandleMetadata::empty(),
             }
         );
         assert_eq!(
@@ -246,19 +341,29 @@ mod tests {
             DragHandleMessage::Started {
                 origin: start,
                 position: threshold,
+                metadata: DragHandleMetadata::empty(),
             }
         );
         assert_eq!(
             DragHandleMessage::moved(move_to),
-            DragHandleMessage::Moved { position: move_to }
+            DragHandleMessage::Moved {
+                position: move_to,
+                metadata: DragHandleMetadata::empty(),
+            }
         );
         assert_eq!(
             DragHandleMessage::ended(end),
-            DragHandleMessage::Ended { position: end }
+            DragHandleMessage::Ended {
+                position: end,
+                metadata: DragHandleMetadata::empty(),
+            }
         );
         assert_eq!(
             DragHandleMessage::double_activate(double),
-            DragHandleMessage::DoubleActivate { position: double }
+            DragHandleMessage::DoubleActivate {
+                position: double,
+                metadata: DragHandleMetadata::empty(),
+            }
         );
         assert_eq!(
             DragHandleMessage::cancelled(cancel),
@@ -277,5 +382,22 @@ mod tests {
         assert!(DragHandleMessage::ended(end).is_ended());
         assert!(DragHandleMessage::double_activate(double).is_double_activate());
         assert!(DragHandleMessage::cancelled(cancel).is_cancelled());
+    }
+
+    #[test]
+    fn drag_handle_public_constructors_leave_input_metadata_absent() {
+        let position = Point::new(4.0, 5.0);
+        let messages = [
+            DragHandleMessage::started(position),
+            DragHandleMessage::started_from(position, Point::new(6.0, 7.0)),
+            DragHandleMessage::moved(position),
+            DragHandleMessage::ended(position),
+            DragHandleMessage::double_activate(position),
+            DragHandleMessage::cancelled(position),
+        ];
+
+        for message in messages {
+            assert_eq!(message.input_metadata(), DragHandleMetadata::empty());
+        }
     }
 }

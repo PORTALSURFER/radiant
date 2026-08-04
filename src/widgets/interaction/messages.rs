@@ -7,7 +7,7 @@ mod surface;
 mod text_input;
 
 pub use activation::{BadgeMessage, ButtonMessage, InteractiveRowMessage, ListItemMessage};
-pub use drag::{DragHandleMessage, DragHandlePhase};
+pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{
     KnobAutomationEvent, KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ScrollbarMessage,

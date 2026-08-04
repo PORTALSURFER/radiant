@@ -129,6 +129,7 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     };
     let drag = DragHandleMessage::Moved {
         position: Point::new(18.0, 9.0),
+        metadata: DragHandleMetadata::empty(),
     };
 
     assert_eq!(
@@ -199,9 +200,11 @@ fn drag_handle_message_helpers_project_phase_and_position() {
     let start = DragHandleMessage::started_from(origin, Point::new(10.0, 4.0));
     let moved = DragHandleMessage::Moved {
         position: Point::new(12.0, 8.0),
+        metadata: DragHandleMetadata::empty(),
     };
     let ended = DragHandleMessage::Ended {
         position: Point::new(14.0, 9.0),
+        metadata: DragHandleMetadata::empty(),
     };
 
     assert_eq!(start.phase(), DragHandlePhase::Started);
@@ -338,6 +341,7 @@ fn interactive_row_active_drag_source_releases_after_refresh() {
         ),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
             position: Point::new(220.0, 90.0),
+            metadata: DragHandleMetadata::empty(),
         }))
     );
 }
@@ -354,6 +358,7 @@ fn interactive_row_can_report_active_drag_source_motion_after_refresh() {
         row.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Moved {
             position: Point::new(34.0, 8.0),
+            metadata: DragHandleMetadata::empty(),
         }))
     );
 }
@@ -814,6 +819,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
         handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(12.0, 70.0)),),
         Some(DragHandleMessage::Moved {
             position: Point::new(12.0, 70.0),
+            metadata: DragHandleMetadata::empty(),
         })
     );
     assert_eq!(
@@ -828,6 +834,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
         ),
         Some(DragHandleMessage::Ended {
             position: Point::new(12.0, 70.0),
+            metadata: DragHandleMetadata::empty(),
         })
     );
     assert!(!handle.common.state.pressed);

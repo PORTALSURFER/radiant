@@ -14,10 +14,10 @@ pub use canvas_gesture::{
 pub use cursor::WidgetCursor;
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
-    BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandlePhase,
-    GpuSurfaceMessage, InteractiveRowMessage, KnobAutomationEvent, KnobKeyboardGesture,
-    KnobMessage, KnobWheelGesture, ListItemMessage, PointerShieldMessage, RenderCanvasMessage,
-    ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, ToggleMessage,
+    BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,
+    DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, KnobAutomationEvent,
+    KnobKeyboardGesture, KnobMessage, KnobWheelGesture, ListItemMessage, PointerShieldMessage,
+    RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};

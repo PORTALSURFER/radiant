@@ -120,8 +120,10 @@ impl TodoState {
                     });
                 }
             }
-            ui::DragHandleMessage::Moved { position } => self.update_drag(position.x, position.y),
-            ui::DragHandleMessage::Ended { position } => {
+            ui::DragHandleMessage::Moved { position, .. } => {
+                self.update_drag(position.x, position.y)
+            }
+            ui::DragHandleMessage::Ended { position, .. } => {
                 self.update_drag(position.x, position.y);
                 self.commit_drag();
             }

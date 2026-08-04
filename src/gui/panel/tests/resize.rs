@@ -1,6 +1,6 @@
 use crate::{
     gui::{panel::*, types::Point},
-    widgets::DragHandleMessage,
+    widgets::{DragHandleMessage, DragHandleMetadata},
 };
 
 #[test]
@@ -56,7 +56,8 @@ fn update_panel_resize_drag_manages_drag_lifecycle() {
         update_panel_resize_drag(
             &mut drag,
             DragHandleMessage::Moved {
-                position: Point::new(140.0, 0.0)
+                position: Point::new(140.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             PanelResizeEdge::Right,
             240.0,
@@ -71,7 +72,8 @@ fn update_panel_resize_drag_manages_drag_lifecycle() {
         update_panel_resize_drag(
             &mut drag,
             DragHandleMessage::Ended {
-                position: Point::new(200.0, 0.0)
+                position: Point::new(200.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             PanelResizeEdge::Right,
             240.0,
@@ -91,7 +93,8 @@ fn update_panel_resize_drag_ignores_orphaned_motion() {
         update_panel_resize_drag(
             &mut drag,
             DragHandleMessage::Moved {
-                position: Point::new(140.0, 0.0)
+                position: Point::new(140.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             PanelResizeEdge::Right,
             240.0,
@@ -114,7 +117,8 @@ fn update_collapsible_panel_resize_drag_collapses_on_double_activate() {
         update_collapsible_panel_resize_drag(
             &mut drag,
             DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 120.0)
+                position: Point::new(0.0, 120.0),
+                metadata: DragHandleMetadata::empty(),
             },
             PanelResizeEdge::Top,
             180.0,
@@ -148,7 +152,8 @@ fn update_collapsible_panel_resize_drag_preserves_normal_resize_lifecycle() {
         update_collapsible_panel_resize_drag(
             &mut drag,
             DragHandleMessage::Moved {
-                position: Point::new(0.0, 80.0)
+                position: Point::new(0.0, 80.0),
+                metadata: DragHandleMetadata::empty(),
             },
             PanelResizeEdge::Top,
             148.0,
@@ -179,7 +184,8 @@ fn panel_resize_state_updates_durable_size_and_drag_lifecycle() {
     assert_eq!(
         state.resize(
             DragHandleMessage::Moved {
-                position: Point::new(160.0, 0.0)
+                position: Point::new(160.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),
@@ -191,7 +197,8 @@ fn panel_resize_state_updates_durable_size_and_drag_lifecycle() {
     assert_eq!(
         state.resize(
             DragHandleMessage::Ended {
-                position: Point::new(1_000.0, 0.0)
+                position: Point::new(1_000.0, 0.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),
@@ -262,7 +269,8 @@ fn panel_resize_state_toggles_collapsible_size_on_double_activate() {
     assert_eq!(
         state.resize_collapsible(
             DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 120.0)
+                position: Point::new(0.0, 120.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),
@@ -274,7 +282,8 @@ fn panel_resize_state_toggles_collapsible_size_on_double_activate() {
     assert_eq!(
         state.resize_collapsible(
             DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 120.0)
+                position: Point::new(0.0, 120.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),
@@ -297,6 +306,7 @@ fn panel_resize_state_restores_last_dragged_collapsible_size() {
     state.resize_collapsible(
         DragHandleMessage::Ended {
             position: Point::new(0.0, 80.0),
+            metadata: DragHandleMetadata::empty(),
         },
         constraints,
     );
@@ -305,6 +315,7 @@ fn panel_resize_state_restores_last_dragged_collapsible_size() {
     state.resize_collapsible(
         DragHandleMessage::DoubleActivate {
             position: Point::new(0.0, 120.0),
+            metadata: DragHandleMetadata::empty(),
         },
         constraints,
     );
@@ -313,7 +324,8 @@ fn panel_resize_state_restores_last_dragged_collapsible_size() {
     assert_eq!(
         state.resize_collapsible(
             DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 120.0)
+                position: Point::new(0.0, 120.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),
@@ -331,7 +343,8 @@ fn panel_resize_state_expands_to_max_when_no_expanded_size_is_known() {
     assert_eq!(
         state.resize_collapsible(
             DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 120.0)
+                position: Point::new(0.0, 120.0),
+                metadata: DragHandleMetadata::empty(),
             },
             constraints,
         ),

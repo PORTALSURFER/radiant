@@ -1,7 +1,9 @@
 //! Button pointer and keyboard interaction behavior.
 
 use crate::gui::types::Rect;
-use crate::widgets::interaction::{ButtonMessage, DragHandleMessage, PointerButton, WidgetInput};
+use crate::widgets::interaction::{
+    ButtonMessage, DragHandleMessage, DragHandleMetadata, PointerButton, WidgetInput,
+};
 
 use super::ButtonWidget;
 use crate::widgets::primitives::support::activate_on_keyboard;
@@ -22,7 +24,17 @@ pub(super) fn handle_button_input(
         return None;
     }
     match input {
-        WidgetInput::PointerMove { position, .. } => {
+        WidgetInput::PointerMove {
+            position,
+            modifiers,
+            timestamp,
+            sequence_range,
+        } => {
+            let metadata = DragHandleMetadata {
+                modifiers,
+                timestamp,
+                sequence_range,
+            };
             button.common.state.hovered = bounds.contains(position);
             if button.common.state.pressed {
                 button.state.armed = button.common.state.hovered;
@@ -32,11 +44,19 @@ pub(super) fn handle_button_input(
                         return None;
                     }
                     let message = if button.state.dragged {
-                        DragHandleMessage::Moved { position }
+                        DragHandleMessage::moved_with_metadata(position, metadata)
                     } else {
                         button.state.dragged = true;
                         button.common.state.active = true;
-                        DragHandleMessage::started_from(press_position, position)
+                        DragHandleMessage::started_with_metadata(
+                            press_position,
+                            position,
+                            DragHandleMetadata {
+                                modifiers: metadata.modifiers,
+                                timestamp: metadata.timestamp,
+                                sequence_range: None,
+                            },
+                        )
                     };
                     return Some(ButtonMessage::Drag(message));
                 }
@@ -68,8 +88,14 @@ pub(super) fn handle_button_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
-            ..
+            modifiers,
+            timestamp,
         } => {
+            let metadata = DragHandleMetadata {
+                modifiers,
+                timestamp,
+                sequence_range: None,
+            };
             if button.state.dragged || (button.props.drag && button.common.state.active) {
                 button.common.state.pressed = false;
                 button.common.state.active = false;
@@ -77,7 +103,9 @@ pub(super) fn handle_button_input(
                 button.state.armed = false;
                 button.state.dragged = false;
                 button.state.press_position = None;
-                return Some(ButtonMessage::Drag(DragHandleMessage::Ended { position }));
+                return Some(ButtonMessage::Drag(DragHandleMessage::ended_with_metadata(
+                    position, metadata,
+                )));
             }
             let activated =
                 button.common.state.pressed && button.state.armed && bounds.contains(position);

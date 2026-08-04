@@ -371,8 +371,8 @@ explicit imports from their owning modules.
 Advanced host-control APIs, renderer or windowing implementation details, and
 platform-specific adapters never enter the common wildcard surface.
 
-The reviewed inventory currently contains 428 named exports. The guardrail cap
-is 475, leaving 47 exports (11.0% of the current surface) for genuinely common
+The reviewed inventory currently contains 433 named exports. The guardrail cap
+is 477, leaving 44 exports (10.2% of the current surface) for genuinely common
 future API without forcing local reshuffles. Source-quality tests compute and
 verify both the aggregate and this per-subsystem inventory:
 
@@ -383,7 +383,7 @@ verify both the aggregate and this per-subsystem inventory:
 | Layout | 1 | Layout signature output |
 | Runtime | 32 | Common commands, resources, platform-service inputs/results, and callback signature types |
 | Theme | 3 | Theme signature tokens |
-| Widgets | 45 | Common widget contracts, messages, sizing, and style models |
+| Widgets | 50 | Common widget contracts, messages, sizing, and style models |
 
 | API family | Prelude disposition | Explicit owner when excluded |
 | --- | --- | --- |
@@ -2712,6 +2712,20 @@ or `input_metadata()` for explicit provenance. The added public `metadata`
 field means external destructuring of `KnobWheelGesture` must account for that
 field. This metadata is observational only and does not affect Shift fine-step
 selection, direction, clamping, routing, acceptance, or repaint behavior.
+Accepted primary pointer edits from `KnobWidget` emit the existing incremental
+`KnobMessage::GestureStarted`, `ValueChanged`, and `GestureEnded` lifecycle with
+a copyable `KnobPointerMetadata` field. Use
+`KnobMessage::pointer_gesture_metadata()` to read it; reset, keyboard, and wheel
+messages return `None`. Press and terminal release/drop messages preserve their
+current `PointerModifiers` and optional `InputTimestamp` without a sequence
+range. Each accepted value-changing captured move preserves the move's current
+modifiers, timestamp, and complete opaque sequence range. Moves that leave the
+clamped value unchanged emit no message. Synthetic pointer inputs use
+`KnobPointerMetadata::default()`, while focus-loss cancellation emits exactly
+one ended message with `KnobPointerMetadata::empty()` and a later release emits
+no message. Pointer provenance is observational only: it is copy-only and is
+not retained in widget state, and does not alter capture, fine adjustment,
+reprojection, disabled-terminal, reset, or value behavior.
 Accepted keyboard edits from `KnobWidget` emit one
 `KnobMessage::KeyboardGesture` with the existing three ordered
 `KnobAutomationEvent` values and a copyable `KnobKeyboardMetadata` payload.

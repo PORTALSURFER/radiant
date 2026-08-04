@@ -157,23 +157,55 @@ impl KnobWheelGesture {
     }
 }
 
+/// Normalized input provenance carried by an incremental pointer gesture.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KnobPointerMetadata {
+    /// Modifier state captured with the current normalized pointer sample.
+    pub modifiers: PointerModifiers,
+    /// Optional timestamp captured at the native input boundary.
+    pub timestamp: Option<InputTimestamp>,
+    /// Optional opaque native sample sequence range.
+    pub sequence_range: Option<InputSequenceRange>,
+}
+
+impl KnobPointerMetadata {
+    /// Build metadata with no native sample provenance.
+    pub const fn empty() -> Self {
+        Self {
+            modifiers: PointerModifiers {
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            timestamp: None,
+            sequence_range: None,
+        }
+    }
+}
+
 /// Explicit host-automation lifecycle emitted by a radial knob.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum KnobMessage {
-    /// Pointer or keyboard gesture began at the current normalized value.
+    /// Pointer gesture began at the current normalized value.
     GestureStarted {
         /// Value at gesture start.
         value: f32,
+        /// Normalized provenance from the accepted pointer press.
+        metadata: KnobPointerMetadata,
     },
-    /// The normalized value changed during an active gesture.
+    /// The normalized value changed during an active pointer gesture.
     ValueChanged {
         /// Latest normalized value.
         value: f32,
+        /// Normalized provenance from the accepted captured pointer move.
+        metadata: KnobPointerMetadata,
     },
-    /// Pointer or keyboard gesture ended at the current normalized value.
+    /// Pointer gesture ended at the current normalized value.
     GestureEnded {
         /// Value at gesture end.
         value: f32,
+        /// Normalized provenance from the terminal pointer input.
+        metadata: KnobPointerMetadata,
     },
     /// The control returned to its configured default value.
     Reset {
@@ -184,4 +216,16 @@ pub enum KnobMessage {
     KeyboardGesture(KnobKeyboardGesture),
     /// Ordered wheel lifecycle batch for host automation.
     WheelGesture(KnobWheelGesture),
+}
+
+impl KnobMessage {
+    /// Return normalized provenance carried by an incremental pointer gesture.
+    pub const fn pointer_gesture_metadata(&self) -> Option<KnobPointerMetadata> {
+        match self {
+            Self::GestureStarted { metadata, .. }
+            | Self::ValueChanged { metadata, .. }
+            | Self::GestureEnded { metadata, .. } => Some(*metadata),
+            Self::Reset { .. } | Self::KeyboardGesture(_) | Self::WheelGesture(_) => None,
+        }
+    }
 }

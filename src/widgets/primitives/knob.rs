@@ -13,8 +13,8 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobWheelGesture, KnobWheelMetadata,
-    PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+    KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture,
+    KnobWheelMetadata, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
 };
 
 use super::support::{WidgetCommon, clamp_fraction, push_automation_active_marker};
@@ -124,16 +124,27 @@ impl KnobWidget {
         match &input {
             WidgetInput::PointerRelease {
                 button: PointerButton::Primary,
+                modifiers,
+                timestamp,
                 ..
             }
             | WidgetInput::PointerDrop {
                 button: PointerButton::Primary,
+                modifiers,
+                timestamp,
                 ..
             } => {
-                return self.finish_terminal_gesture(false);
+                return self.finish_terminal_gesture(
+                    false,
+                    KnobPointerMetadata {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
+                );
             }
             WidgetInput::FocusChanged(false) => {
-                return self.finish_terminal_gesture(true);
+                return self.finish_terminal_gesture(true, KnobPointerMetadata::empty());
             }
             _ => {}
         }
@@ -154,7 +165,7 @@ impl KnobWidget {
                 position,
                 button: PointerButton::Primary,
                 modifiers,
-                ..
+                timestamp,
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;
@@ -163,9 +174,19 @@ impl KnobWidget {
                 self.state.gesture_origin = Some(position);
                 Some(KnobMessage::GestureStarted {
                     value: self.state.value,
+                    metadata: KnobPointerMetadata {
+                        modifiers,
+                        timestamp,
+                        sequence_range: None,
+                    },
                 })
             }
-            WidgetInput::PointerMove { position, .. } => {
+            WidgetInput::PointerMove {
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            } => {
                 self.common.state.hovered = bounds.contains(position);
                 if !self.common.state.pressed {
                     return None;
@@ -178,7 +199,14 @@ impl KnobWidget {
                     self.props.sensitivity
                 };
                 self.set_value(self.state.value + (origin.y - position.y) * sensitivity)
-                    .map(|value| KnobMessage::ValueChanged { value })
+                    .map(|value| KnobMessage::ValueChanged {
+                        value,
+                        metadata: KnobPointerMetadata {
+                            modifiers,
+                            timestamp,
+                            sequence_range,
+                        },
+                    })
             }
             WidgetInput::Wheel {
                 position,
@@ -278,7 +306,11 @@ impl KnobWidget {
         ))
     }
 
-    fn finish_terminal_gesture(&mut self, focus_lost: bool) -> Option<KnobMessage> {
+    fn finish_terminal_gesture(
+        &mut self,
+        focus_lost: bool,
+        metadata: KnobPointerMetadata,
+    ) -> Option<KnobMessage> {
         let had_active_gesture = self.state.gesture_origin.take().is_some();
         self.common.state.pressed = false;
         self.state.fine_adjustment = false;
@@ -287,6 +319,7 @@ impl KnobWidget {
         }
         had_active_gesture.then_some(KnobMessage::GestureEnded {
             value: self.state.value,
+            metadata,
         })
     }
 }
@@ -456,8 +489,8 @@ mod tests {
         runtime::PaintPrimitive,
         widgets::interaction::PointerModifiers,
         widgets::{
-            KnobAutomationEvent, KnobKeyboardMetadata, KnobWheelMetadata, WidgetState,
-            WidgetVisualCue,
+            KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobPointerMetadata,
+            KnobWheelGesture, KnobWheelMetadata, WidgetState, WidgetVisualCue,
         },
     };
 
@@ -467,7 +500,10 @@ mod tests {
         let mut knob = KnobWidget::new(1, 0.5).with_default_value(0.25);
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
-            Some(KnobMessage::GestureStarted { value: 0.5 })
+            Some(KnobMessage::GestureStarted {
+                value: 0.5,
+                metadata: KnobPointerMetadata::default(),
+            })
         );
         assert!(matches!(
             knob.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 0.0))),
@@ -495,6 +531,262 @@ mod tests {
     }
 
     #[test]
+    fn knob_pointer_gesture_forwards_native_metadata_by_phase() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5).with_sensitivity(0.01);
+        let press_position = Point::new(20.0, 20.0);
+        let move_position = Point::new(20.0, 10.0);
+        let press_modifiers = PointerModifiers {
+            command: true,
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let move_modifiers = PointerModifiers {
+            shift: true,
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let release_modifiers = PointerModifiers {
+            command: true,
+            shift: true,
+            ..PointerModifiers::default()
+        };
+        let press_timestamp = InputTimestamp::capture();
+        let move_timestamp = InputTimestamp::capture();
+        let release_timestamp = InputTimestamp::capture();
+        let mut move_sequence =
+            InputSequenceRange::singleton(InputSequence::from_runtime_value(101));
+        move_sequence.extend_end(InputSequence::from_runtime_value(104));
+
+        let started = knob.handle_input(
+            bounds,
+            WidgetInput::pointer_press_with_timestamp(
+                press_position,
+                PointerButton::Primary,
+                press_modifiers,
+                Some(press_timestamp),
+            ),
+        );
+        let started_metadata = KnobPointerMetadata {
+            modifiers: press_modifiers,
+            timestamp: Some(press_timestamp),
+            sequence_range: None,
+        };
+        assert_eq!(
+            started,
+            Some(KnobMessage::GestureStarted {
+                value: 0.5,
+                metadata: started_metadata,
+            })
+        );
+        assert_eq!(
+            started
+                .as_ref()
+                .and_then(KnobMessage::pointer_gesture_metadata),
+            Some(started_metadata)
+        );
+
+        let moved = knob.handle_input(
+            bounds,
+            WidgetInput::pointer_move_with_metadata(
+                move_position,
+                move_modifiers,
+                Some(move_timestamp),
+                Some(move_sequence),
+            ),
+        );
+        let moved_metadata = KnobPointerMetadata {
+            modifiers: move_modifiers,
+            timestamp: Some(move_timestamp),
+            sequence_range: Some(move_sequence),
+        };
+        assert!(matches!(
+            moved,
+            Some(KnobMessage::ValueChanged {
+                value: 0.6,
+                metadata,
+            }) if metadata == moved_metadata
+        ));
+        assert_eq!(
+            moved
+                .as_ref()
+                .and_then(KnobMessage::pointer_gesture_metadata),
+            Some(moved_metadata)
+        );
+
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_move_with_metadata(
+                    move_position,
+                    PointerModifiers::default(),
+                    None,
+                    None,
+                ),
+            ),
+            None
+        );
+
+        let ended = knob.handle_input(
+            bounds,
+            WidgetInput::pointer_release_with_timestamp(
+                move_position,
+                PointerButton::Primary,
+                release_modifiers,
+                Some(release_timestamp),
+            ),
+        );
+        let ended_metadata = KnobPointerMetadata {
+            modifiers: release_modifiers,
+            timestamp: Some(release_timestamp),
+            sequence_range: None,
+        };
+        assert_eq!(
+            ended,
+            Some(KnobMessage::GestureEnded {
+                value: 0.6,
+                metadata: ended_metadata,
+            })
+        );
+        assert_eq!(
+            ended
+                .as_ref()
+                .and_then(KnobMessage::pointer_gesture_metadata),
+            Some(ended_metadata)
+        );
+    }
+
+    #[test]
+    fn knob_pointer_gesture_uses_empty_metadata_for_synthetic_and_focus_loss() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+        assert_eq!(KnobPointerMetadata::empty(), KnobPointerMetadata::default());
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureStarted {
+                value: 0.5,
+                metadata: KnobPointerMetadata::default(),
+            })
+        );
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::FocusChanged(false)),
+            Some(KnobMessage::GestureEnded {
+                value: 0.5,
+                metadata: KnobPointerMetadata::empty(),
+            })
+        );
+        assert_eq!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
+            None
+        );
+    }
+
+    #[test]
+    fn knob_pointer_gesture_metadata_is_not_reported_for_other_message_kinds() {
+        let metadata = KnobPointerMetadata {
+            modifiers: PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+            ..KnobPointerMetadata::default()
+        };
+        assert_eq!(
+            KnobMessage::GestureStarted {
+                value: 0.25,
+                metadata,
+            }
+            .pointer_gesture_metadata(),
+            Some(metadata)
+        );
+        assert_eq!(
+            KnobMessage::Reset { value: 0.25 }.pointer_gesture_metadata(),
+            None
+        );
+        assert_eq!(
+            KnobMessage::KeyboardGesture(KnobKeyboardGesture::new(0.25, 0.35))
+                .pointer_gesture_metadata(),
+            None
+        );
+        assert_eq!(
+            KnobMessage::WheelGesture(KnobWheelGesture::new(0.25, 0.3)).pointer_gesture_metadata(),
+            None
+        );
+    }
+
+    #[test]
+    fn knob_pointer_gesture_omits_clamped_noop_moves() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.0);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureStarted { .. })
+        ));
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_move_with_metadata(
+                    Point::new(20.0, 40.0),
+                    PointerModifiers::default(),
+                    None,
+                    None,
+                ),
+            ),
+            None
+        );
+        assert_eq!(knob.state.value, 0.0);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 40.0))),
+            Some(KnobMessage::GestureEnded { value: 0.0, .. })
+        ));
+    }
+
+    #[test]
+    fn knob_pointer_drop_forwards_terminal_metadata() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
+        let mut knob = KnobWidget::new(1, 0.5);
+        assert!(matches!(
+            knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
+            Some(KnobMessage::GestureStarted { .. })
+        ));
+        let modifiers = PointerModifiers {
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let timestamp = InputTimestamp::capture();
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_drop_with_timestamp(
+                    Point::new(80.0, 80.0),
+                    PointerButton::Primary,
+                    modifiers,
+                    Some(timestamp),
+                ),
+            ),
+            Some(KnobMessage::GestureEnded {
+                value: 0.5,
+                metadata: KnobPointerMetadata {
+                    modifiers,
+                    timestamp: Some(timestamp),
+                    sequence_range: None,
+                },
+            })
+        );
+        assert_eq!(
+            knob.handle_input(
+                bounds,
+                WidgetInput::pointer_drop_with_timestamp(
+                    Point::new(80.0, 80.0),
+                    PointerButton::Primary,
+                    modifiers,
+                    Some(timestamp),
+                ),
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn knob_shift_fine_drag_tracks_modifier_changes_without_restarting_gesture() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 40.0));
         let mut knob = KnobWidget::new(1, 0.5).with_sensitivity(0.01);
@@ -508,7 +800,10 @@ mod tests {
                     PointerModifiers::default(),
                 ),
             ),
-            Some(KnobMessage::GestureStarted { value: 0.5 })
+            Some(KnobMessage::GestureStarted {
+                value: 0.5,
+                metadata: KnobPointerMetadata::default(),
+            })
         );
         assert!(knob.common.state.active);
 
@@ -564,7 +859,7 @@ mod tests {
         assert!(knob.common.state.active);
         assert!(matches!(
             knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, -10.0))),
-            Some(KnobMessage::GestureEnded { value }) if (value - 0.71).abs() < 0.0001
+            Some(KnobMessage::GestureEnded { value, .. }) if (value - 0.71).abs() < 0.0001
         ));
         assert!(knob.common.state.active);
     }
@@ -966,11 +1261,18 @@ mod tests {
         let mut knob = KnobWidget::new(1, 0.5);
         assert!(matches!(
             knob.handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 20.0))),
-            Some(KnobMessage::GestureStarted { value: 0.5 })
+            Some(KnobMessage::GestureStarted {
+                value: 0.5,
+                metadata,
+            })
+                if metadata == KnobPointerMetadata::default()
         ));
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::FocusChanged(false)),
-            Some(KnobMessage::GestureEnded { value: 0.5 })
+            Some(KnobMessage::GestureEnded {
+                value: 0.5,
+                metadata: KnobPointerMetadata::default(),
+            })
         );
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
@@ -1021,7 +1323,10 @@ mod tests {
         assert!(knob.state.gesture_origin.is_some());
         assert_eq!(
             knob.handle_input(bounds, WidgetInput::primary_release(Point::new(20.0, 20.0))),
-            Some(KnobMessage::GestureEnded { value: 0.5 })
+            Some(KnobMessage::GestureEnded {
+                value: 0.5,
+                metadata: KnobPointerMetadata::default(),
+            })
         );
     }
 

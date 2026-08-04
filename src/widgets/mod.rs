@@ -74,11 +74,11 @@ pub use interaction::{
     CanvasGestureMetadata, CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput,
     DragHandleMessage, DragHandleMetadata, DragHandlePhase, GpuSurfaceMessage,
     InteractiveRowMessage, InteractiveRowMetadata, KnobAutomationEvent, KnobKeyboardGesture,
-    KnobKeyboardMetadata, KnobMessage, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
-    PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
-    SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    handle_activation_input,
+    KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata,
+    ListItemMessage, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
+    ScrollbarMessage, SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput,
+    WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

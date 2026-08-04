@@ -131,6 +131,31 @@ fn knob_keyboard_metadata_and_compatibility_constructor_are_available_from_prelu
 }
 
 #[test]
+fn knob_pointer_metadata_and_message_accessor_are_available_from_prelude() {
+    let metadata = ui::KnobPointerMetadata {
+        modifiers: PointerModifiers {
+            command: true,
+            ..PointerModifiers::default()
+        },
+        ..ui::KnobPointerMetadata::default()
+    };
+    let message = ui::KnobMessage::GestureStarted {
+        value: 0.25,
+        metadata,
+    };
+
+    assert_eq!(message.pointer_gesture_metadata(), Some(metadata));
+    assert_eq!(
+        ui::KnobPointerMetadata::empty(),
+        ui::KnobPointerMetadata::default()
+    );
+    assert_eq!(
+        ui::KnobMessage::Reset { value: 0.25 }.pointer_gesture_metadata(),
+        None
+    );
+}
+
+#[test]
 fn local_interactive_row_actions_accept_ui_only_capture() {
     #[derive(Clone, Debug, PartialEq)]
     struct UiOnlyMessage(Rc<RefCell<usize>>);

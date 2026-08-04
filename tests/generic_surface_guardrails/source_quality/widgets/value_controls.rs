@@ -77,6 +77,56 @@ fn drag_handle_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn knob_pointer_provenance_stays_incremental_and_observational() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let messages =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/messages/range.rs"))
+            .expect("range interaction messages should be readable");
+    let knob = fs::read_to_string(manifest_dir.join("src/widgets/primitives/knob.rs"))
+        .expect("knob primitive should be readable");
+    let state_start = knob
+        .find("pub struct KnobState")
+        .expect("knob state should remain a public model");
+    let state_end = knob[state_start..]
+        .find("}\n")
+        .expect("knob state should have a closed field list");
+    let state = &knob[state_start..state_start + state_end];
+
+    assert!(
+        messages.contains("pub struct KnobPointerMetadata")
+            && messages.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]")
+            && messages.contains("pub const fn pointer_gesture_metadata")
+            && messages.contains(
+                "Self::Reset { .. } | Self::KeyboardGesture(_) | Self::WheelGesture(_) => None"
+            ),
+        "knob pointer provenance should be a copy-only pointer-message API"
+    );
+    assert!(
+        knob.contains("KnobPointerMetadata {")
+            && knob.contains("sequence_range: None")
+            && knob.contains("PointerMove {")
+            && knob.contains("finish_terminal_gesture"),
+        "knob input routing should forward pointer metadata at the existing lifecycle boundaries"
+    );
+    assert!(
+        !state.contains("KnobPointerMetadata") && !state.contains("metadata"),
+        "pointer provenance should not become retained knob widget state"
+    );
+    for test in [
+        "fn knob_pointer_gesture_forwards_native_metadata_by_phase",
+        "fn knob_pointer_gesture_uses_empty_metadata_for_synthetic_and_focus_loss",
+        "fn knob_pointer_gesture_metadata_is_not_reported_for_other_message_kinds",
+        "fn knob_pointer_gesture_omits_clamped_noop_moves",
+        "fn knob_pointer_drop_forwards_terminal_metadata",
+    ] {
+        assert!(
+            knob.contains(test),
+            "knob provenance coverage should include `{test}`"
+        );
+    }
+}
+
+#[test]
 fn slider_primitive_keeps_surface_builders_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider.rs"))

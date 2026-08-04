@@ -12,8 +12,8 @@ pub use activation::{
 pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{
-    KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobWheelGesture,
-    KnobWheelMetadata, ScrollbarMessage, SliderMessage,
+    KnobAutomationEvent, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
+    KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ScrollbarMessage, SliderMessage,
 };
 pub use selection::{SelectableMessage, ToggleMessage};
 pub use surface::{CanvasMessage, GpuSurfaceMessage, RenderCanvasMessage};

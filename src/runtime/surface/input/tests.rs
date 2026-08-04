@@ -2,13 +2,14 @@ use crate::runtime::{LayerKind, SurfaceLayer, surface::WidgetStateSyncPolicy};
 use crate::runtime::{SurfaceChild, SurfaceNode, WidgetMessageMapper};
 use crate::{
     gui::{
-        input::InputTimestamp,
+        input::{InputSequence, InputSequenceRange, InputTimestamp},
         types::{Point, Rect, Vector2},
     },
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
-        ButtonWidget, KnobMessage, KnobWidget, PointerButton, ScrollbarAxis, ScrollbarWidget,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetSizing,
+        ButtonWidget, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
+        PointerModifiers, ScrollbarAxis, ScrollbarWidget, Widget, WidgetCommon, WidgetInput,
+        WidgetOutput, WidgetRevision, WidgetSizing,
     },
 };
 use std::collections::HashMap;
@@ -58,17 +59,53 @@ fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() 
     let paths = HashMap::from([(30, WidgetPath::from_slice(&[]))]);
     let mut previous = mapped_knob(0.5, false);
     let mut current = mapped_knob(0.5, false);
+    let press_metadata = KnobPointerMetadata {
+        modifiers: PointerModifiers {
+            command: true,
+            ..PointerModifiers::default()
+        },
+        timestamp: Some(InputTimestamp::capture()),
+        sequence_range: None,
+    };
+    let move_metadata = KnobPointerMetadata {
+        modifiers: PointerModifiers {
+            shift: true,
+            alt: true,
+            ..PointerModifiers::default()
+        },
+        timestamp: Some(InputTimestamp::capture()),
+        sequence_range: {
+            let mut range = InputSequenceRange::singleton(InputSequence::from_runtime_value(61));
+            range.extend_end(InputSequence::from_runtime_value(64));
+            Some(range)
+        },
+    };
+    let release_metadata = KnobPointerMetadata {
+        modifiers: PointerModifiers {
+            alt: true,
+            ..PointerModifiers::default()
+        },
+        timestamp: Some(InputTimestamp::capture()),
+        sequence_range: None,
+    };
 
     assert!(matches!(
         previous.dispatch_input_at_path(
             30,
             &[],
             bounds,
-            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+            WidgetInput::pointer_press_with_timestamp(
+                Point::new(20.0, 20.0),
+                PointerButton::Primary,
+                press_metadata.modifiers,
+                press_metadata.timestamp,
+            ),
         ),
         Some(WidgetDispatchResult::Message(KnobMessage::GestureStarted {
-            value: 0.5
+            value: 0.5,
+            metadata,
         }))
+            if metadata == press_metadata
     ));
     current.synchronize_widget_state_from_paths(
         &[30],
@@ -82,10 +119,17 @@ fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() 
             30,
             &[],
             bounds,
-            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+            WidgetInput::pointer_move_with_metadata(
+                Point::new(20.0, 10.0),
+                move_metadata.modifiers,
+                move_metadata.timestamp,
+                move_metadata.sequence_range,
+            ),
         ),
-        Some(WidgetDispatchResult::Message(KnobMessage::ValueChanged { value }))
-            if value > 0.5
+        Some(WidgetDispatchResult::Message(KnobMessage::ValueChanged {
+            value,
+            metadata,
+        })) if value > 0.5 && metadata == move_metadata
     ));
 
     // The reducer's fresh projection owns the value while the active pointer
@@ -114,11 +158,18 @@ fn mapped_knob_reprojection_preserves_pointer_gesture_and_authoritative_value() 
             30,
             &[],
             bounds,
-            WidgetInput::primary_release(Point::new(20.0, 10.0))
+            WidgetInput::pointer_release_with_timestamp(
+                Point::new(20.0, 10.0),
+                PointerButton::Primary,
+                release_metadata.modifiers,
+                release_metadata.timestamp,
+            )
         ),
         Some(WidgetDispatchResult::Message(KnobMessage::GestureEnded {
-            value: 0.62
+            value: 0.62,
+            metadata,
         }))
+            if metadata == release_metadata
     ));
 }
 
@@ -238,11 +289,23 @@ fn disabled_knob_reprojection_clears_pointer_gesture_state() {
             30,
             &[],
             bounds,
-            WidgetInput::primary_release(Point::new(20.0, 10.0))
+            WidgetInput::pointer_release_with_timestamp(
+                Point::new(20.0, 10.0),
+                PointerButton::Primary,
+                PointerModifiers {
+                    command: true,
+                    ..PointerModifiers::default()
+                },
+                Some(InputTimestamp::capture()),
+            )
         ),
         Some(WidgetDispatchResult::Message(KnobMessage::GestureEnded {
-            value: 0.7
+            value: 0.7,
+            metadata,
         }))
+            if metadata.modifiers.command
+                && metadata.timestamp.is_some()
+                && metadata.sequence_range.is_none()
     ));
     assert!(matches!(
         current.dispatch_input_at_path(

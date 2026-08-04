@@ -1,5 +1,21 @@
 use super::*;
 
+fn programmatic_activation() -> InteractiveRowMessage {
+    InteractiveRowMessage::Activate {
+        provenance: InteractionProvenance::Programmatic,
+    }
+}
+
+fn pointer_activation(modifiers: PointerModifiers) -> InteractiveRowMessage {
+    InteractiveRowMessage::ActivateWithModifiers {
+        provenance: InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    }
+}
+
 #[test]
 fn list_item_invocation_is_public_and_deterministic() {
     let mut item = ListItemWidget::new(
@@ -123,7 +139,7 @@ fn interactive_row_can_emit_modifier_aware_pointer_activation() {
                 timestamp: None,
             },
         ),
-        Some(InteractiveRowMessage::ActivateWithModifiers { modifiers })
+        Some(pointer_activation(modifiers))
     );
 }
 
@@ -145,13 +161,21 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     let double = InteractiveRowMessage::DoubleActivate {
         provenance: double_provenance,
     };
+    let plain_pointer = InteractiveRowMessage::Activate {
+        provenance: double_provenance,
+    };
+    let modifier_sources = [
+        InteractionProvenance::Keyboard { timestamp: None },
+        InteractionProvenance::Accessibility,
+        InteractionProvenance::Programmatic,
+    ];
 
     assert_eq!(
-        InteractiveRowMessage::Activate.activation_modifiers(),
+        programmatic_activation().activation_modifiers(),
         Some(PointerModifiers::default())
     );
     assert_eq!(
-        InteractiveRowMessage::Activate.single_activation_modifiers(),
+        programmatic_activation().single_activation_modifiers(),
         Some(PointerModifiers::default())
     );
     assert_eq!(
@@ -162,19 +186,39 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     assert_eq!(double.input_metadata(), InteractiveRowMetadata::default());
     assert_eq!(double.single_activation_modifiers(), None);
     assert_eq!(
-        InteractiveRowMessage::ActivateWithModifiers { modifiers }.activation_modifiers(),
+        pointer_activation(modifiers).activation_modifiers(),
         Some(modifiers)
     );
     assert_eq!(
-        InteractiveRowMessage::ActivateWithModifiers { modifiers }.single_activation_modifiers(),
+        pointer_activation(modifiers).single_activation_modifiers(),
         Some(modifiers)
     );
-    assert!(InteractiveRowMessage::Activate.is_activation());
-    assert!(InteractiveRowMessage::Activate.is_single_activation());
-    assert!(!InteractiveRowMessage::Activate.is_double_activation());
     assert_eq!(
-        InteractiveRowMessage::Activate.activation_provenance(),
-        None
+        plain_pointer.activation_provenance(),
+        Some(double_provenance)
+    );
+    assert_eq!(
+        plain_pointer.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    for provenance in modifier_sources {
+        let message = InteractiveRowMessage::ActivateWithModifiers { provenance };
+        assert_eq!(message.activation_provenance(), Some(provenance));
+        assert_eq!(
+            message.activation_modifiers(),
+            Some(PointerModifiers::default())
+        );
+        assert_eq!(
+            message.single_activation_modifiers(),
+            Some(PointerModifiers::default())
+        );
+    }
+    assert!(programmatic_activation().is_activation());
+    assert!(programmatic_activation().is_single_activation());
+    assert!(!programmatic_activation().is_double_activation());
+    assert_eq!(
+        programmatic_activation().activation_provenance(),
+        Some(InteractionProvenance::Programmatic)
     );
     assert!(double.is_activation());
     assert!(!double.is_single_activation());

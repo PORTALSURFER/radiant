@@ -52,7 +52,9 @@ fn interactive_row_actions_are_available_from_prelude() {
     assert_eq!(
         action_row().view_dispatch_widget_output(
             44,
-            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         ),
         Some(RowMessage::Activate)
     );
@@ -79,7 +81,9 @@ fn dense_row_policy_is_available_from_prelude() {
     assert_eq!(
         dense_policy_row().view_dispatch_widget_output(
             45,
-            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         ),
         Some(RowMessage::Activate)
     );
@@ -95,7 +99,10 @@ fn interactive_row_metadata_is_available_from_prelude() {
 
     assert_eq!(message.input_metadata(), metadata);
     assert_eq!(
-        ui::InteractiveRowMessage::Activate.input_metadata(),
+        ui::InteractiveRowMessage::Activate {
+            provenance: ui::InteractionProvenance::Programmatic,
+        }
+        .input_metadata(),
         ui::InteractiveRowMetadata::default()
     );
 }
@@ -112,9 +119,18 @@ fn interaction_provenance_is_available_from_widget_and_common_preludes() {
         sequence_range: None,
     };
     let message = ui::InteractiveRowMessage::DoubleActivate { provenance };
+    let single = ui::InteractiveRowMessage::Activate { provenance };
+    let modifier_aware = ui::InteractiveRowMessage::ActivateWithModifiers { provenance };
 
     assert_eq!(provenance.source(), ui::InteractionSource::Pointer);
     assert_eq!(message.activation_provenance(), Some(provenance));
+    assert_eq!(single.activation_provenance(), Some(provenance));
+    assert_eq!(modifier_aware.activation_provenance(), Some(provenance));
+    assert_eq!(
+        single.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(modifier_aware.activation_modifiers(), Some(modifiers));
     assert_eq!(
         radiant::widgets::InteractionProvenance::Accessibility.source(),
         radiant::widgets::InteractionSource::Accessibility
@@ -224,7 +240,9 @@ fn local_interactive_row_actions_accept_ui_only_capture() {
     let message = surface
         .dispatch_widget_output(
             46,
-            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         )
         .expect("local row action should dispatch");
     assert_eq!(*calls.borrow(), 1);

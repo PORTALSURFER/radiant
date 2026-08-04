@@ -10,7 +10,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         DragHandleMessage, DragHandleMetadata, InteractionProvenance, InteractiveRowMetadata,
-        PointerButton, PointerModifiers, WidgetInput,
+        PointerButton, PointerModifiers, WidgetInput, WidgetKey,
     },
 };
 

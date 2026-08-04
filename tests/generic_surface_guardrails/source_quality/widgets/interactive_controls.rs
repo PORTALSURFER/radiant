@@ -256,10 +256,14 @@ fn interactive_row_provenance_stays_copy_only_and_transient() {
         "shared provenance should have no ambiguous Default and should expose exhaustive source mapping"
     );
     assert!(
-        input.contains("InteractionProvenance::Pointer")
+        input.contains("if !activated")
+            && input.contains("let provenance = InteractionProvenance::Pointer")
+            && input.contains("ActivateWithModifiers { provenance }")
+            && input.contains("Activate { provenance }")
+            && input.contains("InteractionProvenance::Keyboard")
             && input.contains("timestamp")
             && input.contains("sequence_range: None"),
-        "interactive-row input should attach provenance only at the accepted double-click boundary"
+        "interactive-row input should attach single provenance only after acceptance and keep the keyboard source"
     );
     assert!(
         !state.contains("InteractionProvenance"),

@@ -4,7 +4,7 @@ use crate::{
     gui::types::Rect,
     widgets::{
         contract::WidgetState,
-        interaction::{PointerButton, WidgetInput, WidgetKey},
+        interaction::{InteractionProvenance, PointerButton, WidgetInput, WidgetKey},
     },
 };
 
@@ -46,13 +46,24 @@ pub enum ActivationInputResult {
     #[default]
     None,
     /// Input activated the widget.
-    Activated,
+    Activated {
+        /// Evidence captured from the input that was accepted as activation.
+        provenance: InteractionProvenance,
+    },
 }
 
 impl ActivationInputResult {
     /// Returns true when the routed input activated the widget.
     pub const fn activated(self) -> bool {
-        matches!(self, Self::Activated)
+        matches!(self, Self::Activated { .. })
+    }
+
+    /// Returns the lossless provenance captured for an accepted activation.
+    pub const fn provenance(self) -> Option<InteractionProvenance> {
+        match self {
+            Self::Activated { provenance } => Some(provenance),
+            Self::None => None,
+        }
     }
 }
 
@@ -87,13 +98,20 @@ pub fn handle_activation_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
-            ..
+            modifiers,
+            timestamp,
         } => {
             let activated = state.pressed && bounds.contains(*position);
             state.pressed = false;
             state.hovered = bounds.contains(*position);
             if activated {
-                ActivationInputResult::Activated
+                ActivationInputResult::Activated {
+                    provenance: InteractionProvenance::Pointer {
+                        modifiers: *modifiers,
+                        timestamp: *timestamp,
+                        sequence_range: None,
+                    },
+                }
             } else {
                 ActivationInputResult::None
             }
@@ -109,10 +127,14 @@ pub fn handle_activation_input(
             }
             ActivationInputResult::None
         }
-        WidgetInput::KeyPress { key, .. }
+        WidgetInput::KeyPress { key, timestamp }
             if policy.keyboard && state.focused && activate_on_keyboard(*key) =>
         {
-            ActivationInputResult::Activated
+            ActivationInputResult::Activated {
+                provenance: InteractionProvenance::Keyboard {
+                    timestamp: *timestamp,
+                },
+            }
         }
         _ => ActivationInputResult::None,
     }

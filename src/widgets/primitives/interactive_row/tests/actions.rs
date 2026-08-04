@@ -16,6 +16,22 @@ fn double_activation_message() -> InteractiveRowMessage {
     }
 }
 
+fn activation_message() -> InteractiveRowMessage {
+    InteractiveRowMessage::Activate {
+        provenance: InteractionProvenance::Programmatic,
+    }
+}
+
+fn modifier_activation_message(modifiers: PointerModifiers) -> InteractiveRowMessage {
+    InteractiveRowMessage::ActivateWithModifiers {
+        provenance: InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    }
+}
+
 #[test]
 fn legacy_interactive_row_actions_remain_send_sync() {
     assert_send_sync::<InteractiveRowActions<()>>();
@@ -27,10 +43,7 @@ fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
         .primary(|| "activate")
         .double(|| "activate");
 
-    assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
-        Some("activate")
-    );
+    assert_eq!(actions.route(activation_message()), Some("activate"));
     assert_eq!(actions.route(double_activation_message()), Some("activate"));
 }
 
@@ -41,7 +54,7 @@ fn interactive_row_actions_routes_single_or_double_activation_with_key() {
         .double_key("folder", |key| (key, "activate"));
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(("folder", "activate"))
     );
     assert_eq!(
@@ -62,7 +75,7 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
     };
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        actions.route(modifier_activation_message(modifiers)),
         Some(modifiers)
     );
     assert_eq!(
@@ -85,7 +98,7 @@ fn interactive_row_actions_routes_modifier_primary_and_double_with_one_key() {
     };
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        actions.route(modifier_activation_message(modifiers)),
         Some(("file", "activate", modifiers))
     );
     assert_eq!(
@@ -132,7 +145,7 @@ fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag()
         Some(("file", "hover", PointerModifiers::default(), position))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        actions.route(modifier_activation_message(modifiers)),
         Some(("file", "activate", modifiers, Point::new(0.0, 0.0)))
     );
     assert_eq!(
@@ -166,7 +179,7 @@ fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(("source", "activate", Point::new(0.0, 0.0)))
     );
     assert_eq!(
@@ -190,7 +203,7 @@ fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Activate),
+        actions.route(activation_message()),
         Some(("folder", "activate", Point::new(0.0, 0.0)))
     );
     assert_eq!(
@@ -305,12 +318,10 @@ fn local_actions_route_full_matrix_with_non_send_key_and_release_callbacks() {
             "hover",
         ),
         (
-            InteractiveRowMessage::ActivateWithModifiers {
-                modifiers: PointerModifiers {
-                    shift: true,
-                    ..PointerModifiers::default()
-                },
-            },
+            modifier_activation_message(PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            }),
             "activate",
         ),
         (double_activation_message(), "double"),
@@ -367,7 +378,7 @@ fn shared_and_local_action_routers_produce_the_same_representative_messages() {
         );
     let position = Point::new(12.0, 24.0);
     for message in [
-        InteractiveRowMessage::Activate,
+        activation_message(),
         InteractiveRowMessage::SecondaryActivate { position },
         InteractiveRowMessage::Drag(DragHandleMessage::started(position)),
         InteractiveRowMessage::Drop,

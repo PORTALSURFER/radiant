@@ -20,7 +20,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             .pointer_motion_during_interaction()
             .pointer_motion_active(true)
             .mapped(|message| match message {
-                ui::InteractiveRowMessage::Activate => "row",
+                ui::InteractiveRowMessage::Activate { .. } => "row",
                 ui::InteractiveRowMessage::ActivateWithModifiers { .. } => "row-modifiers",
                 ui::InteractiveRowMessage::DoubleActivate { .. } => "double-row",
                 ui::InteractiveRowMessage::Hover { .. } => "hover",
@@ -88,7 +88,9 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     assert_eq!(
         surface.dispatch_widget_output(
             20,
-            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         ),
         Some("row")
     );
@@ -105,7 +107,9 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     assert_eq!(
         surface.dispatch_widget_output(
             30,
-            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate {
+                provenance: ui::InteractionProvenance::Programmatic,
+            }),
         ),
         Some("filtered-row-activate")
     );

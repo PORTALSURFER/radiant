@@ -814,9 +814,9 @@ state to append standard dense-row feedback. Use
 markers, or outlines while keeping row identity and retained input-state
 projection inside Radiant. Use `push_dense_labeled_chrome(...)` when the custom
 row needs that standard chrome followed by one centered dense-row label. Use
-`InteractiveRowMessage::activation_modifiers()`,
-`single_activation_modifiers()`, `is_single_activation()`,
-`is_double_activation()`,
+`InteractiveRowMessage::activation_provenance()`,
+`activation_modifiers()`, `single_activation_modifiers()`,
+`is_activation()`, `is_single_activation()`, `is_double_activation()`,
 `secondary_position()`, `drag_message()`, `hover_drop_position()`,
 `clear_drop_position()`, and `is_drop()` when custom row widgets need to map
 Radiant row interactions into host-specific row messages without repeating
@@ -827,16 +827,30 @@ common `radiant::prelude`; both are `Clone + Copy + Debug + PartialEq + Eq` and
 intentionally have no `Default`. `InteractionProvenance::source()` returns the
 explicit `InteractionSource` category, so missing native evidence is not
 inferred as `Programmatic`.
-`InteractiveRowMessage::DoubleActivate { provenance }` preserves the exact
-modifiers and optional timestamp from the accepted second native double-click
-sample as `InteractionProvenance::Pointer { .. }`; its sequence range is always
-`None`. `WidgetInput::primary_double_click(...)` is still synthetic pointer
-input, so it emits `Pointer` provenance with default modifiers and no timestamp
-or sequence range. `activation_modifiers()` remains a compatibility projection
-and returns default `PointerModifiers` for double activation rather than
-exposing its exact double-click modifiers. The concise shared and UI-local
-`InteractiveRowActions` helpers intentionally discard double-activation
-provenance while preserving their existing host message values.
+`ActivationInputResult::Activated { provenance }` preserves the accepted input
+source and native evidence while `.activated()` remains the compatibility
+boolean projection. Accepted pointer releases carry exact release modifiers and
+optional timestamps with `sequence_range: None`; accepted focused Enter/Space
+key presses carry their optional key-press timestamp. Synthetic pointer and
+keyboard constructors therefore still report `Pointer` and `Keyboard` sources
+with absent native evidence.
+`InteractiveRowMessage::Activate { provenance }` and
+`ActivateWithModifiers { provenance }` preserve the accepted single-activation
+provenance, while `InteractiveRowMessage::DoubleActivate { provenance }` preserves the exact modifiers
+and optional timestamp from the accepted second native double-click sample as
+`InteractionProvenance::Pointer { .. }`; its sequence range is always `None`.
+`WidgetInput::primary_double_click(...)` is still synthetic pointer input, so it
+emits `Pointer` provenance with default modifiers and no timestamp or sequence
+range. `activation_modifiers()` remains a compatibility projection: plain and
+double activation use default modifiers, modifier-aware pointer activation
+projects exact pointer modifiers, and keyboard, accessibility, and programmatic
+provenance projects default modifiers. The concise shared and UI-local
+`InteractiveRowActions` helpers intentionally discard both single- and
+double-activation provenance; modifier-aware callbacks retain only the
+compatibility modifier projection, and host message values remain unchanged.
+The provenance-bearing single-activation fields are an intentional source-level
+API change for direct enum construction and matching; action callback signatures
+and their projected host messages remain unchanged.
 Move-derived `InteractiveRowMessage::Hover`, `HoverDropTarget`, and
 `ClearDropTarget` carry `InteractiveRowMetadata`. Its `modifiers`, optional
 `timestamp`, and optional `sequence_range` preserve the normalized native

@@ -43,7 +43,10 @@ fn tracked_drop_candidate_hover_emits_clear_for_non_candidate_when_target_active
 
     assert_eq!(
         row.handle_input(bounds, WidgetInput::pointer_move(position)),
-        Some(InteractiveRowMessage::ClearDropTarget { position })
+        Some(InteractiveRowMessage::ClearDropTarget {
+            position,
+            metadata: InteractiveRowMetadata::default(),
+        })
     );
 }
 
@@ -56,7 +59,10 @@ fn tracked_drop_candidate_hover_emits_target_for_candidate() {
 
     assert_eq!(
         row.handle_input(bounds, WidgetInput::pointer_move(position)),
-        Some(InteractiveRowMessage::HoverDropTarget { position })
+        Some(InteractiveRowMessage::HoverDropTarget {
+            position,
+            metadata: InteractiveRowMetadata::default(),
+        })
     );
 }
 
@@ -75,7 +81,92 @@ fn normal_hover_emits_hover_position() {
     );
     assert_eq!(
         row.handle_input(bounds, WidgetInput::pointer_move(position)),
-        Some(InteractiveRowMessage::Hover { position })
+        Some(InteractiveRowMessage::Hover {
+            position,
+            metadata: InteractiveRowMetadata::default(),
+        })
+    );
+}
+
+#[test]
+fn native_pointer_move_metadata_reaches_each_move_derived_row_message() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let modifiers = PointerModifiers {
+        shift: true,
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let timestamp = InputTimestamp::capture();
+    let sequence_range = InputSequenceRange::singleton(InputSequence::from_runtime_value(43));
+    let metadata = InteractiveRowMetadata {
+        modifiers,
+        timestamp: Some(timestamp),
+        sequence_range: Some(sequence_range),
+    };
+    let native_move = || {
+        WidgetInput::pointer_move_with_metadata(
+            position,
+            metadata.modifiers,
+            metadata.timestamp,
+            metadata.sequence_range,
+        )
+    };
+
+    let mut hover = InteractiveRowWidget::new(29, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_hover_messages(true);
+    assert_eq!(
+        hover
+            .handle_input(bounds, native_move())
+            .expect("native hover move should emit a row message")
+            .input_metadata(),
+        metadata
+    );
+
+    let mut hover_drop_target =
+        InteractiveRowWidget::new(30, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+            .with_tracked_drop_candidate(true, false, true, false);
+    assert_eq!(
+        hover_drop_target
+            .handle_input(bounds, native_move())
+            .expect("native drop-target hover should emit a row message")
+            .input_metadata(),
+        metadata
+    );
+
+    let mut clear_drop_target =
+        InteractiveRowWidget::new(31, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+            .with_tracked_drop_candidate(true, false, false, true);
+    assert_eq!(
+        clear_drop_target
+            .handle_input(bounds, native_move())
+            .expect("native stale-target hover should emit a row message")
+            .input_metadata(),
+        metadata
+    );
+}
+
+#[test]
+fn synthetic_pointer_move_and_non_move_messages_use_default_metadata() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let mut row = InteractiveRowWidget::new(32, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_hover_messages(true);
+    let synthetic_hover = row
+        .handle_input(bounds, WidgetInput::pointer_move(position))
+        .expect("synthetic hover move should emit a row message");
+
+    assert_eq!(
+        synthetic_hover.input_metadata(),
+        InteractiveRowMetadata::default()
+    );
+    assert_eq!(
+        InteractiveRowMessage::Activate.input_metadata(),
+        InteractiveRowMetadata::default()
+    );
+    assert_eq!(
+        InteractiveRowMessage::Drag(DragHandleMessage::moved(position)).input_metadata(),
+        InteractiveRowMetadata::default()
     );
 }
 

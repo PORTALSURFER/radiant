@@ -6,7 +6,9 @@ mod selection;
 mod surface;
 mod text_input;
 
-pub use activation::{BadgeMessage, ButtonMessage, InteractiveRowMessage, ListItemMessage};
+pub use activation::{
+    BadgeMessage, ButtonMessage, InteractiveRowMessage, InteractiveRowMetadata, ListItemMessage,
+};
 pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{

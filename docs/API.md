@@ -821,6 +821,14 @@ row needs that standard chrome followed by one centered dense-row label. Use
 `clear_drop_position()`, and `is_drop()` when custom row widgets need to map
 Radiant row interactions into host-specific row messages without repeating
 exhaustive event-shape matches.
+Move-derived `InteractiveRowMessage::Hover`, `HoverDropTarget`, and
+`ClearDropTarget` carry `InteractiveRowMetadata`. Its `modifiers`, optional
+`timestamp`, and optional `sequence_range` preserve the normalized native
+`PointerMove` sample; use `InteractiveRowMessage::input_metadata()` to read
+that contract. Synthetic pointer moves and non-move messages, including
+nested `Drag` messages, return default metadata. Drag provenance remains on
+`DragHandleMetadata`; activation, double-click, secondary-click, and drop
+messages do not gain row metadata.
 `InteractiveRowActions` is a widget-layer router; use `row_actions()` to build
 the router from the application facade and
 `InteractiveRowActions::route(...)` when custom row wrappers need the same

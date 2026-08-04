@@ -115,7 +115,10 @@ fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag()
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(
-        actions.route(InteractiveRowMessage::Hover { position }),
+        actions.route(InteractiveRowMessage::Hover {
+            position,
+            metadata: Default::default(),
+        }),
         Some(("file", "hover", PointerModifiers::default(), position))
     );
     assert_eq!(
@@ -199,7 +202,10 @@ fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
         Some(("folder", "drop", Point::new(0.0, 0.0)))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::HoverDropTarget { position }),
+        actions.route(InteractiveRowMessage::HoverDropTarget {
+            position,
+            metadata: Default::default(),
+        }),
         Some(("folder", "hover_drop", position))
     );
 }
@@ -219,11 +225,17 @@ fn interactive_row_actions_routes_tracked_drop_candidate_clear() {
         Some(("folder", "drop", Point::new(0.0, 0.0)))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::HoverDropTarget { position }),
+        actions.route(InteractiveRowMessage::HoverDropTarget {
+            position,
+            metadata: Default::default(),
+        }),
         Some(("folder", "hover_drop", position))
     );
     assert_eq!(
-        actions.route(InteractiveRowMessage::ClearDropTarget { position }),
+        actions.route(InteractiveRowMessage::ClearDropTarget {
+            position,
+            metadata: Default::default(),
+        }),
         Some(("folder", "clear_drop", position))
     );
 }
@@ -275,7 +287,13 @@ fn local_actions_route_full_matrix_with_non_send_key_and_release_callbacks() {
 
     let position = Point::new(12.0, 24.0);
     let messages = [
-        (InteractiveRowMessage::Hover { position }, "hover"),
+        (
+            InteractiveRowMessage::Hover {
+                position,
+                metadata: Default::default(),
+            },
+            "hover",
+        ),
         (
             InteractiveRowMessage::ActivateWithModifiers {
                 modifiers: PointerModifiers {
@@ -296,11 +314,17 @@ fn local_actions_route_full_matrix_with_non_send_key_and_release_callbacks() {
         ),
         (InteractiveRowMessage::Drop, "drop"),
         (
-            InteractiveRowMessage::HoverDropTarget { position },
+            InteractiveRowMessage::HoverDropTarget {
+                position,
+                metadata: Default::default(),
+            },
             "hover_drop",
         ),
         (
-            InteractiveRowMessage::ClearDropTarget { position },
+            InteractiveRowMessage::ClearDropTarget {
+                position,
+                metadata: Default::default(),
+            },
             "clear_drop",
         ),
     ];
@@ -337,8 +361,14 @@ fn shared_and_local_action_routers_produce_the_same_representative_messages() {
         InteractiveRowMessage::SecondaryActivate { position },
         InteractiveRowMessage::Drag(DragHandleMessage::started(position)),
         InteractiveRowMessage::Drop,
-        InteractiveRowMessage::HoverDropTarget { position },
-        InteractiveRowMessage::ClearDropTarget { position },
+        InteractiveRowMessage::HoverDropTarget {
+            position,
+            metadata: Default::default(),
+        },
+        InteractiveRowMessage::ClearDropTarget {
+            position,
+            metadata: Default::default(),
+        },
     ] {
         assert_eq!(shared.route(message), local.route(message));
     }

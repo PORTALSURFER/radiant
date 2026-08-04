@@ -179,18 +179,30 @@ fn queued_gpu_surface_wheel_keeps_newest_sample_metadata() {
     };
     let first_timestamp = Some(InputTimestamp::capture());
     let newest_timestamp = Some(InputTimestamp::capture());
+    let first_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("first wheel sample should receive a sequence range");
+    let newest_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("newest wheel sample should receive a sequence range");
 
-    runner.queue_gpu_surface_wheel_with_timestamp(
+    runner.queue_gpu_surface_wheel_with_metadata(
         first_position,
         Vector2::new(0.0, -20.0),
         first_modifiers,
         first_timestamp,
+        Some(first_sequence),
     );
-    runner.queue_gpu_surface_wheel_with_timestamp(
+    runner.queue_gpu_surface_wheel_with_metadata(
         newest_position,
         Vector2::new(0.0, -30.0),
         newest_modifiers,
         newest_timestamp,
+        Some(newest_sequence),
     );
 
     let pending = runner
@@ -201,6 +213,11 @@ fn queued_gpu_surface_wheel_keeps_newest_sample_metadata() {
     assert_eq!(pending.delta, Vector2::new(0.0, -50.0));
     assert_eq!(pending.modifiers, newest_modifiers);
     assert_eq!(pending.timestamp, newest_timestamp);
+    let pending_sequence = pending
+        .sequence_range
+        .expect("coalesced wheel should retain sequence metadata");
+    assert_eq!(pending_sequence.start(), first_sequence.start());
+    assert_eq!(pending_sequence.end(), newest_sequence.end());
 
     runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
@@ -208,6 +225,20 @@ fn queued_gpu_surface_wheel_keeps_newest_sample_metadata() {
     assert_eq!(bridge.last_position, Some(newest_position));
     assert_eq!(bridge.last_modifiers, Some(newest_modifiers));
     assert_eq!(bridge.last_timestamp, newest_timestamp);
+    assert_eq!(
+        bridge
+            .last_sequence_range
+            .expect("flushed wheel should retain sequence metadata")
+            .start(),
+        first_sequence.start()
+    );
+    assert_eq!(
+        bridge
+            .last_sequence_range
+            .expect("flushed wheel should retain sequence metadata")
+            .end(),
+        newest_sequence.end()
+    );
 }
 
 #[test]
@@ -249,18 +280,30 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
     };
     let first_timestamp = Some(InputTimestamp::capture());
     let newest_timestamp = Some(InputTimestamp::capture());
+    let first_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("first axis sample should receive a sequence range");
+    let newest_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("newest axis sample should receive a sequence range");
 
-    runner.queue_gpu_surface_wheel_with_timestamp(
+    runner.queue_gpu_surface_wheel_with_metadata(
         point,
         Vector2::new(20.0, 0.0),
         first_modifiers,
         first_timestamp,
+        Some(first_sequence),
     );
-    runner.queue_gpu_surface_wheel_with_timestamp(
+    runner.queue_gpu_surface_wheel_with_metadata(
         point,
         Vector2::new(0.0, -30.0),
         newest_modifiers,
         newest_timestamp,
+        Some(newest_sequence),
     );
 
     assert_eq!(runner.core.runtime.bridge().wheel_count, 1);
@@ -274,6 +317,32 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
         Some(first_modifiers)
     );
     assert_eq!(runner.core.runtime.bridge().last_timestamp, first_timestamp);
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .bridge()
+            .last_sequence_range
+            .expect("axis-flushed wheel should retain sequence metadata")
+            .start(),
+        first_sequence.start()
+    );
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .bridge()
+            .last_sequence_range
+            .expect("axis-flushed wheel should retain sequence metadata")
+            .end(),
+        first_sequence.end()
+    );
+
+    let pending = runner
+        .input
+        .pending_gpu_surface_wheel
+        .expect("new semantic axis should become the pending owner");
+    assert_eq!(pending.sequence_range, Some(newest_sequence));
 
     runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
@@ -289,6 +358,10 @@ fn queued_gpu_surface_wheel_flushes_before_switching_semantic_axis() {
     assert_eq!(
         runner.core.runtime.bridge().last_timestamp,
         newest_timestamp
+    );
+    assert_eq!(
+        runner.core.runtime.bridge().last_sequence_range,
+        Some(newest_sequence)
     );
 }
 
@@ -312,18 +385,30 @@ fn queued_scroll_container_wheel_keeps_newest_sample_metadata() {
     };
     let first_timestamp = Some(InputTimestamp::capture());
     let newest_timestamp = Some(InputTimestamp::capture());
+    let first_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("first scroll-container sample should receive a sequence range");
+    let newest_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("newest scroll-container sample should receive a sequence range");
 
-    runner.queue_scroll_container_wheel_with_timestamp(
+    runner.queue_scroll_container_wheel_with_metadata(
         first_position,
         Vector2::new(0.0, 20.0),
         first_modifiers,
         first_timestamp,
+        Some(first_sequence),
     );
-    runner.queue_scroll_container_wheel_with_timestamp(
+    runner.queue_scroll_container_wheel_with_metadata(
         newest_position,
         Vector2::new(0.0, 30.0),
         newest_modifiers,
         newest_timestamp,
+        Some(newest_sequence),
     );
 
     let pending = runner
@@ -334,6 +419,11 @@ fn queued_scroll_container_wheel_keeps_newest_sample_metadata() {
     assert_eq!(pending.delta, Vector2::new(0.0, 50.0));
     assert_eq!(pending.modifiers, newest_modifiers);
     assert_eq!(pending.timestamp, newest_timestamp);
+    let pending_sequence = pending
+        .sequence_range
+        .expect("coalesced scroll-container wheel should retain sequence metadata");
+    assert_eq!(pending_sequence.start(), first_sequence.start());
+    assert_eq!(pending_sequence.end(), newest_sequence.end());
 }
 
 #[test]
@@ -347,18 +437,30 @@ fn focus_loss_discards_coalesced_input_without_retaining_frame_work() {
     let point = Point::new(40.0, 20.0);
     let gpu_timestamp = Some(InputTimestamp::capture());
     let scroll_timestamp = Some(InputTimestamp::capture());
+    let gpu_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("GPU wheel sample should receive a sequence range");
+    let scroll_sequence = runner
+        .input
+        .input_sequence_allocator
+        .allocate()
+        .expect("scroll-container wheel sample should receive a sequence range");
 
-    runner.queue_gpu_surface_wheel_with_timestamp(
+    runner.queue_gpu_surface_wheel_with_metadata(
         point,
         Vector2::new(0.0, -20.0),
         Default::default(),
         gpu_timestamp,
+        Some(gpu_sequence),
     );
-    runner.queue_scroll_container_wheel_with_timestamp(
+    runner.queue_scroll_container_wheel_with_metadata(
         point,
         Vector2::new(0.0, -20.0),
         Default::default(),
         scroll_timestamp,
+        Some(scroll_sequence),
     );
     runner.queue_scrollbar_drag(point);
 
@@ -381,6 +483,22 @@ fn focus_loss_discards_coalesced_input_without_retaining_frame_work() {
             .expect("scroll-container wheel metadata should be pending")
             .timestamp,
         scroll_timestamp
+    );
+    assert_eq!(
+        runner
+            .input
+            .pending_gpu_surface_wheel
+            .expect("GPU wheel metadata should be pending")
+            .sequence_range,
+        Some(gpu_sequence)
+    );
+    assert_eq!(
+        runner
+            .input
+            .pending_scroll_container_wheel
+            .expect("scroll-container wheel metadata should be pending")
+            .sequence_range,
+        Some(scroll_sequence)
     );
 
     runner.handle_focus_lost_before_external_drag();

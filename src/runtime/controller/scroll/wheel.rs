@@ -2,7 +2,7 @@
 
 use super::super::{CommandOutcome, SurfaceRuntime};
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::{Point, Vector2},
     runtime::{RuntimeBridge, WheelHitTarget, WidgetDispatchResult},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
@@ -19,6 +19,13 @@ pub(crate) enum WheelOrScrollRoute {
     ScrollContainer,
 }
 
+#[derive(Clone, Copy)]
+struct WheelInputMetadata {
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -26,7 +33,7 @@ where
     /// Route wheel input to the topmost widget under `point`, then fall back to
     /// scrolling the topmost scroll container under the pointer.
     pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
-        self.wheel_or_scroll_at_with_metadata(point, delta, PointerModifiers::default(), None)
+        self.wheel_or_scroll_at_with_metadata(point, delta, PointerModifiers::default(), None, None)
     }
 
     /// Route modified wheel input to the topmost widget under `point`, then
@@ -37,7 +44,7 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        self.wheel_or_scroll_at_with_metadata(point, delta, modifiers, None)
+        self.wheel_or_scroll_at_with_metadata(point, delta, modifiers, None, None)
     }
 
     pub(crate) fn wheel_or_scroll_at_with_metadata(
@@ -46,9 +53,16 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> bool {
-        self.wheel_or_scroll_route_with_metadata(point, delta, modifiers, timestamp, true)
-            != WheelOrScrollRoute::NotRouted
+        self.wheel_or_scroll_route_with_metadata(
+            point,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            true,
+        ) != WheelOrScrollRoute::NotRouted
     }
 
     /// Route wheel input but defer host-surface refresh until the caller chooses
@@ -60,6 +74,7 @@ where
             delta,
             PointerModifiers::default(),
             None,
+            None,
         )
     }
 
@@ -70,7 +85,7 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        self.wheel_or_scroll_at_deferred_refresh_with_metadata(point, delta, modifiers, None)
+        self.wheel_or_scroll_at_deferred_refresh_with_metadata(point, delta, modifiers, None, None)
     }
 
     pub(crate) fn wheel_or_scroll_at_deferred_refresh_with_metadata(
@@ -79,9 +94,14 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> bool {
         self.wheel_or_scroll_route_deferred_refresh_with_metadata(
-            point, delta, modifiers, timestamp,
+            point,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
         ) != WheelOrScrollRoute::NotRouted
     }
 
@@ -94,7 +114,9 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> WheelOrScrollRoute {
-        self.wheel_or_scroll_route_deferred_refresh_with_metadata(point, delta, modifiers, None)
+        self.wheel_or_scroll_route_deferred_refresh_with_metadata(
+            point, delta, modifiers, None, None,
+        )
     }
 
     pub(crate) fn wheel_or_scroll_route_deferred_refresh_with_metadata(
@@ -103,8 +125,16 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> WheelOrScrollRoute {
-        self.wheel_or_scroll_route_with_metadata(point, delta, modifiers, timestamp, false)
+        self.wheel_or_scroll_route_with_metadata(
+            point,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            false,
+        )
     }
 
     fn wheel_or_scroll_route_with_metadata(
@@ -113,17 +143,22 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
         refresh_after_message: bool,
     ) -> WheelOrScrollRoute {
-        let input = WidgetInput::wheel(point, delta, modifiers);
+        let metadata = WheelInputMetadata {
+            modifiers,
+            timestamp,
+            sequence_range,
+        };
+        let input = WidgetInput::wheel(point, delta, metadata.modifiers);
         match self.wheel_target_at(point, &input) {
             Some(WheelHitTarget::Widget(widget_id)) => {
                 if self.dispatch_wheel_to_widget_with_refresh(
                     widget_id,
                     point,
                     delta,
-                    modifiers,
-                    timestamp,
+                    metadata,
                     refresh_after_message,
                 ) {
                     WheelOrScrollRoute::Widget
@@ -149,8 +184,7 @@ where
         widget_id: WidgetId,
         point: Point,
         delta: Vector2,
-        modifiers: PointerModifiers,
-        timestamp: Option<InputTimestamp>,
+        metadata: WheelInputMetadata,
         refresh_after_message: bool,
     ) -> bool {
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
@@ -159,7 +193,13 @@ where
         let Some(result) = self.dispatch_surface_input(
             widget_id,
             bounds,
-            WidgetInput::wheel_with_metadata(point, delta, modifiers, timestamp),
+            WidgetInput::wheel_with_metadata(
+                point,
+                delta,
+                metadata.modifiers,
+                metadata.timestamp,
+                metadata.sequence_range,
+            ),
         ) else {
             return false;
         };

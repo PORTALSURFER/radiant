@@ -1,6 +1,6 @@
 use super::super::FocusTraversal;
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::{Point, Vector2},
     widgets::{PointerButton, PointerModifiers, WidgetKey},
 };
@@ -22,6 +22,8 @@ pub enum Event {
         modifiers: PointerModifiers,
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
     },
     /// Pointer modifier state changed while the pointer remains active.
     PointerModifiersChanged {
@@ -91,6 +93,8 @@ pub enum Event {
         modifiers: PointerModifiers,
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
     },
 }
 
@@ -102,7 +106,7 @@ impl Event {
 
     /// Build a pointer-move event at `position`.
     pub fn pointer_move(position: Point) -> Self {
-        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None)
+        Self::pointer_move_with_metadata(position, PointerModifiers::default(), None, None)
     }
 
     /// Build a pointer-move event with native sample metadata.
@@ -110,11 +114,13 @@ impl Event {
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> Self {
         Self::PointerMove {
             position,
             modifiers,
             timestamp,
+            sequence_range,
         }
     }
 
@@ -292,7 +298,7 @@ impl Event {
 
     /// Build a pointer-positioned scroll event.
     pub fn scroll(position: Point, delta: Vector2) -> Self {
-        Self::scroll_with_metadata(position, delta, PointerModifiers::default(), None)
+        Self::scroll_with_metadata(position, delta, PointerModifiers::default(), None, None)
     }
 
     /// Build a pointer-positioned scroll event with native sample metadata.
@@ -301,12 +307,14 @@ impl Event {
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> Self {
         Self::Scroll {
             position,
             delta,
             modifiers,
             timestamp,
+            sequence_range,
         }
     }
 }
@@ -325,6 +333,7 @@ mod tests {
                 position,
                 modifiers: PointerModifiers::default(),
                 timestamp: None,
+                sequence_range: None,
             }
         );
     }
@@ -341,6 +350,7 @@ mod tests {
                 delta,
                 modifiers: PointerModifiers::default(),
                 timestamp: None,
+                sequence_range: None,
             }
         );
     }

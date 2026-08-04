@@ -276,6 +276,7 @@ fn widget_input_helpers_project_pointer_positions_and_start_bounds() {
         delta: Vector2::new(0.0, 1.0),
         modifiers: Default::default(),
         timestamp: None,
+        sequence_range: None,
     };
     assert_eq!(wheel.pointer_position(), Some(outside));
     assert_eq!(wheel.pointer_start_position(), Some(outside));
@@ -506,6 +507,7 @@ fn pointer_shield_consumes_wheel_when_enabled() {
                 delta,
                 modifiers: Default::default(),
                 timestamp: None,
+                sequence_range: None,
             },
         ),
         Some(PointerShieldMessage::Wheel {
@@ -530,6 +532,7 @@ fn pointer_shield_ignores_wheel_when_disabled() {
                 delta: Vector2::new(0.0, -18.0),
                 modifiers: Default::default(),
                 timestamp: None,
+                sequence_range: None,
             },
         ),
         None

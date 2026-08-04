@@ -1,7 +1,7 @@
 //! Wheel coalescing fast paths for retained GPU surface primitives.
 
 use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
-use crate::gui::input::InputTimestamp;
+use crate::gui::input::{InputSequenceRange, InputTimestamp};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
@@ -28,12 +28,26 @@ impl GpuSurfaceWheelAxis {
     }
 }
 
+fn extend_pending_sequence_range(
+    current: &mut Option<InputSequenceRange>,
+    incoming: Option<InputSequenceRange>,
+) {
+    match (*current, incoming) {
+        (Some(mut current_range), Some(incoming_range)) => {
+            current_range.extend_end(incoming_range.end());
+            *current = Some(current_range);
+        }
+        _ => *current = None,
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
     pub(super) delta: Vector2,
     pub(super) modifiers: PointerModifiers,
     pub(super) timestamp: Option<InputTimestamp>,
+    pub(super) sequence_range: Option<InputSequenceRange>,
     axis: GpuSurfaceWheelAxis,
 }
 
@@ -42,6 +56,7 @@ pub(super) struct PendingScrollbarDrag {
     pub(super) position: Point,
     pub(super) modifiers: PointerModifiers,
     pub(super) timestamp: Option<InputTimestamp>,
+    pub(super) sequence_range: Option<InputSequenceRange>,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -58,12 +73,24 @@ where
         self.queue_gpu_surface_wheel_with_timestamp(position, delta, modifiers, None);
     }
 
+    #[cfg(test)]
     pub(super) fn queue_gpu_surface_wheel_with_timestamp(
         &mut self,
         position: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+    ) {
+        self.queue_gpu_surface_wheel_with_metadata(position, delta, modifiers, timestamp, None);
+    }
+
+    pub(super) fn queue_gpu_surface_wheel_with_metadata(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
@@ -81,6 +108,7 @@ where
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
                 pending.modifiers = modifiers;
                 pending.timestamp = timestamp;
+                extend_pending_sequence_range(&mut pending.sequence_range, sequence_range);
             }
             None => {
                 self.input.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel {
@@ -88,6 +116,7 @@ where
                     delta,
                     modifiers,
                     timestamp,
+                    sequence_range,
                     axis,
                 });
             }
@@ -96,12 +125,13 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
-    pub(super) fn queue_scroll_container_wheel_with_timestamp(
+    pub(super) fn queue_scroll_container_wheel_with_metadata(
         &mut self,
         position: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
@@ -111,6 +141,7 @@ where
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
                 pending.modifiers = modifiers;
                 pending.timestamp = timestamp;
+                extend_pending_sequence_range(&mut pending.sequence_range, sequence_range);
             }
             None => {
                 self.input.pending_scroll_container_wheel = Some(PendingGpuSurfaceWheel {
@@ -118,6 +149,7 @@ where
                     delta,
                     modifiers,
                     timestamp,
+                    sequence_range,
                     axis,
                 });
             }
@@ -127,7 +159,7 @@ where
 
     #[cfg(test)]
     pub(super) fn queue_scrollbar_drag(&mut self, position: Point) {
-        self.queue_scrollbar_drag_with_metadata(position, PointerModifiers::default(), None);
+        self.queue_scrollbar_drag_with_metadata(position, PointerModifiers::default(), None, None);
     }
 
     pub(super) fn queue_scrollbar_drag_with_metadata(
@@ -135,12 +167,24 @@ where
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) {
-        self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag {
-            position,
-            modifiers,
-            timestamp,
-        });
+        match &mut self.input.pending_scrollbar_drag {
+            Some(pending) => {
+                pending.position = position;
+                pending.modifiers = modifiers;
+                pending.timestamp = timestamp;
+                extend_pending_sequence_range(&mut pending.sequence_range, sequence_range);
+            }
+            None => {
+                self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag {
+                    position,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                });
+            }
+        }
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
@@ -152,6 +196,7 @@ where
             pending.position,
             pending.modifiers,
             pending.timestamp,
+            pending.sequence_range,
         );
         maybe_log_route_profile(
             "coalesced_scrollbar_drag",
@@ -181,6 +226,7 @@ where
                 pending.delta,
                 pending.modifiers,
                 pending.timestamp,
+                pending.sequence_range,
             )
         });
         profile.coalesced_wheel_route = elapsed;
@@ -230,6 +276,7 @@ where
                 pending.delta,
                 pending.modifiers,
                 pending.timestamp,
+                pending.sequence_range,
             )
         });
         profile.coalesced_wheel_route += elapsed;

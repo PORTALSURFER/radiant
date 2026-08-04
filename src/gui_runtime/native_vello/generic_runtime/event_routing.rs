@@ -6,7 +6,7 @@ use super::{
 };
 use crate::gui::{
     focus::FocusSurface,
-    input::{InputTimestamp, KeyPress},
+    input::{InputSequenceRange, InputTimestamp, KeyPress},
     types::{Point, Vector2},
 };
 use crate::runtime::WheelOrScrollRoute;
@@ -54,7 +54,7 @@ where
         &mut self,
         position: Point,
     ) -> GenericRouteOutcome {
-        self.route_pointer_move_with_metadata(position, PointerModifiers::default(), None)
+        self.route_pointer_move_with_metadata(position, PointerModifiers::default(), None, None)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_move_with_metadata(
@@ -62,10 +62,16 @@ where
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> GenericRouteOutcome {
         let outcome = self
             .runtime
-            .dispatch_pointer_move_deferred_refresh_with_metadata(position, modifiers, timestamp);
+            .dispatch_pointer_move_deferred_refresh_with_metadata(
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            );
         let pending = self.runtime.take_pending_input_command_outcome();
         let captured_pointer_refresh =
             outcome.pointer_captured && pending.surface_refresh_requested;
@@ -224,7 +230,7 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
-        self.route_scroll_with_metadata(position, delta, modifiers, None)
+        self.route_scroll_with_metadata(position, delta, modifiers, None, None)
     }
 
     #[cfg(test)]
@@ -234,10 +240,15 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> GenericRouteOutcome {
-        let routed = self
-            .runtime
-            .wheel_or_scroll_at_with_metadata(position, delta, modifiers, timestamp);
+        let routed = self.runtime.wheel_or_scroll_at_with_metadata(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+        );
         self.route_outcome(routed)
     }
 
@@ -260,11 +271,16 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> GenericRouteOutcome {
         let route = self
             .runtime
             .wheel_or_scroll_route_deferred_refresh_with_metadata(
-                position, delta, modifiers, timestamp,
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                sequence_range,
             );
         self.complete_scroll_route(route)
     }

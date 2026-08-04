@@ -245,8 +245,15 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(GenericRouteOutcome::default(), diagnostic);
         };
+        let sequence_range = self.input.input_sequence_allocator.allocate();
         if self.can_coalesce_gpu_surface_wheel(position, delta) {
-            self.queue_gpu_surface_wheel_with_timestamp(position, delta, modifiers, timestamp);
+            self.queue_gpu_surface_wheel_with_metadata(
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                sequence_range,
+            );
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
@@ -261,7 +268,13 @@ where
             ) && self.timing.redraw_requested
                 && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
-            self.queue_scroll_container_wheel_with_timestamp(position, delta, modifiers, timestamp);
+            self.queue_scroll_container_wheel_with_metadata(
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                sequence_range,
+            );
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
@@ -271,9 +284,13 @@ where
             return NativeWheelRoute::new(outcome, diagnostic);
         }
         let started = Instant::now();
-        let outcome = self
-            .core
-            .route_scroll_deferred_refresh_with_metadata(position, delta, modifiers, timestamp);
+        let outcome = self.core.route_scroll_deferred_refresh_with_metadata(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+        );
         maybe_log_route_profile("wheel", started.elapsed(), outcome);
         self.handle_gpu_surface_route_outcome(outcome, position, delta);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);

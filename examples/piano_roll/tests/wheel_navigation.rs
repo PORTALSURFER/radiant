@@ -14,6 +14,7 @@ fn piano_roll_plain_vertical_wheel_zooms_pitch_only() {
             delta: Vector2::new(0.0, -20.0),
             modifiers: PointerModifiers::default(),
             timestamp: None,
+            sequence_range: None,
         },
     );
 
@@ -52,6 +53,7 @@ fn piano_roll_alt_vertical_wheel_zooms_time_only() {
                 ..PointerModifiers::default()
             },
             timestamp: None,
+            sequence_range: None,
         },
     );
 
@@ -87,6 +89,7 @@ fn piano_roll_horizontal_wheel_still_pans_time_range() {
             delta: Vector2::new(64.0, 0.0),
             modifiers: PointerModifiers::default(),
             timestamp: None,
+            sequence_range: None,
         },
     );
 

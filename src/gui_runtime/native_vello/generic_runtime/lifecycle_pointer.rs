@@ -27,6 +27,7 @@ where
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
             return;
         };
+        let sequence_range = self.input.input_sequence_allocator.allocate();
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
         self.core.set_current_pointer_position(Some(position));
@@ -36,13 +37,16 @@ where
         }
         if self.core.runtime.scrollbar_drag_active() {
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
-                let outcome = self
-                    .core
-                    .route_pointer_move_with_metadata(position, modifiers, timestamp);
+                let outcome = self.core.route_pointer_move_with_metadata(
+                    position,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                );
                 self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
                 return;
             }
-            self.queue_scrollbar_drag_with_metadata(position, modifiers, timestamp);
+            self.queue_scrollbar_drag_with_metadata(position, modifiers, timestamp, sequence_range);
             return;
         }
         if self.can_fast_path_native_hover_move(position) {
@@ -63,9 +67,12 @@ where
             });
         }
         let started = Instant::now();
-        let outcome = self
-            .core
-            .route_pointer_move_with_metadata(position, modifiers, timestamp);
+        let outcome = self.core.route_pointer_move_with_metadata(
+            position,
+            modifiers,
+            timestamp,
+            sequence_range,
+        );
         if self.core.runtime.pointer_capture().is_none() {
             self.update_native_cursor_at_last_position();
         }

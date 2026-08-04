@@ -1,6 +1,6 @@
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::Point,
     runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
@@ -25,6 +25,7 @@ where
             true,
             PointerModifiers::default(),
             None,
+            None,
         )
     }
 
@@ -43,6 +44,7 @@ where
             false,
             PointerModifiers::default(),
             None,
+            None,
         )
     }
 
@@ -51,8 +53,15 @@ where
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveOutcome {
-        self.dispatch_pointer_move_with_refresh_outcome(position, false, modifiers, timestamp)
+        self.dispatch_pointer_move_with_refresh_outcome(
+            position,
+            false,
+            modifiers,
+            timestamp,
+            sequence_range,
+        )
     }
 
     fn dispatch_pointer_move_with_refresh_outcome(
@@ -61,6 +70,7 @@ where
         refresh_after_message: bool,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveOutcome {
         let previous_hovered_widget = self.interaction.hover.widget;
         let previous_hovered_container = self.interaction.hover.container;
@@ -69,6 +79,7 @@ where
             refresh_after_message,
             modifiers,
             timestamp,
+            sequence_range,
         );
         let target = dispatch.target;
         let hover_changed = previous_hovered_widget != self.interaction.hover.widget

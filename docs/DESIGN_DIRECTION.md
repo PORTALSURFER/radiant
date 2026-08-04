@@ -1577,8 +1577,9 @@ column([
 `Slider` is a shipped control. The target API for sliders and other range
 controls includes a value, a range, optional formatting, and a change message;
 the `.format(ValueFormat::percent(0))` call below is illustrative target API
-only and is not currently shipped. Their layout is still owned by the
-enclosing container.
+only for control attachment and is not currently shipped. The qualified
+`ValueFormat` policy foundation used by that example is shipped separately.
+Their layout is still owned by the enclosing container.
 
 ```rust
 row([
@@ -1601,6 +1602,14 @@ construction. Its conversions reject nonfinite inputs, clamp finite inputs at
 the relevant boundary, and use `f64` intermediates before returning a finite
 `f32` result.
 
+The shipped `ValueFormat` policy foundation is backend-neutral and exposes only
+decimal, percent, and frequency forms. It writes fixed-precision output into
+caller-owned `fmt::Write` storage without an internal `String` allocation,
+rejects nonfinite values before writing, and caps requested precision at nine
+fractional digits. Its decimal separator is explicit (`Period` or `Comma`)
+and never comes from ambient operating-system locale. Frequency defaults to two
+fractional digits; percent scales by 100 and frequency appends ` Hz`.
+
 The future numeric-control contract will include linear, logarithmic, decibel,
 tempo, and custom monotonic mappings. It will use one mapping for pointer
 position, keyboard increments, accessibility range semantics, and displayed
@@ -1611,11 +1620,14 @@ valid domain value. Enter or focus commit will emit a typed accepted value;
 Escape or explicit cancel will restore the displayed value without an
 accidental domain mutation.
 
-Formatting, widget integration, and the remaining mapping forms are separate
-follow-up slices.
+The `ValueFormat` policy foundation is shipped as a qualified API. `.format(...)`
+control attachment, `numeric_input`, and the remaining mapping or formatting
+forms—including grouping, decibel, tempo, and arbitrary custom formatting—are
+target/future APIs and remain separate follow-up slices.
 
-The following `numeric_input`/`ValueFormat` example is target API and is not
-currently shipped:
+The following `numeric_input`/`.format(...)` attachment example is target API
+and is not currently shipped; its `ValueFormat` policy argument is shipped
+separately:
 
 ```rust
 numeric_input(state.cutoff)
@@ -1690,10 +1702,10 @@ programmatic edit is undoable, but it never has to infer gesture boundaries from
 raw pointer events. An application with a realtime engine publishes accepted
 continuous updates through its bounded latest-wins bridge under the realtime
 integration contract; Radiant does not call an engine from the widget or
-reducer. `ValueFormat` provides allocation-free common display forms;
-an advanced formatter is evaluated only when its quantized visible display value
-changes and its result is retained as owned or shared `Text`, never formatted on
-every pointer sample.
+reducer. The shipped policy provides allocation-free common display forms; an advanced
+formatter is a future API evaluated only when its quantized visible display
+value changes and its result is retained as owned or shared `Text`, never
+formatted on every pointer sample.
 
 ### Focus, shortcuts, and editor interaction
 

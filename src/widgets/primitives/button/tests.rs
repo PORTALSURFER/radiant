@@ -1,7 +1,9 @@
 use crate::gui::svg::{IconName, SvgIcon};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::contract::WidgetState;
-use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
+use crate::widgets::interaction::{
+    DragHandleMessage, DragHandleMetadata, PointerButton, WidgetInput, WidgetKey,
+};
 use std::sync::Arc;
 
 use super::*;
@@ -103,6 +105,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: Point::new(10.0, 10.0),
             position: Point::new(12.0, 14.0),
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -116,7 +119,8 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             },
         ),
         Some(ButtonMessage::Drag(DragHandleMessage::Ended {
-            position: Point::new(20.0, 22.0)
+            position: Point::new(20.0, 22.0),
+            metadata: DragHandleMetadata::empty(),
         }))
     );
 }
@@ -161,6 +165,7 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: press_point,
             position: move_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
 
@@ -172,7 +177,8 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
     assert_eq!(
         refreshed.handle_input(bounds, WidgetInput::primary_release(release_point)),
         Some(ButtonMessage::Drag(DragHandleMessage::Ended {
-            position: release_point
+            position: release_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert!(!refreshed.common.state.active);
@@ -195,6 +201,7 @@ fn draggable_button_focus_loss_cancels_drag() {
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
             origin: press_point,
             position: move_point,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -214,6 +221,7 @@ fn button_message_helpers_classify_common_outputs() {
     let drag_position = Point::new(18.0, 20.0);
     let drag = DragHandleMessage::Moved {
         position: drag_position,
+        metadata: DragHandleMetadata::empty(),
     };
 
     assert!(ButtonMessage::Activate.is_activate());

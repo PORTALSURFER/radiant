@@ -1,9 +1,10 @@
 use super::super::*;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
-    ColorMarkerWidget, DragHandleMessage, FeedbackOverlayWidget, FocusBehavior, IconButtonWidget,
-    MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget, TextInputWidget,
-    TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, FeedbackOverlayWidget, FocusBehavior,
+    IconButtonWidget, MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget,
+    TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle,
+    WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -301,7 +302,8 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
         surface.dispatch_widget_output(
             27,
             WidgetOutput::typed(ButtonMessage::Drag(DragHandleMessage::Moved {
-                position: ui::Point::new(3.0, 4.0)
+                position: ui::Point::new(3.0, 4.0),
+                metadata: DragHandleMetadata::empty(),
             })),
         ),
         Some("drag-move")
@@ -346,6 +348,7 @@ fn constant_button_message_maps_all_enabled_button_outputs() {
             28,
             WidgetOutput::typed(ButtonMessage::Drag(DragHandleMessage::Moved {
                 position: ui::Point::new(3.0, 4.0),
+                metadata: DragHandleMetadata::empty(),
             })),
         ),
         Some("run")

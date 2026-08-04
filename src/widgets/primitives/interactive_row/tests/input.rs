@@ -235,6 +235,7 @@ fn focus_loss_preserves_started_row_drag() {
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Started {
             origin: start,
             position: moved,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert_eq!(
@@ -246,7 +247,8 @@ fn focus_loss_preserves_started_row_drag() {
     assert_eq!(
         row.handle_input(bounds, WidgetInput::primary_release(release)),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
-            position: release
+            position: release,
+            metadata: DragHandleMetadata::empty(),
         }))
     );
     assert!(!row.common.state.pressed);

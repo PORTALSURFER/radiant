@@ -92,6 +92,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         ),
         radiant::widgets::DragHandleMessage::Moved {
             position: Point::new(10.0, 38.0),
+            metadata: radiant::widgets::DragHandleMetadata::empty(),
         },
     );
 

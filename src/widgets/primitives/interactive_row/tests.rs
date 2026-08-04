@@ -8,7 +8,9 @@ use crate::{
     layout::LayoutOutput,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
-    widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput},
+    widgets::{
+        DragHandleMessage, DragHandleMetadata, PointerButton, PointerModifiers, WidgetInput,
+    },
 };
 
 mod actions;

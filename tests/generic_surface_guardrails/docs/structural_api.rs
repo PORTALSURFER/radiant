@@ -106,6 +106,10 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "InvalidationMask",
         "RetainedSegmentMask",
         "VisualSnapshot",
+        "Each pointer-bearing drag variant also carries a `DragHandleMetadata` value",
+        "DragHandleMessage::input_metadata()",
+        "Focus-loss `Cancelled` messages return `DragHandleMetadata::empty()`",
+        "`DragHandleMetadata` is exported from `radiant::widgets` and the prelude",
     ] {
         assert!(
             normalized_docs.contains(required),

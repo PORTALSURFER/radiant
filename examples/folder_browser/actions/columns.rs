@@ -63,8 +63,8 @@ impl BrowserState {
                     });
                 }
             }
-            ui::DragHandleMessage::Moved { position }
-            | ui::DragHandleMessage::Ended { position } => {
+            ui::DragHandleMessage::Moved { position, .. }
+            | ui::DragHandleMessage::Ended { position, .. } => {
                 let Some(resize) = self.columns.resize.clone() else {
                     return;
                 };
@@ -91,8 +91,8 @@ impl BrowserState {
     pub(crate) fn resize_tree(&mut self, message: ui::DragHandleMessage) {
         match message {
             ui::DragHandleMessage::Started { position, .. }
-            | ui::DragHandleMessage::Moved { position }
-            | ui::DragHandleMessage::Ended { position } => {
+            | ui::DragHandleMessage::Moved { position, .. }
+            | ui::DragHandleMessage::Ended { position, .. } => {
                 self.tree.tree_width =
                     (position.x - SPLITTER_OFFSET).clamp(MIN_TREE_WIDTH, MAX_TREE_WIDTH);
             }

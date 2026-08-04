@@ -8,13 +8,14 @@ use radiant::{
     layout::Vector2,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ColorMarkerAlign,
-        ColorMarkerProps, ColorMarkerWidget, DragHandleMessage, DragHandlePhase, DragHandleWidget,
-        FeedbackOverlayWidget, ImageWidget, InteractiveRowMessage, InteractiveRowWidget,
-        ListItemMessage, ListItemWidget, PointerButton, PointerModifiers, PointerShieldMessage,
-        PointerShieldWidget, ProgressBarMessage, ProgressBarWidget, ScrollbarAxis,
-        ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, SliderMessage,
-        SliderWidget, TextBackgroundRole, TextColorRole, TextInputMessage, TextInputWidget,
-        TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetSizing,
+        ColorMarkerProps, ColorMarkerWidget, DragHandleMessage, DragHandleMetadata,
+        DragHandlePhase, DragHandleWidget, FeedbackOverlayWidget, ImageWidget,
+        InteractiveRowMessage, InteractiveRowWidget, ListItemMessage, ListItemWidget,
+        PointerButton, PointerModifiers, PointerShieldMessage, PointerShieldWidget,
+        ProgressBarMessage, ProgressBarWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
+        SelectableMessage, SelectableWidget, SliderMessage, SliderWidget, TextBackgroundRole,
+        TextColorRole, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget,
+        Widget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;

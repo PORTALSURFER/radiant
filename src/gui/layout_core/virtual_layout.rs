@@ -88,6 +88,10 @@ impl VirtualLayoutPolicyIdentity {
             value: OpaqueExactValue::new(value),
         }
     }
+
+    fn stable_equals(&self, other: &Self) -> Option<bool> {
+        self.value.stable_equals(&other.value)
+    }
 }
 
 impl fmt::Debug for VirtualLayoutPolicyIdentity {
@@ -98,7 +102,7 @@ impl fmt::Debug for VirtualLayoutPolicyIdentity {
 
 impl PartialEq for VirtualLayoutPolicyIdentity {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
+        self.stable_equals(other) == Some(true)
     }
 }
 

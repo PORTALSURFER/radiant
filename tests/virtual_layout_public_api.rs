@@ -60,6 +60,21 @@ impl VirtualLayoutPolicy for OneItemPolicy {
 
 fn assert_object_safe(_: &dyn VirtualLayoutPolicy) {}
 
+#[derive(Eq)]
+struct UnstableIdentity {
+    calls: Cell<u32>,
+}
+
+type FenceChange = fn(&mut VirtualLayoutQueryInputParts);
+
+impl PartialEq for UnstableIdentity {
+    fn eq(&self, _other: &Self) -> bool {
+        let call = self.calls.get();
+        self.calls.set(call.saturating_add(1));
+        call.is_multiple_of(2)
+    }
+}
+
 #[test]
 fn qualified_policy_is_object_safe_and_returns_bounded_typed_result() {
     let policy = OneItemPolicy;
@@ -95,10 +110,7 @@ fn exact_fences_reject_each_changed_field_without_ordering_comparison() {
         panic!("the policy should produce a ready result");
     };
 
-    let cases: &[(
-        VirtualLayoutFenceField,
-        fn(&mut VirtualLayoutQueryInputParts),
-    )] = &[
+    let cases: &[(VirtualLayoutFenceField, FenceChange)] = &[
         (VirtualLayoutFenceField::ContainerIdentity, |parts| {
             parts.container_id += 1;
         }),
@@ -156,6 +168,59 @@ fn exact_fences_reject_each_changed_field_without_ordering_comparison() {
                 && diagnostic.fence_fields().contains(*field)
         }));
     }
+}
+
+#[test]
+fn unstable_policy_identity_cannot_pass_exact_fence() {
+    let mut parts = input_parts();
+    parts.policy_identity = VirtualLayoutPolicyIdentity::new(UnstableIdentity {
+        calls: Cell::new(0),
+    });
+    let first = VirtualLayoutQueryExecutor::from_parts(parts.clone())
+        .expect("the query input should be valid");
+    let VirtualLayoutQueryOutcome::Ready(result) = first.execute(&OneItemPolicy) else {
+        panic!("the policy should produce a ready result");
+    };
+
+    let second = VirtualLayoutQueryExecutor::from_parts(parts)
+        .expect("the equivalent query input should be valid");
+    assert!(matches!(
+        second.accept(result),
+        VirtualLayoutQueryOutcome::Invalid(diagnostics)
+            if diagnostics.iter().any(|diagnostic| {
+                diagnostic.code() == VirtualLayoutDiagnosticCode::FenceMismatch
+                    && diagnostic
+                        .fence_fields()
+                        .contains(VirtualLayoutFenceField::PolicyIdentity)
+            })
+    ));
+}
+
+#[test]
+fn unstable_custom_coordinate_identity_cannot_pass_exact_fence() {
+    let mut parts = input_parts();
+    parts.coordinate_space =
+        VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(UnstableIdentity {
+            calls: Cell::new(0),
+        }));
+    let first = VirtualLayoutQueryExecutor::from_parts(parts.clone())
+        .expect("the query input should be valid");
+    let VirtualLayoutQueryOutcome::Ready(result) = first.execute(&OneItemPolicy) else {
+        panic!("the policy should produce a ready result");
+    };
+
+    let second = VirtualLayoutQueryExecutor::from_parts(parts)
+        .expect("the equivalent query input should be valid");
+    assert!(matches!(
+        second.accept(result),
+        VirtualLayoutQueryOutcome::Invalid(diagnostics)
+            if diagnostics.iter().any(|diagnostic| {
+                diagnostic.code() == VirtualLayoutDiagnosticCode::FenceMismatch
+                    && diagnostic
+                        .fence_fields()
+                        .contains(VirtualLayoutFenceField::CoordinateSpace)
+            })
+    ));
 }
 
 #[test]

@@ -315,6 +315,11 @@ fn begin_container_runtime<Message>(
                         contract_version: capabilities.contract_version,
                         interaction: interaction.clone(),
                         revision: interaction.revision(),
+                        state: crate::layout::supports_layout_state_input_contract(
+                            capabilities.contract_version,
+                        )
+                        .then(|| interaction.state(container.id))
+                        .flatten(),
                     }
                 })
             }),

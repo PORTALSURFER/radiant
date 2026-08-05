@@ -92,6 +92,7 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
 pub(super) struct RuntimeLayoutHitTarget<Message> {
     pub(super) target: LayoutHitTarget,
     pub(super) contract_version: u16,
+    pub(super) state_id: Option<crate::layout::ContainerStateId>,
     pub(super) interaction: std::rc::Rc<dyn LayoutInteraction<Message>>,
     pub(super) revision: LayoutInteractionRevision,
 }
@@ -156,6 +157,7 @@ impl<Message> RuntimeContainerTraversal<Message> {
                         bounds,
                     },
                     contract_version: interaction.contract_version,
+                    state_id: interaction.state.as_ref().map(|state| state.id()),
                     interaction: std::rc::Rc::clone(&interaction.interaction),
                     revision: interaction.revision.clone(),
                 });

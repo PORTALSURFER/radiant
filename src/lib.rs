@@ -72,10 +72,12 @@ pub mod prelude;
 pub mod layout {
     pub use crate::gui::layout_core::{
         Constraints, ConstraintsParts, ContainerKind, ContainerNode, ContainerNodeParts,
-        ContainerPolicy, CrossAlign, DebugPrimitiveKind, FloatingLayerHorizontalOverflow,
-        FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets,
-        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
-        LayoutCapabilities, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
+        ContainerPolicy, ContainerStateDeclaration, ContainerStateId, CrossAlign,
+        DebugPrimitiveKind, FloatingLayerHorizontalOverflow, FloatingLayerPolicy,
+        FloatingLayerVerticalOverflow, GridPolicy, Insets, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
+        LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, LayoutCapabilities,
+        LayoutContainerStateContext, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
         LayoutDiagnosticCode, LayoutEngine, LayoutEventContext, LayoutHitRegion,
         LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics, LayoutHitRegionId,
         LayoutHitTarget, LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutNode,
@@ -92,6 +94,7 @@ pub mod layout {
     };
     pub(crate) use crate::gui::layout_core::{
         supports_layout_capabilities_contract, supports_layout_input_contract,
+        supports_layout_state_input_contract,
     };
 }
 /// Shared runtime host implementations.

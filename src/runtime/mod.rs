@@ -100,8 +100,8 @@ pub use controller::{
     FocusTraversal, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
     RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate, ScrollUpdateMetadata,
     SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
-    SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
-    SurfaceRefreshTimings, SurfaceRuntime,
+    SurfaceIdentityReplacement, SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement,
+    SurfaceRefreshCounters, SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
 pub use devtools::{
     DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,

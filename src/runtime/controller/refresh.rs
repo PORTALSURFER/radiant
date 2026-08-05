@@ -1,6 +1,6 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
-use super::SurfaceRuntime;
+use super::{SurfaceRuntime, layout_state::SurfaceLayoutStateDiagnostics};
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
@@ -1560,6 +1560,8 @@ pub struct SurfaceRefreshDiagnostics {
     pub timings: SurfaceRefreshTimings,
     /// Bounded incompatible retained-widget replacement diagnostics.
     pub identity: SurfaceIdentityDiagnostics,
+    /// Bounded runtime-owned layout-interaction state diagnostics.
+    pub layout_state: SurfaceLayoutStateDiagnostics,
 }
 
 /// Runtime/frame transport for observational view-delta evidence.
@@ -1640,6 +1642,7 @@ impl SurfaceRefreshDiagnostics {
                 layout: Duration::ZERO,
             },
             identity: SurfaceIdentityDiagnostics::startup(),
+            layout_state: SurfaceLayoutStateDiagnostics::startup(),
         }
     }
 
@@ -1656,6 +1659,7 @@ impl SurfaceRefreshDiagnostics {
         );
         self.timings.merge(other.timings);
         self.identity.merge(other.identity);
+        self.layout_state.merge(other.layout_state);
     }
 }
 
@@ -1735,6 +1739,7 @@ where
     pub fn refresh_with_scope(&mut self, scope: RepaintScope) {
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
+        self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
         if scope.is_paint_only() {
             self.base_paint_plan_reuse_eligible = false;
             let view_delta = ViewDeltaDiagnostics {
@@ -1746,6 +1751,7 @@ where
                     invalidation,
                     timings: SurfaceRefreshTimings::default(),
                     identity: SurfaceIdentityDiagnostics::default(),
+                    layout_state: SurfaceLayoutStateDiagnostics::default(),
                 },
                 Duration::ZERO,
                 view_delta,
@@ -1847,6 +1853,7 @@ where
                     layout,
                 },
                 identity,
+                layout_state: self.last_layout_state_diagnostics,
             },
             refresh_started.elapsed(),
             view_delta,

@@ -77,7 +77,8 @@ impl<Message> SurfaceNode<Message> {
     /// The descriptor supplies registration, revision evidence, and normalized
     /// hit-region declaration/projection. Version-3 descriptors may also
     /// receive typed pointer input through the runtime-owned admission and
-    /// capture path; version 2 remains projection/query-only.
+    /// capture path; version 4 additionally supplies optional runtime-owned
+    /// typed container state. Version 2 remains projection/query-only.
     pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
         if let Self::Container(container) = &mut self {
             container.layout_capabilities = Some(capabilities);

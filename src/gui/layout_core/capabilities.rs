@@ -6,7 +6,11 @@
 //! capture remains owned by the surface controller; the capability only
 //! receives an input and records bounded event decisions in its context.
 
-use std::{any::Any, fmt, rc::Rc};
+use std::{
+    any::{Any, TypeId},
+    fmt,
+    rc::Rc,
+};
 
 use super::tree::NodeId;
 use crate::{
@@ -18,7 +22,10 @@ use crate::{
 };
 
 /// Contract revision understood by [`LayoutCapabilities`].
-pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 3;
+pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 4;
+
+/// The state-aware layout interaction contract revision.
+pub const LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION: u16 = 4;
 
 /// The projection/query-only capability contract retained for compatibility.
 pub const LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION: u16 = 2;
@@ -26,12 +33,18 @@ pub const LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION: u16 = 2;
 pub(crate) const fn supports_layout_capabilities_contract(version: u16) -> bool {
     matches!(
         version,
-        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION | LAYOUT_CAPABILITIES_CONTRACT_VERSION
+        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION
+            | 3
+            | LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION
     )
 }
 
 pub(crate) const fn supports_layout_input_contract(version: u16) -> bool {
-    version == LAYOUT_CAPABILITIES_CONTRACT_VERSION
+    matches!(version, 3 | LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION)
+}
+
+pub(crate) const fn supports_layout_state_input_contract(version: u16) -> bool {
+    version == LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION
 }
 
 /// Stable identity for one projected layout interaction target.
@@ -53,7 +66,198 @@ impl LayoutTargetIdentity {
     }
 }
 
-/// Pointer input offered to a version-3 layout interaction capability.
+/// Opaque identity for one runtime-owned layout interaction state slot.
+///
+/// The identity combines the mounted container identity, the concrete
+/// `'static` state type, and the caller-owned schema version. The concrete
+/// type identity is intentionally private: callers construct and compare
+/// identities through typed methods without depending on `TypeId` or
+/// `Any`.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct ContainerStateId {
+    container_id: NodeId,
+    state_type: TypeId,
+    schema_version: u16,
+}
+
+impl ContainerStateId {
+    /// Construct a typed state identity for one mounted container.
+    pub fn new<T>(container_id: NodeId, schema_version: u16) -> Self
+    where
+        T: 'static,
+    {
+        Self {
+            container_id,
+            state_type: TypeId::of::<T>(),
+            schema_version,
+        }
+    }
+
+    /// Construct a typed state identity using an explicit type-oriented name.
+    pub fn for_type<T>(container_id: NodeId, schema_version: u16) -> Self
+    where
+        T: 'static,
+    {
+        Self::new::<T>(container_id, schema_version)
+    }
+
+    /// Return the mounted container identity.
+    pub const fn container_id(self) -> NodeId {
+        self.container_id
+    }
+
+    /// Return the caller-owned state schema version.
+    pub const fn schema_version(self) -> u16 {
+        self.schema_version
+    }
+
+    /// Return whether this identity names the supplied concrete state type.
+    pub fn is<T>(self) -> bool
+    where
+        T: 'static,
+    {
+        self.state_type == TypeId::of::<T>()
+    }
+
+    pub(crate) fn same_container(self, other: Self) -> bool {
+        self.container_id == other.container_id
+    }
+}
+
+impl fmt::Debug for ContainerStateId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ContainerStateId")
+            .field("container_id", &self.container_id)
+            .field("schema_version", &self.schema_version)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Explicit initializer and typed identity for one layout interaction state.
+///
+/// The initializer is UI-local and may return values that are not `Send`, such
+/// as `Rc<Cell<_>>`. It is called by the runtime only when the matching slot is
+/// first mounted or when its concrete type/schema changes.
+#[derive(Clone)]
+pub struct ContainerStateDeclaration {
+    id: ContainerStateId,
+    initializer: Rc<dyn Fn() -> Box<dyn Any>>,
+}
+
+impl ContainerStateDeclaration {
+    /// Declare a `'static` state value for one mounted container.
+    pub fn new<T, Initializer>(
+        container_id: NodeId,
+        schema_version: u16,
+        initializer: Initializer,
+    ) -> Self
+    where
+        T: 'static,
+        Initializer: Fn() -> T + 'static,
+    {
+        Self {
+            id: ContainerStateId::new::<T>(container_id, schema_version),
+            initializer: Rc::new(move || Box::new(initializer()) as Box<dyn Any>),
+        }
+    }
+
+    /// Return the typed identity used by the runtime-owned state store.
+    pub const fn id(&self) -> ContainerStateId {
+        self.id
+    }
+
+    /// Return the mounted container identity.
+    pub const fn container_id(&self) -> NodeId {
+        self.id.container_id()
+    }
+
+    /// Return the caller-owned state schema version.
+    pub const fn schema_version(&self) -> u16 {
+        self.id.schema_version()
+    }
+
+    /// Return whether this declaration uses the supplied concrete state type.
+    pub fn is<T>(&self) -> bool
+    where
+        T: 'static,
+    {
+        self.id.is::<T>()
+    }
+
+    pub(crate) fn initialize(&self) -> Box<dyn Any> {
+        (self.initializer)()
+    }
+}
+
+impl fmt::Debug for ContainerStateDeclaration {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ContainerStateDeclaration")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Typed access context supplied to a state-aware layout interaction.
+///
+/// A context without a declaration is valid and gives every typed lookup
+/// `None`. This keeps state-free v4 interactions allocation-free while allowing
+/// the same object-safe callback to serve stateful and stateless capabilities.
+pub struct LayoutContainerStateContext<'a> {
+    container_id: NodeId,
+    state_id: Option<ContainerStateId>,
+    state: Option<&'a mut dyn Any>,
+}
+
+impl<'a> LayoutContainerStateContext<'a> {
+    /// Return the container receiving this interaction.
+    pub const fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    /// Return the mounted state identity, if this interaction declared state.
+    pub const fn state_id(&self) -> Option<ContainerStateId> {
+        self.state_id
+    }
+
+    /// Return whether this interaction has a mounted state slot.
+    pub const fn has_state(&self) -> bool {
+        self.state.is_some()
+    }
+
+    /// Borrow the declared state as the requested concrete type.
+    pub fn state_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: 'static,
+    {
+        let state = self.state.as_deref_mut()?;
+        state.downcast_mut::<T>()
+    }
+
+    /// Alias for [`Self::state_mut`] for callers that prefer collection-style
+    /// typed access.
+    pub fn get_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: 'static,
+    {
+        self.state_mut::<T>()
+    }
+
+    pub(crate) fn from_runtime(
+        container_id: NodeId,
+        state_id: Option<ContainerStateId>,
+        state: Option<&'a mut dyn Any>,
+    ) -> Self {
+        Self {
+            container_id,
+            state_id,
+            state,
+        }
+    }
+}
+
+/// Pointer input offered to a version-3 or version-4 layout interaction capability.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LayoutInput {
     /// Pointer hover or captured motion moved to `position`.
@@ -453,9 +657,11 @@ impl LayoutInteractionRevision {
 /// interaction.
 ///
 /// The runtime may ask a capability for normalized hit-region declarations after
-/// the container receives its final logical bounds, and version-3 runtimes may
-/// offer typed pointer input to the same capability. Pointer capture remains a
-/// runtime-owned decision represented by [`LayoutEventContext`].
+/// the container receives its final logical bounds, and version-3/version-4
+/// runtimes may offer typed pointer input to the same capability. Pointer
+/// capture remains a runtime-owned decision represented by
+/// [`LayoutEventContext`]. Version 4 additionally supplies the optional
+/// runtime-owned [`LayoutContainerStateContext`].
 pub trait LayoutInteraction<Message> {
     /// Return typed revision evidence for this capability's layout behavior.
     ///
@@ -480,6 +686,25 @@ pub trait LayoutInteraction<Message> {
         let _ = visitor;
     }
 
+    /// Declare optional runtime-owned state for this mounted container.
+    ///
+    /// The declaration is consulted only by contract version 4. The default is
+    /// stateless, so existing implementations allocate no runtime state. The
+    /// `container_id` argument keeps the public declaration type-safe without
+    /// requiring a capability object to retain a second copy of its mounted
+    /// identity.
+    fn state(&self, container_id: NodeId) -> Option<ContainerStateDeclaration> {
+        self.state_declaration(container_id)
+    }
+
+    /// Compatibility-named state declaration hook.
+    ///
+    /// [`Self::state`] is the primary hook. This additive alias keeps the
+    /// declaration wording explicit for implementations that prefer it.
+    fn state_declaration(&self, _container_id: NodeId) -> Option<ContainerStateDeclaration> {
+        None
+    }
+
     /// Handle one version-3 layout pointer input.
     ///
     /// The default is intentionally unhandled so version-2 projection/query
@@ -487,6 +712,22 @@ pub trait LayoutInteraction<Message> {
     /// compatible. A callback must call [`LayoutEventContext::set_handled`] or
     /// [`LayoutEventContext::handle`] to prevent widget fallback.
     fn handle_layout_input(&self, _input: LayoutInput, _context: &mut LayoutEventContext<Message>) {
+    }
+
+    /// Handle one version-4 layout pointer input with optional typed state.
+    ///
+    /// Existing implementations inherit a delegation to
+    /// [`Self::handle_layout_input`], preserving object safety and source
+    /// compatibility. State mutation alone has no runtime side effects; the
+    /// event context remains the only way to request repaint/work or emit a
+    /// message.
+    fn handle_layout_input_with_state(
+        &self,
+        input: LayoutInput,
+        context: &mut LayoutEventContext<Message>,
+        _state: &mut LayoutContainerStateContext<'_>,
+    ) {
+        self.handle_layout_input(input, context);
     }
 }
 
@@ -577,9 +818,10 @@ impl<Message> fmt::Debug for LayoutCapabilities<Message> {
 mod tests {
     use super::{
         LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
-        LayoutCapabilities, LayoutEventContext, LayoutHitRegion, LayoutHitRegionDeclarationError,
-        LayoutHitRegionId, LayoutInput, LayoutInteraction, LayoutInteractionRevision,
-        LayoutTargetIdentity,
+        LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, LayoutCapabilities,
+        LayoutContainerStateContext, LayoutEventContext, LayoutHitRegion,
+        LayoutHitRegionDeclarationError, LayoutHitRegionId, LayoutInput, LayoutInteraction,
+        LayoutInteractionRevision, LayoutTargetIdentity,
     };
     use crate::gui::types::{Point, Rect, Vector2};
     use std::{cell::Cell, rc::Rc};
@@ -714,9 +956,10 @@ mod tests {
     }
 
     #[test]
-    fn version_three_input_is_object_safe_and_context_is_bounded() {
-        assert_eq!(LAYOUT_CAPABILITIES_CONTRACT_VERSION, 3);
+    fn versioned_layout_input_is_object_safe_and_context_is_bounded() {
+        assert_eq!(LAYOUT_CAPABILITIES_CONTRACT_VERSION, 4);
         assert_eq!(LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, 2);
+        assert_eq!(LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, 4);
 
         struct InputInteraction {
             calls: Rc<Cell<u8>>,
@@ -765,5 +1008,21 @@ mod tests {
         assert!(context.work_requested());
         assert_eq!(context.take_message(), Some(7));
         assert_eq!(context.take_message(), None);
+
+        let mut delegated_context = LayoutEventContext::new(target);
+        let mut state = LayoutContainerStateContext::from_runtime(target.container_id, None, None);
+        interaction.handle_layout_input_with_state(
+            LayoutInput::PointerPress {
+                position: Point::new(3.0, 4.0),
+                button: crate::widgets::PointerButton::Primary,
+                modifiers: crate::widgets::PointerModifiers::default(),
+                timestamp: None,
+            },
+            &mut delegated_context,
+            &mut state,
+        );
+        assert_eq!(calls.get(), 2);
+        assert!(delegated_context.handled());
+        assert_eq!(delegated_context.take_message(), Some(7));
     }
 }

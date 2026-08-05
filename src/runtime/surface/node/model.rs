@@ -117,7 +117,8 @@ impl<Message> SurfaceContainer<Message> {
     ///
     /// This attaches registration, revision evidence, and normalized hit-region
     /// declaration/projection. Version-3 descriptors may receive typed pointer
-    /// input through runtime-owned admission and capture; version 2 remains
+    /// input through runtime-owned admission and capture; version 4 additionally
+    /// supplies optional runtime-owned typed container state. Version 2 remains
     /// projection/query-only.
     pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
         self.layout_capabilities = Some(capabilities);

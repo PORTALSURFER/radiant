@@ -912,11 +912,24 @@ application message type.
 
 ```rust
 trait LayoutInteraction<Message> {
+    fn state(&self, container_id: NodeId) -> Option<ContainerStateDeclaration> {
+        None
+    }
+
     fn handle_layout_input(
         &self,
         input: LayoutInput,
         context: &mut LayoutEventContext<Message>,
     );
+
+    fn handle_layout_input_with_state(
+        &self,
+        input: LayoutInput,
+        context: &mut LayoutEventContext<Message>,
+        state: &mut LayoutContainerStateContext<'_>,
+    ) {
+        self.handle_layout_input(input, context);
+    }
 }
 ```
 
@@ -932,6 +945,17 @@ state is `'static`, explicitly initialized, window-local, and never `Send` or
 shared with application state. A changed type or schema drops and recreates the
 slot deterministically with a development diagnostic, matching widget-state
 safety rather than reusing incompatible scroll, splitter, or dock state.
+The shipped state-aware contract is revision 4; revision 2 remains
+projection/query-only and revision 3 retains stateless pointer admission and
+capture through the unchanged `handle_layout_input` method. The runtime keeps
+the bounded container-state store separate from `LayoutState.scroll_offsets`,
+reuses exact identity through pointer input, relayout, and compatible exact
+revision reprojection, and prunes unmounted slots deterministically. Capture
+cancellation runs against the old interaction and state before an
+incompatible slot is replaced or an unmounted slot is dropped. State mutation
+alone has no message, work, or repaint side effect. This generic seam does not
+claim product-specific `split_pane` behavior or virtualization/materialization
+completion.
 
 A custom container may opt into `ContainerSemantics` when it represents
 meaningful structure such as a labelled group, region, landmark, or editor
@@ -1346,7 +1370,7 @@ projections, not typed `EditEvent` boundaries or a product-specific runtime
 consumer. An active resize cancellation restores the captured start width and
 column id after any moved width has been projected, while an orphaned resize
 cancellation produces no update. Reorder cancellation still clears its transient
-drag without producing a durable reorder. The generic version-3
+drag without producing a durable reorder. The generic version-4 state-aware
 `LayoutInteraction` admission and runtime-owned capture contract is shipped;
 the `split_pane` consumer and virtual-collection proof remain future work.
 

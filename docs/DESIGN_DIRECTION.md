@@ -978,11 +978,15 @@ contract for this future capability is in
 [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
 `radiant::layout::VirtualLayoutPolicy` capability, bounded executor, exact
 fence/diagnostic contract, and crate-private keyed window coordinator are now
-shipped without runtime registration. The coordinator is limited to accepted
-query evidence, bounded key continuity, safe fallback, and anchor correction
-evidence; materialization and recycling remain future. Current fixed-child and
+shipped without runtime registration. A separate crate-private accepted-window
+materialization/recycling correctness kernel is also shipped behind explicit
+host-projector and lifecycle-adapter seams. It is limited to fenced private
+correctness checks, keyed slot continuity, remove-before-reuse, and atomic
+publication; it does not register a runtime surface, project concrete surfaces,
+own focus/accessibility pins, schedule work, or serve a product consumer. Those
+runtime and product integrations remain future. Current fixed-child and
 host-projected fixed-row virtualization are compatibility paths, not an
-implementation of those later slices.
+implementation of those later integrations.
 
 ### Leaf content and interactive widgets
 
@@ -1346,12 +1350,15 @@ container(
 
 ### Virtual collections
 
-`virtual_list`, `virtual_grid`, and `virtual_table` are first-class containers
-for large keyed data. They materialize only the viewport, overscan window, and
-currently required focus/accessibility entries while preserving application
-identity, selection, and scroll anchoring across filtering, sorting, insertion,
-and removal. They are the canonical path for sample browsers, metadata tables,
-track lists, clip grids, and other data-heavy editor views.
+The target `virtual_list`, `virtual_grid`, and `virtual_table` are first-class
+containers for large keyed data. They materialize only the viewport, overscan
+window, and currently required focus/accessibility entries while preserving
+application identity, selection, and scroll anchoring across filtering,
+sorting, insertion, and removal. They are the canonical target path for sample
+browsers, metadata tables, track lists, clip grids, and other data-heavy editor
+views; the shipped private correctness kernel does not itself implement these
+product consumers or their runtime registration, concrete surface projection,
+focus/accessibility pins, or scheduling.
 
 ```rust
 virtual_table(state.samples.snapshot())

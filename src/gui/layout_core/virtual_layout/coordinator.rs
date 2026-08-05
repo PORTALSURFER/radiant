@@ -368,7 +368,7 @@ impl Drop for ExecutionPhaseGuard<'_> {
 
 /// Non-zero-sized marker whose handle is compared only by allocation identity.
 #[derive(Debug)]
-struct CoordinatorIdentity(u8);
+pub(crate) struct CoordinatorIdentity(u8);
 
 impl VirtualLayoutPendingQuery {
     /// Execute the policy outside the coordinator's mutable commit path.
@@ -460,6 +460,8 @@ pub(crate) enum VirtualLayoutCompletion {
 
 #[derive(Clone, Debug)]
 pub(crate) struct VirtualLayoutCommit {
+    pub(crate) fence: VirtualLayoutQueryFence,
+    pub(crate) owner: Rc<CoordinatorIdentity>,
     pub(crate) view: VirtualLayoutWindowView,
     pub(crate) delta: VirtualLayoutKeyDelta,
     pub(crate) anchor: Option<VirtualLayoutAnchor>,
@@ -712,6 +714,12 @@ impl VirtualLayoutWindowCoordinator {
         self.accepted.as_ref()
     }
 
+    /// Return the coordinator-owned evidence that authorizes private
+    /// materialization of one committed window.
+    pub(crate) fn owner_evidence(&self) -> Rc<CoordinatorIdentity> {
+        Rc::clone(&self.identity)
+    }
+
     /// Return the eligible, clipped previous-valid fallback for a new input.
     #[must_use]
     pub(crate) fn fallback_for(&self, input: &VirtualLayoutQueryInput) -> VirtualLayoutWindowView {
@@ -877,6 +885,7 @@ impl VirtualLayoutWindowCoordinator {
             correction,
             accepted_revision,
         };
+        let commit_fence = accepted.fence.clone();
         let view = VirtualLayoutWindowView {
             entries: accepted.entries.clone(),
             extent: Some(accepted.extent),
@@ -887,6 +896,8 @@ impl VirtualLayoutWindowCoordinator {
         self.accepted = Some(accepted);
         self.invalidations = VirtualLayoutInvalidationFlags::default();
         VirtualLayoutCompletion::Committed(Box::new(VirtualLayoutCommit {
+            fence: commit_fence,
+            owner: Rc::clone(&self.identity),
             view,
             delta,
             anchor: next_anchor,

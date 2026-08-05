@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-05**
-- Canonical main: **`6f404ab6`**
-- Overall estimate: **~70%**
-- Working range: **63–77%**
+- Canonical main: **`16337d22`**
+- Overall estimate: **~73%**
+- Working range: **67–79%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -25,7 +25,7 @@ contract against which progress is measured.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 76% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, and generic version-3 layout pointer admission/capture are shipped in PRs #1597–#1600; product-specific `split_pane` behavior and full virtualization proof remain. |
+| Layout, composition, virtualization | 80% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, and runtime-owned version-4 typed container state are shipped in PRs #1597–#1601; product-specific `split_pane` behavior and full virtualization proof remain. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -55,6 +55,9 @@ The current foundation includes:
   target/revision binding, runtime-owned capture, widget/scrollbar arbitration,
   outside-bounds delivery, conservative cancellation, and no-op move regression
   evidence (PR #1600);
+- version-4 runtime-owned typed container state with exact container/type/schema
+  identity, bounded lifecycle/capacity diagnostics, capture-state compatibility,
+  pre-admission stale-slot pruning, and foreign-declaration rejection (PR #1601);
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -64,12 +67,13 @@ complete.
 
 ## Remaining gaps, ordered by leverage
 
-1. **Product-specific layout consumers and virtualization proof (deferred).**
-   Add `split_pane` interaction/state/ratio semantics only when the product
-   contract is defined, then complete generic virtualization/materialization/
-   recycling proof. The generic layout admission and capture seam is shipped;
-   this remaining work is product-dependent or requires a broader target
-   contract.
+1. **Generic virtualization contract and product-specific consumers (next).**
+   The next dependency-correct generic item is a bounded
+   `VirtualLayoutPolicy`/materialization contract for keyed visible-window
+   ownership, variable-size anchoring, semantic materialization, focus pinning,
+   and recycling proof. Add `split_pane` interaction/state/ratio semantics only
+   when the product contract is defined; PR #1601 supplies the generic runtime
+   state lifecycle needed by the next design slice.
 2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
    runtime-local draft and typed commit/cancel semantics.
 3. **Numeric and input integration.** Complete numeric attachment,
@@ -130,3 +134,4 @@ After each merged alignment slice:
 | 2026-08-05 | `d09d7613` | ~64% (57–71%, medium confidence) | PR #1598 shipped UI-local layout capability registration and diagnostic-only revision evidence; layout alignment moves to 63%, with hit-region projection next. |
 | 2026-08-05 | `972a7936` | ~65% (58–72%, medium confidence) | PR #1599 shipped declared hit-region projection/query evidence; layout alignment moves to 67%, with pointer routing/capture/state/events next. |
 | 2026-08-05 | `6f404ab6` | ~70% (63–77%, medium confidence) | PR #1600 shipped generic version-3 layout pointer admission and runtime-owned capture with exact-revision rebinding, conservative cancellation, arbitration, metadata, and regression evidence; remaining layout work is product-specific `split_pane` behavior and full virtualization proof. |
+| 2026-08-05 | `16337d22` | ~73% (67–79%, medium confidence) | PR #1601 shipped runtime-owned version-4 typed container state with exact identity, bounded lifecycle/capacity diagnostics, capture compatibility, stale-slot pruning, and foreign-declaration rejection; next generic gap is the VirtualLayoutPolicy/materialization contract while product-specific `split_pane` behavior remains deferred. |

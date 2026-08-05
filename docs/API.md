@@ -560,6 +560,12 @@ common paint primitives without app-local exhaustive primitive matches.
 
 ## Large Virtual Lists
 
+The future keyed virtualization/materialization contract is defined in
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). Its runtime coordinator
+and public `VirtualLayoutPolicy` API remain future. The APIs in this section are
+the currently shipped fixed-row host projection path and retain their existing
+ownership and compatibility behavior.
+
 Large list, table, tree, browser, and picker surfaces should use Radiant's
 virtual-list contract instead of constructing hidden rows. Host applications own
 the logical item collection, stable row keys, selection, and domain state.

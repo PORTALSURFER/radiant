@@ -1,8 +1,8 @@
 # Virtual Layout Design
 
 Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
-capability and bounded query executor are shipped as a qualified
-`radiant::layout` API; the visible-window coordinator, keyed materialization,
+capability, bounded query executor, and crate-private visible-window
+coordinator are shipped as qualified query-only slices; keyed materialization
 and recycling described here are not shipped runtime or public API.
 
 This document freezes ownership, invariants, and observable behavior for a
@@ -45,18 +45,25 @@ future keyed design will reuse their names or internal representations.
 
 ### Status
 
-The contract is approved as a design target, with its first query-only slice
-implemented. At this status:
+The contract is approved as a design target, with its first two query-only
+slices implemented. At this status:
 
 1. `radiant::layout::VirtualLayoutPolicy` and its bounded query-only identity,
    input, sink, fence, result, diagnostic, and disposition types provide the
    first capability slice. The policy is not registered through
    `LayoutCapabilities` and receives no runtime or materialization handle.
-2. No runtime is required to query keyed ranges, materialize keyed items, or
-   recycle item slots according to this document.
-3. The current fixed-child and host-projected fixed-row APIs retain their
+2. A crate-private `VirtualLayoutWindowCoordinator` provides the second
+   slice: one exact container/policy/mount scope, checked query tokens,
+   coalesced invalidation evidence, bounded accepted keyed windows, key-based
+   continuity, clipped previous-valid fallback, and query-only anchor
+   correction evidence. It does not register with a runtime or expose a
+   materialization callback.
+3. No runtime is required to query keyed ranges, materialize keyed items, or
+   recycle item slots according to this document. The coordinator is not yet
+   connected to those consumers.
+4. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-4. A future slice must name the subset of this contract it implements and must
+5. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope
@@ -553,12 +560,21 @@ diagnostic; it does not drop the invalidation silently.
 An anchor is a stable key plus an edge/offset rule. The default primary anchor
 is the focused/captured item when it has a valid key; otherwise it is the
 explicit scroll anchor; otherwise it is the leading visible keyed item. The
-anchor is not an index. A missing anchor is resolved by the deterministic rules
-below.
+anchor is not an index. A missing anchor may be resolved only from authoritative
+required-item evidence, not from the absence of a key in a bounded window.
 
 The coordinator preserves the anchor's chosen screen position as far as finite
 extent information permits. The policy supplies estimates; the coordinator
 owns the actual scroll adjustment and later correction.
+
+The query-only coordinator shipped in this slice is narrower. An explicit anchor
+key remains authoritative across accepted and non-accepted query outcomes. It
+produces same-key correction only when that key is present in both accepted
+bounded windows. If the key is absent from a later bounded result, the anchor
+remains unresolved and no correction is emitted; the key may become active when
+it reappears. This bounded absence is not deletion evidence, so successor or
+predecessor replacement waits for a later prerequisite that can report
+authoritative required-key `found`/`not_found` evidence.
 
 | Change | Required anchor behavior |
 | --- | --- |
@@ -571,8 +587,8 @@ owns the actual scroll adjustment and later correction.
 | Measurement changes on the anchor | Preserve the declared anchor edge and local offset. If the anchor has no edge rule, use the leading edge; do not let a new size arbitrarily center or jump the viewport. |
 | Viewport resize or cross-axis constraint change | Keep the primary anchor key and edge/offset, recompute the window under a new viewport revision, and clamp. If the viewport becomes empty, retain the key as a pending required item only within the pin budget. |
 | Scroll input | Update the viewport revision and requested scroll position. Keep the previous valid window as a conservative fallback while querying; do not synchronously materialize every newly crossed index. |
-| Anchor removal | Do not transfer by index. Prefer the first surviving successor in logical order, then the nearest surviving predecessor, then the first item, then the empty state. Emit a bounded anchor-replaced diagnostic and let focus policy independently decide whether focus is cleared or moved. |
-| Anchor key temporarily unavailable | Keep a bounded provisional offset only while the data/deferred fence remains valid. Once the key is resolved, key identity wins over the provisional index. |
+| Anchor removal | After authoritative required-key `not_found` evidence, do not transfer by index. A later runtime slice may choose the first surviving successor, then the nearest surviving predecessor, then the first item, then the empty state, with a bounded anchor-replaced diagnostic. A bounded-window absence alone does not authorize replacement. |
+| Anchor key temporarily unavailable | Preserve the explicit key as unresolved and emit no correction from bounded absence. Once authoritative required-key evidence resolves the key, key identity wins over any provisional position. |
 
 If the anchor and the primary focus key differ, focus continuity wins for
 keyboard/capture behavior and the explicit scroll anchor wins for passive
@@ -828,10 +844,12 @@ finite geometry, pure-query tests, and stale-result tests.
 
 Add the per-container coordinator, accepted-window commit, keyed
 range-to-bounds, extent estimates, measurement revision, exact viewport/data/
-policy fences, and anchor behavior. Keep the result query-only: it may expose a
-desired keyed window to tests or an internal adapter but must not materialize
-widgets. Acceptance requires insert/remove/reorder/measurement/viewport/anchor
-tests and previous-valid-window fallback evidence.
+policy fences, and conservative same-key anchor behavior. Keep the result
+query-only: it may expose a desired keyed window to tests or an internal adapter
+but must not materialize widgets. Acceptance requires insert/remove/reorder/
+measurement/viewport tests, same-key bounded anchor presence/absence evidence,
+and previous-valid-window fallback evidence. Removal replacement waits for the
+authoritative required-key prerequisite described above.
 
 ### Slice 3 — Materialization and recycling
 
@@ -874,7 +892,7 @@ following matrix is the minimum evidence for each relevant slice.
 | Query boundedness | Huge total count, sparse ranges, finite overscan, required key/index, budget exhaustion | Query work and output stay within configured bounds; no widget/materializer/lifecycle calls from policy query. |
 | Geometry | Fixed, estimated, measured, variable-size, non-finite/negative/inverted bounds | Finite validated keyed range-to-bounds; exact measured revision; invalid geometry rejected. |
 | Extent | Exact total, estimated total, partial measurements, append/remove | Scroll extent and scrollbar mapping use the declared exact/estimated/measured distinction and are corrected only by fenced results. |
-| Anchor insert/remove | Changes before/after anchor, anchor removal, empty result, successor/predecessor selection | Same key and screen offset retained where possible; deterministic replacement and clamp; no index-based jump. |
+| Anchor insert/remove | Same-key bounded-window presence/absence; later authoritative required-key `found`/`not_found` evidence for removal replacement | Same key and screen offset retained when present in both accepted windows; bounded absence remains unresolved with no correction or index-based successor transfer. |
 | Anchor reorder/measurement | Reorder anchor, size change before/at anchor, viewport resize | Key continuity and measurement delta correction; no arbitrary recentering. |
 | Revision fences | Each data/policy/measurement/semantic/viewport revision changed independently and together; out-of-order completion | Exact mismatch rejection; old result cannot overwrite accepted state; only current fence publishes. |
 | Cancellation/unmount | New query, scroll burst, policy replacement, unmount with in-flight query/measurement/semantic work | Cancellation is delivered or safely ignored; no late mount, commit, callback, or resurrection after unmount. |

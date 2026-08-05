@@ -1,8 +1,9 @@
 # Virtual Layout Design
 
-Status: normative future design contract. The keyed `VirtualLayoutPolicy`,
-visible-window coordinator, keyed materialization, and recycling described here
-are not shipped runtime or public API.
+Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
+capability and bounded query executor are shipped as a qualified
+`radiant::layout` API; the visible-window coordinator, keyed materialization,
+and recycling described here are not shipped runtime or public API.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -44,10 +45,13 @@ future keyed design will reuse their names or internal representations.
 
 ### Status
 
-The contract is approved as a design target only. At this status:
+The contract is approved as a design target, with its first query-only slice
+implemented. At this status:
 
-1. No public `VirtualLayoutPolicy` trait or equivalent keyed policy API is
-   required to exist.
+1. `radiant::layout::VirtualLayoutPolicy` and its bounded query-only identity,
+   input, sink, fence, result, diagnostic, and disposition types provide the
+   first capability slice. The policy is not registered through
+   `LayoutCapabilities` and receives no runtime or materialization handle.
 2. No runtime is required to query keyed ranges, materialize keyed items, or
    recycle item slots according to this document.
 3. The current fixed-child and host-projected fixed-row APIs retain their
@@ -809,11 +813,14 @@ the two owners.
 The slices are intentionally ordered by dependency. Each slice must preserve the
 contract already stated and must identify any deliberate temporary limitation.
 
-### Slice 1 — Query-only capability
+### Slice 1 — Query-only capability (shipped)
 
-Define the internal capability boundary and bounded query/diagnostic model.
-Implement identity admission, finite input/output validation, and exact fence
-construction without creating widgets or changing public materialization APIs.
+The qualified `radiant::layout::VirtualLayoutPolicy` capability and
+`VirtualLayoutQueryExecutor` define the bounded query/diagnostic model. The
+shipped slice implements identity admission, finite input/output validation,
+atomic result acceptance, and exact fence construction without creating widgets
+or changing public materialization APIs. Runtime registration and coordinator
+ownership remain in Slice 2 and later.
 Acceptance requires duplicate/missing/ambiguous-key rejection, bounded output,
 finite geometry, pure-query tests, and stale-result tests.
 

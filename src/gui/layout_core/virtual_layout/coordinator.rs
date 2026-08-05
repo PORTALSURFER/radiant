@@ -283,11 +283,25 @@ impl VirtualLayoutKeyDelta {
     }
 
     fn push(&mut self, change: VirtualLayoutKeyChange) {
-        if self.changes.len() < VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS {
-            self.changes.push(change);
-        } else {
+        let order = key_change_sort_key(&change);
+        if self.changes.len() == VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS {
             self.omitted = self.omitted.saturating_add(1);
+            let should_retain = self
+                .changes
+                .last()
+                .is_some_and(|last| key_change_sort_key(last) > order);
+            if !should_retain {
+                return;
+            }
+            self.changes.pop();
         }
+
+        let position = self
+            .changes
+            .iter()
+            .position(|existing| key_change_sort_key(existing) > order)
+            .unwrap_or(self.changes.len());
+        self.changes.insert(position, change);
     }
 }
 
@@ -819,12 +833,7 @@ impl VirtualLayoutWindowCoordinator {
     ) -> VirtualLayoutCompletion {
         let old = self.accepted.as_ref();
         let next_entries = VirtualLayoutAcceptedWindow::bounded_entries(result.entries.clone());
-        let next_anchor = self.resolve_anchor(
-            pending.token.anchor.clone(),
-            old,
-            &next_entries,
-            &result.fence,
-        );
+        let next_anchor = Self::resolve_anchor(pending.token.anchor.clone(), &next_entries);
         let correction = self.anchor_correction(old, &next_entries, &result, next_anchor.as_ref());
         let delta = old.map_or_else(VirtualLayoutKeyDelta::default, |old| {
             key_delta(&old.entries, &next_entries)
@@ -895,11 +904,8 @@ impl VirtualLayoutWindowCoordinator {
     }
 
     fn resolve_anchor(
-        &self,
         pending_anchor: Option<VirtualLayoutAnchor>,
-        old: Option<&VirtualLayoutAcceptedWindow>,
         next_entries: &[VirtualLayoutItem],
-        _fence: &VirtualLayoutQueryFence,
     ) -> Option<VirtualLayoutAnchor> {
         let Some(anchor) = pending_anchor else {
             return next_entries
@@ -913,50 +919,12 @@ impl VirtualLayoutWindowCoordinator {
                     screen_offset: entry.bounds().min.y,
                 });
         };
-        if next_entries
+        // A bounded result does not prove that an explicit key was removed.
+        // Keep the coordinator-owned key unresolved until it reappears.
+        next_entries
             .iter()
             .any(|entry| key_matches(entry.key(), &anchor.key))
-        {
-            return Some(anchor);
-        }
-
-        let old_entries = old.map(|window| window.entries.as_slice())?;
-        let old_position = old_entries
-            .iter()
-            .position(|entry| key_matches(entry.key(), &anchor.key))?;
-        let old_anchor_was_logical_first = old_entries[old_position].logical_index() == 0;
-        for old_entry in old_entries.iter().skip(old_position + 1) {
-            if let Some(next) = next_entries
-                .iter()
-                .find(|entry| key_matches(entry.key(), old_entry.key()))
-            {
-                return Some(VirtualLayoutAnchor {
-                    key: next.key().clone(),
-                    ..anchor.clone()
-                });
-            }
-        }
-        for old_entry in old_entries[..old_position].iter().rev() {
-            if let Some(next) = next_entries
-                .iter()
-                .find(|entry| key_matches(entry.key(), old_entry.key()))
-            {
-                return Some(VirtualLayoutAnchor {
-                    key: next.key().clone(),
-                    ..anchor.clone()
-                });
-            }
-        }
-        if old_anchor_was_logical_first {
-            return next_entries
-                .iter()
-                .find(|entry| entry.logical_index() == 0)
-                .map(|entry| VirtualLayoutAnchor {
-                    key: entry.key().clone(),
-                    ..anchor
-                });
-        }
-        None
+            .then_some(anchor)
     }
 
     fn anchor_correction(
@@ -1070,6 +1038,16 @@ fn key_matches(left: &VirtualLayoutItemKey, right: &VirtualLayoutItemKey) -> boo
     left.stable_equals(right) == Some(true)
 }
 
+fn key_change_sort_key(change: &VirtualLayoutKeyChange) -> (usize, u8) {
+    // Order by the reported logical position. At one position, remove before
+    // insert makes same-index replacement deterministic; moves follow both.
+    match change.kind {
+        VirtualLayoutKeyChangeKind::Removed { index } => (index, 0),
+        VirtualLayoutKeyChangeKind::Inserted { index } => (index, 1),
+        VirtualLayoutKeyChangeKind::Moved { to, .. } => (to, 2),
+    }
+}
+
 fn coordinate_space_matches(
     left: &VirtualLayoutCoordinateSpace,
     right: &VirtualLayoutCoordinateSpace,
@@ -1086,42 +1064,41 @@ fn coordinate_space_matches(
 
 fn key_delta(old: &[VirtualLayoutItem], next: &[VirtualLayoutItem]) -> VirtualLayoutKeyDelta {
     let mut delta = VirtualLayoutKeyDelta::default();
-    let mut old_matched = vec![false; old.len().min(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS)];
-    for (next_index, next_entry) in next.iter().enumerate() {
-        let old_index = old
+    for old_entry in old.iter().take(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS) {
+        let next_entry = next
             .iter()
-            .enumerate()
             .take(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS)
-            .find(|(_, old_entry)| key_matches(old_entry.key(), next_entry.key()))
-            .map(|(index, _)| index);
-        match old_index {
-            Some(old_index) => {
-                old_matched[old_index] = true;
-                if old_index != next_index {
-                    delta.push(VirtualLayoutKeyChange {
-                        key: next_entry.key().clone(),
-                        kind: VirtualLayoutKeyChangeKind::Moved {
-                            from: old_index,
-                            to: next_index,
-                        },
-                    });
-                }
+            .find(|next_entry| key_matches(old_entry.key(), next_entry.key()));
+        if let Some(next_entry) = next_entry {
+            if old_entry.logical_index() != next_entry.logical_index() {
+                delta.push(VirtualLayoutKeyChange {
+                    key: next_entry.key().clone(),
+                    kind: VirtualLayoutKeyChangeKind::Moved {
+                        from: old_entry.logical_index(),
+                        to: next_entry.logical_index(),
+                    },
+                });
             }
-            None => delta.push(VirtualLayoutKeyChange {
-                key: next_entry.key().clone(),
-                kind: VirtualLayoutKeyChangeKind::Inserted { index: next_index },
-            }),
-        }
-    }
-    for (old_index, old_entry) in old
-        .iter()
-        .enumerate()
-        .take(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS)
-    {
-        if !old_matched[old_index] {
+        } else {
             delta.push(VirtualLayoutKeyChange {
                 key: old_entry.key().clone(),
-                kind: VirtualLayoutKeyChangeKind::Removed { index: old_index },
+                kind: VirtualLayoutKeyChangeKind::Removed {
+                    index: old_entry.logical_index(),
+                },
+            });
+        }
+    }
+    for next_entry in next.iter().take(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS) {
+        if !old
+            .iter()
+            .take(VIRTUAL_LAYOUT_MAX_COORDINATOR_RECORDS)
+            .any(|old_entry| key_matches(old_entry.key(), next_entry.key()))
+        {
+            delta.push(VirtualLayoutKeyChange {
+                key: next_entry.key().clone(),
+                kind: VirtualLayoutKeyChangeKind::Inserted {
+                    index: next_entry.logical_index(),
+                },
             });
         }
     }
@@ -1245,15 +1222,71 @@ mod tests {
         Policy { keys, height }
     }
 
-    fn ready(coordinator: &mut VirtualLayoutWindowCoordinator, keys: &[u32]) {
+    fn ready_entries_policy(entries: &[(u32, usize, f32)]) -> impl VirtualLayoutPolicy + '_ {
+        struct Policy<'a> {
+            entries: &'a [(u32, usize, f32)],
+        }
+        impl VirtualLayoutPolicy for Policy<'_> {
+            fn query(
+                &self,
+                _input: &VirtualLayoutQueryInput,
+                sink: &mut super::super::VirtualLayoutQuerySink,
+            ) -> super::super::VirtualLayoutPolicyDecision {
+                for &(key, index, y) in self.entries {
+                    let _ = sink.visit(candidate(key, index, y));
+                }
+                let _ = sink.set_extent(super::super::VirtualLayoutExtentCandidate::exact(
+                    Vector2::new(100.0, 100.0),
+                ));
+                super::super::VirtualLayoutPolicyDecision::Ready
+            }
+        }
+        Policy { entries }
+    }
+
+    fn commit_policy(
+        coordinator: &mut VirtualLayoutWindowCoordinator,
+        policy: &dyn VirtualLayoutPolicy,
+    ) -> Box<VirtualLayoutCommit> {
         let pending = coordinator
             .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
             .expect("query should begin");
-        let outcome = pending.execute(&ready_policy(keys, 100.0));
-        assert!(matches!(
-            coordinator.complete(pending, outcome),
-            VirtualLayoutCompletion::Committed(_)
-        ));
+        let outcome = pending.execute(policy);
+        let VirtualLayoutCompletion::Committed(commit) = coordinator.complete(pending, outcome)
+        else {
+            panic!("query should commit")
+        };
+        commit
+    }
+
+    struct DispositionPolicy {
+        decision: super::super::VirtualLayoutPolicyDecision,
+    }
+
+    impl VirtualLayoutPolicy for DispositionPolicy {
+        fn query(
+            &self,
+            _input: &VirtualLayoutQueryInput,
+            _sink: &mut super::super::VirtualLayoutQuerySink,
+        ) -> super::super::VirtualLayoutPolicyDecision {
+            self.decision
+        }
+    }
+
+    fn assert_explicit_anchor_key(coordinator: &VirtualLayoutWindowCoordinator, expected_key: u32) {
+        assert_eq!(
+            coordinator
+                .explicit_anchor
+                .as_ref()
+                .expect("explicit anchor should remain set")
+                .key,
+            VirtualLayoutItemKey::new(expected_key)
+        );
+    }
+
+    fn ready(coordinator: &mut VirtualLayoutWindowCoordinator, keys: &[u32]) {
+        let policy = ready_policy(keys, 100.0);
+        let _ = commit_policy(coordinator, &policy);
     }
 
     #[test]
@@ -1410,6 +1443,157 @@ mod tests {
     }
 
     #[test]
+    fn deferred_unavailable_and_invalid_completions_preserve_explicit_anchor() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        coordinator
+            .set_anchor(VirtualLayoutAnchorRequest {
+                key: VirtualLayoutItemKey::new(99_u32),
+                axis: VirtualLayoutAnchorAxis::Vertical,
+                edge: VirtualLayoutAnchorEdge::Leading,
+                local_offset: 0.0,
+                screen_offset: 3.0,
+            })
+            .expect("anchor should be valid");
+
+        let decisions = [
+            super::super::VirtualLayoutPolicyDecision::Deferred(
+                VirtualLayoutDeferredReason::DataPending,
+            ),
+            super::super::VirtualLayoutPolicyDecision::Unavailable(
+                VirtualLayoutUnavailableReason::DataUnavailable,
+            ),
+            super::super::VirtualLayoutPolicyDecision::Invalid(
+                VirtualLayoutDiagnosticCode::PolicyRejected,
+            ),
+        ];
+        for decision in decisions {
+            let pending = coordinator
+                .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+                .expect("query should begin");
+            let outcome = pending.execute(&DispositionPolicy { decision });
+            assert!(matches!(
+                coordinator.complete(pending, outcome),
+                VirtualLayoutCompletion::Retained { .. }
+            ));
+            assert_explicit_anchor_key(&coordinator, 99);
+        }
+    }
+
+    #[test]
+    fn stale_completion_preserves_explicit_anchor() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        coordinator
+            .set_anchor(VirtualLayoutAnchorRequest {
+                key: VirtualLayoutItemKey::new(99_u32),
+                axis: VirtualLayoutAnchorAxis::Vertical,
+                edge: VirtualLayoutAnchorEdge::Leading,
+                local_offset: 0.0,
+                screen_offset: 3.0,
+            })
+            .expect("anchor should be valid");
+        let first = coordinator
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("first query");
+        let second = coordinator
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("second query");
+        let stale_outcome = first.execute(&DispositionPolicy {
+            decision: super::super::VirtualLayoutPolicyDecision::Deferred(
+                VirtualLayoutDeferredReason::DataPending,
+            ),
+        });
+        assert!(matches!(
+            coordinator.complete(first, stale_outcome),
+            VirtualLayoutCompletion::Stale(_)
+        ));
+        assert_explicit_anchor_key(&coordinator, 99);
+
+        let second_outcome = second.execute(&DispositionPolicy {
+            decision: super::super::VirtualLayoutPolicyDecision::Deferred(
+                VirtualLayoutDeferredReason::DataPending,
+            ),
+        });
+        let _ = coordinator.complete(second, second_outcome);
+        assert_explicit_anchor_key(&coordinator, 99);
+    }
+
+    #[test]
+    fn rejected_completion_preserves_explicit_anchor() {
+        struct RejectingPolicy {
+            coordinator: Rc<RefCell<VirtualLayoutWindowCoordinator>>,
+            foreign_pending: RefCell<Option<VirtualLayoutPendingQuery>>,
+            rejected: Cell<bool>,
+        }
+
+        impl VirtualLayoutPolicy for RejectingPolicy {
+            fn query(
+                &self,
+                _input: &VirtualLayoutQueryInput,
+                _sink: &mut super::super::VirtualLayoutQuerySink,
+            ) -> super::super::VirtualLayoutPolicyDecision {
+                let foreign_pending = self
+                    .foreign_pending
+                    .borrow_mut()
+                    .take()
+                    .expect("foreign pending query");
+                let completion = self.coordinator.borrow_mut().complete(
+                    foreign_pending,
+                    super::super::VirtualLayoutQueryOutcome::Deferred(
+                        VirtualLayoutDeferredReason::DataPending,
+                    ),
+                );
+                self.rejected
+                    .set(matches!(completion, VirtualLayoutCompletion::Rejected(_)));
+                super::super::VirtualLayoutPolicyDecision::Deferred(
+                    VirtualLayoutDeferredReason::DataPending,
+                )
+            }
+        }
+
+        let coordinator = Rc::new(RefCell::new(VirtualLayoutWindowCoordinator::new(
+            41,
+            VirtualLayoutPolicyIdentity::new("policy"),
+            7,
+        )));
+        coordinator
+            .borrow_mut()
+            .set_anchor(VirtualLayoutAnchorRequest {
+                key: VirtualLayoutItemKey::new(99_u32),
+                axis: VirtualLayoutAnchorAxis::Vertical,
+                edge: VirtualLayoutAnchorEdge::Leading,
+                local_offset: 0.0,
+                screen_offset: 3.0,
+            })
+            .expect("anchor should be valid");
+        let mut foreign_coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let foreign_pending = foreign_coordinator
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("foreign query should begin");
+        let pending = coordinator
+            .borrow_mut()
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("query should begin");
+        let policy = RejectingPolicy {
+            coordinator: Rc::clone(&coordinator),
+            foreign_pending: RefCell::new(Some(foreign_pending)),
+            rejected: Cell::new(false),
+        };
+        let outcome = pending.execute(&policy);
+        assert!(policy.rejected.get());
+        assert!(matches!(
+            coordinator.borrow_mut().complete(pending, outcome),
+            VirtualLayoutCompletion::Retained {
+                reason: VirtualLayoutRetainReason::Deferred(_),
+                ..
+            }
+        ));
+        assert_explicit_anchor_key(&coordinator.borrow(), 99);
+    }
+
+    #[test]
     fn revision_regressions_cannot_replace_newer_accepted_state() {
         let mut coordinator =
             VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
@@ -1437,27 +1621,89 @@ mod tests {
     }
 
     #[test]
-    fn key_delta_preserves_reorder_and_marks_same_index_replacement() {
+    fn key_delta_ignores_policy_emission_order_for_same_key_index_mappings() {
         let mut coordinator =
             VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
-        ready(&mut coordinator, &[1, 2]);
-        let pending = coordinator
-            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
-            .expect("query");
-        let outcome = pending.execute(&ready_policy(&[2, 3], 100.0));
-        let VirtualLayoutCompletion::Committed(commit) = coordinator.complete(pending, outcome)
-        else {
-            panic!("query should commit")
-        };
+        let first = [(1, 8, 80.0), (2, 2, 20.0), (3, 11, 110.0)];
+        let second = [(3, 11, 110.0), (1, 8, 80.0), (2, 2, 20.0)];
+        let first_policy = ready_entries_policy(&first);
+        let _ = commit_policy(&mut coordinator, &first_policy);
+        let second_policy = ready_entries_policy(&second);
+        let commit = commit_policy(&mut coordinator, &second_policy);
+        assert_eq!(commit.delta.len(), 0);
+    }
+
+    #[test]
+    fn key_delta_reports_sparse_logical_indices_in_deterministic_order() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let first = [(1, 2, 20.0), (4, 10, 100.0)];
+        let second = [(7, 50, 500.0), (1, 2, 20.0)];
+        let first_policy = ready_entries_policy(&first);
+        let _ = commit_policy(&mut coordinator, &first_policy);
+        let second_policy = ready_entries_policy(&second);
+        let commit = commit_policy(&mut coordinator, &second_policy);
         assert!(commit.delta.get(0).is_some_and(|change| {
-            matches!(change.kind, VirtualLayoutKeyChangeKind::Moved { .. })
+            change.key == VirtualLayoutItemKey::new(4_u32)
+                && matches!(
+                    change.kind,
+                    VirtualLayoutKeyChangeKind::Removed { index: 10 }
+                )
         }));
         assert!(commit.delta.get(1).is_some_and(|change| {
-            matches!(change.kind, VirtualLayoutKeyChangeKind::Inserted { .. })
+            change.key == VirtualLayoutItemKey::new(7_u32)
+                && matches!(
+                    change.kind,
+                    VirtualLayoutKeyChangeKind::Inserted { index: 50 }
+                )
         }));
-        assert!(commit.delta.get(2).is_some_and(|change| {
-            matches!(change.kind, VirtualLayoutKeyChangeKind::Removed { .. })
+    }
+
+    #[test]
+    fn key_delta_reports_logical_index_move_for_a_retained_key() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let first = [(1, 9, 90.0)];
+        let second = [(1, 42, 420.0)];
+        let first_policy = ready_entries_policy(&first);
+        let _ = commit_policy(&mut coordinator, &first_policy);
+        let second_policy = ready_entries_policy(&second);
+        let commit = commit_policy(&mut coordinator, &second_policy);
+        assert!(commit.delta.get(0).is_some_and(|change| {
+            change.key == VirtualLayoutItemKey::new(1_u32)
+                && matches!(
+                    change.kind,
+                    VirtualLayoutKeyChangeKind::Moved { from: 9, to: 42 }
+                )
         }));
+        assert_eq!(commit.delta.len(), 1);
+    }
+
+    #[test]
+    fn key_delta_replaces_a_key_at_one_logical_index_remove_then_insert() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let first = [(1, 7, 70.0)];
+        let second = [(2, 7, 70.0)];
+        let first_policy = ready_entries_policy(&first);
+        let _ = commit_policy(&mut coordinator, &first_policy);
+        let second_policy = ready_entries_policy(&second);
+        let commit = commit_policy(&mut coordinator, &second_policy);
+        assert!(commit.delta.get(0).is_some_and(|change| {
+            change.key == VirtualLayoutItemKey::new(1_u32)
+                && matches!(
+                    change.kind,
+                    VirtualLayoutKeyChangeKind::Removed { index: 7 }
+                )
+        }));
+        assert!(commit.delta.get(1).is_some_and(|change| {
+            change.key == VirtualLayoutItemKey::new(2_u32)
+                && matches!(
+                    change.kind,
+                    VirtualLayoutKeyChangeKind::Inserted { index: 7 }
+                )
+        }));
+        assert_eq!(commit.delta.len(), 2);
     }
 
     #[test]
@@ -1536,7 +1782,7 @@ mod tests {
     }
 
     #[test]
-    fn off_window_explicit_anchor_stays_unresolved_without_correction() {
+    fn off_window_explicit_anchor_stays_unresolved_until_the_key_reappears() {
         let mut coordinator =
             VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
         ready(&mut coordinator, &[1]);
@@ -1559,6 +1805,32 @@ mod tests {
             panic!("query should commit")
         };
         assert!(commit.anchor.is_none());
+        assert!(commit.correction.is_none());
+        assert_eq!(
+            coordinator
+                .explicit_anchor
+                .as_ref()
+                .expect("explicit anchor should remain authoritative")
+                .key,
+            VirtualLayoutItemKey::new(99_u32)
+        );
+
+        let pending = coordinator
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("query should begin");
+        let outcome = pending.execute(&ready_entries_policy(&[(99, 20, 200.0)]));
+        let VirtualLayoutCompletion::Committed(commit) = coordinator.complete(pending, outcome)
+        else {
+            panic!("query should commit")
+        };
+        assert_eq!(
+            commit
+                .anchor
+                .as_ref()
+                .expect("reappearing anchor should resolve")
+                .key,
+            VirtualLayoutItemKey::new(99_u32)
+        );
         assert!(commit.correction.is_none());
     }
 

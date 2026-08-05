@@ -566,7 +566,11 @@ The future keyed virtualization/materialization contract is defined in
 shipped without prelude or runtime registration. A crate-private coordinator
 now provides bounded accepted-window, key-continuity, fallback, and anchor
 evidence internally, but it has no public constructor or runtime/materializer
-connection; materialization and recycling remain future. The APIs in this
+connection; materialization and recycling remain future. In this slice, an
+explicit anchor is corrected only when its same key is present in both accepted
+bounded windows; bounded absence leaves it unresolved without deletion or
+successor/predecessor inference. Authoritative required-key found/not_found
+evidence for removal replacement remains a later prerequisite. The APIs in this
 section are the currently shipped fixed-row host projection path and retain
 their existing ownership and compatibility behavior.
 

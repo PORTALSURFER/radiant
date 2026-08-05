@@ -4,6 +4,11 @@
 //! The private coordinator child adds query-only accepted-window reconciliation
 //! and key continuity, but neither layer registers with a runtime, materializes
 //! widgets, or schedules follow-up work.
+//!
+//! The current anchor contract is deliberately conservative: same-key anchor
+//! correction requires the key to be present in both accepted bounded windows.
+//! Bounded absence leaves an explicit key unresolved; it is not deletion
+//! evidence and does not select a successor or predecessor.
 
 use std::{any::Any, fmt, rc::Rc};
 

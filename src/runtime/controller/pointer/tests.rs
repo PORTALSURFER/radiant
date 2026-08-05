@@ -826,6 +826,49 @@ fn widget_capture_precedes_fresh_layout_and_scrollbar_capture_precedes_layout() 
     assert_eq!(runtime.pointer_capture(), Some(10));
     assert_eq!(runtime.bridge().state.borrow().events, Vec::new());
 
+    let press_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut press_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            exclusive: true,
+            ..LayoutProbeBridge::new(Rc::clone(&press_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        press_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(press_runtime.pointer_capture(), Some(10));
+    let _ = press_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    assert_eq!(press_runtime.pointer_capture(), Some(10));
+    assert!(press_state.borrow().events.is_empty());
+
+    let double_click_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut double_click_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            exclusive: true,
+            ..LayoutProbeBridge::new(Rc::clone(&double_click_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        double_click_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+    let _ =
+        double_click_runtime.dispatch_event(Event::primary_double_click(Point::new(150.0, 20.0)));
+    assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+    assert!(double_click_state.borrow().events.is_empty());
+
     let scrollbar_state = Rc::new(RefCell::new(LayoutProbeState {
         handled: true,
         capture_on_press: true,

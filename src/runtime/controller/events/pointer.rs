@@ -28,6 +28,15 @@ where
         }
         let input =
             WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp);
+        if self.interaction.pointer.capture.is_some() && self.layout_input_target_at(position) {
+            let widget_id = self
+                .interaction
+                .pointer
+                .capture
+                .expect("pointer capture checked above");
+            let routed = self.dispatch_input(widget_id, input);
+            return routed.then_some(widget_id);
+        }
         if self.layout_pointer_capture_active() {
             let _ = self.dispatch_captured_layout_input(
                 LayoutInput::PointerPress {
@@ -86,6 +95,15 @@ where
         let input = WidgetInput::pointer_double_click_with_timestamp(
             position, button, modifiers, timestamp,
         );
+        if self.interaction.pointer.capture.is_some() && self.layout_input_target_at(position) {
+            let widget_id = self
+                .interaction
+                .pointer
+                .capture
+                .expect("pointer capture checked above");
+            let routed = self.dispatch_input(widget_id, input);
+            return routed.then_some(widget_id);
+        }
         if self.layout_pointer_capture_active() {
             let _ = self.dispatch_captured_layout_input(
                 LayoutInput::PointerDoubleClick {

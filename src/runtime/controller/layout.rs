@@ -95,6 +95,10 @@ where
         self.interaction.layout_capture.is_some()
     }
 
+    pub(super) fn layout_input_target_at(&self, point: Point) -> bool {
+        self.layout_target_binding_at(point).is_some()
+    }
+
     pub(super) fn dispatch_layout_input_at(
         &mut self,
         point: Point,

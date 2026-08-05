@@ -29,11 +29,11 @@
 //! Qualified [`LayoutCapabilities`](crate::layout::LayoutCapabilities) and
 //! [`LayoutInteraction`](crate::layout::LayoutInteraction) registration is
 //! available for backend-neutral containers, including exact or conservative
-//! revision evidence. This contract intentionally does not provide pointer
-//! input/context, hit-region routing, capture, runtime-local interaction state,
-//! event handling, semantic/keyboard behavior, `split_pane` runtime
-//! construction, or the target `VirtualLayoutPolicy`; those remain future
-//! runtime work.
+//! revision evidence and normalized hit-region declarations. Production
+//! runtime projection exposes read-only [`LayoutHitTarget`] values; pointer
+//! routing, capture, runtime-local interaction state, event handling,
+//! semantic/keyboard behavior, `split_pane` runtime construction, and the
+//! target `VirtualLayoutPolicy` remain future runtime work.
 //!
 //! # Example
 //!
@@ -86,8 +86,9 @@ mod tree;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
-    LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutInteraction,
-    LayoutInteractionRevision,
+    LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
+    LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics, LayoutHitRegionId,
+    LayoutHitTarget, LayoutInteraction, LayoutInteractionRevision,
 };
 pub use constraints::{Constraints, ConstraintsParts};
 pub use engine::{

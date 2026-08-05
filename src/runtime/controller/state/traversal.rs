@@ -7,7 +7,7 @@ where
 {
     pub(in crate::runtime::controller) fn install_traversal_index(
         &mut self,
-        traversal: SurfaceTraversalIndex,
+        traversal: SurfaceTraversalIndex<Message>,
     ) {
         self.traversal.widgets.hit_order = traversal.widget_paint_order;
         self.traversal.widgets.paths.current = traversal.widget_paths;
@@ -50,6 +50,7 @@ where
         self.traversal.containers.clip_ancestors = traversal.container_clip_ancestors;
         self.traversal.containers.scroll_content_by_container =
             traversal.scroll_content_by_container;
+        self.traversal.containers.layout_interactions = traversal.layout_interactions;
         self.refresh_visible_traversal_orders();
     }
 
@@ -72,12 +73,15 @@ where
             .containers
             .scroll
             .refresh_visible(&self.layout);
+        self.traversal
+            .containers
+            .project_layout_targets(&self.layout);
     }
 
     pub(in crate::runtime::controller) fn take_reusable_traversal_index(
         &mut self,
         reuse_widget_paths: bool,
-    ) -> SurfaceTraversalIndex {
+    ) -> SurfaceTraversalIndex<Message> {
         SurfaceTraversalIndex {
             widget_paint_order: std::mem::take(&mut self.traversal.widgets.hit_order),
             focusable_widget_order: self.traversal.widgets.focusable.take_order(),
@@ -102,6 +106,7 @@ where
             scroll_content_by_container: std::mem::take(
                 &mut self.traversal.containers.scroll_content_by_container,
             ),
+            layout_interactions: std::mem::take(&mut self.traversal.containers.layout_interactions),
         }
     }
 }

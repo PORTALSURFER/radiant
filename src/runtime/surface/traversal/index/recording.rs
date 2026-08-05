@@ -3,10 +3,10 @@ use super::{
     SurfaceWidgetTraversalRecord, WheelHitTarget, WidgetPath,
 };
 
-impl SurfaceTraversalIndex {
+impl<Message> SurfaceTraversalIndex<Message> {
     pub(in crate::runtime) fn record_container(
         &mut self,
-        record: SurfaceContainerTraversalRecord<'_>,
+        record: SurfaceContainerTraversalRecord<'_, Message>,
     ) {
         if !record.clipped_by.is_empty() {
             self.container_clip_ancestors
@@ -20,6 +20,13 @@ impl SurfaceTraversalIndex {
         }
         if record.styled_hoverable {
             self.styled_container_order.push(record.id);
+        }
+        if let Some(interaction) = record.layout_interaction {
+            self.layout_interactions
+                .push(super::SurfaceLayoutInteractionRecord {
+                    id: record.id,
+                    interaction,
+                });
         }
     }
 

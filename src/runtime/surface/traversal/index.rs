@@ -18,10 +18,11 @@ mod records;
 mod tests;
 
 pub(in crate::runtime) use records::{
-    SurfaceContainerTraversalRecord, SurfaceWidgetTraversalRecord, WheelHitTarget,
+    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceWidgetTraversalRecord,
+    WheelHitTarget,
 };
 
-pub(in crate::runtime) struct SurfaceTraversalIndex {
+pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
@@ -37,9 +38,10 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     pub(in crate::runtime) container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     pub(in crate::runtime) scroll_content_by_container: HashMap<NodeId, NodeId>,
+    pub(in crate::runtime) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
 }
 
-impl SurfaceTraversalIndex {
+impl<Message> SurfaceTraversalIndex<Message> {
     pub(in crate::runtime) fn with_stats(stats: SurfaceTraversalStats) -> Self {
         Self {
             widget_paint_order: Vec::with_capacity(stats.widgets),
@@ -57,6 +59,7 @@ impl SurfaceTraversalIndex {
             widget_clip_ancestors: HashMap::with_capacity(widget_clip_capacity(stats)),
             container_clip_ancestors: HashMap::with_capacity(stats.clipped_containers),
             scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
+            layout_interactions: Vec::with_capacity(stats.max_depth),
         }
     }
 
@@ -100,6 +103,7 @@ impl SurfaceTraversalIndex {
             &mut self.scroll_content_by_container,
             stats.scroll_containers,
         );
+        self.layout_interactions.clear();
     }
 
     pub(in crate::runtime) fn clear_for_reuse(&mut self) {
@@ -118,5 +122,6 @@ impl SurfaceTraversalIndex {
         self.widget_clip_ancestors.clear();
         self.container_clip_ancestors.clear();
         self.scroll_content_by_container.clear();
+        self.layout_interactions.clear();
     }
 }

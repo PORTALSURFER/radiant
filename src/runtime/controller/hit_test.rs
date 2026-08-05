@@ -1,7 +1,7 @@
 use super::SurfaceRuntime;
 use crate::{
     gui::types::Point,
-    layout::NodeId,
+    layout::{LayoutHitRegionDiagnostics, LayoutHitTarget, NodeId},
     runtime::{RuntimeBridge, SurfaceWidget},
     widgets::{PointerCapturePolicy, WidgetCursor, WidgetId, WidgetInput},
 };
@@ -10,6 +10,38 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Return the topmost projected layout target at `point`.
+    ///
+    /// This is an observational query over the post-layout target index. It
+    /// does not dispatch an event or change hover, focus, capture, refresh,
+    /// damage, or reuse authority. Layout targets are not widget arbitration
+    /// candidates in this slice.
+    pub fn layout_target_at(&self, point: Point) -> Option<LayoutHitTarget> {
+        point.is_finite().then(|| {
+            self.traversal
+                .containers
+                .layout_targets
+                .iter()
+                .rev()
+                .find(|target| target.bounds.contains(point))
+                .copied()
+        })?
+    }
+
+    /// Alias for [`Self::layout_target_at`] using the hit-test terminology.
+    pub fn layout_hit_target_at(&self, point: Point) -> Option<LayoutHitTarget> {
+        self.layout_target_at(point)
+    }
+
+    /// Return read-only diagnostics from the most recent layout-target
+    /// projection.
+    ///
+    /// This is evidence only. It does not dispatch events or change hover,
+    /// focus, capture, refresh, damage, or reuse authority.
+    pub fn layout_hit_region_diagnostics(&self) -> LayoutHitRegionDiagnostics {
+        self.traversal.containers.layout_hit_region_diagnostics
+    }
+
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
         self.traversal

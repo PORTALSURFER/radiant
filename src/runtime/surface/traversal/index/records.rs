@@ -1,4 +1,8 @@
-use crate::{layout::NodeId, widgets::WidgetId};
+use crate::{
+    layout::{LayoutInteraction, NodeId},
+    widgets::WidgetId,
+};
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::runtime) enum WheelHitTarget {
@@ -14,11 +18,17 @@ impl WheelHitTarget {
     }
 }
 
-pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a> {
+pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
     pub(in crate::runtime) id: NodeId,
     pub(in crate::runtime) clipped_by: &'a [NodeId],
     pub(in crate::runtime) scroll_content: Option<NodeId>,
     pub(in crate::runtime) styled_hoverable: bool,
+    pub(in crate::runtime) layout_interaction: Option<Rc<dyn LayoutInteraction<Message>>>,
+}
+
+pub(in crate::runtime) struct SurfaceLayoutInteractionRecord<Message> {
+    pub(in crate::runtime) id: NodeId,
+    pub(in crate::runtime) interaction: Rc<dyn LayoutInteraction<Message>>,
 }
 
 pub(in crate::runtime) struct SurfaceWidgetTraversalRecord<'a> {

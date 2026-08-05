@@ -115,9 +115,10 @@ impl<Message> SurfaceContainer<Message> {
     /// Return this container with an explicitly registered UI-local layout
     /// capability descriptor.
     ///
-    /// This attaches registration and revision evidence only. Pointer input,
-    /// hit-region routing, capture, runtime-local interaction state, and event
-    /// handling remain future runtime work.
+    /// This attaches registration, revision evidence, and read-only normalized
+    /// hit-region declaration/projection. Pointer routing, capture,
+    /// runtime-local interaction state, and event handling remain future
+    /// runtime work.
     pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
         self.layout_capabilities = Some(capabilities);
         self

@@ -4,14 +4,14 @@ mod index;
 mod stats;
 
 pub(in crate::runtime) use index::{
-    SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceWidgetTraversalRecord,
-    WheelHitTarget,
+    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,
+    SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 pub(in crate::runtime) use stats::SurfaceTraversalStats;
 
 impl<Message> UiSurface<Message> {
     #[cfg(test)]
-    pub(in crate::runtime) fn runtime_traversal_index(&self) -> SurfaceTraversalIndex {
+    pub(in crate::runtime) fn runtime_traversal_index(&self) -> SurfaceTraversalIndex<Message> {
         let stats = self.root.runtime_traversal_stats();
         let mut index = SurfaceTraversalIndex::with_stats(stats);
         self.root.project_runtime_index(

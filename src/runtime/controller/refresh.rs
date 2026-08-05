@@ -60,16 +60,17 @@ pub struct SurfaceIdentityPath {
 mod tests {
     use super::*;
     use crate::{
-        gui::types::Vector2,
+        gui::types::{Point, Rect, Vector2},
         layout::{
-            ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities,
-            LayoutInteraction, LayoutInteractionRevision,
+            ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+            LayoutCapabilities, LayoutHitRegion, LayoutHitRegionId, LayoutInteraction,
+            LayoutInteractionRevision, OverflowPolicy, SlotParams,
         },
         runtime::{
             RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
-        widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
+        widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextWidget, WidgetSizing},
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
 
@@ -280,6 +281,350 @@ mod tests {
         fn pull_surface(&mut self) -> UiSurface<()> {
             self.surface()
         }
+    }
+
+    struct LayoutTargetInteraction {
+        regions: Vec<LayoutHitRegion>,
+    }
+
+    impl LayoutInteraction<()> for LayoutTargetInteraction {
+        fn revision(&self) -> LayoutInteractionRevision {
+            LayoutInteractionRevision::exact("layout-targets")
+        }
+
+        fn visit_hit_regions(&self, _local_bounds: Rect, visitor: &mut dyn FnMut(LayoutHitRegion)) {
+            for region in &self.regions {
+                visitor(*region);
+            }
+        }
+    }
+
+    fn layout_region(id: u64, min_x: f32, max_x: f32) -> LayoutHitRegion {
+        LayoutHitRegion::new(
+            LayoutHitRegionId::new(id),
+            Rect::from_min_max(Point::new(min_x, 0.0), Point::new(max_x, 1.0)),
+        )
+        .expect("test region should be valid")
+    }
+
+    struct LayoutTargetBridge {
+        incompatible: bool,
+    }
+
+    impl LayoutTargetBridge {
+        fn capabilities(
+            regions: Vec<LayoutHitRegion>,
+            incompatible: bool,
+        ) -> LayoutCapabilities<()> {
+            let mut capabilities =
+                LayoutCapabilities::new().interaction_local(LayoutTargetInteraction { regions });
+            if incompatible {
+                capabilities.contract_version = LAYOUT_CAPABILITIES_CONTRACT_VERSION + 1;
+            }
+            capabilities
+        }
+
+        fn surface(&self) -> UiSurface<()> {
+            let mut inner_regions = (0..12)
+                .map(|index| {
+                    layout_region(100 + index, index as f32 / 12.0, (index + 1) as f32 / 12.0)
+                })
+                .collect::<Vec<_>>();
+            inner_regions.push(layout_region(100, 0.9, 1.0));
+            let inner = SurfaceNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Stack,
+                    ..ContainerPolicy::default()
+                },
+                Vec::new(),
+            )
+            .with_layout_capabilities(Self::capabilities(inner_regions, self.incompatible));
+            let outer = SurfaceNode::container(
+                1,
+                ContainerPolicy {
+                    kind: ContainerKind::Stack,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(inner)],
+            )
+            .with_layout_capabilities(Self::capabilities(
+                vec![layout_region(900, 0.0, 1.0)],
+                self.incompatible,
+            ));
+            UiSurface::new(outer)
+        }
+    }
+
+    impl RuntimeBridge<()> for LayoutTargetBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> UiSurface<()> {
+            self.surface()
+        }
+    }
+
+    struct ClippedLayoutTargetBridge;
+
+    impl RuntimeBridge<()> for ClippedLayoutTargetBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> UiSurface<()> {
+            self.surface()
+        }
+    }
+
+    impl ClippedLayoutTargetBridge {
+        fn surface(&self) -> UiSurface<()> {
+            let content = SurfaceNode::container(
+                11,
+                ContainerPolicy {
+                    kind: ContainerKind::Stack,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(12, "wide", WidgetSizing::fixed(Vector2::new(200.0, 80.0))),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+            .with_layout_capabilities(LayoutTargetBridge::capabilities(
+                vec![layout_region(11, 0.0, 1.0)],
+                false,
+            ));
+            UiSurface::new(SurfaceNode::container(
+                10,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::new(SlotParams::fill(), content)],
+            ))
+        }
+    }
+
+    struct OwnClipLayoutTargetBridge;
+
+    impl RuntimeBridge<()> for OwnClipLayoutTargetBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> UiSurface<()> {
+            self.surface()
+        }
+    }
+
+    impl OwnClipLayoutTargetBridge {
+        fn surface(&self) -> UiSurface<()> {
+            UiSurface::new(
+                SurfaceNode::container(
+                    10,
+                    ContainerPolicy {
+                        kind: ContainerKind::ScrollView,
+                        overflow: OverflowPolicy::Scroll,
+                        padding: crate::layout::Insets::all(4.0),
+                        ..ContainerPolicy::default()
+                    },
+                    vec![SurfaceChild::fill(SurfaceNode::widget(
+                        TextWidget::new(
+                            11,
+                            "content",
+                            WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ))],
+                )
+                .with_layout_capabilities(LayoutTargetBridge::capabilities(
+                    vec![layout_region(10, 0.0, 1.0)],
+                    false,
+                )),
+            )
+        }
+    }
+
+    struct NoLayoutCapabilityBridge;
+
+    impl RuntimeBridge<()> for NoLayoutCapabilityBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+                ButtonWidget::new(20, "plain", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )))
+        }
+    }
+
+    #[test]
+    fn layout_targets_project_all_regions_in_traversal_order_and_first_duplicate_wins() {
+        let runtime = SurfaceRuntime::new(
+            LayoutTargetBridge {
+                incompatible: false,
+            },
+            Vector2::new(120.0, 80.0),
+        );
+
+        let target = runtime
+            .layout_target_at(Point::new(115.0, 40.0))
+            .expect("the twelfth region must not be truncated");
+        assert_eq!(target.container_id, 2);
+        assert_eq!(target.region_id, LayoutHitRegionId::new(111));
+        assert_eq!(
+            target.bounds,
+            Rect::from_min_max(
+                Point::new(120.0 * (11.0 / 12.0), 0.0),
+                Point::new(120.0, 80.0),
+            )
+        );
+
+        let first = runtime
+            .layout_target_at(Point::new(1.0, 40.0))
+            .expect("the first region should remain projected");
+        assert_eq!(first.container_id, 2);
+        assert_eq!(first.region_id, LayoutHitRegionId::new(100));
+        assert_eq!(
+            runtime
+                .layout_hit_region_diagnostics()
+                .duplicate_declarations(),
+            1
+        );
+
+        let nested = runtime
+            .layout_target_at(Point::new(60.0, 40.0))
+            .expect("nested target should overlap the outer target");
+        assert_eq!(nested.container_id, 2, "nested traversal target is topmost");
+    }
+
+    #[test]
+    fn layout_targets_reproject_on_full_viewport_and_reused_projection_paths() {
+        let mut runtime = SurfaceRuntime::new(
+            LayoutTargetBridge {
+                incompatible: false,
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let before = runtime.refresh_counters();
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime
+                .layout_target_at(Point::new(115.0, 40.0))
+                .map(|target| target.region_id),
+            Some(LayoutHitRegionId::new(111))
+        );
+
+        runtime.refresh();
+        assert_eq!(
+            runtime
+                .layout_target_at(Point::new(115.0, 40.0))
+                .map(|target| target.container_id),
+            Some(2)
+        );
+
+        runtime.set_viewport(Vector2::new(240.0, 80.0));
+        let target = runtime
+            .layout_target_at(Point::new(230.0, 40.0))
+            .expect("viewport relayout should reproject current bounds");
+        assert_eq!(target.region_id, LayoutHitRegionId::new(111));
+        assert_eq!(target.bounds.max.x, 240.0);
+    }
+
+    #[test]
+    fn layout_targets_respect_scroll_clips_and_unsupported_capabilities_are_ignored() {
+        let clipped = SurfaceRuntime::new(ClippedLayoutTargetBridge, Vector2::new(100.0, 50.0));
+        let visible = clipped
+            .layout_target_at(Point::new(50.0, 25.0))
+            .expect("target inside the scroll viewport");
+        assert_eq!(visible.container_id, 11);
+        assert_eq!(visible.bounds.max.x, 100.0);
+        assert_eq!(visible.bounds.max.y, 50.0);
+        assert!(
+            clipped.layout_target_at(Point::new(150.0, 25.0)).is_none(),
+            "content outside its scroll viewport must be excluded"
+        );
+
+        let own_clip = SurfaceRuntime::new(OwnClipLayoutTargetBridge, Vector2::new(100.0, 50.0));
+        assert!(own_clip.layout_target_at(Point::new(2.0, 2.0)).is_none());
+        let own_visible = own_clip
+            .layout_target_at(Point::new(5.0, 5.0))
+            .expect("own scroll viewport should retain its interior");
+        assert_eq!(own_visible.container_id, 10);
+        assert_eq!(own_visible.bounds.min, Point::new(4.0, 4.0));
+
+        let mut unsupported = SurfaceRuntime::new(
+            LayoutTargetBridge { incompatible: true },
+            Vector2::new(120.0, 80.0),
+        );
+        assert!(
+            unsupported
+                .layout_target_at(Point::new(60.0, 40.0))
+                .is_none()
+        );
+        assert_eq!(
+            unsupported
+                .layout_hit_region_diagnostics()
+                .duplicate_declarations(),
+            0
+        );
+        unsupported.bridge_mut().incompatible = true;
+        unsupported.refresh();
+        assert!(
+            unsupported
+                .layout_target_at(Point::new(60.0, 40.0))
+                .is_none()
+        );
+        unsupported.bridge_mut().incompatible = false;
+        unsupported.refresh();
+        assert!(
+            unsupported
+                .layout_target_at(Point::new(115.0, 40.0))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn layout_target_query_is_observational_and_no_capability_keeps_widget_hit_testing() {
+        let mut runtime = SurfaceRuntime::new(
+            LayoutTargetBridge {
+                incompatible: false,
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        runtime.interaction.focus.focused_widget = Some(999);
+        runtime.interaction.hover.container = Some(1);
+        runtime.interaction.pointer.current_position = Some(Point::new(8.0, 8.0));
+        runtime.interaction.pointer.capture = Some(999);
+        runtime.repaint_requested = true;
+        let before = (
+            runtime.interaction.focus,
+            runtime.interaction.hover,
+            runtime.interaction.pointer,
+            runtime.refresh_counters(),
+            runtime.repaint_requested,
+            runtime.base_paint_plan_reuse_eligible(),
+            runtime.last_refresh_diagnostics(),
+        );
+
+        let _ = runtime.layout_target_at(Point::new(60.0, 40.0));
+
+        assert_eq!(runtime.interaction.focus, before.0);
+        assert_eq!(runtime.interaction.hover, before.1);
+        assert_eq!(runtime.interaction.pointer, before.2);
+        assert_eq!(runtime.refresh_counters(), before.3);
+        assert_eq!(runtime.repaint_requested, before.4);
+        assert_eq!(
+            runtime.base_paint_plan_reuse_eligible(),
+            before.5,
+            "target inspection must not alter reuse authority"
+        );
+        assert_eq!(runtime.last_refresh_diagnostics(), before.6);
+
+        let plain = SurfaceRuntime::new(NoLayoutCapabilityBridge, Vector2::new(100.0, 40.0));
+        assert!(plain.layout_target_at(Point::new(20.0, 14.0)).is_none());
+        assert_eq!(plain.widget_at(Point::new(20.0, 14.0)), Some(20));
     }
 
     fn replacement_widget(id: u64, replace: bool) -> SurfaceNode<()> {

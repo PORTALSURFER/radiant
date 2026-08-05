@@ -481,6 +481,7 @@ struct LayoutProbeState {
     emit_message_on_press: bool,
     repaint_on_move: bool,
     work_on_move: bool,
+    widget_moves: usize,
 }
 
 struct LayoutProbeInteraction {
@@ -555,6 +556,7 @@ struct LayoutProbeBridge {
     visible: bool,
     scroll: bool,
     exclusive: bool,
+    pass_through: bool,
 }
 
 impl LayoutProbeBridge {
@@ -566,6 +568,7 @@ impl LayoutProbeBridge {
             visible: true,
             scroll: false,
             exclusive: false,
+            pass_through: false,
         }
     }
 
@@ -608,6 +611,11 @@ impl LayoutProbeBridge {
                     DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(100.0, 40.0))),
                     WidgetMessageMapper::none(),
                 )
+            } else if self.pass_through {
+                SurfaceNode::widget(
+                    PassThroughMoveWidget::new(10, Rc::clone(&self.state)),
+                    WidgetMessageMapper::none(),
+                )
             } else {
                 SurfaceNode::widget(
                     TextInputWidget::new(
@@ -638,6 +646,52 @@ impl LayoutProbeBridge {
             )
         };
         UiSurface::new(root.with_layout_capabilities(capabilities))
+    }
+}
+
+#[derive(Clone)]
+struct PassThroughMoveWidget {
+    common: WidgetCommon,
+    state: Rc<RefCell<LayoutProbeState>>,
+}
+
+impl PassThroughMoveWidget {
+    fn new(id: u64, state: Rc<RefCell<LayoutProbeState>>) -> Self {
+        let mut common = WidgetCommon::fixed(id, 100.0, 40.0);
+        common.focus = FocusBehavior::Pointer;
+        Self { common, state }
+    }
+}
+
+impl Widget for PassThroughMoveWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { .. } => {
+                self.state.borrow_mut().widget_moves += 1;
+                Some(WidgetOutput::typed(0))
+            }
+            WidgetInput::PointerPress { .. } | WidgetInput::PointerRelease { .. } => {
+                Some(WidgetOutput::typed(0))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
     }
 }
 
@@ -864,6 +918,28 @@ fn widget_capture_precedes_fresh_layout_and_scrollbar_capture_precedes_layout() 
     );
     assert_eq!(runtime.pointer_capture(), Some(10));
     assert_eq!(runtime.bridge().state.borrow().events, Vec::new());
+
+    let pass_through_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut pass_through_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            pass_through: true,
+            ..LayoutProbeBridge::new(Rc::clone(&pass_through_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        pass_through_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(pass_through_runtime.pointer_capture(), Some(10));
+    let _ = pass_through_runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 20.0)));
+    assert_eq!(pass_through_runtime.pointer_capture(), Some(10));
+    assert_eq!(pass_through_state.borrow().widget_moves, 1);
+    assert!(pass_through_state.borrow().events.is_empty());
 
     let press_state = Rc::new(RefCell::new(LayoutProbeState {
         handled: true,

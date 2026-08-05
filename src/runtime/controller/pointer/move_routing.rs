@@ -88,22 +88,24 @@ where
                 emitted_output: dispatch.emitted_output,
             };
         }
-        let layout_dispatch = self.dispatch_layout_input_at(
-            position,
-            LayoutInput::PointerMove {
+        if self.interaction.pointer.capture.is_none() {
+            let layout_dispatch = self.dispatch_layout_input_at(
                 position,
-                modifiers: metadata.modifiers,
-                timestamp: metadata.timestamp,
-                sequence_range: metadata.sequence_range,
-            },
-            refresh_after_message,
-        );
-        emitted_output |= layout_dispatch.emitted_output;
-        if layout_dispatch.handled {
-            return PointerMoveDispatch {
-                target: None,
-                emitted_output,
-            };
+                LayoutInput::PointerMove {
+                    position,
+                    modifiers: metadata.modifiers,
+                    timestamp: metadata.timestamp,
+                    sequence_range: metadata.sequence_range,
+                },
+                refresh_after_message,
+            );
+            emitted_output |= layout_dispatch.emitted_output;
+            if layout_dispatch.handled {
+                return PointerMoveDispatch {
+                    target: None,
+                    emitted_output,
+                };
+            }
         }
         self.update_hovered_scroll_affordance(position);
 

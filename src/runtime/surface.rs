@@ -42,8 +42,8 @@ pub(in crate::runtime) use revision::SurfaceDamageCandidate;
 #[cfg(test)]
 pub(in crate::runtime) use revision::ViewDeltaCause;
 pub(in crate::runtime) use revision::{
-    DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, SurfaceDamage, ViewDeltaDiagnostics, ViewDeltaEffect,
-    ViewDeltaScratch, classify_view_delta,
+    DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, RefreshExecutionDecision, SurfaceDamage,
+    ViewDeltaDiagnostics, ViewDeltaEffect, ViewDeltaScratch, classify_view_delta,
 };
 
 /// Top-level immutable UI surface projected by a generic Radiant host.

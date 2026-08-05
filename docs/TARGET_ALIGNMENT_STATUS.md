@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-05**
-- Canonical main: **`0789ea49`**
-- Overall estimate: **~76%**
-- Working range: **70–82%**
+- Canonical main: **`4d2718e7`**
+- Overall estimate: **~77%**
+- Working range: **71–83%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -20,9 +20,11 @@ contract against which progress is measured. PR #1602 reduced contract
 ambiguity and sequencing risk without changing the numeric estimate; PR #1603
 adds the first executable keyed query capability and PR #1604 adds a private,
 query-only visible-window coordinator with accepted-state, logical-index delta,
-anchor/fallback, exact-fence, and owner-token evidence. The estimate moves
-modestly while runtime materialization/recycling and consumer integration gaps
-remain.
+anchor/fallback, exact-fence, and owner-token evidence. PR #1605 adds a
+crate-private materialization/recycling correctness kernel with exact
+accepted-commit admission, deterministic keyed lifecycle ordering, success-only
+atomic publication, and terminal fail-stop behavior for lifecycle failure.
+Runtime materialization/consumer integration gaps remain.
 
 ## Alignment by category
 
@@ -31,7 +33,7 @@ remain.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 86% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, and a private query-only keyed visible-window coordinator are shipped in PRs #1597–#1604. Runtime materialization/recycling and its consumer boundary, product-specific `split_pane` behavior, and the remaining executable virtualization proof remain. |
+| Layout, composition, virtualization | 88% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, and a private materialization/recycling correctness kernel are shipped in PRs #1597–#1605. Runtime consumer registration/integration, product-specific `split_pane` behavior, and the remaining executable product virtualization proof remain. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -77,6 +79,13 @@ The current foundation includes:
   same-key anchor/fallback evidence; and foreign-token/reentrancy regression
   coverage (PR #1604; runtime materialization, recycling, and consumer
   integration remain future);
+- the crate-private `VirtualLayoutMaterializationStore` with exact accepted-
+  commit admission, pure host projection, keyed slot identity/generation,
+  deterministic unmount/reset/reconcile/mount ordering, reset-only recycling,
+  success-only atomic publication, terminal fail-stop lifecycle retirement,
+  bounded diagnostics, and coordinator-local malformed-commit coverage (PR
+  #1605; runtime consumer registration, replacement/recovery policy, and
+  product integration remain future);
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -88,15 +97,16 @@ complete.
 
 1. **Generic virtualization consumer and product-specific consumers.**
    PR #1602 landed the normative contract, PR #1603 shipped the bounded
-   query-only capability, and PR #1604 shipped private accepted-window
+   query-only capability, PR #1604 shipped private accepted-window
    reconciliation with logical-index deltas, conservative anchor/fallback
-   evidence, and exact owner/revision fences. The next dependency-correct
-   generic item is the runtime materialization/recycling consumer boundary:
-   bounded keyed slots and lifecycle reconciliation behind an explicit host
-   projection, without scheduling or product state. Add `split_pane`
-   interaction/state/ratio semantics only when the product contract is defined;
-   PR #1601 supplies the generic runtime state lifecycle needed by these
-   slices.
+   evidence, and exact owner/revision fences, and PR #1605 shipped the private
+   bounded materialization/recycling correctness kernel. The next
+   dependency-correct generic item is the runtime materialization consumer
+   boundary that registers or adapts accepted keyed slots into retained
+   `ViewNode`/`SurfaceNode` construction without scheduling or product state.
+   Add `split_pane` interaction/state/ratio semantics only when the product
+   contract is defined; PR #1601 supplies the generic runtime state lifecycle
+   needed by these slices.
 2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
    runtime-local draft and typed commit/cancel semantics.
 3. **Numeric and input integration.** Complete numeric attachment,
@@ -127,6 +137,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Normative virtual-layout design](../docs/VIRTUAL_LAYOUT_DESIGN.md)
 - [Query-only virtual-layout capability](../src/gui/layout_core/virtual_layout.rs)
 - [Query-only visible-window coordinator](../src/gui/layout_core/virtual_layout/coordinator.rs)
+- [Private materialization/recycling kernel](../src/gui/layout_core/virtual_layout/materialization.rs)
 - [Query capability public tests](../tests/virtual_layout_public_api.rs)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
 - [Value mapping](../src/widgets/interaction/value.rs)
@@ -165,3 +176,4 @@ After each merged alignment slice:
 | 2026-08-05 | `b3da6a04` | ~73% (67–79%, medium confidence) | PR #1602 landed the normative keyed virtual-layout/materialization contract and makes the next dependency-correct item the query-only `VirtualLayoutPolicy` capability; the estimate stays unchanged because no executable virtualization behavior shipped. |
 | 2026-08-05 | `4b6e1118` | ~74% (68–80%, medium confidence) | PR #1603 shipped the qualified query-only `VirtualLayoutPolicy`/`VirtualLayoutQueryExecutor` capability with bounded output, typed outcomes, exact fences, stable identity rejection, and public/guardrail tests; layout alignment moves to 82%, while keyed visible-window reconciliation and later materialization remain. |
 | 2026-08-05 | `0789ea49` | ~76% (70–82%, medium confidence) | PR #1604 shipped the private query-only `VirtualLayoutWindowCoordinator` with bounded accepted-window reconciliation, logical-index/emission-order-independent deltas, conservative same-key anchor/fallback behavior, exact revision/owner-token fences, and full local/CI validation; the next generic gap is runtime materialization/recycling consumer integration, while authoritative removed-anchor evidence and product-specific `split_pane` behavior remain deferred. |
+| 2026-08-05 | `4d2718e7` | ~77% (71–83%, medium confidence) | PR #1605 shipped the private query-only materialization/recycling correctness kernel with exact accepted-commit admission, keyed slot/generation continuity, deterministic lifecycle ordering, success-only atomic publication, terminal fail-stop lifecycle retirement, bounded diagnostics, and full local/CI validation; the next generic gap is runtime consumer registration/adaptation into retained `ViewNode`/`SurfaceNode` construction, while replacement/recovery policy and product-specific `split_pane` behavior remain deferred. |

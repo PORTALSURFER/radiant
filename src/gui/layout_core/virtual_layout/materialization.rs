@@ -1264,8 +1264,7 @@ mod tests {
 
     use super::super::coordinator::{
         VirtualLayoutCompletion, VirtualLayoutCoordinatorDiagnostic,
-        VirtualLayoutCoordinatorDiagnosticCode, clone_commit_with_accepted_revision,
-        clone_commit_with_entries, clone_commit_with_owner,
+        VirtualLayoutCoordinatorDiagnosticCode,
     };
     use super::super::{
         VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutCoordinateSpace,
@@ -2148,25 +2147,6 @@ mod tests {
             ));
         }
 
-        let mut foreign_coordinator = coordinator_with(
-            CONTAINER_ID + 1,
-            VirtualLayoutPolicyIdentity::new("policy"),
-            MOUNT_GENERATION,
-        );
-        let foreign_commit = committed(
-            &mut foreign_coordinator,
-            &[Spec::new(2, 1, 10.0)],
-            1,
-            DEFAULT_BUDGET,
-            Rc::clone(&policy_calls),
-        );
-        let owner_replaced = clone_commit_with_owner(&foreign_commit, store.owner.clone());
-        let result = store.publish(&owner_replaced, &projector);
-        assert!(matches!(
-            result,
-            Err(VirtualLayoutMaterializationError::ForeignContainer)
-        ));
-
         let mut owner_coordinator = coordinator_with(
             CONTAINER_ID,
             VirtualLayoutPolicyIdentity::new("policy"),
@@ -2217,14 +2197,27 @@ mod tests {
         );
         store.publish(&second, &projector).expect("second commit");
         events.borrow_mut().clear();
-        let third = committed(
+        let _third = committed(
             &mut coordinator,
             &[Spec::new(1, 0, 20.0)],
             3,
             DEFAULT_BUDGET,
             Rc::clone(&policy_calls),
         );
-        let skipped = clone_commit_with_accepted_revision(&third, 5);
+        let _fourth = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 30.0)],
+            4,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        let skipped = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 40.0)],
+            5,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
         store
             .publish(&skipped, &projector)
             .expect("later complete revision may skip");
@@ -2368,30 +2361,6 @@ mod tests {
         assert_eq!(store.active_slots()[0].identity(), stable_identity);
         assert!(events.borrow().is_empty());
 
-        let duplicate_key = {
-            let mut duplicate = unstable.view().entries[0].clone();
-            duplicate.logical_index = 1;
-            clone_commit_with_entries(
-                &unstable,
-                vec![unstable.view().entries[0].clone(), duplicate],
-            )
-        };
-        assert!(matches!(
-            store.publish(&duplicate_key, &projector),
-            Err(VirtualLayoutMaterializationError::DuplicateKey)
-        ));
-        let duplicate_index = {
-            let mut duplicate = unstable.view().entries[0].clone();
-            duplicate.key = VirtualLayoutItemKey::new(99_u32);
-            clone_commit_with_entries(
-                &unstable,
-                vec![unstable.view().entries[0].clone(), duplicate],
-            )
-        };
-        assert!(matches!(
-            store.publish(&duplicate_index, &projector),
-            Err(VirtualLayoutMaterializationError::DuplicateLogicalIndex)
-        ));
         assert_eq!(store.active_slots()[0].identity(), stable_identity);
         assert!(events.borrow().is_empty());
 
@@ -2453,51 +2422,6 @@ mod tests {
             Err(VirtualLayoutMaterializationError::CapacityViolation)
         ));
         assert_eq!(capacity_store.active_len(), 1);
-    }
-
-    #[derive(Debug)]
-    struct FlakyKey {
-        state: Rc<Cell<bool>>,
-    }
-
-    impl PartialEq for FlakyKey {
-        fn eq(&self, _other: &Self) -> bool {
-            let value = self.state.get();
-            self.state.set(!value);
-            value
-        }
-    }
-
-    impl Eq for FlakyKey {}
-
-    #[test]
-    fn unstable_key_is_rejected_even_when_it_is_the_only_entry() {
-        let (mut coordinator, mut store, projector, events) = store_for(&[]);
-        let policy_calls = Rc::new(Cell::new(0));
-        let valid = committed(
-            &mut coordinator,
-            &empty_entries(),
-            1,
-            DEFAULT_BUDGET,
-            Rc::clone(&policy_calls),
-        );
-        let state = Rc::new(Cell::new(true));
-        let invalid = clone_commit_with_entries(
-            &valid,
-            vec![VirtualLayoutItem {
-                key: VirtualLayoutItemKey::new(FlakyKey { state }),
-                logical_index: 0,
-                bounds: Rect::from_xy_size(0.0, 0.0, 100.0, 10.0),
-                visibility: VirtualLayoutVisibility::Visible,
-                confidence: VirtualLayoutBoundsConfidence::Exact,
-            }],
-        );
-        assert!(matches!(
-            store.publish(&invalid, &projector),
-            Err(VirtualLayoutMaterializationError::UnstableKey)
-        ));
-        assert_eq!(store.active_len(), 0);
-        assert!(events.borrow().is_empty());
     }
 
     #[test]

@@ -1204,11 +1204,6 @@ fn clamp_correction(
 }
 
 #[cfg(test)]
-pub(super) use tests::{
-    clone_commit_with_accepted_revision, clone_commit_with_entries, clone_commit_with_owner,
-};
-
-#[cfg(test)]
 mod tests {
     use std::{
         cell::{Cell, RefCell},
@@ -1218,6 +1213,13 @@ mod tests {
     use super::super::VirtualLayoutItemCandidate;
     use super::*;
     use crate::gui::types::Vector2;
+
+    use super::super::materialization::{
+        VirtualLayoutHostProjector, VirtualLayoutLifecycleAdapter,
+        VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
+        VirtualLayoutMaterializationStore, VirtualLayoutProjection,
+        VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
+    };
 
     fn parts(
         query_sequence: u64,
@@ -1314,31 +1316,12 @@ mod tests {
 
     // Malformed commit copies are constructed only in this coordinator-owned
     // test boundary. Production siblings receive no constructor or mutator.
-    pub fn clone_commit_with_owner(
-        commit: &VirtualLayoutCommit,
-        owner: Rc<CoordinatorIdentity>,
-    ) -> Box<VirtualLayoutCommit> {
-        let mut clone = Box::new(commit.clone());
-        clone.owner = owner;
-        clone
-    }
-
-    pub fn clone_commit_with_entries(
+    fn clone_commit_with_entries(
         commit: &VirtualLayoutCommit,
         entries: Vec<VirtualLayoutItem>,
     ) -> Box<VirtualLayoutCommit> {
         let mut clone = Box::new(commit.clone());
         clone.view.entries = entries;
-        clone
-    }
-
-    pub fn clone_commit_with_accepted_revision(
-        commit: &VirtualLayoutCommit,
-        accepted_revision: u64,
-    ) -> Box<VirtualLayoutCommit> {
-        let mut clone = Box::new(commit.clone());
-        clone.accepted_revision = accepted_revision;
-        clone.view.accepted_revision = Some(accepted_revision);
         clone
     }
 
@@ -1370,6 +1353,143 @@ mod tests {
     fn ready(coordinator: &mut VirtualLayoutWindowCoordinator, keys: &[u32]) {
         let policy = ready_policy(keys, 100.0);
         let _ = commit_policy(coordinator, &policy);
+    }
+
+    struct TestMaterializationProjector;
+
+    impl VirtualLayoutHostProjector for TestMaterializationProjector {
+        type Payload = ();
+        type Error = ();
+
+        fn projection_kind(
+            &self,
+            _item: &VirtualLayoutItem,
+        ) -> Result<VirtualLayoutProjectionKind, Self::Error> {
+            Ok(VirtualLayoutProjectionKind::new("test-kind"))
+        }
+
+        fn project<'a>(
+            &self,
+            _evidence: VirtualLayoutProjectionEvidence<'a>,
+        ) -> Result<VirtualLayoutProjection<Self::Payload>, Self::Error> {
+            Ok(VirtualLayoutProjection::new(
+                VirtualLayoutProjectionKind::new("test-kind"),
+                (),
+            ))
+        }
+    }
+
+    struct TestMaterializationLifecycle;
+
+    impl VirtualLayoutLifecycleAdapter<()> for TestMaterializationLifecycle {
+        type Error = ();
+
+        fn compatible(
+            &self,
+            _previous: &VirtualLayoutProjectionKind,
+            _next: &VirtualLayoutProjectionKind,
+        ) -> Option<bool> {
+            Some(true)
+        }
+
+        fn unmount(
+            &mut self,
+            _payload: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn reset(
+            &mut self,
+            _payload: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn reconcile(
+            &mut self,
+            _previous: &(),
+            _next: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn mount(
+            &mut self,
+            _recycled_shell: Option<&()>,
+            _next: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct FlakyKey {
+        state: Rc<Cell<bool>>,
+    }
+
+    impl PartialEq for FlakyKey {
+        fn eq(&self, _other: &Self) -> bool {
+            let value = self.state.get();
+            self.state.set(!value);
+            value
+        }
+    }
+
+    impl Eq for FlakyKey {}
+
+    #[test]
+    fn materialization_rejects_forged_entries_within_coordinator_test_boundary() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let valid = commit_policy(&mut coordinator, &ready_policy(&[1], 100.0));
+        let mut store =
+            VirtualLayoutMaterializationStore::new(&coordinator, TestMaterializationLifecycle);
+        let projector = TestMaterializationProjector;
+        let first = valid.view().entries[0].clone();
+
+        let mut duplicate_key_entry = first.clone();
+        duplicate_key_entry.logical_index = 1;
+        let duplicate_key =
+            clone_commit_with_entries(&valid, vec![first.clone(), duplicate_key_entry]);
+        assert!(matches!(
+            store.publish(&duplicate_key, &projector),
+            Err(VirtualLayoutMaterializationError::DuplicateKey)
+        ));
+
+        let mut duplicate_index_entry = first.clone();
+        duplicate_index_entry.key = VirtualLayoutItemKey::new(99_u32);
+        let duplicate_index =
+            clone_commit_with_entries(&valid, vec![first.clone(), duplicate_index_entry]);
+        assert!(matches!(
+            store.publish(&duplicate_index, &projector),
+            Err(VirtualLayoutMaterializationError::DuplicateLogicalIndex)
+        ));
+
+        let state = Rc::new(Cell::new(true));
+        let unstable_key = clone_commit_with_entries(
+            &valid,
+            vec![VirtualLayoutItem {
+                key: VirtualLayoutItemKey::new(FlakyKey { state }),
+                logical_index: 0,
+                bounds: Rect::from_xy_size(0.0, 0.0, 100.0, 10.0),
+                visibility: VirtualLayoutVisibility::Visible,
+                confidence: VirtualLayoutBoundsConfidence::Exact,
+            }],
+        );
+        assert!(matches!(
+            store.publish(&unstable_key, &projector),
+            Err(VirtualLayoutMaterializationError::UnstableKey)
+        ));
+        assert_eq!(store.active_len(), 0);
     }
 
     #[test]

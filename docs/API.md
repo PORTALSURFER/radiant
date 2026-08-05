@@ -3860,8 +3860,9 @@ other app-owned systems. Host applications map product-specific copy into these
 slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
-`SplitPaneSlot`, `SplitPaneAssignmentState`, `SplitPaneAssignedRow`,
-`SplitPaneTreePanel`, and `SplitPaneSidebarState`, plus `anchored_panel_rect`
+`SplitPaneAxis`, `SplitPaneLayout`, `SplitPaneLayoutParts`, `SplitPaneSlot`,
+`SplitPaneAssignmentState`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
+`SplitPaneSidebarState`, plus `anchored_panel_rect`
 for clamped popup/panel placement and `PanelResizeState` with
 `PanelResizeConstraints` or `CollapsiblePanelResizeConstraints` for
 splitter-driven pane resizing. Use `PanelResizeConstraints::left(...)`,
@@ -3875,8 +3876,13 @@ For typed shared-edit delivery, use the qualified
 `PanelResizeState::resize_collapsible_edit(...)` methods; each accepted drag
 boundary returns one `EditEvent<f32>`, and cancellation rolls the size back to
 the transaction start. The existing concise methods remain available for
-hosts that only need size projection. The target `split_pane` runtime builder
-and generic `LayoutInteraction` capability are not shipped by this model yet.
+hosts that only need size projection. Use `SplitPaneLayout::from_parts(...)`
+to resolve backend-neutral first, divider, and second rectangles along a
+horizontal or vertical axis; non-finite ratios use `0.5`, non-finite divider
+or minimum extents use `0.0`, and the result reports whether both pane minima
+were satisfied. This geometry helper does not construct the target `split_pane`
+runtime builder or generic `LayoutInteraction` capability; those remain future
+work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

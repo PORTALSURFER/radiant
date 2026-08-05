@@ -16,10 +16,11 @@ pub use resize::{
 };
 pub use split_pane::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
-    SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
-    SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot,
-    SplitPaneTreePanel, SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment,
-    SplitPaneTreePanelContent, SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
+    SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts, SplitPaneSidebarChrome,
+    SplitPaneSidebarContent, SplitPaneSidebarPanes, SplitPaneSidebarSelection,
+    SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot, SplitPaneTreePanel,
+    SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment, SplitPaneTreePanelContent,
+    SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
 };
 
 #[cfg(test)]

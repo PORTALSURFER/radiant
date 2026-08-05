@@ -992,6 +992,57 @@ or serve a product consumer. Those runtime and product integrations remain
 future. Current fixed-child and host-projected fixed-row virtualization are
 compatibility paths, not an implementation of those later integrations.
 
+#### Runtime consumer boundary (contract-only)
+
+The missing runtime consumer boundary is now contract-frozen but is not shipped.
+For one mounted virtual container generation, `SurfaceRuntime` is the eventual
+owner of one materialization record. `AppBridge`, `RuntimeBridge`, the policy,
+and product/application state may provide projection inputs or observations but
+do not own retained slots. A future registration descriptor is discoverable from
+the declarative `UiSurface`/`SurfaceContainer` shell before materialized children
+exist; defining or exporting that registration API, or advancing a capability
+contract version, is outside this slice.
+
+Initial mount is synchronous and has two stages with this fixed order:
+
+```text
+pull shell → project/layout shell → query → project complete item batch
+→ identity admission → lifecycle commit → install children → final project/layout
+```
+
+The shell pass obtains only container viewport and coordinate evidence and never
+publishes an incomplete collection. Refresh repeats both stages for registration
+or relevant geometry evidence, including viewport changes; a viewport relayout
+must not silently reuse a stale accepted window. The host item projector consumes
+only exact accepted kernel evidence; any immutable projection descriptor/data is
+part of that admitted evidence. It cannot read scheduler, renderer, focus, or
+mutable runtime state. Future `ViewNode`
+lowering is pure and fallible before lifecycle callbacks, and the retained
+payload is an immutable `SurfaceNode` subtree rather than a runtime-mutated
+widget instance.
+
+The item wrapper identity is scoped by `(container NodeId, mount generation,
+slot index, checked slot generation)`. Compatible same-key updates preserve the
+complete wrapper and descendant identity; removal or incompatible replacement
+advances the checked slot generation, with descendants scoped below the wrapper.
+The first adapter rejects explicit raw `NodeId`/direct retained `SurfaceNode`
+identities and scene-level presentation, shortcut, overlay, or out-of-band
+effects until a collision-safe remapping contract exists. Whole-shell and
+active-batch identity admission completes before lifecycle side effects, keeping
+pre-callback rejection recoverable.
+
+Descriptor removal, container-generation replacement, and runtime close
+explicitly unmount exactly once before dropping that materialization owner/record
+from `SurfaceRuntime`. Terminal lifecycle failure suppresses partial
+materialization and does not automatically retry or transfer state;
+replacement/recovery policy is deferred.
+This boundary has no scheduler/renderer callbacks and leaves existing public
+APIs and contract versions unchanged. The later executable work is deliberately
+split into (1) the **private retained-item adapter** (the next executable PR),
+which performs fallible scoped `ViewNode` lowering, identity admission, and
+immutable `SurfaceNode` payload construction, and (2) a separate
+`SurfaceRuntime` registration/two-pass bridge.
+
 ### Leaf content and interactive widgets
 
 Leaf nodes are placed by containers. Passive content such as text, icons,

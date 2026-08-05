@@ -6,7 +6,8 @@ crate-private visible-window coordinator and crate-private accepted-window
 materialization/recycling correctness kernel are shipped private slices. The
 materialization kernel is not runtime registration, concrete surface
 projection, public API, focus or accessibility pin ownership, scheduling, or a
-product consumer.
+product consumer. The missing runtime consumer boundary is frozen below as a
+contract-only design; its registration and two-pass bridge are not shipped.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -75,10 +76,11 @@ At this status:
    terminal state is deferred. It has no runtime registration, concrete surface
    projection, focus/accessibility pin ownership, scheduling, or product
    consumer.
-4. No runtime is required or wired to query keyed ranges, materialize keyed
-   items, or recycle item slots according to this document; the private kernel
-   exercises those operations only through explicit crate-private projector
-   and lifecycle seams.
+4. The runtime consumer boundary is specified in [Runtime consumer boundary](#105-runtime-consumer-boundary-contract-only),
+   but no runtime is required or wired to query keyed ranges, materialize keyed
+   items, or recycle item slots according to it. The private kernel exercises
+   those operations only through explicit crate-private projector and lifecycle
+   seams.
 5. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
 6. A future slice must name the subset of this contract it implements and must
@@ -193,7 +195,7 @@ must preserve the ownership boundaries.
 | Application data and key extraction | Host application/data source | Owns records, membership, ordering, sorting/filtering, loading, and stable key extraction. Supplies a snapshot and `data_revision`. It must not delegate domain identity to a visible index or to widget allocation. |
 | UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, anchor resolution, and bounded semantic answers. It must not mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
 | Radiant visible-window coordinator | Radiant, one instance per mounted container | Owns viewport/overscan state, query sequence, revision fences, cancellation, accepted-window fallback, anchor state, invalidation coalescing, and the desired keyed set. It is the only component that commits a window. |
-| Materialization and reconciliation | Radiant coordinator/runtime with an explicit host item projection boundary | Radiant chooses which accepted keys require runtime items and reconciles retained slots by key. The host supplies item data and an explicit item projection/materializer. Querying never implicitly constructs a widget. |
+| Materialization and reconciliation | Eventual `SurfaceRuntime` owner, one materialization record per mounted virtual-container generation, using the coordinator/runtime and an explicit host item projection boundary | `SurfaceRuntime` owns the retained record and chooses which accepted keys require runtime items, then reconciles slots by key. `AppBridge`, `RuntimeBridge`, the policy adapter, and product/application state do not own retained slots. The host supplies item data and an explicit item projection/materializer; querying never implicitly constructs a widget. |
 | Measurement | Radiant layout/measurement path, using host-provided item content | Owns measurement requests, measurement cache validity, `measurement_revision`, and the promotion of measured bounds into the next accepted result. The host may provide intrinsic-size inputs but does not mutate the coordinator's cache. |
 | Focus and accessibility | Radiant focus/semantic layer with app-supplied semantic data | Owns focus, keyboard traversal, pointer capture continuity, bounded pins, and semantic requests. The host supplies labels, values, roles, actions, and domain focus policy; it does not force a permanent offscreen widget tree. |
 | Culling, paint, and hit testing | Radiant layout/input/paint runtime | Consumes accepted item bounds and the scroll clip. Paints visible accepted items, hit-tests only eligible visible/pinned runtime geometry, and never asks the policy to create hidden hit targets during a pointer event. |
@@ -641,9 +643,9 @@ This diagram is **non-API pseudocode**. The required transitions are:
 
 | State/event | Required behavior |
 | --- | --- |
-| Mount | Admit one unique container/policy identity, create a new `mount_generation`, reset or initialize the coordinator, and issue an initial bounded query. Mount does not materialize the entire data set. |
+| Mount | The eventual `SurfaceRuntime` owner admits one unique container/policy identity, discovers the future registration descriptor during the shell pass, creates a new `mount_generation`, resets or initializes the coordinator, and issues an initial bounded query. Mount does not materialize the entire data set. |
 | Querying | Capture the exact fence and cancellation token. The policy may return accepted candidates, deferred work, or a rejection, but it cannot mutate runtime state. |
-| Accept | Validate fence, keys, bounds, extent, budgets, anchor, and diagnostics. Commit the accepted window atomically, then reconcile the bounded desired item set. |
+| Accept | Validate fence, keys, bounds, extent, budgets, anchor, and diagnostics. Commit the accepted window atomically, then reconcile the bounded desired item set. This is kernel evidence only; it does not expose a partial child collection. |
 | Reject | Do not install any part of the result. Keep an eligible previous-valid-window fallback; otherwise publish a safe empty/placeholder result. Record a bounded reason and schedule retry only when useful. |
 | Scroll | Advance `viewport_revision`, cancel/supersede the prior query, preserve the current safe fallback, and issue a new bounded query. Scroll does not itself transfer item lifecycle. |
 | Measurement | Accept only a key-matching, exact-fenced measurement. Advance `measurement_revision`, update caches, recompute anchor correction, and issue a new query when geometry/extent changes. |
@@ -748,6 +750,115 @@ interaction and semantic state reset, and its old fence retired. Reuse then
 mounts a new item as a fresh lifecycle. A pool must never retain an active
 focus/capture/IME/semantic registration or use a stale item key as a lookup
 shortcut.
+
+### 10.5 Runtime consumer boundary (contract-only)
+
+This section freezes the missing runtime consumer boundary before an executable
+adapter chooses startup, identity, ownership, or lifecycle policy. It is a
+normative contract, not a shipped registration mechanism. Names, trait
+signatures, and storage types remain non-API until a later implementation slice.
+
+For one mounted virtual container generation, the eventual owner of exactly one
+materialization record is `SurfaceRuntime`. The record may contain the
+coordinator evidence, retained item payloads, slot generations, and lifecycle
+authority needed for that mounted generation, but it is one runtime-owned record
+rather than one retained owner per callback or per policy result. `AppBridge`,
+`RuntimeBridge`, the policy adapter, and product/application state MUST NOT own
+retained slots. They may supply immutable application data, projection
+descriptors, messages, or observations, but none of those boundaries may retain
+the materialized slot set.
+
+#### Registration evidence and the two-stage mount
+
+A future registration descriptor MUST be discoverable from the declarative
+`UiSurface`/`SurfaceContainer` shell before any materialized item children exist.
+The descriptor is shell evidence for the eventual runtime owner; it is not a
+new public registration/API in this slice. No public export, public
+registration method, or capability contract version is added now.
+
+Initial mount is a synchronous two-stage pipeline on the owning UI runtime. Its
+required order is:
+
+```text
+pull shell → project/layout shell → query → project complete item batch
+→ identity admission → lifecycle commit → install children → final project/layout
+```
+
+The shell stage pulls the declarative shell, discovers the descriptor, and
+projects/layouts only enough to obtain container viewport and coordinate-space
+evidence for the exact query. It MUST NOT expose an incomplete collection,
+placeholder child set, or partially installed item batch to paint, hit testing,
+focus, semantics, or an observing host. After a query is accepted, the item
+stage pure-projects the complete bounded active batch, admits its identities,
+commits lifecycle, installs the complete child set, and performs the final
+projection/layout. A rejected, deferred, stale, or otherwise non-accepted query
+does not start the item stage.
+
+Refresh MUST repeat the same shell-and-item sequence when registration evidence,
+container/policy scope, data or measurement fence, coordinate evidence, or
+relevant geometry changes. A viewport change is relevant geometry: a viewport
+relayout alone MUST NOT leave an accepted virtual window silently stale. The
+consumer must invalidate/requery the affected coordinator before treating that
+window as authoritative, even when the general `SurfaceRuntime` refresh path
+could otherwise reuse completed layout. A previous-valid fallback may remain
+visible only under the exact fallback fence rules; it is not a new incomplete
+collection.
+
+#### Projection, identity, and retained payload
+
+The host item projector consumes only exact accepted kernel evidence from the
+committed window. Any immutable projection descriptor/data it uses is part of
+that admitted evidence, not a mutable runtime lookup. It MUST NOT read the
+scheduler, renderer, focus or interaction state, or any other mutable runtime
+state while projecting. It MUST not query the policy again or use a newer
+unaccepted result to fill missing fields.
+
+Future `ViewNode` lowering occurs as a fallible, pure projection/preflight step
+before any lifecycle callback. The retained payload passed to the materialization
+store is an immutable `SurfaceNode` subtree. Runtime-mutated widget instances,
+traversal indexes, focus/capture state, and other mutable runtime objects MUST
+never enter that store as retained payload.
+
+Each materialized item is lowered below a slot wrapper whose scoped identity is
+the tuple `(container NodeId, mount generation, slot index, checked slot
+generation)`. A compatible same-key refresh preserves the complete wrapper
+identity and all descendant identity. Removal or incompatible replacement
+unmounts the old item and advances the checked slot generation before the slot
+can be reused; a new container generation supplies a new mount generation.
+Descendants MUST be scoped below their slot wrapper, never directly beside the
+container or in a shared scene/root scope, so a recycled slot cannot collide
+with a sibling or transfer descendant state.
+
+The first adapter MUST reject an item that supplies an explicit raw `NodeId` or
+a direct/pre-retained `SurfaceNode` identity. It MUST also reject scene-level
+presentation, shortcut, overlay, or other out-of-band effects from an item
+subtree. Those forms remain unsupported unless a later contract defines
+collision-safe remapping and ownership for them; the adapter MUST NOT guess a
+remapping or promote an item effect to the containing scene.
+
+Whole-shell and active-batch identity admission is one transaction and MUST
+complete before any lifecycle side effect. The shell identity, registration
+scope, slot wrappers, and every active descendant identity are admitted before
+`unmount`, `reset`, `reconcile`, or `mount` can run. A projection, identity, or
+capacity rejection before callbacks leaves the current authoritative kernel
+state recoverable, preserving the shipped materialization-kernel behavior.
+
+#### Unmount, failure, and callback boundaries
+
+Descriptor removal, container-generation replacement, and runtime close each
+perform one explicit unmount transition for the affected materialization record
+before dropping that materialization owner/record from `SurfaceRuntime`. A
+cleanly retired record ignores a duplicate close/removal without replaying an
+unmount callback. If a lifecycle callback fails, unwinds, or re-enters, the
+terminal lifecycle state suppresses the partial materialized tree; it does not
+automatically retry, replay callbacks, or transfer state to a replacement.
+Replacement and recovery policy are deferred to later runtime integration.
+
+This boundary is synchronous and has no scheduler or renderer callbacks. The
+future bridge may request ordinary runtime work through an already-existing
+host contract, but it does not make scheduler/renderer policy part of item
+projection or lifecycle admission. Existing public APIs and all existing
+contract versions remain unchanged.
 
 ## 11. Focus, accessibility, culling, paint, and hit testing
 
@@ -895,7 +1006,41 @@ same-key continuity, incompatible replacement cleanup, fail-stop lifecycle
 retirement, and unmount tests. Cancellation and those later runtime and product
 consumers remain unshipped.
 
-### Slice 4 — Focus and accessibility
+### Slice 4 — Private retained-item adapter (next executable PR)
+
+The next executable PR is the **private retained-item adapter**. It must provide
+fallible, scoped `ViewNode` lowering for one complete accepted item batch, whole
+shell-plus-batch identity admission, slot-wrapper/descendant identity evidence,
+and an immutable `SurfaceNode` payload for the existing private kernel. It must
+reject explicit raw `NodeId`/direct retained `SurfaceNode` identities and
+scene-level presentation, shortcut, overlay, or out-of-band effects until a
+collision-safe remapping contract exists. It must run entirely in pure
+projection/preflight and must not register `SurfaceRuntime`, invoke lifecycle
+callbacks, call a scheduler or renderer, or add a public API or contract
+version.
+
+Acceptance requires all-or-nothing pre-callback admission, compatible same-key
+identity preservation, generation advancement for removal and incompatible
+replacement, descendant scoping below the wrapper, and recoverable projection,
+identity, and capacity rejection. This adapter is the prerequisite for direct
+runtime registration; it is not that registration.
+
+### Slice 5 — `SurfaceRuntime` registration and two-pass bridge
+
+A separate later PR may connect the future shell registration descriptor to one
+`SurfaceRuntime` materialization record per mounted container generation. It
+must implement the synchronous shell/item pipeline, repeat it for registration
+or relevant geometry changes (including viewport invalidation), and explicitly
+unmount exactly once before descriptor removal, container-generation
+replacement, or runtime close drops the materialization owner/record from
+`SurfaceRuntime`. Terminal lifecycle failure must
+suppress partial materialization without automatic retry or state transfer;
+replacement and recovery remain a later runtime-integration policy. This bridge
+must not move retained-slot ownership into `AppBridge`, `RuntimeBridge`, policy,
+or product state, and must not add scheduler/renderer callbacks, public APIs, or
+contract versions.
+
+### Slice 6 — Focus and accessibility
 
 Add bounded focus/capture/semantic pins, on-demand semantic results, focus
 follow/anchor integration, semantic revision fencing, and keyboard/accessibility
@@ -903,7 +1048,7 @@ traversal over offscreen keys. Acceptance requires one-item semantic requests,
 pin limits, focus preservation/removal, semantic-only non-paint behavior, and
 no permanent full accessibility tree.
 
-### Slice 5 — Performance and deferred work
+### Slice 7 — Performance and deferred work
 
 Add measured cache strategy, deferred query/measurement scheduling, bounded
 invalidation coalescing, diagnostics/telemetry, and performance regression
@@ -932,6 +1077,7 @@ following matrix is the minimum evidence for each relevant slice.
 | Anchor reorder/measurement | Reorder anchor, size change before/at anchor, viewport resize | Key continuity and measurement delta correction; no arbitrary recentering. |
 | Revision fences | Each data/policy/measurement/semantic/viewport revision changed independently and together; out-of-order completion | Exact mismatch rejection; old result cannot overwrite accepted state; only current fence publishes. |
 | Cancellation/unmount | New query, scroll burst, policy replacement, unmount with in-flight query/measurement/semantic work | Cancellation is delivered or safely ignored; no late mount, commit, callback, or resurrection after unmount. |
+| Runtime consumer boundary | Synchronous shell/item mount, descriptor removal, generation replacement, runtime close, viewport relayout, terminal lifecycle failure | One `SurfaceRuntime` record owns each mounted generation; no externally visible partial batch; exact-once unmount precedes owner drop; no automatic retry or state transfer. |
 | Fallback/rejection | Deferred query, malformed result, transient unavailable data, content revision while querying | Prior valid window is used only under eligible fences; otherwise inert/empty fallback; rejection is bounded and retry is non-reentrant. |
 | Reconciliation | Same-key update/reorder, removed key, new key, incompatible same-key kind | Remove-before-reuse; same-key compatible state continuity; incompatible replacement has no lifecycle/interaction transfer. |
 | Recycling | Pool reuse under scroll churn and mixed item kinds | Reused storage is reset; active capture/focus/semantic state never leaks across keys. |

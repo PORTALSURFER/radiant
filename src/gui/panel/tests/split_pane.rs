@@ -1,8 +1,9 @@
 use crate::gui::panel::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
-    SplitPaneSidebarPanes, SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel,
-    SplitPaneTreePanelIdentity,
+    SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts, SplitPaneSidebarPanes,
+    SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel, SplitPaneTreePanelIdentity,
 };
+use crate::gui::types::{Point, Rect};
 
 #[test]
 fn split_pane_slot_defaults_to_upper() {
@@ -120,4 +121,214 @@ fn split_pane_sidebar_state_routes_active_pane() {
 
     assert_eq!(sidebar.panes.upper_pane.identity.title, "Upper");
     assert_eq!(sidebar.panes.lower_pane.assignment.item_label, "Active");
+}
+
+#[test]
+fn split_pane_layout_resolves_horizontal_geometry() {
+    let layout = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: Rect::from_min_max(Point::new(0.0, 10.0), Point::new(200.0, 110.0)),
+        axis: SplitPaneAxis::Horizontal,
+        ratio: 0.25,
+        divider_extent: 8.0,
+        first_min_extent: 40.0,
+        second_min_extent: 60.0,
+    });
+
+    assert_eq!(
+        layout.first,
+        Rect::from_min_max(Point::new(0.0, 10.0), Point::new(48.0, 110.0))
+    );
+    assert_eq!(
+        layout.divider,
+        Rect::from_min_max(Point::new(48.0, 10.0), Point::new(56.0, 110.0))
+    );
+    assert_eq!(
+        layout.second,
+        Rect::from_min_max(Point::new(56.0, 10.0), Point::new(200.0, 110.0))
+    );
+    assert_eq!(layout.divider_extent, 8.0);
+    assert!(layout.minima_satisfied);
+}
+
+#[test]
+fn split_pane_layout_resolves_vertical_geometry() {
+    let layout = SplitPaneLayout::new(
+        Rect::from_min_max(Point::new(20.0, 30.0), Point::new(220.0, 150.0)),
+        SplitPaneAxis::Vertical,
+        0.4,
+        20.0,
+        30.0,
+        40.0,
+    );
+
+    assert_eq!(
+        layout.first,
+        Rect::from_min_max(Point::new(20.0, 30.0), Point::new(220.0, 70.0))
+    );
+    assert_eq!(
+        layout.divider,
+        Rect::from_min_max(Point::new(20.0, 70.0), Point::new(220.0, 90.0))
+    );
+    assert_eq!(
+        layout.second,
+        Rect::from_min_max(Point::new(20.0, 90.0), Point::new(220.0, 150.0))
+    );
+    assert!(layout.minima_satisfied);
+}
+
+#[test]
+fn split_pane_layout_clamps_ratio_and_enforces_minimums() {
+    let low = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: Rect::from_size(200.0, 40.0),
+        axis: SplitPaneAxis::Horizontal,
+        ratio: -1.0,
+        divider_extent: 20.0,
+        first_min_extent: 60.0,
+        second_min_extent: 50.0,
+    });
+    let high = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        ratio: 2.0,
+        ..SplitPaneLayoutParts {
+            bounds: Rect::from_size(200.0, 40.0),
+            axis: SplitPaneAxis::Horizontal,
+            ratio: 0.0,
+            divider_extent: 20.0,
+            first_min_extent: 60.0,
+            second_min_extent: 50.0,
+        }
+    });
+
+    assert_eq!(low.ratio, 0.0);
+    assert_eq!(low.first.width(), 60.0);
+    assert_eq!(low.second.width(), 120.0);
+    assert!(low.minima_satisfied);
+    assert_eq!(high.ratio, 1.0);
+    assert_eq!(high.first.width(), 130.0);
+    assert_eq!(high.second.width(), 50.0);
+    assert!(high.minima_satisfied);
+}
+
+#[test]
+fn split_pane_layout_clamps_divider_to_bounds() {
+    let layout = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 60.0)),
+        axis: SplitPaneAxis::Horizontal,
+        ratio: 0.5,
+        divider_extent: 100.0,
+        first_min_extent: 0.0,
+        second_min_extent: 0.0,
+    });
+
+    assert_eq!(layout.divider_extent, 40.0);
+    assert_eq!(
+        layout.first,
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 60.0))
+    );
+    assert_eq!(layout.divider, layout.bounds);
+    assert_eq!(
+        layout.second,
+        Rect::from_min_max(Point::new(50.0, 20.0), Point::new(50.0, 60.0))
+    );
+    assert!(layout.minima_satisfied);
+}
+
+#[test]
+fn split_pane_layout_reports_undersized_minimum_fallback() {
+    let layout = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: Rect::from_size(100.0, 40.0),
+        axis: SplitPaneAxis::Horizontal,
+        ratio: 0.25,
+        divider_extent: 20.0,
+        first_min_extent: 60.0,
+        second_min_extent: 60.0,
+    });
+
+    assert_eq!(layout.first.width(), 20.0);
+    assert_eq!(layout.divider.width(), 20.0);
+    assert_eq!(layout.second.width(), 60.0);
+    assert!(!layout.minima_satisfied);
+    assert_eq!(
+        layout.first.union(layout.divider).union(layout.second),
+        layout.bounds
+    );
+}
+
+#[test]
+fn split_pane_layout_sanitizes_nonfinite_inputs() {
+    let layout = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: Rect::from_min_max(Point::new(20.0, 30.0), Point::new(120.0, 70.0)),
+        axis: SplitPaneAxis::Vertical,
+        ratio: f32::NAN,
+        divider_extent: f32::INFINITY,
+        first_min_extent: f32::NEG_INFINITY,
+        second_min_extent: f32::NAN,
+    });
+
+    assert_eq!(layout.ratio, 0.5);
+    assert_eq!(layout.divider_extent, 0.0);
+    assert_eq!(layout.first_min_extent, 0.0);
+    assert_eq!(layout.second_min_extent, 0.0);
+    assert!(layout.minima_satisfied);
+    for rect in [layout.bounds, layout.first, layout.divider, layout.second] {
+        assert!(rect.is_finite());
+        assert!(rect.width() >= 0.0);
+        assert!(rect.height() >= 0.0);
+    }
+}
+
+#[test]
+fn split_pane_layout_rects_stay_normalized_nonoverlapping_and_cover_bounds() {
+    for (axis, bounds, ratio, divider_extent, first_min_extent, second_min_extent) in [
+        (
+            SplitPaneAxis::Horizontal,
+            Rect::from_min_max(Point::new(80.0, 20.0), Point::new(10.0, 140.0)),
+            0.8,
+            12.0,
+            24.0,
+            36.0,
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            Rect::from_min_max(Point::new(30.0, 90.0), Point::new(210.0, 10.0)),
+            0.2,
+            16.0,
+            48.0,
+            32.0,
+        ),
+    ] {
+        let layout = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+            bounds,
+            axis,
+            ratio,
+            divider_extent,
+            first_min_extent,
+            second_min_extent,
+        });
+
+        assert_eq!(
+            layout.bounds,
+            match axis {
+                SplitPaneAxis::Horizontal =>
+                    Rect::from_min_max(Point::new(10.0, 20.0), Point::new(80.0, 140.0),),
+                SplitPaneAxis::Vertical =>
+                    Rect::from_min_max(Point::new(30.0, 10.0), Point::new(210.0, 90.0),),
+            }
+        );
+        for rect in [layout.first, layout.divider, layout.second] {
+            assert!(rect.is_finite());
+            assert!(rect.width() >= 0.0);
+            assert!(rect.height() >= 0.0);
+            assert!(rect.min.x >= layout.bounds.min.x);
+            assert!(rect.min.y >= layout.bounds.min.y);
+            assert!(rect.max.x <= layout.bounds.max.x);
+            assert!(rect.max.y <= layout.bounds.max.y);
+        }
+        assert!(!layout.first.overlaps(layout.divider));
+        assert!(!layout.divider.overlaps(layout.second));
+        assert!(!layout.first.overlaps(layout.second));
+        assert_eq!(
+            layout.first.union(layout.divider).union(layout.second),
+            layout.bounds
+        );
+    }
 }

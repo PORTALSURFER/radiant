@@ -5,6 +5,7 @@ use crate::gui::{
 };
 
 mod assigned_row;
+mod geometry;
 mod sidebar_state;
 mod slot;
 mod tree_panel;
@@ -12,6 +13,7 @@ mod tree_panel;
 pub use assigned_row::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
 };
+pub use geometry::{SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts};
 pub use sidebar_state::{
     SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
     SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls,

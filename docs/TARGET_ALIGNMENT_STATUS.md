@@ -8,7 +8,7 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`0bf39879`**
+- Canonical main: **`21e7b62a`**
 - Overall estimate: **~77%**
 - Working range: **71–83%**
 - Confidence: **medium**
@@ -25,6 +25,10 @@ crate-private materialization/recycling correctness kernel with exact
 accepted-commit admission, deterministic keyed lifecycle ordering, success-only
 atomic publication, and terminal fail-stop behavior for lifecycle failure.
 Runtime materialization/consumer integration gaps remain.
+PR #1606 now ships the normative runtime consumer boundary as a docs-only
+contract: the next executable item remains the private retained-item adapter,
+followed by the separate `SurfaceRuntime` registration/two-pass bridge. The
+numeric estimate is unchanged because no runtime behavior shipped.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the missing virtualization consumer boundary is now contract-ready
@@ -38,7 +42,7 @@ two-pass `SurfaceRuntime` bridge are not shipped.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 88% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, and a private materialization/recycling correctness kernel are shipped in PRs #1597–#1605. The runtime consumer boundary is contract-ready, but retained-item admission, direct registration/two-pass integration, product-specific `split_pane` behavior, and the remaining executable product virtualization proof remain unshipped. |
+| Layout, composition, virtualization | 88% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, and the normative runtime consumer boundary are shipped in PRs #1597–#1606. Retained-item admission, direct registration/two-pass integration, product-specific `split_pane` behavior, and the remaining executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -100,7 +104,8 @@ complete.
 
 ## Architecture readiness versus shipped runtime behavior
 
-The normative consumer contract is ready for the next implementation sequence:
+The normative consumer contract shipped in PR #1606 and is ready for the next
+implementation sequence:
 `SurfaceRuntime` will eventually own one materialization record per mounted
 virtual-container generation, with shell-discoverable registration evidence and
 a synchronous two-stage mount/refresh boundary. Direct registration is blocked
@@ -200,4 +205,5 @@ After each merged alignment slice:
 | 2026-08-05 | `4b6e1118` | ~74% (68–80%, medium confidence) | PR #1603 shipped the qualified query-only `VirtualLayoutPolicy`/`VirtualLayoutQueryExecutor` capability with bounded output, typed outcomes, exact fences, stable identity rejection, and public/guardrail tests; layout alignment moves to 82%, while keyed visible-window reconciliation and later materialization remain. |
 | 2026-08-05 | `0789ea49` | ~76% (70–82%, medium confidence) | PR #1604 shipped the private query-only `VirtualLayoutWindowCoordinator` with bounded accepted-window reconciliation, logical-index/emission-order-independent deltas, conservative same-key anchor/fallback behavior, exact revision/owner-token fences, and full local/CI validation; the next generic gap is runtime materialization/recycling consumer integration, while authoritative removed-anchor evidence and product-specific `split_pane` behavior remain deferred. |
 | 2026-08-05 | `4d2718e7` | ~77% (71–83%, medium confidence) | PR #1605 shipped the private query-only materialization/recycling correctness kernel with exact accepted-commit admission, keyed slot/generation continuity, deterministic lifecycle ordering, success-only atomic publication, terminal fail-stop lifecycle retirement, bounded diagnostics, and full local/CI validation; the next generic gap is runtime consumer registration/adaptation into retained `ViewNode`/`SurfaceNode` construction, while replacement/recovery policy and product-specific `split_pane` behavior remain deferred. |
-| 2026-08-06 | `0bf39879` | ~77% (71–83%, medium confidence) | The normative runtime consumer boundary is contract-ready but not shipped: direct registration is blocked on the private retained-item admission adapter and a separate `SurfaceRuntime` registration/two-pass bridge; no runtime behavior, public API, or capability version changed. |
+| 2026-08-06 | `0bf39879` | ~77% (71–83%, medium confidence) | The normative runtime consumer boundary was contract-ready on the PR #1606 base; direct registration remained blocked on the private retained-item admission adapter and a separate `SurfaceRuntime` registration/two-pass bridge; no runtime behavior, public API, or capability version changed. |
+| 2026-08-06 | `21e7b62a` | ~77% (71–83%, medium confidence) | PR #1606 merged the docs-only normative runtime consumer boundary with exact `SurfaceRuntime` ownership, synchronous shell/item sequencing, batch identity admission, fallible scoped lowering, immutable retained payloads, and explicit close/failure rules. The estimate remains unchanged because direct runtime registration and retained-item admission are still unshipped; the next dependency-correct item is the private retained-item adapter. |

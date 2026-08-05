@@ -4,7 +4,7 @@ use super::SurfaceRuntime;
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
-    surface::{SurfaceDamage, ViewDeltaDiagnostics, ViewDeltaEffect, classify_view_delta},
+    surface::{RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics, classify_view_delta},
 };
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
@@ -641,9 +641,11 @@ mod tests {
 
         runtime.refresh_with_scope(RepaintScope::Surface);
         assert_eq!(runtime.refresh_counters().layout, before + 1);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
 
         runtime.refresh_with_scope(RepaintScope::Projection);
         assert_eq!(runtime.refresh_counters().layout, before + 2);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -660,10 +662,12 @@ mod tests {
         runtime.viewport.max.x += 1.0;
         runtime.refresh();
         assert_eq!(runtime.refresh_counters().layout, baseline + 1);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
 
         runtime.layout_debug_options = crate::layout::LayoutDebugOptions::bounds_only();
         runtime.refresh();
         assert_eq!(runtime.refresh_counters().layout, baseline + 2);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
 
         runtime.set_window_environment(crate::runtime::WindowEnvironment::new(
             crate::theme::DpiScale::new(2.0),
@@ -673,15 +677,35 @@ mod tests {
         ));
         runtime.refresh();
         assert_eq!(runtime.refresh_counters().layout, baseline + 3);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
+
+        runtime.layout_state_generation = runtime.layout_state_generation.saturating_add(1);
+        runtime.refresh();
+        assert_eq!(runtime.refresh_counters().layout, baseline + 4);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
+
+        runtime.external_layout_dirty = true;
+        runtime.refresh();
+        assert_eq!(runtime.refresh_counters().layout, baseline + 5);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
     fn paint_only_refresh_skips_view_delta_classification() {
-        let mut runtime =
-            SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        assert!(runtime.base_paint_plan_reuse_eligible());
 
         runtime.refresh_with_scope(RepaintScope::PaintOnly);
 
+        assert!(!runtime.base_paint_plan_reuse_eligible());
         let summary = runtime.last_view_delta_diagnostics;
         assert!(!summary.classified);
         assert_eq!(summary.total_events, 0);
@@ -698,8 +722,10 @@ mod tests {
             Vector2::new(120.0, 80.0),
         );
         runtime.scratch.view_delta = crate::runtime::surface::ViewDeltaScratch::with_capacity(0);
+        let _ = runtime.take_frame_refresh_diagnostics();
+        let layout_before = runtime.refresh_counters().layout;
 
-        runtime.refresh();
+        runtime.refresh_with_scope(RepaintScope::Projection);
 
         let summary = runtime.last_view_delta_diagnostics;
         assert!(summary.classified);
@@ -713,6 +739,10 @@ mod tests {
         );
         assert_eq!(summary.total_events, 1);
         assert_eq!(summary.recorded_events, 1);
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.effective_scope, RepaintScope::Surface);
+        assert_eq!(runtime.refresh_counters().layout, layout_before + 1);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -758,7 +788,10 @@ mod tests {
             .expect("geometry refresh should retain one bounded candidate");
         assert!(candidate.old_bounds.is_some());
         assert!(candidate.new_bounds.is_some());
-        assert_eq!(candidate.effect, ViewDeltaEffect::Geometry);
+        assert_eq!(
+            candidate.effect,
+            crate::runtime::surface::ViewDeltaEffect::Geometry
+        );
     }
 
     #[test]
@@ -803,6 +836,8 @@ mod tests {
         let frame = runtime.take_frame_refresh_diagnostics();
         assert_eq!(frame.requested_scope, RepaintScope::Projection);
         assert_eq!(frame.effective_scope, RepaintScope::Surface);
+        assert!(frame.view_delta.base_paint_reuse_safe);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -1123,41 +1158,15 @@ impl SurfaceRefreshDiagnostics {
     }
 }
 
-fn effective_scope(requested: RepaintScope, view_delta: ViewDeltaDiagnostics) -> RepaintScope {
-    if requested.is_paint_only() {
-        return RepaintScope::PaintOnly;
-    }
-    if !view_delta.classified {
-        return RepaintScope::Surface;
-    }
-    match (requested, view_delta.effect) {
-        (RepaintScope::Surface, _) => RepaintScope::Surface,
-        (RepaintScope::Layout, ViewDeltaEffect::Structural) => RepaintScope::Surface,
-        (RepaintScope::Layout, _) => RepaintScope::Layout,
-        (RepaintScope::Projection, ViewDeltaEffect::Structural) => RepaintScope::Surface,
-        (RepaintScope::Projection, ViewDeltaEffect::Geometry) => RepaintScope::Layout,
-        (RepaintScope::Projection, _) => RepaintScope::Projection,
-        (RepaintScope::PaintOnly, _) => RepaintScope::PaintOnly,
-    }
-}
-
 fn can_reuse_completed_layout<Bridge, Message>(
     runtime: &SurfaceRuntime<Bridge, Message>,
-    requested: RepaintScope,
-    view_delta: ViewDeltaDiagnostics,
+    decision: RefreshExecutionDecision,
 ) -> bool
 where
     Bridge: RuntimeBridge<Message>,
 {
-    if !matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
-        || !view_delta.classified
+    if !decision.allows_completed_layout_reuse()
         || !runtime.scratch.view_delta.has_identity_capacity()
-        || view_delta.omitted_events != 0
-        || view_delta.truncated_paths
-        || !matches!(
-            view_delta.effect,
-            ViewDeltaEffect::Paint | ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
-        )
     {
         return false;
     }
@@ -1174,23 +1183,12 @@ where
 
 fn can_reuse_base_paint_plan<Bridge, Message>(
     runtime: &SurfaceRuntime<Bridge, Message>,
-    requested: RepaintScope,
-    view_delta: ViewDeltaDiagnostics,
+    decision: RefreshExecutionDecision,
 ) -> bool
 where
     Bridge: RuntimeBridge<Message>,
 {
-    matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
-        && view_delta.classified
-        && runtime.scratch.view_delta.has_identity_capacity()
-        && view_delta.omitted_events == 0
-        && !view_delta.truncated_paths
-        && view_delta.base_paint_reuse_safe
-        && matches!(
-            view_delta.effect,
-            ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
-        )
-        && can_reuse_completed_layout(runtime, requested, view_delta)
+    decision.allows_base_paint_plan_reuse() && can_reuse_completed_layout(runtime, decision)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1267,6 +1265,10 @@ where
         let view_delta_started = Instant::now();
         let raw_view_delta =
             classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
+        let execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
+        let effective_scope = execution.effective_scope();
+        let reuse_completed_layout = can_reuse_completed_layout(self, execution);
+        self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, execution);
         let damage = SurfaceDamage::from_view_delta(
             &raw_view_delta,
             &raw_view_delta.reconciliation_plan(),
@@ -1275,9 +1277,6 @@ where
             self.viewport,
         );
         let mut view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
-        let effective_scope = effective_scope(scope, view_delta);
-        let reuse_completed_layout = can_reuse_completed_layout(self, scope, view_delta);
-        self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, scope, view_delta);
 
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,

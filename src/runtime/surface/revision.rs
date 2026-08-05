@@ -10,6 +10,7 @@ use super::widget::{
 };
 use crate::gui::types::Rect;
 use crate::layout::{ContainerPolicy, LayoutOutput, NodeId, SlotParams};
+use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
 use std::collections::HashSet;
@@ -813,6 +814,72 @@ pub(crate) struct ViewDelta {
     pub(crate) truncated_paths: bool,
     pub(crate) matched_nodes: u32,
     pub(crate) conservative: bool,
+}
+
+/// Private execution authority derived from one complete raw view-delta scan.
+///
+/// Diagnostics, reconciliation feasibility, and damage remain observational
+/// products of the same scan. They cannot construct or widen this decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RefreshExecutionDecision {
+    effective_scope: RepaintScope,
+    completed_layout_reuse: bool,
+    base_paint_plan_reuse: bool,
+}
+
+impl RefreshExecutionDecision {
+    pub(in crate::runtime) fn from_view_delta(requested: RepaintScope, delta: &ViewDelta) -> Self {
+        let complete = !delta.conservative && delta.omitted_events == 0 && !delta.truncated_paths;
+        let effect = if complete {
+            delta.effect
+        } else {
+            ViewDeltaEffect::Structural
+        };
+        let effective_scope = match (requested, effect) {
+            (RepaintScope::Surface, _) => RepaintScope::Surface,
+            (RepaintScope::Layout, ViewDeltaEffect::Structural) => RepaintScope::Surface,
+            (RepaintScope::Layout, _) => RepaintScope::Layout,
+            (RepaintScope::Projection, ViewDeltaEffect::Structural) => RepaintScope::Surface,
+            (RepaintScope::Projection, ViewDeltaEffect::Geometry) => RepaintScope::Layout,
+            (RepaintScope::Projection, _) => RepaintScope::Projection,
+            (RepaintScope::PaintOnly, _) => RepaintScope::PaintOnly,
+        };
+        let completed_layout_reuse = complete
+            && matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
+            && matches!(
+                effect,
+                ViewDeltaEffect::Paint | ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+            );
+        let base_paint_plan_reuse = completed_layout_reuse
+            && matches!(
+                effect,
+                ViewDeltaEffect::Interaction | ViewDeltaEffect::Unchanged
+            )
+            && delta.events.iter().flatten().all(|event| {
+                matches!(
+                    event.cause,
+                    ViewDeltaCause::WidgetCapabilities | ViewDeltaCause::WidgetRevision
+                )
+            });
+
+        Self {
+            effective_scope,
+            completed_layout_reuse,
+            base_paint_plan_reuse,
+        }
+    }
+
+    pub(in crate::runtime) const fn effective_scope(self) -> RepaintScope {
+        self.effective_scope
+    }
+
+    pub(in crate::runtime) const fn allows_completed_layout_reuse(self) -> bool {
+        self.completed_layout_reuse
+    }
+
+    pub(in crate::runtime) const fn allows_base_paint_plan_reuse(self) -> bool {
+        self.base_paint_plan_reuse
+    }
 }
 
 /// Bounded summary retained by refresh diagnostics for one classifier pass.

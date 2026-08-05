@@ -368,7 +368,7 @@ impl Drop for ExecutionPhaseGuard<'_> {
 
 /// Non-zero-sized marker whose handle is compared only by allocation identity.
 #[derive(Debug)]
-struct CoordinatorIdentity(u8);
+pub(super) struct CoordinatorIdentity(u8);
 
 impl VirtualLayoutPendingQuery {
     /// Execute the policy outside the coordinator's mutable commit path.
@@ -459,12 +459,40 @@ pub(crate) enum VirtualLayoutCompletion {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct VirtualLayoutCommit {
-    pub(crate) view: VirtualLayoutWindowView,
-    pub(crate) delta: VirtualLayoutKeyDelta,
-    pub(crate) anchor: Option<VirtualLayoutAnchor>,
-    pub(crate) correction: Option<VirtualLayoutAnchorCorrection>,
-    pub(crate) accepted_revision: u64,
+pub(super) struct VirtualLayoutCommit {
+    fence: VirtualLayoutQueryFence,
+    owner: Rc<CoordinatorIdentity>,
+    view: VirtualLayoutWindowView,
+    delta: VirtualLayoutKeyDelta,
+    anchor: Option<VirtualLayoutAnchor>,
+    correction: Option<VirtualLayoutAnchorCorrection>,
+    accepted_revision: u64,
+}
+
+impl VirtualLayoutCommit {
+    /// Return the exact coordinator-accepted query fence.
+    #[must_use]
+    pub(super) const fn fence(&self) -> &VirtualLayoutQueryFence {
+        &self.fence
+    }
+
+    /// Return the coordinator-owned identity witness.
+    #[must_use]
+    pub(super) const fn owner(&self) -> &Rc<CoordinatorIdentity> {
+        &self.owner
+    }
+
+    /// Return the immutable accepted window view.
+    #[must_use]
+    pub(super) const fn view(&self) -> &VirtualLayoutWindowView {
+        &self.view
+    }
+
+    /// Return the monotonic coordinator-accepted revision.
+    #[must_use]
+    pub(super) const fn accepted_revision(&self) -> u64 {
+        self.accepted_revision
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -712,6 +740,12 @@ impl VirtualLayoutWindowCoordinator {
         self.accepted.as_ref()
     }
 
+    /// Return the coordinator-owned evidence that authorizes private
+    /// materialization of one committed window.
+    pub(super) fn owner_evidence(&self) -> Rc<CoordinatorIdentity> {
+        Rc::clone(&self.identity)
+    }
+
     /// Return the eligible, clipped previous-valid fallback for a new input.
     #[must_use]
     pub(crate) fn fallback_for(&self, input: &VirtualLayoutQueryInput) -> VirtualLayoutWindowView {
@@ -877,6 +911,7 @@ impl VirtualLayoutWindowCoordinator {
             correction,
             accepted_revision,
         };
+        let commit_fence = accepted.fence.clone();
         let view = VirtualLayoutWindowView {
             entries: accepted.entries.clone(),
             extent: Some(accepted.extent),
@@ -887,6 +922,8 @@ impl VirtualLayoutWindowCoordinator {
         self.accepted = Some(accepted);
         self.invalidations = VirtualLayoutInvalidationFlags::default();
         VirtualLayoutCompletion::Committed(Box::new(VirtualLayoutCommit {
+            fence: commit_fence,
+            owner: Rc::clone(&self.identity),
             view,
             delta,
             anchor: next_anchor,
@@ -1177,6 +1214,13 @@ mod tests {
     use super::*;
     use crate::gui::types::Vector2;
 
+    use super::super::materialization::{
+        VirtualLayoutHostProjector, VirtualLayoutLifecycleAdapter,
+        VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
+        VirtualLayoutMaterializationStore, VirtualLayoutProjection,
+        VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
+    };
+
     fn parts(
         query_sequence: u64,
         viewport: Rect,
@@ -1270,6 +1314,17 @@ mod tests {
         commit
     }
 
+    // Malformed commit copies are constructed only in this coordinator-owned
+    // test boundary. Production siblings receive no constructor or mutator.
+    fn clone_commit_with_entries(
+        commit: &VirtualLayoutCommit,
+        entries: Vec<VirtualLayoutItem>,
+    ) -> Box<VirtualLayoutCommit> {
+        let mut clone = Box::new(commit.clone());
+        clone.view.entries = entries;
+        clone
+    }
+
     struct DispositionPolicy {
         decision: super::super::VirtualLayoutPolicyDecision,
     }
@@ -1300,6 +1355,143 @@ mod tests {
         let _ = commit_policy(coordinator, &policy);
     }
 
+    struct TestMaterializationProjector;
+
+    impl VirtualLayoutHostProjector for TestMaterializationProjector {
+        type Payload = ();
+        type Error = ();
+
+        fn projection_kind(
+            &self,
+            _item: &VirtualLayoutItem,
+        ) -> Result<VirtualLayoutProjectionKind, Self::Error> {
+            Ok(VirtualLayoutProjectionKind::new("test-kind"))
+        }
+
+        fn project<'a>(
+            &self,
+            _evidence: VirtualLayoutProjectionEvidence<'a>,
+        ) -> Result<VirtualLayoutProjection<Self::Payload>, Self::Error> {
+            Ok(VirtualLayoutProjection::new(
+                VirtualLayoutProjectionKind::new("test-kind"),
+                (),
+            ))
+        }
+    }
+
+    struct TestMaterializationLifecycle;
+
+    impl VirtualLayoutLifecycleAdapter<()> for TestMaterializationLifecycle {
+        type Error = ();
+
+        fn compatible(
+            &self,
+            _previous: &VirtualLayoutProjectionKind,
+            _next: &VirtualLayoutProjectionKind,
+        ) -> Option<bool> {
+            Some(true)
+        }
+
+        fn unmount(
+            &mut self,
+            _payload: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn reset(
+            &mut self,
+            _payload: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn reconcile(
+            &mut self,
+            _previous: &(),
+            _next: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn mount(
+            &mut self,
+            _recycled_shell: Option<&()>,
+            _next: &(),
+            _evidence: VirtualLayoutProjectionEvidence<'_>,
+            _reentry: &VirtualLayoutMaterializationReentry<'_>,
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct FlakyKey {
+        state: Rc<Cell<bool>>,
+    }
+
+    impl PartialEq for FlakyKey {
+        fn eq(&self, _other: &Self) -> bool {
+            let value = self.state.get();
+            self.state.set(!value);
+            value
+        }
+    }
+
+    impl Eq for FlakyKey {}
+
+    #[test]
+    fn materialization_rejects_forged_entries_within_coordinator_test_boundary() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let valid = commit_policy(&mut coordinator, &ready_policy(&[1], 100.0));
+        let mut store =
+            VirtualLayoutMaterializationStore::new(&coordinator, TestMaterializationLifecycle);
+        let projector = TestMaterializationProjector;
+        let first = valid.view().entries[0].clone();
+
+        let mut duplicate_key_entry = first.clone();
+        duplicate_key_entry.logical_index = 1;
+        let duplicate_key =
+            clone_commit_with_entries(&valid, vec![first.clone(), duplicate_key_entry]);
+        assert!(matches!(
+            store.publish(&duplicate_key, &projector),
+            Err(VirtualLayoutMaterializationError::DuplicateKey)
+        ));
+
+        let mut duplicate_index_entry = first.clone();
+        duplicate_index_entry.key = VirtualLayoutItemKey::new(99_u32);
+        let duplicate_index =
+            clone_commit_with_entries(&valid, vec![first.clone(), duplicate_index_entry]);
+        assert!(matches!(
+            store.publish(&duplicate_index, &projector),
+            Err(VirtualLayoutMaterializationError::DuplicateLogicalIndex)
+        ));
+
+        let state = Rc::new(Cell::new(true));
+        let unstable_key = clone_commit_with_entries(
+            &valid,
+            vec![VirtualLayoutItem {
+                key: VirtualLayoutItemKey::new(FlakyKey { state }),
+                logical_index: 0,
+                bounds: Rect::from_xy_size(0.0, 0.0, 100.0, 10.0),
+                visibility: VirtualLayoutVisibility::Visible,
+                confidence: VirtualLayoutBoundsConfidence::Exact,
+            }],
+        );
+        assert!(matches!(
+            store.publish(&unstable_key, &projector),
+            Err(VirtualLayoutMaterializationError::UnstableKey)
+        ));
+        assert_eq!(store.active_len(), 0);
+    }
+
     #[test]
     fn initial_ready_commit_is_fenced_and_bounded() {
         let mut coordinator =
@@ -1312,6 +1504,26 @@ mod tests {
         assert_eq!(
             coordinator.invalidations(),
             VirtualLayoutInvalidationFlags::default()
+        );
+    }
+
+    #[test]
+    fn materialization_boundary_can_only_borrow_coordinator_admitted_commit_evidence() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let commit = commit_policy(&mut coordinator, &ready_policy(&[1, 2], 100.0));
+        let clone = commit.clone();
+
+        // This regression stays in coordinator::tests because only the
+        // coordinator boundary may name or mutate commit fields. The sibling
+        // materialization module receives only these immutable accessors.
+        assert_eq!(clone.fence(), commit.fence());
+        assert!(Rc::ptr_eq(clone.owner(), commit.owner()));
+        assert_eq!(clone.view().entries.len(), 2);
+        assert_eq!(clone.accepted_revision(), 1);
+        assert_eq!(
+            clone.view().accepted_revision,
+            Some(clone.accepted_revision())
         );
     }
 

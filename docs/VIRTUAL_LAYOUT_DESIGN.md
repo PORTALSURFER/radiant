@@ -1,9 +1,12 @@
 # Virtual Layout Design
 
 Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
-capability, bounded query executor, and crate-private visible-window
-coordinator are shipped as qualified query-only slices; keyed materialization
-and recycling described here are not shipped runtime or public API.
+capability and bounded query executor are shipped as qualified APIs; the
+crate-private visible-window coordinator and crate-private accepted-window
+materialization/recycling correctness kernel are shipped private slices. The
+materialization kernel is not runtime registration, concrete surface
+projection, public API, focus or accessibility pin ownership, scheduling, or a
+product consumer.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -46,7 +49,8 @@ future keyed design will reuse their names or internal representations.
 ### Status
 
 The contract is approved as a design target, with its first two query-only
-slices implemented. At this status:
+slices and a private materialization/recycling correctness kernel implemented.
+At this status:
 
 1. `radiant::layout::VirtualLayoutPolicy` and its bounded query-only identity,
    input, sink, fence, result, diagnostic, and disposition types provide the
@@ -58,12 +62,26 @@ slices implemented. At this status:
    continuity, clipped previous-valid fallback, and query-only anchor
    correction evidence. It does not register with a runtime or expose a
    materialization callback.
-3. No runtime is required to query keyed ranges, materialize keyed items, or
-   recycle item slots according to this document. The coordinator is not yet
-   connected to those consumers.
-4. The current fixed-child and host-projected fixed-row APIs retain their
+3. A crate-private accepted-window materialization/recycling kernel validates
+   exact scope, fence, owner, and revision evidence before projection or
+   lifecycle work. It stages pure host projection separately from lifecycle
+   callbacks, preserves stable key/kind continuity, unmounts and resets before
+   reuse, bounds active/recyclable/staging state, and atomically publishes the
+   complete state only after every lifecycle callback succeeds. Before the first
+   lifecycle callback it pessimistically enters an indeterminate state; a
+   callback error, reentry, or unwind terminally retires the kernel, clears its
+   authority, and never replays or compensates callbacks. Admission, projection,
+   and other pre-callback rejection remain recoverable. Runtime policy for that
+   terminal state is deferred. It has no runtime registration, concrete surface
+   projection, focus/accessibility pin ownership, scheduling, or product
+   consumer.
+4. No runtime is required or wired to query keyed ranges, materialize keyed
+   items, or recycle item slots according to this document; the private kernel
+   exercises those operations only through explicit crate-private projector
+   and lifecycle seams.
+5. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-5. A future slice must name the subset of this contract it implements and must
+6. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope
@@ -700,6 +718,16 @@ focus, IME, drag, hover, semantic registration, and item-local subscriptions
 can be released against the correct identity. A callback after unmount is
 cancelled or ignored by mount generation and must not resurrect the slot.
 
+The shipped private kernel's publication atomicity is success-only. It stages
+the complete next active/recyclable/slot/fence/revision state, then installs it
+only after all unmount, reset, reconcile, and mount callbacks succeed. Before
+the first such callback it pessimistically hides the old authority. Any
+callback error, lifecycle reentry, or callback unwind terminally retires the
+kernel with no active/recyclable/fence/revision authority, without rollback,
+compensation, callback replay, or recovery claim. Pre-callback admission and
+pure-projection failures remain recoverable; runtime retry or replacement
+policy is a later integration decision.
+
 ### 10.3 No implicit lifecycle transfer
 
 Lifecycle and interaction state may continue across a reorder only for the same
@@ -851,13 +879,21 @@ measurement/viewport tests, same-key bounded anchor presence/absence evidence,
 and previous-valid-window fallback evidence. Removal replacement waits for the
 authoritative required-key prerequisite described above.
 
-### Slice 3 — Materialization and recycling
+### Slice 3 — Private materialization and recycling correctness (shipped)
 
-Add an explicit host projection boundary, keyed item slots, lifecycle ordering,
-compatibility checks, bounded desired-set reconciliation, and reset-only
-recycling. Acceptance requires no implicit materialization, remove-before-reuse,
-same-key continuity, incompatible replacement cleanup, cancellation, and
-unmount tests.
+The crate-private materialization module provides an explicit host projection
+boundary, keyed item slots, lifecycle ordering, compatibility checks, bounded
+desired-set reconciliation, and reset-only recycling for an accepted
+coordinator commit. It is a correctness kernel only: it does not register a
+runtime surface, project concrete `SurfaceNode` or widgets, own
+focus/accessibility pins, schedule work, or serve a product collection.
+Successful publication is atomic after complete lifecycle staging; callback
+failure, reentry, or unwind terminally retires the private kernel without
+rollback or recovery, while pre-callback rejection remains recoverable.
+Acceptance requires no implicit materialization, remove-before-reuse,
+same-key continuity, incompatible replacement cleanup, fail-stop lifecycle
+retirement, and unmount tests. Cancellation and those later runtime and product
+consumers remain unshipped.
 
 ### Slice 4 — Focus and accessibility
 

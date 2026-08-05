@@ -17,6 +17,7 @@ use crate::gui::types::{Point, Rect, Vector2};
 use super::tree::NodeId;
 
 mod coordinator;
+mod materialization;
 
 /// Maximum number of keyed entries that one query may expose.
 pub const VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES: usize = 1024;

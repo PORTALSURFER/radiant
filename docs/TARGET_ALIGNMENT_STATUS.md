@@ -8,7 +8,7 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-05**
-- Canonical main: **`16337d22`**
+- Canonical main: **`b3da6a04`**
 - Overall estimate: **~73%**
 - Working range: **67–79%**
 - Confidence: **medium**
@@ -16,7 +16,9 @@ record for individual slices and reviews.
 The estimate reflects the combination of shipped contract, implementation,
 tests, documentation, and integration evidence. Target-only prose, diagrams,
 or examples do not count as shipped implementation; they establish the
-contract against which progress is measured.
+contract against which progress is measured. PR #1602 therefore leaves the
+numeric estimate unchanged: it reduces contract ambiguity and sequencing risk,
+but adds no executable virtualization behavior.
 
 ## Alignment by category
 
@@ -25,7 +27,7 @@ contract against which progress is measured.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 80% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, and runtime-owned version-4 typed container state are shipped in PRs #1597–#1601; product-specific `split_pane` behavior and full virtualization proof remain. |
+| Layout, composition, virtualization | 80% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, and runtime-owned version-4 typed container state are shipped in PRs #1597–#1601. PR #1602 now supplies the normative keyed virtualization/materialization contract as design evidence; product-specific `split_pane` behavior and executable virtualization proof remain. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -58,6 +60,9 @@ The current foundation includes:
 - version-4 runtime-owned typed container state with exact container/type/schema
   identity, bounded lifecycle/capacity diagnostics, capture-state compatibility,
   pre-admission stale-slot pruning, and foreign-declaration rejection (PR #1601);
+- the normative keyed virtual-layout/materialization ownership, identity, fence,
+  anchor, lifecycle, and bounded-work contract (PR #1602; design evidence only,
+  with no executable runtime/API change);
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -67,13 +72,15 @@ complete.
 
 ## Remaining gaps, ordered by leverage
 
-1. **Generic virtualization contract and product-specific consumers (next).**
-   The next dependency-correct generic item is a bounded
-   `VirtualLayoutPolicy`/materialization contract for keyed visible-window
-   ownership, variable-size anchoring, semantic materialization, focus pinning,
-   and recycling proof. Add `split_pane` interaction/state/ratio semantics only
-   when the product contract is defined; PR #1601 supplies the generic runtime
-   state lifecycle needed by the next design slice.
+1. **Generic virtualization contract and product-specific consumers.**
+   PR #1602 landed the normative contract for keyed visible-window ownership,
+   variable-size anchoring, semantic materialization, focus pinning, recycling,
+   exact fences, and bounded work. The next dependency-correct generic item is
+   the query-only `VirtualLayoutPolicy` capability; keyed visible-window
+   reconciliation, materialization/recycling, and focus/accessibility slices
+   follow it. Add `split_pane` interaction/state/ratio semantics only when the
+   product contract is defined; PR #1601 supplies the generic runtime state
+   lifecycle needed by these slices.
 2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
    runtime-local draft and typed commit/cancel semantics.
 3. **Numeric and input integration.** Complete numeric attachment,
@@ -101,6 +108,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Normative design direction](../docs/DESIGN_DIRECTION.md)
 - [Architecture and ownership map](../docs/ARCHITECTURE.md)
 - [Current public API](../docs/API.md)
+- [Normative virtual-layout design](../docs/VIRTUAL_LAYOUT_DESIGN.md)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
 - [Value mapping](../src/widgets/interaction/value.rs)
 - [Value formatting](../src/widgets/interaction/format.rs)
@@ -135,3 +143,4 @@ After each merged alignment slice:
 | 2026-08-05 | `972a7936` | ~65% (58–72%, medium confidence) | PR #1599 shipped declared hit-region projection/query evidence; layout alignment moves to 67%, with pointer routing/capture/state/events next. |
 | 2026-08-05 | `6f404ab6` | ~70% (63–77%, medium confidence) | PR #1600 shipped generic version-3 layout pointer admission and runtime-owned capture with exact-revision rebinding, conservative cancellation, arbitration, metadata, and regression evidence; remaining layout work is product-specific `split_pane` behavior and full virtualization proof. |
 | 2026-08-05 | `16337d22` | ~73% (67–79%, medium confidence) | PR #1601 shipped runtime-owned version-4 typed container state with exact identity, bounded lifecycle/capacity diagnostics, capture compatibility, stale-slot pruning, and foreign-declaration rejection; next generic gap is the VirtualLayoutPolicy/materialization contract while product-specific `split_pane` behavior remains deferred. |
+| 2026-08-05 | `b3da6a04` | ~73% (67–79%, medium confidence) | PR #1602 landed the normative keyed virtual-layout/materialization contract and makes the next dependency-correct item the query-only `VirtualLayoutPolicy` capability; the estimate stays unchanged because no executable virtualization behavior shipped. |

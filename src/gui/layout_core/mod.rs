@@ -86,6 +86,7 @@ mod engine;
 mod model;
 mod row_helpers;
 mod tree;
+mod virtual_layout;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
@@ -123,4 +124,17 @@ pub use row_helpers::{
 pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,
     WidgetNodeParts,
+};
+pub use virtual_layout::{
+    VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutBoundsConfidence, VirtualLayoutBudget,
+    VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason, VirtualLayoutDiagnostic,
+    VirtualLayoutDiagnosticCode, VirtualLayoutDiagnostics, VirtualLayoutExtent,
+    VirtualLayoutExtentCandidate, VirtualLayoutExtentKind, VirtualLayoutFenceField,
+    VirtualLayoutFenceFields, VirtualLayoutInputError, VirtualLayoutItem,
+    VirtualLayoutItemCandidate, VirtualLayoutItemKey, VirtualLayoutItemKeyCandidate,
+    VirtualLayoutOverscan, VirtualLayoutPolicy, VirtualLayoutPolicyDecision,
+    VirtualLayoutPolicyIdentity, VirtualLayoutQueryExecutor, VirtualLayoutQueryFence,
+    VirtualLayoutQueryInput, VirtualLayoutQueryInputParts, VirtualLayoutQueryOutcome,
+    VirtualLayoutQueryResult, VirtualLayoutQuerySink, VirtualLayoutSinkError,
+    VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
 };

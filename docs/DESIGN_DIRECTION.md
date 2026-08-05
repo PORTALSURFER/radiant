@@ -975,10 +975,12 @@ the built-in virtual list.
 
 The complete ownership, identity, revision-fence, lifecycle, and bounded-query
 contract for this future capability is in
-[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The keyed runtime and
-public `VirtualLayoutPolicy` API remain future; current fixed-child and
-host-projected fixed-row virtualization are compatibility paths, not an
-implementation of that contract.
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
+`radiant::layout::VirtualLayoutPolicy` capability, bounded executor, and exact
+fence/diagnostic contract are now shipped without runtime registration. The
+keyed runtime coordinator, materialization, and recycling remain future;
+current fixed-child and host-projected fixed-row virtualization are compatibility
+paths, not an implementation of those later slices.
 
 ### Leaf content and interactive widgets
 

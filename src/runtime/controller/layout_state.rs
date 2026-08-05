@@ -39,6 +39,8 @@ pub struct SurfaceLayoutStateDiagnostics {
     pub initialized_count: u32,
     /// Number of declarations that could not receive a slot at the bound.
     pub capacity_exceeded_count: u32,
+    /// Number of v4 declarations rejected because they named another container.
+    pub foreign_declaration_count: u32,
 }
 
 impl SurfaceLayoutStateDiagnostics {
@@ -49,6 +51,7 @@ impl SurfaceLayoutStateDiagnostics {
             dropped_count: 0,
             initialized_count: 0,
             capacity_exceeded_count: 0,
+            foreign_declaration_count: 0,
         }
     }
 
@@ -81,6 +84,13 @@ impl SurfaceLayoutStateDiagnostics {
         self.capacity_exceeded_count = self
             .capacity_exceeded_count
             .saturating_add(other.capacity_exceeded_count);
+        self.foreign_declaration_count = self
+            .foreign_declaration_count
+            .saturating_add(other.foreign_declaration_count);
+    }
+
+    pub(crate) fn record_foreign_declaration(&mut self) {
+        self.foreign_declaration_count = self.foreign_declaration_count.saturating_add(1);
     }
 }
 
@@ -101,6 +111,19 @@ impl RuntimeLayoutContainerStateStore {
     ) -> SurfaceLayoutStateDiagnostics {
         let mut diagnostics = SurfaceLayoutStateDiagnostics::default();
         let mut mounted = Vec::with_capacity(declarations.len());
+
+        let mut index = 0;
+        while index < self.slots.len() {
+            if declarations.iter().any(|declaration| {
+                declaration.container_id() == self.slots[index].id.container_id()
+            }) {
+                index += 1;
+                continue;
+            }
+            let removed = self.slots.remove(index);
+            drop(removed);
+            diagnostics.dropped_count = diagnostics.dropped_count.saturating_add(1);
+        }
 
         for declaration in declarations {
             let id = declaration.id();
@@ -139,17 +162,6 @@ impl RuntimeLayoutContainerStateStore {
             diagnostics.initialized_count = diagnostics.initialized_count.saturating_add(1);
         }
 
-        let mut index = 0;
-        while index < self.slots.len() {
-            if mounted.contains(&self.slots[index].id) {
-                index += 1;
-                continue;
-            }
-            let removed = self.slots.remove(index);
-            drop(removed);
-            diagnostics.dropped_count = diagnostics.dropped_count.saturating_add(1);
-        }
-
         diagnostics
     }
 
@@ -185,7 +197,13 @@ where
             .iter()
             .filter_map(|interaction| interaction.state.clone())
             .collect::<Vec<_>>();
-        self.last_layout_state_diagnostics = self.interaction.layout_state.reconcile(&declarations);
+        let mut diagnostics = self.interaction.layout_state.reconcile(&declarations);
+        for interaction in &self.traversal.containers.layout_interactions {
+            if interaction.foreign_state_declaration {
+                diagnostics.record_foreign_declaration();
+            }
+        }
+        self.last_layout_state_diagnostics = diagnostics;
     }
 
     pub(super) fn layout_container_state_context<'a>(
@@ -271,5 +289,78 @@ mod tests {
         assert_eq!(dropped.dropped_count, 1);
         assert_eq!(drops.get(), 2);
         assert_eq!(store.slot_count(), 0);
+    }
+
+    #[test]
+    fn disjoint_replacement_refills_all_slots_and_bounds_a_true_extra_declaration() {
+        let initialized = Rc::new(Cell::new(0));
+        let old_declarations = (0..MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64)
+            .map(|container_id| {
+                let initialized = Rc::clone(&initialized);
+                ContainerStateDeclaration::new::<u32, _>(container_id, 1, move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                })
+            })
+            .collect::<Vec<_>>();
+        let new_declarations = (MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64
+            ..(MAX_LAYOUT_CONTAINER_STATE_SLOTS * 2) as u64)
+            .map(|container_id| {
+                let initialized = Rc::clone(&initialized);
+                ContainerStateDeclaration::new::<u32, _>(container_id, 1, move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut store = RuntimeLayoutContainerStateStore::default();
+
+        let first = store.reconcile(&old_declarations);
+        let replacement = store.reconcile(&new_declarations);
+
+        assert_eq!(
+            first.initialized_count,
+            MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32
+        );
+        assert_eq!(
+            replacement.dropped_count,
+            MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32
+        );
+        assert_eq!(
+            replacement.initialized_count,
+            MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32
+        );
+        assert_eq!(replacement.capacity_exceeded_count, 0);
+        assert_eq!(store.slot_count(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+        assert_eq!(
+            initialized.get(),
+            (MAX_LAYOUT_CONTAINER_STATE_SLOTS * 2) as u32
+        );
+
+        let extra_declarations = (0..(MAX_LAYOUT_CONTAINER_STATE_SLOTS + 1) as u64)
+            .map(|container_id| {
+                let initialized = Rc::clone(&initialized);
+                ContainerStateDeclaration::new::<u32, _>(
+                    container_id + (MAX_LAYOUT_CONTAINER_STATE_SLOTS * 2) as u64,
+                    1,
+                    move || {
+                        initialized.set(initialized.get() + 1);
+                        0
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let bounded = store.reconcile(&extra_declarations);
+
+        assert_eq!(
+            bounded.initialized_count,
+            MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32
+        );
+        assert_eq!(bounded.capacity_exceeded_count, 1);
+        assert_eq!(store.slot_count(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+        assert_eq!(
+            initialized.get(),
+            (MAX_LAYOUT_CONTAINER_STATE_SLOTS * 3) as u32
+        );
     }
 }

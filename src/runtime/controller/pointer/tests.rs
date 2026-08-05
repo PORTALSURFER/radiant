@@ -784,6 +784,7 @@ struct LayoutStateProbeInteraction {
     config: LayoutStateProbeConfig,
     schema_version: u16,
     revision: LayoutInteractionRevision,
+    declared_container_id: Option<crate::layout::NodeId>,
 }
 
 impl LayoutInteraction<u8> for LayoutStateProbeInteraction {
@@ -802,7 +803,10 @@ impl LayoutInteraction<u8> for LayoutStateProbeInteraction {
     }
 
     fn state(&self, container_id: crate::layout::NodeId) -> Option<ContainerStateDeclaration> {
-        Some(self.config.declaration(container_id, self.schema_version))
+        Some(self.config.declaration(
+            self.declared_container_id.unwrap_or(container_id),
+            self.schema_version,
+        ))
     }
 
     fn handle_layout_input_with_state(
@@ -869,6 +873,7 @@ impl LayoutStateProbeBridge {
             config: self.config.clone(),
             schema_version: self.schema_version,
             revision: self.revision.evidence(),
+            declared_container_id: None,
         };
         let mut capabilities = LayoutCapabilities::new().interaction_local(interaction);
         capabilities.contract_version = self.contract_version;
@@ -908,21 +913,29 @@ struct DualLayoutStateProbeBridge {
     right: LayoutStateProbeConfig,
     left_events: Rc<RefCell<LayoutProbeState>>,
     right_events: Rc<RefCell<LayoutProbeState>>,
+    foreign_state: bool,
 }
 
 impl DualLayoutStateProbeBridge {
     fn surface(&self) -> UiSurface<u8> {
+        let (left_declared_container_id, right_declared_container_id) = if self.foreign_state {
+            (Some(2), Some(1))
+        } else {
+            (None, None)
+        };
         let left_interaction = LayoutStateProbeInteraction {
             events: Rc::clone(&self.left_events),
             config: self.left.clone(),
             schema_version: 1,
             revision: LayoutInteractionRevision::exact("left-state-probe"),
+            declared_container_id: left_declared_container_id,
         };
         let right_interaction = LayoutStateProbeInteraction {
             events: Rc::clone(&self.right_events),
             config: self.right.clone(),
             schema_version: 1,
             revision: LayoutInteractionRevision::exact("right-state-probe"),
+            declared_container_id: right_declared_container_id,
         };
         let left_capabilities = LayoutCapabilities::new().interaction_local(left_interaction);
         let right_capabilities = LayoutCapabilities::new().interaction_local(right_interaction);
@@ -1115,6 +1128,7 @@ fn same_state_type_and_schema_stay_independent_for_distinct_containers() {
             right,
             left_events,
             right_events,
+            foreign_state: false,
         },
         Vector2::new(200.0, 40.0),
     );
@@ -1126,6 +1140,56 @@ fn same_state_type_and_schema_stay_independent_for_distinct_containers() {
     assert_eq!(left_value.get(), 1);
     assert_eq!(right_value.get(), 1);
     assert_eq!(runtime.layout_container_state_slot_count(), 2);
+}
+
+#[test]
+fn foreign_state_declarations_cannot_alias_or_retain_two_mounted_containers() {
+    let left = layout_state_probe_config(LayoutStateShape::CellU32);
+    let right = layout_state_probe_config(LayoutStateShape::CellU32);
+    let left_initialized = Rc::clone(&left.initialized);
+    let right_initialized = Rc::clone(&right.initialized);
+    let left_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let right_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        DualLayoutStateProbeBridge {
+            left,
+            right,
+            left_events,
+            right_events,
+            foreign_state: false,
+        },
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(left_initialized.get(), 1);
+    assert_eq!(right_initialized.get(), 1);
+    assert_eq!(runtime.layout_container_state_slot_count(), 2);
+
+    runtime.bridge_mut().foreign_state = true;
+    runtime.refresh();
+
+    let diagnostics = runtime.last_refresh_diagnostics().layout_state;
+    assert_eq!(diagnostics.foreign_declaration_count, 2);
+    assert_eq!(diagnostics.dropped_count, 2);
+    assert_eq!(diagnostics.initialized_count, 0);
+    assert_eq!(diagnostics.replacement_count, 0);
+    assert_eq!(runtime.layout_container_state_slot_count(), 0);
+    assert!(
+        runtime
+            .traversal
+            .containers
+            .layout_targets
+            .iter()
+            .all(|target| target.state_id.is_none())
+    );
+    assert_eq!(left_initialized.get(), 1);
+    assert_eq!(right_initialized.get(), 1);
 }
 
 #[test]

@@ -310,16 +310,22 @@ fn begin_container_runtime<Message>(
             })
             .and_then(|capabilities| {
                 capabilities.interaction.as_ref().map(|interaction| {
+                    let state = crate::layout::supports_layout_state_input_contract(
+                        capabilities.contract_version,
+                    )
+                    .then(|| interaction.state(container.id))
+                    .flatten();
+                    let foreign_state_declaration = state
+                        .as_ref()
+                        .is_some_and(|declaration| declaration.container_id() != container.id);
                     super::SurfaceLayoutInteractionRecord {
                         id: container.id,
                         contract_version: capabilities.contract_version,
                         interaction: interaction.clone(),
                         revision: interaction.revision(),
-                        state: crate::layout::supports_layout_state_input_contract(
-                            capabilities.contract_version,
-                        )
-                        .then(|| interaction.state(container.id))
-                        .flatten(),
+                        state: state
+                            .filter(|declaration| declaration.container_id() == container.id),
+                        foreign_state_declaration,
                     }
                 })
             }),

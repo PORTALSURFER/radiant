@@ -29,6 +29,7 @@ impl<Message> Clone for SurfaceContainerParts<Message> {
         Self {
             id: self.id,
             policy: self.policy.clone(),
+            layout_capabilities: self.layout_capabilities.clone(),
             children: self.children.clone(),
         }
     }
@@ -41,6 +42,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             policy: self.policy.clone(),
             style: self.style,
             hoverable: self.hoverable,
+            layout_capabilities: self.layout_capabilities.clone(),
             scroll_message: self.scroll_message.clone(),
             children: self.children.clone(),
         }

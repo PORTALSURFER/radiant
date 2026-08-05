@@ -785,8 +785,11 @@ captured starting width and original column id before clearing the active drag,
 so a host can durably restore a width already applied from a move. An orphaned
 resize cancellation returns no update. Reorder cancellation still clears the
 active drag without producing a reorder. These helpers are not typed
-`EditEvent` boundaries or a runtime `LayoutInteraction` implementation; those
-remain separate future work.
+`EditEvent` boundaries or runtime interaction handlers. The qualified
+`radiant::layout::{LayoutCapabilities, LayoutInteraction}` contract now
+provides UI-local registration and exact/conservative revision evidence for
+generic surface containers; pointer routing and event handling remain future
+work.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
@@ -922,9 +925,11 @@ The concise `resize(...)` and `resize_collapsible(...)` methods remain the
 compatibility projections: changed cancellation returns the restored size,
 no-op cancellation remains lifecycle-only, and collapsible double activation
 stays a discrete collapse/restore command outside the edit stream while
-clearing active state. These APIs do not add `numeric_input`, generic
-`LayoutInteraction`, or runtime `split_pane` construction; those remain future
-work.
+clearing active state. These APIs do not add `numeric_input` or runtime
+`split_pane` construction. The qualified layout capability registration and
+revision contract is available separately; pointer hit-region routing, capture,
+runtime-local interaction state, event handling, semantic/keyboard behavior,
+and `VirtualLayoutPolicy` remain future work.
 
 These types are intentionally not exported through the common prelude.
 
@@ -3880,9 +3885,13 @@ hosts that only need size projection. Use `SplitPaneLayout::from_parts(...)`
 to resolve backend-neutral first, divider, and second rectangles along a
 horizontal or vertical axis; non-finite ratios use `0.5`, non-finite divider
 or minimum extents use `0.0`, and the result reports whether both pane minima
-were satisfied. This geometry helper does not construct the target `split_pane`
-runtime builder or generic `LayoutInteraction` capability; those remain future
-work.
+were satisfied. The qualified `radiant::layout::{LayoutCapabilities,
+LayoutInteraction, LayoutInteractionRevision}` contract now provides
+backend-neutral UI-local capability registration and exact/conservative
+revision evidence for generic surface containers. It does not construct the
+target `split_pane` runtime builder or provide pointer hit-region routing,
+capture, runtime-local interaction state, event handling, semantic/keyboard
+behavior, or `VirtualLayoutPolicy`; those remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

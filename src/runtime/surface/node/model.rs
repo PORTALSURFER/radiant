@@ -4,7 +4,7 @@ use crate::{
         AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
         AutomationRole,
     },
-    layout::{ContainerPolicy, NodeId, SlotParams},
+    layout::{ContainerPolicy, LayoutCapabilities, NodeId, SlotParams},
     runtime::{
         DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsWidgetSnapshot,
         surface::widget::{EventMapper, ScrollMessageMapper, SurfaceWidget},
@@ -58,6 +58,7 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) policy: ContainerPolicy,
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
+    pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
     pub(in crate::runtime::surface) scroll_message:
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
     pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
@@ -69,6 +70,8 @@ pub(in crate::runtime) struct SurfaceContainerParts<Message> {
     pub id: NodeId,
     /// Container behavior policy.
     pub policy: ContainerPolicy,
+    /// Optional UI-local layout capability descriptor.
+    pub layout_capabilities: Option<LayoutCapabilities<Message>>,
     /// Ordered slot children.
     pub children: Vec<SurfaceChild<Message>>,
 }
@@ -81,6 +84,7 @@ impl<Message> SurfaceContainer<Message> {
             policy: parts.policy,
             style: None,
             hoverable: false,
+            layout_capabilities: parts.layout_capabilities,
             scroll_message: None,
             children: parts.children,
         }
@@ -91,6 +95,7 @@ impl<Message> SurfaceContainer<Message> {
         Self::from_parts(SurfaceContainerParts {
             id,
             policy,
+            layout_capabilities: None,
             children,
         })
     }
@@ -104,6 +109,17 @@ impl<Message> SurfaceContainer<Message> {
     /// Return this container with hover chrome enabled.
     pub fn with_hoverable(mut self, hoverable: bool) -> Self {
         self.hoverable = hoverable;
+        self
+    }
+
+    /// Return this container with an explicitly registered UI-local layout
+    /// capability descriptor.
+    ///
+    /// This attaches registration and revision evidence only. Pointer input,
+    /// hit-region routing, capture, runtime-local interaction state, and event
+    /// handling remain future runtime work.
+    pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
+        self.layout_capabilities = Some(capabilities);
         self
     }
 

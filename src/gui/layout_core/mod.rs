@@ -26,6 +26,15 @@
 //! - [`ContainerKind::SwitchLayout`](crate::layout::ContainerKind::SwitchLayout)
 //! - [`ContainerKind::FloatingLayer`](crate::layout::ContainerKind::FloatingLayer)
 //!
+//! Qualified [`LayoutCapabilities`](crate::layout::LayoutCapabilities) and
+//! [`LayoutInteraction`](crate::layout::LayoutInteraction) registration is
+//! available for backend-neutral containers, including exact or conservative
+//! revision evidence. This contract intentionally does not provide pointer
+//! input/context, hit-region routing, capture, runtime-local interaction state,
+//! event handling, semantic/keyboard behavior, `split_pane` runtime
+//! construction, or the target `VirtualLayoutPolicy`; those remain future
+//! runtime work.
+//!
 //! # Example
 //!
 //! ```
@@ -68,6 +77,7 @@
 //! assert!(output.rects.contains_key(&3));
 //! ```
 
+mod capabilities;
 mod constraints;
 mod engine;
 mod model;
@@ -75,6 +85,10 @@ mod row_helpers;
 mod tree;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
+pub use capabilities::{
+    LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutInteraction,
+    LayoutInteractionRevision,
+};
 pub use constraints::{Constraints, ConstraintsParts};
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,

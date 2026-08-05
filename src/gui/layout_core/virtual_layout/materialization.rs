@@ -592,20 +592,20 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
                 VirtualLayoutMaterializationError::Unmounted,
             );
         }
-        if !Rc::ptr_eq(&self.owner, &commit.owner) {
+        if !Rc::ptr_eq(&self.owner, commit.owner()) {
             return self.reject(
                 VirtualLayoutMaterializationDiagnosticCode::ForeignOwner,
                 VirtualLayoutMaterializationError::ForeignOwner,
             );
         }
-        if let Err(code) = self.scope.check_fence(&commit.fence) {
+        if let Err(code) = self.scope.check_fence(commit.fence()) {
             return self.reject(code, error_for_scope_code(code));
         }
-        if commit.accepted_revision == 0
-            || commit.view.fallback
-            || commit.view.clip.is_some()
-            || commit.view.extent.is_none()
-            || commit.view.accepted_revision != Some(commit.accepted_revision)
+        if commit.accepted_revision() == 0
+            || commit.view().fallback
+            || commit.view().clip.is_some()
+            || commit.view().extent.is_none()
+            || commit.view().accepted_revision != Some(commit.accepted_revision())
         {
             return self.reject(
                 VirtualLayoutMaterializationDiagnosticCode::InvalidCommit,
@@ -614,13 +614,13 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         }
 
         if let Some(previous_revision) = self.authoritative_revision {
-            if commit.accepted_revision < previous_revision {
+            if commit.accepted_revision() < previous_revision {
                 return self.reject(
                     VirtualLayoutMaterializationDiagnosticCode::OlderRevision,
                     VirtualLayoutMaterializationError::OlderRevision,
                 );
             }
-            if commit.accepted_revision == previous_revision {
+            if commit.accepted_revision() == previous_revision {
                 return self.reject(
                     VirtualLayoutMaterializationDiagnosticCode::DuplicateRevision,
                     VirtualLayoutMaterializationError::DuplicateRevision,
@@ -629,7 +629,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             if self
                 .authoritative_fence
                 .as_ref()
-                .is_some_and(|fence| commit.fence.query_sequence() <= fence.query_sequence())
+                .is_some_and(|fence| commit.fence().query_sequence() <= fence.query_sequence())
             {
                 return self.reject(
                     VirtualLayoutMaterializationDiagnosticCode::OlderFence,
@@ -639,12 +639,12 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         }
 
         let bound = commit
-            .fence
+            .fence()
             .budget()
             .max_entries()
             .min(VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES);
-        if commit.view.entries.len() > bound
-            || commit.view.entries.len() > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
+        if commit.view().entries.len() > bound
+            || commit.view().entries.len() > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
             || self.active.len().saturating_add(self.recyclable.len())
                 > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
         {
@@ -654,14 +654,14 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             );
         }
 
-        if let Err(code) = validate_entries(&commit.view.entries) {
+        if let Err(code) = validate_entries(&commit.view().entries) {
             return self.reject(code, error_for_entry_code(code));
         }
         if let Err(code) = validate_active(&self.active) {
             return self.reject(code, error_for_entry_code(code));
         }
 
-        let mut ordered_entries: Vec<&VirtualLayoutItem> = commit.view.entries.iter().collect();
+        let mut ordered_entries: Vec<&VirtualLayoutItem> = commit.view().entries.iter().collect();
         ordered_entries.sort_by_key(|item| item.logical_index());
 
         let mut removed_reset_identities: Vec<Option<VirtualLayoutSlotIdentity>> =
@@ -826,7 +826,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         let mut staged = Vec::with_capacity(plans.len());
         for plan in plans {
             let evidence = VirtualLayoutProjectionEvidence::from_item(
-                &commit.fence,
+                commit.fence(),
                 &plan.item,
                 plan.identity,
             );
@@ -889,7 +889,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         for &old_index in &retired_indices {
             let old = &self.active[old_index];
             let evidence =
-                VirtualLayoutProjectionEvidence::from_item(&commit.fence, &old.item, old.identity);
+                VirtualLayoutProjectionEvidence::from_item(commit.fence(), &old.item, old.identity);
             let result = self.lifecycle.unmount(&old.payload, evidence, &reentry);
             if reentry.was_attempted() {
                 return self.reject(
@@ -910,7 +910,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
                 None => old.identity,
             };
             let evidence = VirtualLayoutProjectionEvidence::from_item(
-                &commit.fence,
+                commit.fence(),
                 &old.item,
                 reset_identity,
             );
@@ -931,7 +931,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             if let PlannedAction::Compatible { old_index } = staged_item.plan.action {
                 let old = &self.active[old_index];
                 let evidence = VirtualLayoutProjectionEvidence::from_item(
-                    &commit.fence,
+                    commit.fence(),
                     &staged_item.plan.item,
                     staged_item.plan.identity,
                 );
@@ -969,7 +969,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
                     _ => None,
                 };
                 let evidence = VirtualLayoutProjectionEvidence::from_item(
-                    &commit.fence,
+                    commit.fence(),
                     &staged_item.plan.item,
                     staged_item.plan.identity,
                 );
@@ -1045,8 +1045,8 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         self.active = next_active;
         self.recyclable = next_recyclable;
         self.next_slot_index = next_slot_index;
-        self.authoritative_fence = Some(commit.fence.clone());
-        self.authoritative_revision = Some(commit.accepted_revision);
+        self.authoritative_fence = Some(commit.fence().clone());
+        self.authoritative_revision = Some(commit.accepted_revision());
         drop(guard);
         Ok(())
     }
@@ -1264,7 +1264,8 @@ mod tests {
 
     use super::super::coordinator::{
         VirtualLayoutCompletion, VirtualLayoutCoordinatorDiagnostic,
-        VirtualLayoutCoordinatorDiagnosticCode,
+        VirtualLayoutCoordinatorDiagnosticCode, clone_commit_with_accepted_revision,
+        clone_commit_with_entries, clone_commit_with_owner,
     };
     use super::super::{
         VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutCoordinateSpace,
@@ -2100,43 +2101,35 @@ mod tests {
         let cases = [
             (
                 "container",
-                coordinator_with(
-                    CONTAINER_ID + 1,
-                    VirtualLayoutPolicyIdentity::new("policy"),
-                    MOUNT_GENERATION,
-                ),
+                CONTAINER_ID + 1,
+                VirtualLayoutPolicyIdentity::new("policy"),
+                MOUNT_GENERATION,
                 VirtualLayoutMaterializationDiagnosticCode::ForeignContainer,
             ),
             (
                 "policy",
-                coordinator_with(
-                    CONTAINER_ID,
-                    VirtualLayoutPolicyIdentity::new("other-policy"),
-                    MOUNT_GENERATION,
-                ),
+                CONTAINER_ID,
+                VirtualLayoutPolicyIdentity::new("other-policy"),
+                MOUNT_GENERATION,
                 VirtualLayoutMaterializationDiagnosticCode::ForeignPolicy,
             ),
             (
                 "mount",
-                coordinator_with(
-                    CONTAINER_ID,
-                    VirtualLayoutPolicyIdentity::new("policy"),
-                    MOUNT_GENERATION + 1,
-                ),
+                CONTAINER_ID,
+                VirtualLayoutPolicyIdentity::new("policy"),
+                MOUNT_GENERATION + 1,
                 VirtualLayoutMaterializationDiagnosticCode::ForeignMount,
             ),
         ];
-        for (label, mut foreign, expected_code) in cases {
-            let foreign_commit = committed(
-                &mut foreign,
-                &[Spec::new(2, 1, 10.0)],
-                1,
-                DEFAULT_BUDGET,
-                Rc::clone(&policy_calls),
-            );
-            let mut commit = (*foreign_commit).clone();
-            commit.owner = store.owner.clone();
-            let result = store.publish(&commit, &projector);
+        for (label, container_id, policy_identity, mount_generation, expected_code) in cases {
+            let original_scope = store.scope.clone();
+            store.scope = MaterializationScope {
+                container_id,
+                policy_identity,
+                mount_generation,
+            };
+            let result = store.publish(&initial, &projector);
+            store.scope = original_scope;
             assert!(matches!(
                 (label, expected_code, result),
                 (
@@ -2155,13 +2148,37 @@ mod tests {
             ));
         }
 
-        let mut owner_commit = (*initial).clone();
-        owner_commit.owner = coordinator_with(
+        let mut foreign_coordinator = coordinator_with(
+            CONTAINER_ID + 1,
+            VirtualLayoutPolicyIdentity::new("policy"),
+            MOUNT_GENERATION,
+        );
+        let foreign_commit = committed(
+            &mut foreign_coordinator,
+            &[Spec::new(2, 1, 10.0)],
+            1,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        let owner_replaced = clone_commit_with_owner(&foreign_commit, store.owner.clone());
+        let result = store.publish(&owner_replaced, &projector);
+        assert!(matches!(
+            result,
+            Err(VirtualLayoutMaterializationError::ForeignContainer)
+        ));
+
+        let mut owner_coordinator = coordinator_with(
             CONTAINER_ID,
             VirtualLayoutPolicyIdentity::new("policy"),
             MOUNT_GENERATION,
-        )
-        .owner_evidence();
+        );
+        let owner_commit = committed(
+            &mut owner_coordinator,
+            &[Spec::new(3, 1, 20.0)],
+            1,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
         let result = store.publish(&owner_commit, &projector);
         assert!(matches!(
             result,
@@ -2207,9 +2224,7 @@ mod tests {
             DEFAULT_BUDGET,
             Rc::clone(&policy_calls),
         );
-        let mut skipped = (*third).clone();
-        skipped.accepted_revision = 5;
-        skipped.view.accepted_revision = Some(5);
+        let skipped = clone_commit_with_accepted_revision(&third, 5);
         store
             .publish(&skipped, &projector)
             .expect("later complete revision may skip");
@@ -2320,7 +2335,7 @@ mod tests {
     }
 
     #[test]
-    fn unstable_compatibility_capacity_duplicates_and_overflow_fail_closed() {
+    fn unstable_compatibility_capacity_and_overflow_fail_closed() {
         let (mut coordinator, mut store, projector, events) = store_for(&[1]);
         let policy_calls = Rc::new(Cell::new(0));
         let initial = committed(
@@ -2354,22 +2369,24 @@ mod tests {
         assert!(events.borrow().is_empty());
 
         let duplicate_key = {
-            let mut commit = (*unstable).clone();
-            let mut duplicate = commit.view.entries[0].clone();
+            let mut duplicate = unstable.view().entries[0].clone();
             duplicate.logical_index = 1;
-            commit.view.entries = vec![commit.view.entries[0].clone(), duplicate];
-            commit
+            clone_commit_with_entries(
+                &unstable,
+                vec![unstable.view().entries[0].clone(), duplicate],
+            )
         };
         assert!(matches!(
             store.publish(&duplicate_key, &projector),
             Err(VirtualLayoutMaterializationError::DuplicateKey)
         ));
         let duplicate_index = {
-            let mut commit = (*unstable).clone();
-            let mut duplicate = commit.view.entries[0].clone();
+            let mut duplicate = unstable.view().entries[0].clone();
             duplicate.key = VirtualLayoutItemKey::new(99_u32);
-            commit.view.entries = vec![commit.view.entries[0].clone(), duplicate];
-            commit
+            clone_commit_with_entries(
+                &unstable,
+                vec![unstable.view().entries[0].clone(), duplicate],
+            )
         };
         assert!(matches!(
             store.publish(&duplicate_index, &projector),
@@ -2465,14 +2482,16 @@ mod tests {
             Rc::clone(&policy_calls),
         );
         let state = Rc::new(Cell::new(true));
-        let mut invalid = (*valid).clone();
-        invalid.view.entries = vec![VirtualLayoutItem {
-            key: VirtualLayoutItemKey::new(FlakyKey { state }),
-            logical_index: 0,
-            bounds: Rect::from_xy_size(0.0, 0.0, 100.0, 10.0),
-            visibility: VirtualLayoutVisibility::Visible,
-            confidence: VirtualLayoutBoundsConfidence::Exact,
-        }];
+        let invalid = clone_commit_with_entries(
+            &valid,
+            vec![VirtualLayoutItem {
+                key: VirtualLayoutItemKey::new(FlakyKey { state }),
+                logical_index: 0,
+                bounds: Rect::from_xy_size(0.0, 0.0, 100.0, 10.0),
+                visibility: VirtualLayoutVisibility::Visible,
+                confidence: VirtualLayoutBoundsConfidence::Exact,
+            }],
+        );
         assert!(matches!(
             store.publish(&invalid, &projector),
             Err(VirtualLayoutMaterializationError::UnstableKey)

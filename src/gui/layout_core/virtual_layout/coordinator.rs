@@ -368,7 +368,7 @@ impl Drop for ExecutionPhaseGuard<'_> {
 
 /// Non-zero-sized marker whose handle is compared only by allocation identity.
 #[derive(Debug)]
-pub(crate) struct CoordinatorIdentity(u8);
+pub(super) struct CoordinatorIdentity(u8);
 
 impl VirtualLayoutPendingQuery {
     /// Execute the policy outside the coordinator's mutable commit path.
@@ -459,14 +459,40 @@ pub(crate) enum VirtualLayoutCompletion {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct VirtualLayoutCommit {
-    pub(crate) fence: VirtualLayoutQueryFence,
-    pub(crate) owner: Rc<CoordinatorIdentity>,
-    pub(crate) view: VirtualLayoutWindowView,
-    pub(crate) delta: VirtualLayoutKeyDelta,
-    pub(crate) anchor: Option<VirtualLayoutAnchor>,
-    pub(crate) correction: Option<VirtualLayoutAnchorCorrection>,
-    pub(crate) accepted_revision: u64,
+pub(super) struct VirtualLayoutCommit {
+    fence: VirtualLayoutQueryFence,
+    owner: Rc<CoordinatorIdentity>,
+    view: VirtualLayoutWindowView,
+    delta: VirtualLayoutKeyDelta,
+    anchor: Option<VirtualLayoutAnchor>,
+    correction: Option<VirtualLayoutAnchorCorrection>,
+    accepted_revision: u64,
+}
+
+impl VirtualLayoutCommit {
+    /// Return the exact coordinator-accepted query fence.
+    #[must_use]
+    pub(super) const fn fence(&self) -> &VirtualLayoutQueryFence {
+        &self.fence
+    }
+
+    /// Return the coordinator-owned identity witness.
+    #[must_use]
+    pub(super) const fn owner(&self) -> &Rc<CoordinatorIdentity> {
+        &self.owner
+    }
+
+    /// Return the immutable accepted window view.
+    #[must_use]
+    pub(super) const fn view(&self) -> &VirtualLayoutWindowView {
+        &self.view
+    }
+
+    /// Return the monotonic coordinator-accepted revision.
+    #[must_use]
+    pub(super) const fn accepted_revision(&self) -> u64 {
+        self.accepted_revision
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -716,7 +742,7 @@ impl VirtualLayoutWindowCoordinator {
 
     /// Return the coordinator-owned evidence that authorizes private
     /// materialization of one committed window.
-    pub(crate) fn owner_evidence(&self) -> Rc<CoordinatorIdentity> {
+    pub(super) fn owner_evidence(&self) -> Rc<CoordinatorIdentity> {
         Rc::clone(&self.identity)
     }
 
@@ -1178,6 +1204,11 @@ fn clamp_correction(
 }
 
 #[cfg(test)]
+pub(super) use tests::{
+    clone_commit_with_accepted_revision, clone_commit_with_entries, clone_commit_with_owner,
+};
+
+#[cfg(test)]
 mod tests {
     use std::{
         cell::{Cell, RefCell},
@@ -1281,6 +1312,36 @@ mod tests {
         commit
     }
 
+    // Malformed commit copies are constructed only in this coordinator-owned
+    // test boundary. Production siblings receive no constructor or mutator.
+    pub fn clone_commit_with_owner(
+        commit: &VirtualLayoutCommit,
+        owner: Rc<CoordinatorIdentity>,
+    ) -> Box<VirtualLayoutCommit> {
+        let mut clone = Box::new(commit.clone());
+        clone.owner = owner;
+        clone
+    }
+
+    pub fn clone_commit_with_entries(
+        commit: &VirtualLayoutCommit,
+        entries: Vec<VirtualLayoutItem>,
+    ) -> Box<VirtualLayoutCommit> {
+        let mut clone = Box::new(commit.clone());
+        clone.view.entries = entries;
+        clone
+    }
+
+    pub fn clone_commit_with_accepted_revision(
+        commit: &VirtualLayoutCommit,
+        accepted_revision: u64,
+    ) -> Box<VirtualLayoutCommit> {
+        let mut clone = Box::new(commit.clone());
+        clone.accepted_revision = accepted_revision;
+        clone.view.accepted_revision = Some(accepted_revision);
+        clone
+    }
+
     struct DispositionPolicy {
         decision: super::super::VirtualLayoutPolicyDecision,
     }
@@ -1323,6 +1384,26 @@ mod tests {
         assert_eq!(
             coordinator.invalidations(),
             VirtualLayoutInvalidationFlags::default()
+        );
+    }
+
+    #[test]
+    fn materialization_boundary_can_only_borrow_coordinator_admitted_commit_evidence() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let commit = commit_policy(&mut coordinator, &ready_policy(&[1, 2], 100.0));
+        let clone = commit.clone();
+
+        // This regression stays in coordinator::tests because only the
+        // coordinator boundary may name or mutate commit fields. The sibling
+        // materialization module receives only these immutable accessors.
+        assert_eq!(clone.fence(), commit.fence());
+        assert!(Rc::ptr_eq(clone.owner(), commit.owner()));
+        assert_eq!(clone.view().entries.len(), 2);
+        assert_eq!(clone.accepted_revision(), 1);
+        assert_eq!(
+            clone.view().accepted_revision,
+            Some(clone.accepted_revision())
         );
     }
 

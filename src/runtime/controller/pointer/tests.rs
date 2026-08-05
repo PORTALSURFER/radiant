@@ -479,6 +479,7 @@ struct LayoutProbeState {
     capture_on_press: bool,
     capture_on_release: bool,
     emit_message_on_press: bool,
+    emit_message_on_release: bool,
     repaint_on_move: bool,
     work_on_move: bool,
     widget_moves: usize,
@@ -511,6 +512,7 @@ impl LayoutInteraction<u8> for LayoutProbeInteraction {
             capture_on_press,
             capture_on_release,
             emit_message_on_press,
+            emit_message_on_release,
             repaint_on_move,
             work_on_move,
         ) = {
@@ -521,6 +523,7 @@ impl LayoutInteraction<u8> for LayoutProbeInteraction {
                 state.capture_on_press,
                 state.capture_on_release,
                 state.emit_message_on_press,
+                state.emit_message_on_release,
                 state.repaint_on_move,
                 state.work_on_move,
             )
@@ -536,6 +539,9 @@ impl LayoutInteraction<u8> for LayoutProbeInteraction {
             context.capture_pointer();
         }
         if emit_message_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
+            assert!(context.emit_message(7));
+        }
+        if emit_message_on_release && matches!(input, LayoutInput::PointerRelease { .. }) {
             assert!(context.emit_message(7));
         }
         if matches!(input, LayoutInput::PointerMove { .. }) {
@@ -557,6 +563,7 @@ struct LayoutProbeBridge {
     scroll: bool,
     exclusive: bool,
     pass_through: bool,
+    change_revision_on_message: bool,
 }
 
 impl LayoutProbeBridge {
@@ -569,6 +576,7 @@ impl LayoutProbeBridge {
             scroll: false,
             exclusive: false,
             pass_through: false,
+            change_revision_on_message: false,
         }
     }
 
@@ -706,6 +714,9 @@ impl RuntimeBridge<u8> for LayoutProbeBridge {
 
     fn reduce_message(&mut self, message: u8) {
         self.state.borrow_mut().messages.push(message);
+        if self.change_revision_on_message {
+            self.revision = LayoutProbeRevision::Exact("changed-after-release");
+        }
     }
 }
 
@@ -890,6 +901,55 @@ fn fresh_layout_release_cannot_start_a_new_capture() {
         state.borrow().events.as_slice(),
         [(_, LayoutInput::PointerRelease { .. })]
     ));
+}
+
+#[test]
+fn captured_layout_release_clears_capture_before_refreshing_message() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        emit_message_on_release: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            change_revision_on_message: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0))),
+        None
+    );
+    assert!(runtime.layout_pointer_capture().is_some());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(240.0, 80.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    let events = state.borrow().events.clone();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerRelease { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        0
+    );
+    assert_eq!(state.borrow().messages, vec![7]);
 }
 
 #[test]

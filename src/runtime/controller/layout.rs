@@ -116,7 +116,16 @@ where
         input: LayoutInput,
         refresh_after_message: bool,
     ) -> LayoutInputDispatch {
-        let Some(capture) = self.interaction.layout_capture.clone() else {
+        let terminal_input = matches!(
+            input,
+            LayoutInput::PointerRelease { .. } | LayoutInput::PointerCaptureCancelled { .. }
+        );
+        let capture = if terminal_input {
+            self.interaction.layout_capture.take()
+        } else {
+            self.interaction.layout_capture.clone()
+        };
+        let Some(capture) = capture else {
             return LayoutInputDispatch::default();
         };
         let binding = LayoutTargetBinding {
@@ -124,14 +133,7 @@ where
             interaction: capture.interaction,
             revision: capture.revision,
         };
-        let dispatch = self.dispatch_layout_binding(binding, input, refresh_after_message, false);
-        if matches!(
-            input,
-            LayoutInput::PointerRelease { .. } | LayoutInput::PointerCaptureCancelled { .. }
-        ) {
-            self.interaction.layout_capture = None;
-        }
-        dispatch
+        self.dispatch_layout_binding(binding, input, refresh_after_message, false)
     }
 
     pub(super) fn cancel_layout_pointer_capture(&mut self) -> bool {

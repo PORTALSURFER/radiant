@@ -30,7 +30,7 @@
 //! [`LayoutInteraction`](crate::layout::LayoutInteraction) registration is
 //! available for backend-neutral containers, including exact or conservative
 //! revision evidence and normalized hit-region declarations. Production
-//! runtime projection exposes read-only [`LayoutHitTarget`] values; pointer
+//! runtime projection exposes read-only [`LayoutHitTarget`](crate::layout::LayoutHitTarget) values; pointer
 //! routing, capture, runtime-local interaction state, event handling,
 //! semantic/keyboard behavior, `split_pane` runtime construction, and the
 //! target `VirtualLayoutPolicy` remain future runtime work.

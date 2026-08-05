@@ -284,7 +284,11 @@ where
             self.repaint_requested = true;
         }
 
-        if allow_capture && context.handled() && context.capture_requested() {
+        let terminal_input = matches!(
+            input,
+            LayoutInput::PointerRelease { .. } | LayoutInput::PointerCaptureCancelled { .. }
+        );
+        if allow_capture && !terminal_input && context.handled() && context.capture_requested() {
             let fallback_position = self
                 .interaction
                 .pointer

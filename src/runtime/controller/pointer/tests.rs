@@ -477,6 +477,7 @@ struct LayoutProbeState {
     messages: Vec<u8>,
     handled: bool,
     capture_on_press: bool,
+    capture_on_release: bool,
     emit_message_on_press: bool,
     repaint_on_move: bool,
     work_on_move: bool,
@@ -504,12 +505,20 @@ impl LayoutInteraction<u8> for LayoutProbeInteraction {
         input: LayoutInput,
         context: &mut crate::layout::LayoutEventContext<u8>,
     ) {
-        let (handled, capture_on_press, emit_message_on_press, repaint_on_move, work_on_move) = {
+        let (
+            handled,
+            capture_on_press,
+            capture_on_release,
+            emit_message_on_press,
+            repaint_on_move,
+            work_on_move,
+        ) = {
             let mut state = self.state.borrow_mut();
             state.events.push((context.target(), input));
             (
                 state.handled,
                 state.capture_on_press,
+                state.capture_on_release,
                 state.emit_message_on_press,
                 state.repaint_on_move,
                 state.work_on_move,
@@ -520,6 +529,9 @@ impl LayoutInteraction<u8> for LayoutProbeInteraction {
             context.handle();
         }
         if capture_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
+            context.capture_pointer();
+        }
+        if capture_on_release && matches!(input, LayoutInput::PointerRelease { .. }) {
             context.capture_pointer();
         }
         if emit_message_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
@@ -797,6 +809,33 @@ fn layout_capture_is_exclusive_and_delivers_metadata_outside_bounds_without_refr
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert_eq!(runtime.refresh_counters(), counters);
     assert_eq!(runtime.repaint_requested(), repaint_requested);
+}
+
+#[test]
+fn fresh_layout_release_cannot_start_a_new_capture() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_release: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&state)),
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(150.0, 20.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert!(matches!(
+        state.borrow().events.as_slice(),
+        [(_, LayoutInput::PointerRelease { .. })]
+    ));
 }
 
 #[test]

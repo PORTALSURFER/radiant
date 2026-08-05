@@ -47,6 +47,8 @@ pub(crate) enum VirtualLayoutMaterializationDiagnosticCode {
     ProjectionKindChanged,
     LifecycleFailed,
     ReentrantReconciliation,
+    LifecycleIndeterminate,
+    LifecyclePanicked,
 }
 
 /// Fixed-sample, saturating diagnostics with no retained event history.
@@ -112,6 +114,7 @@ pub(crate) enum VirtualLayoutMaterializationError<ProjectionError, LifecycleErro
     ProjectionKindChanged,
     Lifecycle(LifecycleError),
     Reentrant,
+    LifecycleIndeterminate,
 }
 
 /// Stable private identity for a concrete projected item kind.
@@ -483,11 +486,18 @@ struct StagedItem<P> {
     projection: VirtualLayoutProjection<P>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LifecycleState {
+    Mounted,
+    CleanlyRetired,
+    LifecycleIndeterminate,
+}
+
 /// Private bounded materialization/recycling owner for one immutable scope.
 pub(crate) struct VirtualLayoutMaterializationStore<P, A> {
     scope: MaterializationScope,
     owner: Rc<CoordinatorIdentity>,
-    mounted: bool,
+    lifecycle_state: LifecycleState,
     active: Vec<ActiveSlot<P>>,
     recyclable: Vec<RecyclableSlot<P>>,
     next_slot_index: usize,
@@ -505,7 +515,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         Self {
             scope: MaterializationScope::from_coordinator(coordinator),
             owner: coordinator.owner_evidence(),
-            mounted: true,
+            lifecycle_state: LifecycleState::Mounted,
             active: Vec::new(),
             recyclable: Vec::new(),
             next_slot_index: 0,
@@ -521,6 +531,9 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
     /// Return the complete active slot set in new logical-index order.
     #[must_use]
     pub(crate) fn active_slots(&self) -> Vec<VirtualLayoutMaterializedSlot<'_, P>> {
+        if self.lifecycle_state != LifecycleState::Mounted {
+            return Vec::new();
+        }
         self.active
             .iter()
             .map(|slot| VirtualLayoutMaterializedSlot {
@@ -535,25 +548,38 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
     /// Return the active slot count.
     #[must_use]
     pub(crate) const fn active_len(&self) -> usize {
-        self.active.len()
+        match self.lifecycle_state {
+            LifecycleState::Mounted => self.active.len(),
+            LifecycleState::CleanlyRetired | LifecycleState::LifecycleIndeterminate => 0,
+        }
     }
 
     /// Return the recyclable shell count.
     #[must_use]
     pub(crate) const fn recyclable_len(&self) -> usize {
-        self.recyclable.len()
+        match self.lifecycle_state {
+            LifecycleState::Mounted => self.recyclable.len(),
+            LifecycleState::CleanlyRetired | LifecycleState::LifecycleIndeterminate => 0,
+        }
     }
 
     /// Return the current authoritative accepted revision.
     #[must_use]
     pub(crate) const fn authoritative_revision(&self) -> Option<u64> {
-        self.authoritative_revision
+        match self.lifecycle_state {
+            LifecycleState::Mounted => self.authoritative_revision,
+            LifecycleState::CleanlyRetired | LifecycleState::LifecycleIndeterminate => None,
+        }
     }
 
     /// Return the current authoritative accepted fence.
     #[must_use]
     pub(crate) fn authoritative_fence(&self) -> Option<&VirtualLayoutQueryFence> {
-        self.authoritative_fence.as_ref()
+        if self.lifecycle_state == LifecycleState::Mounted {
+            self.authoritative_fence.as_ref()
+        } else {
+            None
+        }
     }
 
     /// Return bounded store diagnostics.
@@ -565,7 +591,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
     /// Return whether the fixed scope is still mounted.
     #[must_use]
     pub(crate) const fn is_mounted(&self) -> bool {
-        self.mounted
+        matches!(self.lifecycle_state, LifecycleState::Mounted)
     }
 
     /// Publish one complete committed accepted window.
@@ -579,18 +605,29 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         A: VirtualLayoutLifecycleAdapter<P>,
     {
         if self.commit_guard.replace(true) {
-            self.diagnostics
-                .record(VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation);
+            self.reentry_attempted.set(true);
+            self.poison_lifecycle(
+                VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
+            );
             return Err(VirtualLayoutMaterializationError::Reentrant);
         }
         let guard = CommitGuard(Rc::clone(&self.commit_guard));
         self.reentry_attempted.set(false);
 
-        if !self.mounted {
-            return self.reject(
-                VirtualLayoutMaterializationDiagnosticCode::Unmounted,
-                VirtualLayoutMaterializationError::Unmounted,
-            );
+        match self.lifecycle_state {
+            LifecycleState::Mounted => {}
+            LifecycleState::CleanlyRetired => {
+                return self.reject(
+                    VirtualLayoutMaterializationDiagnosticCode::Unmounted,
+                    VirtualLayoutMaterializationError::Unmounted,
+                );
+            }
+            LifecycleState::LifecycleIndeterminate => {
+                return self.reject(
+                    VirtualLayoutMaterializationDiagnosticCode::LifecycleIndeterminate,
+                    VirtualLayoutMaterializationError::LifecycleIndeterminate,
+                );
+            }
         }
         if !Rc::ptr_eq(&self.owner, commit.owner()) {
             return self.reject(
@@ -862,11 +899,6 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             staged.push(StagedItem { plan, projection });
         }
 
-        let reentry = VirtualLayoutMaterializationReentry {
-            committing: self.commit_guard.as_ref(),
-            attempted: &self.reentry_attempted,
-        };
-
         let mut reset_identities = removed_reset_identities.clone();
         for staged_item in &staged {
             if let PlannedAction::Replacement { old_index } = staged_item.plan.action {
@@ -886,72 +918,74 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             )
         });
 
-        for &old_index in &retired_indices {
-            let old = &self.active[old_index];
-            let evidence =
-                VirtualLayoutProjectionEvidence::from_item(commit.fence(), &old.item, old.identity);
-            let result = self.lifecycle.unmount(&old.payload, evidence, &reentry);
-            if reentry.was_attempted() {
-                return self.reject(
-                    VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
-                    VirtualLayoutMaterializationError::Reentrant,
-                );
-            }
-            if let Err(error) = result {
-                self.diagnostics
-                    .record(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
-                return Err(VirtualLayoutMaterializationError::Lifecycle(error));
-            }
-        }
-        for &old_index in &retired_indices {
-            let old = &self.active[old_index];
-            let reset_identity = match reset_identities[old_index] {
-                Some(identity) => identity,
-                None => old.identity,
-            };
-            let evidence = VirtualLayoutProjectionEvidence::from_item(
-                commit.fence(),
-                &old.item,
-                reset_identity,
+        if self.reentry_attempted.get() {
+            self.poison_lifecycle(
+                VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
             );
-            let result = self.lifecycle.reset(&old.payload, evidence, &reentry);
-            if reentry.was_attempted() {
-                return self.reject(
-                    VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
-                    VirtualLayoutMaterializationError::Reentrant,
-                );
-            }
-            if let Err(error) = result {
-                self.diagnostics
-                    .record(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
-                return Err(VirtualLayoutMaterializationError::Lifecycle(error));
-            }
+            return Err(VirtualLayoutMaterializationError::Reentrant);
         }
-        for staged_item in &staged {
-            if let PlannedAction::Compatible { old_index } = staged_item.plan.action {
+        self.begin_lifecycle();
+        for &old_index in &retired_indices {
+            let result = {
                 let old = &self.active[old_index];
                 let evidence = VirtualLayoutProjectionEvidence::from_item(
                     commit.fence(),
-                    &staged_item.plan.item,
-                    staged_item.plan.identity,
+                    &old.item,
+                    old.identity,
                 );
-                let result = self.lifecycle.reconcile(
-                    &old.payload,
-                    &staged_item.projection.payload,
-                    evidence,
-                    &reentry,
+                let reentry = VirtualLayoutMaterializationReentry {
+                    committing: self.commit_guard.as_ref(),
+                    attempted: &self.reentry_attempted,
+                };
+                invoke_lifecycle_callback(|| {
+                    self.lifecycle.unmount(&old.payload, evidence, &reentry)
+                })
+            };
+            self.handle_lifecycle_result::<J::Error>(result)?;
+        }
+        for &old_index in &retired_indices {
+            let result = {
+                let old = &self.active[old_index];
+                let reset_identity = match reset_identities[old_index] {
+                    Some(identity) => identity,
+                    None => old.identity,
+                };
+                let evidence = VirtualLayoutProjectionEvidence::from_item(
+                    commit.fence(),
+                    &old.item,
+                    reset_identity,
                 );
-                if reentry.was_attempted() {
-                    return self.reject(
-                        VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
-                        VirtualLayoutMaterializationError::Reentrant,
+                let reentry = VirtualLayoutMaterializationReentry {
+                    committing: self.commit_guard.as_ref(),
+                    attempted: &self.reentry_attempted,
+                };
+                invoke_lifecycle_callback(|| self.lifecycle.reset(&old.payload, evidence, &reentry))
+            };
+            self.handle_lifecycle_result::<J::Error>(result)?;
+        }
+        for staged_item in &staged {
+            if let PlannedAction::Compatible { old_index } = staged_item.plan.action {
+                let result = {
+                    let old = &self.active[old_index];
+                    let evidence = VirtualLayoutProjectionEvidence::from_item(
+                        commit.fence(),
+                        &staged_item.plan.item,
+                        staged_item.plan.identity,
                     );
-                }
-                if let Err(error) = result {
-                    self.diagnostics
-                        .record(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
-                    return Err(VirtualLayoutMaterializationError::Lifecycle(error));
-                }
+                    let reentry = VirtualLayoutMaterializationReentry {
+                        committing: self.commit_guard.as_ref(),
+                        attempted: &self.reentry_attempted,
+                    };
+                    invoke_lifecycle_callback(|| {
+                        self.lifecycle.reconcile(
+                            &old.payload,
+                            &staged_item.projection.payload,
+                            evidence,
+                            &reentry,
+                        )
+                    })
+                };
+                self.handle_lifecycle_result::<J::Error>(result)?;
             }
         }
         for staged_item in &staged {
@@ -968,28 +1002,26 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
                     } => self.active.get(index).map(|slot| &slot.payload),
                     _ => None,
                 };
-                let evidence = VirtualLayoutProjectionEvidence::from_item(
-                    commit.fence(),
-                    &staged_item.plan.item,
-                    staged_item.plan.identity,
-                );
-                let result = self.lifecycle.mount(
-                    recycled_shell,
-                    &staged_item.projection.payload,
-                    evidence,
-                    &reentry,
-                );
-                if reentry.was_attempted() {
-                    return self.reject(
-                        VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
-                        VirtualLayoutMaterializationError::Reentrant,
+                let result = {
+                    let evidence = VirtualLayoutProjectionEvidence::from_item(
+                        commit.fence(),
+                        &staged_item.plan.item,
+                        staged_item.plan.identity,
                     );
-                }
-                if let Err(error) = result {
-                    self.diagnostics
-                        .record(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
-                    return Err(VirtualLayoutMaterializationError::Lifecycle(error));
-                }
+                    let reentry = VirtualLayoutMaterializationReentry {
+                        committing: self.commit_guard.as_ref(),
+                        attempted: &self.reentry_attempted,
+                    };
+                    invoke_lifecycle_callback(|| {
+                        self.lifecycle.mount(
+                            recycled_shell,
+                            &staged_item.projection.payload,
+                            evidence,
+                            &reentry,
+                        )
+                    })
+                };
+                self.handle_lifecycle_result::<J::Error>(result)?;
             }
         }
 
@@ -1047,6 +1079,7 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         self.next_slot_index = next_slot_index;
         self.authoritative_fence = Some(commit.fence().clone());
         self.authoritative_revision = Some(commit.accepted_revision());
+        self.lifecycle_state = LifecycleState::Mounted;
         drop(guard);
         Ok(())
     }
@@ -1057,18 +1090,45 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
         A: VirtualLayoutLifecycleAdapter<P>,
     {
         if self.commit_guard.replace(true) {
-            self.diagnostics
-                .record(VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation);
+            self.reentry_attempted.set(true);
+            self.poison_lifecycle(
+                VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
+            );
             return Err(VirtualLayoutMaterializationError::Reentrant);
         }
         let guard = CommitGuard(Rc::clone(&self.commit_guard));
         self.reentry_attempted.set(false);
-        if !self.mounted {
-            drop(guard);
-            return Ok(());
+        match self.lifecycle_state {
+            LifecycleState::Mounted => {}
+            LifecycleState::CleanlyRetired => {
+                drop(guard);
+                return Ok(());
+            }
+            LifecycleState::LifecycleIndeterminate => {
+                return self.reject(
+                    VirtualLayoutMaterializationDiagnosticCode::LifecycleIndeterminate,
+                    VirtualLayoutMaterializationError::LifecycleIndeterminate,
+                );
+            }
         }
 
-        let fence = self.authoritative_fence.as_ref();
+        let fence = match self.authoritative_fence.clone() {
+            Some(fence) => fence,
+            None if self.active.is_empty() => {
+                self.active.clear();
+                self.recyclable.clear();
+                self.authoritative_revision = None;
+                self.lifecycle_state = LifecycleState::CleanlyRetired;
+                drop(guard);
+                return Ok(());
+            }
+            None => {
+                return self.reject(
+                    VirtualLayoutMaterializationDiagnosticCode::InvalidCommit,
+                    VirtualLayoutMaterializationError::InvalidCommit,
+                );
+            }
+        };
         let mut active_indices: Vec<usize> = (0..self.active.len()).collect();
         active_indices.sort_by_key(|index| {
             (
@@ -1076,40 +1136,70 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
                 self.active[*index].identity.slot_index(),
             )
         });
+        self.begin_lifecycle();
         for index in active_indices {
-            let slot = &self.active[index];
-            let Some(fence) = fence else {
-                return self.reject(
-                    VirtualLayoutMaterializationDiagnosticCode::InvalidCommit,
-                    VirtualLayoutMaterializationError::InvalidCommit,
-                );
+            let result = {
+                let slot = &self.active[index];
+                let evidence =
+                    VirtualLayoutProjectionEvidence::from_item(&fence, &slot.item, slot.identity);
+                let reentry = VirtualLayoutMaterializationReentry {
+                    committing: self.commit_guard.as_ref(),
+                    attempted: &self.reentry_attempted,
+                };
+                invoke_lifecycle_callback(|| {
+                    self.lifecycle.unmount(&slot.payload, evidence, &reentry)
+                })
             };
-            let evidence =
-                VirtualLayoutProjectionEvidence::from_item(fence, &slot.item, slot.identity);
-            let reentry = VirtualLayoutMaterializationReentry {
-                committing: self.commit_guard.as_ref(),
-                attempted: &self.reentry_attempted,
-            };
-            let result = self.lifecycle.unmount(&slot.payload, evidence, &reentry);
-            if reentry.was_attempted() {
-                return self.reject(
-                    VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
-                    VirtualLayoutMaterializationError::Reentrant,
-                );
-            }
-            if let Err(error) = result {
-                self.diagnostics
-                    .record(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
-                return Err(VirtualLayoutMaterializationError::Lifecycle(error));
-            }
+            self.handle_lifecycle_result::<()>(result)?;
         }
         self.active.clear();
         self.recyclable.clear();
         self.authoritative_fence = None;
         self.authoritative_revision = None;
-        self.mounted = false;
+        self.lifecycle_state = LifecycleState::CleanlyRetired;
         drop(guard);
         Ok(())
+    }
+
+    fn begin_lifecycle(&mut self) {
+        self.lifecycle_state = LifecycleState::LifecycleIndeterminate;
+    }
+
+    fn poison_lifecycle(&mut self, code: VirtualLayoutMaterializationDiagnosticCode) {
+        self.lifecycle_state = LifecycleState::LifecycleIndeterminate;
+        self.active.clear();
+        self.recyclable.clear();
+        self.authoritative_fence = None;
+        self.authoritative_revision = None;
+        self.diagnostics.record(code);
+    }
+
+    fn handle_lifecycle_result<ProjectionError>(
+        &mut self,
+        result: Result<Result<(), A::Error>, Box<dyn std::any::Any + Send>>,
+    ) -> Result<(), VirtualLayoutMaterializationError<ProjectionError, A::Error>>
+    where
+        A: VirtualLayoutLifecycleAdapter<P>,
+    {
+        match result {
+            Err(panic) => {
+                self.poison_lifecycle(
+                    VirtualLayoutMaterializationDiagnosticCode::LifecyclePanicked,
+                );
+                std::panic::resume_unwind(panic);
+            }
+            Ok(_) if self.reentry_attempted.get() => {
+                self.poison_lifecycle(
+                    VirtualLayoutMaterializationDiagnosticCode::ReentrantReconciliation,
+                );
+                Err(VirtualLayoutMaterializationError::Reentrant)
+            }
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => {
+                self.poison_lifecycle(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed);
+                Err(VirtualLayoutMaterializationError::Lifecycle(error))
+            }
+        }
     }
 
     fn reject<E, F>(
@@ -1128,6 +1218,12 @@ impl Drop for CommitGuard {
     fn drop(&mut self) {
         self.0.set(false);
     }
+}
+
+fn invoke_lifecycle_callback<Error>(
+    callback: impl FnOnce() -> Result<(), Error>,
+) -> Result<Result<(), Error>, Box<dyn std::any::Any + Send>> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(callback))
 }
 
 struct RecyclePlan {
@@ -1464,6 +1560,9 @@ mod tests {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct LifecycleFailure;
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct LifecyclePanic;
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct Event {
         callback: Callback,
@@ -1482,6 +1581,7 @@ mod tests {
         compatibility: Cell<CompatibilityMode>,
         fail_on: Cell<Option<Callback>>,
         reenter_on: Cell<Option<Callback>>,
+        panic_on: Cell<Option<Callback>>,
     }
 
     impl TestLifecycle {
@@ -1499,6 +1599,7 @@ mod tests {
                     compatibility: Cell::new(CompatibilityMode::Stable),
                     fail_on: Cell::new(None),
                     reenter_on: Cell::new(None),
+                    panic_on: Cell::new(None),
                 },
                 events,
             )
@@ -1533,6 +1634,9 @@ mod tests {
         ) -> Result<(), LifecycleFailure> {
             if self.reenter_on.get() == Some(callback) {
                 let _ = reentry.try_reconcile();
+            }
+            if self.panic_on.get() == Some(callback) {
+                std::panic::panic_any(LifecyclePanic);
             }
             if self.fail_on.get() == Some(callback) {
                 return Err(LifecycleFailure);
@@ -1700,6 +1804,65 @@ mod tests {
 
     fn event_kinds(events: &[Event]) -> Vec<Callback> {
         events.iter().map(|event| event.callback).collect()
+    }
+
+    #[derive(Clone, Copy)]
+    enum LifecycleFault {
+        Error,
+        Reentry,
+    }
+
+    fn lifecycle_fault_case(
+        phase: Callback,
+        fault: LifecycleFault,
+    ) -> (
+        VirtualLayoutWindowCoordinator,
+        TestStore,
+        TestProjector,
+        TestEvents,
+        Box<VirtualLayoutCommit>,
+    ) {
+        let (mut coordinator, mut store, projector, events) = store_for(&[1, 2]);
+        let policy_calls = Rc::new(Cell::new(0));
+        let initial = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 0.0)],
+            1,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        store.publish(&initial, &projector).expect("initial commit");
+        events.borrow_mut().clear();
+
+        let next_entries = match phase {
+            Callback::Unmount | Callback::Reset => Vec::new(),
+            Callback::Reconcile => vec![Spec::new(1, 0, 10.0)],
+            Callback::Mount => {
+                projector.kind.set(2);
+                vec![Spec::new(1, 0, 20.0)]
+            }
+        };
+        let next = committed(
+            &mut coordinator,
+            &next_entries,
+            2,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        match fault {
+            LifecycleFault::Error => store.lifecycle.fail_on.set(Some(phase)),
+            LifecycleFault::Reentry => store.lifecycle.reenter_on.set(Some(phase)),
+        }
+        (coordinator, store, projector, events, next)
+    }
+
+    fn assert_lifecycle_indeterminate(store: &TestStore) {
+        assert!(!store.is_mounted());
+        assert!(store.active_slots().is_empty());
+        assert_eq!(store.active_len(), 0);
+        assert_eq!(store.recyclable_len(), 0);
+        assert_eq!(store.authoritative_fence(), None);
+        assert_eq!(store.authoritative_revision(), None);
     }
 
     fn empty_entries() -> [Spec; 0] {
@@ -2231,7 +2394,7 @@ mod tests {
     }
 
     #[test]
-    fn projector_lifecycle_reentry_and_kind_failures_do_not_publish_mixed_active_state() {
+    fn projector_and_kind_failures_remain_recoverable_before_lifecycle_callbacks() {
         let (mut coordinator, mut store, projector, events) = store_for(&[1]);
         let policy_calls = Rc::new(Cell::new(0));
         let initial = committed(
@@ -2277,45 +2440,26 @@ mod tests {
         assert_eq!(store.active_slots()[0].identity(), initial_slot);
         assert!(events.borrow().is_empty());
 
-        store.lifecycle.fail_on.set(Some(Callback::Reconcile));
-        let lifecycle_failure = committed(
+        let recovery = committed(
             &mut coordinator,
             &[Spec::new(1, 0, 30.0)],
             4,
             DEFAULT_BUDGET,
             Rc::clone(&policy_calls),
         );
-        assert!(matches!(
-            store.publish(&lifecycle_failure, &projector),
-            Err(VirtualLayoutMaterializationError::Lifecycle(_))
-        ));
-        store.lifecycle.fail_on.set(None);
+        store
+            .publish(&recovery, &projector)
+            .expect("pre-callback failures must remain recoverable");
+        assert!(store.is_mounted());
         assert_eq!(store.active_slots()[0].identity(), initial_slot);
-        assert_eq!(store.active_slots()[0].item().bounds().min.y, 0.0);
-        events.borrow_mut().clear();
-
-        store.lifecycle.reenter_on.set(Some(Callback::Reconcile));
-        let reentrant = committed(
-            &mut coordinator,
-            &[Spec::new(1, 0, 40.0)],
-            5,
-            DEFAULT_BUDGET,
-            Rc::clone(&policy_calls),
-        );
-        assert!(matches!(
-            store.publish(&reentrant, &projector),
-            Err(VirtualLayoutMaterializationError::Reentrant)
-        ));
-        store.lifecycle.reenter_on.set(None);
-        assert_eq!(store.active_slots()[0].identity(), initial_slot);
-        assert_eq!(store.active_slots()[0].item().bounds().min.y, 0.0);
+        assert_eq!(store.active_slots()[0].item().bounds().min.y, 30.0);
         events.borrow_mut().clear();
 
         projector.mismatch_projected_kind.set(true);
         let kind_mismatch = committed(
             &mut coordinator,
             &[Spec::new(1, 0, 50.0)],
-            6,
+            5,
             DEFAULT_BUDGET,
             Rc::clone(&policy_calls),
         );
@@ -2323,8 +2467,189 @@ mod tests {
             store.publish(&kind_mismatch, &projector),
             Err(VirtualLayoutMaterializationError::ProjectionKindChanged)
         ));
+        projector.mismatch_projected_kind.set(false);
+        assert!(store.is_mounted());
         assert_eq!(store.active_slots()[0].identity(), initial_slot);
+        assert_eq!(store.active_slots()[0].item().bounds().min.y, 30.0);
+        events.borrow_mut().clear();
+
+        let final_recovery = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 60.0)],
+            6,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        store
+            .publish(&final_recovery, &projector)
+            .expect("projection-kind failure must remain recoverable");
+        assert!(store.is_mounted());
+        assert_eq!(store.active_slots()[0].identity(), initial_slot);
+        assert_eq!(store.active_slots()[0].item().bounds().min.y, 60.0);
+        assert_eq!(event_kinds(&events.borrow()), vec![Callback::Reconcile]);
+        events.borrow_mut().clear();
+
+        let admission_recovery = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 70.0)],
+            7,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        let original_scope = store.scope.clone();
+        store.scope.container_id = CONTAINER_ID + 1;
+        assert!(matches!(
+            store.publish(&admission_recovery, &projector),
+            Err(VirtualLayoutMaterializationError::ForeignContainer)
+        ));
+        store.scope = original_scope;
+        assert!(store.is_mounted());
+        assert_eq!(store.active_slots()[0].item().bounds().min.y, 60.0);
         assert!(events.borrow().is_empty());
+        store
+            .publish(&admission_recovery, &projector)
+            .expect("admission failure must remain recoverable");
+        assert_eq!(store.active_slots()[0].item().bounds().min.y, 70.0);
+        assert_eq!(event_kinds(&events.borrow()), vec![Callback::Reconcile]);
+    }
+
+    #[test]
+    fn lifecycle_errors_after_observable_mutation_poison_without_replay() {
+        for phase in [
+            Callback::Unmount,
+            Callback::Reset,
+            Callback::Reconcile,
+            Callback::Mount,
+        ] {
+            let (_coordinator, mut store, projector, events, commit) =
+                lifecycle_fault_case(phase, LifecycleFault::Error);
+            let result = store.publish(&commit, &projector);
+            assert!(matches!(
+                result,
+                Err(VirtualLayoutMaterializationError::Lifecycle(_))
+            ));
+            let recorded = events.borrow().clone();
+            assert!(!recorded.is_empty());
+            assert_eq!(recorded.last().map(|event| event.callback), Some(phase));
+            assert_lifecycle_indeterminate(&store);
+
+            let projector_calls = projector.calls();
+            store.lifecycle.fail_on.set(None);
+            assert!(matches!(
+                store.publish(&commit, &projector),
+                Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+            ));
+            assert!(matches!(
+                store.unmount(),
+                Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+            ));
+            assert_eq!(*events.borrow(), recorded);
+            assert_eq!(projector.calls(), projector_calls);
+            assert!((0..store.diagnostics().sample_len()).any(|index| {
+                store.diagnostics().sample(index)
+                    == Some(VirtualLayoutMaterializationDiagnosticCode::LifecycleFailed)
+            }));
+        }
+    }
+
+    #[test]
+    fn lifecycle_reentry_poison_applies_to_every_callback_phase() {
+        for phase in [
+            Callback::Unmount,
+            Callback::Reset,
+            Callback::Reconcile,
+            Callback::Mount,
+        ] {
+            let (_coordinator, mut store, projector, events, commit) =
+                lifecycle_fault_case(phase, LifecycleFault::Reentry);
+            let result = store.publish(&commit, &projector);
+            assert!(matches!(
+                result,
+                Err(VirtualLayoutMaterializationError::Reentrant)
+            ));
+            let recorded = events.borrow().clone();
+            assert!(!recorded.is_empty());
+            assert_eq!(recorded.last().map(|event| event.callback), Some(phase));
+            assert_lifecycle_indeterminate(&store);
+
+            store.lifecycle.reenter_on.set(None);
+            assert!(matches!(
+                store.publish(&commit, &projector),
+                Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+            ));
+            assert!(matches!(
+                store.unmount(),
+                Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+            ));
+            assert_eq!(*events.borrow(), recorded);
+        }
+    }
+
+    #[test]
+    fn lifecycle_unwind_poison_survives_caught_panic() {
+        let (mut coordinator, mut store, projector, events) = store_for(&[1, 2]);
+        let policy_calls = Rc::new(Cell::new(0));
+        let initial = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 0.0), Spec::new(2, 1, 10.0)],
+            1,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        store.publish(&initial, &projector).expect("initial commit");
+        events.borrow_mut().clear();
+        store.lifecycle.panic_on.set(Some(Callback::Unmount));
+
+        let unwind = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = store.unmount();
+        }));
+        assert!(unwind.is_err());
+        let recorded = events.borrow().clone();
+        assert_eq!(event_kinds(&recorded), vec![Callback::Unmount]);
+        assert_lifecycle_indeterminate(&store);
+
+        store.lifecycle.panic_on.set(None);
+        assert!(matches!(
+            store.unmount(),
+            Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+        ));
+        assert_eq!(*events.borrow(), recorded);
+        assert!((0..store.diagnostics().sample_len()).any(|index| {
+            store.diagnostics().sample(index)
+                == Some(VirtualLayoutMaterializationDiagnosticCode::LifecyclePanicked)
+        }));
+    }
+
+    #[test]
+    fn partial_container_unmount_failure_never_replays_later_callbacks() {
+        let (mut coordinator, mut store, projector, events) = store_for(&[1, 2]);
+        let policy_calls = Rc::new(Cell::new(0));
+        let initial = committed(
+            &mut coordinator,
+            &[Spec::new(1, 0, 0.0), Spec::new(2, 1, 10.0)],
+            1,
+            DEFAULT_BUDGET,
+            Rc::clone(&policy_calls),
+        );
+        store.publish(&initial, &projector).expect("initial commit");
+        events.borrow_mut().clear();
+        store.lifecycle.fail_on.set(Some(Callback::Unmount));
+
+        assert!(matches!(
+            store.unmount(),
+            Err(VirtualLayoutMaterializationError::Lifecycle(_))
+        ));
+        let recorded = events.borrow().clone();
+        assert_eq!(event_kinds(&recorded), vec![Callback::Unmount]);
+        assert_eq!(recorded[0].key, Some(1));
+        assert_lifecycle_indeterminate(&store);
+
+        store.lifecycle.fail_on.set(None);
+        assert!(matches!(
+            store.unmount(),
+            Err(VirtualLayoutMaterializationError::LifecycleIndeterminate)
+        ));
+        assert_eq!(*events.borrow(), recorded);
     }
 
     #[test]

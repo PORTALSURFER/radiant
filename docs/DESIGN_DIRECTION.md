@@ -982,11 +982,15 @@ shipped without runtime registration. A separate crate-private accepted-window
 materialization/recycling correctness kernel is also shipped behind explicit
 host-projector and lifecycle-adapter seams. It is limited to fenced private
 correctness checks, keyed slot continuity, remove-before-reuse, and atomic
-publication; it does not register a runtime surface, project concrete surfaces,
-own focus/accessibility pins, schedule work, or serve a product consumer. Those
-runtime and product integrations remain future. Current fixed-child and
-host-projected fixed-row virtualization are compatibility paths, not an
-implementation of those later integrations.
+successful publication. Before its first lifecycle callback it pessimistically
+enters an indeterminate state; callback failure, reentry, or unwind terminally
+retires the private kernel with no rollback or recovery claim, while
+pre-callback admission and pure-projection failures remain recoverable. Runtime
+policy for that terminal state is deferred. It does not register a runtime
+surface, project concrete surfaces, own focus/accessibility pins, schedule work,
+or serve a product consumer. Those runtime and product integrations remain
+future. Current fixed-child and host-projected fixed-row virtualization are
+compatibility paths, not an implementation of those later integrations.
 
 ### Leaf content and interactive widgets
 

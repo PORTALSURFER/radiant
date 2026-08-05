@@ -66,9 +66,15 @@ At this status:
    exact scope, fence, owner, and revision evidence before projection or
    lifecycle work. It stages pure host projection separately from lifecycle
    callbacks, preserves stable key/kind continuity, unmounts and resets before
-   reuse, bounds active/recyclable/staging state, and publishes complete state
-   atomically. It has no runtime registration, concrete surface projection,
-   focus/accessibility pin ownership, scheduling, or product consumer.
+   reuse, bounds active/recyclable/staging state, and atomically publishes the
+   complete state only after every lifecycle callback succeeds. Before the first
+   lifecycle callback it pessimistically enters an indeterminate state; a
+   callback error, reentry, or unwind terminally retires the kernel, clears its
+   authority, and never replays or compensates callbacks. Admission, projection,
+   and other pre-callback rejection remain recoverable. Runtime policy for that
+   terminal state is deferred. It has no runtime registration, concrete surface
+   projection, focus/accessibility pin ownership, scheduling, or product
+   consumer.
 4. No runtime is required or wired to query keyed ranges, materialize keyed
    items, or recycle item slots according to this document; the private kernel
    exercises those operations only through explicit crate-private projector
@@ -712,6 +718,16 @@ focus, IME, drag, hover, semantic registration, and item-local subscriptions
 can be released against the correct identity. A callback after unmount is
 cancelled or ignored by mount generation and must not resurrect the slot.
 
+The shipped private kernel's publication atomicity is success-only. It stages
+the complete next active/recyclable/slot/fence/revision state, then installs it
+only after all unmount, reset, reconcile, and mount callbacks succeed. Before
+the first such callback it pessimistically hides the old authority. Any
+callback error, lifecycle reentry, or callback unwind terminally retires the
+kernel with no active/recyclable/fence/revision authority, without rollback,
+compensation, callback replay, or recovery claim. Pre-callback admission and
+pure-projection failures remain recoverable; runtime retry or replacement
+policy is a later integration decision.
+
 ### 10.3 No implicit lifecycle transfer
 
 Lifecycle and interaction state may continue across a reorder only for the same
@@ -871,9 +887,13 @@ desired-set reconciliation, and reset-only recycling for an accepted
 coordinator commit. It is a correctness kernel only: it does not register a
 runtime surface, project concrete `SurfaceNode` or widgets, own
 focus/accessibility pins, schedule work, or serve a product collection.
+Successful publication is atomic after complete lifecycle staging; callback
+failure, reentry, or unwind terminally retires the private kernel without
+rollback or recovery, while pre-callback rejection remains recoverable.
 Acceptance requires no implicit materialization, remove-before-reuse,
-same-key continuity, incompatible replacement cleanup, and unmount tests.
-Cancellation and those later runtime and product consumers remain unshipped.
+same-key continuity, incompatible replacement cleanup, fail-stop lifecycle
+retirement, and unmount tests. Cancellation and those later runtime and product
+consumers remain unshipped.
 
 ### Slice 4 — Focus and accessibility
 

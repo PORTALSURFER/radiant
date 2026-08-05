@@ -786,12 +786,15 @@ so a host can durably restore a width already applied from a move. An orphaned
 resize cancellation returns no update. Reorder cancellation still clears the
 active drag without producing a reorder. These helpers are not typed
 `EditEvent` boundaries or runtime interaction handlers. The qualified
-`radiant::layout::{LayoutCapabilities, LayoutInteraction}` contract now
-provides UI-local registration, exact/conservative revision evidence, and
-validated normalized hit-region declaration/projection for generic surface
-containers. `SurfaceRuntime::layout_hit_target_at(...)` exposes the resulting
-read-only container/region target and projected bounds; pointer routing,
-capture, and event handling remain future work.
+`radiant::layout::{LayoutCapabilities, LayoutInteraction}` contract provides
+UI-local registration, exact/conservative revision evidence, and validated
+normalized hit-region declaration/projection for generic surface containers.
+Version 3 additionally admits typed pointer input through
+`LayoutEventContext<Message>`; the runtime owns separate layout capture and
+offers a fresh topmost compatible target before widget fallback. Version 2 is
+retained as a projection/query-only contract. `SurfaceRuntime::layout_hit_target_at(...)`
+continues to expose the resulting read-only container/region target and
+projected bounds.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
@@ -930,10 +933,10 @@ stays a discrete collapse/restore command outside the edit stream while
 clearing active state. These APIs do not add `numeric_input` or runtime
 `split_pane` construction. The qualified layout capability registration,
 revision, and read-only normalized hit-region declaration/projection contract
-is available separately; `SurfaceRuntime::layout_hit_target_at(...)` only
-queries projected targets. Pointer hit-region routing, capture, runtime-local
-interaction state, event handling, semantic/keyboard behavior, and
-`VirtualLayoutPolicy` remain future work.
+is available separately. Version-3 capabilities may receive typed pointer
+input and request runtime-owned layout capture; version 2 remains query-only.
+This slice does not provide semantic/keyboard behavior or implement
+`VirtualLayoutPolicy`.
 
 These types are intentionally not exported through the common prelude.
 
@@ -3890,14 +3893,15 @@ to resolve backend-neutral first, divider, and second rectangles along a
 horizontal or vertical axis; non-finite ratios use `0.5`, non-finite divider
 or minimum extents use `0.0`, and the result reports whether both pane minima
 were satisfied. The qualified `radiant::layout::{LayoutCapabilities,
-LayoutInteraction, LayoutInteractionRevision}` contract now provides
+LayoutInteraction, LayoutInteractionRevision}` contract provides
 backend-neutral UI-local capability registration, exact/conservative revision
-evidence, and validated normalized hit-region declaration/projection for
-generic surface containers. `SurfaceRuntime::layout_hit_target_at(...)` is a
-read-only query over those projected targets. It does not construct the target
-`split_pane` runtime builder or provide pointer hit-region routing, capture,
-runtime-local interaction state, event handling, semantic/keyboard behavior,
-or `VirtualLayoutPolicy`; those remain future work.
+evidence, validated normalized hit-region declaration/projection, and (for
+contract version 3) typed pointer admission with runtime-owned capture for
+generic surface containers. Version 2 remains projection/query-only.
+`SurfaceRuntime::layout_hit_target_at(...)` is a read-only query over those
+projected targets. This slice does not construct the target `split_pane`
+runtime builder or provide semantic/keyboard behavior or `VirtualLayoutPolicy`;
+those remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

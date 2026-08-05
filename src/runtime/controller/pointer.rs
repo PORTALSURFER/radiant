@@ -207,6 +207,7 @@ where
     /// the originating surface must not keep treating later pointer motion as a
     /// continuation of the in-window press.
     pub(crate) fn cancel_pointer_capture(&mut self) {
+        self.cancel_layout_pointer_capture();
         let captured = self.interaction.pointer.capture.take();
         if let Some(widget_id) = captured {
             self.cancel_captured_widget_state(widget_id);

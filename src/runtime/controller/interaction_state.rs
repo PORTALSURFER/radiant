@@ -5,11 +5,12 @@ use super::{
     PendingExternalDragCompletion,
 };
 use crate::{
-    gui::input::KeyPress,
+    gui::input::{InputSequenceRange, InputTimestamp, KeyPress},
     gui::types::Point,
-    layout::NodeId,
-    widgets::{WidgetId, WidgetState},
+    layout::{LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity, NodeId},
+    widgets::{PointerModifiers, WidgetId, WidgetState},
 };
+use std::rc::Rc;
 use std::time::Instant;
 
 pub(super) struct RuntimeInteractionState<Message> {
@@ -17,6 +18,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) hover: RuntimeHoverState,
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
+    pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
     pub(super) drag: RuntimeDragState<Message>,
 }
 
@@ -27,7 +29,32 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             hover: RuntimeHoverState::default(),
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
+            layout_capture: None,
             drag: RuntimeDragState::default(),
+        }
+    }
+}
+
+pub(super) struct RuntimeLayoutPointerCapture<Message> {
+    pub(super) identity: LayoutTargetIdentity,
+    pub(super) revision: LayoutInteractionRevision,
+    pub(super) interaction: Rc<dyn LayoutInteraction<Message>>,
+    pub(super) last_position: Point,
+    pub(super) last_modifiers: PointerModifiers,
+    pub(super) last_timestamp: Option<InputTimestamp>,
+    pub(super) last_sequence_range: Option<InputSequenceRange>,
+}
+
+impl<Message> Clone for RuntimeLayoutPointerCapture<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            identity: self.identity,
+            revision: self.revision.clone(),
+            interaction: Rc::clone(&self.interaction),
+            last_position: self.last_position,
+            last_modifiers: self.last_modifiers,
+            last_timestamp: self.last_timestamp,
+            last_sequence_range: self.last_sequence_range,
         }
     }
 }

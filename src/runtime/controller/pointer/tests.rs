@@ -1,19 +1,25 @@
 use super::*;
 use crate::{
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
-    gui::types::{Rect, Vector2},
-    layout::{Constraints, LayoutOutput, SizeModeCross, SizeModeMain, SlotParams},
+    gui::types::{Point, Rect, Vector2},
+    layout::{
+        Constraints, ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
+        LayoutHitRegionId, LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
+        LayoutTargetIdentity, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
+    },
     runtime::{
         Command, Event, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{
-        EditPhase, FocusBehavior, InteractionSource, InteractiveRowWidget, PointerButton,
-        PointerModifiers, PointerShieldMessage, PointerShieldWidget, SliderEditBatch,
-        TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, InteractionSource,
+        InteractiveRowWidget, PointerButton, PointerModifiers, PointerShieldMessage,
+        PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 struct FocusTestBridge;
 
@@ -434,6 +440,728 @@ fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChil
         },
         child,
     )
+}
+
+fn fixed_width_child<Message>(width: f32, child: SurfaceNode<Message>) -> SurfaceChild<Message> {
+    SurfaceChild::new(
+        SlotParams {
+            size_main: SizeModeMain::Fixed(width),
+            size_cross: SizeModeCross::Fill,
+            constraints: Constraints::unconstrained(),
+            margin: Default::default(),
+            align_cross_override: None,
+            allow_fixed_compress: false,
+        },
+        child,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum LayoutProbeRevision {
+    Exact(&'static str),
+    Conservative,
+}
+
+impl LayoutProbeRevision {
+    fn evidence(self) -> LayoutInteractionRevision {
+        match self {
+            Self::Exact(value) => LayoutInteractionRevision::exact(value),
+            Self::Conservative => LayoutInteractionRevision::conservative(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct LayoutProbeState {
+    events: Vec<(LayoutTargetIdentity, LayoutInput)>,
+    messages: Vec<u8>,
+    handled: bool,
+    capture_on_press: bool,
+    capture_on_release: bool,
+    emit_message_on_press: bool,
+    emit_message_on_release: bool,
+    repaint_on_move: bool,
+    work_on_move: bool,
+    widget_moves: usize,
+}
+
+struct LayoutProbeInteraction {
+    state: Rc<RefCell<LayoutProbeState>>,
+    revision: LayoutInteractionRevision,
+    regions: Vec<LayoutHitRegion>,
+}
+
+impl LayoutInteraction<u8> for LayoutProbeInteraction {
+    fn revision(&self) -> LayoutInteractionRevision {
+        self.revision.clone()
+    }
+
+    fn visit_hit_regions(&self, _local_bounds: Rect, visitor: &mut dyn FnMut(LayoutHitRegion)) {
+        for region in &self.regions {
+            visitor(*region);
+        }
+    }
+
+    fn handle_layout_input(
+        &self,
+        input: LayoutInput,
+        context: &mut crate::layout::LayoutEventContext<u8>,
+    ) {
+        let (
+            handled,
+            capture_on_press,
+            capture_on_release,
+            emit_message_on_press,
+            emit_message_on_release,
+            repaint_on_move,
+            work_on_move,
+        ) = {
+            let mut state = self.state.borrow_mut();
+            state.events.push((context.target(), input));
+            (
+                state.handled,
+                state.capture_on_press,
+                state.capture_on_release,
+                state.emit_message_on_press,
+                state.emit_message_on_release,
+                state.repaint_on_move,
+                state.work_on_move,
+            )
+        };
+
+        if handled {
+            context.handle();
+        }
+        if capture_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
+            context.capture_pointer();
+        }
+        if capture_on_release && matches!(input, LayoutInput::PointerRelease { .. }) {
+            context.capture_pointer();
+        }
+        if emit_message_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
+            assert!(context.emit_message(7));
+        }
+        if emit_message_on_release && matches!(input, LayoutInput::PointerRelease { .. }) {
+            assert!(context.emit_message(7));
+        }
+        if matches!(input, LayoutInput::PointerMove { .. }) {
+            if repaint_on_move {
+                context.request_repaint();
+            }
+            if work_on_move {
+                context.request_work();
+            }
+        }
+    }
+}
+
+struct LayoutProbeBridge {
+    state: Rc<RefCell<LayoutProbeState>>,
+    revision: LayoutProbeRevision,
+    contract_version: u16,
+    visible: bool,
+    scroll: bool,
+    exclusive: bool,
+    pass_through: bool,
+    change_revision_on_message: bool,
+}
+
+impl LayoutProbeBridge {
+    fn new(state: Rc<RefCell<LayoutProbeState>>) -> Self {
+        Self {
+            state,
+            revision: LayoutProbeRevision::Exact("layout-probe"),
+            contract_version: LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+            visible: true,
+            scroll: false,
+            exclusive: false,
+            pass_through: false,
+            change_revision_on_message: false,
+        }
+    }
+
+    fn surface(&self) -> UiSurface<u8> {
+        let regions = if self.visible {
+            vec![
+                LayoutHitRegion::new(
+                    LayoutHitRegionId::new(1),
+                    Rect::from_min_max(Point::new(0.5, 0.0), Point::new(1.0, 1.0)),
+                )
+                .expect("layout probe region should be valid"),
+            ]
+        } else {
+            Vec::new()
+        };
+        let interaction = LayoutProbeInteraction {
+            state: Rc::clone(&self.state),
+            revision: self.revision.evidence(),
+            regions,
+        };
+        let mut capabilities = LayoutCapabilities::new().interaction_local(interaction);
+        capabilities.contract_version = self.contract_version;
+
+        let root = if self.scroll {
+            SurfaceNode::container(
+                1,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(2, "wide", WidgetSizing::fixed(Vector2::new(300.0, 200.0))),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+        } else {
+            let left_widget = if self.exclusive {
+                SurfaceNode::widget(
+                    DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(100.0, 40.0))),
+                    WidgetMessageMapper::none(),
+                )
+            } else if self.pass_through {
+                SurfaceNode::widget(
+                    PassThroughMoveWidget::new(10, Rc::clone(&self.state)),
+                    WidgetMessageMapper::none(),
+                )
+            } else {
+                SurfaceNode::widget(
+                    TextInputWidget::new(
+                        10,
+                        "input",
+                        WidgetSizing::fixed(Vector2::new(100.0, 40.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )
+            };
+            SurfaceNode::row(
+                1,
+                0.0,
+                vec![
+                    fixed_width_child(100.0, left_widget),
+                    fixed_width_child(
+                        100.0,
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                20,
+                                "button",
+                                WidgetSizing::fixed(Vector2::new(100.0, 40.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    ),
+                ],
+            )
+        };
+        UiSurface::new(root.with_layout_capabilities(capabilities))
+    }
+}
+
+#[derive(Clone)]
+struct PassThroughMoveWidget {
+    common: WidgetCommon,
+    state: Rc<RefCell<LayoutProbeState>>,
+}
+
+impl PassThroughMoveWidget {
+    fn new(id: u64, state: Rc<RefCell<LayoutProbeState>>) -> Self {
+        let mut common = WidgetCommon::fixed(id, 100.0, 40.0);
+        common.focus = FocusBehavior::Pointer;
+        Self { common, state }
+    }
+}
+
+impl Widget for PassThroughMoveWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { .. } => {
+                self.state.borrow_mut().widget_moves += 1;
+                Some(WidgetOutput::typed(0))
+            }
+            WidgetInput::PointerPress { .. } | WidgetInput::PointerRelease { .. } => {
+                Some(WidgetOutput::typed(0))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl RuntimeBridge<u8> for LayoutProbeBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<u8>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn pull_surface(&mut self) -> UiSurface<u8> {
+        self.surface()
+    }
+
+    fn reduce_message(&mut self, message: u8) {
+        self.state.borrow_mut().messages.push(message);
+        if self.change_revision_on_message {
+            self.revision = LayoutProbeRevision::Exact("changed-after-release");
+        }
+    }
+}
+
+#[test]
+fn layout_input_is_offered_before_widget_and_unhandled_input_falls_back() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        emit_message_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&state)),
+        Vector2::new(200.0, 40.0),
+    );
+    let left = Point::new(20.0, 20.0);
+    let right = Point::new(150.0, 20.0);
+    let timestamp = Some(InputTimestamp::capture());
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: true,
+        alt: false,
+    };
+
+    assert_eq!(runtime.dispatch_primary_click(left).press_target, Some(10));
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_press_with_timestamp(
+            right,
+            PointerButton::Primary,
+            modifiers,
+            timestamp,
+        )),
+        None,
+        "handled layout input must prevent widget fallback"
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.bridge().state.borrow().messages, vec![7]);
+    assert_eq!(
+        runtime.bridge().state.borrow().events,
+        vec![(
+            LayoutTargetIdentity::new(1, LayoutHitRegionId::new(1)),
+            LayoutInput::PointerPress {
+                position: right,
+                button: PointerButton::Primary,
+                modifiers,
+                timestamp,
+            },
+        )]
+    );
+
+    runtime.bridge().state.borrow_mut().handled = false;
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(right)),
+        Some(20),
+        "an unhandled layout event must preserve widget fallback"
+    );
+    assert_eq!(runtime.pointer_capture(), Some(20));
+}
+
+#[test]
+fn layout_capture_is_exclusive_and_delivers_metadata_outside_bounds_without_refresh() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&state)),
+        Vector2::new(200.0, 40.0),
+    );
+    let target = LayoutTargetIdentity::new(1, LayoutHitRegionId::new(1));
+    let press_timestamp = Some(InputTimestamp::capture());
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_press_with_timestamp(
+            Point::new(150.0, 20.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+            press_timestamp,
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), Some(target));
+    assert_eq!(runtime.pointer_capture(), None);
+
+    let counters = runtime.refresh_counters();
+    let repaint_requested = runtime.repaint_requested();
+    let modifiers = PointerModifiers {
+        command: true,
+        shift: false,
+        alt: true,
+    };
+    let timestamp = Some(InputTimestamp::capture());
+    let sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(71),
+    ));
+    for position in [Point::new(-20.0, 20.0), Point::new(240.0, 80.0)] {
+        assert_eq!(
+            runtime.dispatch_event(Event::pointer_move_with_metadata(
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            )),
+            None
+        );
+    }
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release_with_timestamp(
+            Point::new(240.0, 80.0),
+            PointerButton::Primary,
+            modifiers,
+            timestamp,
+        )),
+        None
+    );
+
+    let events = &runtime.bridge().state.borrow().events;
+    assert!(matches!(events[0].1, LayoutInput::PointerPress { .. }));
+    assert_eq!(
+        events
+            .iter()
+            .filter_map(|(_, input)| match input {
+                LayoutInput::PointerMove {
+                    position,
+                    modifiers: input_modifiers,
+                    timestamp: input_timestamp,
+                    sequence_range: input_sequence_range,
+                } => Some((
+                    *position,
+                    *input_modifiers,
+                    *input_timestamp,
+                    *input_sequence_range
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                Point::new(-20.0, 20.0),
+                modifiers,
+                timestamp,
+                sequence_range
+            ),
+            (
+                Point::new(240.0, 80.0),
+                modifiers,
+                timestamp,
+                sequence_range
+            ),
+        ]
+    );
+    assert!(matches!(events[3].1, LayoutInput::PointerRelease { .. }));
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.refresh_counters(), counters);
+    assert_eq!(runtime.repaint_requested(), repaint_requested);
+}
+
+#[test]
+fn fresh_layout_release_cannot_start_a_new_capture() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_release: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&state)),
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(150.0, 20.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert!(matches!(
+        state.borrow().events.as_slice(),
+        [(_, LayoutInput::PointerRelease { .. })]
+    ));
+}
+
+#[test]
+fn captured_layout_release_clears_capture_before_refreshing_message() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        emit_message_on_release: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            change_revision_on_message: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0))),
+        None
+    );
+    assert!(runtime.layout_pointer_capture().is_some());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(240.0, 80.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    let events = state.borrow().events.clone();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerRelease { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        0
+    );
+    assert_eq!(state.borrow().messages, vec![7]);
+}
+
+#[test]
+fn widget_capture_precedes_fresh_layout_and_scrollbar_capture_precedes_layout() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            exclusive: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(runtime.widget_at(Point::new(20.0, 20.0)), Some(10));
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(runtime.bridge().state.borrow().events, Vec::new());
+
+    let pass_through_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut pass_through_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            pass_through: true,
+            ..LayoutProbeBridge::new(Rc::clone(&pass_through_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        pass_through_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(pass_through_runtime.pointer_capture(), Some(10));
+    let _ = pass_through_runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 20.0)));
+    assert_eq!(pass_through_runtime.pointer_capture(), Some(10));
+    assert_eq!(pass_through_state.borrow().widget_moves, 1);
+    assert!(pass_through_state.borrow().events.is_empty());
+
+    let press_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut press_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            exclusive: true,
+            ..LayoutProbeBridge::new(Rc::clone(&press_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        press_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(press_runtime.pointer_capture(), Some(10));
+    let _ = press_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    assert_eq!(press_runtime.pointer_capture(), Some(10));
+    assert!(press_state.borrow().events.is_empty());
+
+    let double_click_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut double_click_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            exclusive: true,
+            ..LayoutProbeBridge::new(Rc::clone(&double_click_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(
+        double_click_runtime.dispatch_event(Event::primary_press(Point::new(20.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+    let _ =
+        double_click_runtime.dispatch_event(Event::primary_double_click(Point::new(150.0, 20.0)));
+    assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+    assert!(double_click_state.borrow().events.is_empty());
+
+    let scrollbar_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut scrollbar_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            scroll: true,
+            ..LayoutProbeBridge::new(Rc::clone(&scrollbar_state))
+        },
+        Vector2::new(100.0, 50.0),
+    );
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| scrollbar_runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+    assert_eq!(
+        scrollbar_runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert!(scrollbar_runtime.scrollbar_drag_active());
+    assert_eq!(scrollbar_runtime.layout_pointer_capture(), None);
+    assert!(scrollbar_state.borrow().events.is_empty());
+}
+
+#[test]
+fn layout_capture_rebinds_only_on_exact_revision_and_cancels_once_otherwise() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&state)),
+        Vector2::new(200.0, 40.0),
+    );
+    runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    assert!(runtime.layout_pointer_capture().is_some());
+
+    runtime.refresh();
+    assert!(runtime.layout_pointer_capture().is_some());
+    assert_eq!(
+        state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        0
+    );
+
+    runtime.bridge_mut().revision = LayoutProbeRevision::Exact("changed");
+    runtime.refresh();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        1
+    );
+    runtime.refresh();
+    assert_eq!(
+        state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        1
+    );
+
+    let conservative_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut conservative_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&conservative_state)),
+        Vector2::new(200.0, 40.0),
+    );
+    conservative_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    conservative_runtime.bridge_mut().revision = LayoutProbeRevision::Conservative;
+    conservative_runtime.refresh();
+    assert_eq!(conservative_runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        conservative_state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn projection_only_version_two_remains_query_only_for_pointer_routing() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            contract_version: LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    assert!(runtime.layout_target_at(Point::new(150.0, 20.0)).is_some());
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0))),
+        Some(20)
+    );
+    assert!(state.borrow().events.is_empty());
+    assert_eq!(runtime.layout_pointer_capture(), None);
 }
 
 #[test]

@@ -22,11 +22,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
             self.styled_container_order.push(record.id);
         }
         if let Some(interaction) = record.layout_interaction {
-            self.layout_interactions
-                .push(super::SurfaceLayoutInteractionRecord {
-                    id: record.id,
-                    interaction,
-                });
+            self.layout_interactions.push(interaction);
         }
     }
 

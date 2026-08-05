@@ -1,19 +1,228 @@
 //! UI-local capability registration and layout-target declarations for
 //! backend-neutral layout containers.
 //!
-//! This module establishes the registration, revision-evidence, and
-//! declaration boundary for optional container layout interaction. It does not
-//! define pointer input or context types, capture, runtime-local state storage,
-//! or event handling. Declared regions are projected for read-only inspection;
-//! routing those targets remains a later layer.
+//! This module establishes the registration, revision-evidence, declaration,
+//! and typed input boundary for optional container layout interaction. Runtime
+//! capture remains owned by the surface controller; the capability only
+//! receives an input and records bounded event decisions in its context.
 
 use std::{any::Any, fmt, rc::Rc};
 
 use super::tree::NodeId;
-use crate::gui::types::Rect;
+use crate::{
+    gui::{
+        input::{InputSequenceRange, InputTimestamp},
+        types::{Point, Rect},
+    },
+    widgets::{PointerButton, PointerModifiers},
+};
 
 /// Contract revision understood by [`LayoutCapabilities`].
-pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 2;
+pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 3;
+
+/// The projection/query-only capability contract retained for compatibility.
+pub const LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION: u16 = 2;
+
+pub(crate) const fn supports_layout_capabilities_contract(version: u16) -> bool {
+    matches!(
+        version,
+        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION | LAYOUT_CAPABILITIES_CONTRACT_VERSION
+    )
+}
+
+pub(crate) const fn supports_layout_input_contract(version: u16) -> bool {
+    version == LAYOUT_CAPABILITIES_CONTRACT_VERSION
+}
+
+/// Stable identity for one projected layout interaction target.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct LayoutTargetIdentity {
+    /// Stable container node that owns the interaction capability.
+    pub container_id: NodeId,
+    /// Stable region identity within that container.
+    pub region_id: LayoutHitRegionId,
+}
+
+impl LayoutTargetIdentity {
+    /// Construct a target identity from its container and region identities.
+    pub const fn new(container_id: NodeId, region_id: LayoutHitRegionId) -> Self {
+        Self {
+            container_id,
+            region_id,
+        }
+    }
+}
+
+/// Pointer input offered to a version-3 layout interaction capability.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LayoutInput {
+    /// Pointer hover or captured motion moved to `position`.
+    PointerMove {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Modifier state captured with this pointer sample.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
+    },
+    /// Pointer modifier state changed while the pointer remains active.
+    PointerModifiersChanged {
+        /// Latest platform-neutral pointer modifier state.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
+    /// A pointer button press started at `position`.
+    PointerPress {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Button that started the press.
+        button: PointerButton,
+        /// Modifier state at press time.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
+    /// A pointer double-click completed at `position`.
+    PointerDoubleClick {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Button that completed the double-click.
+        button: PointerButton,
+        /// Modifier state at double-click time.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
+    /// A pointer button release occurred at `position`.
+    PointerRelease {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Button that ended the press.
+        button: PointerButton,
+        /// Modifier state at release time.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
+    /// Runtime-owned layout capture was cancelled at a safe boundary.
+    PointerCaptureCancelled {
+        /// Last known pointer position when cancellation was observed.
+        position: Point,
+        /// Latest modifier state available at cancellation.
+        modifiers: PointerModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+        /// Optional opaque native sample sequence range.
+        sequence_range: Option<InputSequenceRange>,
+    },
+}
+
+/// Bounded decisions returned by one layout interaction callback.
+pub struct LayoutEventContext<Message> {
+    target: LayoutTargetIdentity,
+    handled: bool,
+    capture_requested: bool,
+    release_requested: bool,
+    repaint_requested: bool,
+    work_requested: bool,
+    message: Option<Message>,
+}
+
+impl<Message> LayoutEventContext<Message> {
+    /// Create an empty event context for one projected target.
+    pub fn new(target: LayoutTargetIdentity) -> Self {
+        Self {
+            target,
+            handled: false,
+            capture_requested: false,
+            release_requested: false,
+            repaint_requested: false,
+            work_requested: false,
+            message: None,
+        }
+    }
+
+    /// Return the target identity receiving this event.
+    pub const fn target(&self) -> LayoutTargetIdentity {
+        self.target
+    }
+
+    /// Return whether the capability claimed this event.
+    pub const fn handled(&self) -> bool {
+        self.handled
+    }
+
+    /// Mark this event as handled. Only a handled fresh layout event prevents
+    /// the runtime from falling back to widget routing.
+    pub fn set_handled(&mut self, handled: bool) {
+        self.handled = handled;
+    }
+
+    /// Mark this event as handled and return the mutable context.
+    pub fn handle(&mut self) -> &mut Self {
+        self.handled = true;
+        self
+    }
+
+    /// Request runtime-owned pointer capture for this target.
+    pub fn capture_pointer(&mut self) {
+        self.capture_requested = true;
+        self.release_requested = false;
+    }
+
+    /// Request release of runtime-owned pointer capture for this target.
+    pub fn release_pointer(&mut self) {
+        self.release_requested = true;
+        self.capture_requested = false;
+    }
+
+    /// Return whether capture was requested.
+    pub const fn capture_requested(&self) -> bool {
+        self.capture_requested
+    }
+
+    /// Return whether release was requested.
+    pub const fn release_requested(&self) -> bool {
+        self.release_requested
+    }
+
+    /// Request a repaint without requiring a surface projection.
+    pub fn request_repaint(&mut self) {
+        self.repaint_requested = true;
+    }
+
+    /// Request bounded runtime work and the repaint needed to service it.
+    pub fn request_work(&mut self) {
+        self.work_requested = true;
+    }
+
+    /// Return whether repaint was requested.
+    pub const fn repaint_requested(&self) -> bool {
+        self.repaint_requested
+    }
+
+    /// Return whether runtime work was requested.
+    pub const fn work_requested(&self) -> bool {
+        self.work_requested
+    }
+
+    /// Emit at most one host-defined message. A second message is ignored.
+    pub fn emit_message(&mut self, message: Message) -> bool {
+        if self.message.is_some() {
+            return false;
+        }
+        self.message = Some(message);
+        true
+    }
+
+    /// Take the one message admitted by this context.
+    pub fn take_message(&mut self) -> Option<Message> {
+        self.message.take()
+    }
+}
 
 /// Stable identity for one hit region declared by a layout capability.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -107,6 +316,13 @@ pub struct LayoutHitTarget {
     pub region_id: LayoutHitRegionId,
     /// Projected and clip-constrained logical bounds.
     pub bounds: Rect,
+}
+
+impl LayoutHitTarget {
+    /// Return the stable identity of this projected target.
+    pub const fn identity(self) -> LayoutTargetIdentity {
+        LayoutTargetIdentity::new(self.container_id, self.region_id)
+    }
 }
 
 /// Read-only projection diagnostics for one traversal installation.
@@ -236,11 +452,10 @@ impl LayoutInteractionRevision {
 /// UI-local, object-safe capability for a container-specific layout
 /// interaction.
 ///
-/// The runtime may ask a capability for normalized hit-region
-/// declarations after the container receives its final logical bounds. Those
-/// declarations are projected into a read-only runtime target index. Pointer
-/// routing, capture, runtime-local state, and event handling are deliberately
-/// not part of this slice.
+/// The runtime may ask a capability for normalized hit-region declarations after
+/// the container receives its final logical bounds, and version-3 runtimes may
+/// offer typed pointer input to the same capability. Pointer capture remains a
+/// runtime-owned decision represented by [`LayoutEventContext`].
 pub trait LayoutInteraction<Message> {
     /// Return typed revision evidence for this capability's layout behavior.
     ///
@@ -264,6 +479,15 @@ pub trait LayoutInteraction<Message> {
         let _ = local_bounds;
         let _ = visitor;
     }
+
+    /// Handle one version-3 layout pointer input.
+    ///
+    /// The default is intentionally unhandled so version-2 projection/query
+    /// capabilities and existing custom implementations remain source
+    /// compatible. A callback must call [`LayoutEventContext::set_handled`] or
+    /// [`LayoutEventContext::handle`] to prevent widget fallback.
+    fn handle_layout_input(&self, _input: LayoutInput, _context: &mut LayoutEventContext<Message>) {
+    }
 }
 
 /// Owned descriptor for the optional UI-local capabilities of one layout
@@ -272,9 +496,9 @@ pub trait LayoutInteraction<Message> {
 /// The descriptor is intentionally not `Send` or `Sync`: its interaction is
 /// retained in an [`Rc`] and belongs to the owning UI thread. It registers
 /// capability objects and their read-only projected target declarations but
-/// does not route input or provide runtime interaction state. A registered
-/// descriptor therefore remains a declaration/projection contract, not a
-/// shipped `split_pane` runtime.
+/// does not route input itself or store runtime interaction state. The runtime
+/// owns capture and dispatch while the descriptor supplies the capability
+/// contract.
 pub struct LayoutCapabilities<Message> {
     /// Descriptor contract revision understood by the runtime.
     pub contract_version: u16,
@@ -352,9 +576,10 @@ impl<Message> fmt::Debug for LayoutCapabilities<Message> {
 #[cfg(test)]
 mod tests {
     use super::{
-        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
-        LayoutHitRegionDeclarationError, LayoutHitRegionId, LayoutInteraction,
-        LayoutInteractionRevision,
+        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
+        LayoutCapabilities, LayoutEventContext, LayoutHitRegion, LayoutHitRegionDeclarationError,
+        LayoutHitRegionId, LayoutInput, LayoutInteraction, LayoutInteractionRevision,
+        LayoutTargetIdentity,
     };
     use crate::gui::types::{Point, Rect, Vector2};
     use std::{cell::Cell, rc::Rc};
@@ -486,5 +711,59 @@ mod tests {
             &mut |region| visited.push(region),
         );
         assert!(visited.is_empty());
+    }
+
+    #[test]
+    fn version_three_input_is_object_safe_and_context_is_bounded() {
+        assert_eq!(LAYOUT_CAPABILITIES_CONTRACT_VERSION, 3);
+        assert_eq!(LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, 2);
+
+        struct InputInteraction {
+            calls: Rc<Cell<u8>>,
+        }
+
+        impl LayoutInteraction<u8> for InputInteraction {
+            fn handle_layout_input(
+                &self,
+                input: LayoutInput,
+                context: &mut LayoutEventContext<u8>,
+            ) {
+                assert!(matches!(input, LayoutInput::PointerPress { .. }));
+                self.calls.set(self.calls.get().saturating_add(1));
+                context.handle();
+                context.capture_pointer();
+                context.request_repaint();
+                context.request_work();
+                assert!(context.emit_message(7));
+                assert!(!context.emit_message(8));
+            }
+        }
+
+        let calls = Rc::new(Cell::new(0));
+        let interaction: Rc<dyn LayoutInteraction<u8>> = Rc::new(InputInteraction {
+            calls: Rc::clone(&calls),
+        });
+        let target = LayoutTargetIdentity::new(41, LayoutHitRegionId::new(9));
+        let mut context = LayoutEventContext::new(target);
+
+        interaction.handle_layout_input(
+            LayoutInput::PointerPress {
+                position: Point::new(3.0, 4.0),
+                button: crate::widgets::PointerButton::Primary,
+                modifiers: crate::widgets::PointerModifiers::default(),
+                timestamp: None,
+            },
+            &mut context,
+        );
+
+        assert_eq!(calls.get(), 1);
+        assert_eq!(context.target(), target);
+        assert!(context.handled());
+        assert!(context.capture_requested());
+        assert!(!context.release_requested());
+        assert!(context.repaint_requested());
+        assert!(context.work_requested());
+        assert_eq!(context.take_message(), Some(7));
+        assert_eq!(context.take_message(), None);
     }
 }

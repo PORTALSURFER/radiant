@@ -76,6 +76,7 @@ where
         self.traversal
             .containers
             .project_layout_targets(&self.layout);
+        self.reconcile_layout_pointer_capture();
     }
 
     pub(in crate::runtime::controller) fn take_reusable_traversal_index(

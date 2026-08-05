@@ -149,6 +149,14 @@ where
         self.interaction.pointer.capture
     }
 
+    /// Return the layout target that currently owns runtime pointer capture.
+    pub fn layout_pointer_capture(&self) -> Option<crate::layout::LayoutTargetIdentity> {
+        self.interaction
+            .layout_capture
+            .as_ref()
+            .map(|capture| capture.identity)
+    }
+
     /// Return the latest logical pointer position observed by this runtime.
     pub fn current_pointer_position(&self) -> Option<Point> {
         self.interaction.pointer.current_position
@@ -160,7 +168,9 @@ where
     }
 
     pub(crate) fn interactive_pointer_route_active(&self) -> bool {
-        self.interaction.pointer.capture.is_some() || self.interaction.drag.session.is_some()
+        self.interaction.pointer.capture.is_some()
+            || self.interaction.layout_capture.is_some()
+            || self.interaction.drag.session.is_some()
     }
 
     /// Return the widget currently receiving hover state.

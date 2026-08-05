@@ -2,6 +2,7 @@ use super::super::SurfaceRuntime;
 use crate::{
     gui::input::InputTimestamp,
     gui::types::Point,
+    layout::LayoutInput,
     runtime::RuntimeBridge,
     widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput},
 };
@@ -18,6 +19,7 @@ where
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
         if self.start_scrollbar_drag_at(position) {
+            self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
@@ -26,6 +28,39 @@ where
         }
         let input =
             WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp);
+        if self.layout_input_target_at(position)
+            && let Some(widget_id) = self.interaction.pointer.capture
+        {
+            let routed = self.dispatch_input(widget_id, input);
+            return routed.then_some(widget_id);
+        }
+        if self.layout_pointer_capture_active() {
+            let _ = self.dispatch_captured_layout_input(
+                LayoutInput::PointerPress {
+                    position,
+                    button,
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            );
+            return None;
+        }
+        if self
+            .dispatch_layout_input_at(
+                position,
+                LayoutInput::PointerPress {
+                    position,
+                    button,
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            )
+            .handled
+        {
+            return None;
+        }
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -46,9 +81,50 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.start_scrollbar_drag_at(position) {
+            self.cancel_layout_pointer_capture();
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+            self.reset_tooltip_hover_intent();
+            self.clear_focus();
+            return None;
+        }
         let input = WidgetInput::pointer_double_click_with_timestamp(
             position, button, modifiers, timestamp,
         );
+        if self.layout_input_target_at(position)
+            && let Some(widget_id) = self.interaction.pointer.capture
+        {
+            let routed = self.dispatch_input(widget_id, input);
+            return routed.then_some(widget_id);
+        }
+        if self.layout_pointer_capture_active() {
+            let _ = self.dispatch_captured_layout_input(
+                LayoutInput::PointerDoubleClick {
+                    position,
+                    button,
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            );
+            return None;
+        }
+        if self
+            .dispatch_layout_input_at(
+                position,
+                LayoutInput::PointerDoubleClick {
+                    position,
+                    button,
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            )
+            .handled
+        {
+            return None;
+        }
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -82,7 +158,38 @@ where
             .take()
             .is_some()
         {
+            self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
+            return None;
+        }
+        if self.interaction.pointer.capture.is_none() && self.layout_pointer_capture_active() {
+            let _ = self.dispatch_captured_layout_input(
+                LayoutInput::PointerRelease {
+                    position,
+                    button,
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            );
+            self.rearm_tooltip_hover_intent();
+            return None;
+        }
+        if self.interaction.pointer.capture.is_none()
+            && self
+                .dispatch_layout_input_at(
+                    position,
+                    LayoutInput::PointerRelease {
+                        position,
+                        button,
+                        modifiers,
+                        timestamp,
+                    },
+                    true,
+                )
+                .handled
+        {
+            self.rearm_tooltip_hover_intent();
             return None;
         }
         let captured = self.interaction.pointer.capture.take();
@@ -114,11 +221,42 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
-        let widget_id = self
-            .interaction
-            .pointer
-            .capture
-            .or(self.interaction.hover.widget)?;
+        if let Some(widget_id) = self.interaction.pointer.capture {
+            let routed = self.dispatch_input(
+                widget_id,
+                WidgetInput::pointer_modifiers_changed_with_timestamp(modifiers, timestamp),
+            );
+            if routed {
+                self.repaint_requested = true;
+                return Some(widget_id);
+            }
+            return None;
+        }
+        if self.layout_pointer_capture_active() {
+            let _ = self.dispatch_captured_layout_input(
+                LayoutInput::PointerModifiersChanged {
+                    modifiers,
+                    timestamp,
+                },
+                true,
+            );
+            return None;
+        }
+        if let Some(position) = self.current_pointer_position()
+            && self
+                .dispatch_layout_input_at(
+                    position,
+                    LayoutInput::PointerModifiersChanged {
+                        modifiers,
+                        timestamp,
+                    },
+                    true,
+                )
+                .handled
+        {
+            return None;
+        }
+        let widget_id = self.interaction.hover.widget?;
         let routed = self.dispatch_input(
             widget_id,
             WidgetInput::pointer_modifiers_changed_with_timestamp(modifiers, timestamp),

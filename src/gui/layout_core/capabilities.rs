@@ -1,16 +1,134 @@
-//! UI-local capability registration for backend-neutral layout containers.
+//! UI-local capability registration and layout-target declarations for
+//! backend-neutral layout containers.
 //!
-//! This module establishes the registration and revision-evidence boundary for
-//! optional container layout interaction. It intentionally does not define
-//! pointer input or context types, hit regions, capture, runtime-local state
-//! storage, or event handling. In particular, registering a capability here is
-//! not a shipped `split_pane` runtime; those interaction pieces remain a later
-//! layer.
+//! This module establishes the registration, revision-evidence, and
+//! declaration boundary for optional container layout interaction. It does not
+//! define pointer input or context types, capture, runtime-local state storage,
+//! or event handling. Declared regions are projected for read-only inspection;
+//! routing those targets remains a later layer.
 
 use std::{any::Any, fmt, rc::Rc};
 
+use super::tree::NodeId;
+use crate::gui::types::Rect;
+
 /// Contract revision understood by [`LayoutCapabilities`].
-pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 1;
+pub const LAYOUT_CAPABILITIES_CONTRACT_VERSION: u16 = 2;
+
+/// Stable identity for one hit region declared by a layout capability.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct LayoutHitRegionId(pub u64);
+
+impl LayoutHitRegionId {
+    /// Construct a region identity from a stable caller-owned value.
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    /// Return the stable caller-owned value.
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// One sanitized local normalized hit region declaration.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutHitRegion {
+    id: LayoutHitRegionId,
+    bounds: Rect,
+}
+
+impl LayoutHitRegion {
+    /// Construct a validated local normalized hit region.
+    ///
+    /// Finite inverted coordinates are normalized before clipping to
+    /// `[0, 1]`. Non-finite or non-positive results are rejected.
+    pub fn new(
+        id: LayoutHitRegionId,
+        bounds: Rect,
+    ) -> Result<Self, LayoutHitRegionDeclarationError> {
+        Ok(Self {
+            id,
+            bounds: sanitize_normalized_bounds(bounds)?,
+        })
+    }
+
+    /// Return the stable identity within the declaring container.
+    pub const fn id(self) -> LayoutHitRegionId {
+        self.id
+    }
+
+    /// Return the positive normalized local bounds.
+    pub const fn bounds(self) -> Rect {
+        self.bounds
+    }
+}
+
+/// Why a layout hit-region declaration was not admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LayoutHitRegionDeclarationError {
+    /// The supplied rectangle contained a non-finite coordinate or extent.
+    NonFiniteBounds,
+    /// The normalized and clipped rectangle had a non-positive extent.
+    NonPositiveBounds,
+    /// The region identity was already declared by the same container.
+    DuplicateIdentity,
+}
+
+fn sanitize_normalized_bounds(bounds: Rect) -> Result<Rect, LayoutHitRegionDeclarationError> {
+    if !bounds.is_finite() {
+        return Err(LayoutHitRegionDeclarationError::NonFiniteBounds);
+    }
+    let min = crate::gui::types::Point::new(
+        bounds.min.x.min(bounds.max.x).clamp(0.0, 1.0),
+        bounds.min.y.min(bounds.max.y).clamp(0.0, 1.0),
+    );
+    let max = crate::gui::types::Point::new(
+        bounds.min.x.max(bounds.max.x).clamp(0.0, 1.0),
+        bounds.min.y.max(bounds.max.y).clamp(0.0, 1.0),
+    );
+    let normalized = Rect::from_min_max(min, max);
+    normalized
+        .has_finite_positive_area()
+        .then_some(normalized)
+        .ok_or(LayoutHitRegionDeclarationError::NonPositiveBounds)
+}
+
+/// Read-only projected logical target for a declared layout hit region.
+///
+/// This type identifies a container/region pair and carries the final logical
+/// bounds after normalized projection and ancestor clipping. It does not
+/// grant event-dispatch, keyboard-focus, or pointer-capture authority.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutHitTarget {
+    /// Stable container node that declared the target.
+    pub container_id: NodeId,
+    /// Stable region identity within the declaring container.
+    pub region_id: LayoutHitRegionId,
+    /// Projected and clip-constrained logical bounds.
+    pub bounds: Rect,
+}
+
+/// Read-only projection diagnostics for one traversal installation.
+///
+/// Invalid rectangles are reported immediately by [`LayoutHitRegion::new`].
+/// Duplicate identities are contextual: the first declaration wins and later
+/// declarations are counted here without displacing any valid declaration.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LayoutHitRegionDiagnostics {
+    duplicate_declarations: u64,
+}
+
+impl LayoutHitRegionDiagnostics {
+    /// Return the number of duplicate declarations ignored during projection.
+    pub const fn duplicate_declarations(self) -> u64 {
+        self.duplicate_declarations
+    }
+
+    pub(crate) fn record_duplicate(&mut self) {
+        self.duplicate_declarations = self.duplicate_declarations.saturating_add(1);
+    }
+}
 
 /// Typed revision evidence for one exported [`LayoutInteraction`] capability.
 ///
@@ -118,9 +236,11 @@ impl LayoutInteractionRevision {
 /// UI-local, object-safe capability for a container-specific layout
 /// interaction.
 ///
-/// This initial contract exposes revision evidence only. Pointer input,
-/// layout-event contexts, hit-region routing, capture, runtime-local state,
-/// and event handling are deliberately not part of this slice.
+/// The runtime may ask a capability for normalized hit-region
+/// declarations after the container receives its final logical bounds. Those
+/// declarations are projected into a read-only runtime target index. Pointer
+/// routing, capture, runtime-local state, and event handling are deliberately
+/// not part of this slice.
 pub trait LayoutInteraction<Message> {
     /// Return typed revision evidence for this capability's layout behavior.
     ///
@@ -130,6 +250,20 @@ pub trait LayoutInteraction<Message> {
     fn revision(&self) -> LayoutInteractionRevision {
         LayoutInteractionRevision::conservative()
     }
+
+    /// Visit local normalized hit regions for the final container bounds.
+    ///
+    /// `local_bounds` is the finite final logical container bounds when the
+    /// runtime calls this method. Capabilities should construct regions with
+    /// [`LayoutHitRegion::new`] before visiting them. That constructor performs
+    /// normalization, clipping, and finite/positive validation; duplicate
+    /// identities are diagnosed during runtime projection. The default visits
+    /// no regions. The visitor is object-safe and does not require a `Message`
+    /// value.
+    fn visit_hit_regions(&self, local_bounds: Rect, visitor: &mut dyn FnMut(LayoutHitRegion)) {
+        let _ = local_bounds;
+        let _ = visitor;
+    }
 }
 
 /// Owned descriptor for the optional UI-local capabilities of one layout
@@ -137,9 +271,10 @@ pub trait LayoutInteraction<Message> {
 ///
 /// The descriptor is intentionally not `Send` or `Sync`: its interaction is
 /// retained in an [`Rc`] and belongs to the owning UI thread. It registers
-/// capability objects but does not route input or provide runtime interaction
-/// state. A registered descriptor therefore remains registration and revision
-/// evidence, not a shipped `split_pane` runtime.
+/// capability objects and their read-only projected target declarations but
+/// does not route input or provide runtime interaction state. A registered
+/// descriptor therefore remains a declaration/projection contract, not a
+/// shipped `split_pane` runtime.
 pub struct LayoutCapabilities<Message> {
     /// Descriptor contract revision understood by the runtime.
     pub contract_version: u16,
@@ -217,9 +352,11 @@ impl<Message> fmt::Debug for LayoutCapabilities<Message> {
 #[cfg(test)]
 mod tests {
     use super::{
-        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutInteraction,
+        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
+        LayoutHitRegionDeclarationError, LayoutHitRegionId, LayoutInteraction,
         LayoutInteractionRevision,
     };
+    use crate::gui::types::{Point, Rect, Vector2};
     use std::{cell::Cell, rc::Rc};
 
     struct LocalInteraction {
@@ -299,5 +436,55 @@ mod tests {
             cloned.interaction.as_ref().expect("cloned interaction"),
             &interaction
         ));
+    }
+
+    #[test]
+    fn hit_region_constructor_normalizes_clips_and_rejects_invalid_bounds() {
+        let region = LayoutHitRegion::new(
+            LayoutHitRegionId::new(7),
+            Rect::from_min_max(Point::new(1.25, 0.75), Point::new(-0.25, 0.25)),
+        )
+        .expect("finite inverted region should normalize and clip");
+        assert_eq!(region.id(), LayoutHitRegionId::new(7));
+        assert_eq!(
+            region.bounds(),
+            Rect::from_min_max(Point::new(0.0, 0.25), Point::new(1.0, 0.75))
+        );
+
+        assert_eq!(
+            LayoutHitRegion::new(
+                LayoutHitRegionId::new(8),
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(f32::NAN, 1.0)),
+            ),
+            Err(LayoutHitRegionDeclarationError::NonFiniteBounds)
+        );
+        assert_eq!(
+            LayoutHitRegion::new(
+                LayoutHitRegionId::new(9),
+                Rect::from_min_max(Point::new(0.2, 0.2), Point::new(0.2, 0.8)),
+            ),
+            Err(LayoutHitRegionDeclarationError::NonPositiveBounds)
+        );
+        assert_eq!(
+            LayoutHitRegion::new(
+                LayoutHitRegionId::new(10),
+                Rect::from_min_max(Point::new(2.0, 0.0), Point::new(3.0, 1.0)),
+            ),
+            Err(LayoutHitRegionDeclarationError::NonPositiveBounds)
+        );
+    }
+
+    #[test]
+    fn visit_hit_regions_is_object_safe_and_default_is_empty() {
+        let interaction: Rc<dyn LayoutInteraction<()>> = Rc::new(LocalInteraction {
+            revision: LayoutInteractionRevision::conservative(),
+            local_marker: Rc::new(Cell::new(0)),
+        });
+        let mut visited = Vec::new();
+        interaction.visit_hit_regions(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 10.0)),
+            &mut |region| visited.push(region),
+        );
+        assert!(visited.is_empty());
     }
 }

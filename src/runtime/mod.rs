@@ -184,8 +184,8 @@ pub use resource::{
     ResourceRequest, ResourceSlot,
 };
 pub(in crate::runtime) use surface::{
-    ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WheelHitTarget,
-    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
+    ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection, SurfaceTraversalIndex,
+    WheelHitTarget, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
     Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,

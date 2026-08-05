@@ -3,16 +3,17 @@ use super::{
     SurfaceTraversalIndex, SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord,
     UiSurface,
 };
+use crate::layout::LAYOUT_CAPABILITIES_CONTRACT_VERSION;
 use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
 use crate::layout::{ContainerPolicy, SlotParams};
 
-pub(in crate::runtime) struct SurfaceRuntimeProjection {
+pub(in crate::runtime) struct SurfaceRuntimeProjection<Message> {
     pub(in crate::runtime) layout_root: LayoutNode,
-    pub(in crate::runtime) traversal: SurfaceTraversalIndex,
+    pub(in crate::runtime) traversal: SurfaceTraversalIndex<Message>,
 }
 
 impl<Message> UiSurface<Message> {
-    pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection {
+    pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection<Message> {
         let stats = self.root.runtime_traversal_stats();
         let mut traversal = SurfaceTraversalIndex::with_stats(stats);
         let layout_root = self.runtime_projection_into(&mut traversal, stats);
@@ -24,7 +25,7 @@ impl<Message> UiSurface<Message> {
 
     pub(in crate::runtime) fn runtime_projection_into(
         &self,
-        traversal: &mut SurfaceTraversalIndex,
+        traversal: &mut SurfaceTraversalIndex<Message>,
         stats: SurfaceTraversalStats,
     ) -> LayoutNode {
         traversal.clear_for_stats(stats);
@@ -37,7 +38,7 @@ impl<Message> UiSurface<Message> {
 
     pub(in crate::runtime) fn runtime_projection_reusing_with_scratch(
         &self,
-        traversal: &mut SurfaceTraversalIndex,
+        traversal: &mut SurfaceTraversalIndex<Message>,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
     ) -> LayoutNode {
@@ -71,7 +72,7 @@ impl<Message> SurfaceNode<Message> {
         &self,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
-        traversal: &mut SurfaceTraversalIndex,
+        traversal: &mut SurfaceTraversalIndex<Message>,
     ) -> LayoutNode {
         match self {
             Self::Scene(scene) => {
@@ -138,7 +139,7 @@ impl<Message> SurfaceNode<Message> {
         &self,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
-        traversal: &mut SurfaceTraversalIndex,
+        traversal: &mut SurfaceTraversalIndex<Message>,
     ) {
         self.collect_runtime_index(scroll_stack, child_path, traversal);
     }
@@ -148,7 +149,7 @@ impl<Message> SurfaceNode<Message> {
         &self,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
-        traversal: &mut SurfaceTraversalIndex,
+        traversal: &mut SurfaceTraversalIndex<Message>,
     ) {
         match self {
             Self::Scene(scene) => {
@@ -289,7 +290,7 @@ fn visit_container_children<Message>(
 fn begin_container_runtime<Message>(
     container: &SurfaceContainer<Message>,
     scroll_stack: &mut Vec<NodeId>,
-    traversal: &mut SurfaceTraversalIndex,
+    traversal: &mut SurfaceTraversalIndex<Message>,
 ) -> bool {
     let is_scroll = container.policy.kind == ContainerKind::ScrollView;
     traversal.record_container(SurfaceContainerTraversalRecord {
@@ -301,6 +302,19 @@ fn begin_container_runtime<Message>(
             None
         },
         styled_hoverable: container.style.is_some() && container.hoverable,
+        layout_interaction: (container
+            .layout_capabilities
+            .as_ref()
+            .is_some_and(|capabilities| {
+                capabilities.contract_version == LAYOUT_CAPABILITIES_CONTRACT_VERSION
+            }))
+        .then(|| {
+            container
+                .layout_capabilities
+                .as_ref()
+                .and_then(|capabilities| capabilities.interaction.clone())
+        })
+        .flatten(),
     });
     if is_scroll {
         scroll_stack.push(container.id);
@@ -318,7 +332,7 @@ fn record_widget_runtime<Message>(
     widget: &SurfaceWidget<Message>,
     scroll_stack: &[NodeId],
     child_path: &[usize],
-    traversal: &mut SurfaceTraversalIndex,
+    traversal: &mut SurfaceTraversalIndex<Message>,
 ) {
     traversal.record_widget(SurfaceWidgetTraversalRecord {
         id: widget.id(),

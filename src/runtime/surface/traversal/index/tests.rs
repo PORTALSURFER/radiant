@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn traversal_records_route_to_expected_buckets() {
-    let mut index = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+    let mut index = SurfaceTraversalIndex::<()>::with_stats(SurfaceTraversalStats {
         widgets: 1,
         stateful_widgets: 1,
         styled_hoverable_containers: 1,
@@ -17,6 +17,7 @@ fn traversal_records_route_to_expected_buckets() {
         clipped_by: &[1],
         scroll_content: Some(11),
         styled_hoverable: true,
+        layout_interaction: None,
     });
     index.record_widget(SurfaceWidgetTraversalRecord {
         id: 20,

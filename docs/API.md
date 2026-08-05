@@ -787,9 +787,11 @@ resize cancellation returns no update. Reorder cancellation still clears the
 active drag without producing a reorder. These helpers are not typed
 `EditEvent` boundaries or runtime interaction handlers. The qualified
 `radiant::layout::{LayoutCapabilities, LayoutInteraction}` contract now
-provides UI-local registration and exact/conservative revision evidence for
-generic surface containers; pointer routing and event handling remain future
-work.
+provides UI-local registration, exact/conservative revision evidence, and
+validated normalized hit-region declaration/projection for generic surface
+containers. `SurfaceRuntime::layout_hit_target_at(...)` exposes the resulting
+read-only container/region target and projected bounds; pointer routing,
+capture, and event handling remain future work.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
@@ -926,10 +928,12 @@ compatibility projections: changed cancellation returns the restored size,
 no-op cancellation remains lifecycle-only, and collapsible double activation
 stays a discrete collapse/restore command outside the edit stream while
 clearing active state. These APIs do not add `numeric_input` or runtime
-`split_pane` construction. The qualified layout capability registration and
-revision contract is available separately; pointer hit-region routing, capture,
-runtime-local interaction state, event handling, semantic/keyboard behavior,
-and `VirtualLayoutPolicy` remain future work.
+`split_pane` construction. The qualified layout capability registration,
+revision, and read-only normalized hit-region declaration/projection contract
+is available separately; `SurfaceRuntime::layout_hit_target_at(...)` only
+queries projected targets. Pointer hit-region routing, capture, runtime-local
+interaction state, event handling, semantic/keyboard behavior, and
+`VirtualLayoutPolicy` remain future work.
 
 These types are intentionally not exported through the common prelude.
 
@@ -3887,11 +3891,13 @@ horizontal or vertical axis; non-finite ratios use `0.5`, non-finite divider
 or minimum extents use `0.0`, and the result reports whether both pane minima
 were satisfied. The qualified `radiant::layout::{LayoutCapabilities,
 LayoutInteraction, LayoutInteractionRevision}` contract now provides
-backend-neutral UI-local capability registration and exact/conservative
-revision evidence for generic surface containers. It does not construct the
-target `split_pane` runtime builder or provide pointer hit-region routing,
-capture, runtime-local interaction state, event handling, semantic/keyboard
-behavior, or `VirtualLayoutPolicy`; those remain future work.
+backend-neutral UI-local capability registration, exact/conservative revision
+evidence, and validated normalized hit-region declaration/projection for
+generic surface containers. `SurfaceRuntime::layout_hit_target_at(...)` is a
+read-only query over those projected targets. It does not construct the target
+`split_pane` runtime builder or provide pointer hit-region routing, capture,
+runtime-local interaction state, event handling, semantic/keyboard behavior,
+or `VirtualLayoutPolicy`; those remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

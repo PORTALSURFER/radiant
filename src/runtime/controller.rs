@@ -116,7 +116,7 @@ where
     layout_debug_options: LayoutDebugOptions,
     completed_layout: Option<CompletedLayoutContext>,
     external_layout_dirty: bool,
-    traversal: RuntimeTraversalState,
+    traversal: RuntimeTraversalState<Message>,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
     phase: RuntimePhase,

@@ -31,7 +31,7 @@ where
 
     pub(in crate::runtime::controller) fn relayout_with_traversal(
         &mut self,
-        traversal: SurfaceTraversalIndex,
+        traversal: SurfaceTraversalIndex<Message>,
     ) {
         self.layout_engine.layout_with_state_into(
             &self.layout_root,

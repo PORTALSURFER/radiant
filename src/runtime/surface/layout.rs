@@ -3,9 +3,8 @@ use super::{
     SurfaceTraversalIndex, SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord,
     UiSurface,
 };
-use crate::layout::{
-    ContainerKind, LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutNode, NodeId, SlotChild, Vector2,
-};
+use crate::layout::LAYOUT_CAPABILITIES_CONTRACT_VERSION;
+use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
 use crate::layout::{ContainerPolicy, SlotParams};
 
 pub(in crate::runtime) struct SurfaceRuntimeProjection<Message> {

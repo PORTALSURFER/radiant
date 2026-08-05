@@ -1,7 +1,8 @@
 use super::SurfaceRuntime;
 use crate::{
     gui::types::Point,
-    layout::{LayoutHitRegionDiagnostics, LayoutHitTarget, NodeId},
+    layout::NodeId,
+    layout::{LayoutHitRegionDiagnostics, LayoutHitTarget},
     runtime::{RuntimeBridge, SurfaceWidget},
     widgets::{PointerCapturePolicy, WidgetCursor, WidgetId, WidgetInput},
 };

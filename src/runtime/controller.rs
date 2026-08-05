@@ -14,6 +14,7 @@ mod hit_test;
 mod host;
 mod input;
 mod interaction_state;
+mod layout;
 mod owner;
 mod platform;
 mod pointer;

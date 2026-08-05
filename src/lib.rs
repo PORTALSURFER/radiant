@@ -74,20 +74,24 @@ pub mod layout {
         Constraints, ConstraintsParts, ContainerKind, ContainerNode, ContainerNodeParts,
         ContainerPolicy, CrossAlign, DebugPrimitiveKind, FloatingLayerHorizontalOverflow,
         FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets,
-        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities, LayoutDebugOptions,
-        LayoutDebugPrimitive, LayoutDiagnostic, LayoutDiagnosticCode, LayoutEngine,
-        LayoutHitRegion, LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics,
-        LayoutHitRegionId, LayoutHitTarget, LayoutInteraction, LayoutInteractionRevision,
-        LayoutNode, LayoutOutput, LayoutState, LayoutStats, MainAlign, NodeId, OverflowInfo,
-        OverflowPolicy, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts,
-        SlotParams, StackedRowRectsParts, SwitchBreakpoint, Vector2, VirtualWindowInfo,
-        VirtualizationAxis, VirtualizationPolicy, WidgetNode, WidgetNodeParts, WrapPolicy,
-        fixed_width_group_width, fixed_width_item_extent_for_available_width,
+        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
+        LayoutCapabilities, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
+        LayoutDiagnosticCode, LayoutEngine, LayoutEventContext, LayoutHitRegion,
+        LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics, LayoutHitRegionId,
+        LayoutHitTarget, LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutNode,
+        LayoutOutput, LayoutState, LayoutStats, LayoutTargetIdentity, MainAlign, NodeId,
+        OverflowInfo, OverflowPolicy, Point, Rect, SizeModeCross, SizeModeMain, SlotChild,
+        SlotChildParts, SlotParams, StackedRowRectsParts, SwitchBreakpoint, Vector2,
+        VirtualWindowInfo, VirtualizationAxis, VirtualizationPolicy, WidgetNode, WidgetNodeParts,
+        WrapPolicy, fixed_width_group_width, fixed_width_item_extent_for_available_width,
         fixed_width_row_rects_end, fixed_width_row_rects_end_into, fixed_width_row_rects_start,
         fixed_width_row_rects_start_into, grouped_fixed_width_row_width, layout_tree,
         layout_tree_with_state, stacked_row_rects, stacked_row_rects_from_parts,
         stacked_row_rects_into, stacked_row_rects_into_from_parts, visible_suffix_widths,
         visible_suffix_widths_into,
+    };
+    pub(crate) use crate::gui::layout_core::{
+        supports_layout_capabilities_contract, supports_layout_input_contract,
     };
 }
 /// Shared runtime host implementations.

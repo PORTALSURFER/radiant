@@ -10,8 +10,8 @@ use super::widget::{
 };
 use crate::gui::types::Rect;
 use crate::layout::{
-    ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities,
-    LayoutInteractionRevision, LayoutOutput, NodeId, SlotParams,
+    ContainerPolicy, LayoutCapabilities, LayoutInteractionRevision, LayoutOutput, NodeId,
+    SlotParams, supports_layout_capabilities_contract,
 };
 use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
@@ -85,8 +85,8 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
                 WidgetRevisionEffect::Structural
             };
         };
-        if previous.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
-            || current.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
+        if !supports_layout_capabilities_contract(previous.contract_version)
+            || !supports_layout_capabilities_contract(current.contract_version)
         {
             return WidgetRevisionEffect::Structural;
         }
@@ -113,7 +113,7 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
             .into_iter()
             .flatten()
             .any(|capabilities| {
-                capabilities.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
+                !supports_layout_capabilities_contract(capabilities.contract_version)
                     || capabilities
                         .interaction_revision()
                         .is_some_and(|revision| !revision.is_exact())

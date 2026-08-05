@@ -3,7 +3,8 @@
 use super::{ClipAncestors, WidgetPath, hit_order::HitOrderIndex};
 use crate::{
     layout::{
-        LayoutHitRegion, LayoutHitRegionDiagnostics, LayoutHitTarget, LayoutOutput, NodeId, Rect,
+        LayoutHitRegion, LayoutHitRegionDiagnostics, LayoutHitTarget, LayoutInteraction,
+        LayoutInteractionRevision, LayoutOutput, NodeId, Rect,
     },
     runtime::{SurfaceLayoutInteractionRecord, WheelHitTarget},
     widgets::WidgetId,
@@ -83,9 +84,16 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) clip_ancestors: HashMap<NodeId, ClipAncestors>,
     pub(super) scroll_content_by_container: HashMap<NodeId, NodeId>,
     pub(super) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
-    pub(super) layout_targets: Vec<LayoutHitTarget>,
+    pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
     pub(super) layout_hit_region_diagnostics: LayoutHitRegionDiagnostics,
     layout_region_declarations: Vec<LayoutHitRegion>,
+}
+
+pub(super) struct RuntimeLayoutHitTarget<Message> {
+    pub(super) target: LayoutHitTarget,
+    pub(super) contract_version: u16,
+    pub(super) interaction: std::rc::Rc<dyn LayoutInteraction<Message>>,
+    pub(super) revision: LayoutInteractionRevision,
 }
 
 impl<Message> Default for RuntimeContainerTraversal<Message> {
@@ -141,10 +149,15 @@ impl<Message> RuntimeContainerTraversal<Message> {
                 else {
                     continue;
                 };
-                self.layout_targets.push(LayoutHitTarget {
-                    container_id: interaction.id,
-                    region_id: region.id(),
-                    bounds,
+                self.layout_targets.push(RuntimeLayoutHitTarget {
+                    target: LayoutHitTarget {
+                        container_id: interaction.id,
+                        region_id: region.id(),
+                        bounds,
+                    },
+                    contract_version: interaction.contract_version,
+                    interaction: std::rc::Rc::clone(&interaction.interaction),
+                    revision: interaction.revision.clone(),
                 });
             }
         }

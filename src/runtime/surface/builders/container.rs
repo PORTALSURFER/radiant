@@ -74,9 +74,10 @@ impl<Message> SurfaceNode<Message> {
     /// Return this node with an explicitly registered UI-local layout
     /// capability descriptor when it is a container.
     ///
-    /// The descriptor supplies registration, revision evidence, and read-only
-    /// normalized hit-region declaration/projection. This method does not add
-    /// pointer routing, capture, runtime interaction state, or event handling.
+    /// The descriptor supplies registration, revision evidence, and normalized
+    /// hit-region declaration/projection. Version-3 descriptors may also
+    /// receive typed pointer input through the runtime-owned admission and
+    /// capture path; version 2 remains projection/query-only.
     pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
         if let Self::Container(container) = &mut self {
             container.layout_capabilities = Some(capabilities);

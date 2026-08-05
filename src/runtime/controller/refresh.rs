@@ -63,8 +63,9 @@ mod tests {
         gui::types::{Point, Rect, Vector2},
         layout::{
             ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
-            LayoutCapabilities, LayoutHitRegion, LayoutHitRegionId, LayoutInteraction,
-            LayoutInteractionRevision, OverflowPolicy, SlotParams,
+            LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
+            LayoutHitRegionId, LayoutInteraction, LayoutInteractionRevision, OverflowPolicy,
+            SlotParams,
         },
         runtime::{
             RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
@@ -309,17 +310,21 @@ mod tests {
 
     struct LayoutTargetBridge {
         incompatible: bool,
+        projection_only: bool,
     }
 
     impl LayoutTargetBridge {
         fn capabilities(
             regions: Vec<LayoutHitRegion>,
             incompatible: bool,
+            projection_only: bool,
         ) -> LayoutCapabilities<()> {
             let mut capabilities =
                 LayoutCapabilities::new().interaction_local(LayoutTargetInteraction { regions });
             if incompatible {
                 capabilities.contract_version = LAYOUT_CAPABILITIES_CONTRACT_VERSION + 1;
+            } else if projection_only {
+                capabilities.contract_version = LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION;
             }
             capabilities
         }
@@ -339,7 +344,11 @@ mod tests {
                 },
                 Vec::new(),
             )
-            .with_layout_capabilities(Self::capabilities(inner_regions, self.incompatible));
+            .with_layout_capabilities(Self::capabilities(
+                inner_regions,
+                self.incompatible,
+                self.projection_only,
+            ));
             let outer = SurfaceNode::container(
                 1,
                 ContainerPolicy {
@@ -351,6 +360,7 @@ mod tests {
             .with_layout_capabilities(Self::capabilities(
                 vec![layout_region(900, 0.0, 1.0)],
                 self.incompatible,
+                self.projection_only,
             ));
             UiSurface::new(outer)
         }
@@ -393,6 +403,7 @@ mod tests {
             )
             .with_layout_capabilities(LayoutTargetBridge::capabilities(
                 vec![layout_region(11, 0.0, 1.0)],
+                false,
                 false,
             ));
             UiSurface::new(SurfaceNode::container(
@@ -442,6 +453,7 @@ mod tests {
                 .with_layout_capabilities(LayoutTargetBridge::capabilities(
                     vec![layout_region(10, 0.0, 1.0)],
                     false,
+                    false,
                 )),
             )
         }
@@ -463,6 +475,7 @@ mod tests {
         let runtime = SurfaceRuntime::new(
             LayoutTargetBridge {
                 incompatible: false,
+                projection_only: false,
             },
             Vector2::new(120.0, 80.0),
         );
@@ -503,6 +516,7 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(
             LayoutTargetBridge {
                 incompatible: false,
+                projection_only: false,
             },
             Vector2::new(120.0, 80.0),
         );
@@ -555,7 +569,10 @@ mod tests {
         assert_eq!(own_visible.bounds.min, Point::new(4.0, 4.0));
 
         let mut unsupported = SurfaceRuntime::new(
-            LayoutTargetBridge { incompatible: true },
+            LayoutTargetBridge {
+                incompatible: true,
+                projection_only: false,
+            },
             Vector2::new(120.0, 80.0),
         );
         assert!(
@@ -586,10 +603,24 @@ mod tests {
     }
 
     #[test]
+    fn projection_only_capability_version_two_remains_queryable() {
+        let runtime = SurfaceRuntime::new(
+            LayoutTargetBridge {
+                incompatible: false,
+                projection_only: true,
+            },
+            Vector2::new(120.0, 80.0),
+        );
+
+        assert!(runtime.layout_target_at(Point::new(60.0, 40.0)).is_some());
+    }
+
+    #[test]
     fn layout_target_query_is_observational_and_no_capability_keeps_widget_hit_testing() {
         let mut runtime = SurfaceRuntime::new(
             LayoutTargetBridge {
                 incompatible: false,
+                projection_only: false,
             },
             Vector2::new(120.0, 80.0),
         );

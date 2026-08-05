@@ -3,7 +3,7 @@ use super::{
     SurfaceTraversalIndex, SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord,
     UiSurface,
 };
-use crate::layout::LAYOUT_CAPABILITIES_CONTRACT_VERSION;
+use crate::layout::supports_layout_capabilities_contract;
 use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
 use crate::layout::{ContainerPolicy, SlotParams};
 
@@ -302,19 +302,22 @@ fn begin_container_runtime<Message>(
             None
         },
         styled_hoverable: container.style.is_some() && container.hoverable,
-        layout_interaction: (container
+        layout_interaction: container
             .layout_capabilities
             .as_ref()
-            .is_some_and(|capabilities| {
-                capabilities.contract_version == LAYOUT_CAPABILITIES_CONTRACT_VERSION
-            }))
-        .then(|| {
-            container
-                .layout_capabilities
-                .as_ref()
-                .and_then(|capabilities| capabilities.interaction.clone())
-        })
-        .flatten(),
+            .filter(|capabilities| {
+                supports_layout_capabilities_contract(capabilities.contract_version)
+            })
+            .and_then(|capabilities| {
+                capabilities.interaction.as_ref().map(|interaction| {
+                    super::SurfaceLayoutInteractionRecord {
+                        id: container.id,
+                        contract_version: capabilities.contract_version,
+                        interaction: interaction.clone(),
+                        revision: interaction.revision(),
+                    }
+                })
+            }),
     });
     if is_scroll {
         scroll_stack.push(container.id);

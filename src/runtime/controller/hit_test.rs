@@ -24,8 +24,8 @@ where
                 .layout_targets
                 .iter()
                 .rev()
-                .find(|target| target.bounds.contains(point))
-                .copied()
+                .find(|target| target.target.bounds.contains(point))
+                .map(|target| target.target)
         })?
     }
 

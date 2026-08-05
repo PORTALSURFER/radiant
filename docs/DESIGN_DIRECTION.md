@@ -973,6 +973,13 @@ Radiant continues to own materialization, focus, accessibility, culling, and
 recycling. This keeps a custom timeline or piano roll as safe and incremental as
 the built-in virtual list.
 
+The complete ownership, identity, revision-fence, lifecycle, and bounded-query
+contract for this future capability is in
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The keyed runtime and
+public `VirtualLayoutPolicy` API remain future; current fixed-child and
+host-projected fixed-row virtualization are compatibility paths, not an
+implementation of that contract.
+
 ### Leaf content and interactive widgets
 
 Leaf nodes are placed by containers. Passive content such as text, icons,

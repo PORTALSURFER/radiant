@@ -563,8 +563,10 @@ common paint primitives without app-local exhaustive primitive matches.
 The future keyed virtualization/materialization contract is defined in
 [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
 `radiant::layout::VirtualLayoutPolicy` and `VirtualLayoutQueryExecutor` APIs are
-shipped without prelude or runtime registration; their keyed runtime
-coordinator, materialization, and recycling remain future. The APIs in this
+shipped without prelude or runtime registration. A crate-private coordinator
+now provides bounded accepted-window, key-continuity, fallback, and anchor
+evidence internally, but it has no public constructor or runtime/materializer
+connection; materialization and recycling remain future. The APIs in this
 section are the currently shipped fixed-row host projection path and retain
 their existing ownership and compatibility behavior.
 

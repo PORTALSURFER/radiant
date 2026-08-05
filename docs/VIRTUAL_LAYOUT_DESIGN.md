@@ -1,8 +1,8 @@
 # Virtual Layout Design
 
 Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
-capability and bounded query executor are shipped as a qualified
-`radiant::layout` API; the visible-window coordinator, keyed materialization,
+capability, bounded query executor, and crate-private visible-window
+coordinator are shipped as qualified query-only slices; keyed materialization
 and recycling described here are not shipped runtime or public API.
 
 This document freezes ownership, invariants, and observable behavior for a
@@ -45,18 +45,25 @@ future keyed design will reuse their names or internal representations.
 
 ### Status
 
-The contract is approved as a design target, with its first query-only slice
-implemented. At this status:
+The contract is approved as a design target, with its first two query-only
+slices implemented. At this status:
 
 1. `radiant::layout::VirtualLayoutPolicy` and its bounded query-only identity,
    input, sink, fence, result, diagnostic, and disposition types provide the
    first capability slice. The policy is not registered through
    `LayoutCapabilities` and receives no runtime or materialization handle.
-2. No runtime is required to query keyed ranges, materialize keyed items, or
-   recycle item slots according to this document.
-3. The current fixed-child and host-projected fixed-row APIs retain their
+2. A crate-private `VirtualLayoutWindowCoordinator` provides the second
+   slice: one exact container/policy/mount scope, checked query tokens,
+   coalesced invalidation evidence, bounded accepted keyed windows, key-based
+   continuity, clipped previous-valid fallback, and query-only anchor
+   correction evidence. It does not register with a runtime or expose a
+   materialization callback.
+3. No runtime is required to query keyed ranges, materialize keyed items, or
+   recycle item slots according to this document. The coordinator is not yet
+   connected to those consumers.
+4. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-4. A future slice must name the subset of this contract it implements and must
+5. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope

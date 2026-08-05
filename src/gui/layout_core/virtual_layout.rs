@@ -1,14 +1,17 @@
 //! Query-only keyed virtual-layout capability primitives.
 //!
-//! This module deliberately stops at a bounded policy query. It does not
-//! register a policy with a runtime, materialize widgets, reconcile keys, or
-//! schedule follow-up work.
+//! The public capability portion deliberately stops at a bounded policy query.
+//! The private coordinator child adds query-only accepted-window reconciliation
+//! and key continuity, but neither layer registers with a runtime, materializes
+//! widgets, or schedules follow-up work.
 
 use std::{any::Any, fmt, rc::Rc};
 
 use crate::gui::types::{Point, Rect, Vector2};
 
 use super::tree::NodeId;
+
+mod coordinator;
 
 /// Maximum number of keyed entries that one query may expose.
 pub const VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES: usize = 1024;

@@ -4,8 +4,8 @@ use super::super::{
 };
 use crate::{
     layout::{
-        ContainerKind, ContainerPolicy, GridPolicy, NodeId, OverflowPolicy, VirtualizationAxis,
-        VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, LayoutCapabilities, NodeId, OverflowPolicy,
+        VirtualizationAxis, VirtualizationPolicy,
     },
     widgets::WidgetStyle,
 };
@@ -29,6 +29,7 @@ impl<Message> SurfaceNode<Message> {
         Self::container_from_parts(SurfaceContainerParts {
             id,
             policy,
+            layout_capabilities: None,
             children,
         })
     }
@@ -48,6 +49,7 @@ impl<Message> SurfaceNode<Message> {
         Self::container_from_parts(SurfaceContainerParts {
             id,
             policy,
+            layout_capabilities: None,
             children,
         })
         .with_container_style(style)
@@ -65,6 +67,19 @@ impl<Message> SurfaceNode<Message> {
     pub fn with_container_hoverable(mut self, hoverable: bool) -> Self {
         if let Self::Container(container) = &mut self {
             container.hoverable = hoverable;
+        }
+        self
+    }
+
+    /// Return this node with an explicitly registered UI-local layout
+    /// capability descriptor when it is a container.
+    ///
+    /// The descriptor supplies registration and revision evidence only; this
+    /// method does not add pointer routing, hit regions, capture, runtime
+    /// interaction state, or event handling.
+    pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.layout_capabilities = Some(capabilities);
         }
         self
     }

@@ -9,7 +9,10 @@ use super::widget::{
     MapperDescriptor, MapperRelation, SurfaceWidgetRevisionEvidence, WidgetCapabilityEvidence,
 };
 use crate::gui::types::Rect;
-use crate::layout::{ContainerPolicy, LayoutOutput, NodeId, SlotParams};
+use crate::layout::{
+    ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities,
+    LayoutInteractionRevision, LayoutOutput, NodeId, SlotParams,
+};
 use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
 use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
@@ -28,6 +31,7 @@ pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) policy: &'a ContainerPolicy,
     pub(crate) style: Option<&'a WidgetStyle>,
     pub(crate) hoverable: bool,
+    pub(crate) layout_capabilities: Option<&'a LayoutCapabilities<Message>>,
     pub(crate) scroll_mapper: MapperDescriptor,
     pub(crate) children: &'a [super::SurfaceChild<Message>],
 }
@@ -62,6 +66,59 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
     fn scroll_mapper_relation(&self, other: &Self) -> MapperRelation {
         self.scroll_mapper.relation(&other.scroll_mapper)
     }
+
+    fn layout_capabilities_present(&self) -> bool {
+        self.layout_capabilities.is_some()
+    }
+
+    fn layout_interaction_revision(&self) -> Option<LayoutInteractionRevision> {
+        self.layout_capabilities
+            .and_then(LayoutCapabilities::interaction_revision)
+    }
+
+    fn layout_capabilities_relation(&self, other: &Self) -> WidgetRevisionEffect {
+        let (Some(previous), Some(current)) = (self.layout_capabilities, other.layout_capabilities)
+        else {
+            return if self.layout_capabilities_present() == other.layout_capabilities_present() {
+                WidgetRevisionEffect::Unchanged
+            } else {
+                WidgetRevisionEffect::Structural
+            };
+        };
+        if previous.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
+            || current.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
+        {
+            return WidgetRevisionEffect::Structural;
+        }
+        if previous.has_interaction() != current.has_interaction() {
+            return WidgetRevisionEffect::Structural;
+        }
+        let (Some(previous), Some(current)) = (
+            self.layout_interaction_revision(),
+            other.layout_interaction_revision(),
+        ) else {
+            return WidgetRevisionEffect::Unchanged;
+        };
+        if !previous.is_exact() || !current.is_exact() {
+            WidgetRevisionEffect::Structural
+        } else if previous == current {
+            WidgetRevisionEffect::Unchanged
+        } else {
+            WidgetRevisionEffect::Interaction
+        }
+    }
+
+    fn layout_capabilities_need_conservative_fallback(&self, other: &Self) -> bool {
+        [self.layout_capabilities, other.layout_capabilities]
+            .into_iter()
+            .flatten()
+            .any(|capabilities| {
+                capabilities.contract_version != LAYOUT_CAPABILITIES_CONTRACT_VERSION
+                    || capabilities
+                        .interaction_revision()
+                        .is_some_and(|revision| !revision.is_exact())
+            })
+    }
 }
 
 impl<Message> super::SurfaceChild<Message> {
@@ -79,6 +136,7 @@ impl<Message> super::SurfaceContainer<Message> {
             policy: &self.policy,
             style: self.style.as_ref(),
             hoverable: self.hoverable,
+            layout_capabilities: self.layout_capabilities.as_ref(),
             scroll_mapper: self.scroll_mapper_descriptor(),
             children: &self.children,
         }
@@ -285,6 +343,7 @@ pub(crate) enum ViewDeltaCause {
     SceneLayerKind,
     SceneLayerCount,
     SceneLayerInput,
+    LayoutCapabilities,
     OverlayRect,
     OverlayLabel,
     OverlayStyle,
@@ -739,6 +798,9 @@ fn mismatch_for_event(
         {
             ReconciliationMismatch::InteractionEvidence
         }
+        // Layout capability evidence is diagnostic-only and must never widen
+        // the authoritative reconciliation plan.
+        ViewDeltaCause::LayoutCapabilities => return None,
         ViewDeltaCause::WidgetRevision | ViewDeltaCause::WidgetCapabilities => {
             return None;
         }
@@ -763,6 +825,72 @@ pub(crate) struct ViewDeltaEvent {
     pub(crate) effect: ViewDeltaEffect,
     pub(crate) cause: ViewDeltaCause,
     pub(crate) path: ViewDeltaPath,
+}
+
+/// Bounded evidence that is retained for diagnostics without participating in
+/// any refresh or reuse authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ViewDeltaDiagnosticLane {
+    pub(crate) effect: ViewDeltaEffect,
+    pub(crate) total_events: u32,
+    pub(crate) events: [Option<ViewDeltaEvent>; MAX_VIEW_DELTA_EVENTS],
+    pub(crate) event_count: u8,
+    pub(crate) omitted_events: u32,
+    pub(crate) truncated_paths: bool,
+    pub(crate) conservative: bool,
+}
+
+impl ViewDeltaDiagnosticLane {
+    const fn new() -> Self {
+        Self {
+            effect: ViewDeltaEffect::Unchanged,
+            total_events: 0,
+            events: [None; MAX_VIEW_DELTA_EVENTS],
+            event_count: 0,
+            omitted_events: 0,
+            truncated_paths: false,
+            conservative: false,
+        }
+    }
+
+    fn record(&mut self, effect: ViewDeltaEffect, cause: ViewDeltaCause, path: ViewDeltaPath) {
+        self.effect = broader_effect(self.effect, effect);
+        self.total_events = self.total_events.saturating_add(1);
+        self.truncated_paths |= path.truncated;
+        if usize::from(self.event_count) < MAX_VIEW_DELTA_EVENTS {
+            self.events[usize::from(self.event_count)] = Some(ViewDeltaEvent {
+                effect,
+                cause,
+                path,
+            });
+            self.event_count += 1;
+        } else {
+            self.omitted_events = self.omitted_events.saturating_add(1);
+        }
+    }
+
+    fn record_conservative(&mut self) {
+        self.conservative = true;
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.effect = broader_effect(self.effect, other.effect);
+        self.total_events = self.total_events.saturating_add(other.total_events);
+        self.omitted_events = self.omitted_events.saturating_add(other.omitted_events);
+        self.truncated_paths |= other.truncated_paths;
+        self.conservative |= other.conservative;
+
+        let mut next = usize::from(self.event_count);
+        for event in other.events.iter().flatten() {
+            if next < self.events.len() {
+                self.events[next] = Some(*event);
+                self.event_count += 1;
+                next += 1;
+            } else {
+                self.omitted_events = self.omitted_events.saturating_add(1);
+            }
+        }
+    }
 }
 
 /// A fixed-size path component used by [`ViewDeltaPath`].
@@ -814,6 +942,7 @@ pub(crate) struct ViewDelta {
     pub(crate) truncated_paths: bool,
     pub(crate) matched_nodes: u32,
     pub(crate) conservative: bool,
+    pub(crate) diagnostic: ViewDeltaDiagnosticLane,
 }
 
 /// Private execution authority derived from one complete raw view-delta scan.
@@ -901,6 +1030,7 @@ pub(crate) struct ViewDeltaDiagnostics {
     pub(crate) base_paint_reuse_safe: bool,
     pub(crate) reconciliation: ReconciliationPlan,
     pub(crate) damage: SurfaceDamage,
+    pub(crate) diagnostic: ViewDeltaDiagnosticLane,
 }
 
 impl Default for ViewDeltaDiagnostics {
@@ -926,6 +1056,7 @@ impl ViewDeltaDiagnostics {
                 min: crate::gui::types::Point { x: 0.0, y: 0.0 },
                 max: crate::gui::types::Point { x: 0.0, y: 0.0 },
             }),
+            diagnostic: ViewDeltaDiagnosticLane::new(),
         }
     }
 
@@ -946,6 +1077,7 @@ impl ViewDeltaDiagnostics {
         self.base_paint_reuse_safe &= other.base_paint_reuse_safe;
         self.reconciliation.merge(other.reconciliation);
         self.damage.merge(other.damage);
+        self.diagnostic.merge(other.diagnostic);
         if self.structural_cause.is_none() {
             self.structural_cause = other.structural_cause;
         }
@@ -1001,6 +1133,7 @@ impl ViewDelta {
             truncated_paths: false,
             matched_nodes: 0,
             conservative: false,
+            diagnostic: ViewDeltaDiagnosticLane::new(),
         }
     }
 
@@ -1022,6 +1155,19 @@ impl ViewDelta {
 
     fn record_conservative(&mut self) {
         self.conservative = true;
+    }
+
+    fn record_diagnostic(
+        &mut self,
+        effect: ViewDeltaEffect,
+        cause: ViewDeltaCause,
+        path: ViewDeltaPath,
+    ) {
+        self.diagnostic.record(effect, cause, path);
+    }
+
+    fn record_diagnostic_conservative(&mut self) {
+        self.diagnostic.record_conservative();
     }
 
     /// Derive bounded future-reconciliation evidence without applying it.
@@ -1060,6 +1206,7 @@ impl ViewDelta {
                 min: crate::gui::types::Point { x: 0.0, y: 0.0 },
                 max: crate::gui::types::Point { x: 0.0, y: 0.0 },
             }),
+            diagnostic: self.diagnostic,
         }
     }
 }
@@ -1324,6 +1471,20 @@ fn compare_container<Message>(
         delta.record(
             ViewDeltaEffect::Interaction,
             ViewDeltaCause::ContainerHover,
+            path.path,
+        );
+    }
+    let layout_capabilities_effect =
+        previous_revision.layout_capabilities_relation(&current_revision);
+    if layout_capabilities_effect == WidgetRevisionEffect::Structural
+        && previous_revision.layout_capabilities_need_conservative_fallback(&current_revision)
+    {
+        delta.record_diagnostic_conservative();
+    }
+    if layout_capabilities_effect != WidgetRevisionEffect::Unchanged {
+        delta.record_diagnostic(
+            layout_capabilities_effect.into(),
+            ViewDeltaCause::LayoutCapabilities,
             path.path,
         );
     }
@@ -1848,7 +2009,10 @@ mod view_delta_tests {
     };
     use crate::{
         gui::types::{Point, Rect, Vector2},
-        layout::{ContainerKind, ContainerPolicy, LayoutOutput},
+        layout::{
+            ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+            LayoutCapabilities, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
+        },
         runtime::{
             EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
             WidgetMessageMapper,
@@ -1869,6 +2033,29 @@ mod view_delta_tests {
 
     fn surface(root: SurfaceNode<()>) -> UiSurface<()> {
         UiSurface::new(root)
+    }
+
+    struct TestLayoutInteraction {
+        revision: LayoutInteractionRevision,
+    }
+
+    impl LayoutInteraction<()> for TestLayoutInteraction {
+        fn revision(&self) -> LayoutInteractionRevision {
+            self.revision.clone()
+        }
+    }
+
+    fn layout_surface(capabilities: Option<LayoutCapabilities<()>>) -> UiSurface<()> {
+        let container = SurfaceNode::container(1, ContainerPolicy::default(), Vec::new());
+        let container = match capabilities {
+            Some(capabilities) => container.with_layout_capabilities(capabilities),
+            None => container,
+        };
+        surface(container)
+    }
+
+    fn layout_capabilities(revision: LayoutInteractionRevision) -> LayoutCapabilities<()> {
+        LayoutCapabilities::new().interaction_local(TestLayoutInteraction { revision })
     }
 
     fn classify_view_delta(previous: &UiSurface<()>, current: &UiSurface<()>) -> super::ViewDelta {
@@ -1974,6 +2161,105 @@ mod view_delta_tests {
         assert_eq!(plan.outcome, ReconciliationPlanOutcome::ExactTopology);
         assert_eq!(plan.matched_nodes, 2);
         assert_eq!(plan.mismatch_count, 0);
+    }
+
+    #[test]
+    fn surface_container_clone_preserves_layout_capability_revision_and_presence() {
+        let node = SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
+            .with_layout_capabilities(layout_capabilities(LayoutInteractionRevision::exact(
+                "same",
+            )));
+        let SurfaceNode::Container(container) = node else {
+            unreachable!("layout capability helper must build a container")
+        };
+        let cloned = container.clone();
+        let revision = container.revision();
+        let cloned_revision = cloned.revision();
+
+        assert!(revision.layout_capabilities_present());
+        assert!(cloned_revision.layout_capabilities_present());
+        assert_eq!(
+            revision.layout_interaction_revision(),
+            Some(LayoutInteractionRevision::exact("same"))
+        );
+        assert_eq!(
+            cloned_revision.layout_interaction_revision(),
+            Some(LayoutInteractionRevision::exact("same"))
+        );
+    }
+
+    #[test]
+    fn layout_capability_delta_classification_is_conservative_and_typed() {
+        let absent = layout_surface(None);
+        assert_eq!(
+            classify_view_delta(&absent, &absent).effect,
+            ViewDeltaEffect::Unchanged
+        );
+
+        let exact = layout_surface(Some(layout_capabilities(LayoutInteractionRevision::exact(
+            "same",
+        ))));
+        let same_exact = layout_surface(Some(layout_capabilities(
+            LayoutInteractionRevision::exact("same"),
+        )));
+        let changed_exact = layout_surface(Some(layout_capabilities(
+            LayoutInteractionRevision::exact("changed"),
+        )));
+        let conservative = layout_surface(Some(layout_capabilities(
+            LayoutInteractionRevision::conservative(),
+        )));
+        let mut incompatible_capabilities =
+            layout_capabilities(LayoutInteractionRevision::exact("same"));
+        incompatible_capabilities.contract_version = LAYOUT_CAPABILITIES_CONTRACT_VERSION + 1;
+        let incompatible_contract = layout_surface(Some(incompatible_capabilities));
+
+        let absent_to_exact = classify_view_delta(&absent, &exact);
+        assert_eq!(absent_to_exact.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(absent_to_exact.total_events, 0);
+        assert!(!absent_to_exact.conservative);
+        assert_eq!(
+            absent_to_exact.diagnostic.effect,
+            ViewDeltaEffect::Structural
+        );
+        assert!(has_diagnostic_cause(
+            &absent_to_exact,
+            ViewDeltaCause::LayoutCapabilities
+        ));
+
+        let same = classify_view_delta(&exact, &same_exact);
+        assert_eq!(same.effect, ViewDeltaEffect::Unchanged);
+        assert!(!has_diagnostic_cause(
+            &same,
+            ViewDeltaCause::LayoutCapabilities
+        ));
+
+        let changed = classify_view_delta(&exact, &changed_exact);
+        assert_eq!(changed.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(changed.diagnostic.effect, ViewDeltaEffect::Interaction);
+        assert!(has_diagnostic_cause(
+            &changed,
+            ViewDeltaCause::LayoutCapabilities
+        ));
+
+        let conservative = classify_view_delta(&exact, &conservative);
+        assert_eq!(conservative.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(conservative.diagnostic.effect, ViewDeltaEffect::Structural);
+        assert!(conservative.diagnostic.conservative);
+        assert!(!conservative.conservative);
+        assert!(has_diagnostic_cause(
+            &conservative,
+            ViewDeltaCause::LayoutCapabilities
+        ));
+
+        let incompatible = classify_view_delta(&exact, &incompatible_contract);
+        assert_eq!(incompatible.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(incompatible.diagnostic.effect, ViewDeltaEffect::Structural);
+        assert!(incompatible.diagnostic.conservative);
+        assert!(!incompatible.conservative);
+        assert!(has_diagnostic_cause(
+            &incompatible,
+            ViewDeltaCause::LayoutCapabilities
+        ));
     }
 
     #[test]
@@ -3002,6 +3288,13 @@ mod view_delta_tests {
 
     fn has_cause(delta: &super::ViewDelta, cause: ViewDeltaCause) -> bool {
         delta.events[..usize::from(delta.event_count)]
+            .iter()
+            .flatten()
+            .any(|event| event.cause == cause)
+    }
+
+    fn has_diagnostic_cause(delta: &super::ViewDelta, cause: ViewDeltaCause) -> bool {
+        delta.diagnostic.events[..usize::from(delta.diagnostic.event_count)]
             .iter()
             .flatten()
             .any(|event| event.cause == cause)

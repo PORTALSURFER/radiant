@@ -8,7 +8,7 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-05**
-- Canonical main: **`b6991a3a`**
+- Canonical main: **`3207bd7e`**
 - Overall estimate: **~63%**
 - Working range: **56–70%**
 - Confidence: **medium**
@@ -25,7 +25,7 @@ contract against which progress is measured.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 60% | Core ownership direction is established; generic `LayoutInteraction`/`split_pane` and full virtualization proof remain. |
+| Layout, composition, virtualization | 61% | Core ownership direction and backend-neutral `SplitPaneLayout` geometry are shipped in PR #1597; generic `LayoutInteraction` runtime routing, `split_pane`, and full virtualization proof remain. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -43,6 +43,8 @@ The current foundation includes:
 - interaction provenance and the shared `EditEvent` lifecycle adopted by
   `Slider`, `Knob`, and `PanelResizeState`;
 - host-facing resize state;
+- backend-neutral `SplitPaneLayout` geometry with finite bounds, minima evidence,
+  and deterministic undersized fallback (PR #1597);
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -52,14 +54,15 @@ complete.
 
 ## Remaining gaps, ordered by leverage
 
-1. **Numeric edit session (next recommended slice; not shipped).** Add a
-   parser-agnostic `NumericEditSession` with a runtime-local draft and typed
-   commit/cancel semantics. This is the next dependency-correct gap.
-2. **Numeric and input integration.** Complete numeric attachment,
+1. **Generic layout interaction (next recommended slice).** Complete the reusable `LayoutInteraction`
+   runtime contract after the registration/revision foundation: declared hit
+   regions, pointer routing/capture, runtime-local state, and typed event
+   handling remain; then add the `split_pane` consumer.
+2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
+   runtime-local draft and typed commit/cancel semantics.
+3. **Numeric and input integration.** Complete numeric attachment,
    `numeric_input`, widget/runtime/focus integration, and the pointer,
    keyboard, and accessibility domain contract around those paths.
-3. **Generic layout interaction.** Add the reusable `LayoutInteraction` and
-   `split_pane` contract.
 4. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
 5. **Production frame wiring.** Complete reconciliation, damage propagation,
@@ -111,3 +114,4 @@ After each merged alignment slice:
 | Date | Canonical main | Overall | Note |
 | --- | --- | ---: | --- |
 | 2026-08-05 | `b6991a3a` | ~63% (56–70%, medium confidence) | Initial durable target-alignment snapshot; the next recommended gap is the unshipped parser-agnostic `NumericEditSession`. |
+| 2026-08-05 | `3207bd7e` | ~63% (56–70%, medium confidence) | PR #1597 shipped backend-neutral split-pane geometry; layout alignment moves from 60% to a conservative 61%, while runtime interaction, `split_pane`, and virtualization proof remain. |

@@ -61,7 +61,14 @@ mod tests {
     use super::*;
     use crate::{
         gui::types::Vector2,
-        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        layout::{
+            ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION, LayoutCapabilities,
+            LayoutInteraction, LayoutInteractionRevision,
+        },
+        runtime::{
+            RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+            surface::{ViewDeltaCause, ViewDeltaEffect},
+        },
         widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
@@ -221,6 +228,57 @@ mod tests {
                 )
             };
             crate::runtime::test_arc_surface(UiSurface::new(node))
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum LayoutCapabilityMode {
+        Exact(&'static str),
+        Conservative,
+        Incompatible,
+    }
+
+    struct RefreshLayoutInteraction {
+        revision: LayoutInteractionRevision,
+    }
+
+    impl LayoutInteraction<()> for RefreshLayoutInteraction {
+        fn revision(&self) -> LayoutInteractionRevision {
+            self.revision.clone()
+        }
+    }
+
+    struct LayoutCapabilityBridge {
+        mode: LayoutCapabilityMode,
+    }
+
+    impl LayoutCapabilityBridge {
+        fn surface(&self) -> UiSurface<()> {
+            let revision = match self.mode {
+                LayoutCapabilityMode::Exact(value) => LayoutInteractionRevision::exact(value),
+                LayoutCapabilityMode::Conservative | LayoutCapabilityMode::Incompatible => {
+                    LayoutInteractionRevision::conservative()
+                }
+            };
+            let mut capabilities =
+                LayoutCapabilities::new().interaction_local(RefreshLayoutInteraction { revision });
+            if matches!(self.mode, LayoutCapabilityMode::Incompatible) {
+                capabilities.contract_version = LAYOUT_CAPABILITIES_CONTRACT_VERSION + 1;
+            }
+            UiSurface::new(
+                SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
+                    .with_layout_capabilities(capabilities),
+            )
+        }
+    }
+
+    impl RuntimeBridge<()> for LayoutCapabilityBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> UiSurface<()> {
+            self.surface()
         }
     }
 
@@ -608,6 +666,73 @@ mod tests {
             after_surface.widget_state_sync + 1
         );
         assert_eq!(after_projection.layout, after_surface.layout);
+    }
+
+    #[test]
+    fn layout_capability_diagnostics_do_not_change_refresh_authority() {
+        let mut runtime = SurfaceRuntime::new(
+            LayoutCapabilityBridge {
+                mode: LayoutCapabilityMode::Exact("same"),
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        let baseline = runtime.take_frame_refresh_diagnostics();
+        let baseline_layout = runtime.refresh_counters().layout;
+        assert_eq!(baseline.effective_scope, RepaintScope::Projection);
+        assert!(runtime.base_paint_plan_reuse_eligible());
+        assert_eq!(baseline.view_delta.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(baseline.view_delta.reconciliation.mismatch_count, 0);
+
+        for (mode, expected_effect, expected_conservative) in [
+            (
+                LayoutCapabilityMode::Exact("changed"),
+                ViewDeltaEffect::Interaction,
+                false,
+            ),
+            (
+                LayoutCapabilityMode::Conservative,
+                ViewDeltaEffect::Structural,
+                true,
+            ),
+            (
+                LayoutCapabilityMode::Incompatible,
+                ViewDeltaEffect::Structural,
+                true,
+            ),
+        ] {
+            runtime.bridge_mut().mode = mode;
+            runtime.refresh_with_scope(RepaintScope::Projection);
+
+            let frame = runtime.take_frame_refresh_diagnostics();
+            assert_eq!(frame.effective_scope, baseline.effective_scope);
+            assert_eq!(runtime.refresh_counters().layout, baseline_layout);
+            assert!(runtime.base_paint_plan_reuse_eligible());
+
+            let summary = frame.view_delta;
+            assert_eq!(summary.effect, ViewDeltaEffect::Unchanged);
+            assert_eq!(summary.total_events, 0);
+            assert_eq!(summary.recorded_events, 0);
+            assert_eq!(summary.omitted_events, 0);
+            assert!(!summary.truncated_paths);
+            assert_eq!(summary.structural_cause, None);
+            assert!(summary.base_paint_reuse_safe);
+            assert_eq!(summary.reconciliation.mismatch_count, 0);
+            assert!(!summary.damage.full_viewport);
+            assert_eq!(summary.damage.candidate_count, 0);
+
+            assert_eq!(summary.diagnostic.effect, expected_effect);
+            assert_eq!(summary.diagnostic.total_events, 1);
+            assert_eq!(summary.diagnostic.event_count, 1);
+            assert_eq!(summary.diagnostic.omitted_events, 0);
+            assert!(!summary.diagnostic.truncated_paths);
+            assert_eq!(summary.diagnostic.conservative, expected_conservative);
+            let event = summary.diagnostic.events[0].expect("layout capability diagnostic");
+            assert_eq!(event.cause, ViewDeltaCause::LayoutCapabilities);
+            assert_eq!(event.effect, expected_effect);
+        }
     }
 
     #[test]

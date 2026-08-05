@@ -3,13 +3,15 @@ use crate::{
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::{Point, Rect, Vector2},
     layout::{
-        Constraints, ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
-        LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, LayoutCapabilities, LayoutHitRegion,
-        LayoutHitRegionId, LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
+        Constraints, ContainerKind, ContainerPolicy, ContainerStateDeclaration,
+        LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
+        LayoutCapabilities, LayoutContainerStateContext, LayoutHitRegion, LayoutHitRegionId,
+        LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
         LayoutTargetIdentity, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
     },
     runtime::{
-        Command, Event, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        Command, CommandOutcome, Event, PaintPrimitive, RepaintScope, SurfaceChild, SurfaceNode,
+        UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{
@@ -19,7 +21,11 @@ use crate::{
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
 
 struct FocusTestBridge;
 
@@ -657,6 +663,338 @@ impl LayoutProbeBridge {
     }
 }
 
+#[derive(Clone, Copy)]
+enum LayoutStateShape {
+    CellU32,
+    TrackedU32,
+    TrackedU64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LayoutStateTrace {
+    Cancelled,
+    DroppedU32,
+    DroppedU64,
+}
+
+struct TrackedLayoutState {
+    touches: u32,
+    trace: Rc<RefCell<Vec<LayoutStateTrace>>>,
+}
+
+impl Drop for TrackedLayoutState {
+    fn drop(&mut self) {
+        self.trace.borrow_mut().push(LayoutStateTrace::DroppedU32);
+    }
+}
+
+struct AlternateTrackedLayoutState {
+    touches: u32,
+    trace: Rc<RefCell<Vec<LayoutStateTrace>>>,
+}
+
+impl Drop for AlternateTrackedLayoutState {
+    fn drop(&mut self) {
+        self.trace.borrow_mut().push(LayoutStateTrace::DroppedU64);
+    }
+}
+
+#[derive(Clone)]
+struct LayoutStateProbeConfig {
+    shape: LayoutStateShape,
+    initialized: Rc<Cell<usize>>,
+    cell_u32: Rc<Cell<u32>>,
+    trace: Rc<RefCell<Vec<LayoutStateTrace>>>,
+}
+
+impl LayoutStateProbeConfig {
+    fn declaration(&self, container_id: u64, schema_version: u16) -> ContainerStateDeclaration {
+        match self.shape {
+            LayoutStateShape::CellU32 => {
+                let initialized = Rc::clone(&self.initialized);
+                let value = Rc::clone(&self.cell_u32);
+                ContainerStateDeclaration::new::<Rc<Cell<u32>>, _>(
+                    container_id,
+                    schema_version,
+                    move || {
+                        initialized.set(initialized.get().saturating_add(1));
+                        Rc::clone(&value)
+                    },
+                )
+            }
+            LayoutStateShape::TrackedU32 => {
+                let initialized = Rc::clone(&self.initialized);
+                let trace = Rc::clone(&self.trace);
+                ContainerStateDeclaration::new::<TrackedLayoutState, _>(
+                    container_id,
+                    schema_version,
+                    move || {
+                        initialized.set(initialized.get().saturating_add(1));
+                        TrackedLayoutState {
+                            touches: 0,
+                            trace: Rc::clone(&trace),
+                        }
+                    },
+                )
+            }
+            LayoutStateShape::TrackedU64 => {
+                let initialized = Rc::clone(&self.initialized);
+                let trace = Rc::clone(&self.trace);
+                ContainerStateDeclaration::new::<AlternateTrackedLayoutState, _>(
+                    container_id,
+                    schema_version,
+                    move || {
+                        initialized.set(initialized.get().saturating_add(1));
+                        AlternateTrackedLayoutState {
+                            touches: 0,
+                            trace: Rc::clone(&trace),
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    fn touch(&self, context: &mut LayoutContainerStateContext<'_>) {
+        match self.shape {
+            LayoutStateShape::CellU32 => {
+                let value = context
+                    .state_mut::<Rc<Cell<u32>>>()
+                    .expect("the state-aware callback should receive Rc<Cell<u32>>");
+                value.set(value.get().saturating_add(1));
+            }
+            LayoutStateShape::TrackedU32 => {
+                let state = context
+                    .state_mut::<TrackedLayoutState>()
+                    .expect("the state-aware callback should receive tracked u32 state");
+                state.touches = state.touches.saturating_add(1);
+            }
+            LayoutStateShape::TrackedU64 => {
+                let state = context
+                    .state_mut::<AlternateTrackedLayoutState>()
+                    .expect("the state-aware callback should receive tracked u64 state");
+                state.touches = state.touches.saturating_add(1);
+            }
+        }
+    }
+}
+
+struct LayoutStateProbeInteraction {
+    events: Rc<RefCell<LayoutProbeState>>,
+    config: LayoutStateProbeConfig,
+    schema_version: u16,
+    revision: LayoutInteractionRevision,
+    declared_container_id: Option<crate::layout::NodeId>,
+}
+
+impl LayoutInteraction<u8> for LayoutStateProbeInteraction {
+    fn revision(&self) -> LayoutInteractionRevision {
+        self.revision.clone()
+    }
+
+    fn visit_hit_regions(&self, _local_bounds: Rect, visitor: &mut dyn FnMut(LayoutHitRegion)) {
+        visitor(
+            LayoutHitRegion::new(
+                LayoutHitRegionId::new(1),
+                Rect::from_min_max(Point::new(0.0, 0.0), Point::new(1.0, 1.0)),
+            )
+            .expect("state probe region should be valid"),
+        );
+    }
+
+    fn state(&self, container_id: crate::layout::NodeId) -> Option<ContainerStateDeclaration> {
+        Some(self.config.declaration(
+            self.declared_container_id.unwrap_or(container_id),
+            self.schema_version,
+        ))
+    }
+
+    fn handle_layout_input_with_state(
+        &self,
+        input: LayoutInput,
+        context: &mut crate::layout::LayoutEventContext<u8>,
+        state: &mut LayoutContainerStateContext<'_>,
+    ) {
+        let (handled, capture_on_press) = {
+            let mut events = self.events.borrow_mut();
+            events.events.push((context.target(), input));
+            (events.handled, events.capture_on_press)
+        };
+        if handled {
+            context.handle();
+        }
+        if capture_on_press && matches!(input, LayoutInput::PointerPress { .. }) {
+            context.capture_pointer();
+        }
+        if matches!(input, LayoutInput::PointerCaptureCancelled { .. }) {
+            self.config
+                .trace
+                .borrow_mut()
+                .push(LayoutStateTrace::Cancelled);
+        }
+        self.config.touch(state);
+    }
+}
+
+struct LayoutStateProbeBridge {
+    events: Rc<RefCell<LayoutProbeState>>,
+    config: LayoutStateProbeConfig,
+    schema_version: u16,
+    revision: LayoutProbeRevision,
+    contract_version: u16,
+    mounted: bool,
+}
+
+impl LayoutStateProbeBridge {
+    fn new(events: Rc<RefCell<LayoutProbeState>>, config: LayoutStateProbeConfig) -> Self {
+        Self {
+            events,
+            config,
+            schema_version: 1,
+            revision: LayoutProbeRevision::Exact("state-probe"),
+            contract_version: LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+            mounted: true,
+        }
+    }
+
+    fn surface(&self) -> UiSurface<u8> {
+        if !self.mounted {
+            return UiSurface::new(SurfaceNode::widget(
+                TextWidget::new(
+                    99,
+                    "unmounted",
+                    WidgetSizing::fixed(Vector2::new(200.0, 40.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ));
+        }
+        let interaction = LayoutStateProbeInteraction {
+            events: Rc::clone(&self.events),
+            config: self.config.clone(),
+            schema_version: self.schema_version,
+            revision: self.revision.evidence(),
+            declared_container_id: None,
+        };
+        let mut capabilities = LayoutCapabilities::new().interaction_local(interaction);
+        capabilities.contract_version = self.contract_version;
+        UiSurface::new(
+            SurfaceNode::row(
+                1,
+                0.0,
+                vec![fixed_width_child(
+                    200.0,
+                    SurfaceNode::widget(
+                        TextWidget::new(
+                            2,
+                            "stateful layout probe",
+                            WidgetSizing::fixed(Vector2::new(200.0, 40.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                )],
+            )
+            .with_layout_capabilities(capabilities),
+        )
+    }
+}
+
+impl RuntimeBridge<u8> for LayoutStateProbeBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<u8>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn reduce_message(&mut self, message: u8) {
+        self.events.borrow_mut().messages.push(message);
+    }
+}
+
+struct DualLayoutStateProbeBridge {
+    left: LayoutStateProbeConfig,
+    right: LayoutStateProbeConfig,
+    left_events: Rc<RefCell<LayoutProbeState>>,
+    right_events: Rc<RefCell<LayoutProbeState>>,
+    foreign_state: bool,
+}
+
+impl DualLayoutStateProbeBridge {
+    fn surface(&self) -> UiSurface<u8> {
+        let (left_declared_container_id, right_declared_container_id) = if self.foreign_state {
+            (Some(2), Some(1))
+        } else {
+            (None, None)
+        };
+        let left_interaction = LayoutStateProbeInteraction {
+            events: Rc::clone(&self.left_events),
+            config: self.left.clone(),
+            schema_version: 1,
+            revision: LayoutInteractionRevision::exact("left-state-probe"),
+            declared_container_id: left_declared_container_id,
+        };
+        let right_interaction = LayoutStateProbeInteraction {
+            events: Rc::clone(&self.right_events),
+            config: self.right.clone(),
+            schema_version: 1,
+            revision: LayoutInteractionRevision::exact("right-state-probe"),
+            declared_container_id: right_declared_container_id,
+        };
+        let left_capabilities = LayoutCapabilities::new().interaction_local(left_interaction);
+        let right_capabilities = LayoutCapabilities::new().interaction_local(right_interaction);
+        UiSurface::new(SurfaceNode::row(
+            100,
+            0.0,
+            vec![
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::container(
+                        1,
+                        ContainerPolicy::default(),
+                        vec![SurfaceChild::fill(SurfaceNode::widget(
+                            TextWidget::new(
+                                101,
+                                "left",
+                                WidgetSizing::fixed(Vector2::new(100.0, 40.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ))],
+                    )
+                    .with_layout_capabilities(left_capabilities),
+                ),
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::container(
+                        2,
+                        ContainerPolicy::default(),
+                        vec![SurfaceChild::fill(SurfaceNode::widget(
+                            TextWidget::new(
+                                102,
+                                "right",
+                                WidgetSizing::fixed(Vector2::new(100.0, 40.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ))],
+                    )
+                    .with_layout_capabilities(right_capabilities),
+                ),
+            ],
+        ))
+    }
+}
+
+impl RuntimeBridge<u8> for DualLayoutStateProbeBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<u8>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+}
+
+fn layout_state_probe_config(shape: LayoutStateShape) -> LayoutStateProbeConfig {
+    LayoutStateProbeConfig {
+        shape,
+        initialized: Rc::new(Cell::new(0)),
+        cell_u32: Rc::new(Cell::new(0)),
+        trace: Rc::new(RefCell::new(Vec::new())),
+    }
+}
+
 #[derive(Clone)]
 struct PassThroughMoveWidget {
     common: WidgetCommon,
@@ -718,6 +1056,351 @@ impl RuntimeBridge<u8> for LayoutProbeBridge {
             self.revision = LayoutProbeRevision::Exact("changed-after-release");
         }
     }
+}
+
+#[test]
+fn stateful_v4_layout_state_reuses_non_send_state_across_input_and_reprojection() {
+    let events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let config = layout_state_probe_config(LayoutStateShape::CellU32);
+    let initialized = Rc::clone(&config.initialized);
+    let value = Rc::clone(&config.cell_u32);
+    let mut runtime = SurfaceRuntime::new(
+        LayoutStateProbeBridge::new(Rc::clone(&events), config),
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(runtime.layout_container_state_slot_count(), 1);
+    assert_eq!(initialized.get(), 1);
+
+    runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 20.0)));
+    assert_eq!(value.get(), 1);
+    assert_eq!(runtime.layout_container_state_slot_count(), 1);
+
+    runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    assert_eq!(value.get(), 2);
+    assert!(runtime.layout_pointer_capture().is_some());
+
+    let counters = runtime.refresh_counters();
+    let _ = runtime.take_repaint_requested();
+    assert_eq!(
+        runtime.take_pending_input_command_outcome(),
+        CommandOutcome::default()
+    );
+    runtime.dispatch_event(Event::pointer_move(Point::new(240.0, 80.0)));
+    assert_eq!(value.get(), 3);
+    assert_eq!(runtime.refresh_counters(), counters);
+    assert!(!runtime.repaint_requested());
+    assert_eq!(
+        runtime.take_pending_input_command_outcome(),
+        CommandOutcome::default()
+    );
+
+    runtime.refresh();
+    runtime.refresh_with_scope(RepaintScope::Projection);
+    runtime.set_viewport(Vector2::new(240.0, 40.0));
+
+    assert_eq!(initialized.get(), 1);
+    assert_eq!(value.get(), 3);
+    assert_eq!(runtime.layout_container_state_slot_count(), 1);
+}
+
+#[test]
+fn same_state_type_and_schema_stay_independent_for_distinct_containers() {
+    let left = layout_state_probe_config(LayoutStateShape::CellU32);
+    let right = layout_state_probe_config(LayoutStateShape::CellU32);
+    let left_value = Rc::clone(&left.cell_u32);
+    let right_value = Rc::clone(&right.cell_u32);
+    let left_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let right_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        DualLayoutStateProbeBridge {
+            left,
+            right,
+            left_events,
+            right_events,
+            foreign_state: false,
+        },
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(runtime.layout_container_state_slot_count(), 2);
+    runtime.dispatch_event(Event::pointer_move(Point::new(50.0, 20.0)));
+    runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 20.0)));
+
+    assert_eq!(left_value.get(), 1);
+    assert_eq!(right_value.get(), 1);
+    assert_eq!(runtime.layout_container_state_slot_count(), 2);
+}
+
+#[test]
+fn foreign_state_declarations_cannot_alias_or_retain_two_mounted_containers() {
+    let left = layout_state_probe_config(LayoutStateShape::CellU32);
+    let right = layout_state_probe_config(LayoutStateShape::CellU32);
+    let left_initialized = Rc::clone(&left.initialized);
+    let right_initialized = Rc::clone(&right.initialized);
+    let left_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let right_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        DualLayoutStateProbeBridge {
+            left,
+            right,
+            left_events,
+            right_events,
+            foreign_state: false,
+        },
+        Vector2::new(200.0, 40.0),
+    );
+
+    assert_eq!(left_initialized.get(), 1);
+    assert_eq!(right_initialized.get(), 1);
+    assert_eq!(runtime.layout_container_state_slot_count(), 2);
+
+    runtime.bridge_mut().foreign_state = true;
+    runtime.refresh();
+
+    let diagnostics = runtime.last_refresh_diagnostics().layout_state;
+    assert_eq!(diagnostics.foreign_declaration_count, 2);
+    assert_eq!(diagnostics.dropped_count, 2);
+    assert_eq!(diagnostics.initialized_count, 0);
+    assert_eq!(diagnostics.replacement_count, 0);
+    assert_eq!(runtime.layout_container_state_slot_count(), 0);
+    assert!(
+        runtime
+            .traversal
+            .containers
+            .layout_targets
+            .iter()
+            .all(|target| target.state_id.is_none())
+    );
+    assert_eq!(left_initialized.get(), 1);
+    assert_eq!(right_initialized.get(), 1);
+}
+
+#[test]
+fn changed_state_schema_and_concrete_type_replace_once_with_bounded_evidence() {
+    let events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let config = layout_state_probe_config(LayoutStateShape::TrackedU32);
+    let initialized = Rc::clone(&config.initialized);
+    let trace = Rc::clone(&config.trace);
+    let mut runtime = SurfaceRuntime::new(
+        LayoutStateProbeBridge::new(Rc::clone(&events), config),
+        Vector2::new(200.0, 40.0),
+    );
+    runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+
+    runtime.bridge_mut().schema_version = 2;
+    runtime.refresh();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+    assert_eq!(initialized.get(), 2);
+    let schema_replacement = runtime.last_refresh_diagnostics().layout_state.replacements[0]
+        .expect("schema replacement diagnostic");
+    assert_eq!(schema_replacement.container_id, 1);
+    assert_eq!(schema_replacement.previous.schema_version(), 1);
+    assert_eq!(schema_replacement.current.schema_version(), 2);
+    assert!(schema_replacement.previous.is::<TrackedLayoutState>());
+    assert!(schema_replacement.current.is::<TrackedLayoutState>());
+
+    runtime.refresh();
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .layout_state
+            .replacement_count,
+        0
+    );
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .layout_state
+            .initialized_count,
+        0
+    );
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+
+    runtime.bridge_mut().config.shape = LayoutStateShape::TrackedU64;
+    runtime.refresh();
+    assert_eq!(initialized.get(), 3);
+    let type_replacement = runtime.last_refresh_diagnostics().layout_state.replacements[0]
+        .expect("concrete type replacement diagnostic");
+    assert!(type_replacement.previous.is::<TrackedLayoutState>());
+    assert!(type_replacement.current.is::<AlternateTrackedLayoutState>());
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[
+            LayoutStateTrace::Cancelled,
+            LayoutStateTrace::DroppedU32,
+            LayoutStateTrace::DroppedU32,
+        ]
+    );
+
+    runtime.bridge_mut().mounted = false;
+    runtime.refresh();
+    assert_eq!(runtime.layout_container_state_slot_count(), 0);
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .layout_state
+            .dropped_count,
+        1
+    );
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[
+            LayoutStateTrace::Cancelled,
+            LayoutStateTrace::DroppedU32,
+            LayoutStateTrace::DroppedU32,
+            LayoutStateTrace::DroppedU64,
+        ]
+    );
+}
+
+#[test]
+fn captured_container_removal_cancels_before_dropping_old_state_once() {
+    let events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let config = layout_state_probe_config(LayoutStateShape::TrackedU32);
+    let trace = Rc::clone(&config.trace);
+    let mut runtime = SurfaceRuntime::new(
+        LayoutStateProbeBridge::new(events, config),
+        Vector2::new(200.0, 40.0),
+    );
+    runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    runtime.bridge_mut().mounted = false;
+    runtime.refresh();
+
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        runtime
+            .last_refresh_diagnostics()
+            .layout_state
+            .dropped_count,
+        1
+    );
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+    runtime.refresh();
+    assert_eq!(
+        trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+}
+
+#[test]
+fn state_identity_and_contract_changes_cancel_captured_old_binding() {
+    let schema_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let schema_config = layout_state_probe_config(LayoutStateShape::TrackedU32);
+    let schema_trace = Rc::clone(&schema_config.trace);
+    let mut schema_runtime = SurfaceRuntime::new(
+        LayoutStateProbeBridge::new(schema_events, schema_config),
+        Vector2::new(200.0, 40.0),
+    );
+    schema_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    schema_runtime.bridge_mut().schema_version = 2;
+    schema_runtime.refresh();
+    assert_eq!(schema_runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        schema_trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+
+    let contract_events = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let contract_config = layout_state_probe_config(LayoutStateShape::TrackedU32);
+    let contract_trace = Rc::clone(&contract_config.trace);
+    let mut contract_runtime = SurfaceRuntime::new(
+        LayoutStateProbeBridge::new(contract_events, contract_config),
+        Vector2::new(200.0, 40.0),
+    );
+    contract_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    contract_runtime.bridge_mut().contract_version = 3;
+    contract_runtime.refresh();
+    assert_eq!(contract_runtime.layout_pointer_capture(), None);
+    assert_eq!(contract_runtime.layout_container_state_slot_count(), 0);
+    assert_eq!(
+        contract_trace.borrow().as_slice(),
+        &[LayoutStateTrace::Cancelled, LayoutStateTrace::DroppedU32]
+    );
+}
+
+#[test]
+fn stateless_v4_and_legacy_v3_interactions_do_not_allocate_state() {
+    let v4_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut v4_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge::new(Rc::clone(&v4_state)),
+        Vector2::new(200.0, 40.0),
+    );
+    assert_eq!(v4_runtime.layout_container_state_slot_count(), 0);
+    v4_runtime.refresh();
+    assert_eq!(v4_runtime.layout_container_state_slot_count(), 0);
+    assert_eq!(
+        v4_runtime.last_refresh_diagnostics().layout_state,
+        Default::default()
+    );
+
+    let v3_state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        capture_on_press: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut v3_runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            contract_version: 3,
+            ..LayoutProbeBridge::new(Rc::clone(&v3_state))
+        },
+        Vector2::new(200.0, 40.0),
+    );
+    v3_runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
+    assert!(v3_runtime.layout_pointer_capture().is_some());
+    assert_eq!(v3_runtime.layout_container_state_slot_count(), 0);
+    assert!(
+        v3_state
+            .borrow()
+            .events
+            .iter()
+            .any(|(_, input)| matches!(input, LayoutInput::PointerPress { .. }))
+    );
 }
 
 #[test]

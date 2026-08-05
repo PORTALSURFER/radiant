@@ -45,6 +45,7 @@ where
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             layout_state_generation: 0,
+            last_layout_state_diagnostics: super::super::SurfaceLayoutStateDiagnostics::startup(),
             layout_debug_options: LayoutDebugOptions::default(),
             completed_layout: None,
             external_layout_dirty: false,

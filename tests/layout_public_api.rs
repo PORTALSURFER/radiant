@@ -1,10 +1,13 @@
 //! Public API coverage for `radiant::layout`.
 
 use radiant::layout::{
-    Constraints, ConstraintsParts, ContainerKind, ContainerNodeParts, ContainerPolicy, CrossAlign,
-    Insets, LayoutEngine, LayoutNode, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
-    SlotChild, SlotChildParts, SlotParams, Vector2, WidgetNodeParts, layout_tree,
+    Constraints, ConstraintsParts, ContainerKind, ContainerNodeParts, ContainerPolicy,
+    ContainerStateDeclaration, ContainerStateId, CrossAlign, Insets, LayoutContainerStateContext,
+    LayoutEngine, LayoutEventContext, LayoutInput, LayoutInteraction, LayoutNode, LayoutState,
+    NodeId, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts, SlotParams,
+    Vector2, WidgetNodeParts, layout_tree,
 };
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn public_layout_module_supports_generic_tree_construction() {
@@ -98,4 +101,51 @@ fn public_layout_tree_nodes_support_named_parts_construction() {
 
     assert!(output.rects.contains_key(&11));
     assert!(output.rects.contains_key(&12));
+}
+
+struct LocalStateInteraction {
+    initialized: Rc<Cell<u32>>,
+}
+
+impl LayoutInteraction<()> for LocalStateInteraction {
+    fn state(&self, container_id: NodeId) -> Option<ContainerStateDeclaration> {
+        let initialized = Rc::clone(&self.initialized);
+        Some(ContainerStateDeclaration::new::<Rc<Cell<u32>>, _>(
+            container_id,
+            7,
+            move || {
+                initialized.set(initialized.get() + 1);
+                Rc::new(Cell::new(0))
+            },
+        ))
+    }
+
+    fn handle_layout_input_with_state(
+        &self,
+        _input: LayoutInput,
+        _context: &mut LayoutEventContext<()>,
+        state: &mut LayoutContainerStateContext<'_>,
+    ) {
+        let value = state
+            .state_mut::<Rc<Cell<u32>>>()
+            .expect("the runtime supplies the declared concrete state type");
+        value.set(value.get() + 1);
+    }
+}
+
+#[test]
+fn public_layout_state_api_keeps_type_identity_opaque_and_typed() {
+    let declaration =
+        ContainerStateDeclaration::new::<Rc<Cell<u32>>, _>(41, 7, || Rc::new(Cell::new(0)));
+    let id = declaration.id();
+    assert_eq!(id.container_id(), 41);
+    assert_eq!(id.schema_version(), 7);
+    assert!(id.is::<Rc<Cell<u32>>>());
+    assert!(!id.is::<Rc<Cell<u64>>>());
+    assert_eq!(ContainerStateId::new::<Rc<Cell<u32>>>(41, 7), id);
+
+    let interaction = LocalStateInteraction {
+        initialized: Rc::new(Cell::new(0)),
+    };
+    assert!(interaction.state(41).is_some());
 }

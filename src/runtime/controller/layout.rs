@@ -1,4 +1,5 @@
-//! Runtime-owned admission and capture for version-3 layout interactions.
+//! Runtime-owned admission and capture for version-3/version-4 layout
+//! interactions.
 
 use super::{
     SurfaceRuntime, interaction_state::RuntimeLayoutPointerCapture,
@@ -11,7 +12,7 @@ use crate::{
     },
     layout::{
         LayoutEventContext, LayoutInput, LayoutInteraction, LayoutInteractionRevision,
-        LayoutTargetIdentity, supports_layout_input_contract,
+        LayoutTargetIdentity, supports_layout_input_contract, supports_layout_state_input_contract,
     },
     runtime::RuntimeBridge,
     widgets::PointerModifiers,
@@ -26,6 +27,8 @@ pub(super) struct LayoutInputDispatch {
 
 struct LayoutTargetBinding<Message> {
     identity: LayoutTargetIdentity,
+    contract_version: u16,
+    state_id: Option<crate::layout::ContainerStateId>,
     interaction: Rc<dyn LayoutInteraction<Message>>,
     revision: LayoutInteractionRevision,
 }
@@ -81,6 +84,8 @@ impl<Message> Clone for LayoutTargetBinding<Message> {
     fn clone(&self) -> Self {
         Self {
             identity: self.identity,
+            contract_version: self.contract_version,
+            state_id: self.state_id,
             interaction: Rc::clone(&self.interaction),
             revision: self.revision.clone(),
         }
@@ -130,6 +135,8 @@ where
         };
         let binding = LayoutTargetBinding {
             identity: capture.identity,
+            contract_version: capture.contract_version,
+            state_id: capture.state_id,
             interaction: capture.interaction,
             revision: capture.revision,
         };
@@ -142,6 +149,8 @@ where
         };
         let binding = LayoutTargetBinding {
             identity: capture.identity,
+            contract_version: capture.contract_version,
+            state_id: capture.state_id,
             interaction: capture.interaction,
             revision: capture.revision,
         };
@@ -175,6 +184,8 @@ where
             let _ = self.dispatch_layout_binding(
                 LayoutTargetBinding {
                     identity: capture.identity,
+                    contract_version: capture.contract_version,
+                    state_id: capture.state_id,
                     interaction: capture.interaction,
                     revision: capture.revision,
                 },
@@ -191,10 +202,14 @@ where
         };
         if capture.revision.is_exact()
             && current.revision.is_exact()
+            && capture.contract_version == current.contract_version
+            && capture.state_id == current.state_id
             && capture.revision == current.revision
         {
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
                 identity: current.identity,
+                contract_version: current.contract_version,
+                state_id: current.state_id,
                 revision: current.revision,
                 interaction: current.interaction,
                 last_position: capture.last_position,
@@ -209,6 +224,8 @@ where
         let _ = self.dispatch_layout_binding(
             LayoutTargetBinding {
                 identity: capture.identity,
+                contract_version: capture.contract_version,
+                state_id: capture.state_id,
                 interaction: capture.interaction,
                 revision: capture.revision,
             },
@@ -280,7 +297,15 @@ where
                 capture.last_sequence_range = sequence_range;
             }
         }
-        binding.interaction.handle_layout_input(input, &mut context);
+        if supports_layout_state_input_contract(binding.contract_version) {
+            let mut state = self
+                .layout_container_state_context(binding.identity.container_id, binding.state_id);
+            binding
+                .interaction
+                .handle_layout_input_with_state(input, &mut context, &mut state);
+        } else {
+            binding.interaction.handle_layout_input(input, &mut context);
+        }
 
         if context.repaint_requested() || context.work_requested() {
             self.repaint_requested = true;
@@ -300,6 +325,8 @@ where
                 layout_input_metadata(input, fallback_position);
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
                 identity: binding.identity,
+                contract_version: binding.contract_version,
+                state_id: binding.state_id,
                 revision: binding.revision.clone(),
                 interaction: Rc::clone(&binding.interaction),
                 last_position: position,
@@ -344,6 +371,8 @@ impl<Message> RuntimeLayoutHitTarget<Message> {
     fn binding(&self) -> LayoutTargetBinding<Message> {
         LayoutTargetBinding {
             identity: self.target.identity(),
+            contract_version: self.contract_version,
+            state_id: self.state_id,
             interaction: Rc::clone(&self.interaction),
             revision: self.revision.clone(),
         }

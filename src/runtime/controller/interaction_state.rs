@@ -2,12 +2,15 @@
 
 use super::{
     DragSession, ExternalDragCompletion, ExternalDragIdentity, ExternalDragSession,
-    PendingExternalDragCompletion,
+    PendingExternalDragCompletion, layout_state::RuntimeLayoutContainerStateStore,
 };
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp, KeyPress},
     gui::types::Point,
-    layout::{LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity, NodeId},
+    layout::{
+        ContainerStateId, LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity,
+        NodeId,
+    },
     widgets::{PointerModifiers, WidgetId, WidgetState},
 };
 use std::rc::Rc;
@@ -19,6 +22,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
     pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
+    pub(super) layout_state: RuntimeLayoutContainerStateStore,
     pub(super) drag: RuntimeDragState<Message>,
 }
 
@@ -30,6 +34,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
             layout_capture: None,
+            layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),
         }
     }
@@ -37,6 +42,8 @@ impl<Message> Default for RuntimeInteractionState<Message> {
 
 pub(super) struct RuntimeLayoutPointerCapture<Message> {
     pub(super) identity: LayoutTargetIdentity,
+    pub(super) contract_version: u16,
+    pub(super) state_id: Option<ContainerStateId>,
     pub(super) revision: LayoutInteractionRevision,
     pub(super) interaction: Rc<dyn LayoutInteraction<Message>>,
     pub(super) last_position: Point,
@@ -49,6 +56,8 @@ impl<Message> Clone for RuntimeLayoutPointerCapture<Message> {
     fn clone(&self) -> Self {
         Self {
             identity: self.identity,
+            contract_version: self.contract_version,
+            state_id: self.state_id,
             revision: self.revision.clone(),
             interaction: Rc::clone(&self.interaction),
             last_position: self.last_position,

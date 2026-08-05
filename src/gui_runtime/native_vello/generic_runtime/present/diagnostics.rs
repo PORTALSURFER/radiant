@@ -310,6 +310,7 @@ mod tests {
                     layout: Duration::from_micros(7),
                 },
                 identity: Default::default(),
+                layout_state: Default::default(),
             },
             surface_refresh_total: Duration::from_micros(23),
             surface_recovery: crate::runtime::NativeSurfaceRecoveryDiagnostics {

@@ -15,6 +15,7 @@ mod host;
 mod input;
 mod interaction_state;
 mod layout;
+mod layout_state;
 mod owner;
 mod platform;
 mod pointer;
@@ -29,6 +30,7 @@ mod work;
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
+pub use layout_state::{SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement};
 pub(crate) use refresh::BasePaintPlanContext;
 pub use refresh::{
     IdentityAudit, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
@@ -114,6 +116,7 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     layout_state_generation: u64,
+    last_layout_state_diagnostics: SurfaceLayoutStateDiagnostics,
     layout_debug_options: LayoutDebugOptions,
     completed_layout: Option<CompletedLayoutContext>,
     external_layout_dirty: bool,

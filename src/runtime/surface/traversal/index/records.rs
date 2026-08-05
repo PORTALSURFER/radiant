@@ -1,5 +1,5 @@
 use crate::{
-    layout::{LayoutInteraction, LayoutInteractionRevision, NodeId},
+    layout::{ContainerStateDeclaration, LayoutInteraction, LayoutInteractionRevision, NodeId},
     widgets::WidgetId,
 };
 use std::rc::Rc;
@@ -31,6 +31,8 @@ pub(in crate::runtime) struct SurfaceLayoutInteractionRecord<Message> {
     pub(in crate::runtime) contract_version: u16,
     pub(in crate::runtime) interaction: Rc<dyn LayoutInteraction<Message>>,
     pub(in crate::runtime) revision: LayoutInteractionRevision,
+    pub(in crate::runtime) state: Option<ContainerStateDeclaration>,
+    pub(in crate::runtime) foreign_state_declaration: bool,
 }
 
 pub(in crate::runtime) struct SurfaceWidgetTraversalRecord<'a> {

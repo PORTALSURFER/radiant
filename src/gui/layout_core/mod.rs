@@ -31,10 +31,12 @@
 //! available for backend-neutral containers, including exact or conservative
 //! revision evidence and normalized hit-region declarations. Production
 //! runtime projection exposes read-only [`LayoutHitTarget`](crate::layout::LayoutHitTarget) values;
-//! version-3 capabilities may additionally receive typed pointer input while
-//! the runtime owns routing and capture. Semantic/keyboard behavior,
-//! `split_pane` runtime construction, and the target `VirtualLayoutPolicy`
-//! remain future runtime work.
+//! version-3 capabilities may receive typed pointer input while version 4 adds
+//! optional runtime-owned typed container state; the runtime owns routing and
+//! capture for both. State slots are UI-local and bounded, and are distinct
+//! from [`LayoutState`](crate::layout::LayoutState) scroll offsets.
+//! Semantic/keyboard behavior, `split_pane` runtime construction, and the
+//! target `VirtualLayoutPolicy` remain future runtime work.
 //!
 //! # Example
 //!
@@ -87,13 +89,16 @@ mod tree;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
-    LAYOUT_CAPABILITIES_CONTRACT_VERSION, LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,
-    LayoutCapabilities, LayoutEventContext, LayoutHitRegion, LayoutHitRegionDeclarationError,
-    LayoutHitRegionDiagnostics, LayoutHitRegionId, LayoutHitTarget, LayoutInput, LayoutInteraction,
-    LayoutInteractionRevision, LayoutTargetIdentity,
+    ContainerStateDeclaration, ContainerStateId, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
+    LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION,
+    LayoutCapabilities, LayoutContainerStateContext, LayoutEventContext, LayoutHitRegion,
+    LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics, LayoutHitRegionId,
+    LayoutHitTarget, LayoutInput, LayoutInteraction, LayoutInteractionRevision,
+    LayoutTargetIdentity,
 };
 pub(crate) use capabilities::{
     supports_layout_capabilities_contract, supports_layout_input_contract,
+    supports_layout_state_input_contract,
 };
 pub use constraints::{Constraints, ConstraintsParts};
 pub use engine::{

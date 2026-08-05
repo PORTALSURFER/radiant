@@ -792,9 +792,18 @@ normalized hit-region declaration/projection for generic surface containers.
 Version 3 additionally admits typed pointer input through
 `LayoutEventContext<Message>`; the runtime owns separate layout capture and
 offers a fresh topmost compatible target before widget fallback. Version 2 is
-retained as a projection/query-only contract. `SurfaceRuntime::layout_hit_target_at(...)`
+retained as a projection/query-only contract. Version 4 adds the optional
+`ContainerStateDeclaration` / `LayoutContainerStateContext` surface: a
+declaration carries an opaque typed `ContainerStateId`, schema version, and
+explicit initializer, while the runtime owns a bounded UI-local slot keyed by
+mounted container identity, concrete type, and schema. The state surface
+supports UI-local values such as `Rc<Cell<_>>`; it does not expose `Any` or
+`TypeId`, and state-only mutation does not request work, repaint, or a message.
+Version 3 continues to delegate through the unchanged
+`handle_layout_input` entrypoint. `SurfaceRuntime::layout_hit_target_at(...)`
 continues to expose the resulting read-only container/region target and
-projected bounds.
+projected bounds. These generic contracts do not claim product-specific
+`split_pane` behavior or virtualization completion.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
@@ -3896,8 +3905,10 @@ were satisfied. The qualified `radiant::layout::{LayoutCapabilities,
 LayoutInteraction, LayoutInteractionRevision}` contract provides
 backend-neutral UI-local capability registration, exact/conservative revision
 evidence, validated normalized hit-region declaration/projection, and (for
-contract version 3) typed pointer admission with runtime-owned capture for
-generic surface containers. Version 2 remains projection/query-only.
+contract versions 3 and 4) typed pointer admission with runtime-owned capture
+for generic surface containers. Version 4 additionally provides the optional
+typed `ContainerStateDeclaration` / `LayoutContainerStateContext` seam with
+bounded UI-local state; version 2 remains projection/query-only.
 `SurfaceRuntime::layout_hit_target_at(...)` is a read-only query over those
 projected targets. This slice does not construct the target `split_pane`
 runtime builder or provide semantic/keyboard behavior or `VirtualLayoutPolicy`;

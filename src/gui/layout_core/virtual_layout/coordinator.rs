@@ -366,6 +366,10 @@ impl Drop for ExecutionPhaseGuard<'_> {
     }
 }
 
+/// Non-zero-sized marker whose handle is compared only by allocation identity.
+#[derive(Debug)]
+struct CoordinatorIdentity(u8);
+
 impl VirtualLayoutPendingQuery {
     /// Execute the policy outside the coordinator's mutable commit path.
     pub(crate) fn execute(&self, policy: &dyn VirtualLayoutPolicy) -> VirtualLayoutQueryOutcome {
@@ -396,6 +400,7 @@ impl VirtualLayoutPendingQuery {
 
 #[derive(Clone, Debug)]
 struct PendingToken {
+    owner: Rc<CoordinatorIdentity>,
     scope: ScopeIdentity,
     query_sequence: u64,
     invalidation_epoch: u64,
@@ -483,6 +488,7 @@ pub(crate) struct VirtualLayoutCoordinatorDiagnostic {
 
 /// One private query-only keyed-window coordinator.
 pub(crate) struct VirtualLayoutWindowCoordinator {
+    identity: Rc<CoordinatorIdentity>,
     scope: ScopeIdentity,
     query_sequence: u64,
     invalidation_epoch: u64,
@@ -506,6 +512,7 @@ impl VirtualLayoutWindowCoordinator {
         mount_generation: u64,
     ) -> Self {
         Self {
+            identity: Rc::new(CoordinatorIdentity(0)),
             scope: ScopeIdentity {
                 container_id,
                 policy_identity: PolicyIdentityValue(policy_identity),
@@ -623,6 +630,7 @@ impl VirtualLayoutWindowCoordinator {
             .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
         let executor = VirtualLayoutQueryExecutor::new(input.clone());
         let token = PendingToken {
+            owner: Rc::clone(&self.identity),
             scope: self.scope.clone(),
             query_sequence: self.query_sequence,
             invalidation_epoch: self.invalidation_epoch,
@@ -794,11 +802,14 @@ impl VirtualLayoutWindowCoordinator {
     }
 
     fn token_is_current(&self, token: &PendingToken) -> bool {
-        self.pending.as_ref().is_some_and(|current| {
-            current.query_sequence == token.query_sequence
-                && current.invalidation_epoch == token.invalidation_epoch
-                && current.scope == token.scope
-        }) && token.query_sequence == self.query_sequence
+        Rc::ptr_eq(&self.identity, &token.owner)
+            && self.pending.as_ref().is_some_and(|current| {
+                Rc::ptr_eq(&current.owner, &token.owner)
+                    && current.query_sequence == token.query_sequence
+                    && current.invalidation_epoch == token.invalidation_epoch
+                    && current.scope == token.scope
+            })
+            && token.query_sequence == self.query_sequence
             && token.invalidation_epoch == self.invalidation_epoch
     }
 
@@ -1396,6 +1407,76 @@ mod tests {
             coordinator.borrow_mut().complete(pending, outcome),
             VirtualLayoutCompletion::Committed(_)
         ));
+    }
+
+    #[test]
+    fn same_scope_coordinators_reject_foreign_tokens_without_consuming_local_pending() {
+        let mut coordinator_a =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let mut coordinator_b =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let pending_a = coordinator_a
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("A query should begin");
+        let pending_b = coordinator_b
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("B query should begin");
+        assert_eq!(pending_a.query_sequence(), 1);
+        assert_eq!(pending_b.query_sequence(), 1);
+        assert_eq!(
+            coordinator_a.invalidation_epoch,
+            coordinator_b.invalidation_epoch
+        );
+
+        let revisions_before = coordinator_a.revisions();
+        let epoch_before = coordinator_a.invalidation_epoch;
+        let invalidations_before = coordinator_a.invalidations();
+        assert!(coordinator_a.accepted().is_none());
+        assert!(coordinator_a.explicit_anchor.is_none());
+
+        let outcome_b = pending_b.execute(&ready_policy(&[2], 100.0));
+        assert!(matches!(
+            coordinator_a.complete(pending_b, outcome_b),
+            VirtualLayoutCompletion::Stale(diagnostic)
+                if diagnostic.code == VirtualLayoutCoordinatorDiagnosticCode::StaleQuery
+        ));
+        assert!(coordinator_a.accepted().is_none());
+        assert_eq!(coordinator_a.revisions(), revisions_before);
+        assert_eq!(coordinator_a.invalidation_epoch, epoch_before);
+        assert_eq!(coordinator_a.invalidations(), invalidations_before);
+        assert!(coordinator_a.explicit_anchor.is_none());
+        assert_eq!(
+            coordinator_a
+                .pending
+                .as_ref()
+                .expect("A pending slot should remain")
+                .query_sequence,
+            1
+        );
+
+        let outcome_a = pending_a.execute(&ready_policy(&[1], 100.0));
+        assert!(matches!(
+            coordinator_a.complete(pending_a, outcome_a),
+            VirtualLayoutCompletion::Committed(_)
+        ));
+        assert_eq!(
+            coordinator_a.accepted().expect("A accepted window").entries[0].key(),
+            &VirtualLayoutItemKey::new(1_u32)
+        );
+
+        let newer_pending_b = coordinator_b
+            .begin_query(parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8))
+            .expect("B should supersede its orphaned pending record");
+        assert_eq!(newer_pending_b.query_sequence(), 2);
+        let newer_outcome_b = newer_pending_b.execute(&ready_policy(&[3], 100.0));
+        assert!(matches!(
+            coordinator_b.complete(newer_pending_b, newer_outcome_b),
+            VirtualLayoutCompletion::Committed(_)
+        ));
+        assert_eq!(
+            coordinator_b.accepted().expect("B accepted window").entries[0].key(),
+            &VirtualLayoutItemKey::new(3_u32)
+        );
     }
 
     #[test]

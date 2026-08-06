@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`0e0b26ed`**
-- Overall estimate: **~90%**
-- Working range: **85–95%**
+- Canonical main: **`bcb1311f`**
+- Overall estimate: **~91%**
+- Working range: **86–96%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -62,7 +62,12 @@ residency is present, while zero-selection and unsafe cases use authoritative
 full-scene encoding. The estimate moves modestly because this closes the
 generic render-selection gap without adding renderer-owned GPU lifetime or
 budgeting, platform profiling, or product-specific numeric, virtualization, or
-cache policy.
+cache policy. PR #1617 now ships the generic controller-owned lifecycle
+transition authority and bounded `RuntimeLifecycleDiagnostics`: construction,
+closing, stopped, and typed recovery transitions are validated and recorded
+with saturating counts and fixed-capacity history. The estimate moves modestly
+because this closes a generic runtime evidence and authority gap without
+claiming native recovery, effect ownership, or scheduling policy.
 
 Terminal boundary after PR #1616: no further generic implementation slice is
 selected from the current Radiant contracts. The remaining target requires a
@@ -88,7 +93,7 @@ unshipped.
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
-| Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
+| Runtime, effects, and scheduling | 68% | Generic lifecycle transition authority and bounded controller-owned lifecycle diagnostics are shipped in PR #1617; native recovery/effect preservation, owner/origin integration, and the complete scheduling target remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
@@ -185,7 +190,11 @@ The current foundation includes:
   resident is selected, and falls back to authoritative full-scene encoding
   for zero-selection or unsafe cases (PR #1616); and
 - finite linear/log `ValueMapping`; and
-- deterministic, allocation-free `ValueFormat`.
+- deterministic, allocation-free `ValueFormat`; and
+- the private generic `RuntimeLifecycleController` with validated
+  `Starting`/`Running`/`Recovering`/`Closing`/`Stopped` transitions and
+  qualified, bounded `RuntimeLifecycleDiagnostics` with saturating counts and
+  fixed-capacity history (PR #1617).
 
 These foundations make later slices safer and more composable. They do not
 mean that every target consumer, runtime path, platform, or integration is
@@ -223,7 +232,10 @@ Vello render boundary: exact Warming/Admitted residents can select mixed
 assembly, while no-selected-resident and unsafe paths use the authoritative
 encoder. These slices still do not authorize presentation, own GPU resource
 lifetime or budgeting, or provide renderer/platform profiling or product cache
-policy.
+policy. PR #1617 now makes the generic controller lifecycle explicit through one
+validated transition authority and bounded diagnostics; its `Recovering` phase
+is typed vocabulary only until a native recovery/effect-preservation contract
+is ready.
 
 ## Remaining gaps, ordered by leverage
 
@@ -249,9 +261,17 @@ policy.
    now the next dependency-correct numeric item, but parser, locale, range,
    formatting, and product interaction policy must come from a concrete
    consumer rather than being invented in generic Radiant.
-3. **Richer text editing.** Complete multiline editing, IME/composition, and
+3. **Runtime, effects, and scheduling integration.** PR #1617 ships the
+   generic lifecycle transition authority and bounded lifecycle evidence, but
+   `Recovering` remains typed vocabulary rather than native behavior. The next
+   dependency-correct runtime candidate is a bounded native recovery/effect-
+   preservation slice; stable owner/origin and cancellation integration must
+   precede configurable scheduling budgets and fair multi-window policy. Do
+   not claim scheduler fairness until those ownership and renderer boundaries
+   are concrete.
+4. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
-4. **Production frame wiring.** Complete reconciliation, damage propagation,
+5. **Production frame wiring.** Complete reconciliation, damage propagation,
    selective production publication from the bounded admission signal,
    render-boundary selection, and measured retained-surface cache admission in
    the production runtime path. PR #1611 supplies bounded committed native
@@ -271,9 +291,9 @@ policy.
    and a named product workload define importance, staleness, pressure, and
    degradation policy; product-specific cache policy remains outside generic
    Radiant.
-5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
+6. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
-6. **Platform expansion.** Broaden Linux/Windows runtime validation and
+7. **Platform expansion.** Broaden Linux/Windows runtime validation and
    platform implementation behind the existing boundaries.
 
 dB, tempo, and other custom numeric formats remain later work after the
@@ -305,6 +325,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Numeric edit session](../src/widgets/interaction/numeric_edit.rs)
 - [Value mapping](../src/widgets/interaction/value.rs)
 - [Value formatting](../src/widgets/interaction/format.rs)
+- [Generic lifecycle diagnostics](../src/runtime/diagnostics/lifecycle.rs)
 - [Widget revision contract](../src/widgets/contract/revision.rs)
 - [Refresh, identity, and damage controller](../src/runtime/controller/refresh.rs)
 
@@ -352,3 +373,4 @@ After each merged alignment slice:
 | 2026-08-06 | `d5cf572d` | ~88% (83–93%, medium confidence) | PR #1614 merged the private mixed native paint assembly consumer: valid sparse absences become supported per-frame fresh encodes, exact residents reuse, present corruption and unsupported holes veto atomically, and the derived execution plan supplies factual benefit evidence while admission remains observational. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed, corrected `perf_harness` baseline/compare matched 2/2 scenarios with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 69% to 72%; the next generic item is selective admission-to-residency publication, while render-boundary selection, measured wiring, and product-specific policy remain. |
 | 2026-08-06 | `63a83359` | ~89% (84–94%, medium confidence) | PR #1615 merged the private admission-to-residency consumer: exact Warming/Admitted identity, span, revision, and generation evidence now filters fully validated dense batches into their original sparse slots, preserves nonzero plan cardinality and atomic clearing, and routes full/mixed publication through one frame-state owner. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed, `perf_harness` baseline/compare matched 2/2 scenarios with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 72% to 75%; the next generic item is render-boundary selection and measured retained-surface wiring, while GPU lifetime ownership and product-specific policy remain. |
 | 2026-08-06 | `0e0b26ed` | ~90% (85–95%, medium confidence) | PR #1616 merged the private admission-aware native Vello render-boundary selector: exact Warming/Admitted evidence is intersected with sparse residency and scene/generation fences, mixed assembly requires at least one exact resident, valid holes/unselected entries remain fresh in original order, and zero-selection or unsafe cases use authoritative full-scene encoding. Focused and full local validation passed with 3,570 all-target/all-feature tests, Linux and Intel-macOS no-default-feature checks passed, the two Vello strategy probes reported 1,024/0 versus 256/4 work per iteration, the focused JSONL baseline round trip matched 1/1 with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 75% to 78%; the next candidate is renderer-owned retained-resource lifetime/budgeting and measured renderer/platform profiling, while product-specific cache policy remains outside generic Radiant. |
+| 2026-08-06 | `bcb1311f` | ~91% (86–96%, medium confidence) | PR #1617 merged the generic controller-owned lifecycle transition authority and bounded `RuntimeLifecycleDiagnostics`: legal construction/close/stop transitions are recorded, typed recovery vocabulary is available for the next native slice, invalid transitions are vetoed, and saturating sequence/counts plus fixed-capacity oldest-to-newest history are exposed under `radiant::runtime`. Focused and full local validation passed, including 2,555 library tests, 288 generic guardrails, examples, docs, all-target/all-feature checks, strict Clippy, and installed Linux/Intel-macOS no-default-feature checks; fresh exact-head Terra APPROVE found no findings after one fixed-capacity correction. Runtime/effects/scheduling alignment moves conservatively from 65% to 68%; the next candidate is native recovery/effect preservation, followed by stable owner/origin and cancellation contracts before scheduler budgets or fairness. |

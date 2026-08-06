@@ -55,6 +55,7 @@ pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentAssemblyBundle
     pub(in crate::gui_runtime::native_vello) stats: RetainedSurfaceEncodeStats,
     pub(in crate::gui_runtime::native_vello) materialization:
         NativePaintSegmentArtifactMaterialization,
+    pub(in crate::gui_runtime::native_vello) plan: NativePaintSegmentEligibilityPlan,
     pub(in crate::gui_runtime::native_vello) paint: PaintSegmentObservation,
     pub(in crate::gui_runtime::native_vello) target_generation: NativeTargetGeneration,
     pub(in crate::gui_runtime::native_vello) fresh_count: usize,
@@ -108,6 +109,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmen
     InvalidEvidence,
     InvalidCurrentObservation,
     ContextMismatch,
+    #[cfg(test)]
     MissingArtifact,
     ArtifactMetadataMismatch,
     UnsupportedFreshPrimitive,
@@ -115,6 +117,12 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmen
     InvalidPayload,
     #[cfg(test)]
     CheckpointMismatch,
+}
+
+enum NativePaintSegmentArtifactAssemblyLookup<'a> {
+    Exact(&'a NativePaintSegmentPayload),
+    Absent,
+    Invalid(NativePaintSegmentAssemblyVetoReason),
 }
 
 /// Transactional, bounded materialization result for one encoded frame.
@@ -396,6 +404,52 @@ impl NativePaintSegmentArtifactStore {
             .then(|| artifact.payload.clone())
     }
 
+    fn lookup_for_mixed_assembly(
+        &self,
+        index: usize,
+        count: usize,
+        entry: NativePaintSegmentEligibilityEntry,
+        scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
+    ) -> NativePaintSegmentArtifactAssemblyLookup<'_> {
+        let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
+            entry.disposition
+        else {
+            return NativePaintSegmentArtifactAssemblyLookup::Invalid(
+                NativePaintSegmentAssemblyVetoReason::MixedDisposition,
+            );
+        };
+        if self.plan_entry_count as usize != count || self.scene_validity != Some(scene_validity) {
+            return NativePaintSegmentArtifactAssemblyLookup::Invalid(
+                NativePaintSegmentAssemblyVetoReason::InvalidEvidence,
+            );
+        }
+        let Some(artifact) = self.artifacts.get(index).and_then(Option::as_ref) else {
+            return NativePaintSegmentArtifactAssemblyLookup::Absent;
+        };
+        if usize::from(artifact.plan_index) != index {
+            return NativePaintSegmentArtifactAssemblyLookup::Invalid(
+                NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch,
+            );
+        }
+        let evidence = artifact.payload.evidence;
+        if evidence.identity != fingerprint.identity
+            || evidence.identity != entry.span.identity
+            || evidence.span != entry.span
+            || evidence.revision != fingerprint.revision
+            || evidence.target_generation != fingerprint.target_generation
+            || evidence.target_generation != target_generation
+            || !evidence.target_generation.is_known()
+            || evidence.scene_validity != scene_validity
+        {
+            return NativePaintSegmentArtifactAssemblyLookup::Invalid(
+                NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch,
+            );
+        }
+        NativePaintSegmentArtifactAssemblyLookup::Exact(&artifact.payload)
+    }
+
+    #[cfg(test)]
     fn artifact_for_assembly(
         &self,
         index: usize,
@@ -554,6 +608,17 @@ impl NativePaintSegmentArtifactStore {
     ) -> Option<&mut NativePaintSegmentArtifact> {
         self.artifacts.get_mut(index)?.as_mut()
     }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn clear_artifact_for_test(
+        &mut self,
+        index: usize,
+    ) -> bool {
+        let Some(slot) = self.artifacts.get_mut(index) else {
+            return false;
+        };
+        slot.take().is_some()
+    }
 }
 
 /// Preflight and assemble one current plan without mutating frame state.
@@ -566,7 +631,11 @@ impl NativePaintSegmentArtifactStore {
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn assemble_mixed_native_paint_segment_scene(
     input: NativePaintSegmentAssemblyInput<'_>,
 ) -> Result<NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyVetoReason> {
-    let count = preflight_mixed_plan(&input)?;
+    let (count, execution_plan) = preflight_mixed_plan(&input)?;
+    let input = NativePaintSegmentAssemblyInput {
+        plan: execution_plan,
+        ..input
+    };
 
     let selection = super::encode_native_paint_segment_payloads(
         input.primitives,
@@ -587,7 +656,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn assemble_mixed_nati
 
 fn preflight_mixed_plan(
     input: &NativePaintSegmentAssemblyInput<'_>,
-) -> Result<usize, NativePaintSegmentAssemblyVetoReason> {
+) -> Result<(usize, NativePaintSegmentEligibilityPlan), NativePaintSegmentAssemblyVetoReason> {
     let NativePaintSegmentAssemblyInput {
         previous_scene,
         primitives,
@@ -643,6 +712,7 @@ fn preflight_mixed_plan(
 
     let mut previous_end = 0;
     let mut prior_identities = [None; MAX_PAINT_SEGMENTS];
+    let mut execution_plan = plan;
 
     for index in 0..count {
         let (Some(entry), Some(current), Some(current_span), Some(evidence), Some(checkpoint)) = (
@@ -681,21 +751,42 @@ fn preflight_mixed_plan(
 
         match entry.disposition {
             NativePaintSegmentEligibilityDisposition::RetainedCandidate(_) => {
-                let payload = artifacts.artifact_for_assembly(
+                let lookup = artifacts.lookup_for_mixed_assembly(
                     index,
+                    count,
                     entry,
                     scene_validity,
                     target_generation,
-                )?;
-                if !valid_payload_metadata(
-                    payload,
-                    entry,
-                    current.revision,
-                    scene_validity,
-                    target_generation,
-                ) || !valid_no_resource_scene(&payload.scene)
-                {
-                    return Err(NativePaintSegmentAssemblyVetoReason::InvalidPayload);
+                );
+                match lookup {
+                    NativePaintSegmentArtifactAssemblyLookup::Exact(payload) => {
+                        if !valid_payload_metadata(
+                            payload,
+                            entry,
+                            current.revision,
+                            scene_validity,
+                            target_generation,
+                        ) || !valid_no_resource_scene(&payload.scene)
+                        {
+                            return Err(NativePaintSegmentAssemblyVetoReason::InvalidPayload);
+                        }
+                    }
+                    NativePaintSegmentArtifactAssemblyLookup::Absent => {
+                        if let Some(entry) = execution_plan.entries[index].as_mut() {
+                            entry.disposition =
+                                NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                                    NativePaintSegmentFreshEncodingReason::NoArtifact,
+                                );
+                        }
+                        if !supported_fresh_span(primitives, entry.span) {
+                            return Err(
+                                NativePaintSegmentAssemblyVetoReason::UnsupportedFreshPrimitive,
+                            );
+                        }
+                    }
+                    NativePaintSegmentArtifactAssemblyLookup::Invalid(reason) => {
+                        return Err(reason);
+                    }
                 }
             }
             NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(_) => {
@@ -708,7 +799,7 @@ fn preflight_mixed_plan(
         prior_identities[index] = Some(entry.span.identity);
     }
 
-    Ok(count)
+    Ok((count, execution_plan))
 }
 
 /// Assemble one exact retained-only plan into a scratch scene.
@@ -981,6 +1072,7 @@ fn assemble_payload_stream(
         scene: scratch,
         stats,
         materialization,
+        plan,
         paint,
         target_generation,
         fresh_count,

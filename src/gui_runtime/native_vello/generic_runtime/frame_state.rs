@@ -356,6 +356,7 @@ impl NativeVelloFrameState {
         let benefit_paint = bundle.paint;
         let benefit_encoding = bundle.stats.segment_encoding;
         let benefit_feasibility = bundle.stats.artifact_feasibility;
+        let benefit_plan = bundle.plan;
         let benefit_target_generation = bundle.target_generation;
         let benefit_fresh_count = bundle.fresh_count;
         let benefit_reused_count = bundle.reused_count;
@@ -386,7 +387,7 @@ impl NativeVelloFrameState {
                 paint: benefit_paint,
                 encoding: benefit_encoding,
                 feasibility: benefit_feasibility,
-                plan: self.last_native_paint_segment_eligibility,
+                plan: benefit_plan,
                 target_generation: benefit_target_generation,
                 fresh_count: benefit_fresh_count,
                 reused_count: benefit_reused_count,

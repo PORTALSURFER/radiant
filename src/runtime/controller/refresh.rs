@@ -1770,13 +1770,13 @@ where
             .saturating_add(1);
 
         let view_delta_started = Instant::now();
-        let raw_view_delta =
+        let mut raw_view_delta =
             classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
-        let execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
-        let effective_scope = execution.effective_scope();
-        let reuse_completed_layout = can_reuse_completed_layout(self, execution);
+        let mut execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
+        let mut effective_scope = execution.effective_scope();
+        let mut reuse_completed_layout = can_reuse_completed_layout(self, execution);
         self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, execution);
-        let damage = SurfaceDamage::from_view_delta(
+        let mut damage = SurfaceDamage::from_view_delta(
             &raw_view_delta,
             &raw_view_delta.reconciliation_plan(),
             &self.surface,
@@ -1791,7 +1791,7 @@ where
         );
         let mut traversal = self.take_reusable_traversal_index(true);
         let runtime_projection_started = Instant::now();
-        let layout_root = next_surface.runtime_projection_reusing_with_scratch(
+        let mut layout_root = next_surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
@@ -1799,6 +1799,45 @@ where
         let runtime_projection = runtime_projection_started.elapsed();
         self.refresh_counters.runtime_projection =
             self.refresh_counters.runtime_projection.saturating_add(1);
+
+        self.virtual_layout
+            .prepare_surface(&mut next_surface, &traversal.virtual_layout_registrations);
+
+        if !self.virtual_layout.is_empty() {
+            layout_root = next_surface.runtime_projection_reusing_with_scratch(
+                &mut traversal,
+                &mut self.scratch.projection_scroll_stack,
+                &mut self.scratch.projection_child_path,
+            );
+            self.layout_engine.layout_with_state_into(
+                &layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                &mut self.layout,
+            );
+            self.virtual_layout
+                .materialize_surface(&mut next_surface, &self.layout);
+            raw_view_delta =
+                classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
+            view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
+            execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
+            effective_scope = execution.effective_scope();
+            reuse_completed_layout = false;
+            self.base_paint_plan_reuse_eligible = false;
+            damage = SurfaceDamage::from_view_delta(
+                &raw_view_delta,
+                &raw_view_delta.reconciliation_plan(),
+                &self.surface,
+                &self.layout,
+                self.viewport,
+            );
+            layout_root = next_surface.runtime_projection_reusing_with_scratch(
+                &mut traversal,
+                &mut self.scratch.projection_scroll_stack,
+                &mut self.scratch.projection_child_path,
+            );
+        }
 
         let previous_paths = std::mem::take(&mut self.traversal.widgets.paths.previous);
         let identity = self.discard_incompatible_widget_ownership(

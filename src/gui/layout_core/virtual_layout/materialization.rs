@@ -222,6 +222,7 @@ impl VirtualLayoutSlotIdentity {
 /// Pure evidence supplied to a host projector.
 pub(crate) struct VirtualLayoutProjectionEvidence<'a> {
     fence: &'a VirtualLayoutQueryFence,
+    item: &'a VirtualLayoutItem,
     key: &'a VirtualLayoutItemKey,
     logical_index: usize,
     bounds: Rect,
@@ -238,6 +239,7 @@ impl<'a> VirtualLayoutProjectionEvidence<'a> {
     ) -> Self {
         Self {
             fence,
+            item,
             key: item.key(),
             logical_index: item.logical_index(),
             bounds: item.bounds(),
@@ -257,6 +259,12 @@ impl<'a> VirtualLayoutProjectionEvidence<'a> {
     #[must_use]
     pub(crate) fn key(&self) -> &VirtualLayoutItemKey {
         self.key
+    }
+
+    /// Return the complete accepted item evidence backing this projection.
+    #[must_use]
+    pub(crate) fn item(&self) -> &VirtualLayoutItem {
+        self.item
     }
 
     /// Return the accepted logical index.
@@ -303,6 +311,8 @@ impl<P> VirtualLayoutProjection<P> {
     }
 }
 
+type VirtualLayoutBatchProjection<P, E> = Result<Option<Vec<VirtualLayoutProjection<P>>>, E>;
+
 /// Explicit pure host projection boundary.
 pub(crate) trait VirtualLayoutHostProjector {
     type Payload;
@@ -319,6 +329,20 @@ pub(crate) trait VirtualLayoutHostProjector {
         &self,
         evidence: VirtualLayoutProjectionEvidence<'a>,
     ) -> Result<VirtualLayoutProjection<Self::Payload>, Self::Error>;
+
+    /// Optionally lower one complete planned batch before lifecycle callbacks.
+    ///
+    /// The default keeps the original per-item projector contract. A runtime
+    /// consumer that needs whole-shell identity admission may return all
+    /// projections here after receiving the exact slot identities selected by
+    /// the store. Returning `None` falls back to [`Self::project`].
+    fn project_batch<'a>(
+        &self,
+        _commit: &VirtualLayoutCommit,
+        _evidence: &[VirtualLayoutProjectionEvidence<'a>],
+    ) -> VirtualLayoutBatchProjection<Self::Payload, Self::Error> {
+        Ok(None)
+    }
 }
 
 /// Marker returned by a lifecycle callback that attempts synchronous reentry.
@@ -875,20 +899,58 @@ impl<P, A> VirtualLayoutMaterializationStore<P, A> {
             });
         }
 
-        let mut staged = Vec::with_capacity(plans.len());
-        for plan in plans {
-            let evidence = VirtualLayoutProjectionEvidence::from_item(
-                commit.fence(),
-                &plan.item,
-                plan.identity,
-            );
-            let projection = match projector.project(evidence) {
-                Ok(projection) => projection,
+        let batch_projections = {
+            let batch_evidence = plans
+                .iter()
+                .map(|plan| {
+                    VirtualLayoutProjectionEvidence::from_item(
+                        commit.fence(),
+                        &plan.item,
+                        plan.identity,
+                    )
+                })
+                .collect::<Vec<_>>();
+            match projector.project_batch(commit, &batch_evidence) {
+                Ok(Some(projections)) if projections.len() == plans.len() => Some(projections),
+                Ok(Some(_)) => {
+                    self.diagnostics
+                        .record(VirtualLayoutMaterializationDiagnosticCode::ProjectionKindChanged);
+                    return Err(VirtualLayoutMaterializationError::ProjectionKindChanged);
+                }
+                Ok(None) => None,
                 Err(error) => {
                     self.diagnostics
                         .record(VirtualLayoutMaterializationDiagnosticCode::ProjectionFailed);
                     return Err(VirtualLayoutMaterializationError::Projection(error));
                 }
+            }
+        };
+
+        let mut batch_projections = batch_projections.map(Vec::into_iter);
+        let mut staged = Vec::with_capacity(plans.len());
+        for plan in plans {
+            let projection = match batch_projections.as_mut() {
+                Some(projections) => {
+                    let Some(projection) = projections.next() else {
+                        self.diagnostics.record(
+                            VirtualLayoutMaterializationDiagnosticCode::ProjectionKindChanged,
+                        );
+                        return Err(VirtualLayoutMaterializationError::ProjectionKindChanged);
+                    };
+                    projection
+                }
+                None => match projector.project(VirtualLayoutProjectionEvidence::from_item(
+                    commit.fence(),
+                    &plan.item,
+                    plan.identity,
+                )) {
+                    Ok(projection) => projection,
+                    Err(error) => {
+                        self.diagnostics
+                            .record(VirtualLayoutMaterializationDiagnosticCode::ProjectionFailed);
+                        return Err(VirtualLayoutMaterializationError::Projection(error));
+                    }
+                },
             };
             if projection.kind.stable_equals(&projection.kind) != Some(true) {
                 return self.reject(

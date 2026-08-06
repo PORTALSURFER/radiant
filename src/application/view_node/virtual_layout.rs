@@ -193,13 +193,27 @@ pub(crate) fn lower_virtual_layout_batch<Message: 'static>(
         Ok(VirtualLayoutViewBatch { shell, items })
     }));
 
-    match lowered {
+    let lowered = match lowered {
         Ok(result) => result,
         Err(payload) => match payload.downcast::<WidgetViewAdmissionPanic>() {
             Ok(panic) => Err(panic.0),
             Err(_) => Err(VirtualLayoutViewAdmissionError::LoweringPanicked),
         },
+    };
+    if let Ok(batch) = &lowered
+        && !matches!(&batch.shell, SurfaceNode::Container(_))
+    {
+        return Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects);
     }
+    lowered
+}
+
+/// Lower one complete virtual-layout shell before the first query pass.
+pub(crate) fn lower_virtual_layout_shell<Message: 'static>(
+    shell: ViewNode<Message>,
+    container_id: NodeId,
+) -> Result<SurfaceNode<Message>, VirtualLayoutViewAdmissionError> {
+    lower_virtual_layout_batch(shell, container_id, Vec::new()).map(|batch| batch.shell)
 }
 
 /// Guard every public widget-view boundary in the admitted declarative item.

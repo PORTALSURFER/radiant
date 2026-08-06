@@ -59,6 +59,8 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
     pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
+    pub(in crate::runtime::surface) virtual_layout:
+        Option<super::super::VirtualLayoutRegistration<Message>>,
     pub(in crate::runtime::surface) scroll_message:
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
     pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
@@ -85,6 +87,7 @@ impl<Message> SurfaceContainer<Message> {
             style: None,
             hoverable: false,
             layout_capabilities: parts.layout_capabilities,
+            virtual_layout: None,
             scroll_message: None,
             children: parts.children,
         }
@@ -122,6 +125,14 @@ impl<Message> SurfaceContainer<Message> {
     /// projection/query-only.
     pub fn with_layout_capabilities(mut self, capabilities: LayoutCapabilities<Message>) -> Self {
         self.layout_capabilities = Some(capabilities);
+        self
+    }
+
+    pub(in crate::runtime) fn with_virtual_layout_registration(
+        mut self,
+        registration: super::super::VirtualLayoutRegistration<Message>,
+    ) -> Self {
+        self.virtual_layout = Some(registration);
         self
     }
 
@@ -180,6 +191,18 @@ pub enum SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(in crate::runtime) fn with_virtual_layout_registration(
+        self,
+        registration: super::super::VirtualLayoutRegistration<Message>,
+    ) -> Self {
+        match self {
+            Self::Container(container) => {
+                Self::Container(container.with_virtual_layout_registration(registration))
+            }
+            node => node,
+        }
+    }
+
     /// Replace this node's root identity while retaining its descendants.
     pub(crate) fn with_id(mut self, id: NodeId) -> Self {
         match &mut self {

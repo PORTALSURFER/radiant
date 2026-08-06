@@ -15,7 +15,7 @@ pub(in crate::application) use identity::KeyedIdentity;
 pub use identity::{ContinuityKey, preserve_state};
 pub(crate) use virtual_layout::{
     VirtualLayoutViewAdmissionError, VirtualLayoutViewBatch, lower_virtual_layout_batch,
-    lower_virtual_layout_item,
+    lower_virtual_layout_item, lower_virtual_layout_shell,
 };
 
 use slot::SlotBehavior;
@@ -96,6 +96,7 @@ pub struct ViewNode<Message> {
     overlay_layers: Vec<Layer<Message>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(in crate::application) enum ViewNodeKind<Message> {
     Scene {
         base: Box<ViewNode<Message>>,

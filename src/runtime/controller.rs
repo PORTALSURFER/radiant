@@ -25,6 +25,7 @@ mod scroll;
 mod state;
 mod timers;
 mod traversal_state;
+mod virtual_layout;
 mod work;
 
 pub use commands::CommandOutcome;
@@ -145,6 +146,7 @@ where
     identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
+    pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

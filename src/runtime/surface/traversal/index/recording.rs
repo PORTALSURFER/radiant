@@ -24,6 +24,9 @@ impl<Message> SurfaceTraversalIndex<Message> {
         if let Some(interaction) = record.layout_interaction {
             self.layout_interactions.push(interaction);
         }
+        if let Some(registration) = record.virtual_layout {
+            self.virtual_layout_registrations.push(registration);
+        }
     }
 
     pub(in crate::runtime) fn record_widget(&mut self, record: SurfaceWidgetTraversalRecord<'_>) {

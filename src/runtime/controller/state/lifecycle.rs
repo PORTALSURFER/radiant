@@ -77,6 +77,22 @@ where
             identity_audit: super::super::IdentityAudit::default(),
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
+            virtual_layout: Default::default(),
+        };
+        runtime.prepare_virtual_layout_surface(&traversal.virtual_layout_registrations);
+        let traversal = if runtime.virtual_layout.is_empty() {
+            traversal
+        } else {
+            let shell_projection = runtime.surface.runtime_projection();
+            runtime.layout_root = shell_projection.layout_root;
+            runtime.rebuild_virtual_layout_shell_layout();
+            runtime.materialize_virtual_layout_surface();
+            let SurfaceRuntimeProjection {
+                layout_root,
+                traversal,
+            } = runtime.surface.runtime_projection();
+            runtime.layout_root = layout_root;
+            traversal
         };
         runtime.relayout_with_traversal(traversal);
         runtime.phase = RuntimePhase::Running;
@@ -115,6 +131,7 @@ where
         self.reset_tooltip_hover_intent();
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
+        self.retire_virtual_layout();
         self.effect_owner.cancel();
         self.worker_effects.shutdown();
         self.timer_effects.shutdown();
@@ -140,7 +157,9 @@ where
         if previous_layout_viewport == next_layout_viewport {
             return false;
         }
-        self.relayout_current_surface();
+        if !self.relayout_virtual_layout_for_geometry() {
+            self.relayout_current_surface();
+        }
         true
     }
 

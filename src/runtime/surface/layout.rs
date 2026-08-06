@@ -329,6 +329,7 @@ fn begin_container_runtime<Message>(
                     }
                 })
             }),
+        virtual_layout: container.virtual_layout.clone(),
     });
     if is_scroll {
         scroll_stack.push(container.id);

@@ -138,3 +138,9 @@ pub use virtual_layout::{
     VirtualLayoutQueryResult, VirtualLayoutQuerySink, VirtualLayoutSinkError,
     VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
 };
+pub(crate) use virtual_layout::{
+    VirtualLayoutBatchProjector, VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter,
+    VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
+    VirtualLayoutMaterializationStore, VirtualLayoutProjectionEvidence,
+    VirtualLayoutProjectionKind, VirtualLayoutWindowCoordinator,
+};

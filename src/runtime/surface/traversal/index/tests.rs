@@ -18,6 +18,7 @@ fn traversal_records_route_to_expected_buckets() {
         scroll_content: Some(11),
         styled_hoverable: true,
         layout_interaction: None,
+        virtual_layout: None,
     });
     index.record_widget(SurfaceWidgetTraversalRecord {
         id: 20,

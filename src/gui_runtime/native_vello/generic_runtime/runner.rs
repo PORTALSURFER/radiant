@@ -445,10 +445,18 @@ where
         }
     }
 
-    pub(super) fn finish_device_recovery(&mut self) {
-        if self.native_lifecycle.finish_recovery() {
-            let _ = self.core.finish_native_recovery();
+    pub(super) fn finish_device_recovery(&mut self) -> bool {
+        if !self.native_lifecycle.is_recovering() {
+            return false;
         }
+        if !self.core.finish_native_recovery() {
+            return false;
+        }
+        if self.native_lifecycle.finish_recovery() {
+            return true;
+        }
+        let _ = self.core.begin_native_recovery();
+        false
     }
 
     pub(super) const fn native_shutdown_requested(&self) -> bool {
@@ -953,9 +961,17 @@ where
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
         self.frame.invalidate_native_resources_for_recovery();
-        self.finish_device_recovery();
+        if !self.finish_device_recovery() {
+            return Err(String::from(
+                "native recovery lifecycle completion was vetoed",
+            ));
+        }
         for window in &mut self.auxiliary_windows {
-            window.finish_device_recovery_if_no_rebuild();
+            if !window.finish_device_recovery_if_no_rebuild() {
+                return Err(String::from(
+                    "native recovery auxiliary lifecycle completion was vetoed",
+                ));
+            }
         }
         self.rebuild_scene();
         if self.recovery_primary_was_visible
@@ -2180,7 +2196,7 @@ mod tests {
         );
         assert_eq!(diagnostics.lifecycle.transition_count, 2);
 
-        runner.finish_device_recovery();
+        assert!(runner.finish_device_recovery());
         assert!(runner.is_running());
         assert!(!runner.has_terminal_cause());
         let diagnostics = runner.core.runtime.runtime_diagnostics();
@@ -2209,6 +2225,22 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn native_recovery_completion_preserves_controller_closing_veto() {
+        let mut runner = runner();
+
+        assert!(runner.admit_device_recovery());
+        assert!(runner.core.runtime.begin_closing());
+        let diagnostics = runner.core.runtime.runtime_diagnostics();
+        assert_eq!(
+            diagnostics.lifecycle.phase,
+            crate::runtime::RuntimeLifecyclePhase::Closing
+        );
+        assert!(runner.is_recovering());
+        assert!(!runner.finish_device_recovery());
+        assert!(runner.is_recovering());
     }
 
     #[test]

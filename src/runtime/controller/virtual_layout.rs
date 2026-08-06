@@ -374,10 +374,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             if !accepted.iter().any(|registration| {
                 registration.container_id == self.records[index].registration.container_id
             }) {
-                let previous_subtree = self.records[index].cached_subtree.clone();
-                let container_id = self.records[index].registration.container_id;
                 self.records.remove(index).retire();
-                suppress_cached_virtual_layout_subtree(surface, container_id, previous_subtree);
             } else {
                 index += 1;
             }
@@ -656,11 +653,13 @@ mod tests {
             RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
             surface::VirtualLayoutRegistrationRevisions,
         },
+        widgets::WidgetSizing,
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
 
     const CONTAINER_ID: u64 = 710;
     const ROOT_ID: u64 = 711;
+    const ORDINARY_CHILD_ID: u64 = 712;
 
     struct ReadyPolicy {
         calls: Rc<Cell<u32>>,
@@ -783,6 +782,28 @@ mod tests {
             )
             .with_virtual_layout_registration(registration),
         )
+    }
+
+    fn ordinary_surface() -> UiSurface<()> {
+        UiSurface::new(SurfaceNode::container(
+            CONTAINER_ID,
+            ContainerPolicy::default(),
+            vec![SurfaceChild::new(
+                crate::layout::SlotParams {
+                    size_main: crate::layout::SizeModeMain::Fixed(20.0),
+                    size_cross: crate::layout::SizeModeCross::Fixed(48.0),
+                    constraints: crate::layout::Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                SurfaceNode::text(
+                    ORDINARY_CHILD_ID,
+                    "ordinary child",
+                    WidgetSizing::fixed(Vector2::new(48.0, 20.0)),
+                ),
+            )],
+        ))
     }
 
     fn duplicate_surface(
@@ -1027,6 +1048,79 @@ mod tests {
         assert!(runtime.virtual_layout.projection_probe.is_some());
         runtime.virtual_layout.retire_all();
         assert!(runtime.virtual_layout.projection_probe.is_none());
+    }
+
+    #[test]
+    fn same_id_ordinary_container_replaces_admitted_virtual_container() {
+        let calls = Rc::new(Cell::new(0));
+        let registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::clone(&calls),
+                key: 11,
+            }),
+            VirtualLayoutPolicyIdentity::new("same-id-transition-policy"),
+        );
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        assert_eq!(calls.get(), 1);
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert!(runtime.virtual_layout.projection_probe.is_some());
+        let calls_before_transition = calls.get();
+
+        runtime.bridge_mut().surface = ordinary_surface();
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert!(runtime.virtual_layout.records.is_empty());
+        assert!(runtime.virtual_layout.projection_probe.is_none());
+        assert_eq!(calls.get(), calls_before_transition);
+
+        let crate::layout::LayoutNode::Container(installed_root) = runtime.surface().layout_node()
+        else {
+            panic!("same-ID ordinary transition should retain its container");
+        };
+        assert_eq!(installed_root.id, CONTAINER_ID);
+        assert_eq!(installed_root.children.len(), 1);
+        assert_eq!(installed_root.children[0].child.id(), ORDINARY_CHILD_ID);
+
+        let installed_projection = runtime.surface().runtime_projection();
+        assert_eq!(
+            installed_projection.layout_root,
+            runtime.surface().layout_node()
+        );
+        assert!(
+            installed_projection
+                .traversal
+                .widget_paint_order
+                .contains(&ORDINARY_CHILD_ID)
+        );
+        assert!(
+            installed_projection
+                .traversal
+                .virtual_layout_registrations
+                .is_empty()
+        );
+
+        let installed_traversal = runtime.surface().runtime_traversal_index();
+        assert!(
+            installed_traversal
+                .widget_paint_order
+                .contains(&ORDINARY_CHILD_ID)
+        );
+        assert!(installed_traversal.virtual_layout_registrations.is_empty());
+
+        let crate::layout::LayoutNode::Container(layout_root) = &runtime.layout_root else {
+            panic!("final layout root should retain the ordinary container");
+        };
+        assert_eq!(layout_root.id, CONTAINER_ID);
+        assert_eq!(layout_root.children.len(), 1);
+        assert_eq!(layout_root.children[0].child.id(), ORDINARY_CHILD_ID);
+        assert!(runtime.layout().rects.contains_key(&CONTAINER_ID));
+        assert!(runtime.layout().rects.contains_key(&ORDINARY_CHILD_ID));
     }
 
     #[test]

@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`364cfb63`**
-- Overall estimate: **~87%**
-- Working range: **82–92%**
+- Canonical main: **`d5cf572d`**
+- Overall estimate: **~88%**
+- Working range: **83–93%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -49,10 +49,13 @@ no renderer reader. PR #1613 now ships the private plan-index-preserving sparse
 artifact residency contract: cardinality is separate from resident count, valid
 holes remain uncompactable fixed-capacity slots, exact indexed lookup carries
 scene-validity and target-generation fences, and malformed materializations
-clear atomically. The estimate moves modestly because this closes the generic
-residency contract gap without adding selective production publication,
-render-boundary selection, measured cache wiring, or product-specific numeric
-or virtualization policy.
+clear atomically. PR #1614 now makes that sparse contract executable in mixed
+assembly: valid absent residents become per-frame fresh encodes, exact residents
+reuse, invalid present evidence still vetoes atomically, and committed benefit
+evidence uses the derived execution plan. The estimate moves modestly because
+this closes the mixed-assembly execution gap without adding selective
+production publication, render-boundary selection, measured cache wiring, or
+product-specific numeric or virtualization policy.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the generic private virtualization consumer path is now shipped and
@@ -71,7 +74,7 @@ unshipped.
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
-| Rendering, invalidation, retained GPU surfaces | 69% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, and plan-index-preserving sparse artifact residency with exact indexed lookup, cardinality, scene-validity/generation fences, atomic clearing, and dense/fallback regression evidence are shipped; selective production publication, render-boundary selection, and measured cache-admission wiring remain. |
+| Rendering, invalidation, retained GPU surfaces | 72% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, and executable mixed assembly that fresh-encodes valid holes while reusing exact residents are shipped; selective production publication, render-boundary selection, and measured cache-admission wiring remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
@@ -150,6 +153,11 @@ The current foundation includes:
   with separate plan cardinality, non-compacting fixed-capacity slots, exact
   indexed reuse/assembly fences, atomic malformed-state clearing, and sparse
   hole/zero-resident regression coverage (PR #1613); and
+- the private mixed native paint assembly consumer that distinguishes exact
+  residents, valid bounded absences, and invalid evidence; fresh-encodes only
+  supported sparse holes, carries the derived execution plan through commit,
+  and records actual fresh/reuse benefit evidence without changing admission
+  policy (PR #1614); and
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -178,9 +186,12 @@ numeric parser/domain policy remain contract-dependent. PR #1611 adds the
 native committed paint-segment benefit evidence needed before measured cache
 admission, PR #1612 adds the bounded private observational admission state
 derived from that evidence, and PR #1613 adds the indexed sparse
-artifact-residency contract consumed by exact reuse and retained assembly.
-These slices still do not select render boundaries, authorize admission-driven
-retention, or provide measured production cache wiring.
+artifact-residency contract consumed by exact reuse and retained assembly. PR
+#1614 now consumes valid sparse holes in the mixed assembly path, preserves
+exact indexed reuse, vetoes invalid present evidence, and commits the derived
+execution plan for factual benefit evidence. These slices still do not select
+render boundaries, authorize admission-driven retention, or provide measured
+production cache wiring.
 
 ## Remaining gaps, ordered by leverage
 
@@ -214,10 +225,12 @@ retention, or provide measured production cache wiring.
    the production runtime path. PR #1611 supplies bounded committed native
    paint-segment benefit evidence, PR #1612 supplies the bounded private
    observational admission signal, and PR #1613 supplies the exact
-   plan-index-preserving sparse residency contract. The next generic slice is
-   the admission-to-residency consumer that owns probation/warming publication
-   and fresh-encodes nonresident slots during mixed assembly; product-specific
-   cache policy and renderer/platform profiling remain later concerns.
+   plan-index-preserving sparse residency contract, and PR #1614 makes valid
+   sparse absence executable as fresh encoding during mixed assembly while
+   recording factual benefit evidence. The next generic slice is the
+   admission-to-residency consumer that owns probation/warming publication;
+   product-specific cache policy and renderer/platform profiling remain later
+   concerns.
 5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
 6. **Platform expansion.** Broaden Linux/Windows runtime validation and
@@ -294,3 +307,4 @@ After each merged alignment slice:
 | 2026-08-06 | `99e44373` | ~85% (80–90%, medium confidence) | PR #1611 merged the private, per-window native paint-segment benefit ledger with exact committed full-encode and retained/mixed-assembly outcome evidence, checked segment-local count deltas, bounded deterministic history, conservative malformed/mixed-generation handling, and target/recovery clearing. Focused and full local validation passed, required `quality` and `windows-compile` CI passed, and exact-head Terra APPROVE followed one test-only generation-fence correction. Rendering alignment moves conservatively from 60% to 63%; render-boundary selection and measured cache admission remain the next generic dependency-correct items, while product-specific virtualization/numeric policy remains product-dependent. |
 | 2026-08-06 | `5eaabe50` | ~86% (81–91%, medium confidence) | PR #1612 merged the private fixed-capacity native paint-segment admission state and exact latest-frame projection. It requires two beneficial non-zero-work reuses within an entry-local eight-epoch warming window, clears malformed/unavailable/veto/generation/recovery evidence conservatively, preserves admitted-state short-burst hysteresis, and adds 12 focused policy tests. Focused and full local validation passed, required `quality` and `windows-compile` CI passed, and fresh exact-head Terra APPROVE followed one bounded-window correction. Rendering alignment moves conservatively from 63% to 66%; the next generic item is the plan-index-preserving sparse artifact-residency contract and enforcement, while production render-boundary selection, measured wiring, and product-specific policy remain. |
 | 2026-08-06 | `364cfb63` | ~87% (82–92%, medium confidence) | PR #1613 merged the private plan-index-preserving sparse native paint artifact-residency contract with separate plan cardinality, non-compacting fixed-capacity slots, exact indexed reuse/assembly fences, atomic malformed-state clearing, and sparse-hole/zero-resident regression coverage. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed after installing the target standard libraries, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 66% to 69%; the next generic item is the admission-to-residency consumer for selective sparse publication and mixed-assembly fresh encoding, while render-boundary selection, measured wiring, and product-specific policy remain. |
+| 2026-08-06 | `d5cf572d` | ~88% (83–93%, medium confidence) | PR #1614 merged the private mixed native paint assembly consumer: valid sparse absences become supported per-frame fresh encodes, exact residents reuse, present corruption and unsupported holes veto atomically, and the derived execution plan supplies factual benefit evidence while admission remains observational. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed, corrected `perf_harness` baseline/compare matched 2/2 scenarios with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 69% to 72%; the next generic item is selective admission-to-residency publication, while render-boundary selection, measured wiring, and product-specific policy remain. |

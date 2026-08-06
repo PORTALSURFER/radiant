@@ -12,6 +12,7 @@ use crate::runtime::{MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentSpan}
 const REUSE_OBSERVATIONS_TO_ADMIT: u8 = 2;
 const LOW_BENEFIT_OBSERVATIONS_TO_DEMOTE: u8 = 3;
 const CONFIDENCE_CAP: u8 = 8;
+const PROMOTION_OBSERVATION_WINDOW_EPOCHS: u64 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NativePaintSegmentCacheAdmissionState {
@@ -29,6 +30,7 @@ struct NativePaintSegmentCacheAdmissionEntry {
     confidence: u8,
     beneficial_reuse_observations: u8,
     low_benefit_observations: u8,
+    promotion_window_start_epoch: u64,
 }
 
 /// Fixed-capacity, per-window observational cache-admission state.
@@ -111,7 +113,7 @@ impl NativePaintSegmentCacheAdmission {
                 .copied()
                 .flatten()
                 .find(|entry| entry.identity == sample.identity);
-            *slot = Some(observe_sample(previous, sample));
+            *slot = Some(observe_sample(previous, sample, evidence.epoch));
         }
         self.entries = next;
         self.target_generation = Some(evidence.target_generation);
@@ -138,6 +140,7 @@ impl NativePaintSegmentCacheAdmission {
                 confidence: entry.confidence,
                 beneficial_reuse_observations: entry.beneficial_reuse_observations,
                 low_benefit_observations: entry.low_benefit_observations,
+                promotion_window_start_epoch: entry.promotion_window_start_epoch,
             })
         })
     }
@@ -196,6 +199,7 @@ fn valid_evidence(evidence: NativePaintSegmentBenefitFrameEvidence) -> bool {
 fn observe_sample(
     previous: Option<NativePaintSegmentCacheAdmissionEntry>,
     sample: NativePaintSegmentBenefitFrameSegment,
+    epoch: u64,
 ) -> NativePaintSegmentCacheAdmissionEntry {
     let same_shape = previous.is_some_and(|entry| {
         entry.identity == sample.identity
@@ -213,7 +217,23 @@ fn observe_sample(
     entry.revision = sample.revision;
     entry.target_generation = sample.target_generation;
 
+    if matches!(entry.state, NativePaintSegmentCacheAdmissionState::Warming)
+        && entry.promotion_window_start_epoch != 0
+        && epoch.saturating_sub(entry.promotion_window_start_epoch)
+            >= PROMOTION_OBSERVATION_WINDOW_EPOCHS
+    {
+        entry.beneficial_reuse_observations = 0;
+        entry.confidence = 0;
+        entry.low_benefit_observations = 0;
+        entry.promotion_window_start_epoch = 0;
+    }
+
     if sample.is_beneficial_non_zero_work() {
+        if matches!(entry.state, NativePaintSegmentCacheAdmissionState::Warming)
+            && entry.promotion_window_start_epoch == 0
+        {
+            entry.promotion_window_start_epoch = epoch;
+        }
         entry.beneficial_reuse_observations = entry.beneficial_reuse_observations.saturating_add(1);
         entry.confidence = entry.confidence.saturating_add(1).min(CONFIDENCE_CAP);
         entry.low_benefit_observations = 0;
@@ -232,6 +252,7 @@ fn observe_sample(
             entry.confidence = 0;
             entry.beneficial_reuse_observations = 0;
             entry.low_benefit_observations = 0;
+            entry.promotion_window_start_epoch = 0;
         }
     }
     entry
@@ -249,6 +270,7 @@ fn new_entry(
         confidence: 0,
         beneficial_reuse_observations: 0,
         low_benefit_observations: 0,
+        promotion_window_start_epoch: 0,
     }
 }
 
@@ -263,6 +285,7 @@ struct NativePaintSegmentCacheAdmissionEntrySnapshot {
     confidence: u8,
     beneficial_reuse_observations: u8,
     low_benefit_observations: u8,
+    promotion_window_start_epoch: u64,
 }
 
 #[cfg(test)]
@@ -436,6 +459,30 @@ mod native_paint_segment_cache_admission {
         }
         policy.reconcile(beneficial(3, generation));
         assert!(!policy.admitted_for_test(identity(1)));
+    }
+
+    #[test]
+    fn intermittent_warming_evidence_expires_across_promotion_windows() {
+        let generation = known(1);
+        let mut policy = NativePaintSegmentCacheAdmission::default();
+        for epoch in 1..=28 {
+            let outcome = if (epoch - 1) % 3 == 0 {
+                NativePaintSegmentBenefitOutcome::SuccessfulRetainedReuse
+            } else {
+                NativePaintSegmentBenefitOutcome::FreshEncoding
+            };
+            policy.reconcile(single(epoch, generation, 1, 1, outcome, true));
+        }
+
+        assert!(!policy.admitted_for_test(identity(1)));
+        let entry = policy.snapshot_for_test()[0];
+        assert!(entry.is_some(), "intermittent warming entry");
+        if let Some(entry) = entry {
+            assert_eq!(entry.state, NativePaintSegmentCacheAdmissionState::Warming);
+            assert_eq!(entry.beneficial_reuse_observations, 1);
+            assert_eq!(entry.confidence, 1);
+            assert_eq!(entry.low_benefit_observations, 0);
+        }
     }
 
     #[test]

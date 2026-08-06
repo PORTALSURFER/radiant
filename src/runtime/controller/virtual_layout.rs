@@ -15,7 +15,7 @@ use crate::{
     gui::types::Rect,
     layout::VirtualLayoutQueryInputParts,
     runtime::{
-        SurfaceNode, UiSurface,
+        SurfaceNode, SurfaceTraversalIndex, UiSurface,
         surface::{MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration},
     },
 };
@@ -325,6 +325,7 @@ impl<Message> Drop for RuntimeVirtualLayoutRecord<Message> {
 pub(in crate::runtime) struct RuntimeVirtualLayoutState<Message> {
     records: Vec<RuntimeVirtualLayoutRecord<Message>>,
     next_mount_generation: u64,
+    projection_probe: Option<SurfaceTraversalIndex<Message>>,
     #[cfg(test)]
     materialization_passes: u32,
 }
@@ -334,6 +335,7 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
         Self {
             records: Vec::new(),
             next_mount_generation: 0,
+            projection_probe: None,
             #[cfg(test)]
             materialization_passes: 0,
         }
@@ -346,6 +348,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         surface: &mut UiSurface<Message>,
         registrations: &[VirtualLayoutRegistration<Message>],
     ) {
+        self.clear_projection_probe_if_empty();
         if registrations.len() > MAX_VIRTUAL_LAYOUT_REGISTRATIONS {
             self.retire_all();
             return;
@@ -440,6 +443,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 self.records[index].retire();
             }
         }
+        self.clear_projection_probe_if_empty();
     }
 
     pub(super) fn requires_materialization(
@@ -530,6 +534,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 }
             }
         }
+        self.clear_projection_probe_if_empty();
     }
 
     pub(super) fn retire_all(&mut self) {
@@ -537,6 +542,21 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             record.retire();
         }
         self.records.clear();
+        self.projection_probe = None;
+    }
+
+    pub(super) fn take_projection_probe(&mut self) -> Option<SurfaceTraversalIndex<Message>> {
+        self.projection_probe.take()
+    }
+
+    pub(super) fn store_projection_probe(&mut self, probe: SurfaceTraversalIndex<Message>) {
+        self.projection_probe = Some(probe);
+    }
+
+    fn clear_projection_probe_if_empty(&mut self) {
+        if self.is_empty() {
+            self.projection_probe = None;
+        }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -925,11 +945,21 @@ mod tests {
             Vector2::new(160.0, 80.0),
         );
 
+        let expected_hit_order = runtime.traversal.widgets.hit_order.clone();
+        let expected_focus_order = runtime.traversal.widgets.focusable.order().to_vec();
+        let expected_widget_paths = runtime.traversal.widgets.paths.current.clone();
+        let expected_virtual_registration_count = runtime
+            .traversal
+            .containers
+            .virtual_layout_registrations
+            .len();
+
         let before_refresh = (
             calls.get(),
             shell_constructions.get(),
             item_projections.get(),
             kind_projections.get(),
+            runtime.refresh_counters().runtime_projection,
             runtime.refresh_counters().layout,
             runtime.virtual_layout.materialization_passes,
         );
@@ -946,10 +976,15 @@ mod tests {
         assert_eq!(shell_constructions.get(), before_refresh.1);
         assert_eq!(item_projections.get(), before_refresh.2);
         assert_eq!(kind_projections.get(), before_refresh.3);
-        assert_eq!(runtime.refresh_counters().layout, before_refresh.4);
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before_refresh.4 + 1,
+            "unchanged cached refresh must use only its initial runtime projection"
+        );
+        assert_eq!(runtime.refresh_counters().layout, before_refresh.5);
         assert_eq!(
             runtime.virtual_layout.materialization_passes,
-            before_refresh.5
+            before_refresh.6
         );
         assert!(runtime.base_paint_plan_reuse_eligible());
         assert_eq!(
@@ -972,6 +1007,26 @@ mod tests {
             1
         );
         assert!(runtime.virtual_layout.records[0].cached_subtree.is_some());
+        assert_eq!(runtime.traversal.widgets.hit_order, expected_hit_order);
+        assert_eq!(
+            runtime.traversal.widgets.focusable.order(),
+            expected_focus_order.as_slice()
+        );
+        assert_eq!(
+            runtime.traversal.widgets.paths.current,
+            expected_widget_paths
+        );
+        assert_eq!(
+            runtime
+                .traversal
+                .containers
+                .virtual_layout_registrations
+                .len(),
+            expected_virtual_registration_count
+        );
+        assert!(runtime.virtual_layout.projection_probe.is_some());
+        runtime.virtual_layout.retire_all();
+        assert!(runtime.virtual_layout.projection_probe.is_none());
     }
 
     #[test]

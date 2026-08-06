@@ -1767,37 +1767,91 @@ where
             .saturating_add(1);
 
         let view_delta_started = Instant::now();
-        std::mem::swap(
-            &mut self.traversal.widgets.paths.previous,
-            &mut self.traversal.widgets.paths.current,
-        );
-        let mut traversal = self.take_reusable_traversal_index(true);
+        let had_virtual_layout = !self.virtual_layout.is_empty();
+        let mut traversal;
+        let mut layout_root;
         let runtime_projection_started = Instant::now();
-        let mut layout_root = next_surface.runtime_projection_reusing_with_scratch(
-            &mut traversal,
-            &mut self.scratch.projection_scroll_stack,
-            &mut self.scratch.projection_child_path,
-        );
-        let runtime_projection = runtime_projection_started.elapsed();
-        self.refresh_counters.runtime_projection =
-            self.refresh_counters.runtime_projection.saturating_add(1);
-
-        self.virtual_layout
-            .prepare_surface(&mut next_surface, &traversal.virtual_layout_registrations);
-
-        if !self.virtual_layout.is_empty() {
+        if had_virtual_layout {
+            if let Some(mut probe) = self.virtual_layout.take_projection_probe() {
+                layout_root = next_surface.runtime_projection_reusing_with_scratch(
+                    &mut probe,
+                    &mut self.scratch.projection_scroll_stack,
+                    &mut self.scratch.projection_child_path,
+                );
+                traversal = probe;
+            } else {
+                let projection = next_surface.runtime_projection();
+                layout_root = projection.layout_root;
+                traversal = projection.traversal;
+            }
+        } else {
+            std::mem::swap(
+                &mut self.traversal.widgets.paths.previous,
+                &mut self.traversal.widgets.paths.current,
+            );
+            traversal = self.take_reusable_traversal_index(true);
             layout_root = next_surface.runtime_projection_reusing_with_scratch(
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
             );
         }
+        let mut runtime_projection = runtime_projection_started.elapsed();
+        self.refresh_counters.runtime_projection =
+            self.refresh_counters.runtime_projection.saturating_add(1);
+
+        // Keep the prior admitted traversal available until the cached result
+        // has authoritative unchanged evidence; the probe is reusable scratch
+        // for the raw registration projection.
+        self.virtual_layout
+            .prepare_surface(&mut next_surface, &traversal.virtual_layout_registrations);
 
         let mut raw_view_delta =
             classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
         let mut execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
         let mut effective_scope = execution.effective_scope();
         let reuse_completed_layout = can_reuse_completed_layout(self, execution);
+        let unchanged_virtual_layout = had_virtual_layout
+            && !self.virtual_layout.is_empty()
+            && raw_view_delta.effect == crate::runtime::surface::ViewDeltaEffect::Unchanged
+            && reuse_completed_layout;
+        let mut paths_prepared = !had_virtual_layout;
+        if unchanged_virtual_layout {
+            self.virtual_layout.store_projection_probe(traversal);
+            // The installed traversal is authoritative for this exact cached
+            // result. Take it directly instead of swapping to the prior
+            // reusable path buffer before the unchanged decision is consumed.
+            paths_prepared = true;
+            traversal = self.take_reusable_traversal_index(true);
+            layout_root = self.layout_root.clone();
+        } else if !self.virtual_layout.is_empty() {
+            let probe = if had_virtual_layout {
+                let probe = traversal;
+                std::mem::swap(
+                    &mut self.traversal.widgets.paths.previous,
+                    &mut self.traversal.widgets.paths.current,
+                );
+                paths_prepared = true;
+                traversal = self.take_reusable_traversal_index(true);
+                Some(probe)
+            } else {
+                None
+            };
+            let post_cache_projection_started = Instant::now();
+            layout_root = next_surface.runtime_projection_reusing_with_scratch(
+                &mut traversal,
+                &mut self.scratch.projection_scroll_stack,
+                &mut self.scratch.projection_child_path,
+            );
+            runtime_projection =
+                runtime_projection.saturating_add(post_cache_projection_started.elapsed());
+            self.refresh_counters.runtime_projection =
+                self.refresh_counters.runtime_projection.saturating_add(1);
+            if let Some(probe) = probe {
+                self.virtual_layout.store_projection_probe(probe);
+            }
+        }
+
         self.base_paint_plan_reuse_eligible =
             execution.allows_base_paint_plan_reuse() && reuse_completed_layout;
         let mut damage = SurfaceDamage::from_view_delta(
@@ -1834,19 +1888,36 @@ where
                 &self.layout,
                 self.viewport,
             );
+            let final_projection_started = Instant::now();
             layout_root = next_surface.runtime_projection_reusing_with_scratch(
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
             );
+            runtime_projection =
+                runtime_projection.saturating_add(final_projection_started.elapsed());
+            self.refresh_counters.runtime_projection =
+                self.refresh_counters.runtime_projection.saturating_add(1);
         }
 
-        let previous_paths = std::mem::take(&mut self.traversal.widgets.paths.previous);
+        if had_virtual_layout && !paths_prepared {
+            std::mem::swap(
+                &mut self.traversal.widgets.paths.previous,
+                &mut self.traversal.widgets.paths.current,
+            );
+        }
+
+        let mut previous_paths = if unchanged_virtual_layout {
+            None
+        } else {
+            Some(std::mem::take(&mut self.traversal.widgets.paths.previous))
+        };
+        let previous_paths_for_refresh = previous_paths.as_ref().unwrap_or(&traversal.widget_paths);
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
             &traversal.widget_paths,
-            &previous_paths,
+            previous_paths_for_refresh,
         );
         let widget_state_sync_started = Instant::now();
         let sync_policy = self.widget_state_sync_policy();
@@ -1854,13 +1925,15 @@ where
             &self.surface,
             &traversal.stateful_widget_order,
             &traversal.widget_paths,
-            &previous_paths,
+            previous_paths_for_refresh,
             sync_policy,
         );
         let widget_state_sync = widget_state_sync_started.elapsed();
         self.refresh_counters.widget_state_sync =
             self.refresh_counters.widget_state_sync.saturating_add(1);
-        self.traversal.widgets.paths.previous = previous_paths;
+        if let Some(previous_paths) = previous_paths.take() {
+            self.traversal.widgets.paths.previous = previous_paths;
+        }
 
         self.surface = next_surface;
         self.layout_root = layout_root;

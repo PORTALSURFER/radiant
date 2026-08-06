@@ -290,10 +290,82 @@ work. A worker entry is conceptually `Effect::worker<Output: Send + 'static>`:
 only its owned task and `Output` cross threads, while its owned UI-local
 `Output -> Message` completion mapper runs after delivery to the UI runtime.
 Every effect has a typed key, generation, cancellation policy, and owner
-(application, window, overlay, or keyed node). Replacing a key cancels or
-supersedes its older effect; destroying its owner cancels dependent work; late
-results are rejected before reduction. There is no second, ad hoc task lifecycle
-outside this model.
+(application, auxiliary window, overlay, or keyed node). Replacing a key
+cancels or supersedes its older effect; destroying its owner cancels dependent
+work; late results are rejected before reduction. There is no second, ad hoc
+task lifecycle outside this model.
+
+### Declarative effect ownership and cancellation
+
+The target effect model distinguishes a declarative source location from effect
+ownership. A projected node supplies an eligible source context; it does not
+implicitly own work merely because an event, mapper, or command was reached
+through that node. The conceptual owner kinds are:
+
+| Owner kind | Conceptual identity and lifetime |
+| --- | --- |
+| Application | The application runtime. This remains the default for ordinary primary-surface updates and for work explicitly chosen to outlive a declarative source owner. |
+| Auxiliary window | An exact auxiliary-window key and generation. The current private runtime already preserves this exact generation across its worker, timer, and platform completion paths. |
+| Overlay | A stable overlay identity within its owning window and compatible overlay kind. The overlay is only an eligible source candidate until ownership is explicitly selected. |
+| Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
+
+These owner kinds, identities, and selection rules are target-only conceptual
+policy, not public names or a promise to add a new public effect API. The
+shipped runtime currently has only private `Application` and exact-generation
+`Auxiliary` origin plumbing, and declarative lowering erases overlay/keyed
+source provenance before commands reach that plumbing.
+
+Ownership is selected explicitly. The current/default rule keeps ordinary
+primary-surface work application-owned. An overlay or keyed node may provide a
+candidate source context, but its location never selects ownership by itself.
+When work must outlive that source, the caller must explicitly choose the
+application-owned/outlive escape. That choice is the explicit detach policy: it
+outlives the source owner but remains subject to application shutdown. A missing
+selection therefore remains application-owned under the default; a requested
+owner-scoped selection that cannot identify exactly one live owner is not
+admitted or assigned by source precedence.
+
+Conceptually, an owner identity is its owner kind, stable identity, and live
+generation. Positions, transient structural indices, callback addresses, and
+other incidental traversal details are not identity. A compatible owner with
+the same stable identity keeps its generation across accepted reprojection;
+keyed reorder does not retire or recreate the owner. Removing an owner, or
+replacing it incompatibly even when a surface key is reused, retires that
+exact generation before new owner-scoped work is admitted. Reinserting the
+same identity after retirement creates a fresh generation. Retirement is
+exactly scoped, so sibling overlays, keyed nodes, auxiliary windows, and
+application-owned work are not affected by one another.
+
+Owner reconciliation and effect admission use the same accepted update. If an
+owner is removed in the update that would otherwise emit an owner-scoped
+effect, that effect is not admitted or registered. Work explicitly selected as
+application-owned/outlive may still be admitted because it does not depend on
+the removed owner. A worker completion, timer wake, platform result, or
+chained command whose owner generation is retired or mismatched is rejected
+before its mapper runs and before any message is reduced.
+
+Recovery, temporary native reconstruction, and cached hiding do not by
+themselves retire a live owner generation or cancel its registrations. An
+auxiliary window keeps its exact generation while it is cached or recovering;
+the same rule applies to any declarative owner that remains retained by the
+runtime. Explicit close/removal or incompatible replacement is the destructive
+boundary. Shared `ResourceTasks` remain application-owned: a visible overlay
+or keyed node may contribute interest, but its disappearance releases that
+interest and does not implicitly cancel the shared application task or discard
+cached ready state.
+
+Overlay and keyed-node candidates are independent. A source may expose both,
+and neither has implicit precedence over the other; the target selection must
+name the intended owner or choose the explicit application-owned/outlive
+escape. A dynamic unkeyed node has no durable identity with which to preserve a
+generation or reject a late result, so it cannot implicitly become an
+owner-scoped cancellation target. Such work remains application-owned unless
+a later contract supplies an explicit stable identity.
+
+This contract defines owner identity, admission, and retirement only. It does
+not select queue capacity, scheduler budgets, fairness, priority, wake order,
+or a second scheduler. Those policies remain later work after executable
+overlay/keyed-node cancellation is in place.
 
 ### Runtime lifecycle and non-reentrancy
 

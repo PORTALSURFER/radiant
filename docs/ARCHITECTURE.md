@@ -159,6 +159,68 @@ new focused export leaf or a module split, not a formatting workaround.
 - `tests` owns public API, behavior, source-quality, example, and documentation
   guardrails.
 
+## Declarative Effect Ownership And Lifecycle Seam
+
+The current effect-ownership seam is intentionally narrower than the target
+model. Declarative lowering and traversal under `src/application` construct
+`ViewNode`/`SurfaceNode` projections and route application messages, but they do
+not preserve overlay or keyed-node source provenance into command dispatch.
+`src/runtime/controller/commands/dispatch.rs` therefore enters ordinary work
+with the private application origin unless an existing controller path supplies
+an auxiliary origin. The private `RuntimeOwner`/`AuxiliaryWindowOwner` model in
+`src/runtime/controller/owner.rs` currently distinguishes only application work
+and exact auxiliary-window generations.
+
+That private auxiliary generation is already carried through the existing
+worker, timer, and platform-completion registries in
+`src/runtime/controller/effects.rs`, `timers.rs`, `platform.rs`, and `host.rs`,
+including chained commands. Retirement fences only the matching generation;
+it does not transfer ownership to the declarative tree or split the shared
+ingress. These shipped bridges are evidence for the seam, not evidence that
+overlay/keyed-node cancellation exists.
+
+The future declarative seam is private and has five dependency-ordered stages:
+
+1. Declarative lowering and traversal preserve crate-private source metadata
+   alongside stable identity. The metadata may record independent eligible
+   overlay and keyed-node candidates and compatibility context, but it must not
+   change the public `ViewNode`, `SurfaceNode`, `Command`,
+   `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`, or effect
+   payload contracts. A dynamic unkeyed node cannot supply durable owner
+   identity and therefore cannot be an implicit cancellation target.
+2. The accepted declarative projection projects those candidates to the
+   controller. A source location remains only an eligible context; explicit
+   owner selection is required. Overlay and keyed-node candidates have no
+   implicit precedence, and ordinary primary-surface work remains
+   application-owned by default. Shared `ResourceTasks` remain application
+   ownership even when an overlay or keyed node consumes their interest.
+3. The controller owns the private owner-generation ledger and reconciles exact
+   identity/kind/generation continuity. Compatible reprojection and keyed
+   reorder preserve a generation. Removal and incompatible replacement retire
+   the exact old generation; reinsertion receives a fresh one; sibling owners
+   remain isolated. If removal and effect emission occur in one accepted update,
+   owner-scoped work is rejected before registration, while explicitly
+   application-owned/outlive work may continue.
+4. Controller dispatch carries the explicitly selected origin through the
+   shipped worker, timer, platform-completion, and chained-command paths. The
+   existing registries remain the admission and mapping points; they do not
+   acquire separate per-owner queues or a second lifecycle authority. Recovery
+   and cached hiding preserve a retained live generation unless an explicit
+   close/removal or incompatible replacement retires it.
+5. Matching registrations are retired at their owning registry, and every late
+   completion, wake, result, or chained command is rejected before its mapper
+   runs and before message reduction. Exact retirement must not cancel sibling,
+   application-owned, or later same-identity generations.
+
+`AppBridge`/the shared ingress and `RuntimeLifecycleController` remain the
+global admission and lifecycle authorities throughout this seam. Owner
+metadata, reconciliation, and registry retirement must respect the existing
+`Accepting -> Closing -> Stopped` boundary and the current recovery path; they
+must not add a per-owner event loop or bypass lifecycle vetoes. The seam defines
+ownership identity, admission, and retirement only. Queue capacity, scheduler
+budgets, fairness, priority, and wake ordering remain later policy work after
+executable overlay/keyed-node cancellation is implemented.
+
 ## Rendering Boundary
 
 Radiant uses Vello for normal UI primitives and direct WGPU paths for retained

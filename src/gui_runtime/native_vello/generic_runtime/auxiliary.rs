@@ -10,9 +10,10 @@ use super::{
     RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
+use crate::runtime::AuxiliaryWindowOwner;
 use crate::runtime::{
-    AuxiliaryWindow, AuxiliaryWindowOwner, NativeFrameDiagnostics, NativeRunOptions,
-    NativeWindowDiagnosticIdentity, RuntimeBridge,
+    AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
+    RuntimeBridge,
 };
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;

@@ -10,7 +10,10 @@ use crate::{
     layout::{ContainerKind, ContainerPolicy, NodeId},
     runtime::SurfaceNode,
 };
-use std::{collections::HashSet, panic::AssertUnwindSafe};
+use std::{
+    collections::HashSet,
+    panic::{AssertUnwindSafe, panic_any},
+};
 
 /// Typed failures from the private virtual-layout item admission boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,6 +44,7 @@ pub(crate) fn lower_virtual_layout_item<Message: 'static>(
     checked_generation: u64,
 ) -> Result<SurfaceNode<Message>, VirtualLayoutViewAdmissionError> {
     validate_item(&node)?;
+    let node = guard_widget_views(node);
 
     let wrapper_id = slot_wrapper_id(
         container_id,
@@ -87,7 +91,77 @@ pub(crate) fn lower_virtual_layout_item<Message: 'static>(
 
     match lowered {
         Ok(result) => result,
-        Err(_) => Err(VirtualLayoutViewAdmissionError::LoweringPanicked),
+        Err(payload) => match payload.downcast::<WidgetViewAdmissionPanic>() {
+            Ok(panic) => Err(panic.0),
+            Err(_) => Err(VirtualLayoutViewAdmissionError::LoweringPanicked),
+        },
+    }
+}
+
+/// Guard every public widget-view boundary in the admitted declarative item.
+///
+/// `WidgetView` is intentionally public and returns a runtime `SurfaceNode`,
+/// so its output must be checked at the point where this private adapter admits
+/// it. A valid widget view returns one context-identified widget leaf; retained
+/// containers and out-of-band runtime forms remain owned by the normal view
+/// lowering path.
+fn guard_widget_views<Message: 'static>(mut node: ViewNode<Message>) -> ViewNode<Message> {
+    node.kind = match node.kind {
+        ViewNodeKind::Widget(widget) => {
+            ViewNodeKind::Widget(Box::new(GuardedWidgetView { widget }))
+        }
+        ViewNodeKind::Container { policy, children } => ViewNodeKind::Container {
+            policy,
+            children: children.into_iter().map(guard_widget_views).collect(),
+        },
+        ViewNodeKind::Scroll { child } => ViewNodeKind::Scroll {
+            child: Box::new(guard_widget_views(*child)),
+        },
+        ViewNodeKind::VirtualScroll { child, overscan_px } => ViewNodeKind::VirtualScroll {
+            child: Box::new(guard_widget_views(*child)),
+            overscan_px,
+        },
+        kind => kind,
+    };
+    node
+}
+
+#[derive(Debug)]
+struct WidgetViewAdmissionPanic(VirtualLayoutViewAdmissionError);
+
+struct GuardedWidgetView<Message> {
+    widget: Box<dyn crate::application::WidgetView<Message>>,
+}
+
+impl<Message> crate::application::WidgetView<Message> for GuardedWidgetView<Message> {
+    fn default_sizing(&self) -> crate::widgets::WidgetSizing {
+        self.widget.default_sizing()
+    }
+
+    fn into_surface_node(
+        self: Box<Self>,
+        context: crate::application::WidgetViewContext,
+    ) -> SurfaceNode<Message> {
+        let expected_id = context.id;
+        let surface = self.widget.into_surface_node(context);
+        match &surface {
+            SurfaceNode::Widget(_) if surface.id() == expected_id => surface,
+            SurfaceNode::Scene(_) | SurfaceNode::Overlay(_) | SurfaceNode::FloatingLayer(_) => {
+                panic_any(WidgetViewAdmissionPanic(
+                    VirtualLayoutViewAdmissionError::UnsupportedSceneEffects,
+                ));
+            }
+            SurfaceNode::Container(_) => {
+                panic_any(WidgetViewAdmissionPanic(
+                    VirtualLayoutViewAdmissionError::DirectSurfaceNode,
+                ));
+            }
+            SurfaceNode::Widget(_) => {
+                panic_any(WidgetViewAdmissionPanic(
+                    VirtualLayoutViewAdmissionError::IdentityCollision,
+                ));
+            }
+        }
     }
 }
 
@@ -144,7 +218,10 @@ fn slot_wrapper_id(
 mod tests {
     use super::*;
     use crate::application::{WidgetView, WidgetViewContext, column, empty, overlays, scene, text};
-    use crate::layout::LayoutNode;
+    use crate::gui::types::{Point, Rect, Vector2};
+    use crate::layout::{ContainerPolicy, LayoutNode};
+    use crate::runtime::SurfaceChild;
+    use crate::widgets::{TextWidget, WidgetSizing, WidgetStyle};
 
     struct PanickingView;
 
@@ -159,6 +236,78 @@ mod tests {
         fn into_surface_node(self: Box<Self>, _context: WidgetViewContext) -> SurfaceNode<()> {
             panic!("test lowering panic")
         }
+    }
+
+    #[derive(Clone, Copy)]
+    enum CustomWidgetOutput {
+        Valid,
+        Scene,
+        Overlay,
+        Floating,
+        FixedWidget,
+        FixedSubtree,
+    }
+
+    struct CustomWidgetView {
+        output: CustomWidgetOutput,
+    }
+
+    impl CustomWidgetView {
+        fn new(output: CustomWidgetOutput) -> Self {
+            Self { output }
+        }
+    }
+
+    impl WidgetView<()> for CustomWidgetView {
+        fn default_sizing(&self) -> WidgetSizing {
+            WidgetSizing::fixed(Vector2::new(24.0, 16.0))
+        }
+
+        fn into_surface_node(self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<()> {
+            let runtime_widget = |id| {
+                SurfaceNode::static_widget(TextWidget::new(
+                    id,
+                    "custom",
+                    WidgetSizing::fixed(Vector2::new(24.0, 16.0)),
+                ))
+            };
+
+            match self.output {
+                CustomWidgetOutput::Valid => {
+                    let mut widget =
+                        TextWidget::new(0, "custom", WidgetSizing::fixed(Vector2::new(24.0, 16.0)));
+                    context.apply_to(&mut widget);
+                    SurfaceNode::static_widget(widget)
+                }
+                CustomWidgetOutput::Scene => {
+                    SurfaceNode::scene(context.id, runtime_widget(90), Vec::new())
+                }
+                CustomWidgetOutput::Overlay => SurfaceNode::overlay_marker(
+                    90,
+                    Rect::from_xy_size(0.0, 0.0, 4.0, 4.0),
+                    WidgetStyle::default(),
+                ),
+                CustomWidgetOutput::Floating => SurfaceNode::floating_layer(
+                    90,
+                    Point::new(0.0, 0.0),
+                    Vector2::new(24.0, 16.0),
+                    runtime_widget(91),
+                    false,
+                ),
+                CustomWidgetOutput::FixedWidget => runtime_widget(90),
+                CustomWidgetOutput::FixedSubtree => SurfaceNode::container(
+                    90,
+                    ContainerPolicy::default(),
+                    vec![SurfaceChild::fill(runtime_widget(91))],
+                ),
+            }
+        }
+    }
+
+    fn custom_widget(output: CustomWidgetOutput) -> ViewNode<()> {
+        ViewNode::new(ViewNodeKind::Widget(Box::new(CustomWidgetView::new(
+            output,
+        ))))
     }
 
     fn lower(node: ViewNode<()>, checked_generation: u64) -> SurfaceNode<()> {
@@ -240,6 +389,43 @@ mod tests {
             ),
             Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
         ));
+    }
+
+    #[test]
+    fn custom_widget_scene_overlay_and_floating_outputs_are_rejected() {
+        for output in [
+            CustomWidgetOutput::Scene,
+            CustomWidgetOutput::Overlay,
+            CustomWidgetOutput::Floating,
+        ] {
+            assert!(matches!(
+                lower_virtual_layout_item(custom_widget(output), 41, 7, 3, 1),
+                Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
+            ));
+        }
+    }
+
+    #[test]
+    fn custom_widget_retained_identity_forms_are_rejected() {
+        assert!(matches!(
+            lower_virtual_layout_item(custom_widget(CustomWidgetOutput::FixedWidget), 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::IdentityCollision)
+        ));
+        assert!(matches!(
+            lower_virtual_layout_item(custom_widget(CustomWidgetOutput::FixedSubtree), 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::DirectSurfaceNode)
+        ));
+    }
+
+    #[test]
+    fn context_identified_custom_widget_preserves_the_wrapper() {
+        let surface = lower(custom_widget(CustomWidgetOutput::Valid), 1);
+        let LayoutNode::Container(wrapper) = crate::runtime::UiSurface::new(surface).layout_node()
+        else {
+            panic!("slot wrapper should lower to a container");
+        };
+        assert_eq!(wrapper.children.len(), 1);
+        assert!(matches!(wrapper.children[0].child, LayoutNode::Widget(_)));
     }
 
     #[test]

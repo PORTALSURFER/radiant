@@ -497,9 +497,7 @@ impl NativePaintSegmentArtifactStore {
                 || !evidence.target_generation.is_known()
                 || evidence.scene_validity != scene_validity
                 || span.start >= span.end
-                || identities[..resident_index]
-                    .iter()
-                    .any(|identity| *identity == Some(evidence.identity))
+                || identities[..resident_index].contains(&Some(evidence.identity))
                 || generation.is_some_and(|existing| existing != evidence.target_generation)
             {
                 return None;

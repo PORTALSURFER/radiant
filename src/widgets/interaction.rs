@@ -7,6 +7,7 @@ mod edit;
 mod format;
 mod input;
 mod messages;
+mod numeric_edit;
 mod output;
 mod provenance;
 mod value;
@@ -28,6 +29,7 @@ pub use messages::{
     SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
     ToggleMessage,
 };
+pub use numeric_edit::NumericEditSession;
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
 pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};

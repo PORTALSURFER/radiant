@@ -14,7 +14,7 @@ use radiant::{
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
         InteractiveRowWidget, InteractiveRowWidgetParts, KnobEditBatch, KnobMessage,
         KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget, ListItemWidgetParts,
-        ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
+        NumericEditSession, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
         SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
         SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
         ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput,
@@ -79,6 +79,50 @@ fn value_format_is_available_through_qualified_and_widgets_root_exports() {
     root.write_into(440.0, &mut output)
         .expect("finite value should format");
     assert_eq!(output, "440,00 Hz");
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct GenericNumericValue(u32);
+
+struct NonCloneNumericValue;
+
+#[test]
+fn numeric_edit_session_can_be_named_with_a_non_clone_type() {
+    let _: Option<NumericEditSession<NonCloneNumericValue>> = None;
+}
+
+#[test]
+fn numeric_edit_session_is_available_through_qualified_and_widgets_root_exports() {
+    let provenance = radiant::widgets::InteractionProvenance::Keyboard { timestamp: None };
+    let qualified = radiant::widgets::interaction::NumericEditSession::begin(
+        GenericNumericValue(7),
+        "7",
+        provenance,
+    );
+    let mut root: NumericEditSession<GenericNumericValue> = qualified;
+
+    root.replace_draft("1e");
+    assert_eq!(root.draft(), "1e");
+    assert_eq!(root.begin_event().value, GenericNumericValue(7));
+}
+
+#[test]
+fn numeric_edit_session_accepts_a_generic_domain_value_without_numeric_policy() {
+    let provenance = radiant::widgets::InteractionProvenance::Programmatic;
+    let session = NumericEditSession::begin(GenericNumericValue(7), "invalid", provenance);
+    let event = match session.commit(GenericNumericValue(u32::MAX), provenance) {
+        Ok(event) => event,
+        Err(_) => panic!("matching source should commit a caller-certified value"),
+    };
+
+    assert_eq!(event.value, GenericNumericValue(u32::MAX));
+    assert_eq!(event.phase, radiant::widgets::EditPhase::Commit);
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_widgets.contains("NumericEditSession"));
 }
 
 #[test]

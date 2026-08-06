@@ -968,6 +968,48 @@ This slice does not provide semantic/keyboard behavior or implement
 
 These types are intentionally not exported through the common prelude.
 
+### Numeric edit sessions
+
+`NumericEditSession<T>` is the shipped, parser-agnostic editing-session
+foundation under the qualified `radiant::widgets::interaction` module. The same
+type is re-exported from `radiant::widgets`, but intentionally not from the
+common prelude:
+
+```rust
+use radiant::widgets::interaction::{
+    EditPhase, InteractionProvenance, NumericEditSession,
+};
+
+let provenance = InteractionProvenance::Keyboard { timestamp: None };
+let mut session = NumericEditSession::begin(0.5_f32, "0.", provenance);
+session.replace_draft("0.");
+assert_eq!(session.draft(), "0.");
+
+let event = match session.commit(0.75_f32, provenance) {
+    Ok(event) => event,
+    Err(_) => panic!("matching source should commit"),
+};
+assert_eq!(event.phase, EditPhase::Commit);
+```
+
+`begin(...)` creates one `EditEvent::begin` event. `draft()` and
+`replace_draft(...)` preserve text verbatim, including empty, incomplete, and
+invalid text, and draft changes emit no typed Update. `begin_event()` exposes
+the initial event by reference. `commit(...)` accepts a caller-certified typed
+value without parsing, validation, mapping, clamping, or other numeric policy;
+same-source provenance with changed native metadata is accepted, while a
+foreign source returns the unchanged session. `cancel(...)` similarly restores
+the Begin value and returns a terminal `Cancel` event. Successful terminal
+transitions consume the session and preserve the shared transaction and start
+value.
+
+This slice deliberately does not provide a parser, validator, locale, range,
+clamping, quantization, stepping, `ValueMapping`/`ValueFormat` attachment,
+numeric widget, application-builder or runtime integration, Update events,
+focus/pointer/keyboard/text-input/accessibility policy, callbacks, persistence,
+or raw transaction construction. Those are future domain and integration
+boundaries around this small session foundation.
+
 ### Value mappings
 
 `ValueMapping` is the qualified domain-mapping foundation for numeric controls.

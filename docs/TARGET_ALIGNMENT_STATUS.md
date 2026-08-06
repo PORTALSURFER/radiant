@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`ed2bfcb7`**
-- Overall estimate: **~93%**
-- Working range: **88–98%**
+- Canonical main: **`aa8bd77b`**
+- Overall estimate: **~94%**
+- Working range: **89–99%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -75,7 +75,11 @@ auxiliary messages to stable auxiliary-window generations: origin survives
 parent dispatch, completion mapping, and chained worker commands; destructive
 retirement fences only the matching registrations with idempotent pending
 accounting, while sibling/application work, cached hide, and recovery remain
-admitted. The estimate moves modestly because timer/platform owner integration,
+admitted. PR #1620 now applies the same private owner/origin fence to
+controller-managed timers: origin survives registration, opaque controller-wake
+mapping, UI dispatch, and chained commands, while exact-generation retirement
+drops matching mapper closures and repairs only matching latest slots. The
+estimate moves modestly because platform-completion owner integration,
 overlay/keyed-node cancellation, and scheduling policy remain unshipped.
 
 Rendering terminal boundary after PR #1616: no further generic rendering
@@ -103,7 +107,7 @@ unshipped.
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
-| Runtime, effects, and scheduling | 75% | PRs #1617–#1619 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, and the first stable owner/origin/cancellation consumer for worker effects: accepted recovery is coupled to controller state, recovery preserves effects, auxiliary generations survive dispatch/completion/chaining, and destructive retirement fences only matching worker registrations. Timer/platform owner integration, overlay/keyed-node cancellation, and the complete scheduling target remain. |
+| Runtime, effects, and scheduling | 78% | PRs #1617–#1620 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, and stable owner/origin/cancellation consumers for worker and timer effects: accepted recovery is coupled to controller state, recovery preserves effects, auxiliary generations survive dispatch/completion/chaining, and destructive retirement fences only matching worker/timer registrations with latest-slot repair. Platform-completion ownership, overlay/keyed-node cancellation, and the complete scheduling target remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
@@ -214,6 +218,10 @@ The current foundation includes:
   stable window generations through parent dispatch, worker completion mapping,
   and chained commands, and retires only matching worker registrations with
   idempotent pending accounting (PR #1619).
+- the crate-private auxiliary timer-effect owner/origin bridge that preserves
+  stable window generations through timer registration, opaque controller-wake
+  mapping, UI dispatch, and chained commands, and retires only matching timer
+  registrations with mapper cleanup and latest-slot repair (PR #1620).
 
 These foundations make later slices safer and more composable. They do not
 mean that every target consumer, runtime path, platform, or integration is
@@ -257,9 +265,11 @@ connects that authority to the existing native Vello recovery episode. PR #1619
 adds the first worker-effect owner/origin consumer: an auxiliary window's
 generation survives parent dispatch, worker completion mapping, and chained
 commands, while destructive retirement fences matching registrations without
-splitting the global ingress. Timer/platform owner integration and overlay or
-keyed-node cancellation remain; the sequence still does not add configurable
-budgets, fairness, or synthetic GPU-host acceptance.
+splitting the global ingress. PR #1620 extends that owner fence to timer
+registration, controller-wake mapping, UI dispatch, and chained timers, with
+exact-generation retirement and latest-slot repair. Platform-completion owner
+integration and overlay or keyed-node cancellation remain; the sequence still
+does not add configurable budgets, fairness, or synthetic GPU-host acceptance.
 
 ## Remaining gaps, ordered by leverage
 
@@ -285,17 +295,20 @@ budgets, fairness, or synthetic GPU-host acceptance.
    now the next dependency-correct numeric item, but parser, locale, range,
    formatting, and product interaction policy must come from a concrete
    consumer rather than being invented in generic Radiant.
-3. **Runtime, effects, and scheduling integration.** PRs #1617–#1619 ship
+3. **Runtime, effects, and scheduling integration.** PRs #1617–#1620 ship
    generic lifecycle authority/diagnostics, the bounded native Vello
    recovery/effect-preservation bridge, and stable auxiliary-window
    owner/origin/cancellation for worker effects: accepted recovery and
    successful primary/auxiliary completion are coupled to controller state,
    recovery preserves effects, and destructive auxiliary retirement fences only
-   its matching worker registrations. The next dependency-correct runtime
-   candidate is applying the same owner fence to timer effects and platform
-   completions; overlay/keyed-node cancellation follows, then configurable
-   scheduling budgets and fair multi-window policy. Do not claim scheduler
-   fairness until those ownership and renderer boundaries are concrete.
+   its matching worker registrations. PR #1620 applies the same owner fence to
+   timer effects, preserving exact origin through controller-wake mapping and
+   chained dispatch while making destructive retirement repair only matching
+   timer slots. The next dependency-correct runtime candidate is platform
+   completion ownership/origin across result-host and fallback paths; then
+   overlay/keyed-node cancellation, configurable scheduling budgets, and fair
+   multi-window policy. Do not claim scheduler fairness until those ownership
+   and renderer boundaries are concrete.
 4. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
 5. **Production frame wiring.** Complete reconciliation, damage propagation,
@@ -357,6 +370,8 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Controller recovery lifecycle boundary](../src/runtime/controller/state/lifecycle.rs)
 - [Runtime owner and auxiliary generation fence](../src/runtime/controller/owner.rs)
 - [Worker effect owner/origin routing](../src/runtime/controller/effects.rs)
+- [Timer effect owner/origin routing](../src/runtime/controller/timers.rs)
+- [Controller command dispatch and queue drain](../src/runtime/controller/commands/dispatch.rs)
 - [Auxiliary message-origin handoff](../src/gui_runtime/native_vello/generic_runtime/auxiliary.rs)
 - [Widget revision contract](../src/widgets/contract/revision.rs)
 - [Refresh, identity, and damage controller](../src/runtime/controller/refresh.rs)
@@ -408,3 +423,4 @@ After each merged alignment slice:
 | 2026-08-06 | `bcb1311f` | ~91% (86–96%, medium confidence) | PR #1617 merged the generic controller-owned lifecycle transition authority and bounded `RuntimeLifecycleDiagnostics`: legal construction/close/stop transitions are recorded, typed recovery vocabulary is available for the next native slice, invalid transitions are vetoed, and saturating sequence/counts plus fixed-capacity oldest-to-newest history are exposed under `radiant::runtime`. Focused and full local validation passed, including 2,555 library tests, 288 generic guardrails, examples, docs, all-target/all-feature checks, strict Clippy, and installed Linux/Intel-macOS no-default-feature checks; fresh exact-head Terra APPROVE found no findings after one fixed-capacity correction. Runtime/effects/scheduling alignment moves conservatively from 65% to 68%; the next candidate is native recovery/effect preservation, followed by stable owner/origin and cancellation contracts before scheduler budgets or fairness. |
 | 2026-08-06 | `5d9bf7d6` | ~92% (87–97%, medium confidence) | PR #1618 merged the crate-private native Vello recovery bridge: accepted native recovery records `Running -> Recovering`, successful primary and auxiliary completion records `Recovering -> Running`, controller-closing vetoes leave native recovery paused and flow into the existing bounded shutdown path, and recovery does not cancel runtime effects on entry. Fresh exact-head validation passed with 734 native generic-runtime tests, 2,555 library tests plus integration targets, 288 guardrails, all-target/all-feature check, strict Clippy, formatting, and diff checks; Terra APPROVE followed one required split-brain correction. Runtime/effects/scheduling alignment moves conservatively from 68% to 72%; the next candidate is stable owner/origin/cancellation integration before scheduler budgets or fairness. |
 | 2026-08-06 | `ed2bfcb7` | ~93% (88–98%, medium confidence) | PR #1619 merged the crate-private auxiliary worker-effect owner/origin bridge: stable window generations survive parent dispatch, worker completion mapping, and chained commands; destructive retirement fences only matching registrations, releases pending capacity idempotently, and preserves sibling/application work, cached hide, and recovery. Exact-head validation passed with 3,354 library/integration tests, 229 examples, 11 doctests, 288 guardrails, documentation, all-target/all-feature check, strict Clippy, Linux and Intel-macOS no-default-feature checks, formatting, and diff checks; Terra exact-head APPROVE found no findings. Runtime/effects/scheduling alignment moves conservatively from 72% to 75%; the next candidate is timer/platform owner integration before overlay/keyed-node cancellation, budgets, or fairness. |
+| 2026-08-06 | `aa8bd77b` | ~94% (89–99%, medium confidence) | PR #1620 merged the crate-private auxiliary timer-effect owner/origin bridge: stable generations survive timer registration, opaque controller-wake mapping, UI dispatch, and chained commands; exact-generation retirement drops matching mapper closures, repairs only matching latest slots, and leaves sibling/application, same-key new-generation, cached-hide, recovery, and late-wake paths isolated. Exact-head validation passed with 2,568 library tests plus 1 ignored, 288 guardrails, all-target/all-feature check, strict Clippy, examples, documentation, Linux and Intel-macOS no-default-feature checks, formatting, and diff checks; Terra exact-head APPROVE found no findings. Runtime/effects/scheduling alignment moves conservatively from 75% to 78%; the next candidate is platform-completion owner/origin integration before overlay/keyed-node cancellation, budgets, or fairness. |

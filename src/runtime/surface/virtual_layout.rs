@@ -165,23 +165,16 @@ impl<Message> UiSurface<Message> {
         )
     }
 
-    pub(in crate::runtime) fn append_virtual_layout_items(
+    pub(in crate::runtime) fn install_virtual_layout_subtree(
         &mut self,
         container_id: crate::layout::NodeId,
-        items: &[SurfaceNode<Message>],
-    ) -> bool {
-        append_items(&mut self.root, container_id, items)
-    }
-
-    pub(in crate::runtime) fn install_virtual_layout_batch(
-        &mut self,
-        container_id: crate::layout::NodeId,
-        shell: SurfaceNode<Message>,
-        registration: VirtualLayoutRegistration<Message>,
+        shell: &SurfaceNode<Message>,
+        registration: &VirtualLayoutRegistration<Message>,
         items: &[SurfaceNode<Message>],
     ) -> bool {
         let node = shell
-            .with_virtual_layout_registration(registration)
+            .clone()
+            .with_virtual_layout_registration(registration.clone())
             .with_virtual_layout_items(items);
         replace_node(&mut self.root, container_id, node)
     }
@@ -233,50 +226,6 @@ fn replace_node<Message>(
             .children
             .iter_mut()
             .any(|child| replace_node(&mut child.child, container_id, replacement.clone())),
-        SurfaceNode::Widget(_) | SurfaceNode::Overlay(_) => false,
-    }
-}
-
-fn append_items<Message>(
-    node: &mut SurfaceNode<Message>,
-    container_id: crate::layout::NodeId,
-    items: &[SurfaceNode<Message>],
-) -> bool {
-    if node.id() == container_id {
-        if let SurfaceNode::Container(container) = node {
-            container
-                .children
-                .extend(items.iter().cloned().map(SurfaceChild::fill));
-            return true;
-        }
-        return false;
-    }
-    match node {
-        SurfaceNode::Scene(scene) => {
-            if append_items(&mut scene.base, container_id, items) {
-                return true;
-            }
-            for layer in &mut scene.layers {
-                if let Some(input) = &mut layer.input
-                    && append_items(input, container_id, items)
-                {
-                    return true;
-                }
-                if append_items(&mut layer.node, container_id, items) {
-                    return true;
-                }
-            }
-            false
-        }
-        SurfaceNode::Container(container) => container
-            .children
-            .iter_mut()
-            .any(|child| append_items(&mut child.child, container_id, items)),
-        SurfaceNode::FloatingLayer(layer) => layer
-            .container
-            .children
-            .iter_mut()
-            .any(|child| append_items(&mut child.child, container_id, items)),
         SurfaceNode::Widget(_) | SurfaceNode::Overlay(_) => false,
     }
 }

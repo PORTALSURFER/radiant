@@ -142,5 +142,5 @@ pub(crate) use virtual_layout::{
     VirtualLayoutBatchProjector, VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter,
     VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
     VirtualLayoutMaterializationStore, VirtualLayoutProjectionEvidence,
-    VirtualLayoutProjectionKind, VirtualLayoutWindowCoordinator,
+    VirtualLayoutProjectionKind, VirtualLayoutRetainReason, VirtualLayoutWindowCoordinator,
 };

@@ -21,7 +21,9 @@ mod coordinator;
 mod materialization;
 
 pub(crate) use adapter::VirtualLayoutBatchProjector;
-pub(crate) use coordinator::{VirtualLayoutCompletion, VirtualLayoutWindowCoordinator};
+pub(crate) use coordinator::{
+    VirtualLayoutCompletion, VirtualLayoutRetainReason, VirtualLayoutWindowCoordinator,
+};
 pub(crate) use materialization::{
     VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
     VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore,

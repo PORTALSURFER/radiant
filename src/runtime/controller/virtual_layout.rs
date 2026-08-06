@@ -9,7 +9,7 @@ use crate::{
     gui::layout_core::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
         VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore,
-        VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
+        VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind, VirtualLayoutRetainReason,
         VirtualLayoutWindowCoordinator,
     },
     gui::types::Rect,
@@ -79,12 +79,42 @@ impl<Message> VirtualLayoutLifecycleAdapter<SurfaceNode<Message>>
 type RuntimeMaterialization<Message> =
     VirtualLayoutMaterializationStore<SurfaceNode<Message>, RuntimeVirtualLayoutLifecycle>;
 
+struct RuntimeVirtualLayoutSubtree<Message> {
+    shell: SurfaceNode<Message>,
+    items: Vec<SurfaceNode<Message>>,
+    registration: VirtualLayoutRegistration<Message>,
+}
+
+impl<Message> Clone for RuntimeVirtualLayoutSubtree<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            shell: self.shell.clone(),
+            items: self.items.clone(),
+            registration: self.registration.clone(),
+        }
+    }
+}
+
+struct RuntimeVirtualLayoutCommittedBatch<Message> {
+    query: VirtualLayoutQueryInputParts,
+    subtree: RuntimeVirtualLayoutSubtree<Message>,
+}
+
+enum RuntimeVirtualLayoutMaterialization<Message> {
+    Reused,
+    Retained,
+    Suppressed,
+    Committed(Box<RuntimeVirtualLayoutCommittedBatch<Message>>),
+    Retired,
+}
+
 struct RuntimeVirtualLayoutRecord<Message> {
     registration: VirtualLayoutRegistration<Message>,
     mount_generation: u64,
     coordinator: VirtualLayoutWindowCoordinator,
     materialization: RuntimeMaterialization<Message>,
     last_query: Option<VirtualLayoutQueryInputParts>,
+    cached_subtree: Option<RuntimeVirtualLayoutSubtree<Message>>,
     retired: bool,
 }
 
@@ -102,12 +132,16 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             coordinator,
             materialization,
             last_query: None,
+            cached_subtree: None,
             retired: false,
         }
     }
 
     fn update_registration(&mut self, registration: VirtualLayoutRegistration<Message>) {
         self.registration = registration;
+        if let Some(cached) = &mut self.cached_subtree {
+            cached.registration = self.registration.clone();
+        }
     }
 
     fn needs_query(&self, parts: &VirtualLayoutQueryInputParts) -> bool {
@@ -128,43 +162,135 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || previous.semantic_revision != parts.semantic_revision
     }
 
-    fn materialize(&mut self, viewport: Rect) -> Option<SurfaceNode<Message>> {
+    fn needs_query_for_viewport(&self, viewport: Rect) -> bool {
+        self.needs_query(
+            &self
+                .registration
+                .query_parts(viewport, self.mount_generation),
+        )
+    }
+
+    fn materialize(&mut self, viewport: Rect) -> RuntimeVirtualLayoutMaterialization<Message> {
         if self.retired {
-            return None;
+            return RuntimeVirtualLayoutMaterialization::Retired;
         }
         let parts = self
             .registration
             .query_parts(viewport, self.mount_generation);
         if !self.needs_query(&parts) {
-            return None;
+            return RuntimeVirtualLayoutMaterialization::Reused;
         }
         let pending = match self.coordinator.begin_query(parts.clone()) {
             Ok(pending) => pending,
-            Err(_) => return None,
+            Err(_) => {
+                self.retire();
+                return RuntimeVirtualLayoutMaterialization::Retired;
+            }
         };
         let outcome = pending.execute(&*self.registration.policy);
         let completion = self.coordinator.complete(pending, outcome);
-        let VirtualLayoutCompletion::Committed(commit) = completion else {
-            self.last_query = Some(parts);
-            return None;
-        };
-
-        let projector = self.registration.projector();
-        match self.materialization.publish(&commit, &projector) {
-            Ok(()) => {
-                self.last_query = Some(parts);
-                projector.take_shell()
+        let fallback_authorized = self.fallback_authorizes_cached_window(&completion);
+        match completion {
+            VirtualLayoutCompletion::Committed(commit) => {
+                let projector = self.registration.projector();
+                match self.materialization.publish(&commit, &projector) {
+                    Ok(()) => {
+                        let Some(shell) = projector.take_shell() else {
+                            self.retire();
+                            return RuntimeVirtualLayoutMaterialization::Retired;
+                        };
+                        let items = self.active_payloads();
+                        RuntimeVirtualLayoutMaterialization::Committed(Box::new(
+                            RuntimeVirtualLayoutCommittedBatch {
+                                query: parts,
+                                subtree: RuntimeVirtualLayoutSubtree {
+                                    shell,
+                                    items,
+                                    registration: self.registration.clone(),
+                                },
+                            },
+                        ))
+                    }
+                    Err(
+                        VirtualLayoutMaterializationError::Lifecycle(_)
+                        | VirtualLayoutMaterializationError::Reentrant
+                        | VirtualLayoutMaterializationError::LifecycleIndeterminate
+                        | VirtualLayoutMaterializationError::ForeignContainer
+                        | VirtualLayoutMaterializationError::ForeignPolicy
+                        | VirtualLayoutMaterializationError::ForeignMount
+                        | VirtualLayoutMaterializationError::ForeignOwner
+                        | VirtualLayoutMaterializationError::UnstablePolicyIdentity
+                        | VirtualLayoutMaterializationError::Unmounted
+                        | VirtualLayoutMaterializationError::InvalidCommit
+                        | VirtualLayoutMaterializationError::CapacityViolation
+                        | VirtualLayoutMaterializationError::DuplicateKey
+                        | VirtualLayoutMaterializationError::UnstableKey
+                        | VirtualLayoutMaterializationError::DuplicateLogicalIndex
+                        | VirtualLayoutMaterializationError::OlderRevision
+                        | VirtualLayoutMaterializationError::DuplicateRevision
+                        | VirtualLayoutMaterializationError::OlderFence
+                        | VirtualLayoutMaterializationError::SlotArithmeticOverflow
+                        | VirtualLayoutMaterializationError::GenerationOverflow
+                        | VirtualLayoutMaterializationError::UnstableCompatibility
+                        | VirtualLayoutMaterializationError::Projection(_)
+                        | VirtualLayoutMaterializationError::ProjectionKindChanged,
+                    ) => {
+                        self.retire();
+                        RuntimeVirtualLayoutMaterialization::Retired
+                    }
+                }
             }
-            Err(
-                VirtualLayoutMaterializationError::Lifecycle(_)
-                | VirtualLayoutMaterializationError::Reentrant
-                | VirtualLayoutMaterializationError::LifecycleIndeterminate,
-            ) => {
-                self.retired = true;
-                None
+            VirtualLayoutCompletion::Retained { reason, .. } => match reason {
+                VirtualLayoutRetainReason::Pending
+                | VirtualLayoutRetainReason::Deferred(_)
+                | VirtualLayoutRetainReason::Unavailable(_) => {
+                    if fallback_authorized {
+                        RuntimeVirtualLayoutMaterialization::Retained
+                    } else {
+                        RuntimeVirtualLayoutMaterialization::Suppressed
+                    }
+                }
+                VirtualLayoutRetainReason::Invalid => {
+                    self.retire();
+                    RuntimeVirtualLayoutMaterialization::Retired
+                }
+            },
+            VirtualLayoutCompletion::Stale(_) | VirtualLayoutCompletion::Rejected(_) => {
+                self.retire();
+                RuntimeVirtualLayoutMaterialization::Retired
             }
-            Err(_) => None,
         }
+    }
+
+    fn fallback_authorizes_cached_window(&self, completion: &VirtualLayoutCompletion) -> bool {
+        let VirtualLayoutCompletion::Retained { view, .. } = completion else {
+            return false;
+        };
+        if !view.fallback || view.extent.is_none() {
+            return false;
+        }
+        let Some(accepted_revision) = view.accepted_revision else {
+            return false;
+        };
+        if self.materialization.authoritative_revision() != Some(accepted_revision) {
+            return false;
+        }
+        let Some(cached) = &self.cached_subtree else {
+            return false;
+        };
+        let active_slots = self.materialization.active_slots();
+        if active_slots.len() != cached.items.len() {
+            return false;
+        }
+
+        let mut active_items: Vec<_> = active_slots
+            .into_iter()
+            .map(|slot| slot.item().clone())
+            .collect();
+        let mut fallback_items = view.entries.clone();
+        active_items.sort_by_key(|item| item.logical_index());
+        fallback_items.sort_by_key(|item| item.logical_index());
+        active_items == fallback_items
     }
 
     fn active_payloads(&self) -> Vec<SurfaceNode<Message>> {
@@ -175,12 +301,17 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             .collect()
     }
 
+    fn commit_batch(&mut self, batch: RuntimeVirtualLayoutCommittedBatch<Message>) {
+        self.last_query = Some(batch.query);
+        self.cached_subtree = Some(batch.subtree);
+    }
+
     fn retire(&mut self) {
-        if self.retired {
-            return;
+        if !self.retired {
+            self.retired = true;
+            let _ = self.materialization.unmount();
         }
-        self.retired = true;
-        let _ = self.materialization.unmount();
+        self.cached_subtree = None;
     }
 }
 
@@ -194,6 +325,8 @@ impl<Message> Drop for RuntimeVirtualLayoutRecord<Message> {
 pub(in crate::runtime) struct RuntimeVirtualLayoutState<Message> {
     records: Vec<RuntimeVirtualLayoutRecord<Message>>,
     next_mount_generation: u64,
+    #[cfg(test)]
+    materialization_passes: u32,
 }
 
 impl<Message> Default for RuntimeVirtualLayoutState<Message> {
@@ -201,6 +334,8 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
         Self {
             records: Vec::new(),
             next_mount_generation: 0,
+            #[cfg(test)]
+            materialization_passes: 0,
         }
     }
 }
@@ -215,25 +350,31 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             self.retire_all();
             return;
         }
-        let mut accepted = Vec::with_capacity(registrations.len());
-        for registration in registrations.iter().cloned() {
-            if accepted
+        let mut duplicate_containers = Vec::new();
+        for (index, registration) in registrations.iter().enumerate() {
+            if registrations[..index]
                 .iter()
-                .any(|current: &VirtualLayoutRegistration<Message>| {
-                    current.container_id == registration.container_id
-                })
+                .any(|previous| previous.container_id == registration.container_id)
+                && !duplicate_containers.contains(&registration.container_id)
             {
-                continue;
+                duplicate_containers.push(registration.container_id);
             }
-            accepted.push(registration);
         }
+        let accepted: Vec<_> = registrations
+            .iter()
+            .filter(|registration| !duplicate_containers.contains(&registration.container_id))
+            .cloned()
+            .collect();
 
         let mut index = 0;
         while index < self.records.len() {
             if !accepted.iter().any(|registration| {
                 registration.container_id == self.records[index].registration.container_id
             }) {
+                let previous_subtree = self.records[index].cached_subtree.clone();
+                let container_id = self.records[index].registration.container_id;
                 self.records.remove(index).retire();
+                suppress_cached_virtual_layout_subtree(surface, container_id, previous_subtree);
             } else {
                 index += 1;
             }
@@ -267,19 +408,61 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             }
         }
 
-        for record in &self.records {
-            if record.retired {
+        for index in 0..self.records.len() {
+            if self.records[index].retired {
                 continue;
             }
-            let Some(shell) = record.registration.lowered_shell() else {
+            let container_id = self.records[index].registration.container_id;
+            if let Some(cached) = &self.records[index].cached_subtree {
+                let installed = surface.install_virtual_layout_subtree(
+                    container_id,
+                    &cached.shell,
+                    &cached.registration,
+                    &cached.items,
+                );
+                if !installed {
+                    // The pulled surface no longer admits this mounted record.
+                    // Retire it without attempting to lower or retry the old
+                    // retained payloads.
+                    self.records[index].retire();
+                }
+                continue;
+            }
+            let Some(shell) = self.records[index].registration.lowered_shell() else {
+                self.records[index].retire();
                 continue;
             };
-            let _ = surface.replace_virtual_layout_shell(
-                record.registration.container_id,
+            if !surface.replace_virtual_layout_shell(
+                container_id,
                 shell,
-                record.registration.clone(),
-            );
+                self.records[index].registration.clone(),
+            ) {
+                self.records[index].retire();
+            }
         }
+    }
+
+    pub(super) fn requires_materialization(
+        &self,
+        layout: &crate::layout::LayoutOutput,
+        force_pass: bool,
+    ) -> bool {
+        self.records.iter().any(|record| {
+            if record.retired {
+                return false;
+            }
+            if force_pass || record.cached_subtree.is_none() {
+                return true;
+            }
+            let Some(viewport) = layout
+                .viewport_bounds
+                .get(&record.registration.container_id)
+                .copied()
+            else {
+                return true;
+            };
+            record.needs_query_for_viewport(viewport)
+        })
     }
 
     pub(super) fn materialize_surface(
@@ -287,32 +470,64 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         surface: &mut UiSurface<Message>,
         layout: &crate::layout::LayoutOutput,
     ) {
-        for record in &mut self.records {
-            if record.retired {
+        #[cfg(test)]
+        {
+            self.materialization_passes = self.materialization_passes.saturating_add(1);
+        }
+        for index in 0..self.records.len() {
+            if self.records[index].retired {
                 continue;
             }
+            let previous_subtree = self.records[index].cached_subtree.clone();
             let Some(viewport) = layout
                 .viewport_bounds
-                .get(&record.registration.container_id)
+                .get(&self.records[index].registration.container_id)
                 .copied()
             else {
-                let items = record.active_payloads();
-                let _ =
-                    surface.append_virtual_layout_items(record.registration.container_id, &items);
+                self.records[index].retire();
+                suppress_cached_virtual_layout_subtree(
+                    surface,
+                    self.records[index].registration.container_id,
+                    previous_subtree,
+                );
                 continue;
             };
-            if let Some(shell) = record.materialize(viewport) {
-                let items = record.active_payloads();
-                let _ = surface.install_virtual_layout_batch(
-                    record.registration.container_id,
-                    shell,
-                    record.registration.clone(),
-                    &items,
-                );
-            } else {
-                let items = record.active_payloads();
-                let _ =
-                    surface.append_virtual_layout_items(record.registration.container_id, &items);
+            match self.records[index].materialize(viewport) {
+                RuntimeVirtualLayoutMaterialization::Reused
+                | RuntimeVirtualLayoutMaterialization::Retained => {}
+                RuntimeVirtualLayoutMaterialization::Suppressed => {
+                    suppress_cached_virtual_layout_subtree(
+                        surface,
+                        self.records[index].registration.container_id,
+                        previous_subtree,
+                    );
+                }
+                RuntimeVirtualLayoutMaterialization::Retired => {
+                    suppress_cached_virtual_layout_subtree(
+                        surface,
+                        self.records[index].registration.container_id,
+                        previous_subtree,
+                    );
+                }
+                RuntimeVirtualLayoutMaterialization::Committed(batch) => {
+                    let container_id = self.records[index].registration.container_id;
+                    let installed = surface.install_virtual_layout_subtree(
+                        container_id,
+                        &batch.subtree.shell,
+                        &batch.subtree.registration,
+                        &batch.subtree.items,
+                    );
+                    if installed {
+                        self.records[index].commit_batch(*batch);
+                    } else {
+                        self.records[index].retire();
+                        suppress_cached_virtual_layout_subtree(
+                            surface,
+                            container_id,
+                            previous_subtree,
+                        );
+                    }
+                }
             }
         }
     }
@@ -333,6 +548,17 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.next_mount_generation = next;
         Some(next)
     }
+}
+
+fn suppress_cached_virtual_layout_subtree<Message>(
+    surface: &mut UiSurface<Message>,
+    container_id: crate::layout::NodeId,
+    subtree: Option<RuntimeVirtualLayoutSubtree<Message>>,
+) {
+    let Some(subtree) = subtree else {
+        return;
+    };
+    let _ = surface.replace_virtual_layout_shell(container_id, subtree.shell, subtree.registration);
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -360,6 +586,11 @@ where
     pub(super) fn materialize_virtual_layout_surface(&mut self) {
         self.virtual_layout
             .materialize_surface(&mut self.surface, &self.layout);
+    }
+
+    pub(super) fn requires_virtual_layout_materialization(&self, force_pass: bool) -> bool {
+        self.virtual_layout
+            .requires_materialization(&self.layout, force_pass)
     }
 
     pub(super) fn relayout_virtual_layout_for_geometry(&mut self) -> bool {
@@ -391,20 +622,25 @@ where
 mod tests {
     use super::*;
     use crate::{
-        application::{empty, scroll, text},
+        application::{View, empty, scroll, spacer, text},
         gui::types::{Rect, Vector2},
         layout::{
             ContainerKind, ContainerPolicy, OverflowPolicy, VirtualLayoutBoundsConfidence,
-            VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutExtentCandidate,
-            VirtualLayoutItemCandidate, VirtualLayoutItemKey, VirtualLayoutOverscan,
-            VirtualLayoutPolicy, VirtualLayoutPolicyDecision, VirtualLayoutPolicyIdentity,
-            VirtualLayoutQueryInput, VirtualLayoutQuerySink, VirtualLayoutVisibility,
+            VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason,
+            VirtualLayoutExtentCandidate, VirtualLayoutItemCandidate, VirtualLayoutItemKey,
+            VirtualLayoutOverscan, VirtualLayoutPolicy, VirtualLayoutPolicyDecision,
+            VirtualLayoutPolicyIdentity, VirtualLayoutQueryInput, VirtualLayoutQuerySink,
+            VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
         },
-        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface},
+        runtime::{
+            RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
+            surface::VirtualLayoutRegistrationRevisions,
+        },
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
 
     const CONTAINER_ID: u64 = 710;
+    const ROOT_ID: u64 = 711;
 
     struct ReadyPolicy {
         calls: Rc<Cell<u32>>,
@@ -438,22 +674,80 @@ mod tests {
         }
     }
 
+    struct ControlledPolicy {
+        calls: Rc<Cell<u32>>,
+        decision: Cell<VirtualLayoutPolicyDecision>,
+        key: u32,
+    }
+
+    impl VirtualLayoutPolicy for ControlledPolicy {
+        fn query(
+            &self,
+            _input: &VirtualLayoutQueryInput,
+            sink: &mut VirtualLayoutQuerySink,
+        ) -> VirtualLayoutPolicyDecision {
+            self.calls.set(self.calls.get().saturating_add(1));
+            let decision = self.decision.get();
+            if decision == VirtualLayoutPolicyDecision::Ready {
+                assert!(
+                    sink.visit(VirtualLayoutItemCandidate::new(
+                        VirtualLayoutItemKey::new(self.key),
+                        0,
+                        Rect::from_xy_size(0.0, 0.0, 100.0, 20.0),
+                        VirtualLayoutVisibility::Visible,
+                        VirtualLayoutBoundsConfidence::Exact,
+                    ))
+                    .is_ok()
+                );
+                assert!(
+                    sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
+                        100.0, 20.0,
+                    )))
+                    .is_ok()
+                );
+            }
+            decision
+        }
+    }
+
+    type VirtualLayoutItemFactory = Rc<dyn Fn(&crate::layout::VirtualLayoutItem) -> View<()>>;
+
+    struct RegistrationParts {
+        policy: Rc<dyn VirtualLayoutPolicy>,
+        policy_identity: VirtualLayoutPolicyIdentity,
+        revisions: VirtualLayoutRegistrationRevisions,
+        shell: Rc<dyn Fn() -> View<()>>,
+        item: VirtualLayoutItemFactory,
+        kind: Rc<dyn Fn(&crate::layout::VirtualLayoutItem) -> VirtualLayoutPolicyIdentity>,
+    }
+
+    fn registration_with_parts(parts: RegistrationParts) -> VirtualLayoutRegistration<()> {
+        VirtualLayoutRegistration::new(
+            CONTAINER_ID,
+            parts.policy_identity,
+            parts.policy,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutOverscan::new(0.0, 0.0).expect("finite overscan"),
+            VirtualLayoutBudget::new(4),
+            parts.revisions,
+            parts.shell,
+            parts.item,
+            parts.kind,
+        )
+    }
+
     fn registration(
         policy: Rc<dyn VirtualLayoutPolicy>,
         policy_identity: VirtualLayoutPolicyIdentity,
     ) -> VirtualLayoutRegistration<()> {
-        VirtualLayoutRegistration::new(
-            CONTAINER_ID,
-            policy_identity,
+        registration_with_parts(RegistrationParts {
             policy,
-            VirtualLayoutCoordinateSpace::logical(),
-            VirtualLayoutOverscan::new(0.0, 0.0).expect("finite overscan"),
-            VirtualLayoutBudget::new(4),
-            Default::default(),
-            Rc::new(|| scroll(empty::<()>())),
-            Rc::new(|_| text::<()>("virtual item")),
-            Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
-        )
+            policy_identity,
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        })
     }
 
     fn surface(registration: VirtualLayoutRegistration<()>) -> UiSurface<()> {
@@ -469,6 +763,82 @@ mod tests {
             )
             .with_virtual_layout_registration(registration),
         )
+    }
+
+    fn duplicate_surface(
+        first: VirtualLayoutRegistration<()>,
+        second: VirtualLayoutRegistration<()>,
+    ) -> UiSurface<()> {
+        let container = |registration| {
+            SurfaceNode::container(
+                CONTAINER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                Vec::<SurfaceChild<()>>::new(),
+            )
+            .with_virtual_layout_registration(registration)
+        };
+        UiSurface::new(SurfaceNode::container(
+            ROOT_ID,
+            ContainerPolicy::default(),
+            vec![
+                SurfaceChild::fill(container(first)),
+                SurfaceChild::fill(container(second)),
+            ],
+        ))
+    }
+
+    #[test]
+    fn duplicate_registration_rejects_all_candidates_without_a_winner() {
+        let first_calls = Rc::new(Cell::new(0));
+        let second_calls = Rc::new(Cell::new(0));
+        let first = registration_with_parts(RegistrationParts {
+            policy: Rc::new(ReadyPolicy {
+                calls: Rc::clone(&first_calls),
+                key: 9,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("duplicate-first-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("first item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("duplicate-first-kind")),
+        });
+        let second = registration_with_parts(RegistrationParts {
+            policy: Rc::new(ReadyPolicy {
+                calls: Rc::clone(&second_calls),
+                key: 10,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("duplicate-second-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("second item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("duplicate-second-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: duplicate_surface(first, second),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+
+        assert_eq!(runtime.surface().layout_node().id(), ROOT_ID);
+        assert!(runtime.virtual_layout.records.is_empty());
+        assert_eq!(first_calls.get(), 0);
+        assert_eq!(second_calls.get(), 0);
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("duplicate-registration surface should retain its root container");
+        };
+        assert_eq!(root.children.len(), 2);
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert!(runtime.virtual_layout.records.is_empty());
+        assert_eq!(first_calls.get(), 0);
+        assert_eq!(second_calls.get(), 0);
+        assert_eq!(runtime.surface().layout_node().id(), ROOT_ID);
     }
 
     struct TestBridge {
@@ -521,23 +891,71 @@ mod tests {
     #[test]
     fn unchanged_projection_reuses_the_active_window_without_requerying() {
         let calls = Rc::new(Cell::new(0));
+        let shell_constructions = Rc::new(Cell::new(0_u32));
+        let item_projections = Rc::new(Cell::new(0_u32));
+        let kind_projections = Rc::new(Cell::new(0_u32));
         let policy = Rc::new(ReadyPolicy {
             calls: Rc::clone(&calls),
             key: 2,
         });
+        let shell_counter = Rc::clone(&shell_constructions);
+        let item_counter = Rc::clone(&item_projections);
+        let kind_counter = Rc::clone(&kind_projections);
+        let registration = registration_with_parts(RegistrationParts {
+            policy,
+            policy_identity: VirtualLayoutPolicyIdentity::new("policy"),
+            revisions: Default::default(),
+            shell: Rc::new(move || {
+                shell_counter.set(shell_counter.get().saturating_add(1));
+                scroll(spacer::<()>())
+            }),
+            item: Rc::new(move |_| {
+                item_counter.set(item_counter.get().saturating_add(1));
+                text::<()>("virtual item")
+            }),
+            kind: Rc::new(move |_| {
+                kind_counter.set(kind_counter.get().saturating_add(1));
+                VirtualLayoutPolicyIdentity::new("item-kind")
+            }),
+        });
         let mut runtime = SurfaceRuntime::new(
             TestBridge {
-                surface: surface(registration(
-                    policy,
-                    VirtualLayoutPolicyIdentity::new("policy"),
-                )),
+                surface: surface(registration),
             },
             Vector2::new(160.0, 80.0),
         );
 
+        let before_refresh = (
+            calls.get(),
+            shell_constructions.get(),
+            item_projections.get(),
+            kind_projections.get(),
+            runtime.refresh_counters().layout,
+            runtime.virtual_layout.materialization_passes,
+        );
+        let _ = runtime.take_frame_refresh_diagnostics();
         runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
 
-        assert_eq!(calls.get(), 1);
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(
+            frame.effective_scope,
+            crate::runtime::RepaintScope::Projection,
+            "unchanged cached refresh evidence: {frame:?}"
+        );
+        assert_eq!(calls.get(), before_refresh.0);
+        assert_eq!(shell_constructions.get(), before_refresh.1);
+        assert_eq!(item_projections.get(), before_refresh.2);
+        assert_eq!(kind_projections.get(), before_refresh.3);
+        assert_eq!(runtime.refresh_counters().layout, before_refresh.4);
+        assert_eq!(
+            runtime.virtual_layout.materialization_passes,
+            before_refresh.5
+        );
+        assert!(runtime.base_paint_plan_reuse_eligible());
+        assert_eq!(
+            frame.view_delta.effect,
+            crate::runtime::surface::ViewDeltaEffect::Unchanged
+        );
         assert_eq!(
             runtime.virtual_layout.records[0]
                 .last_query
@@ -553,6 +971,394 @@ mod tests {
                 .len(),
             1
         );
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_some());
+    }
+
+    #[test]
+    fn conservative_shell_evidence_keeps_the_normal_fallback_path() {
+        let calls = Rc::new(Cell::new(0));
+        let shell_constructions = Rc::new(Cell::new(0_u32));
+        let shell_counter = Rc::clone(&shell_constructions);
+        let registration = registration_with_parts(RegistrationParts {
+            policy: Rc::new(ReadyPolicy {
+                calls: Rc::clone(&calls),
+                key: 6,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("conservative-shell-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(move || {
+                shell_counter.set(shell_counter.get().saturating_add(1));
+                scroll(empty::<()>())
+            }),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        let before_layout = runtime.refresh_counters().layout;
+        let before_materialization = runtime.virtual_layout.materialization_passes;
+        let before_shells = shell_constructions.get();
+        let before_calls = calls.get();
+
+        let _ = runtime.take_frame_refresh_diagnostics();
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        let frame = runtime.take_frame_refresh_diagnostics();
+        assert_eq!(frame.effective_scope, crate::runtime::RepaintScope::Surface);
+        assert_eq!(
+            frame.view_delta.effect,
+            crate::runtime::surface::ViewDeltaEffect::Structural
+        );
+        assert_eq!(runtime.refresh_counters().layout, before_layout + 1);
+        assert_eq!(
+            runtime.virtual_layout.materialization_passes,
+            before_materialization + 1
+        );
+        assert_eq!(shell_constructions.get(), before_shells);
+        assert_eq!(calls.get(), before_calls);
+        assert!(!runtime.base_paint_plan_reuse_eligible());
+    }
+
+    #[test]
+    fn deferred_query_retains_only_a_complete_matching_fallback_window() {
+        let calls = Rc::new(Cell::new(0));
+        let controlled = Rc::new(ControlledPolicy {
+            calls: Rc::clone(&calls),
+            decision: Cell::new(VirtualLayoutPolicyDecision::Ready),
+            key: 7,
+        });
+        let policy: Rc<dyn VirtualLayoutPolicy> = controlled.clone();
+        let initial = registration_with_parts(RegistrationParts {
+            policy: Rc::clone(&policy),
+            policy_identity: VirtualLayoutPolicyIdentity::new("deferred-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(initial),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        assert_eq!(calls.get(), 1);
+        let before_materialization = runtime.virtual_layout.materialization_passes;
+
+        controlled
+            .decision
+            .set(VirtualLayoutPolicyDecision::Deferred(
+                VirtualLayoutDeferredReason::DataPending,
+            ));
+        runtime.bridge_mut().surface = surface(registration_with_parts(RegistrationParts {
+            policy,
+            policy_identity: VirtualLayoutPolicyIdentity::new("deferred-policy"),
+            revisions: VirtualLayoutRegistrationRevisions {
+                viewport: 1,
+                ..Default::default()
+            },
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        }));
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(calls.get(), 2);
+        assert_eq!(
+            runtime.virtual_layout.materialization_passes,
+            before_materialization + 1
+        );
+        assert!(!runtime.virtual_layout.records[0].retired);
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_some());
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .len(),
+            1
+        );
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .last_query
+                .as_ref()
+                .expect("the deferred query must remain retryable")
+                .viewport_revision,
+            0
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("matching fallback should retain the active item");
+        };
+        assert_eq!(root.children.len(), 2);
+    }
+
+    #[test]
+    fn unavailable_query_suppresses_stale_items_and_remains_retryable() {
+        let calls = Rc::new(Cell::new(0));
+        let controlled = Rc::new(ControlledPolicy {
+            calls: Rc::clone(&calls),
+            decision: Cell::new(VirtualLayoutPolicyDecision::Ready),
+            key: 8,
+        });
+        let policy: Rc<dyn VirtualLayoutPolicy> = controlled.clone();
+        let initial = registration_with_parts(RegistrationParts {
+            policy: Rc::clone(&policy),
+            policy_identity: VirtualLayoutPolicyIdentity::new("unavailable-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(initial),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        assert_eq!(calls.get(), 1);
+
+        controlled
+            .decision
+            .set(VirtualLayoutPolicyDecision::Unavailable(
+                VirtualLayoutUnavailableReason::DataUnavailable,
+            ));
+        runtime.bridge_mut().surface = surface(registration_with_parts(RegistrationParts {
+            policy: Rc::clone(&policy),
+            policy_identity: VirtualLayoutPolicyIdentity::new("unavailable-policy"),
+            revisions: VirtualLayoutRegistrationRevisions {
+                data: 1,
+                ..Default::default()
+            },
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        }));
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(calls.get(), 2);
+        assert!(!runtime.virtual_layout.records[0].retired);
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_some());
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .last_query
+                .as_ref()
+                .expect("the unavailable query must remain retryable")
+                .data_revision,
+            0
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("unavailable fallback should retain the shell container");
+        };
+        assert_eq!(root.children.len(), 1);
+
+        controlled.decision.set(VirtualLayoutPolicyDecision::Ready);
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(calls.get(), 3);
+        assert!(!runtime.virtual_layout.records[0].retired);
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .last_query
+                .as_ref()
+                .expect("the retry should commit a new query")
+                .data_revision,
+            1
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("a successful retry should reinstall the active item");
+        };
+        assert_eq!(root.children.len(), 2);
+    }
+
+    #[test]
+    fn invalid_shell_lowering_retires_and_suppresses_without_retrying() {
+        let shell_constructions = Rc::new(Cell::new(0_u32));
+        let policy_calls = Rc::new(Cell::new(0));
+        let shell_counter = Rc::clone(&shell_constructions);
+        let registration = registration_with_parts(RegistrationParts {
+            policy: Rc::new(ReadyPolicy {
+                calls: Rc::clone(&policy_calls),
+                key: 3,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("invalid-shell-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(move || {
+                shell_counter.set(shell_counter.get().saturating_add(1));
+                text::<()>("invalid shell").id(CONTAINER_ID + 1)
+            }),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+
+        assert_eq!(shell_constructions.get(), 1);
+        assert_eq!(policy_calls.get(), 0);
+        assert!(runtime.virtual_layout.records[0].retired);
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_none());
+        assert!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .is_empty()
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("invalid shell test should retain the application container");
+        };
+        assert!(root.children.is_empty());
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(shell_constructions.get(), 1);
+        assert_eq!(policy_calls.get(), 0);
+        assert!(runtime.virtual_layout.records[0].retired);
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("invalid shell test should retain the application container");
+        };
+        assert!(root.children.is_empty());
+    }
+
+    #[test]
+    fn invalid_complete_batch_admission_retires_and_suppresses_without_retrying() {
+        let policy_calls = Rc::new(Cell::new(0));
+        let invalid_item_projections = Rc::new(Cell::new(0_u32));
+        let policy: Rc<dyn VirtualLayoutPolicy> = Rc::new(ReadyPolicy {
+            calls: Rc::clone(&policy_calls),
+            key: 4,
+        });
+        let valid_registration = registration_with_parts(RegistrationParts {
+            policy: Rc::clone(&policy),
+            policy_identity: VirtualLayoutPolicyIdentity::new("batch-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("valid item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let invalid_item_counter = Rc::clone(&invalid_item_projections);
+        let invalid_registration = registration_with_parts(RegistrationParts {
+            policy,
+            policy_identity: VirtualLayoutPolicyIdentity::new("batch-policy"),
+            revisions: VirtualLayoutRegistrationRevisions {
+                data: 1,
+                ..Default::default()
+            },
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(move |_| {
+                invalid_item_counter.set(invalid_item_counter.get().saturating_add(1));
+                text::<()>("invalid item").id(CONTAINER_ID + 1)
+            }),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(valid_registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        assert_eq!(policy_calls.get(), 1);
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("valid virtual shell should remain a layout container");
+        };
+        assert_eq!(root.children.len(), 2);
+
+        runtime.bridge_mut().surface = surface(invalid_registration);
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(policy_calls.get(), 2);
+        assert_eq!(invalid_item_projections.get(), 1);
+        assert!(runtime.virtual_layout.records[0].retired);
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_none());
+        assert!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .is_empty()
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("retired virtual batch should retain only the shell");
+        };
+        assert_eq!(root.children.len(), 1);
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(policy_calls.get(), 2);
+        assert_eq!(invalid_item_projections.get(), 1);
+        assert!(runtime.virtual_layout.records[0].retired);
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("retired virtual batch should remain suppressed");
+        };
+        assert!(root.children.len() <= 1);
+    }
+
+    #[test]
+    fn coordinator_begin_error_retires_and_suppresses_without_retrying() {
+        let policy_calls = Rc::new(Cell::new(0));
+        let policy: Rc<dyn VirtualLayoutPolicy> = Rc::new(ReadyPolicy {
+            calls: Rc::clone(&policy_calls),
+            key: 5,
+        });
+        let initial_registration = registration_with_parts(RegistrationParts {
+            policy: Rc::clone(&policy),
+            policy_identity: VirtualLayoutPolicyIdentity::new("regression-policy"),
+            revisions: VirtualLayoutRegistrationRevisions {
+                data: 2,
+                ..Default::default()
+            },
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let regressed_registration = registration_with_parts(RegistrationParts {
+            policy,
+            policy_identity: VirtualLayoutPolicyIdentity::new("regression-policy"),
+            revisions: VirtualLayoutRegistrationRevisions {
+                data: 1,
+                ..Default::default()
+            },
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(initial_registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        assert_eq!(policy_calls.get(), 1);
+
+        runtime.bridge_mut().surface = surface(regressed_registration);
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(policy_calls.get(), 1);
+        assert!(runtime.virtual_layout.records[0].retired);
+        assert!(runtime.virtual_layout.records[0].cached_subtree.is_none());
+        assert!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .is_empty()
+        );
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("coordinator failure should retain only the shell");
+        };
+        assert_eq!(root.children.len(), 1);
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(policy_calls.get(), 1);
+        assert!(runtime.virtual_layout.records[0].retired);
+        let crate::layout::LayoutNode::Container(root) = runtime.surface().layout_node() else {
+            panic!("coordinator failure should remain suppressed");
+        };
+        assert!(root.children.len() <= 1);
     }
 
     #[test]

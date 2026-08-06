@@ -1675,6 +1675,13 @@ where
     {
         return false;
     }
+    if !runtime.virtual_layout.is_empty()
+        && runtime
+            .virtual_layout
+            .requires_materialization(&runtime.layout, false)
+    {
+        return false;
+    }
     let Some(completed) = runtime.completed_layout else {
         return false;
     };
@@ -1684,16 +1691,6 @@ where
         && completed.layout_debug_options == runtime.layout_debug_options
         && !runtime.external_layout_dirty
         && !runtime.layout_engine.has_explicit_dirty()
-}
-
-fn can_reuse_base_paint_plan<Bridge, Message>(
-    runtime: &SurfaceRuntime<Bridge, Message>,
-    decision: RefreshExecutionDecision,
-) -> bool
-where
-    Bridge: RuntimeBridge<Message>,
-{
-    decision.allows_base_paint_plan_reuse() && can_reuse_completed_layout(runtime, decision)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1770,21 +1767,6 @@ where
             .saturating_add(1);
 
         let view_delta_started = Instant::now();
-        let mut raw_view_delta =
-            classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
-        let mut execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
-        let mut effective_scope = execution.effective_scope();
-        let mut reuse_completed_layout = can_reuse_completed_layout(self, execution);
-        self.base_paint_plan_reuse_eligible = can_reuse_base_paint_plan(self, execution);
-        let mut damage = SurfaceDamage::from_view_delta(
-            &raw_view_delta,
-            &raw_view_delta.reconciliation_plan(),
-            &self.surface,
-            &self.layout,
-            self.viewport,
-        );
-        let mut view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
-
         std::mem::swap(
             &mut self.traversal.widgets.paths.previous,
             &mut self.traversal.widgets.paths.current,
@@ -1809,6 +1791,27 @@ where
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
             );
+        }
+
+        let mut raw_view_delta =
+            classify_view_delta(&self.surface, &next_surface, &mut self.scratch.view_delta);
+        let mut execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
+        let mut effective_scope = execution.effective_scope();
+        let reuse_completed_layout = can_reuse_completed_layout(self, execution);
+        self.base_paint_plan_reuse_eligible =
+            execution.allows_base_paint_plan_reuse() && reuse_completed_layout;
+        let mut damage = SurfaceDamage::from_view_delta(
+            &raw_view_delta,
+            &raw_view_delta.reconciliation_plan(),
+            &self.surface,
+            &self.layout,
+            self.viewport,
+        );
+        let mut view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
+
+        let virtual_layout_pass_required = !self.virtual_layout.is_empty()
+            && self.requires_virtual_layout_materialization(!reuse_completed_layout);
+        if virtual_layout_pass_required {
             self.layout_engine.layout_with_state_into(
                 &layout_root,
                 self.viewport,
@@ -1823,7 +1826,6 @@ where
             view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
             execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
             effective_scope = execution.effective_scope();
-            reuse_completed_layout = false;
             self.base_paint_plan_reuse_eligible = false;
             damage = SurfaceDamage::from_view_delta(
                 &raw_view_delta,

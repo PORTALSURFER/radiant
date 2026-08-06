@@ -32,6 +32,8 @@ pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,
     SurfaceTraversalStats, SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
+#[cfg(test)]
+pub(in crate::runtime) use virtual_layout::VirtualLayoutRegistrationRevisions;
 pub(in crate::runtime) use virtual_layout::{
     MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration,
 };

@@ -44,8 +44,12 @@ where
         // happens before commands newly admitted below, so even a synchronous
         // host completion cannot re-enter execution.
         for delivery in platform_results {
-            if let Some(message) = self.platform_registry.map_delivery(delivery) {
-                self.dispatch_message_inner(message, &mut outcome);
+            if let Some(mapped) = self.platform_registry.map_delivery(delivery) {
+                self.dispatch_message_inner_with_origin(
+                    mapped.message,
+                    &mut outcome,
+                    mapped.origin,
+                );
             }
         }
 
@@ -130,23 +134,32 @@ where
                         }
                     }
                     RuntimeQueueItem::Delivery(delivery) => {
-                        let message =
-                            match delivery.downcast::<crate::runtime::PlatformResultDelivery>() {
-                                Ok(delivery) => self.platform_registry.map_delivery(delivery),
-                                Err(delivery) => {
-                                    self.host_capabilities
-                                        .queues
-                                        .as_ref()
-                                        .and_then(|capability| {
-                                            (capability.map_runtime_queue_delivery)(
-                                                &mut self.bridge,
-                                                delivery,
-                                            )
-                                        })
+                        match delivery.downcast::<crate::runtime::PlatformResultDelivery>() {
+                            Ok(delivery) => {
+                                if let Some(mapped) = self.platform_registry.map_delivery(delivery)
+                                {
+                                    self.dispatch_message_inner_with_origin(
+                                        mapped.message,
+                                        &mut outcome,
+                                        mapped.origin,
+                                    );
                                 }
-                            };
-                        if let Some(message) = message {
-                            self.dispatch_message_inner(message, &mut outcome);
+                            }
+                            Err(delivery) => {
+                                if let Some(message) = self
+                                    .host_capabilities
+                                    .queues
+                                    .as_ref()
+                                    .and_then(|capability| {
+                                        (capability.map_runtime_queue_delivery)(
+                                            &mut self.bridge,
+                                            delivery,
+                                        )
+                                    })
+                                {
+                                    self.dispatch_message_inner(message, &mut outcome);
+                                }
+                            }
                         }
                     }
                 }

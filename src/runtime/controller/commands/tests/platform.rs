@@ -212,7 +212,311 @@ impl RuntimePlatformResultHost for SynchronousResultBridge {
         Ok(())
     }
 }
+
+#[derive(Default)]
+struct AuxiliaryResultBridge {
+    sinks: Vec<RuntimePlatformResultSink>,
+    seen: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for AuxiliaryResultBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+        self.seen.push(message);
+        match message {
+            1 => crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 2),
+            2 => crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 3),
+            _ => crate::runtime::Command::none(),
+        }
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for AuxiliaryResultBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct AuxiliaryFallbackBridge {
+    seen: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for AuxiliaryFallbackBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+        self.seen.push(message);
+        match message {
+            1 => crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 2),
+            2 => crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 3),
+            _ => crate::runtime::Command::none(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct AuxiliaryQueueBridge {
+    items: Vec<RuntimeQueueItem<usize>>,
+    sinks: Vec<RuntimePlatformResultSink>,
+    seen: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for AuxiliaryQueueBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+        self.seen.push(message);
+        if message == 1 {
+            crate::runtime::Command::platform_request(PlatformRequest::ReadText, |_| 2)
+        } else {
+            crate::runtime::Command::none()
+        }
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new()
+            .with_queues()
+            .with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for AuxiliaryQueueBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
+impl RuntimeQueueHost<usize> for AuxiliaryQueueBridge {
+    fn drain_runtime_queue_item_batch_into(
+        &mut self,
+        items: &mut Vec<RuntimeQueueItem<usize>>,
+        _max_items: usize,
+    ) -> bool {
+        items.append(&mut self.items);
+        false
+    }
+}
+
+#[derive(Default)]
+struct IsolationPlatformBridge {
+    sinks: Vec<RuntimePlatformResultSink>,
+    mapped: std::rc::Rc<std::cell::RefCell<Vec<usize>>>,
+    seen: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for IsolationPlatformBridge {
+    fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<usize>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+        self.seen.push(message);
+        if (1..=4).contains(&message) {
+            let mapped = std::rc::Rc::clone(&self.mapped);
+            crate::runtime::Command::platform_request(PlatformRequest::ReadText, move |_| {
+                let value = message * 10;
+                mapped.borrow_mut().push(value);
+                value
+            })
+        } else {
+            crate::runtime::Command::none()
+        }
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for IsolationPlatformBridge {
+    fn request_platform_result(
+        &mut self,
+        _request: PlatformRequest,
+        sink: RuntimePlatformResultSink,
+    ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        self.sinks.push(sink);
+        Ok(())
+    }
+}
+
 use std::path::PathBuf;
+
+#[test]
+fn auxiliary_platform_result_host_preserves_origin_through_chained_commands() {
+    let mut runtime =
+        SurfaceRuntime::new(AuxiliaryResultBridge::default(), Vector2::new(100.0, 100.0));
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+    assert_eq!(
+        runtime
+            .dispatch_message_from_auxiliary(1, owner.clone())
+            .messages_dispatched,
+        1
+    );
+    let first = runtime
+        .bridge_mut()
+        .sinks
+        .pop()
+        .expect("first platform sink");
+    first.send(Ok(PlatformResponse::Completed));
+
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+    assert_eq!(runtime.bridge().sinks.len(), 1);
+
+    // The chained request must retain the same private origin. Retiring the
+    // exact auxiliary generation therefore drops it before its mapper runs.
+    assert!(runtime.retire_auxiliary_effect_owner(&owner));
+    let chained = runtime
+        .bridge_mut()
+        .sinks
+        .pop()
+        .expect("chained platform sink");
+    chained.send(Ok(PlatformResponse::Completed));
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+}
+
+#[test]
+fn auxiliary_platform_fallback_preserves_origin_through_chained_commands() {
+    let mut runtime = SurfaceRuntime::new(
+        AuxiliaryFallbackBridge::default(),
+        Vector2::new(100.0, 100.0),
+    );
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+    runtime.dispatch_message_from_auxiliary(1, owner.clone());
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+
+    // The fallback completion enqueued by message 2 is also owner-scoped.
+    assert!(runtime.retire_auxiliary_effect_owner(&owner));
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+}
+
+#[test]
+fn auxiliary_platform_queue_delivery_maps_once_with_origin_and_fences_duplicate() {
+    let mut runtime =
+        SurfaceRuntime::new(AuxiliaryQueueBridge::default(), Vector2::new(100.0, 100.0));
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+    runtime.dispatch_message_from_auxiliary(1, owner);
+    runtime
+        .bridge_mut()
+        .items
+        .push(RuntimeQueueItem::Delivery(RuntimeQueueDelivery::new(
+            PlatformResultDelivery::Completed {
+                identity: crate::runtime::PlatformCompletionIdentity { id: 1, epoch: 1 },
+                result: Ok(PlatformResponse::Completed),
+            },
+        )));
+
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+
+    // The retained result-host sink represents a duplicate late delivery for
+    // the same identity after the queue item consumed the one-shot mapper.
+    let duplicate = runtime
+        .bridge_mut()
+        .sinks
+        .pop()
+        .expect("retained platform sink");
+    duplicate.send(Ok(PlatformResponse::Completed));
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(runtime.bridge().seen, [1, 2]);
+}
+
+#[test]
+fn auxiliary_platform_retirement_isolates_application_sibling_and_new_generation() {
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let bridge = IsolationPlatformBridge {
+        mapped: std::rc::Rc::clone(&mapped),
+        ..IsolationPlatformBridge::default()
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    let old_owner = runtime.acquire_auxiliary_effect_owner("settings");
+    let sibling_owner = runtime.acquire_auxiliary_effect_owner("inspector");
+
+    runtime.dispatch_message(1);
+    runtime.dispatch_message_from_auxiliary(2, old_owner.clone());
+    runtime.dispatch_message_from_auxiliary(3, sibling_owner);
+    assert!(runtime.retire_auxiliary_effect_owner(&old_owner));
+    let new_owner = runtime.acquire_auxiliary_effect_owner("settings");
+    runtime.dispatch_message_from_auxiliary(4, new_owner);
+
+    let sinks = std::mem::take(&mut runtime.bridge_mut().sinks);
+    for sink in sinks {
+        sink.send(Ok(PlatformResponse::Completed));
+    }
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 3);
+    assert_eq!(*mapped.borrow(), [10, 30, 40]);
+    assert_eq!(runtime.bridge().seen, [1, 2, 3, 4, 10, 30, 40]);
+}
+
+#[test]
+fn auxiliary_platform_completion_survives_recovery_and_retained_cached_generation() {
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let bridge = IsolationPlatformBridge {
+        mapped: std::rc::Rc::clone(&mapped),
+        ..IsolationPlatformBridge::default()
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+    runtime.dispatch_message_from_auxiliary(1, owner.clone());
+    assert!(runtime.begin_native_recovery());
+    assert!(runtime.finish_native_recovery());
+    // Cache-on-close keeps the same generation, so it is intentionally not
+    // retired while hidden and can complete after recovery.
+    assert!(runtime.auxiliary_effect_owner_is_active(&owner));
+
+    runtime
+        .bridge_mut()
+        .sinks
+        .pop()
+        .expect("platform sink")
+        .send(Ok(PlatformResponse::Completed));
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(*mapped.borrow(), [10]);
+    assert_eq!(runtime.bridge().seen, [1, 10]);
+}
 
 #[test]
 fn platform_request_dispatches_through_bridge_completion() {
@@ -566,28 +870,36 @@ fn frozen_platform_overflow_precedes_mapper_enqueued_arrival() {
         crate::gui::types::Vector2::new(100.0, 100.0),
     );
     let ingress = std::sync::Arc::clone(&runtime.platform_results);
-    let enqueued_identity = runtime.platform_registry.register(Box::new(|_| 9));
+    let enqueued_identity = runtime
+        .platform_registry
+        .register(Box::new(|_| 9), &EffectOrigin::Application);
 
     let mapper_ingress = std::sync::Arc::clone(&ingress);
-    let first_identity = runtime.platform_registry.register(Box::new(move |_| {
-        let reservation =
-            crate::runtime::controller::platform::PlatformResultIngress::reserve(&mapper_ingress)
-                .expect("new mapper arrival should fit behind frozen work");
-        assert!(reservation.commit(PlatformResultDelivery::Completed {
-            identity: enqueued_identity,
-            result: Err(String::from("new")),
-        }));
-        0
-    }));
+    let first_identity = runtime.platform_registry.register(
+        Box::new(move |_| {
+            let reservation = crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                &mapper_ingress,
+            )
+            .expect("new mapper arrival should fit behind frozen work");
+            assert!(reservation.commit(PlatformResultDelivery::Completed {
+                identity: enqueued_identity,
+                result: Err(String::from("new")),
+            }));
+            0
+        }),
+        &EffectOrigin::Application,
+    );
     let mut pending_identities = vec![first_identity];
     for message in 1..8 {
         pending_identities.push(
             runtime
                 .platform_registry
-                .register(Box::new(move |_| message)),
+                .register(Box::new(move |_| message), &EffectOrigin::Application),
         );
     }
-    let overflow_identity = runtime.platform_registry.register(Box::new(|_| 8));
+    let overflow_identity = runtime
+        .platform_registry
+        .register(Box::new(|_| 8), &EffectOrigin::Application);
     for identity in pending_identities {
         let reservation =
             crate::runtime::controller::platform::PlatformResultIngress::reserve(&ingress)

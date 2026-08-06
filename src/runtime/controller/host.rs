@@ -1,6 +1,7 @@
 //! Cached dispatch for explicitly enabled host capabilities.
 
 use super::SurfaceRuntime;
+use super::owner::EffectOrigin;
 use crate::{
     gui::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
@@ -113,16 +114,17 @@ where
             })
     }
 
-    pub(crate) fn host_request_platform_service(
+    pub(in crate::runtime::controller) fn host_request_platform_service(
         &mut self,
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
+        origin: &EffectOrigin,
     ) -> Result<(), PlatformServiceFallback<Message>> {
         if !self.lifecycle_accepts_work() {
             return Err(Box::new((request, on_completed)));
         }
         if self.host_capabilities.platform_result.is_some() {
-            let identity = self.platform_registry.register(on_completed);
+            let identity = self.platform_registry.register(on_completed, origin);
             let Some(reservation) =
                 crate::runtime::controller::platform::PlatformResultIngress::reserve(
                     &self.platform_results,

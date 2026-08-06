@@ -373,9 +373,11 @@ where
                 request,
                 on_completed,
             } => {
-                if let Err(fallback) = self.host_request_platform_service(request, on_completed) {
+                if let Err(fallback) =
+                    self.host_request_platform_service(request, on_completed, &origin)
+                {
                     let (_request, on_completed) = *fallback;
-                    let identity = self.platform_registry.register(on_completed);
+                    let identity = self.platform_registry.register(on_completed, &origin);
                     if let Some(reservation) =
                         crate::runtime::controller::platform::PlatformResultIngress::reserve(
                             &self.platform_results,

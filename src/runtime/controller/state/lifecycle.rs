@@ -174,6 +174,7 @@ where
         owner.retire();
         self.worker_effects.retire_auxiliary_owner(owner);
         self.timer_effects.retire_auxiliary_owner(owner);
+        self.platform_registry.retire_auxiliary_owner(owner);
         self.auxiliary_effect_owners.remove(owner.key());
         true
     }

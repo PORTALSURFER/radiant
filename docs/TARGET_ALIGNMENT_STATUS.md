@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`d63a7f32`**
-- Overall estimate: **~77%**
-- Working range: **71–83%**
+- Canonical main: **`bd296da3`**
+- Overall estimate: **~79%**
+- Working range: **73–85%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -28,14 +28,17 @@ Runtime materialization/consumer integration gaps remain.
 PR #1606 now ships the normative runtime consumer boundary as a docs-only
 contract. PR #1607 ships the first executable private retained-item admission
 prerequisite: tuple-scoped fallible lowering, deterministic wrapper identity,
-and custom-widget output guarding. The complete batch adapter remains separate
-from the `SurfaceRuntime` registration/two-pass bridge, so the numeric estimate
-is unchanged because no runtime consumer behavior shipped.
+and custom-widget output guarding. PR #1608 now ships the complete private
+shell-plus-active-batch adapter with exact accepted-key/slot admission and
+immutable payload construction. The separate `SurfaceRuntime`
+registration/two-pass bridge remains unshipped, so the estimate moves only
+modestly and does not claim direct runtime consumer behavior.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the virtualization consumer boundary is contract-ready and its
-item-level admission prerequisite is shipped, but whole-batch admission,
-direct registration, and the two-pass `SurfaceRuntime` bridge are not shipped.
+item-level and whole-batch admission layers are shipped, but materialization
+store/runtime registration and the two-pass `SurfaceRuntime` bridge are not
+shipped.
 
 ## Alignment by category
 
@@ -44,7 +47,7 @@ direct registration, and the two-pass `SurfaceRuntime` bridge are not shipped.
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
-| Layout, composition, virtualization | 88% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, and the tuple-scoped private retained-item admission prerequisite are shipped in PRs #1597–#1607. Whole-batch admission, direct registration/two-pass integration, product-specific `split_pane` behavior, and the remaining executable product virtualization proof remain unshipped. |
+| Layout, composition, virtualization | 91% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, and the tuple-scoped plus complete private retained-item adapters are shipped in PRs #1597–#1608. Materialization-store/runtime registration, direct two-pass integration, product-specific `split_pane` behavior, and the remaining executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
@@ -99,9 +102,12 @@ The current foundation includes:
   product integration remain future);
 - the crate-private tuple-scoped, fallible retained-item admission prerequisite
   with deterministic wrapper identity, declarative and custom-widget output
-  guards, typed identity/scene rejection, and panic containment (PR #1607;
-  whole-batch admission, materialization integration, and runtime registration
-  remain future); and
+  guards, typed identity/scene rejection, and panic containment (PR #1607);
+- the crate-private complete retained-item batch adapter with exact accepted
+  key/slot matching, whole-shell-plus-active-batch identity admission,
+  bounded slot-scope validation, immutable `SurfaceNode` payloads, and
+  recoverable pre-lifecycle rejection (PR #1608; materialization-store
+  integration and runtime registration remain future); and
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -117,17 +123,18 @@ implementation sequence:
 virtual-container generation, with shell-discoverable registration evidence and
 a synchronous two-stage mount/refresh boundary. Direct registration is blocked
 on completing two prerequisites. PR #1607 provides the item-level fallible
-scoped `ViewNode` lowering and immutable widget-leaf admission foundation; the
-next executable **private retained-item batch adapter** must add whole-shell
-plus active-batch identity admission and materialization-store projection. A
-separate later PR must provide the `SurfaceRuntime` registration/two-pass
-bridge.
+scoped `ViewNode` lowering and immutable widget-leaf admission foundation, and
+PR #1608 completes the private whole-shell plus active-batch adapter and
+immutable payload boundary. A separate later PR must provide the
+`SurfaceRuntime` registration/two-pass bridge and connect the adapter to the
+existing materialization store.
 
 No executable virtual consumer behavior is shipped by PR #1606's contract
-update. PR #1607 is an item-level admission prerequisite only; the current
-coordinator and materialization kernel remain private correctness foundations,
-they are not registered with `SurfaceRuntime`, and no public registration/API
-or capability contract version has changed.
+update. PR #1607 remains the item-level admission prerequisite; PR #1608
+completes the private batch adapter. The current coordinator and
+materialization kernel remain private correctness foundations, they are not
+registered with `SurfaceRuntime`, and no public registration/API or capability
+contract version has changed.
 
 ## Remaining gaps, ordered by leverage
 
@@ -136,15 +143,15 @@ or capability contract version has changed.
    query-only capability, PR #1604 shipped private accepted-window
    reconciliation with logical-index deltas, conservative anchor/fallback
    evidence, and exact owner/revision fences, and PR #1605 shipped the private
-   bounded materialization/recycling correctness kernel. PR #1607 now provides
+   bounded materialization/recycling correctness kernel. PR #1607 provided
    the tuple-scoped item-level admission prerequisite, including custom-widget
-   output guarding. Direct runtime registration is still blocked on the
-   complete private retained-item batch adapter and the separate
+   output guarding, and PR #1608 completed the private retained-item batch
+   adapter with whole-shell/active-batch admission and immutable payloads.
+   Direct runtime registration is still blocked on the separate
    `SurfaceRuntime` registration/two-pass bridge defined in the normative
-   contract. The next executable PR is explicitly the **private retained-item
-   batch adapter**: it adapts accepted keyed slots into whole-shell plus
-   active-batch identity admission, fallible scoped `ViewNode` lowering, and
-   immutable `SurfaceNode` payloads without scheduling or product state. Add `split_pane`
+   contract. The next executable PR is explicitly that private runtime bridge;
+   it must connect the accepted adapter output to one runtime-owned
+   materialization record without scheduling or product state. Add `split_pane`
    interaction/state/ratio semantics only when the product contract is defined;
    PR #1601 supplies the generic runtime state lifecycle needed by these slices.
 2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
@@ -179,6 +186,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Query-only visible-window coordinator](../src/gui/layout_core/virtual_layout/coordinator.rs)
 - [Private materialization/recycling kernel](../src/gui/layout_core/virtual_layout/materialization.rs)
 - [Private retained-item admission prerequisite](../src/application/view_node/virtual_layout.rs)
+- [Private retained-item batch adapter](../src/gui/layout_core/virtual_layout/adapter.rs)
 - [Query capability public tests](../tests/virtual_layout_public_api.rs)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
 - [Value mapping](../src/widgets/interaction/value.rs)
@@ -220,4 +228,5 @@ After each merged alignment slice:
 | 2026-08-05 | `4d2718e7` | ~77% (71–83%, medium confidence) | PR #1605 shipped the private query-only materialization/recycling correctness kernel with exact accepted-commit admission, keyed slot/generation continuity, deterministic lifecycle ordering, success-only atomic publication, terminal fail-stop lifecycle retirement, bounded diagnostics, and full local/CI validation; the next generic gap is runtime consumer registration/adaptation into retained `ViewNode`/`SurfaceNode` construction, while replacement/recovery policy and product-specific `split_pane` behavior remain deferred. |
 | 2026-08-06 | `0bf39879` | ~77% (71–83%, medium confidence) | The normative runtime consumer boundary was contract-ready on the PR #1606 base; direct registration remained blocked on the private retained-item admission adapter and a separate `SurfaceRuntime` registration/two-pass bridge; no runtime behavior, public API, or capability version changed. |
 | 2026-08-06 | `21e7b62a` | ~77% (71–83%, medium confidence) | PR #1606 merged the docs-only normative runtime consumer boundary with exact `SurfaceRuntime` ownership, synchronous shell/item sequencing, batch identity admission, fallible scoped lowering, immutable retained payloads, and explicit close/failure rules. The estimate remains unchanged because direct runtime registration and retained-item admission are still unshipped; the next dependency-correct item is the private retained-item adapter. |
-| 2026-08-06 | `d63a7f32` | ~77% (71–83%, medium confidence) | PR #1607 merged the private tuple-scoped retained-item admission prerequisite with deterministic wrapper identity, declarative/custom-widget output guards, typed rejection, panic containment, and focused/full validation. The estimate remains unchanged because whole-batch admission, materialization integration, and direct runtime registration are still unshipped; the next dependency-correct item is the complete private retained-item batch adapter. |
+| 2026-08-06 | `d63a7f32` | ~77% (71–83%, medium confidence) | PR #1607 merged the private tuple-scoped retained-item admission prerequisite with deterministic wrapper identity, declarative/custom-widget output guards, typed rejection, panic containment, and focused/full validation. The estimate remained unchanged because whole-batch admission, materialization integration, and direct runtime registration were still unshipped; the next dependency-correct item was the complete private retained-item batch adapter. |
+| 2026-08-06 | `bd296da3` | ~79% (73–85%, medium confidence) | PR #1608 merged the private complete retained-item batch adapter with exact accepted-key/slot matching, whole-shell-plus-active-batch identity admission, deterministic tuple-scoped wrappers, immutable `SurfaceNode` payloads, typed recoverable rejection, 57 focused tests, full local validation, green CI, and exact-head Terra APPROVE. The estimate moves modestly because materialization-store integration and the separate `SurfaceRuntime` registration/two-pass bridge remain unshipped; that bridge is the next dependency-correct item. |

@@ -9,8 +9,9 @@ use super::{
     },
     post_gpu_overlay,
     retained_paint_segments::{
-        NativePaintSegmentBenefitLedger, NativePaintSegmentEligibilityPlan,
-        NativeRetainedPaintSegmentStore, assemble_native_paint_segment_fingerprints,
+        NativePaintSegmentBenefitAssemblyInput, NativePaintSegmentBenefitLedger,
+        NativePaintSegmentEligibilityPlan, NativeRetainedPaintSegmentStore,
+        assemble_native_paint_segment_fingerprints,
         classify_native_paint_segment_eligibility_with_spans,
     },
     runtime_helpers::{
@@ -378,16 +379,16 @@ impl NativeVelloFrameState {
             bundle.append_count,
         );
         self.native_paint_segment_benefit_ledger
-            .record_successful_assembly(
-                benefit_paint,
-                benefit_encoding,
-                benefit_feasibility,
-                self.last_native_paint_segment_eligibility,
-                benefit_target_generation,
-                benefit_fresh_count,
-                benefit_reused_count,
-                benefit_append_count,
-            );
+            .record_successful_assembly(NativePaintSegmentBenefitAssemblyInput {
+                paint: benefit_paint,
+                encoding: benefit_encoding,
+                feasibility: benefit_feasibility,
+                plan: self.last_native_paint_segment_eligibility,
+                target_generation: benefit_target_generation,
+                fresh_count: benefit_fresh_count,
+                reused_count: benefit_reused_count,
+                append_count: benefit_append_count,
+            });
         Ok(())
     }
 

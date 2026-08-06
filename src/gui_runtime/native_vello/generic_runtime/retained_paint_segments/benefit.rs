@@ -10,8 +10,8 @@ use super::super::scene::{
     EncodingIsolation, PaintSegmentEncodingObservation, SafeEnclosure, segment_local_count_delta,
 };
 use super::{
-    NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityOutcome,
-    NativePaintSegmentEligibilityPlan,
+    NativePaintSegmentBenefitAssemblyInput, NativePaintSegmentEligibilityDisposition,
+    NativePaintSegmentEligibilityOutcome,
 };
 use crate::runtime::{
     MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentSpan,
@@ -140,25 +140,9 @@ impl NativePaintSegmentBenefitLedger {
 
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_successful_assembly(
         &mut self,
-        paint: PaintSegmentObservation,
-        encoding: PaintSegmentEncodingObservation,
-        feasibility: ArtifactFeasibilityObservation,
-        plan: NativePaintSegmentEligibilityPlan,
-        target_generation: NativeTargetGeneration,
-        fresh_count: usize,
-        reused_count: usize,
-        append_count: usize,
+        input: NativePaintSegmentBenefitAssemblyInput,
     ) {
-        let Some(observation) = build_assembly_observation(
-            paint,
-            encoding,
-            feasibility,
-            plan,
-            target_generation,
-            fresh_count,
-            reused_count,
-            append_count,
-        ) else {
+        let Some(observation) = build_assembly_observation(input) else {
             self.record_unavailable();
             return;
         };
@@ -362,15 +346,18 @@ fn build_full_encode_observation(
 }
 
 fn build_assembly_observation(
-    paint: PaintSegmentObservation,
-    encoding: PaintSegmentEncodingObservation,
-    feasibility: ArtifactFeasibilityObservation,
-    plan: NativePaintSegmentEligibilityPlan,
-    target_generation: NativeTargetGeneration,
-    fresh_count: usize,
-    reused_count: usize,
-    append_count: usize,
+    input: NativePaintSegmentBenefitAssemblyInput,
 ) -> Option<NativePaintSegmentBenefitObservation> {
+    let NativePaintSegmentBenefitAssemblyInput {
+        paint,
+        encoding,
+        feasibility,
+        plan,
+        target_generation,
+        fresh_count,
+        reused_count,
+        append_count,
+    } = input;
     if !matches!(plan.outcome, NativePaintSegmentEligibilityOutcome::Plan)
         || paint.all_implicated
         || append_count == 0
@@ -547,7 +534,10 @@ fn valid_observation(observation: NativePaintSegmentBenefitObservation) -> bool 
 
 #[cfg(test)]
 mod tests {
-    use super::super::{NativePaintSegmentFingerprint, NativePaintSegmentFreshEncodingReason};
+    use super::super::{
+        NativePaintSegmentEligibilityPlan, NativePaintSegmentFingerprint,
+        NativePaintSegmentFreshEncodingReason,
+    };
     use super::*;
     use crate::gui_runtime::native_vello::generic_runtime::scene::{
         ArtifactFeasibilityCheckpoint, ArtifactFeasibilityDisposition, ArtifactFeasibilitySegment,
@@ -696,7 +686,16 @@ mod tests {
         let plan = plan_for(&[1, 2, 3], &[1, 2, 1], generation, Some(1));
         let mut ledger = NativePaintSegmentBenefitLedger::default();
 
-        ledger.record_successful_assembly(paint, encoding, feasibility, plan, generation, 1, 2, 3);
+        ledger.record_successful_assembly(NativePaintSegmentBenefitAssemblyInput {
+            paint,
+            encoding,
+            feasibility,
+            plan,
+            target_generation: generation,
+            fresh_count: 1,
+            reused_count: 2,
+            append_count: 3,
+        });
 
         let summaries = ledger.snapshot_for_test();
         let first = summaries[0].expect("first segment");

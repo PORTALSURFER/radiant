@@ -148,6 +148,24 @@ impl Default for NativePaintSegmentEligibilityPlan {
     }
 }
 
+/// Fixed-capacity evidence and counts committed by one successful assembly.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegmentBenefitAssemblyInput
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime) paint: PaintSegmentObservation,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) encoding:
+        PaintSegmentEncodingObservation,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) feasibility:
+        ArtifactFeasibilityObservation,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) plan:
+        NativePaintSegmentEligibilityPlan,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) target_generation:
+        NativeTargetGeneration,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fresh_count: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) reused_count: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) append_count: usize,
+}
+
 /// Assemble renderer-local fingerprints only after the complete authoritative
 /// encode.
 pub(super) fn assemble_native_paint_segment_fingerprints(

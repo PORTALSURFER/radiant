@@ -202,10 +202,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.window.quarantine_active_native_resources()
     }
 
-    pub(super) fn finish_device_recovery_if_no_rebuild(&mut self) {
-        if self.is_admitted() && !self.recovery_rebuild_pending {
-            self.runner.finish_device_recovery();
+    pub(super) fn finish_device_recovery_if_no_rebuild(&mut self) -> bool {
+        if !self.is_admitted() || self.recovery_rebuild_pending {
+            return true;
         }
+        self.runner.finish_device_recovery()
     }
 
     pub(super) fn rebuild_after_device_recovery(
@@ -296,7 +297,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         publication.publish(native_resources);
         self.runner.complete_native_recovery_target_transition();
         self.runner.frame.invalidate_native_resources_for_recovery();
-        self.runner.finish_device_recovery();
+        if !self.runner.finish_device_recovery() {
+            return Err(NativeGenericRunError::NativeInitialization {
+                stage: super::NativeInitializationStage::DeviceAcquisition,
+                message: String::from("auxiliary native recovery lifecycle completion was vetoed"),
+            });
+        }
         self.runner.rebuild_scene();
         self.recovery_rebuild_pending = false;
         if self.active {

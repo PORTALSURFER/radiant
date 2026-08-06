@@ -957,7 +957,7 @@ fn late_retained_assembly_veto_leaves_frame_scene_untouched() {
 }
 
 #[test]
-fn runner_warms_artifacts_before_later_retained_assembly() {
+fn runner_warms_artifacts_before_admission_aware_retained_assembly() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         RetainedSegmentBridge,
@@ -988,10 +988,11 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
     runner.rebuild_scene();
     assert_eq!(runner.frame.scene_encode_count, 2);
-    assert_eq!(runner.frame.scene_assembly_veto_count, 1);
+    assert_eq!(runner.frame.scene_assembly_count, 0);
+    assert_eq!(runner.frame.scene_assembly_veto_count, 0);
     assert_eq!(
         runner.frame.scene_build_outcome,
-        super::super::frame_state::NativeSceneBuildOutcome::RetainedAssemblyVetoFallback
+        super::super::frame_state::NativeSceneBuildOutcome::FullEncode
     );
     assert!(
         runner
@@ -1033,21 +1034,26 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
         .core
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
     runner.rebuild_scene();
-    assert_eq!(runner.frame.scene_encode_count, 2);
-    assert_eq!(runner.frame.scene_assembly_count, 1);
-    assert!(runner.frame.scene_assembly_fresh_count > 0);
+    assert_eq!(runner.frame.scene_encode_count, 3);
+    assert_eq!(runner.frame.scene_assembly_count, 0);
+    assert_eq!(runner.frame.scene_assembly_veto_count, 0);
     assert_eq!(
         runner.frame.scene_build_outcome,
-        super::super::frame_state::NativeSceneBuildOutcome::MixedRetainedAssembly
+        super::super::frame_state::NativeSceneBuildOutcome::FullEncode
     );
+
+    let segment_identity = runner.frame.last_native_paint_segment_eligibility.entries[0]
+        .expect("segment eligibility")
+        .span
+        .identity;
 
     runner
         .core
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
     runner.rebuild_scene();
-    assert_eq!(runner.frame.scene_encode_count, 2);
-    assert_eq!(runner.frame.scene_assembly_count, 2);
-    assert!(runner.frame.scene_assembly_fresh_count > 0);
+    assert_eq!(runner.frame.scene_encode_count, 3);
+    assert_eq!(runner.frame.scene_assembly_count, 1);
+    assert_eq!(runner.frame.scene_assembly_reused_count, 1);
     assert!(
         runner
             .frame
@@ -1057,19 +1063,190 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
     );
     assert_eq!(
         runner.frame.scene_build_outcome,
-        super::super::frame_state::NativeSceneBuildOutcome::MixedRetainedAssembly
+        super::super::frame_state::NativeSceneBuildOutcome::RetainedAssembly
+    );
+    assert!(
+        !runner
+            .frame
+            .native_paint_segment_cache_admission
+            .admitted_for_test(segment_identity)
     );
 
     runner
         .core
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
     runner.rebuild_scene();
-    assert_eq!(runner.frame.scene_encode_count, 2);
-    assert_eq!(runner.frame.scene_assembly_count, 3);
+    assert_eq!(runner.frame.scene_encode_count, 3);
+    assert_eq!(runner.frame.scene_assembly_count, 2);
     assert_eq!(
         runner.frame.scene_build_outcome,
         super::super::frame_state::NativeSceneBuildOutcome::RetainedAssembly
     );
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_cache_admission
+            .admitted_for_test(segment_identity)
+    );
+}
+
+#[test]
+fn render_selection_intersects_admission_and_sparse_residency() {
+    let (authoritative, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let scene_validity = test_scene_validity();
+    let target_generation = super::super::runner_state::NativeTargetGeneration::from_test_serial(1);
+    let materialization =
+        materialize_fixture((authoritative.clone(), feasibility, plan, payloads.clone()));
+    let mut admission =
+        super::super::retained_paint_segments::NativePaintSegmentCacheAdmission::default();
+    seed_publication_admission_for_test(&mut admission, &materialization);
+    let mut store = artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads);
+
+    let dense = super::super::retained_paint_segments::select_native_paint_segment_render_boundary(
+        plan,
+        &admission,
+        &store,
+        scene_validity,
+        Some(scene_validity),
+        target_generation,
+    );
+    assert!(dense.should_attempt_mixed_assembly());
+    assert!(dense
+        .full_encode_plan()
+        .entries[..3]
+        .iter()
+        .all(|entry| matches!(
+            entry,
+            Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+                disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::RetainedCandidate(_),
+                ..
+            })
+        )));
+
+    assert!(store.clear_artifact_for_test(1));
+    let sparse = super::super::retained_paint_segments::select_native_paint_segment_render_boundary(
+        plan,
+        &admission,
+        &store,
+        scene_validity,
+        Some(scene_validity),
+        target_generation,
+    );
+    assert!(sparse.should_attempt_mixed_assembly());
+    assert!(matches!(
+        sparse.full_encode_plan().entries[1],
+        Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+            disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::NoResident,
+            ),
+            ..
+        })
+    ));
+    assert!(matches!(
+        sparse.full_encode_plan().entries[0],
+        Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+            disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::RetainedCandidate(_),
+            ..
+        })
+    ));
+    assert!(matches!(
+        sparse.full_encode_plan().entries[2],
+        Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+            disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::RetainedCandidate(_),
+            ..
+        })
+    ));
+
+    let mut corrupted = artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads);
+    let corrupted_before = {
+        let artifact = corrupted
+            .artifact_for_test_mut(0)
+            .expect("first resident artifact");
+        artifact.set_revision_for_test(0);
+        artifact.revision_for_test()
+    };
+    let corrupted_selection =
+        super::super::retained_paint_segments::select_native_paint_segment_render_boundary(
+            plan,
+            &admission,
+            &corrupted,
+            scene_validity,
+            Some(scene_validity),
+            target_generation,
+        );
+    assert!(!corrupted_selection.should_attempt_mixed_assembly());
+    assert!(corrupted_selection
+        .full_encode_plan()
+        .entries[..3]
+        .iter()
+        .all(|entry| matches!(
+            entry,
+            Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+                disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                    super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::RenderSelectionFallback,
+                ),
+                ..
+            })
+        )));
+    assert_eq!(
+        corrupted
+            .artifact_for_test_mut(0)
+            .expect("first resident artifact")
+            .revision_for_test(),
+        corrupted_before
+    );
+
+    let without_admission =
+        super::super::retained_paint_segments::select_native_paint_segment_render_boundary(
+            plan,
+            &super::super::retained_paint_segments::NativePaintSegmentCacheAdmission::default(),
+            &artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads),
+            scene_validity,
+            Some(scene_validity),
+            target_generation,
+        );
+    assert!(!without_admission.should_attempt_mixed_assembly());
+    assert!(without_admission
+        .full_encode_plan()
+        .entries[..3]
+        .iter()
+        .all(|entry| matches!(
+            entry,
+            Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+                disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                    super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::NotAdmitted,
+                ),
+                ..
+            })
+        )));
+
+    let mut no_residents = artifact_store_for_fixture(&authoritative, feasibility, plan, &payloads);
+    for index in 0..crate::runtime::MAX_PAINT_SEGMENTS {
+        no_residents.clear_artifact_for_test(index);
+    }
+    let admission_without_residency =
+        super::super::retained_paint_segments::select_native_paint_segment_render_boundary(
+            plan,
+            &admission,
+            &no_residents,
+            scene_validity,
+            Some(scene_validity),
+            target_generation,
+        );
+    assert!(!admission_without_residency.should_attempt_mixed_assembly());
+    assert!(admission_without_residency
+        .full_encode_plan()
+        .entries[..3]
+        .iter()
+        .all(|entry| matches!(
+            entry,
+            Some(super::super::retained_paint_segments::NativePaintSegmentEligibilityEntry {
+                disposition: super::super::retained_paint_segments::NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(
+                    super::super::retained_paint_segments::NativePaintSegmentFreshEncodingReason::NoResident,
+                ),
+                ..
+            })
+        )));
 }
 
 #[test]
@@ -1132,6 +1309,7 @@ fn mixed_assembly_commits_changed_resource_free_segment_and_matches_current_orac
             current_paint,
             scene_validity,
             target_generation,
+            mixed_plan,
         )
         .expect("supported changed segment should assemble");
     assert_eq!(bundle.fresh_count, 1);
@@ -1190,6 +1368,7 @@ fn mixed_assembly_fresh_encodes_sparse_hole_and_commits_execution_plan() {
             paint,
             scene_validity,
             target_generation,
+            plan,
         )
         .expect("sparse hole should be a supported fresh span");
     assert_eq!(bundle.fresh_count, 1);
@@ -1265,6 +1444,7 @@ fn mixed_assembly_dense_exact_residents_all_reuse() {
             paint_for_plan(plan),
             test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+            plan,
         )
         .expect("dense exact residents should assemble");
     assert_eq!(bundle.fresh_count, 0);
@@ -1304,6 +1484,7 @@ fn mixed_assembly_zero_resident_store_fresh_encodes_every_entry() {
             paint_for_plan(plan),
             test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+            plan,
         )
         .expect("zero-resident valid store should fresh-encode");
     assert_eq!(bundle.fresh_count, 3);
@@ -1350,6 +1531,7 @@ fn mixed_assembly_malformed_present_artifact_vetoes_without_mutating_frame() {
             paint_for_plan(plan),
             test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+            plan,
         ),
         Err(super::scene::NativePaintSegmentAssemblyVetoReason::InvalidPayload)
     ));
@@ -1384,6 +1566,7 @@ fn mixed_assembly_unsupported_sparse_hole_vetoes_without_mutating_frame() {
             paint_for_plan(plan),
             test_scene_validity(),
             super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+            plan,
         ),
         Err(super::scene::NativePaintSegmentAssemblyVetoReason::UnsupportedFreshPrimitive)
     ));

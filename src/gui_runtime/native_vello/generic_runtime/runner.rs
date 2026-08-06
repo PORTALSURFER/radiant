@@ -1273,10 +1273,12 @@ where
             self.frame.last_scene_stats.artifact_feasibility,
             self.window.target_generation,
         );
-        let assembly_attempted = matches!(
-            self.frame.last_native_paint_segment_eligibility.outcome,
-            super::retained_paint_segments::NativePaintSegmentEligibilityOutcome::Plan
+        self.frame.derive_native_paint_segment_render_selection(
+            scene_validity,
+            self.window.target_generation,
         );
+        let render_selection = self.frame.native_paint_segment_render_selection();
+        let assembly_attempted = render_selection.should_attempt_mixed_assembly();
         let mut assembly_vetoed = false;
         if assembly_attempted {
             match self.frame.assemble_mixed_native_scene(
@@ -1284,6 +1286,7 @@ where
                 paint,
                 scene_validity,
                 self.window.target_generation,
+                render_selection.full_encode_plan(),
             ) {
                 Ok(bundle) => {
                     if self
@@ -1323,7 +1326,7 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
-        let eligibility = self.frame.last_native_paint_segment_eligibility;
+        let eligibility = render_selection.full_encode_plan();
         let payloads = encode_native_paint_segment_payloads(
             &self.frame.last_paint_plan.primitives,
             viewport,

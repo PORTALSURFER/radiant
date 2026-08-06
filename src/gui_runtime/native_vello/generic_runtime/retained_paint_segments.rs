@@ -1,7 +1,9 @@
-//! Metadata-only retained paint-segment evidence for one native window.
+//! Private retained paint-segment evidence and render-boundary policy for one
+//! native window.
 //!
-//! This module deliberately stores fingerprints only. It does not retain any
-//! renderer payload and has no execution policy.
+//! Renderer payloads remain owned by the neighboring artifact store. This
+//! module owns only fixed-capacity metadata, admission evidence, and the
+//! immutable decision that may hand a validated boundary to assembly.
 
 use super::{
     PaintSegmentEncodingObservation,
@@ -17,10 +19,17 @@ use crate::runtime::{
 
 mod admission;
 mod benefit;
+mod selection;
 
-pub(in crate::gui_runtime::native_vello::generic_runtime) use admission::NativePaintSegmentCacheAdmission;
+pub(in crate::gui_runtime::native_vello::generic_runtime) use admission::{
+    NativePaintSegmentCacheAdmission, NativePaintSegmentRenderAdmission,
+    NativePaintSegmentRenderAdmissionQuery,
+};
 pub(in crate::gui_runtime::native_vello::generic_runtime) use benefit::{
     NativePaintSegmentBenefitFrameEvidence, NativePaintSegmentBenefitLedger,
+};
+pub(super) use selection::{
+    NativePaintSegmentRenderSelection, select_native_paint_segment_render_boundary,
 };
 
 #[cfg(test)]
@@ -68,6 +77,9 @@ impl Default for NativePaintSegmentFingerprintObservation {
 pub(super) enum NativePaintSegmentFreshEncodingReason {
     RevisionChanged,
     NoArtifact,
+    NoResident,
+    NotAdmitted,
+    RenderSelectionFallback,
     RequiresFreshEncoding(ArtifactFeasibilityReason),
 }
 
@@ -140,6 +152,35 @@ impl NativePaintSegmentEligibilityPlan {
             outcome: NativePaintSegmentEligibilityOutcome::FullSceneFallback(reason),
             entries: [None; MAX_PAINT_SEGMENTS],
             entry_count: 0,
+        }
+    }
+
+    fn force_fresh_candidates(self, reason: NativePaintSegmentFreshEncodingReason) -> Self {
+        let Self {
+            outcome,
+            mut entries,
+            entry_count,
+        } = self;
+        if !matches!(outcome, NativePaintSegmentEligibilityOutcome::Plan) {
+            return Self {
+                outcome,
+                entries,
+                entry_count,
+            };
+        }
+        for entry in entries.iter_mut().take(usize::from(entry_count)).flatten() {
+            if matches!(
+                entry.disposition,
+                NativePaintSegmentEligibilityDisposition::RetainedCandidate(_)
+            ) {
+                entry.disposition =
+                    NativePaintSegmentEligibilityDisposition::FreshEncodingRequired(reason);
+            }
+        }
+        Self {
+            outcome,
+            entries,
+            entry_count,
         }
     }
 }

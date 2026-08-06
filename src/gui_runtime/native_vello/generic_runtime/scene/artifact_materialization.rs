@@ -125,6 +125,13 @@ enum NativePaintSegmentArtifactAssemblyLookup<'a> {
     Invalid(NativePaintSegmentAssemblyVetoReason),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmentArtifactResidency {
+    Exact,
+    Absent,
+    Invalid,
+}
+
 /// Transactional, bounded materialization result for one encoded frame.
 ///
 /// This is intentionally ephemeral. It owns no cache admission, retention,
@@ -437,6 +444,69 @@ impl NativePaintSegmentArtifactStore {
             && evidence.target_generation == fingerprint.target_generation
             && evidence.scene_validity == scene_validity)
             .then(|| artifact.payload.clone())
+    }
+
+    /// Classify one sparse slot for the admission-aware render selector.
+    ///
+    /// A missing slot is a valid fresh-work hole. A present but malformed or
+    /// fenced payload is invalid evidence and must not be downgraded to a
+    /// miss, because doing so would allow the selector to authorize reuse from
+    /// a corrupted resident store.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn residency_for_selection(
+        &self,
+        index: usize,
+        count: usize,
+        entry: NativePaintSegmentEligibilityEntry,
+        scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
+    ) -> NativePaintSegmentArtifactResidency {
+        if count == 0
+            || count > MAX_PAINT_SEGMENTS
+            || index >= count
+            || !target_generation.is_known()
+            || self.has_invalid_bounded_artifact_state(count)
+        {
+            return NativePaintSegmentArtifactResidency::Invalid;
+        }
+        if self.plan_entry_count == 0 {
+            return if self.artifacts.iter().any(Option::is_some) {
+                NativePaintSegmentArtifactResidency::Invalid
+            } else {
+                NativePaintSegmentArtifactResidency::Absent
+            };
+        }
+        if usize::from(self.plan_entry_count) != count
+            || self.scene_validity != Some(scene_validity)
+        {
+            return NativePaintSegmentArtifactResidency::Invalid;
+        }
+        if self.artifacts[..count].iter().flatten().any(|artifact| {
+            !valid_resident_payload(&artifact.payload, scene_validity, target_generation)
+        }) {
+            return NativePaintSegmentArtifactResidency::Invalid;
+        }
+
+        let Some(artifact) = self.artifacts[index].as_ref() else {
+            return NativePaintSegmentArtifactResidency::Absent;
+        };
+        let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
+            entry.disposition
+        else {
+            return NativePaintSegmentArtifactResidency::Invalid;
+        };
+        if usize::from(artifact.plan_index) != index
+            || !valid_payload_metadata(
+                &artifact.payload,
+                entry,
+                fingerprint.revision,
+                scene_validity,
+                target_generation,
+            )
+            || !valid_resident_payload(&artifact.payload, scene_validity, target_generation)
+        {
+            return NativePaintSegmentArtifactResidency::Invalid;
+        }
+        NativePaintSegmentArtifactResidency::Exact
     }
 
     fn lookup_for_mixed_assembly(
@@ -1153,6 +1223,35 @@ fn valid_payload_metadata(
         && evidence.scene_validity == scene_validity
 }
 
+fn valid_resident_payload(
+    payload: &NativePaintSegmentPayload,
+    scene_validity: NativeSceneValidityFingerprint,
+    target_generation: NativeTargetGeneration,
+) -> bool {
+    let evidence = payload.evidence;
+    evidence.identity == evidence.span.identity
+        && evidence.span.start < evidence.span.end
+        && evidence.revision != 0
+        && evidence.target_generation == target_generation
+        && evidence.target_generation.is_known()
+        && evidence.scene_validity == scene_validity
+        && evidence.encoding.identity == evidence.identity
+        && evidence.encoding.primitive_start == evidence.span.start
+        && evidence.encoding.primitive_end == evidence.span.end
+        && !evidence.encoding.conservative
+        && matches!(
+            evidence.encoding.isolation,
+            EncodingIsolation::SelfContained
+        )
+        && !matches!(
+            evidence.encoding.safe_enclosure,
+            SafeEnclosure::ViewportFallback
+        )
+        && matches!(evidence.encoding.reason, EncodingConservativeReason::None)
+        && valid_no_resource_scene(&payload.scene)
+        && evidence.counts == counts_from_scene(&payload.scene)
+}
+
 fn supported_fresh_span(primitives: &[PaintPrimitive], span: PaintSegmentSpan) -> bool {
     let (Ok(start), Ok(end)) = (usize::try_from(span.start), usize::try_from(span.end)) else {
         return false;
@@ -1407,6 +1506,9 @@ fn valid_fresh_reason(reason: NativePaintSegmentFreshEncodingReason) -> bool {
         reason,
         NativePaintSegmentFreshEncodingReason::RevisionChanged
             | NativePaintSegmentFreshEncodingReason::NoArtifact
+            | NativePaintSegmentFreshEncodingReason::NoResident
+            | NativePaintSegmentFreshEncodingReason::NotAdmitted
+            | NativePaintSegmentFreshEncodingReason::RenderSelectionFallback
             | NativePaintSegmentFreshEncodingReason::RequiresFreshEncoding(_)
     )
 }

@@ -1,8 +1,9 @@
-//! Private, observational admission state for native paint segments.
+//! Private admission state for native paint segments.
 //!
-//! This policy consumes only exact latest-frame benefit evidence. It does not
-//! authorize reuse, retain renderer payloads, or participate in scene
-//! eligibility or assembly.
+//! This policy consumes only exact latest-frame benefit evidence. Publication
+//! and render-boundary queries are separate: admission does not retain payloads
+//! and an exact tuple is still intersected with residency and scene fences by
+//! the render selector.
 
 use super::super::runner_state::NativeTargetGeneration;
 use super::NativePaintSegmentBenefitFrameEvidence;
@@ -21,6 +22,21 @@ enum NativePaintSegmentCacheAdmissionState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmentRenderAdmission {
+    WarmingProbe,
+    AdmittedRetained,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmentRenderAdmissionQuery
+{
+    NoMatch,
+    WarmingProbe,
+    AdmittedRetained,
+    InvalidEvidence,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NativePaintSegmentCacheAdmissionEntry {
     identity: PaintSegmentIdentity,
     span: PaintSegmentSpan,
@@ -35,8 +51,9 @@ struct NativePaintSegmentCacheAdmissionEntry {
 
 /// Fixed-capacity, per-window observational cache-admission state.
 ///
-/// The state is keyed by exact segment identity and target generation. It is
-/// intentionally not consulted by any rendering path in this slice.
+/// The state is keyed by exact segment identity and target generation. Its
+/// render query is only one input to the private selector; it never owns
+/// payload residency or authorizes reuse by itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegmentCacheAdmission {
     entries: [Option<NativePaintSegmentCacheAdmissionEntry>; MAX_PAINT_SEGMENTS],
@@ -58,6 +75,74 @@ impl NativePaintSegmentCacheAdmission {
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn clear(&mut self) {
         self.entries = [None; MAX_PAINT_SEGMENTS];
         self.target_generation = None;
+    }
+
+    /// Classify one exact tuple for the private render-boundary selector.
+    ///
+    /// The result distinguishes a warming probe from an admitted retained
+    /// boundary. It never considers a payload resident and therefore cannot
+    /// authorize reuse by itself.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn render_admission(
+        &self,
+        identity: PaintSegmentIdentity,
+        span: PaintSegmentSpan,
+        revision: u64,
+        target_generation: NativeTargetGeneration,
+    ) -> NativePaintSegmentRenderAdmissionQuery {
+        if revision == 0
+            || !target_generation.is_known()
+            || span.identity != identity
+            || span.start >= span.end
+        {
+            return NativePaintSegmentRenderAdmissionQuery::NoMatch;
+        }
+
+        let mut identities = [None; MAX_PAINT_SEGMENTS];
+        for (index, entry) in self.entries.iter().flatten().enumerate() {
+            if entry.revision == 0
+                || !entry.target_generation.is_known()
+                || entry.span.identity != entry.identity
+                || entry.span.start >= entry.span.end
+                || identities[..index].contains(&Some(entry.identity))
+            {
+                return NativePaintSegmentRenderAdmissionQuery::InvalidEvidence;
+            }
+            identities[index] = Some(entry.identity);
+        }
+        if self
+            .entries
+            .iter()
+            .flatten()
+            .any(|entry| self.target_generation != Some(entry.target_generation))
+        {
+            return NativePaintSegmentRenderAdmissionQuery::InvalidEvidence;
+        }
+        if self.target_generation != Some(target_generation) {
+            return NativePaintSegmentRenderAdmissionQuery::NoMatch;
+        }
+
+        let mut match_state = None;
+        for entry in self.entries.iter().flatten() {
+            if entry.identity == identity
+                && entry.span == span
+                && entry.revision == revision
+                && entry.target_generation == target_generation
+            {
+                let state = match entry.state {
+                    NativePaintSegmentCacheAdmissionState::Warming => {
+                        NativePaintSegmentRenderAdmissionQuery::WarmingProbe
+                    }
+                    NativePaintSegmentCacheAdmissionState::Admitted => {
+                        NativePaintSegmentRenderAdmissionQuery::AdmittedRetained
+                    }
+                };
+                if match_state.is_some() {
+                    return NativePaintSegmentRenderAdmissionQuery::InvalidEvidence;
+                }
+                match_state = Some(state);
+            }
+        }
+        match_state.unwrap_or(NativePaintSegmentRenderAdmissionQuery::NoMatch)
     }
 
     /// Return whether one exact current artifact may be published into the
@@ -529,6 +614,35 @@ mod native_paint_segment_cache_admission {
 
         policy.reconcile(beneficial(2, generation));
         assert!(policy.publication_eligible(segment_identity, span, 1, generation,));
+    }
+
+    #[test]
+    fn render_query_distinguishes_warming_probe_from_admitted_retained_tuple() {
+        let generation = known(1);
+        let segment_identity = identity(1);
+        let span = PaintSegmentSpan {
+            identity: segment_identity,
+            start: 0,
+            end: 2,
+        };
+        let mut policy = NativePaintSegmentCacheAdmission::default();
+        policy.add_warming_for_test(segment_identity, span, 1, generation);
+
+        assert_eq!(
+            policy.render_admission(segment_identity, span, 1, generation),
+            NativePaintSegmentRenderAdmissionQuery::WarmingProbe
+        );
+        assert_eq!(
+            policy.render_admission(segment_identity, span, 2, generation),
+            NativePaintSegmentRenderAdmissionQuery::NoMatch
+        );
+
+        policy.reconcile(beneficial(1, generation));
+        policy.reconcile(beneficial(2, generation));
+        assert_eq!(
+            policy.render_admission(segment_identity, span, 1, generation),
+            NativePaintSegmentRenderAdmissionQuery::AdmittedRetained
+        );
     }
 
     #[test]

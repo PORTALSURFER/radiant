@@ -9,6 +9,7 @@ use super::{
     },
     post_gpu_overlay,
     retained_paint_segments::{
+        NativePaintSegmentBenefitAssemblyInput, NativePaintSegmentBenefitLedger,
         NativePaintSegmentEligibilityPlan, NativeRetainedPaintSegmentStore,
         assemble_native_paint_segment_fingerprints,
         classify_native_paint_segment_eligibility_with_spans,
@@ -83,6 +84,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
     pub(super) native_paint_segment_artifact_store: NativePaintSegmentArtifactStore,
+    pub(super) native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger,
     pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
@@ -166,6 +168,7 @@ impl NativeVelloFrameState {
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
             native_paint_segment_artifact_store: NativePaintSegmentArtifactStore::default(),
+            native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger::default(),
             last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
@@ -291,6 +294,7 @@ impl NativeVelloFrameState {
 
     pub(super) fn clear_native_paint_segment_artifacts(&mut self) {
         self.native_paint_segment_artifact_store.clear();
+        self.native_paint_segment_benefit_ledger.clear();
     }
 
     pub(super) fn invalidate_native_resources_for_recovery(&mut self) {
@@ -346,6 +350,13 @@ impl NativeVelloFrameState {
         bundle: NativePaintSegmentAssemblyBundle,
         scene_validity: NativeSceneValidityFingerprint,
     ) -> Result<(), NativePaintSegmentAssemblyVetoReason> {
+        let benefit_paint = bundle.paint;
+        let benefit_encoding = bundle.stats.segment_encoding;
+        let benefit_feasibility = bundle.stats.artifact_feasibility;
+        let benefit_target_generation = bundle.target_generation;
+        let benefit_fresh_count = bundle.fresh_count;
+        let benefit_reused_count = bundle.reused_count;
+        let benefit_append_count = bundle.append_count;
         let fingerprint_observation = assemble_native_paint_segment_fingerprints(
             bundle.paint,
             bundle.stats.segment_encoding,
@@ -367,7 +378,35 @@ impl NativeVelloFrameState {
             bundle.reused_count,
             bundle.append_count,
         );
+        self.native_paint_segment_benefit_ledger
+            .record_successful_assembly(NativePaintSegmentBenefitAssemblyInput {
+                paint: benefit_paint,
+                encoding: benefit_encoding,
+                feasibility: benefit_feasibility,
+                plan: self.last_native_paint_segment_eligibility,
+                target_generation: benefit_target_generation,
+                fresh_count: benefit_fresh_count,
+                reused_count: benefit_reused_count,
+                append_count: benefit_append_count,
+            });
         Ok(())
+    }
+
+    pub(super) fn record_native_paint_segment_full_encode(
+        &mut self,
+        paint: PaintSegmentObservation,
+        encoding: PaintSegmentEncodingObservation,
+        feasibility: super::scene::ArtifactFeasibilityObservation,
+        target_generation: NativeTargetGeneration,
+        assembly_vetoed: bool,
+    ) {
+        self.native_paint_segment_benefit_ledger.record_full_encode(
+            paint,
+            encoding,
+            feasibility,
+            target_generation,
+            assembly_vetoed,
+        );
     }
 
     pub(super) fn observe_native_paint_segment_eligibility(

@@ -1357,6 +1357,13 @@ where
         } else {
             self.frame.record_scene_encode(scene_validity);
         }
+        self.frame.record_native_paint_segment_full_encode(
+            paint,
+            self.frame.last_scene_stats.segment_encoding,
+            self.frame.last_scene_stats.artifact_feasibility,
+            self.window.target_generation,
+            assembly_vetoed,
+        );
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();

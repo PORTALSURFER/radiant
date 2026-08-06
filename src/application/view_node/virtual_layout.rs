@@ -1,0 +1,262 @@
+#![allow(dead_code)]
+
+use super::{ViewNode, ViewNodeKind, lowering::ViewLowering};
+use crate::{
+    application::{
+        ROOT_KEY_SCOPE,
+        ids::{IdGenerator, StructuralRole},
+        launch::SceneProjection,
+    },
+    layout::{ContainerKind, ContainerPolicy, NodeId},
+    runtime::SurfaceNode,
+};
+use std::{collections::HashSet, panic::AssertUnwindSafe};
+
+/// Typed failures from the private virtual-layout item admission boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum VirtualLayoutViewAdmissionError {
+    /// The item supplied an explicit numeric identity.
+    ExplicitIdentity,
+    /// The item retained a pre-lowered runtime surface node.
+    DirectSurfaceNode,
+    /// The item supplied a scene, overlay, or other out-of-band effect.
+    UnsupportedSceneEffects,
+    /// The admitted identity set contained an ambiguous key or id.
+    IdentityCollision,
+    /// Lowering or user widget construction unwound.
+    LoweringPanicked,
+}
+
+/// Lower one virtual-layout item beneath its private slot wrapper.
+///
+/// This is a pure, crate-private prerequisite for the later batch adapter. The
+/// wrapper owns the identity scope derived from the complete slot tuple; the
+/// item itself cannot bring an explicit runtime id or scene effect into the
+/// retained tree.
+pub(crate) fn lower_virtual_layout_item<Message: 'static>(
+    node: ViewNode<Message>,
+    container_id: NodeId,
+    mount_generation: u64,
+    slot_index: usize,
+    checked_generation: u64,
+) -> Result<SurfaceNode<Message>, VirtualLayoutViewAdmissionError> {
+    validate_item(&node)?;
+
+    let wrapper_id = slot_wrapper_id(
+        container_id,
+        mount_generation,
+        slot_index,
+        checked_generation,
+    );
+    let has_reserved_descendant_identity = node.has_reserved_identity_in_subtree();
+    let wrapper = ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Stack,
+            ..ContainerPolicy::default()
+        },
+        children: vec![node],
+    })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
+    .id(wrapper_id);
+
+    let lowered = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let mut keyed_candidates = HashSet::new();
+        let mut continuity_keys = HashSet::new();
+        let mut explicit_ids = HashSet::new();
+        if wrapper
+            .collect_keyed_collisions(ROOT_KEY_SCOPE, &mut keyed_candidates)
+            .is_err()
+            || wrapper
+                .collect_explicit_identity_collisions(
+                    ROOT_KEY_SCOPE,
+                    &mut continuity_keys,
+                    &mut explicit_ids,
+                )
+                .is_err()
+        {
+            return Err(VirtualLayoutViewAdmissionError::IdentityCollision);
+        }
+
+        let mut reserved = Vec::new();
+        wrapper.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
+        let mut ids = IdGenerator::new(reserved);
+        let mut scene = SceneProjection::default();
+        let mut lowering = ViewLowering::new(&mut ids, &mut scene);
+        Ok(lowering.lower_node(wrapper, ROOT_KEY_SCOPE, StructuralRole::Root))
+    }));
+
+    match lowered {
+        Ok(result) => result,
+        Err(_) => Err(VirtualLayoutViewAdmissionError::LoweringPanicked),
+    }
+}
+
+fn validate_item<Message>(node: &ViewNode<Message>) -> Result<(), VirtualLayoutViewAdmissionError> {
+    if node.id.is_some() {
+        return Err(VirtualLayoutViewAdmissionError::ExplicitIdentity);
+    }
+    if !node.overlay_layers.is_empty() {
+        return Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects);
+    }
+    match &node.kind {
+        ViewNodeKind::Runtime(_) => Err(VirtualLayoutViewAdmissionError::DirectSurfaceNode),
+        ViewNodeKind::Scene { .. }
+        | ViewNodeKind::OverlayPanel { .. }
+        | ViewNodeKind::FloatingLayer { .. } => {
+            Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
+        }
+        ViewNodeKind::Container { children, .. } => {
+            for child in children {
+                validate_item(child)?;
+            }
+            Ok(())
+        }
+        ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
+            validate_item(child)
+        }
+        ViewNodeKind::Widget(_) => Ok(()),
+    }
+}
+
+fn slot_wrapper_id(
+    container_id: NodeId,
+    mount_generation: u64,
+    slot_index: usize,
+    checked_generation: u64,
+) -> NodeId {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for value in [
+        0x56_4c_53_4c_4f_54_01_u64,
+        container_id,
+        mount_generation,
+        slot_index as u64,
+        checked_generation,
+    ] {
+        for byte in value.to_le_bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::{WidgetView, WidgetViewContext, column, empty, overlays, scene, text};
+    use crate::layout::LayoutNode;
+
+    struct PanickingView;
+
+    impl WidgetView<()> for PanickingView {
+        fn default_sizing(&self) -> crate::widgets::WidgetSizing {
+            crate::widgets::WidgetSizing::new(
+                crate::gui::types::Vector2::new(0.0, 0.0),
+                crate::gui::types::Vector2::new(0.0, 0.0),
+            )
+        }
+
+        fn into_surface_node(self: Box<Self>, _context: WidgetViewContext) -> SurfaceNode<()> {
+            panic!("test lowering panic")
+        }
+    }
+
+    fn lower(node: ViewNode<()>, checked_generation: u64) -> SurfaceNode<()> {
+        lower_virtual_layout_item(node, 41, 7, 3, checked_generation)
+            .expect("test item should be admitted")
+    }
+
+    #[test]
+    fn equal_slot_tuple_preserves_wrapper_and_descendant_identity() {
+        let first = lower(column([text::<()>("first")]), 1);
+        let second = lower(column([text::<()>("second")]), 1);
+        assert_eq!(first.id(), second.id());
+
+        let first_layout = crate::runtime::UiSurface::new(first).layout_node();
+        let second_layout = crate::runtime::UiSurface::new(second).layout_node();
+        let (LayoutNode::Container(first), LayoutNode::Container(second)) =
+            (first_layout, second_layout)
+        else {
+            panic!("slot wrapper should lower to a container");
+        };
+        assert_eq!(first.children[0].child.id(), second.children[0].child.id());
+    }
+
+    #[test]
+    fn every_slot_tuple_component_changes_wrapper_identity() {
+        let base = lower(text::<()>("item"), 1).id();
+        assert_ne!(
+            base,
+            lower_virtual_layout_item(text::<()>("item"), 42, 7, 3, 1)
+                .expect("container change")
+                .id()
+        );
+        assert_ne!(
+            base,
+            lower_virtual_layout_item(text::<()>("item"), 41, 8, 3, 1)
+                .expect("mount change")
+                .id()
+        );
+        assert_ne!(
+            base,
+            lower_virtual_layout_item(text::<()>("item"), 41, 7, 4, 1)
+                .expect("slot change")
+                .id()
+        );
+        assert_ne!(base, lower(text::<()>("item"), 2).id());
+    }
+
+    #[test]
+    fn unsupported_item_forms_are_rejected_before_lowering() {
+        assert!(matches!(
+            lower_virtual_layout_item(text::<()>("item").id(90), 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::ExplicitIdentity)
+        ));
+        assert!(matches!(
+            lower_virtual_layout_item(
+                ViewNode::from(crate::runtime::SurfaceNode::<()>::overlay_marker(
+                    90,
+                    crate::gui::types::Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
+                    crate::widgets::WidgetStyle::default(),
+                )),
+                41,
+                7,
+                3,
+                1,
+            ),
+            Err(VirtualLayoutViewAdmissionError::DirectSurfaceNode)
+        ));
+        assert!(matches!(
+            lower_virtual_layout_item(scene(empty::<()>()).into_view(), 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
+        ));
+        assert!(matches!(
+            lower_virtual_layout_item(
+                text::<()>("item").overlays(overlays().floating(text::<()>("overlay"))),
+                41,
+                7,
+                3,
+                1,
+            ),
+            Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
+        ));
+    }
+
+    #[test]
+    fn duplicate_key_identity_is_rejected() {
+        let item = column([text::<()>("one").key("same"), text::<()>("two").key("same")]);
+        assert!(matches!(
+            lower_virtual_layout_item(item, 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::IdentityCollision)
+        ));
+    }
+
+    #[test]
+    fn lowering_panic_is_a_typed_rejection() {
+        let item = ViewNode::new(ViewNodeKind::Widget(Box::new(PanickingView)));
+        assert!(matches!(
+            lower_virtual_layout_item(item, 41, 7, 3, 1),
+            Err(VirtualLayoutViewAdmissionError::LoweringPanicked)
+        ));
+    }
+}

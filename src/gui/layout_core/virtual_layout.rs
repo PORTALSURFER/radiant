@@ -16,6 +16,7 @@ use crate::gui::types::{Point, Rect, Vector2};
 
 use super::tree::NodeId;
 
+mod adapter;
 mod coordinator;
 mod materialization;
 

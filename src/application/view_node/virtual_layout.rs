@@ -30,6 +30,16 @@ pub(crate) enum VirtualLayoutViewAdmissionError {
     LoweringPanicked,
 }
 
+/// Pure payloads produced by one complete retained virtual-layout batch.
+///
+/// The batch is lowered with one identity admission pass.  Keeping the
+/// payload private prevents callers from treating this prerequisite as a
+/// runtime registration API.
+pub(crate) struct VirtualLayoutViewBatch<Message> {
+    pub(crate) shell: SurfaceNode<Message>,
+    pub(crate) items: Vec<SurfaceNode<Message>>,
+}
+
 /// Lower one virtual-layout item beneath its private slot wrapper.
 ///
 /// This is a pure, crate-private prerequisite for the later batch adapter. The
@@ -87,6 +97,100 @@ pub(crate) fn lower_virtual_layout_item<Message: 'static>(
         let mut scene = SceneProjection::default();
         let mut lowering = ViewLowering::new(&mut ids, &mut scene);
         Ok(lowering.lower_node(wrapper, ROOT_KEY_SCOPE, StructuralRole::Root))
+    }));
+
+    match lowered {
+        Ok(result) => result,
+        Err(payload) => match payload.downcast::<WidgetViewAdmissionPanic>() {
+            Ok(panic) => Err(panic.0),
+            Err(_) => Err(VirtualLayoutViewAdmissionError::LoweringPanicked),
+        },
+    }
+}
+
+/// Lower a complete shell plus active retained item batch atomically.
+///
+/// Every item is wrapped below the exact slot tuple supplied by the private
+/// materialization boundary.  The synthetic admission root is used only for
+/// shared identity/capacity preflight; each admitted child is then lowered
+/// with one generator and scene projection so generated descendants cannot
+/// collide across the shell and active items.
+pub(crate) fn lower_virtual_layout_batch<Message: 'static>(
+    mut shell: ViewNode<Message>,
+    container_id: NodeId,
+    items: Vec<(ViewNode<Message>, u64, usize, u64)>,
+) -> Result<VirtualLayoutViewBatch<Message>, VirtualLayoutViewAdmissionError> {
+    if shell.id.is_some_and(|id| id != container_id) {
+        return Err(VirtualLayoutViewAdmissionError::IdentityCollision);
+    }
+    shell = shell.id(container_id);
+
+    let mut wrapped_items = Vec::with_capacity(items.len());
+    for (node, mount_generation, slot_index, checked_generation) in items {
+        validate_item(&node)?;
+        wrapped_items.push(make_item_wrapper(
+            guard_widget_views(node),
+            container_id,
+            mount_generation,
+            slot_index,
+            checked_generation,
+        ));
+    }
+
+    let mut admission_children = Vec::with_capacity(wrapped_items.len() + 1);
+    admission_children.push(shell);
+    admission_children.extend(wrapped_items);
+    let admission_root = ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Stack,
+            ..ContainerPolicy::default()
+        },
+        children: admission_children,
+    })
+    .with_reserved_descendant_identity(true);
+
+    let lowered = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let mut keyed_candidates = HashSet::new();
+        let mut continuity_keys = HashSet::new();
+        let mut explicit_ids = HashSet::new();
+        if admission_root
+            .collect_keyed_collisions(ROOT_KEY_SCOPE, &mut keyed_candidates)
+            .is_err()
+            || admission_root
+                .collect_explicit_identity_collisions(
+                    ROOT_KEY_SCOPE,
+                    &mut continuity_keys,
+                    &mut explicit_ids,
+                )
+                .is_err()
+        {
+            return Err(VirtualLayoutViewAdmissionError::IdentityCollision);
+        }
+
+        let mut reserved = Vec::new();
+        admission_root.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
+        let mut ids = IdGenerator::new(reserved);
+        let mut scene = SceneProjection::default();
+        let mut lowering = ViewLowering::new(&mut ids, &mut scene);
+        let ViewNode {
+            kind: ViewNodeKind::Container { children, .. },
+            ..
+        } = admission_root
+        else {
+            return Err(VirtualLayoutViewAdmissionError::LoweringPanicked);
+        };
+        let mut children = children.into_iter();
+        let shell = lowering.lower_node(
+            children
+                .next()
+                .ok_or(VirtualLayoutViewAdmissionError::LoweringPanicked)?,
+            ROOT_KEY_SCOPE,
+            StructuralRole::Root,
+        );
+        let items = children
+            .map(|node| lowering.lower_node(node, ROOT_KEY_SCOPE, StructuralRole::Root))
+            .collect();
+        Ok(VirtualLayoutViewBatch { shell, items })
     }));
 
     match lowered {
@@ -190,6 +294,31 @@ fn validate_item<Message>(node: &ViewNode<Message>) -> Result<(), VirtualLayoutV
         }
         ViewNodeKind::Widget(_) => Ok(()),
     }
+}
+
+fn make_item_wrapper<Message>(
+    node: ViewNode<Message>,
+    container_id: NodeId,
+    mount_generation: u64,
+    slot_index: usize,
+    checked_generation: u64,
+) -> ViewNode<Message> {
+    let wrapper_id = slot_wrapper_id(
+        container_id,
+        mount_generation,
+        slot_index,
+        checked_generation,
+    );
+    let has_reserved_descendant_identity = node.has_reserved_identity_in_subtree();
+    ViewNode::new(ViewNodeKind::Container {
+        policy: ContainerPolicy {
+            kind: ContainerKind::Stack,
+            ..ContainerPolicy::default()
+        },
+        children: vec![node],
+    })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
+    .id(wrapper_id)
 }
 
 fn slot_wrapper_id(
@@ -443,6 +572,80 @@ mod tests {
         assert!(matches!(
             lower_virtual_layout_item(item, 41, 7, 3, 1),
             Err(VirtualLayoutViewAdmissionError::LoweringPanicked)
+        ));
+    }
+
+    #[test]
+    fn complete_batch_admits_shell_and_items_with_scoped_wrappers() {
+        let batch = lower_virtual_layout_batch(
+            column([text::<()>("shell")]),
+            41,
+            vec![(text::<()>("one"), 7, 0, 1), (text::<()>("two"), 7, 1, 1)],
+        )
+        .expect("complete batch should be admitted");
+        assert_eq!(batch.shell.id(), 41);
+        assert_eq!(batch.items.len(), 2);
+        assert_ne!(batch.items[0].id(), batch.items[1].id());
+
+        let changed_generation = lower_virtual_layout_batch(
+            column([text::<()>("shell")]),
+            41,
+            vec![(text::<()>("one"), 7, 0, 2)],
+        )
+        .expect("changed slot generation should be admitted");
+        let same_generation = lower_virtual_layout_batch(
+            column([text::<()>("shell")]),
+            41,
+            vec![(text::<()>("one"), 7, 0, 1)],
+        )
+        .expect("same slot generation should be admitted");
+        assert_ne!(
+            changed_generation.items[0].id(),
+            same_generation.items[0].id()
+        );
+    }
+
+    #[test]
+    fn batch_identity_admission_rejects_duplicate_wrappers_before_lowering() {
+        let first = ViewNode::new(ViewNodeKind::Widget(Box::new(PanickingView)));
+        let result = lower_virtual_layout_batch(
+            column([text::<()>("shell")]),
+            41,
+            vec![(first, 7, 0, 1), (text::<()>("duplicate"), 7, 0, 1)],
+        );
+        assert!(matches!(
+            result,
+            Err(VirtualLayoutViewAdmissionError::IdentityCollision)
+        ));
+
+        let shell_collision = lower_virtual_layout_batch(
+            column([text::<()>("shell").id(slot_wrapper_id(41, 7, 0, 1))]),
+            41,
+            vec![(text::<()>("item"), 7, 0, 1)],
+        );
+        assert!(matches!(
+            shell_collision,
+            Err(VirtualLayoutViewAdmissionError::IdentityCollision)
+        ));
+    }
+
+    #[test]
+    fn batch_identity_admission_rejects_unsupported_item_forms() {
+        assert!(matches!(
+            lower_virtual_layout_batch(
+                column([text::<()>("shell")]),
+                41,
+                vec![(scene(empty::<()>()).into_view(), 7, 0, 1)],
+            ),
+            Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
+        ));
+        assert!(matches!(
+            lower_virtual_layout_batch(
+                column([text::<()>("shell")]),
+                41,
+                vec![(text::<()>("item").id(90), 7, 0, 1)],
+            ),
+            Err(VirtualLayoutViewAdmissionError::ExplicitIdentity)
         ));
     }
 }

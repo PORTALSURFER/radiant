@@ -15,7 +15,10 @@ pub type Result<T = ()> = std::result::Result<T, String>;
 mod view_node;
 pub(in crate::application) use view_node::ViewNodeKind;
 #[allow(unused_imports)]
-pub(crate) use view_node::{VirtualLayoutViewAdmissionError, lower_virtual_layout_item};
+pub(crate) use view_node::{
+    VirtualLayoutViewAdmissionError, VirtualLayoutViewBatch, lower_virtual_layout_batch,
+    lower_virtual_layout_item,
+};
 
 /// Application view node type used by builder functions.
 pub type View<Message = ()> = view_node::ViewNode<Message>;

@@ -159,6 +159,21 @@ pub(crate) struct VirtualLayoutSlotIdentity {
 }
 
 impl VirtualLayoutSlotIdentity {
+    /// Construct one exact slot identity supplied by a private adapter plan.
+    pub(super) const fn from_parts(
+        container_id: NodeId,
+        mount_generation: u64,
+        slot_index: usize,
+        checked_generation: u64,
+    ) -> Self {
+        Self {
+            container_id,
+            mount_generation,
+            slot_index,
+            checked_generation,
+        }
+    }
+
     fn new(container_id: NodeId, mount_generation: u64, slot_index: usize) -> Self {
         Self {
             container_id,

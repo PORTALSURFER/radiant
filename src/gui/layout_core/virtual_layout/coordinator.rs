@@ -1214,12 +1214,14 @@ mod tests {
     use super::*;
     use crate::gui::types::Vector2;
 
+    use super::super::materialization::VirtualLayoutSlotIdentity;
     use super::super::materialization::{
         VirtualLayoutHostProjector, VirtualLayoutLifecycleAdapter,
         VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
         VirtualLayoutMaterializationStore, VirtualLayoutProjection,
         VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
     };
+    use crate::application::{column, empty, text};
 
     fn parts(
         query_sequence: u64,
@@ -1353,6 +1355,85 @@ mod tests {
     fn ready(coordinator: &mut VirtualLayoutWindowCoordinator, keys: &[u32]) {
         let policy = ready_policy(keys, 100.0);
         let _ = commit_policy(coordinator, &policy);
+    }
+
+    #[test]
+    fn retained_adapter_admits_complete_batch_and_preserves_slot_tuples() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let policy = ready_policy(&[1, 2], 100.0);
+        let commit = commit_policy(&mut coordinator, &policy);
+        let result = super::super::adapter::admit_virtual_layout_batch(
+            &commit,
+            column([text::<()>("shell")]),
+            vec![
+                (
+                    VirtualLayoutItemKey::new(1_u32),
+                    text::<()>("one"),
+                    VirtualLayoutSlotIdentity::from_parts(41, 7, 4, 1),
+                ),
+                (
+                    VirtualLayoutItemKey::new(2_u32),
+                    text::<()>("two"),
+                    VirtualLayoutSlotIdentity::from_parts(41, 7, 5, 2),
+                ),
+            ],
+        )
+        .expect("complete retained batch should be admitted");
+        assert_eq!(result.shell.id(), 41);
+        assert_eq!(result.items.len(), 2);
+        assert_eq!(
+            result.items[0].item.key(),
+            &VirtualLayoutItemKey::new(1_u32)
+        );
+        assert_eq!(result.items[0].slot.slot_index(), 4);
+        assert_eq!(result.items[0].slot.checked_generation(), 1);
+        assert_eq!(result.items[1].slot.slot_index(), 5);
+        assert_eq!(result.items[1].slot.checked_generation(), 2);
+    }
+
+    #[test]
+    fn retained_adapter_rejects_incomplete_or_colliding_batches_before_lowering() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let policy = ready_policy(&[1, 2], 100.0);
+        let commit = commit_policy(&mut coordinator, &policy);
+        let slot = || VirtualLayoutSlotIdentity::from_parts(41, 7, 4, 1);
+
+        assert!(matches!(
+            super::super::adapter::admit_virtual_layout_batch(
+                &commit,
+                empty::<()>(),
+                vec![(VirtualLayoutItemKey::new(1_u32), text::<()>("one"), slot())],
+            ),
+            Err(super::super::adapter::VirtualLayoutRetainedBatchError::MissingItem)
+        ));
+        assert!(matches!(
+            super::super::adapter::admit_virtual_layout_batch(
+                &commit,
+                empty::<()>(),
+                vec![
+                    (VirtualLayoutItemKey::new(1_u32), text::<()>("one"), slot()),
+                    (
+                        VirtualLayoutItemKey::new(1_u32),
+                        text::<()>("duplicate"),
+                        VirtualLayoutSlotIdentity::from_parts(41, 7, 5, 1)
+                    ),
+                ],
+            ),
+            Err(super::super::adapter::VirtualLayoutRetainedBatchError::DuplicateItem)
+        ));
+        assert!(matches!(
+            super::super::adapter::admit_virtual_layout_batch(
+                &commit,
+                empty::<()>(),
+                vec![
+                    (VirtualLayoutItemKey::new(1_u32), text::<()>("one"), slot()),
+                    (VirtualLayoutItemKey::new(2_u32), text::<()>("two"), slot()),
+                ],
+            ),
+            Err(super::super::adapter::VirtualLayoutRetainedBatchError::SlotCollision)
+        ));
     }
 
     struct TestMaterializationProjector;

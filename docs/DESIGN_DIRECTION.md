@@ -1694,6 +1694,19 @@ row([
 Numeric controls separate the stored domain value from its interaction and
 display mapping.
 
+`NumericEditSession<T>` is the shipped, parser-agnostic foundation for a future
+numeric editing buffer. It retains caller-provided draft text verbatim and one
+`EditEvent<T>` Begin event, then accepts only caller-certified Commit or Cancel
+terminal boundaries from the same `InteractionSource`; native metadata may
+change within that source. Replacing the draft emits no typed Update. The
+session does not parse, validate, localize, map, clamp, quantize, step, format,
+persist, invoke callbacks, or attach `ValueMapping` or `ValueFormat` policy.
+It is available from the qualified `radiant::widgets::interaction` module and
+the `radiant::widgets` root, not the common prelude. This foundation is shipped;
+parser and domain policy, numeric widget and application-builder/runtime
+integration, and focus, pointer, keyboard, text-input, and accessibility
+behavior remain deferred.
+
 The shipped `ValueMapping` foundation exposes only finite `f32` linear and
 logarithmic mappings. It validates finite bounds and monotonicity at
 construction. Its conversions reject nonfinite inputs, clamp finite inputs at
@@ -1709,15 +1722,15 @@ separator is explicit (`Period` or `Comma`)
 and never comes from ambient operating-system locale. Frequency defaults to two
 fractional digits; percent scales by 100 and frequency appends ` Hz`.
 
-The future numeric-control contract will include linear, logarithmic, decibel,
-tempo, and custom monotonic mappings. It will use one mapping for pointer
-position, keyboard increments, accessibility range semantics, and displayed
-values so those views agree. A future `numeric_input` will use the same mapping
-with a runtime-local editing buffer: a locale-aware parser and validator will
-be able to show an incomplete or invalid string without replacing the last
-valid domain value. Enter or focus commit will emit a typed accepted value;
-Escape or explicit cancel will restore the displayed value without an
-accidental domain mutation.
+The future numeric-control contract will build on the session and include
+linear, logarithmic, decibel, tempo, and custom monotonic mappings. It will use
+one mapping for pointer position, keyboard increments, accessibility range
+semantics, and displayed values so those views agree. A future `numeric_input`
+will add a locale-aware parser and validator around the session so an
+incomplete or invalid string can be shown without replacing the last valid
+domain value. Enter or focus commit will emit a typed accepted value; Escape or
+explicit cancel will restore the displayed value without an accidental domain
+mutation.
 
 The `ValueFormat` policy foundation is shipped as a qualified API. `.format(...)`
 control attachment, `numeric_input`, and the remaining mapping or formatting

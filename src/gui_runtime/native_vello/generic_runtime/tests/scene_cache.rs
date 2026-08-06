@@ -704,6 +704,30 @@ fn materialize_fixture_with_validity(
     )
 }
 
+fn seed_publication_admission_for_test(
+    admission: &mut super::super::retained_paint_segments::NativePaintSegmentCacheAdmission,
+    materialization: &super::scene::NativePaintSegmentArtifactMaterialization,
+) {
+    for artifact in materialization.artifacts_for_test() {
+        admission.add_warming_for_test(
+            artifact.identity_for_test(),
+            artifact.span_for_test(),
+            artifact.revision_for_test(),
+            artifact.target_generation_for_test(),
+        );
+    }
+}
+
+fn seed_frame_publication_admission_for_test(
+    frame: &mut NativeVelloFrameState,
+    materialization: &super::scene::NativePaintSegmentArtifactMaterialization,
+) {
+    seed_publication_admission_for_test(
+        &mut frame.native_paint_segment_cache_admission,
+        materialization,
+    );
+}
+
 fn artifact_store_for_fixture(
     scene: &Scene,
     feasibility: super::scene::ArtifactFeasibilityObservation,
@@ -907,10 +931,12 @@ fn late_retained_assembly_veto_leaves_frame_scene_untouched() {
     frame.scene = authoritative.clone();
     frame.last_scene_stats.artifact_feasibility = feasibility;
     frame.last_native_paint_segment_eligibility = plan;
-    frame.reconcile_native_paint_segment_artifacts(materialize_fixture_with_validity(
+    let materialization = materialize_fixture_with_validity(
         (authoritative.clone(), feasibility, plan, payloads),
         scene_validity,
-    ));
+    );
+    seed_frame_publication_admission_for_test(&mut frame, &materialization);
+    frame.reconcile_native_paint_segment_artifacts(materialization);
     frame
         .native_paint_segment_artifact_store
         .artifact_for_test_mut(1)
@@ -975,7 +1001,6 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
             .iter()
             .any(Option::is_some)
     );
-
     let resident_index = runner
         .frame
         .native_paint_segment_artifact_store
@@ -1004,7 +1029,6 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
                 .native_paint_segment_artifact_store
                 .plan_entry_count_for_test()
     );
-
     runner
         .core
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
@@ -1023,6 +1047,25 @@ fn runner_warms_artifacts_before_later_retained_assembly() {
     runner.rebuild_scene();
     assert_eq!(runner.frame.scene_encode_count, 2);
     assert_eq!(runner.frame.scene_assembly_count, 2);
+    assert!(runner.frame.scene_assembly_fresh_count > 0);
+    assert!(
+        runner
+            .frame
+            .native_paint_segment_artifact_store
+            .resident_count_for_test()
+            > 0
+    );
+    assert_eq!(
+        runner.frame.scene_build_outcome,
+        super::super::frame_state::NativeSceneBuildOutcome::MixedRetainedAssembly
+    );
+
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    runner.rebuild_scene();
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_assembly_count, 3);
     assert_eq!(
         runner.frame.scene_build_outcome,
         super::super::frame_state::NativeSceneBuildOutcome::RetainedAssembly
@@ -1390,6 +1433,101 @@ fn scene_artifact_materialization_accepts_mixed_retained_and_fresh_order() {
     }
     for (index, artifact) in materialized.artifacts_for_test().iter().enumerate() {
         assert_eq!(artifact.plan_index_for_test(), index);
+    }
+}
+
+#[test]
+fn scene_artifact_materialization_projection_preserves_original_sparse_slots() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let materialization = materialize_fixture((scene, feasibility, plan, payloads));
+    let mut admission =
+        super::super::retained_paint_segments::NativePaintSegmentCacheAdmission::default();
+    for index in [0, 2] {
+        let artifact = &materialization.artifacts_for_test()[index];
+        admission.add_warming_for_test(
+            artifact.identity_for_test(),
+            artifact.span_for_test(),
+            artifact.revision_for_test(),
+            artifact.target_generation_for_test(),
+        );
+    }
+
+    let projected = materialization.filter_for_publication(&admission);
+    assert_eq!(projected.plan_entry_count_for_test(), 3);
+    assert_eq!(projected.len(), 2);
+    assert_eq!(
+        projected
+            .artifacts_for_test()
+            .iter()
+            .map(|artifact| artifact.plan_index_for_test())
+            .collect::<Vec<_>>(),
+        vec![0, 2]
+    );
+
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(projected);
+    let mut expected = [None; crate::runtime::MAX_PAINT_SEGMENTS];
+    expected[0] = plan.entries[0].map(|entry| entry.span.identity);
+    expected[2] = plan.entries[2].map(|entry| entry.span.identity);
+    assert_eq!(store.snapshot_identities(), expected);
+    assert_eq!(store.plan_entry_count_for_test(), 3);
+    assert_eq!(store.resident_count_for_test(), 2);
+}
+
+#[test]
+fn scene_artifact_materialization_projection_keeps_zero_resident_cardinality() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let materialization = materialize_fixture((scene, feasibility, plan, payloads));
+    let admission =
+        super::super::retained_paint_segments::NativePaintSegmentCacheAdmission::default();
+
+    let projected = materialization.filter_for_publication(&admission);
+    assert_eq!(projected.plan_entry_count_for_test(), 3);
+    assert!(projected.is_empty());
+
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(projected);
+    assert_eq!(store.plan_entry_count_for_test(), 3);
+    assert_eq!(store.resident_count_for_test(), 0);
+    assert!(store.snapshot_identities().iter().all(Option::is_none));
+}
+
+#[test]
+fn scene_artifact_materialization_projection_keeps_atomic_store_rejection() {
+    type Materialization = super::scene::NativePaintSegmentArtifactMaterialization;
+    type Invalidator = fn(&mut Materialization);
+
+    let cases: [(&str, Invalidator); 2] = [
+        ("duplicate", |materialization| {
+            materialization.duplicate_first_for_test();
+        }),
+        ("cardinality", |materialization| {
+            materialization.set_plan_entry_count_for_test(1);
+        }),
+    ];
+
+    for (case, invalidate) in cases {
+        let (scene, feasibility, plan, payloads) = typed_artifact_fixture(2);
+        let valid = materialize_fixture((scene, feasibility, plan, payloads));
+        let mut admission =
+            super::super::retained_paint_segments::NativePaintSegmentCacheAdmission::default();
+        seed_publication_admission_for_test(&mut admission, &valid);
+
+        let (scene, feasibility, plan, payloads) = typed_artifact_fixture(2);
+        let mut invalid = materialize_fixture((scene, feasibility, plan, payloads));
+        invalidate(&mut invalid);
+        let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+        store.reconcile(valid.filter_for_publication(&admission));
+        assert!(
+            store.snapshot_identities()[0].is_some(),
+            "{case}: valid publication"
+        );
+
+        store.reconcile(invalid.filter_for_publication(&admission));
+        assert!(
+            store.snapshot_identities().iter().all(Option::is_none),
+            "{case}: invalid projection must clear stale artifacts"
+        );
     }
 }
 
@@ -1778,6 +1916,7 @@ fn scene_artifact_store_clears_after_dpi_change_without_unbound_target_promotion
         materialized.artifacts_for_test()[0].target_generation_for_test(),
         previous_target_generation
     );
+    seed_frame_publication_admission_for_test(&mut runner.frame, &materialized);
     runner
         .frame
         .reconcile_native_paint_segment_artifacts(materialized);
@@ -1818,12 +1957,12 @@ fn other_surface_fence_clears_native_target_state_without_consuming_frame_work()
     );
     runner.frame.record_scene_encode(scene_validity);
     let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let materialization =
+        materialize_fixture_with_validity((scene, feasibility, plan, payloads), scene_validity);
+    seed_frame_publication_admission_for_test(&mut runner.frame, &materialization);
     runner
         .frame
-        .reconcile_native_paint_segment_artifacts(materialize_fixture_with_validity(
-            (scene, feasibility, plan, payloads),
-            scene_validity,
-        ));
+        .reconcile_native_paint_segment_artifacts(materialization);
     assert!(
         runner
             .frame

@@ -290,6 +290,8 @@ impl NativeVelloFrameState {
         &mut self,
         materialization: NativePaintSegmentArtifactMaterialization,
     ) {
+        let materialization =
+            materialization.filter_for_publication(&self.native_paint_segment_cache_admission);
         self.native_paint_segment_artifact_store
             .reconcile(materialization);
     }
@@ -372,8 +374,7 @@ impl NativeVelloFrameState {
 
         self.scene = bundle.scene;
         self.last_scene_stats = bundle.stats;
-        self.native_paint_segment_artifact_store
-            .reconcile(bundle.materialization);
+        self.reconcile_native_paint_segment_artifacts(bundle.materialization);
         self.native_retained_paint_segment_store
             .reconcile(fingerprint_observation);
         self.record_scene_assembly(

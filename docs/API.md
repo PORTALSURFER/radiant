@@ -2432,6 +2432,22 @@ reducers, missing `UiUpdateContext::business()` handoffs, worker saturation, and
 stale cancellation paths without coupling Radiant to an application's domain
 data.
 
+The `lifecycle` section of this snapshot is controller-owned generic runtime
+evidence. It is available after `SurfaceRuntime` construction and exposes the
+typed `RuntimeLifecyclePhase` values `Starting`, `Running`, `Recovering`,
+`Closing`, and `Stopped`; `Unknown` is the unavailable default for a standalone
+`RuntimeLifecycleDiagnostics` value. The controller records the construction
+transition from `Starting` to `Running`, then records only accepted lifecycle
+transitions through its private authority. `transition_count` saturates rather
+than wrapping, and `history` retains at most eight transitions in
+oldest-to-newest order. Repeated, invalid, backward, and post-`Stopped`
+transitions are vetoed and do not change the phase, count, or history.
+
+`RuntimeLifecycleDiagnostics`, `RuntimeLifecyclePhase`, and
+`RuntimeLifecycleTransition` are qualified exports under `radiant::runtime`.
+They are intentionally not common-prelude exports. This generic evidence does
+not add native recovery behavior or scheduler policy.
+
 `SurfaceRuntime::devtools_snapshot()` returns a backend-neutral
 `DevtoolsSnapshot` for in-app inspectors, debug overlays, tests, and embedded
 host diagnostics. The snapshot includes the current viewport, a stable

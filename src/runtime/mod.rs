@@ -121,12 +121,15 @@ pub use diagnostics::{
     NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
     NativeSurfaceRecoveryDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
     NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
-    NativeTransientOverlayTiming, NativeWindowDiagnosticIdentity, RetainedSurfaceCachePolicy,
-    RuntimeDiagnostics, RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE,
-    UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode,
-    UiUpdateHandlerDiagnosticsPolicy,
+    NativeTransientOverlayTiming, NativeWindowDiagnosticIdentity,
+    RUNTIME_LIFECYCLE_HISTORY_CAPACITY, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
+    RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase, RuntimeLifecycleTransition,
+    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
+    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
 };
-pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
+pub(crate) use diagnostics::{
+    RuntimeDiagnosticsRecorder, RuntimeLifecycleController, elapsed_since,
+};
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
 pub use environment::{

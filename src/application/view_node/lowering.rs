@@ -58,7 +58,7 @@ pub(super) struct ViewLowering<'a, Message> {
 }
 
 impl<'a, Message: 'static> ViewLowering<'a, Message> {
-    fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
+    pub(super) fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
         Self { ids, scene }
     }
 
@@ -84,7 +84,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
             .next_structural(scope, node.structural_kind(), role)
     }
 
-    fn lower_node(
+    pub(super) fn lower_node(
         &mut self,
         node: ViewNode<Message>,
         scope: u64,

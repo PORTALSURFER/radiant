@@ -8,9 +8,12 @@ mod lowering_defaults;
 mod modifiers;
 #[path = "view_node/slot.rs"]
 mod slot;
+#[path = "view_node/virtual_layout.rs"]
+mod virtual_layout;
 
 pub(in crate::application) use identity::KeyedIdentity;
 pub use identity::{ContinuityKey, preserve_state};
+pub(crate) use virtual_layout::{VirtualLayoutViewAdmissionError, lower_virtual_layout_item};
 
 use slot::SlotBehavior;
 

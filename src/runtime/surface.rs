@@ -15,6 +15,7 @@ mod revision;
 mod state_sync;
 mod traversal;
 mod view;
+mod virtual_layout;
 mod widget;
 
 pub use frame::SurfaceFrame;
@@ -30,6 +31,11 @@ pub(in crate::runtime) use state_sync::WidgetStateSyncPolicy;
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,
     SurfaceTraversalStats, SurfaceWidgetTraversalRecord, WheelHitTarget,
+};
+#[cfg(test)]
+pub(in crate::runtime) use virtual_layout::VirtualLayoutRegistrationRevisions;
+pub(in crate::runtime) use virtual_layout::{
+    MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration,
 };
 pub use widget::{
     EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceWidget,

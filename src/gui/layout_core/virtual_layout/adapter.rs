@@ -4,20 +4,45 @@
 //! active item batch before returning any lowered payload, but deliberately
 //! stops before runtime registration and lifecycle callbacks.
 
-#![expect(
-    dead_code,
-    reason = "The private retained adapter is shipped before runtime registration"
-)]
-
 use super::coordinator::VirtualLayoutCommit;
-use super::materialization::VirtualLayoutSlotIdentity;
+use super::materialization::{
+    VirtualLayoutHostProjector, VirtualLayoutProjection, VirtualLayoutProjectionEvidence,
+    VirtualLayoutProjectionKind, VirtualLayoutSlotIdentity,
+};
 use super::{VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutItem, VirtualLayoutItemKey};
 use crate::application::{View, VirtualLayoutViewAdmissionError, lower_virtual_layout_batch};
+use crate::layout::NodeId;
 use crate::runtime::SurfaceNode;
+use std::{cell::RefCell, rc::Rc};
+
+type VirtualLayoutShellProjector<Message> = Rc<dyn Fn() -> View<Message>>;
+type VirtualLayoutItemProjector<Message> = Rc<dyn Fn(&VirtualLayoutItem) -> View<Message>>;
+type VirtualLayoutItemKindProjector =
+    Rc<dyn Fn(&VirtualLayoutItem) -> super::VirtualLayoutPolicyIdentity>;
+type VirtualLayoutItemLowerer<Message> = Rc<
+    dyn Fn(
+        View<Message>,
+        NodeId,
+        u64,
+        usize,
+        u64,
+    ) -> Result<SurfaceNode<Message>, VirtualLayoutRetainedBatchError>,
+>;
+type VirtualLayoutBatchAdmitter<Message> = Rc<
+    dyn Fn(
+        &VirtualLayoutCommit,
+        View<Message>,
+        Vec<(
+            VirtualLayoutItemKey,
+            View<Message>,
+            VirtualLayoutSlotIdentity,
+        )>,
+    ) -> Result<VirtualLayoutRetainedBatch<Message>, VirtualLayoutRetainedBatchError>,
+>;
 
 /// Typed failures from complete shell-plus-batch admission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum VirtualLayoutRetainedBatchError {
+pub(crate) enum VirtualLayoutRetainedBatchError {
     InvalidCommit,
     MissingItem,
     ExtraItem,
@@ -39,6 +64,157 @@ pub(super) struct VirtualLayoutRetainedItem<Message> {
 pub(super) struct VirtualLayoutRetainedBatch<Message> {
     pub(super) shell: SurfaceNode<Message>,
     pub(super) items: Vec<VirtualLayoutRetainedItem<Message>>,
+}
+
+/// Whole-batch host projector used by the runtime bridge.
+///
+/// The store supplies the exact slot identities selected during its private
+/// planning phase. This projector consumes those identities in one call so
+/// shell and item identity admission completes before lifecycle callbacks.
+pub(crate) struct VirtualLayoutBatchProjector<Message> {
+    shell: RefCell<Option<View<Message>>>,
+    item_projector: VirtualLayoutItemProjector<Message>,
+    kind_projector: VirtualLayoutItemKindProjector,
+    item_lowerer: VirtualLayoutItemLowerer<Message>,
+    batch_admitter: VirtualLayoutBatchAdmitter<Message>,
+    projected_shell: RefCell<Option<SurfaceNode<Message>>>,
+}
+
+impl<Message> VirtualLayoutBatchProjector<Message> {
+    fn new(
+        shell: View<Message>,
+        item_projector: VirtualLayoutItemProjector<Message>,
+        kind_projector: VirtualLayoutItemKindProjector,
+        item_lowerer: VirtualLayoutItemLowerer<Message>,
+        batch_admitter: VirtualLayoutBatchAdmitter<Message>,
+    ) -> Self {
+        Self {
+            shell: RefCell::new(Some(shell)),
+            item_projector,
+            kind_projector,
+            item_lowerer,
+            batch_admitter,
+            projected_shell: RefCell::new(None),
+        }
+    }
+
+    pub(crate) fn factory(
+        shell: VirtualLayoutShellProjector<Message>,
+        item_projector: VirtualLayoutItemProjector<Message>,
+        kind_projector: VirtualLayoutItemKindProjector,
+    ) -> Rc<dyn Fn() -> Self>
+    where
+        Message: 'static,
+    {
+        Rc::new(move || {
+            let item_lowerer = Rc::new(
+                |node: View<Message>,
+                 container_id: NodeId,
+                 mount_generation: u64,
+                 slot_index: usize,
+                 checked_generation: u64| {
+                    crate::application::lower_virtual_layout_item(
+                        node,
+                        container_id,
+                        mount_generation,
+                        slot_index,
+                        checked_generation,
+                    )
+                    .map_err(VirtualLayoutRetainedBatchError::Lowering)
+                },
+            );
+            let batch_admitter = Rc::new(
+                |commit: &VirtualLayoutCommit,
+                 shell: View<Message>,
+                 supplied: Vec<(
+                    VirtualLayoutItemKey,
+                    View<Message>,
+                    VirtualLayoutSlotIdentity,
+                )>| { admit_virtual_layout_batch(commit, shell, supplied) },
+            );
+            Self::new(
+                shell(),
+                Rc::clone(&item_projector),
+                Rc::clone(&kind_projector),
+                item_lowerer,
+                batch_admitter,
+            )
+        })
+    }
+
+    pub(crate) fn take_shell(&self) -> Option<SurfaceNode<Message>> {
+        self.projected_shell.borrow_mut().take()
+    }
+}
+
+impl<Message> VirtualLayoutHostProjector for VirtualLayoutBatchProjector<Message> {
+    type Payload = SurfaceNode<Message>;
+    type Error = VirtualLayoutRetainedBatchError;
+
+    fn projection_kind(
+        &self,
+        _item: &VirtualLayoutItem,
+    ) -> Result<VirtualLayoutProjectionKind, Self::Error> {
+        Ok(VirtualLayoutProjectionKind::new((self.kind_projector)(
+            _item,
+        )))
+    }
+
+    fn project<'a>(
+        &self,
+        evidence: VirtualLayoutProjectionEvidence<'a>,
+    ) -> Result<VirtualLayoutProjection<Self::Payload>, Self::Error> {
+        let payload = (self.item_lowerer)(
+            (self.item_projector)(evidence.item()),
+            evidence.fence().container_id(),
+            evidence.proposed_slot().mount_generation(),
+            evidence.proposed_slot().slot_index(),
+            evidence.proposed_slot().checked_generation(),
+        )?;
+        Ok(VirtualLayoutProjection::new(
+            VirtualLayoutProjectionKind::new((self.kind_projector)(evidence.item())),
+            payload,
+        ))
+    }
+
+    fn project_batch<'a>(
+        &self,
+        commit: &VirtualLayoutCommit,
+        evidence: &[VirtualLayoutProjectionEvidence<'a>],
+    ) -> Result<Option<Vec<VirtualLayoutProjection<Self::Payload>>>, Self::Error> {
+        let shell =
+            self.shell
+                .borrow_mut()
+                .take()
+                .ok_or(VirtualLayoutRetainedBatchError::Lowering(
+                    VirtualLayoutViewAdmissionError::LoweringPanicked,
+                ))?;
+        let supplied = evidence
+            .iter()
+            .map(|evidence| {
+                (
+                    evidence.key().clone(),
+                    (self.item_projector)(evidence.item()),
+                    evidence.proposed_slot(),
+                )
+            })
+            .collect();
+        let batch = (self.batch_admitter)(commit, shell, supplied)?;
+        self.projected_shell.replace(Some(batch.shell));
+        Ok(Some(
+            batch
+                .items
+                .into_iter()
+                .map(|item| {
+                    let _ = item.slot;
+                    VirtualLayoutProjection::new(
+                        VirtualLayoutProjectionKind::new((self.kind_projector)(&item.item)),
+                        item.payload,
+                    )
+                })
+                .collect(),
+        ))
+    }
 }
 
 /// Admit and lower one complete accepted batch without lifecycle side effects.

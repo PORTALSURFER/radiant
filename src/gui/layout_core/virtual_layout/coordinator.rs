@@ -459,7 +459,7 @@ pub(crate) enum VirtualLayoutCompletion {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct VirtualLayoutCommit {
+pub(crate) struct VirtualLayoutCommit {
     fence: VirtualLayoutQueryFence,
     owner: Rc<CoordinatorIdentity>,
     view: VirtualLayoutWindowView,
@@ -472,7 +472,7 @@ pub(super) struct VirtualLayoutCommit {
 impl VirtualLayoutCommit {
     /// Return the exact coordinator-accepted query fence.
     #[must_use]
-    pub(super) const fn fence(&self) -> &VirtualLayoutQueryFence {
+    pub(crate) const fn fence(&self) -> &VirtualLayoutQueryFence {
         &self.fence
     }
 
@@ -484,13 +484,13 @@ impl VirtualLayoutCommit {
 
     /// Return the immutable accepted window view.
     #[must_use]
-    pub(super) const fn view(&self) -> &VirtualLayoutWindowView {
+    pub(crate) const fn view(&self) -> &VirtualLayoutWindowView {
         &self.view
     }
 
     /// Return the monotonic coordinator-accepted revision.
     #[must_use]
-    pub(super) const fn accepted_revision(&self) -> u64 {
+    pub(crate) const fn accepted_revision(&self) -> u64 {
         self.accepted_revision
     }
 }

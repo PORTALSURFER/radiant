@@ -20,6 +20,16 @@ mod adapter;
 mod coordinator;
 mod materialization;
 
+pub(crate) use adapter::VirtualLayoutBatchProjector;
+pub(crate) use coordinator::{
+    VirtualLayoutCompletion, VirtualLayoutRetainReason, VirtualLayoutWindowCoordinator,
+};
+pub(crate) use materialization::{
+    VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
+    VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore,
+    VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
+};
+
 /// Maximum number of keyed entries that one query may expose.
 pub const VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES: usize = 1024;
 

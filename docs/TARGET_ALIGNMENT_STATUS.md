@@ -64,6 +64,14 @@ generic render-selection gap without adding renderer-owned GPU lifetime or
 budgeting, platform profiling, or product-specific numeric, virtualization, or
 cache policy.
 
+Terminal boundary after PR #1616: no further generic implementation slice is
+selected from the current Radiant contracts. The remaining target requires a
+supported renderer/adapter contract for resource accounting, ownership,
+generation, asynchronous GPU timing, and per-resource fence-pinned retirement,
+plus a named product workload for active-resource importance, staleness, and
+degradation policy. Those decisions must arrive before implementation resumes;
+the estimate does not increase for this boundary audit.
+
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the generic private virtualization consumer path is now shipped and
 validated through the runtime bridge, but public/product-owned consumers,
@@ -254,10 +262,14 @@ policy.
    recording factual benefit evidence, PR #1615 supplies the
    admission-to-residency publication consumer for exact Warming/Admitted
    residents, and PR #1616 supplies the admission-aware render-boundary
-   selector with authoritative full-scene fallback. The next candidate is
-   renderer-owned retained-resource lifetime/budgeting and measured
-   renderer/platform profiling; that may require an explicit renderer contract,
-   while product-specific cache policy remains later and outside generic
+   selector with authoritative full-scene fallback. **Terminal boundary for
+   the current generic sequence:** no implementation PR is selected for the
+   remaining renderer-owned retained-resource lifetime/budgeting and measured
+   renderer/platform profiling because current Radiant/Vello contracts do not
+   expose the required accounting, ownership, asynchronous timing, or
+   per-resource retirement evidence. Resume only after that renderer contract
+   and a named product workload define importance, staleness, pressure, and
+   degradation policy; product-specific cache policy remains outside generic
    Radiant.
 5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.

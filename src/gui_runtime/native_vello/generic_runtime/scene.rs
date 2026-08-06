@@ -312,7 +312,9 @@ pub(in crate::gui_runtime::native_vello) fn encode_native_paint_segment_payloads
         let (Some(entry), Some(current)) = (plan.entries[index], paint.segments[index]) else {
             return NativePaintSegmentPayloadSelection::empty();
         };
-        if let Some(payload) = artifacts.reusable_payload(entry, scene_validity) {
+        if let Some(payload) =
+            artifacts.reusable_payload(index, entry, scene_validity, target_generation)
+        {
             selection.payloads.push(payload);
             selection.reused_count += 1;
             continue;

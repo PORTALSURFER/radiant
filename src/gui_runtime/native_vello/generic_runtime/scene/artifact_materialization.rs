@@ -2,9 +2,9 @@
 
 use super::super::frame_state::NativeSceneValidityFingerprint;
 use super::super::retained_paint_segments::{
-    NativePaintSegmentEligibilityDisposition, NativePaintSegmentEligibilityEntry,
-    NativePaintSegmentEligibilityOutcome, NativePaintSegmentEligibilityPlan,
-    NativePaintSegmentFreshEncodingReason,
+    NativePaintSegmentCacheAdmission, NativePaintSegmentEligibilityDisposition,
+    NativePaintSegmentEligibilityEntry, NativePaintSegmentEligibilityOutcome,
+    NativePaintSegmentEligibilityPlan, NativePaintSegmentFreshEncodingReason,
 };
 use super::super::runner_state::NativeTargetGeneration;
 use super::artifact_feasibility::{
@@ -137,6 +137,41 @@ pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactMateri
 }
 
 impl NativePaintSegmentArtifactMaterialization {
+    /// Project one fully validated batch through prior-frame publication
+    /// eligibility without changing its plan cardinality or resident slots.
+    ///
+    /// The materializer has already validated the dense batch before this
+    /// operation. Publication is an observational filter only: it preserves
+    /// each surviving artifact's original plan index and leaves sparse holes
+    /// in place, including an empty projection with nonzero cardinality.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn filter_for_publication(
+        self,
+        admission: &NativePaintSegmentCacheAdmission,
+    ) -> Self {
+        let Self {
+            plan_entry_count,
+            scene_validity,
+            artifacts,
+        } = self;
+        let artifacts = artifacts
+            .into_iter()
+            .filter(|artifact| {
+                let evidence = artifact.payload.evidence;
+                admission.publication_eligible(
+                    evidence.identity,
+                    evidence.span,
+                    evidence.revision,
+                    evidence.target_generation,
+                )
+            })
+            .collect();
+        Self {
+            plan_entry_count,
+            scene_validity,
+            artifacts,
+        }
+    }
+
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn len(&self) -> usize {
         self.artifacts.len()

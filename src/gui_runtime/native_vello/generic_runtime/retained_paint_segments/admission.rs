@@ -60,6 +60,41 @@ impl NativePaintSegmentCacheAdmission {
         self.target_generation = None;
     }
 
+    /// Return whether one exact current artifact may be published into the
+    /// sparse materialization store.
+    ///
+    /// Warming is intentionally publication-eligible: it seeds the store so a
+    /// later frame can observe non-zero retained reuse and promote the exact
+    /// tuple to `Admitted`. This query remains observational; publication does
+    /// not authorize reuse, assembly, rendering, or presentation.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn publication_eligible(
+        &self,
+        identity: PaintSegmentIdentity,
+        span: PaintSegmentSpan,
+        revision: u64,
+        target_generation: NativeTargetGeneration,
+    ) -> bool {
+        if revision == 0
+            || !target_generation.is_known()
+            || span.identity != identity
+            || span.start >= span.end
+        {
+            return false;
+        }
+        self.target_generation == Some(target_generation)
+            && self.entries.iter().flatten().any(|entry| {
+                entry.identity == identity
+                    && entry.span == span
+                    && entry.revision == revision
+                    && entry.target_generation == target_generation
+                    && matches!(
+                        entry.state,
+                        NativePaintSegmentCacheAdmissionState::Warming
+                            | NativePaintSegmentCacheAdmissionState::Admitted
+                    )
+            })
+    }
+
     /// Reconcile one exact latest-frame ledger projection atomically.
     ///
     /// Repeated processing of one accepted epoch is a no-op. Older epochs,
@@ -161,6 +196,41 @@ impl NativePaintSegmentCacheAdmission {
             entry.identity == identity
                 && matches!(entry.state, NativePaintSegmentCacheAdmissionState::Admitted)
         })
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn add_warming_for_test(
+        &mut self,
+        identity: PaintSegmentIdentity,
+        span: PaintSegmentSpan,
+        revision: u64,
+        target_generation: NativeTargetGeneration,
+    ) {
+        if revision == 0
+            || !target_generation.is_known()
+            || span.identity != identity
+            || span.start >= span.end
+            || self
+                .target_generation
+                .is_some_and(|existing| existing != target_generation)
+        {
+            return;
+        }
+        let Some(slot) = self.entries.iter_mut().find(|slot| slot.is_none()) else {
+            return;
+        };
+        *slot = Some(NativePaintSegmentCacheAdmissionEntry {
+            identity,
+            span,
+            revision,
+            target_generation,
+            state: NativePaintSegmentCacheAdmissionState::Warming,
+            confidence: 0,
+            beneficial_reuse_observations: 0,
+            low_benefit_observations: 0,
+            promotion_window_start_epoch: 0,
+        });
+        self.target_generation = Some(target_generation);
     }
 }
 
@@ -417,6 +487,51 @@ mod native_paint_segment_cache_admission {
     }
 
     #[test]
+    fn publication_requires_exact_warming_or_admitted_tuple() {
+        let generation = known(1);
+        let segment_identity = identity(1);
+        let span = PaintSegmentSpan {
+            identity: segment_identity,
+            start: 0,
+            end: 2,
+        };
+        let mut policy = NativePaintSegmentCacheAdmission::default();
+
+        assert!(!policy.publication_eligible(segment_identity, span, 1, generation,));
+
+        policy.reconcile(beneficial(1, generation));
+        assert!(policy.publication_eligible(segment_identity, span, 1, generation,));
+        assert!(!policy.publication_eligible(segment_identity, span, 2, generation,));
+        let other_identity = identity(2);
+        assert!(!policy.publication_eligible(
+            other_identity,
+            PaintSegmentSpan {
+                identity: other_identity,
+                ..span
+            },
+            1,
+            generation,
+        ));
+        assert!(!policy.publication_eligible(
+            segment_identity,
+            PaintSegmentSpan { end: 3, ..span },
+            1,
+            generation,
+        ));
+        assert!(!policy.publication_eligible(segment_identity, span, 1, known(2),));
+        assert!(!policy.publication_eligible(segment_identity, span, 0, generation,));
+        assert!(!policy.publication_eligible(
+            segment_identity,
+            span,
+            1,
+            NativeTargetGeneration::unknown(),
+        ));
+
+        policy.reconcile(beneficial(2, generation));
+        assert!(policy.publication_eligible(segment_identity, span, 1, generation,));
+    }
+
+    #[test]
     fn zero_work_reuse_never_admits() {
         let generation = known(1);
         let mut policy = NativePaintSegmentCacheAdmission::default();
@@ -523,6 +638,12 @@ mod native_paint_segment_cache_admission {
         assert!(demoted_entry.is_some(), "demoted entry remains bounded");
         if let Some(entry) = demoted_entry {
             assert_eq!(entry.state, NativePaintSegmentCacheAdmissionState::Warming);
+            assert!(policy.publication_eligible(
+                entry.identity,
+                entry.span,
+                entry.revision,
+                entry.target_generation,
+            ));
         }
     }
 
@@ -644,6 +765,12 @@ mod native_paint_segment_cache_admission {
             true,
         ));
         assert!(!policy.admitted_for_test(identity(2)));
+        let removed_span = PaintSegmentSpan {
+            identity: identity(2),
+            start: 3,
+            end: 5,
+        };
+        assert!(!policy.publication_eligible(identity(2), removed_span, 1, generation,));
         assert!(policy.has_entries_for_test());
     }
 

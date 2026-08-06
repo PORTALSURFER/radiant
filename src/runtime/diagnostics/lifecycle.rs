@@ -93,14 +93,14 @@ impl RuntimeLifecycleController {
 
         let sequence = self.transition_count.saturating_add(1);
         self.transition_count = sequence;
+        if self.history.len() == RUNTIME_LIFECYCLE_HISTORY_CAPACITY {
+            let _ = self.history.pop_front();
+        }
         self.history.push_back(RuntimeLifecycleTransition {
             sequence,
             from: self.phase,
             to: next,
         });
-        if self.history.len() > RUNTIME_LIFECYCLE_HISTORY_CAPACITY {
-            let _ = self.history.pop_front();
-        }
         self.phase = next;
         true
     }
@@ -227,6 +227,10 @@ mod tests {
         let diagnostics = controller.diagnostics();
         assert_eq!(
             diagnostics.history.len(),
+            RUNTIME_LIFECYCLE_HISTORY_CAPACITY
+        );
+        assert_eq!(
+            controller.history.capacity(),
             RUNTIME_LIFECYCLE_HISTORY_CAPACITY
         );
         assert!(

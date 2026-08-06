@@ -102,6 +102,7 @@ where
             }
             let auxiliary_key =
                 FrameScheduleKey::Auxiliary(self.auxiliary_windows[index].key().to_owned());
+            let auxiliary_owner = self.auxiliary_windows[index].effect_owner();
             let observe_redraw = matches!(&event, WindowEvent::RedrawRequested)
                 && !self.auxiliary_windows[index].is_retiring();
             let admission = observe_redraw
@@ -134,6 +135,7 @@ where
             };
             let AuxiliaryWindowEventResult {
                 messages,
+                message_origin,
                 terminal_cause,
                 shutdown_requested,
             } = route_result;
@@ -144,6 +146,9 @@ where
             let became_retiring = self.auxiliary_windows[index].is_retiring();
             if became_retiring {
                 self.remove_cpu_frame_observation(&auxiliary_key);
+                self.core
+                    .runtime
+                    .retire_auxiliary_effect_owner(&auxiliary_owner);
             }
             let frame_diagnostics =
                 if shutdown_requested || terminal_cause.is_some() || became_retiring {
@@ -162,7 +167,7 @@ where
                 return;
             }
             if !messages.is_empty() {
-                self.dispatch_auxiliary_messages(event_loop, messages);
+                self.dispatch_auxiliary_messages(event_loop, message_origin, messages);
             }
             return;
         }
@@ -505,6 +510,7 @@ where
                     if let Some(result) = result {
                         let super::AuxiliaryWindowEventResult {
                             messages,
+                            message_origin,
                             terminal_cause,
                             shutdown_requested,
                         } = result;
@@ -540,7 +546,9 @@ where
                         }
                         if !messages.is_empty() {
                             self.dispatch_auxiliary_messages_without_timed_frame(
-                                event_loop, messages,
+                                event_loop,
+                                message_origin,
+                                messages,
                             );
                         }
                     }

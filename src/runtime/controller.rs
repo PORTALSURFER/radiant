@@ -32,6 +32,7 @@ pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use layout_state::{SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement};
+pub(crate) use owner::AuxiliaryWindowOwner;
 pub(crate) use refresh::BasePaintPlanContext;
 pub use refresh::{
     IdentityAudit, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
@@ -58,6 +59,7 @@ use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use owner::RuntimeOwner;
 use platform::{PlatformCompletionRegistry, PlatformResultIngress};
 use scratch::RuntimeScratch;
+use std::collections::HashMap;
 use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
@@ -108,6 +110,7 @@ where
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     effect_owner: RuntimeOwner,
+    auxiliary_effect_owners: HashMap<String, AuxiliaryWindowOwner>,
     runtime_work: RuntimeWorkQueues<Message>,
     platform_registry: PlatformCompletionRegistry<Message>,
     platform_results: std::sync::Arc<std::sync::Mutex<PlatformResultIngress>>,

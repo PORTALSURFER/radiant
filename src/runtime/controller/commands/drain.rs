@@ -67,8 +67,8 @@ where
             );
         let worker_work_remaining = platform_work_remaining || deferred;
         let worker_later_turn = later_turn;
-        for message in worker_messages {
-            self.dispatch_message_inner(message, &mut outcome);
+        for mapped in worker_messages {
+            self.dispatch_message_inner_with_origin(mapped.message, &mut outcome, mapped.origin);
         }
 
         // Preserve the precedence fence: bridge commands/items are admitted

@@ -11,8 +11,8 @@ use super::{
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::{
-    AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
-    RuntimeBridge,
+    AuxiliaryWindow, AuxiliaryWindowOwner, NativeFrameDiagnostics, NativeRunOptions,
+    NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
@@ -34,6 +34,7 @@ enum AuxiliaryNativeWindowLifecycle {
 
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
+    owner: AuxiliaryWindowOwner,
     close_message: Option<Message>,
     cache_on_close: bool,
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
@@ -43,11 +44,29 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
+    #[cfg(test)]
     pub(super) fn new(
         projection: AuxiliaryWindow<Message>,
         parent_options: &NativeRunOptions,
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
         frame_diagnostics_enabled: bool,
+    ) -> Self {
+        let owner = AuxiliaryWindowOwner::new(&projection.key);
+        Self::new_with_owner(
+            projection,
+            parent_options,
+            native_window_diagnostic_identity,
+            frame_diagnostics_enabled,
+            owner,
+        )
+    }
+
+    pub(super) fn new_with_owner(
+        projection: AuxiliaryWindow<Message>,
+        parent_options: &NativeRunOptions,
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+        frame_diagnostics_enabled: bool,
+        owner: AuxiliaryWindowOwner,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
         let cache_on_close = projection.caches_on_close();
@@ -67,6 +86,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         runner.mark_as_auxiliary();
         Self {
             key: projection.key,
+            owner,
             close_message: projection.close_message,
             cache_on_close,
             runner,
@@ -78,6 +98,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn key(&self) -> &str {
         &self.key
+    }
+
+    pub(super) fn effect_owner(&self) -> AuxiliaryWindowOwner {
+        self.owner.clone()
     }
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
@@ -153,6 +177,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
+            message_origin: Some(self.owner.clone()),
             terminal_cause,
             shutdown_requested: self.runner.native_shutdown_requested(),
         }
@@ -543,6 +568,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages,
+            message_origin: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -670,6 +696,7 @@ fn auxiliary_redraw_terminal_cause(
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) messages: Vec<Message>,
+    pub(super) message_origin: Option<AuxiliaryWindowOwner>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
 }
@@ -678,6 +705,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
     fn ignored() -> Self {
         Self {
             messages: Vec::new(),
+            message_origin: None,
             terminal_cause: None,
             shutdown_requested: false,
         }
@@ -691,22 +719,35 @@ where
     pub(super) fn dispatch_auxiliary_messages(
         &mut self,
         event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
     ) {
-        self.dispatch_auxiliary_messages_with_timed_frame(event_loop, messages, true);
+        self.dispatch_auxiliary_messages_with_timed_frame(
+            event_loop,
+            message_origin,
+            messages,
+            true,
+        );
     }
 
     pub(super) fn dispatch_auxiliary_messages_without_timed_frame(
         &mut self,
         event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
     ) {
-        self.dispatch_auxiliary_messages_with_timed_frame(event_loop, messages, false);
+        self.dispatch_auxiliary_messages_with_timed_frame(
+            event_loop,
+            message_origin,
+            messages,
+            false,
+        );
     }
 
     fn dispatch_auxiliary_messages_with_timed_frame(
         &mut self,
         event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
         merge_due_timed_frame: bool,
     ) {
@@ -715,7 +756,13 @@ where
         }
         let mut outcome = GenericRouteOutcome::default();
         for message in messages {
-            let command_outcome = self.core.runtime.dispatch_message(message);
+            let command_outcome = match message_origin.as_ref() {
+                Some(owner) => self
+                    .core
+                    .runtime
+                    .dispatch_message_from_auxiliary(message, owner.clone()),
+                None => self.core.runtime.dispatch_message(message),
+            };
             outcome.merge(self.core.route_command_outcome(command_outcome));
         }
         if merge_due_timed_frame {
@@ -831,13 +878,18 @@ where
             } else {
                 let native_window_diagnostic_identity =
                     self.allocate_auxiliary_window_diagnostic_identity();
+                let owner = self
+                    .core
+                    .runtime
+                    .acquire_auxiliary_effect_owner(&projection.key);
                 let initialized = {
                     let parent_window = self.window.window.as_deref();
-                    let mut window = AuxiliaryNativeWindow::new(
+                    let mut window = AuxiliaryNativeWindow::new_with_owner(
                         projection,
                         &self.options,
                         native_window_diagnostic_identity,
                         self.frame_diagnostics_enabled,
+                        owner.clone(),
                     );
                     window
                         .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
@@ -846,6 +898,7 @@ where
                 if let Err(error) =
                     append_initialized_auxiliary_window(&mut self.auxiliary_windows, initialized)
                 {
+                    self.core.runtime.retire_auxiliary_effect_owner(&owner);
                     if let Some(cause) = self.recovery_cause.take() {
                         self.recovery_auxiliary_followup_pending = false;
                         self.admit_native_shutdown(event_loop, Some(cause));
@@ -1043,6 +1096,7 @@ mod tests {
 
         let first = window.handle_close_requested();
         assert_eq!(first.messages, [7]);
+        assert!(first.message_origin.is_none());
         assert!(window.is_retiring());
         assert!(!window.active);
         assert!(window.window_id().is_none());
@@ -1066,6 +1120,20 @@ mod tests {
         assert!(late.messages.is_empty());
         assert!(late.terminal_cause.is_none());
         assert!(!late.shutdown_requested);
+    }
+
+    #[test]
+    fn child_outbox_messages_carry_the_auxiliary_generation_owner() {
+        let mut window = auxiliary_window(false);
+        let _ = window.runner.core.runtime.dispatch_message(17);
+        let result = window.event_result(None);
+        assert_eq!(result.messages, [17]);
+        let owner = window.effect_owner();
+        assert!(
+            result
+                .message_origin
+                .is_some_and(|origin| origin.is_same_generation(&owner))
+        );
     }
 
     #[test]

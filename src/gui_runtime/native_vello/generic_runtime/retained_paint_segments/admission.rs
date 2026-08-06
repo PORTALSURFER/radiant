@@ -100,7 +100,7 @@ impl NativePaintSegmentCacheAdmission {
 
         let count = usize::from(evidence.segment_count);
         let mut next = [None; MAX_PAINT_SEGMENTS];
-        for index in 0..count {
+        for (index, slot) in next.iter_mut().enumerate().take(count) {
             let Some(sample) = evidence.segments[index] else {
                 self.clear_for_epoch(evidence.epoch, None);
                 return;
@@ -111,7 +111,7 @@ impl NativePaintSegmentCacheAdmission {
                 .copied()
                 .flatten()
                 .find(|entry| entry.identity == sample.identity);
-            next[index] = Some(observe_sample(previous, sample));
+            *slot = Some(observe_sample(previous, sample));
         }
         self.entries = next;
         self.target_generation = Some(evidence.target_generation);

@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`d05f6e8e`**
-- Overall estimate: **~84%**
-- Working range: **79–89%**
+- Canonical main: **`99e44373`**
+- Overall estimate: **~85%**
+- Working range: **80–90%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -37,9 +37,14 @@ through the existing materialization store, retained-subtree reuse, and
 conservative changed/missing/duplicate/terminal handling. PR #1610 now ships
 the generic, parser-agnostic `NumericEditSession<T>` draft/transaction
 foundation with source-safe terminal boundaries and qualified exports, without
-claiming parser, domain, widget, or runtime integration. The estimate moves
-modestly because numeric edit-session state is now executable and validated,
-while no product-specific numeric policy or virtualization behavior is claimed.
+claiming parser, domain, widget, or runtime integration. PR #1611 now ships a
+private, per-window native paint-segment benefit ledger with exact committed
+full-encode/assembly evidence, checked segment-local count deltas, bounded
+history, generation fencing, and recovery clearing, without changing render
+selection or cache admission. The estimate moves modestly because this is an
+executable evidence prerequisite; render-boundary selection and measured cache
+admission remain unshipped, while no product-specific numeric or virtualization
+policy is claimed.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the generic private virtualization consumer path is now shipped and
@@ -58,7 +63,7 @@ unshipped.
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
-| Rendering, invalidation, retained GPU surfaces | 60% | Revision/damage direction is present; production render-boundary and cache-admission wiring remains. |
+| Rendering, invalidation, retained GPU surfaces | 63% | Revision/damage direction and private committed native paint-segment benefit evidence are shipped; production render-boundary selection and measured cache-admission wiring remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
@@ -123,6 +128,11 @@ The current foundation includes:
   replacement, one shared `EditEvent::Begin`, source-safe caller-certified
   commit/cancel boundaries, foreign-source preservation, and no common-prelude
   export (PR #1610); and
+- the private, per-window `NativePaintSegmentBenefitLedger` with exact
+  committed full-encode and retained/mixed-assembly outcomes, checked
+  segment-local Vello-count evidence, bounded observation history, conservative
+  malformed/mixed-generation clearing, and target/recovery invalidation (PR
+  #1611); and
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -147,7 +157,10 @@ complete private batch adapter on which the bridge depends. PR #1610 also
 establishes the generic numeric editing-session boundary, but no public
 registration/API or capability contract version has changed; product-specific
 virtualization consumers, `split_pane` interaction/state/ratio semantics, and
-numeric parser/domain policy remain contract-dependent.
+numeric parser/domain policy remain contract-dependent. PR #1611 adds the
+native committed paint-segment benefit evidence needed before measured cache
+admission, but it intentionally does not select render boundaries or authorize
+retention/reuse.
 
 ## Remaining gaps, ordered by leverage
 
@@ -176,8 +189,10 @@ numeric parser/domain policy remain contract-dependent.
 3. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
 4. **Production frame wiring.** Complete reconciliation, damage propagation,
-   render-boundary selection, and retained-surface cache admission in the
-   production runtime path.
+   render-boundary selection, and measured retained-surface cache admission in
+   the production runtime path. PR #1611 supplies the bounded committed
+   native paint-segment benefit evidence prerequisite, but does not authorize
+   retention/reuse or replace the correctness-first enclosing-scene fallback.
 5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
 6. **Platform expansion.** Broaden Linux/Windows runtime validation and
@@ -202,6 +217,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Private retained-item admission prerequisite](../src/application/view_node/virtual_layout.rs)
 - [Private retained-item batch adapter](../src/gui/layout_core/virtual_layout/adapter.rs)
 - [Private runtime virtual-layout bridge](../src/runtime/controller/virtual_layout.rs)
+- [Native paint-segment benefit evidence](../src/gui_runtime/native_vello/generic_runtime/retained_paint_segments/benefit.rs)
 - [Query capability public tests](../tests/virtual_layout_public_api.rs)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
 - [Numeric edit session](../src/widgets/interaction/numeric_edit.rs)
@@ -248,3 +264,4 @@ After each merged alignment slice:
 | 2026-08-06 | `bd296da3` | ~79% (73–85%, medium confidence) | PR #1608 merged the private complete retained-item batch adapter with exact accepted-key/slot matching, whole-shell-plus-active-batch identity admission, deterministic tuple-scoped wrappers, immutable `SurfaceNode` payloads, typed recoverable rejection, 57 focused tests, full local validation, green CI, and exact-head Terra APPROVE. The estimate moves modestly because materialization-store integration and the separate `SurfaceRuntime` registration/two-pass bridge remain unshipped; that bridge is the next dependency-correct item. |
 | 2026-08-06 | `ee861887` | ~83% (78–88%, medium confidence) | PR #1609 merged the private synchronous `SurfaceRuntime` virtual-layout registration/two-pass bridge with bounded registration admission, shell-first layout/query sequencing, complete-batch publication through the existing materialization store, retained-subtree reuse that skips unchanged post-cache projection/layout, conservative missing/changed/duplicate/deferred/unavailable/terminal handling, and same-ID virtual-to-ordinary regression evidence. Full local validation and green required CI passed with exact-head Terra APPROVE. Generic runtime consumer integration is now shipped; the next generic dependency-correct item is the parser-agnostic `NumericEditSession`, while product-specific virtualization and `split_pane` semantics remain product-dependent. |
 | 2026-08-06 | `d05f6e8e` | ~84% (79–89%, medium confidence) | PR #1610 merged the qualified, parser-agnostic `NumericEditSession<T>` with verbatim draft preservation, one shared `EditEvent::Begin`, source-safe same-source commit/cancel, foreign-source session preservation, generic-domain/public-API coverage, full local validation, green required CI, and exact-head Terra APPROVE. Numeric-control alignment moves from 35% to a conservative 42%; the next numeric integration requires concrete parser/domain/widget policy, while product-specific virtualization and `split_pane` semantics remain product-dependent. |
+| 2026-08-06 | `99e44373` | ~85% (80–90%, medium confidence) | PR #1611 merged the private, per-window native paint-segment benefit ledger with exact committed full-encode and retained/mixed-assembly outcome evidence, checked segment-local count deltas, bounded deterministic history, conservative malformed/mixed-generation handling, and target/recovery clearing. Focused and full local validation passed, required `quality` and `windows-compile` CI passed, and exact-head Terra APPROVE followed one test-only generation-fence correction. Rendering alignment moves conservatively from 60% to 63%; render-boundary selection and measured cache admission remain the next generic dependency-correct items, while product-specific virtualization/numeric policy remains product-dependent. |

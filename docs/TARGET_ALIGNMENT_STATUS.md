@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`63a83359`**
-- Overall estimate: **~89%**
-- Working range: **84–94%**
+- Canonical main: **`0e0b26ed`**
+- Overall estimate: **~90%**
+- Working range: **85–95%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -56,10 +56,13 @@ evidence uses the derived execution plan. PR #1615 now connects the existing
 Warming/Admitted evidence to sparse artifact publication: fully validated dense
 batches are filtered by the exact admission tuple, original plan indices and
 cardinality remain intact, and full and mixed paths share one frame-state owner.
-The estimate moves modestly because this closes the admission-to-residency
-publication gap without adding render-boundary selection, measured retained-
-surface cache wiring, GPU lifetime management, or product-specific numeric or
-virtualization policy.
+PR #1616 now makes render-boundary selection an explicit private native Vello
+consumer: Warming probes and Admitted residents are selected only when exact
+residency is present, while zero-selection and unsafe cases use authoritative
+full-scene encoding. The estimate moves modestly because this closes the
+generic render-selection gap without adding renderer-owned GPU lifetime or
+budgeting, platform profiling, or product-specific numeric, virtualization, or
+cache policy.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the generic private virtualization consumer path is now shipped and
@@ -78,7 +81,7 @@ unshipped.
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
-| Rendering, invalidation, retained GPU surfaces | 75% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, and admission-gated sparse publication through a shared frame-state owner are shipped; render-boundary selection, measured retained-surface cache wiring, and GPU lifetime management remain. |
+| Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
@@ -168,6 +171,11 @@ The current foundation includes:
   preserves original sparse slots and nonzero plan cardinality, clears invalid
   state atomically, and routes full and mixed publication through one
   frame-state owner (PR #1615); and
+- the private admission-aware native Vello render-boundary selector that
+  intersects exact Warming/Admitted evidence with sparse residency and scene
+  fences, keeps Warming probes reachable, attempts mixed assembly only when a
+  resident is selected, and falls back to authoritative full-scene encoding
+  for zero-selection or unsafe cases (PR #1616); and
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -202,9 +210,12 @@ exact indexed reuse, vetoes invalid present evidence, and commits the derived
 execution plan for factual benefit evidence. PR #1615 now filters fully
 validated materializations through the current admission state, publishes only
 exact eligible residents into their original sparse slots, and uses one owner
-for full and mixed publication. These slices still do not select render
-boundaries, authorize presentation or admission-driven retention, or provide
-measured production cache/GPU-lifetime wiring.
+for full and mixed publication. PR #1616 now consumes that state at the native
+Vello render boundary: exact Warming/Admitted residents can select mixed
+assembly, while no-selected-resident and unsafe paths use the authoritative
+encoder. These slices still do not authorize presentation, own GPU resource
+lifetime or budgeting, or provide renderer/platform profiling or product cache
+policy.
 
 ## Remaining gaps, ordered by leverage
 
@@ -240,11 +251,14 @@ measured production cache/GPU-lifetime wiring.
    observational admission signal, and PR #1613 supplies the exact
    plan-index-preserving sparse residency contract, PR #1614 makes valid
    sparse absence executable as fresh encoding during mixed assembly while
-   recording factual benefit evidence, and PR #1615 supplies the
+   recording factual benefit evidence, PR #1615 supplies the
    admission-to-residency publication consumer for exact Warming/Admitted
-   residents. The next generic slice is render-boundary selection and measured
-   retained-surface wiring; GPU lifetime ownership, product-specific cache
-   policy, and renderer/platform profiling remain later concerns.
+   residents, and PR #1616 supplies the admission-aware render-boundary
+   selector with authoritative full-scene fallback. The next candidate is
+   renderer-owned retained-resource lifetime/budgeting and measured
+   renderer/platform profiling; that may require an explicit renderer contract,
+   while product-specific cache policy remains later and outside generic
+   Radiant.
 5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
 6. **Platform expansion.** Broaden Linux/Windows runtime validation and
@@ -273,6 +287,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Native paint-segment admission state](../src/gui_runtime/native_vello/generic_runtime/retained_paint_segments/admission.rs)
 - [Native paint artifact residency](../src/gui_runtime/native_vello/generic_runtime/scene/artifact_materialization.rs)
 - [Native paint artifact publication owner](../src/gui_runtime/native_vello/generic_runtime/frame_state.rs)
+- [Native paint render-boundary selection](../src/gui_runtime/native_vello/generic_runtime/retained_paint_segments/selection.rs)
 - [Query capability public tests](../tests/virtual_layout_public_api.rs)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
 - [Numeric edit session](../src/widgets/interaction/numeric_edit.rs)
@@ -324,3 +339,4 @@ After each merged alignment slice:
 | 2026-08-06 | `364cfb63` | ~87% (82–92%, medium confidence) | PR #1613 merged the private plan-index-preserving sparse native paint artifact-residency contract with separate plan cardinality, non-compacting fixed-capacity slots, exact indexed reuse/assembly fences, atomic malformed-state clearing, and sparse-hole/zero-resident regression coverage. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed after installing the target standard libraries, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 66% to 69%; the next generic item is the admission-to-residency consumer for selective sparse publication and mixed-assembly fresh encoding, while render-boundary selection, measured wiring, and product-specific policy remain. |
 | 2026-08-06 | `d5cf572d` | ~88% (83–93%, medium confidence) | PR #1614 merged the private mixed native paint assembly consumer: valid sparse absences become supported per-frame fresh encodes, exact residents reuse, present corruption and unsupported holes veto atomically, and the derived execution plan supplies factual benefit evidence while admission remains observational. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed, corrected `perf_harness` baseline/compare matched 2/2 scenarios with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 69% to 72%; the next generic item is selective admission-to-residency publication, while render-boundary selection, measured wiring, and product-specific policy remain. |
 | 2026-08-06 | `63a83359` | ~89% (84–94%, medium confidence) | PR #1615 merged the private admission-to-residency consumer: exact Warming/Admitted identity, span, revision, and generation evidence now filters fully validated dense batches into their original sparse slots, preserves nonzero plan cardinality and atomic clearing, and routes full/mixed publication through one frame-state owner. Focused and full local validation passed, Linux and Intel-macOS no-default-feature checks passed, `perf_harness` baseline/compare matched 2/2 scenarios with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 72% to 75%; the next generic item is render-boundary selection and measured retained-surface wiring, while GPU lifetime ownership and product-specific policy remain. |
+| 2026-08-06 | `0e0b26ed` | ~90% (85–95%, medium confidence) | PR #1616 merged the private admission-aware native Vello render-boundary selector: exact Warming/Admitted evidence is intersected with sparse residency and scene/generation fences, mixed assembly requires at least one exact resident, valid holes/unselected entries remain fresh in original order, and zero-selection or unsafe cases use authoritative full-scene encoding. Focused and full local validation passed with 3,570 all-target/all-feature tests, Linux and Intel-macOS no-default-feature checks passed, the two Vello strategy probes reported 1,024/0 versus 256/4 work per iteration, the focused JSONL baseline round trip matched 1/1 with 0 slower, required `quality` and `windows-compile` CI passed, and independent Terra APPROVE found no findings. Rendering alignment moves conservatively from 75% to 78%; the next candidate is renderer-owned retained-resource lifetime/budgeting and measured renderer/platform profiling, while product-specific cache policy remains outside generic Radiant. |

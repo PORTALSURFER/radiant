@@ -745,13 +745,29 @@ mod tests {
         assert!(ledger.snapshot_for_test().iter().all(Option::is_none));
 
         let next_generation = NativeTargetGeneration::from_test_serial(2);
-        ledger.record_full_encode(paint, encoding, feasibility, next_generation, false);
-        assert!(ledger.available_for_test());
-        let mut mixed_generation = feasibility;
-        mixed_generation.conservative = true;
-        ledger.record_full_encode(paint, encoding, mixed_generation, next_generation, false);
-        assert!(!ledger.available_for_test());
-        assert!(ledger.snapshot_for_test().iter().all(Option::is_none));
+        let mut generation_mismatch_ledger = NativePaintSegmentBenefitLedger::default();
+        generation_mismatch_ledger.record_full_encode(
+            paint,
+            encoding,
+            feasibility,
+            generation,
+            false,
+        );
+        assert!(generation_mismatch_ledger.available_for_test());
+        generation_mismatch_ledger.record_full_encode(
+            paint,
+            encoding,
+            feasibility,
+            next_generation,
+            false,
+        );
+        assert!(!generation_mismatch_ledger.available_for_test());
+        assert!(
+            generation_mismatch_ledger
+                .snapshot_for_test()
+                .iter()
+                .all(Option::is_none)
+        );
     }
 
     #[test]

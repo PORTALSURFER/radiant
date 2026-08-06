@@ -83,8 +83,11 @@ now extends the same private owner/origin fence to platform completions across
 result-host acceptance, unsupported and
 rejected fallback, both UI delivery paths, chained commands, and exact
 auxiliary retirement; host-held sinks remain bounded and late deliveries are
-inert before mapping. The estimate moves modestly because overlay/keyed-node
-cancellation and scheduling policy remain unshipped.
+inert before mapping. No executable overlay/keyed-node cancellation is shipped.
+This documentation-only slice records the contract blocker: declarative source
+provenance is erased before commands and ownership must be explicitly selected.
+The next code dependency is the private declarative owner-topology/source-
+provenance bridge; scheduling budgets and fairness remain later.
 
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
@@ -111,7 +114,7 @@ unshipped.
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
-| Runtime, effects, and scheduling | 82% | PRs #1617–#1621 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, and stable owner/origin/cancellation consumers for worker, timer, and platform effects: accepted recovery is coupled to controller state, recovery preserves effects, auxiliary generations survive dispatch/completion/chaining across each deferred lane, and destructive retirement fences only matching registrations with mapper cleanup and latest-slot repair. Overlay/keyed-node cancellation and the complete scheduling target remain. |
+| Runtime, effects, and scheduling | 82% | PRs #1617–#1621 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, and stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects: accepted recovery is coupled to controller state, recovery preserves effects, auxiliary generations survive dispatch/completion/chaining across each deferred lane, and destructive retirement fences only matching registrations with mapper cleanup and latest-slot repair. No executable overlay/keyed-node cancellation is shipped; the declarative owner-selection/source-provenance contract is the blocker, and the complete scheduling target remains later. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
@@ -279,9 +282,15 @@ exact-generation retirement and latest-slot repair. Platform-completion owner
 integration is now shipped in PR #1621: result-host acceptance, unsupported and
 rejected fallback, direct and queue delivery, and chained platform commands
 preserve exact origin, while retirement detaches only matching mappers without
-changing shared ingress accounting. Overlay or keyed-node cancellation remains;
-the sequence still does not add configurable budgets, fairness, or synthetic
-GPU-host acceptance.
+changing shared ingress accounting. No executable overlay/keyed-node
+cancellation is shipped. The contract blocker is explicit owner selection and
+declarative source provenance; the next code dependency is the private
+declarative owner-topology/source-provenance bridge. Its implementation order is
+to preserve crate-private identity metadata through lowering/traversal, project
+independent candidates, reconcile exact generations, carry explicit origin
+through the shipped worker/timer/platform/chained paths, and retire matching
+registrations. The sequence still does not add configurable budgets, fairness,
+or synthetic GPU-host acceptance.
 
 ## Remaining gaps, ordered by leverage
 
@@ -307,23 +316,24 @@ GPU-host acceptance.
    now the next dependency-correct numeric item, but parser, locale, range,
    formatting, and product interaction policy must come from a concrete
    consumer rather than being invented in generic Radiant.
-3. **Runtime, effects, and scheduling integration.** PRs #1617–#1620 ship
+3. **Runtime, effects, and scheduling integration.** PRs #1617–#1621 ship
    generic lifecycle authority/diagnostics, the bounded native Vello
    recovery/effect-preservation bridge, and stable auxiliary-window
-   owner/origin/cancellation for worker effects: accepted recovery and
-   successful primary/auxiliary completion are coupled to controller state,
-   recovery preserves effects, and destructive auxiliary retirement fences only
-   its matching worker registrations. PR #1620 applies the same owner fence to
-   timer effects, preserving exact origin through controller-wake mapping and
-   chained dispatch while making destructive retirement repair only matching
-   timer slots. PR #1621 now applies the owner fence to platform completions
-   across result-host acceptance, fallback, direct and queue delivery, and
-   chained commands, while exact retirement detaches only matching mappers
-   without changing shared ingress accounting. The next dependency-correct
-   runtime candidate is overlay/keyed-node effect cancellation; configurable
-   scheduling budgets and fair multi-window policy follow. Do not claim
-   scheduler fairness until those ownership and renderer boundaries are
-   concrete.
+   owner/origin retirement for worker, timer, and platform effects: accepted
+   recovery and successful primary/auxiliary completion are coupled to
+   controller state, recovery preserves effects, and destructive auxiliary
+   retirement fences only matching registrations with mapper cleanup and
+   latest-slot repair across the shipped deferred lanes. No executable
+   overlay/keyed-node cancellation is shipped. The contract blocker is
+   explicit owner selection plus declarative source provenance; the next
+   dependency-correct runtime candidate is the private declarative
+   owner-topology/source-provenance bridge. Implement it by preserving
+   crate-private identity metadata through lowering/traversal, projecting
+   independent overlay/keyed candidates, reconciling exact generations,
+   carrying explicit origin through the shipped worker/timer/platform/chained
+   paths, and retiring matching registrations. Configurable scheduling budgets
+   and fair multi-window policy follow only after executable cancellation; do
+   not claim scheduler fairness before those ownership boundaries are concrete.
 4. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
 5. **Production frame wiring.** Complete reconciliation, damage propagation,

@@ -2347,6 +2347,46 @@ app runtime to wire it into the UI. `UiUpdateContext::business()`,
 `Subscription` provide message delivery and repaint wakeups; the app still owns
 the work and resulting domain messages.
 
+### Declarative effect-owner boundary
+
+The shipped application API does not expose declarative effect-owner selection.
+`UiUpdateContext`, `Command`, `RuntimeBridge`, `ViewNode`, `SurfaceNode`,
+`RuntimeUpdateSnapshot`, and the shipped effect payloads do not promise an
+overlay- or keyed-node owner field. The private controller currently carries
+only `Application` or an exact auxiliary-window generation through its existing
+worker, timer, platform-completion, and chained-command paths. Declarative
+lowering does not yet preserve overlay/keyed source provenance into that
+controller path, so no executable overlay/keyed-node cancellation is shipped.
+
+The target-only contract is described in
+[the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation).
+Its source context is only a set of eligible candidates: overlay and keyed-node
+candidates are independent, neither has implicit precedence, and a source
+location never selects ownership automatically. Ordinary primary-surface work
+continues to default to application ownership. A future private implementation
+may admit overlay- or keyed-node-owned work only after explicit owner selection,
+or may use the explicit application-owned/outlive choice when the work must
+survive source removal. That choice is the target detach policy: the work
+outlives the source owner but remains subject to application shutdown.
+
+That target contract also requires stable owner identity and exact generations
+across reprojection and keyed reorder, retirement on removal or incompatible
+replacement, fresh generations on reinsertion, sibling isolation, and rejection
+of same-update owner-scoped work before registration. Retired or mismatched
+worker completions, timer wakes, platform results, and chained commands must be
+rejected before mapper invocation and before reduction. Recovery and cached hide
+do not implicitly retire a retained owner. Shared `ResourceTasks` remain
+application-owned; a disappearing overlay or keyed consumer releases interest
+without implicitly cancelling the shared task or discarding cached ready state.
+Dynamic unkeyed nodes cannot provide the durable identity required for
+owner-scoped cancellation, so they remain on the application-owned path unless
+a later contract supplies an explicit stable identity.
+
+This is a target boundary, not a new public name or API table entry. It does not
+change `Command`, `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`,
+`ViewNode`, `SurfaceNode`, or effect payload compatibility, and it makes no
+claim about scheduler budgets, fairness, queue capacity, or wake ordering.
+
 ## UI-First Runtime Threading
 
 Radiant treats the native UI/event/render owner as the priority path. The

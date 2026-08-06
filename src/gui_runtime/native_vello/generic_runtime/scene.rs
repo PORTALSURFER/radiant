@@ -35,6 +35,7 @@ pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityDisposition, ArtifactFeasibilityReason,
 };
+pub(in crate::gui_runtime::native_vello::generic_runtime) use artifact_materialization::NativePaintSegmentArtifactResidency;
 pub(in crate::gui_runtime::native_vello) use artifact_materialization::{
     NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
     NativePaintSegmentPayload, NativePaintSegmentPayloadEvidence,

@@ -11,8 +11,10 @@ use super::{
     retained_paint_segments::{
         NativePaintSegmentBenefitAssemblyInput, NativePaintSegmentBenefitLedger,
         NativePaintSegmentCacheAdmission, NativePaintSegmentEligibilityPlan,
-        NativeRetainedPaintSegmentStore, assemble_native_paint_segment_fingerprints,
+        NativePaintSegmentRenderSelection, NativeRetainedPaintSegmentStore,
+        assemble_native_paint_segment_fingerprints,
         classify_native_paint_segment_eligibility_with_spans,
+        select_native_paint_segment_render_boundary,
     },
     runtime_helpers::{
         GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
@@ -87,6 +89,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger,
     pub(super) native_paint_segment_cache_admission: NativePaintSegmentCacheAdmission,
     pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
+    last_native_paint_segment_render_selection: NativePaintSegmentRenderSelection,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
     pub(super) scene_text_runs: SceneTextRunBuffer,
@@ -172,6 +175,8 @@ impl NativeVelloFrameState {
             native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger::default(),
             native_paint_segment_cache_admission: NativePaintSegmentCacheAdmission::default(),
             last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
+            last_native_paint_segment_render_selection: NativePaintSegmentRenderSelection::default(
+            ),
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
@@ -300,6 +305,8 @@ impl NativeVelloFrameState {
         self.native_paint_segment_artifact_store.clear();
         self.native_paint_segment_benefit_ledger.clear();
         self.native_paint_segment_cache_admission.clear();
+        self.last_native_paint_segment_render_selection =
+            NativePaintSegmentRenderSelection::default();
     }
 
     pub(super) fn invalidate_native_resources_for_recovery(&mut self) {
@@ -335,6 +342,7 @@ impl NativeVelloFrameState {
         paint: PaintSegmentObservation,
         scene_validity: NativeSceneValidityFingerprint,
         target_generation: NativeTargetGeneration,
+        plan: NativePaintSegmentEligibilityPlan,
     ) -> Result<NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyVetoReason> {
         super::scene::assemble_mixed_native_paint_segment_scene(NativePaintSegmentAssemblyInput {
             previous_scene: &self.scene,
@@ -342,7 +350,7 @@ impl NativeVelloFrameState {
             viewport,
             paint,
             previous_stats: self.last_scene_stats,
-            plan: self.last_native_paint_segment_eligibility,
+            plan,
             artifacts: &self.native_paint_segment_artifact_store,
             scene_validity,
             previous_scene_validity: self.last_scene_validity,
@@ -444,6 +452,28 @@ impl NativeVelloFrameState {
         #[cfg(test)]
         self.test_phase_trace
             .record(NativeVelloTestPhase::EligibilityObserved);
+    }
+
+    pub(super) fn derive_native_paint_segment_render_selection(
+        &mut self,
+        scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
+    ) {
+        self.last_native_paint_segment_render_selection =
+            select_native_paint_segment_render_boundary(
+                self.last_native_paint_segment_eligibility,
+                &self.native_paint_segment_cache_admission,
+                &self.native_paint_segment_artifact_store,
+                scene_validity,
+                self.last_scene_validity,
+                target_generation,
+            );
+    }
+
+    pub(super) fn native_paint_segment_render_selection(
+        &self,
+    ) -> NativePaintSegmentRenderSelection {
+        self.last_native_paint_segment_render_selection
     }
 
     #[cfg(test)]

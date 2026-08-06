@@ -383,12 +383,11 @@ mod native_paint_segment_cache_admission {
 
         policy.reconcile(beneficial(1, generation));
         assert!(!policy.admitted_for_test(identity(1)));
-        assert_eq!(
-            policy.snapshot_for_test()[0]
-                .expect("warming entry")
-                .beneficial_reuse_observations,
-            1
-        );
+        let warming_entry = policy.snapshot_for_test()[0];
+        assert!(warming_entry.is_some(), "warming entry");
+        if let Some(entry) = warming_entry {
+            assert_eq!(entry.beneficial_reuse_observations, 1);
+        }
 
         policy.reconcile(beneficial(2, generation));
         assert!(policy.admitted_for_test(identity(1)));
@@ -416,7 +415,11 @@ mod native_paint_segment_cache_admission {
         let generation = known(1);
         let mut policy = NativePaintSegmentCacheAdmission::default();
         policy.reconcile(beneficial(1, generation));
-        assert_eq!(policy.snapshot_for_test()[0].unwrap().confidence, 1);
+        let first_entry = policy.snapshot_for_test()[0];
+        assert!(first_entry.is_some(), "first confidence entry");
+        if let Some(entry) = first_entry {
+            assert_eq!(entry.confidence, 1);
+        }
 
         policy.reconcile(single(
             2,
@@ -426,7 +429,11 @@ mod native_paint_segment_cache_admission {
             NativePaintSegmentBenefitOutcome::FreshEncoding,
             true,
         ));
-        assert_eq!(policy.snapshot_for_test()[0].unwrap().confidence, 0);
+        let fresh_entry = policy.snapshot_for_test()[0];
+        assert!(fresh_entry.is_some(), "fresh confidence entry");
+        if let Some(entry) = fresh_entry {
+            assert_eq!(entry.confidence, 0);
+        }
         policy.reconcile(beneficial(3, generation));
         assert!(!policy.admitted_for_test(identity(1)));
     }
@@ -465,12 +472,11 @@ mod native_paint_segment_cache_admission {
             ));
         }
         assert!(!policy.admitted_for_test(identity(1)));
-        assert_eq!(
-            policy.snapshot_for_test()[0]
-                .expect("demoted entry remains bounded")
-                .state,
-            NativePaintSegmentCacheAdmissionState::Warming
-        );
+        let demoted_entry = policy.snapshot_for_test()[0];
+        assert!(demoted_entry.is_some(), "demoted entry remains bounded");
+        if let Some(entry) = demoted_entry {
+            assert_eq!(entry.state, NativePaintSegmentCacheAdmissionState::Warming);
+        }
     }
 
     #[test]
@@ -480,12 +486,11 @@ mod native_paint_segment_cache_admission {
         let first = beneficial(1, generation);
         policy.reconcile(first);
         policy.reconcile(first);
-        assert_eq!(
-            policy.snapshot_for_test()[0]
-                .expect("one observation")
-                .beneficial_reuse_observations,
-            1
-        );
+        let one_observation = policy.snapshot_for_test()[0];
+        assert!(one_observation.is_some(), "one observation");
+        if let Some(entry) = one_observation {
+            assert_eq!(entry.beneficial_reuse_observations, 1);
+        }
         policy.reconcile(beneficial(2, generation));
         assert!(policy.admitted_for_test(identity(1)));
         policy.reconcile(single(
@@ -521,7 +526,11 @@ mod native_paint_segment_cache_admission {
 
         promote_at(&mut policy, generation, 4);
         let mut mixed = beneficial(6, generation);
-        mixed.segments[0].as_mut().unwrap().target_generation = known(2);
+        let mixed_segment = mixed.segments[0].as_mut();
+        assert!(mixed_segment.is_some(), "mixed segment");
+        if let Some(segment) = mixed_segment {
+            segment.target_generation = known(2);
+        }
         policy.reconcile(mixed);
         assert!(!policy.has_entries_for_test());
 
@@ -540,7 +549,11 @@ mod native_paint_segment_cache_admission {
         policy.reconcile(NativePaintSegmentBenefitFrameEvidence::unavailable(12));
         assert!(!policy.has_entries_for_test());
 
-        duplicate.segments[0].as_mut().unwrap().span.end = 0;
+        let duplicate_segment = duplicate.segments[0].as_mut();
+        assert!(duplicate_segment.is_some(), "duplicate segment");
+        if let Some(segment) = duplicate_segment {
+            segment.span.end = 0;
+        }
         duplicate.epoch = 13;
         policy.reconcile(duplicate);
         assert!(!policy.has_entries_for_test());
@@ -594,17 +607,19 @@ mod native_paint_segment_cache_admission {
         promote(&mut policy, generation);
 
         let mut changed = beneficial(3, generation);
-        let sample = changed.segments[0].as_mut().unwrap();
-        sample.revision = 2;
-        sample.span.end = 3;
+        let changed_sample = changed.segments[0].as_mut();
+        assert!(changed_sample.is_some(), "changed evidence");
+        if let Some(sample) = changed_sample {
+            sample.revision = 2;
+            sample.span.end = 3;
+        }
         policy.reconcile(changed);
         assert!(!policy.admitted_for_test(identity(1)));
-        assert_eq!(
-            policy.snapshot_for_test()[0]
-                .expect("changed evidence")
-                .beneficial_reuse_observations,
-            1
-        );
+        let changed_entry = policy.snapshot_for_test()[0];
+        assert!(changed_entry.is_some(), "changed evidence entry");
+        if let Some(entry) = changed_entry {
+            assert_eq!(entry.beneficial_reuse_observations, 1);
+        }
     }
 
     #[test]
@@ -629,9 +644,12 @@ mod native_paint_segment_cache_admission {
         for epoch in 2..=300 {
             policy.reconcile(beneficial(epoch, generation));
         }
-        let entry = policy.snapshot_for_test()[0].expect("saturated entry");
-        assert_eq!(entry.beneficial_reuse_observations, u8::MAX);
-        assert_eq!(entry.confidence, CONFIDENCE_CAP);
+        let saturated_entry = policy.snapshot_for_test()[0];
+        assert!(saturated_entry.is_some(), "saturated entry");
+        if let Some(entry) = saturated_entry {
+            assert_eq!(entry.beneficial_reuse_observations, u8::MAX);
+            assert_eq!(entry.confidence, CONFIDENCE_CAP);
+        }
 
         let mut overflow = beneficial(301, generation);
         overflow.segment_count = (MAX_PAINT_SEGMENTS + 1) as u8;

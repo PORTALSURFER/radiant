@@ -93,6 +93,7 @@ pub use command::{
     SurfaceRevisions, TaskPriority,
 };
 pub(crate) use command::{EffectId, WorkerEffectSink};
+pub(crate) use controller::AuxiliaryWindowOwner;
 pub(crate) use controller::BasePaintPlanContext;
 pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{

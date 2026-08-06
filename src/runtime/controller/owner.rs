@@ -6,6 +6,7 @@ use std::sync::{
 };
 
 static NEXT_RUNTIME_OWNER_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_AUXILIARY_OWNER_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 /// One runtime's lifecycle.  The owner is intentionally private: it is only
 /// used to fence controller worker, timer, and platform registrations.
@@ -41,6 +42,81 @@ impl RuntimeOwner {
         self.id == other.id
     }
 }
+
+/// One parent-runtime-owned auxiliary-window generation.
+///
+/// The stable key is retained for controller lookup, while `generation` is an
+/// opaque identity fence for one live or cached native child.  Retiring a
+/// generation closes every clone held by a worker registration or native event
+/// result without affecting another key or a later same-key generation.
+#[derive(Clone)]
+pub(crate) struct AuxiliaryWindowOwner {
+    key: Arc<str>,
+    generation: u64,
+    open: Arc<AtomicBool>,
+}
+
+impl AuxiliaryWindowOwner {
+    pub(crate) fn new(key: &str) -> Self {
+        Self {
+            key: Arc::from(key),
+            generation: NEXT_AUXILIARY_OWNER_GENERATION.fetch_add(1, Ordering::Relaxed),
+            open: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    pub(crate) fn key(&self) -> &str {
+        &self.key
+    }
+
+    pub(crate) fn retire(&self) {
+        self.open.store(false, Ordering::Release);
+    }
+
+    pub(crate) fn is_open(&self) -> bool {
+        self.open.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn is_same_generation(&self, other: &Self) -> bool {
+        self.generation == other.generation && self.key == other.key
+    }
+}
+
+/// Internal provenance carried only by controller dispatch and worker
+/// registrations.  Public command and bridge APIs remain unchanged.
+#[derive(Clone)]
+pub(super) enum EffectOrigin {
+    Application,
+    Auxiliary(AuxiliaryWindowOwner),
+}
+
+impl EffectOrigin {
+    pub(super) fn is_live(&self) -> bool {
+        match self {
+            Self::Application => true,
+            Self::Auxiliary(owner) => owner.is_open(),
+        }
+    }
+
+    pub(super) fn auxiliary_owner(&self) -> Option<&AuxiliaryWindowOwner> {
+        match self {
+            Self::Application => None,
+            Self::Auxiliary(owner) => Some(owner),
+        }
+    }
+}
+
+impl PartialEq for EffectOrigin {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Application, Self::Application) => true,
+            (Self::Auxiliary(first), Self::Auxiliary(second)) => first.is_same_generation(second),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for EffectOrigin {}
 
 pub(super) type CancellationProbe = Arc<dyn Fn() -> bool + Send + Sync + 'static>;
 

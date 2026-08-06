@@ -1,4 +1,5 @@
 use super::SurfaceRuntime;
+use super::owner::EffectOrigin;
 use crate::runtime::{Command, RuntimeBridge};
 
 #[cfg(test)]
@@ -24,6 +25,20 @@ where
     pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
         self.dispatch_message_inner(message, &mut outcome);
+        self.finish_command_outcome(outcome)
+    }
+
+    pub(crate) fn dispatch_message_from_auxiliary(
+        &mut self,
+        message: Message,
+        owner: crate::runtime::AuxiliaryWindowOwner,
+    ) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        self.dispatch_message_inner_with_origin(
+            message,
+            &mut outcome,
+            EffectOrigin::Auxiliary(owner),
+        );
         self.finish_command_outcome(outcome)
     }
 

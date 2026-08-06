@@ -1,3 +1,4 @@
+use super::super::owner::EffectOrigin;
 use super::{CommandOutcome, SurfaceRuntime};
 use crate::runtime::RepaintScope;
 use crate::runtime::RuntimeUpdateSnapshot;
@@ -28,7 +29,16 @@ where
         message: Message,
         outcome: &mut CommandOutcome,
     ) {
-        self.dispatch_message_inner_with_refresh(message, outcome, true);
+        self.dispatch_message_inner_with_origin(message, outcome, EffectOrigin::Application);
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_message_inner_with_origin(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+        origin: EffectOrigin,
+    ) {
+        self.dispatch_message_inner_with_refresh(message, outcome, true, origin);
     }
 
     pub(in crate::runtime::controller) fn dispatch_message_inner_deferred_refresh(
@@ -36,7 +46,12 @@ where
         message: Message,
         outcome: &mut CommandOutcome,
     ) {
-        self.dispatch_message_inner_with_refresh(message, outcome, false);
+        self.dispatch_message_inner_with_refresh(
+            message,
+            outcome,
+            false,
+            EffectOrigin::Application,
+        );
     }
 
     fn dispatch_message_inner_with_refresh(
@@ -44,6 +59,7 @@ where
         message: Message,
         outcome: &mut CommandOutcome,
         refresh_surface: bool,
+        origin: EffectOrigin,
     ) {
         let mut deferred_surface_is_fresh = refresh_surface;
         self.dispatch_message_inner_with_refresh_state(
@@ -51,6 +67,7 @@ where
             outcome,
             refresh_surface,
             &mut deferred_surface_is_fresh,
+            origin,
         );
     }
 
@@ -60,8 +77,14 @@ where
         outcome: &mut CommandOutcome,
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
+        origin: EffectOrigin,
     ) {
         if !self.lifecycle_accepts_work() {
+            return;
+        }
+        if let Some(owner) = origin.auxiliary_owner()
+            && !self.auxiliary_effect_owner_is_active(owner)
+        {
             return;
         }
         let refresh_before = outcome.surface_refresh_requested;
@@ -93,6 +116,7 @@ where
             outcome,
             refresh_surface,
             deferred_surface_is_fresh,
+            origin,
         );
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
         if !paint_only || command_dispatched_messages {
@@ -150,6 +174,7 @@ where
             outcome,
             true,
             &mut deferred_surface_is_fresh,
+            EffectOrigin::Application,
         );
     }
 
@@ -170,6 +195,7 @@ where
             outcome,
             false,
             &mut deferred_surface_is_fresh,
+            EffectOrigin::Application,
         );
     }
 
@@ -179,8 +205,14 @@ where
         outcome: &mut CommandOutcome,
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
+        origin: EffectOrigin,
     ) {
         if !self.lifecycle_accepts_work() {
+            return;
+        }
+        if let Some(owner) = origin.auxiliary_owner()
+            && !self.auxiliary_effect_owner_is_active(owner)
+        {
             return;
         }
         if !refresh_surface
@@ -200,6 +232,7 @@ where
                     outcome,
                     refresh_surface,
                     deferred_surface_is_fresh,
+                    origin,
                 );
             }
             Command::Batch(commands) => {
@@ -209,6 +242,7 @@ where
                         outcome,
                         refresh_surface,
                         deferred_surface_is_fresh,
+                        origin.clone(),
                     );
                 }
             }
@@ -256,7 +290,7 @@ where
                 }
             }
             Command::PerformWorker(effect) => {
-                if self.submit_worker_effect(effect) {
+                if self.submit_worker_effect_with_origin(effect, origin) {
                     outcome.repaint_requested = true;
                 }
             }

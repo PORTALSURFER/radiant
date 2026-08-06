@@ -1,7 +1,9 @@
 //! UI-owned worker-effect completion routing.
 
 use super::SurfaceRuntime;
-use super::owner::{CancellationProbe, LifecycleDescriptor, RuntimeOwner};
+use super::owner::{
+    AuxiliaryWindowOwner, CancellationProbe, EffectOrigin, LifecycleDescriptor, RuntimeOwner,
+};
 use crate::application::runtime::update_context::business::admission::{
     BusinessTaskAdmission, resolve as resolve_admission,
 };
@@ -26,9 +28,11 @@ struct EffectTerminal {
     sequence: u64,
     id: EffectId,
     generation: EffectGeneration,
+    registration_id: u64,
     epoch: u64,
     result: EffectResult,
     owner: RuntimeOwner,
+    origin: EffectOrigin,
 }
 
 enum EffectResult {
@@ -50,11 +54,24 @@ struct EffectIngress {
 }
 
 impl EffectIngress {
+    #[cfg(test)]
     fn send(
         &self,
         id: EffectId,
         generation: EffectGeneration,
         epoch: u64,
+        result: EffectResult,
+    ) -> bool {
+        self.send_with_registration(id, generation, 0, epoch, &EffectOrigin::Application, result)
+    }
+
+    fn send_with_registration(
+        &self,
+        id: EffectId,
+        generation: EffectGeneration,
+        registration_id: u64,
+        epoch: u64,
+        origin: &EffectOrigin,
         result: EffectResult,
     ) -> bool {
         let mut sequence = self
@@ -65,9 +82,11 @@ impl EffectIngress {
             sequence: *sequence,
             id,
             generation,
+            registration_id,
             epoch,
             result,
             owner: self.owner.clone(),
+            origin: origin.clone(),
         };
         match self.sender.try_send(terminal) {
             Ok(()) => {
@@ -78,25 +97,30 @@ impl EffectIngress {
         }
     }
 
-    fn send_event(
+    fn send_event_with_registration(
         &self,
         id: EffectId,
         generation: EffectGeneration,
+        registration_id: u64,
         epoch: u64,
+        origin: &EffectOrigin,
         result: EffectResult,
     ) -> bool {
-        let accepted = self.send(id, generation, epoch, result);
+        let accepted =
+            self.send_with_registration(id, generation, registration_id, epoch, origin, result);
         if !accepted {
             self.stream_events_dropped.fetch_add(1, Ordering::AcqRel);
         }
         accepted
     }
 
-    fn send_final(
+    fn send_final_with_registration(
         &self,
         id: EffectId,
         generation: EffectGeneration,
+        registration_id: u64,
         epoch: u64,
+        origin: &EffectOrigin,
         result: EffectResult,
     ) -> bool {
         let mut sequence = self
@@ -107,9 +131,11 @@ impl EffectIngress {
             sequence: *sequence,
             id,
             generation,
+            registration_id,
             epoch,
             result,
             owner: self.owner.clone(),
+            origin: origin.clone(),
         };
         *sequence = sequence.saturating_add(1);
         self.finals
@@ -157,10 +183,12 @@ impl EffectIngress {
 
 struct Registered<Message> {
     generation: EffectGeneration,
+    registration_id: u64,
     epoch: u64,
     is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
     mapper: RegisteredMapper<Message>,
     lifecycle: LifecycleDescriptor,
+    origin: EffectOrigin,
 }
 
 enum RegisteredMapper<Message> {
@@ -178,7 +206,9 @@ struct LatestStreamState {
     ingress: EffectIngress,
     id: EffectId,
     generation: EffectGeneration,
+    registration_id: u64,
     epoch: u64,
+    origin: EffectOrigin,
 }
 
 struct LatestStreamGate {
@@ -203,10 +233,12 @@ impl LatestStreamState {
             return true;
         }
         gate.marker_enqueued = true;
-        if self.ingress.send_event(
+        if self.ingress.send_event_with_registration(
             self.id,
             self.generation,
+            self.registration_id,
             self.epoch,
+            &self.origin,
             EffectResult::LatestEvent,
         ) {
             true
@@ -240,8 +272,10 @@ pub(super) struct WorkerEffects<Message> {
     receiver: std::sync::mpsc::Receiver<EffectTerminal>,
     deferred: VecDeque<EffectTerminal>,
     registry: HashMap<EffectId, Registered<Message>>,
+    pending_registrations: HashMap<u64, EffectOrigin>,
     pending: usize,
     epoch: u64,
+    next_registration_id: u64,
     stream_events_stale: usize,
 }
 
@@ -260,8 +294,10 @@ impl<Message> WorkerEffects<Message> {
             receiver,
             deferred: VecDeque::new(),
             registry: HashMap::new(),
+            pending_registrations: HashMap::new(),
             pending: 0,
             epoch: 1,
+            next_registration_id: 1,
             stream_events_stale: 0,
         }
     }
@@ -270,6 +306,7 @@ impl<Message> WorkerEffects<Message> {
         &mut self,
         runtime: &mut SurfaceRuntime<Bridge, Message>,
         effect: crate::runtime::command::WorkerEffect<Message>,
+        origin: EffectOrigin,
     ) -> bool
     where
         Bridge: RuntimeBridge<Message>,
@@ -286,12 +323,21 @@ impl<Message> WorkerEffects<Message> {
         let transaction = effect.transaction;
         let id = effect.id;
         let generation = effect.generation;
+        let registration_id = self.next_registration_id;
+        self.next_registration_id = self.next_registration_id.saturating_add(1);
         let epoch = self.epoch;
         let transaction_probe = transaction
             .as_ref()
             .map(crate::application::LatestTaskTransaction::cancellation_probe);
         let token_probe: Option<CancellationProbe> = effect.is_cancelled.map(Arc::from);
-        let is_cancelled = combine_cancellation_probes(token_probe, transaction_probe);
+        let origin_probe = origin.auxiliary_owner().map(|owner| {
+            let owner = owner.clone();
+            Arc::new(move || !owner.is_open()) as CancellationProbe
+        });
+        let is_cancelled = combine_cancellation_probes(
+            combine_cancellation_probes(token_probe, transaction_probe),
+            origin_probe,
+        );
         let slot = transaction.as_ref().map(|transaction| transaction.slot());
         let lifecycle = LifecycleDescriptor::new(
             self.owner.clone(),
@@ -326,7 +372,9 @@ impl<Message> WorkerEffects<Message> {
                 ingress: self.ingress.clone_handle(),
                 id,
                 generation,
+                registration_id,
                 epoch,
+                origin: origin.clone(),
             })
         });
         let mapper = match mapper {
@@ -347,12 +395,16 @@ impl<Message> WorkerEffects<Message> {
             id,
             Registered {
                 generation,
+                registration_id,
                 epoch,
                 is_cancelled: is_cancelled.clone(),
                 mapper,
                 lifecycle,
+                origin: origin.clone(),
             },
         );
+        self.pending_registrations
+            .insert(registration_id, origin.clone());
         self.pending += 1;
 
         let ingress = Arc::new(self.ingress.clone_handle());
@@ -362,9 +414,17 @@ impl<Message> WorkerEffects<Message> {
             if latest {
                 if let Some(latest_state) = latest_state.as_ref().cloned() {
                     let ordered = ingress.clone_handle();
+                    let event_origin = origin.clone();
                     WorkerEffectSink::new_latest(
                         move |payload| {
-                            ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                            ordered.send_event_with_registration(
+                                id,
+                                generation,
+                                registration_id,
+                                epoch,
+                                &event_origin,
+                                EffectResult::Event(payload),
+                            )
                         },
                         {
                             let latest_state = Arc::clone(&latest_state);
@@ -374,17 +434,34 @@ impl<Message> WorkerEffects<Message> {
                     )
                 } else {
                     let ordered = Arc::clone(&ingress);
+                    let event_origin = origin.clone();
                     WorkerEffectSink::new_ordered(move |payload| {
-                        ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                        ordered.send_event_with_registration(
+                            id,
+                            generation,
+                            registration_id,
+                            epoch,
+                            &event_origin,
+                            EffectResult::Event(payload),
+                        )
                     })
                 }
             } else {
                 let ordered = Arc::clone(&ingress);
+                let event_origin = origin.clone();
                 WorkerEffectSink::new_ordered(move |payload| {
-                    ordered.send_event(id, generation, epoch, EffectResult::Event(payload))
+                    ordered.send_event_with_registration(
+                        id,
+                        generation,
+                        registration_id,
+                        epoch,
+                        &event_origin,
+                        EffectResult::Event(payload),
+                    )
                 })
             }
         });
+        let final_origin = origin.clone();
         let accepted = runtime.host_spawn_worker_task(
             effect.name,
             effect.priority,
@@ -397,8 +474,14 @@ impl<Message> WorkerEffects<Message> {
                     if let Some(state) = latest_state.as_ref() {
                         state.close();
                     }
-                    let _ =
-                        final_ingress.send_final(id, generation, epoch, EffectResult::Cancelled);
+                    let _ = final_ingress.send_final_with_registration(
+                        id,
+                        generation,
+                        registration_id,
+                        epoch,
+                        &final_origin,
+                        EffectResult::Cancelled,
+                    );
                     return;
                 }
                 let result = panic::catch_unwind(AssertUnwindSafe(|| match work {
@@ -406,11 +489,14 @@ impl<Message> WorkerEffects<Message> {
                     WorkerEffectWork::Stream(work) => {
                         let sink = stream_sink.unwrap_or_else(|| {
                             let ordered = Arc::clone(&final_ingress);
+                            let event_origin = final_origin.clone();
                             WorkerEffectSink::new_ordered(move |payload| {
-                                ordered.send_event(
+                                ordered.send_event_with_registration(
                                     id,
                                     generation,
+                                    registration_id,
                                     epoch,
+                                    &event_origin,
                                     EffectResult::Event(payload),
                                 )
                             })
@@ -428,11 +514,18 @@ impl<Message> WorkerEffects<Message> {
                 if let Some(state) = latest_state.as_ref() {
                     state.close();
                 }
-                let _ = final_ingress.send_final(id, generation, epoch, terminal);
+                let _ = final_ingress.send_final_with_registration(
+                    id,
+                    generation,
+                    registration_id,
+                    epoch,
+                    &final_origin,
+                    terminal,
+                );
             }),
         );
         if !accepted {
-            self.pending = self.pending.saturating_sub(1);
+            self.release_pending(registration_id);
             if let Some(previous) = previous {
                 self.registry.insert(id, previous);
             } else {
@@ -445,12 +538,20 @@ impl<Message> WorkerEffects<Message> {
                 resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
             }
         } else if let Some(transaction) = transaction {
+            if let Some(previous) = previous {
+                close_registered_mapper(previous.mapper);
+            }
             transaction.accept();
             if let Some(receipt) = effect.admission_receipt.as_ref() {
                 resolve_admission(&receipt.0, BusinessTaskAdmission::Accepted);
             }
-        } else if let Some(receipt) = effect.admission_receipt.as_ref() {
-            resolve_admission(&receipt.0, BusinessTaskAdmission::Accepted);
+        } else {
+            if let Some(previous) = previous {
+                close_registered_mapper(previous.mapper);
+            }
+            if let Some(receipt) = effect.admission_receipt.as_ref() {
+                resolve_admission(&receipt.0, BusinessTaskAdmission::Accepted);
+            }
         }
         accepted
     }
@@ -458,6 +559,9 @@ impl<Message> WorkerEffects<Message> {
     #[cfg(test)]
     pub(super) fn drain(&mut self) -> Vec<Message> {
         self.drain_at_high_water(self.ingress.high_water())
+            .into_iter()
+            .map(|mapped| mapped.message)
+            .collect()
     }
 
     pub(super) fn drain_with_diagnostics_budget_at_high_water(
@@ -465,7 +569,7 @@ impl<Message> WorkerEffects<Message> {
         diagnostics: &crate::runtime::RuntimeDiagnosticsRecorder,
         budget: usize,
         high_water: u64,
-    ) -> (Vec<Message>, bool, bool) {
+    ) -> (Vec<MappedEffectMessage<Message>>, bool, bool) {
         let (messages, deferred, later_turn) = self.drain_at_high_water_budget(high_water, budget);
         let coalesced = self
             .ingress
@@ -488,7 +592,7 @@ impl<Message> WorkerEffects<Message> {
     }
 
     #[cfg(test)]
-    fn drain_at_high_water(&mut self, high_water: u64) -> Vec<Message> {
+    fn drain_at_high_water(&mut self, high_water: u64) -> Vec<MappedEffectMessage<Message>> {
         self.drain_at_high_water_budget(high_water, usize::MAX).0
     }
 
@@ -496,7 +600,7 @@ impl<Message> WorkerEffects<Message> {
         &mut self,
         high_water: u64,
         budget: usize,
-    ) -> (Vec<Message>, bool, bool) {
+    ) -> (Vec<MappedEffectMessage<Message>>, bool, bool) {
         let mut terminals = Vec::new();
         let mut deferred = VecDeque::new();
         while let Some(terminal) = self.deferred.pop_front() {
@@ -527,7 +631,7 @@ impl<Message> WorkerEffects<Message> {
         let mut deferred = deferred.into_iter().collect::<Vec<_>>();
         deferred.sort_by_key(|terminal| terminal.sequence);
         self.deferred = deferred.into_iter().collect();
-        let mut messages = Vec::new();
+        let mut messages: Vec<MappedEffectMessage<Message>> = Vec::new();
         for terminal in terminals {
             self.apply_terminal(terminal, &mut messages);
         }
@@ -546,7 +650,57 @@ impl<Message> WorkerEffects<Message> {
         self.deferred.len()
     }
 
-    fn apply_terminal(&mut self, terminal: EffectTerminal, messages: &mut Vec<Message>) {
+    fn release_pending(&mut self, registration_id: u64) -> bool {
+        if registration_id == 0 {
+            // Direct controller tests construct registrations without the
+            // production registration token. Keep their accounting explicit
+            // while all submitted effects use a non-zero token.
+            self.pending = self.pending.saturating_sub(1);
+            return true;
+        }
+        if self
+            .pending_registrations
+            .remove(&registration_id)
+            .is_some()
+        {
+            self.pending = self.pending.saturating_sub(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
+        owner.retire();
+        let origin = EffectOrigin::Auxiliary(owner.clone());
+        let current_ids = self
+            .registry
+            .iter()
+            .filter(|(_, registered)| registered.origin == origin)
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        for id in current_ids {
+            if let Some(registered) = self.registry.remove(&id) {
+                close_registered_mapper(registered.mapper);
+            }
+        }
+
+        let pending_ids = self
+            .pending_registrations
+            .iter()
+            .filter(|(_, registered_origin)| **registered_origin == origin)
+            .map(|(registration_id, _)| *registration_id)
+            .collect::<Vec<_>>();
+        for registration_id in pending_ids {
+            let _ = self.release_pending(registration_id);
+        }
+    }
+
+    fn apply_terminal(
+        &mut self,
+        terminal: EffectTerminal,
+        messages: &mut Vec<MappedEffectMessage<Message>>,
+    ) {
         if terminal.epoch != self.epoch {
             return;
         }
@@ -554,11 +708,15 @@ impl<Message> WorkerEffects<Message> {
             &terminal.result,
             EffectResult::Completed(_) | EffectResult::Cancelled | EffectResult::Panicked(_)
         ) {
-            self.pending = self.pending.saturating_sub(1);
+            let _ = self.release_pending(terminal.registration_id);
         }
         let current = self.registry.get(&terminal.id).is_some_and(|entry| {
             entry.generation == terminal.generation
+                && (entry.registration_id == terminal.registration_id
+                    || terminal.registration_id == 0)
                 && entry.epoch == terminal.epoch
+                && entry.origin == terminal.origin
+                && entry.origin.is_live()
                 && entry.lifecycle.admits(
                     &self.owner,
                     terminal.id.0,
@@ -567,15 +725,6 @@ impl<Message> WorkerEffects<Message> {
                 )
         });
         if !current {
-            if !self.owner.is_open()
-                && let Some(entry) = self.registry.remove(&terminal.id)
-                && let RegisteredMapper::Stream {
-                    latest_state: Some(state),
-                    ..
-                } = entry.mapper
-            {
-                state.close();
-            }
             if matches!(
                 terminal.result,
                 EffectResult::Event(_) | EffectResult::LatestEvent
@@ -595,7 +744,10 @@ impl<Message> WorkerEffects<Message> {
                 if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper
                     && let Some(message) = map_event(output)
                 {
-                    messages.push(message);
+                    messages.push(MappedEffectMessage {
+                        message,
+                        origin: entry.origin.clone(),
+                    });
                 }
             }
             EffectResult::LatestEvent => {
@@ -613,25 +765,31 @@ impl<Message> WorkerEffects<Message> {
                     && let Some(output) = state.take_latest()
                     && let Some(message) = map_event(output)
                 {
-                    messages.push(message);
+                    messages.push(MappedEffectMessage {
+                        message,
+                        origin: entry.origin.clone(),
+                    });
                 }
             }
             EffectResult::Completed(output) => {
                 let Some(entry) = self.registry.remove(&terminal.id) else {
                     return;
                 };
-                if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
+                if !entry.origin.is_live()
+                    || entry.is_cancelled.as_ref().is_some_and(|probe| probe())
+                {
                     return;
                 }
+                let origin = entry.origin.clone();
                 match entry.mapper {
                     RegisteredMapper::Once(map) => {
                         if let Some(message) = map(output) {
-                            messages.push(message);
+                            messages.push(MappedEffectMessage { message, origin });
                         }
                     }
                     RegisteredMapper::Stream { map_final, .. } => {
                         if let Some(message) = map_final(output) {
-                            messages.push(message);
+                            messages.push(MappedEffectMessage { message, origin });
                         }
                     }
                 }
@@ -667,12 +825,28 @@ impl<Message> WorkerEffects<Message> {
     pub(super) fn shutdown(&mut self) {
         self.epoch = self.epoch.saturating_add(1);
         self.registry.clear();
+        self.pending_registrations.clear();
         self.deferred.clear();
         let (ingress, receiver) = new_ingress(self.owner.clone());
         self.ingress = ingress;
         self.receiver = receiver;
         self.pending = 0;
         self.stream_events_stale = 0;
+    }
+}
+
+pub(super) struct MappedEffectMessage<Message> {
+    pub(super) message: Message,
+    pub(super) origin: EffectOrigin,
+}
+
+fn close_registered_mapper<Message>(mapper: RegisteredMapper<Message>) {
+    if let RegisteredMapper::Stream {
+        latest_state: Some(state),
+        ..
+    } = mapper
+    {
+        state.close();
     }
 }
 
@@ -723,12 +897,13 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn submit_worker_effect(
+    pub(super) fn submit_worker_effect_with_origin(
         &mut self,
         effect: crate::runtime::command::WorkerEffect<Message>,
+        origin: EffectOrigin,
     ) -> bool {
         let mut effects = std::mem::take(&mut self.worker_effects);
-        let accepted = effects.submit(self, effect);
+        let accepted = effects.submit(self, effect, origin);
         self.worker_effects = effects;
         accepted
     }
@@ -759,6 +934,7 @@ mod tests {
             EffectId(id),
             Registered {
                 generation: EffectGeneration(generation),
+                registration_id: 0,
                 epoch: effect.epoch,
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(
@@ -771,8 +947,40 @@ mod tests {
                 mapper: RegisteredMapper::Once(Box::new(|output| {
                     Some(*output.downcast::<usize>().expect("usize output"))
                 })),
+                origin: EffectOrigin::Application,
             },
         );
+        effect.pending += 1;
+    }
+
+    fn register_owned(
+        effect: &mut WorkerEffects<usize>,
+        id: u64,
+        generation: u64,
+        registration_id: u64,
+        origin: EffectOrigin,
+    ) {
+        effect.registry.insert(
+            EffectId(id),
+            Registered {
+                generation: EffectGeneration(generation),
+                registration_id,
+                epoch: effect.epoch,
+                is_cancelled: None,
+                lifecycle: LifecycleDescriptor::new(
+                    effect.owner.clone(),
+                    id,
+                    None,
+                    generation,
+                    None,
+                ),
+                mapper: RegisteredMapper::Once(Box::new(|output| {
+                    Some(*output.downcast::<usize>().expect("usize output"))
+                })),
+                origin: origin.clone(),
+            },
+        );
+        effect.pending_registrations.insert(registration_id, origin);
         effect.pending += 1;
     }
 
@@ -842,6 +1050,178 @@ mod tests {
     }
 
     #[test]
+    fn retiring_auxiliary_owner_keeps_siblings_and_releases_pending_once() {
+        let mut effects = WorkerEffects::<usize>::default();
+        let owner_a = AuxiliaryWindowOwner::new("window-a");
+        let owner_b = AuxiliaryWindowOwner::new("window-b");
+        let origin_a = EffectOrigin::Auxiliary(owner_a.clone());
+        let origin_b = EffectOrigin::Auxiliary(owner_b.clone());
+        register_owned(&mut effects, 41, 1, 101, origin_a.clone());
+        register_owned(&mut effects, 42, 1, 102, origin_b.clone());
+
+        effects.retire_auxiliary_owner(&owner_a);
+
+        assert!(!owner_a.is_open());
+        assert!(owner_b.is_open());
+        assert!(!effects.registry.contains_key(&EffectId(41)));
+        assert!(effects.registry.contains_key(&EffectId(42)));
+        assert_eq!(effects.pending, 1);
+
+        assert!(effects.ingress.send_with_registration(
+            EffectId(41),
+            EffectGeneration(1),
+            101,
+            effects.epoch,
+            &origin_a,
+            EffectResult::Completed(Box::new(410_usize)),
+        ));
+        assert!(effects.ingress.send_with_registration(
+            EffectId(42),
+            EffectGeneration(1),
+            102,
+            effects.epoch,
+            &origin_b,
+            EffectResult::Completed(Box::new(420_usize)),
+        ));
+        assert_eq!(effects.drain(), vec![420]);
+        assert_eq!(effects.pending, 0);
+
+        // A duplicate late terminal cannot decrement the already-released
+        // registration or disturb the sibling result.
+        assert!(effects.ingress.send_with_registration(
+            EffectId(41),
+            EffectGeneration(1),
+            101,
+            effects.epoch,
+            &origin_a,
+            EffectResult::Completed(Box::new(411_usize)),
+        ));
+        assert!(effects.drain().is_empty());
+        assert_eq!(effects.pending, 0);
+    }
+
+    #[test]
+    fn same_key_reopen_rejects_old_generation_without_removing_new_replacement() {
+        let mut effects = WorkerEffects::<usize>::default();
+        let old_owner = AuxiliaryWindowOwner::new("settings");
+        let old_origin = EffectOrigin::Auxiliary(old_owner.clone());
+        register_owned(&mut effects, 51, 1, 201, old_origin.clone());
+        effects.retire_auxiliary_owner(&old_owner);
+
+        let new_owner = AuxiliaryWindowOwner::new("settings");
+        assert!(!old_owner.is_same_generation(&new_owner));
+        let new_origin = EffectOrigin::Auxiliary(new_owner.clone());
+        register_owned(&mut effects, 51, 1, 202, new_origin.clone());
+
+        assert!(effects.ingress.send_with_registration(
+            EffectId(51),
+            EffectGeneration(1),
+            201,
+            effects.epoch,
+            &old_origin,
+            EffectResult::Completed(Box::new(510_usize)),
+        ));
+        assert!(effects.ingress.send_with_registration(
+            EffectId(51),
+            EffectGeneration(1),
+            202,
+            effects.epoch,
+            &new_origin,
+            EffectResult::Completed(Box::new(520_usize)),
+        ));
+
+        assert_eq!(effects.drain(), vec![520]);
+        assert_eq!(effects.pending, 0);
+    }
+
+    #[test]
+    fn auxiliary_owner_registry_retires_exact_generation_and_stays_bounded() {
+        let mut runtime = SurfaceRuntime::new(ImmediateBridge, Vector2::new(80.0, 40.0));
+        let old_settings = runtime.acquire_auxiliary_effect_owner("settings");
+        let inspector = runtime.acquire_auxiliary_effect_owner("inspector");
+        assert_eq!(runtime.auxiliary_effect_owners.len(), 2);
+        assert!(runtime.auxiliary_effect_owner_is_active(&old_settings));
+        assert!(runtime.auxiliary_effect_owner_is_active(&inspector));
+
+        assert!(runtime.retire_auxiliary_effect_owner(&old_settings));
+        let new_settings = runtime.acquire_auxiliary_effect_owner("settings");
+        assert!(!old_settings.is_same_generation(&new_settings));
+        assert!(!runtime.auxiliary_effect_owner_is_active(&old_settings));
+        assert!(runtime.auxiliary_effect_owner_is_active(&new_settings));
+        assert!(runtime.auxiliary_effect_owner_is_active(&inspector));
+        assert_eq!(runtime.auxiliary_effect_owners.len(), 2);
+
+        // A late retirement from the old native child cannot remove the new
+        // same-key generation.
+        assert!(!runtime.retire_auxiliary_effect_owner(&old_settings));
+        assert!(runtime.auxiliary_effect_owner_is_active(&new_settings));
+    }
+
+    #[test]
+    fn auxiliary_origin_survives_worker_completion_and_chained_command() {
+        let mut runtime = SurfaceRuntime::new(OriginBridge, Vector2::new(80.0, 40.0));
+        let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+        let _ = runtime.dispatch_message_from_auxiliary(1, owner.clone());
+        let (first_generation, first_registration, first_epoch, first_origin) = {
+            let entry = runtime
+                .worker_effects
+                .registry
+                .get(&EffectId(1))
+                .expect("first auxiliary worker registration");
+            (
+                entry.generation,
+                entry.registration_id,
+                entry.epoch,
+                entry.origin.clone(),
+            )
+        };
+        assert!(matches!(
+            &first_origin,
+            EffectOrigin::Auxiliary(actual) if actual.is_same_generation(&owner)
+        ));
+        assert!(runtime.worker_effects.ingress.send_with_registration(
+            EffectId(1),
+            first_generation,
+            first_registration,
+            first_epoch,
+            &first_origin,
+            EffectResult::Completed(Box::new(1_usize)),
+        ));
+
+        let _ = runtime.drain_runtime_messages();
+        let (second_generation, second_registration, second_epoch, second_origin) = {
+            let entry = runtime
+                .worker_effects
+                .registry
+                .get(&EffectId(2))
+                .expect("chained auxiliary worker registration");
+            (
+                entry.generation,
+                entry.registration_id,
+                entry.epoch,
+                entry.origin.clone(),
+            )
+        };
+        assert!(matches!(
+            &second_origin,
+            EffectOrigin::Auxiliary(actual) if actual.is_same_generation(&owner)
+        ));
+        assert!(runtime.worker_effects.ingress.send_with_registration(
+            EffectId(2),
+            second_generation,
+            second_registration,
+            second_epoch,
+            &second_origin,
+            EffectResult::Completed(Box::new(2_usize)),
+        ));
+
+        let _ = runtime.drain_runtime_messages();
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.worker_effects.pending, 0);
+    }
+
+    #[test]
     fn cancellation_and_panic_remove_mapper_without_invocation() {
         let mut effects = WorkerEffects::<usize>::default();
         let invoked = Arc::new(AtomicUsize::new(0));
@@ -849,6 +1229,7 @@ mod tests {
             EffectId(3),
             Registered {
                 generation: EffectGeneration(1),
+                registration_id: 0,
                 epoch: effects.epoch,
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 3, None, 1, None),
@@ -859,6 +1240,7 @@ mod tests {
                         Some(1)
                     }
                 })),
+                origin: EffectOrigin::Application,
             },
         );
         effects.pending += 1;
@@ -893,6 +1275,7 @@ mod tests {
             EffectId(6),
             Registered {
                 generation: EffectGeneration(1),
+                registration_id: 0,
                 epoch: effects.epoch,
                 is_cancelled: {
                     let cancelled = Arc::clone(&cancelled);
@@ -906,6 +1289,7 @@ mod tests {
                         Some(1)
                     }
                 })),
+                origin: EffectOrigin::Application,
             },
         );
         effects.pending += 1;
@@ -933,6 +1317,7 @@ mod tests {
             EffectId(8),
             Registered {
                 generation: EffectGeneration(1),
+                registration_id: 0,
                 epoch: effects.epoch,
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 8, None, 1, None),
@@ -942,6 +1327,7 @@ mod tests {
                     mapper_state.borrow_mut().push(output);
                     Some(output + 1)
                 })),
+                origin: EffectOrigin::Application,
             },
         );
         effects.pending += 1;
@@ -1364,9 +1750,11 @@ mod tests {
             sequence: 0,
             id: EffectId(70),
             generation: EffectGeneration(1),
+            registration_id: 0,
             epoch: old_epoch,
             result: EffectResult::Completed(Box::new(70_usize)),
             owner: effects.owner.clone(),
+            origin: EffectOrigin::Application,
         });
         assert!(effects.ingress.send(
             EffectId(7),
@@ -1972,6 +2360,49 @@ mod tests {
         assert_eq!(runtime.worker_effects.drain(), vec![20, 21]);
         assert_eq!(resources.active(&key), Some(second_ticket.ticket()));
         assert_ne!(first_ticket.ticket(), second_ticket.ticket());
+    }
+
+    struct OriginBridge;
+
+    impl crate::runtime::RuntimeBridge<usize> for OriginBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+            if message > 2 {
+                return crate::runtime::Command::none();
+            }
+            crate::runtime::Command::perform_worker_effect_with_identity(
+                EffectId(message as u64),
+                "auxiliary-origin-chain",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || message,
+                |output| output + 1,
+            )
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for OriginBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            _work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            true
+        }
     }
 
     struct AdmissionBridge {

@@ -60,6 +60,7 @@ where
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
             effect_owner: effect_owner.clone(),
+            auxiliary_effect_owners: std::collections::HashMap::new(),
             runtime_work: RuntimeWorkQueues::default(),
             platform_registry: PlatformCompletionRegistry::new(effect_owner.clone()),
             platform_results: std::sync::Arc::new(std::sync::Mutex::new(
@@ -140,6 +141,42 @@ where
         self.transition_lifecycle(RuntimeLifecyclePhase::Running)
     }
 
+    pub(crate) fn acquire_auxiliary_effect_owner(
+        &mut self,
+        key: &str,
+    ) -> super::super::owner::AuxiliaryWindowOwner {
+        self.auxiliary_effect_owners
+            .entry(key.to_owned())
+            .or_insert_with(|| super::super::owner::AuxiliaryWindowOwner::new(key))
+            .clone()
+    }
+
+    pub(crate) fn auxiliary_effect_owner_is_active(
+        &self,
+        owner: &super::super::owner::AuxiliaryWindowOwner,
+    ) -> bool {
+        self.auxiliary_effect_owners
+            .get(owner.key())
+            .is_some_and(|current| current.is_same_generation(owner) && current.is_open())
+    }
+
+    pub(crate) fn retire_auxiliary_effect_owner(
+        &mut self,
+        owner: &super::super::owner::AuxiliaryWindowOwner,
+    ) -> bool {
+        let matches_current = self
+            .auxiliary_effect_owners
+            .get(owner.key())
+            .is_some_and(|current| current.is_same_generation(owner));
+        if !matches_current {
+            return false;
+        }
+        owner.retire();
+        self.worker_effects.retire_auxiliary_owner(owner);
+        self.auxiliary_effect_owners.remove(owner.key());
+        true
+    }
+
     pub(in crate::runtime::controller) fn lifecycle_phase(&self) -> RuntimeLifecyclePhase {
         self.lifecycle.phase()
     }
@@ -164,6 +201,7 @@ where
         self.retire_virtual_layout();
         self.effect_owner.cancel();
         self.worker_effects.shutdown();
+        self.auxiliary_effect_owners.clear();
         self.timer_effects.shutdown();
         self.runtime_work.fence_all();
         self.shutdown_platform_services();

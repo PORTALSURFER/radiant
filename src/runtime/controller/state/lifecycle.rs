@@ -132,6 +132,14 @@ where
         self.lifecycle.transition(next)
     }
 
+    pub(crate) fn begin_native_recovery(&mut self) -> bool {
+        self.transition_lifecycle(RuntimeLifecyclePhase::Recovering)
+    }
+
+    pub(crate) fn finish_native_recovery(&mut self) -> bool {
+        self.transition_lifecycle(RuntimeLifecyclePhase::Running)
+    }
+
     pub(in crate::runtime::controller) fn lifecycle_phase(&self) -> RuntimeLifecyclePhase {
         self.lifecycle.phase()
     }

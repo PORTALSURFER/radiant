@@ -52,6 +52,14 @@ where
         self.runtime.advance_timed_repaints(now)
     }
 
+    pub(super) fn begin_native_recovery(&mut self) -> bool {
+        self.runtime.begin_native_recovery()
+    }
+
+    pub(super) fn finish_native_recovery(&mut self) -> bool {
+        self.runtime.finish_native_recovery()
+    }
+
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new(bridge: Bridge, viewport: Vector2) -> Self {
         Self::new_with_debug_layout(bridge, viewport, false)

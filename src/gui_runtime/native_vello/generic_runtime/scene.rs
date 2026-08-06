@@ -27,6 +27,7 @@ mod text_input_selection;
 mod text_runs;
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityCounts;
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::ArtifactFeasibilityObservation;
+pub(in crate::gui_runtime::native_vello) use artifact_feasibility::segment_local_count_delta;
 #[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use artifact_feasibility::{
     ArtifactFeasibilityCheckpoint, ArtifactFeasibilityCollector, ArtifactFeasibilitySegment,

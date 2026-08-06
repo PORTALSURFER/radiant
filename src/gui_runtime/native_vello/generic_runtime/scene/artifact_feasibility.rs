@@ -108,7 +108,7 @@ impl ArtifactFeasibilityCounts {
         }
     }
 
-    fn monotonic_from(self, previous: Self) -> bool {
+    pub(in crate::gui_runtime::native_vello) fn monotonic_from(self, previous: Self) -> bool {
         self.path_tags >= previous.path_tags
             && self.path_data >= previous.path_data
             && self.draw_tags >= previous.draw_tags
@@ -124,6 +124,56 @@ impl ArtifactFeasibilityCounts {
             && self.glyphs >= previous.glyphs
             && self.glyph_runs >= previous.glyph_runs
             && self.normalized_coords >= previous.normalized_coords
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn checked_delta_from(
+        self,
+        previous: Self,
+    ) -> Option<Self> {
+        if !self.monotonic_from(previous) {
+            return None;
+        }
+        Some(Self {
+            path_tags: self.path_tags.checked_sub(previous.path_tags)?,
+            path_data: self.path_data.checked_sub(previous.path_data)?,
+            draw_tags: self.draw_tags.checked_sub(previous.draw_tags)?,
+            draw_data: self.draw_data.checked_sub(previous.draw_data)?,
+            transforms: self.transforms.checked_sub(previous.transforms)?,
+            styles: self.styles.checked_sub(previous.styles)?,
+            n_paths: self.n_paths.checked_sub(previous.n_paths)?,
+            n_path_segments: self.n_path_segments.checked_sub(previous.n_path_segments)?,
+            n_clips: self.n_clips.checked_sub(previous.n_clips)?,
+            n_open_clips: self.n_open_clips.checked_sub(previous.n_open_clips)?,
+            patches: self.patches.checked_sub(previous.patches)?,
+            color_stops: self.color_stops.checked_sub(previous.color_stops)?,
+            glyphs: self.glyphs.checked_sub(previous.glyphs)?,
+            glyph_runs: self.glyph_runs.checked_sub(previous.glyph_runs)?,
+            normalized_coords: self
+                .normalized_coords
+                .checked_sub(previous.normalized_coords)?,
+        })
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn saturating_add(self, other: Self) -> Self {
+        Self {
+            path_tags: self.path_tags.saturating_add(other.path_tags),
+            path_data: self.path_data.saturating_add(other.path_data),
+            draw_tags: self.draw_tags.saturating_add(other.draw_tags),
+            draw_data: self.draw_data.saturating_add(other.draw_data),
+            transforms: self.transforms.saturating_add(other.transforms),
+            styles: self.styles.saturating_add(other.styles),
+            n_paths: self.n_paths.saturating_add(other.n_paths),
+            n_path_segments: self.n_path_segments.saturating_add(other.n_path_segments),
+            n_clips: self.n_clips.saturating_add(other.n_clips),
+            n_open_clips: self.n_open_clips.saturating_add(other.n_open_clips),
+            patches: self.patches.saturating_add(other.patches),
+            color_stops: self.color_stops.saturating_add(other.color_stops),
+            glyphs: self.glyphs.saturating_add(other.glyphs),
+            glyph_runs: self.glyph_runs.saturating_add(other.glyph_runs),
+            normalized_coords: self
+                .normalized_coords
+                .saturating_add(other.normalized_coords),
+        }
     }
 
     fn grew_stream_from(self, previous: Self) -> bool {
@@ -142,6 +192,33 @@ impl ArtifactFeasibilityCounts {
             || self.glyph_runs > previous.glyph_runs
             || self.normalized_coords > previous.normalized_coords
     }
+}
+
+/// Return the exact Vello-count delta introduced by one checked segment
+/// boundary. A missing, trailing, conservative, or non-monotonic observation
+/// is unavailable rather than being repaired locally.
+pub(in crate::gui_runtime::native_vello) fn segment_local_count_delta(
+    observation: ArtifactFeasibilityObservation,
+    index: usize,
+) -> Option<ArtifactFeasibilityCounts> {
+    let count = usize::from(observation.segment_count);
+    if observation.conservative
+        || count == 0
+        || count > MAX_PAINT_SEGMENTS
+        || usize::from(observation.checkpoint_count) != count
+        || index >= count
+        || observation.segments[count..].iter().any(Option::is_some)
+        || observation.checkpoints[count..].iter().any(Option::is_some)
+    {
+        return None;
+    }
+    let current = observation.checkpoints[index]?.counts;
+    let previous = if index == 0 {
+        ArtifactFeasibilityCounts::default()
+    } else {
+        observation.checkpoints[index - 1]?.counts
+    };
+    current.checked_delta_from(previous)
 }
 
 /// One checkpoint captured at an exact ordinary-segment boundary.

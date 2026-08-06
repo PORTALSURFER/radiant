@@ -1774,10 +1774,13 @@ mod tests {
     ) {
         for id in 0..count {
             let mapped = Rc::clone(mapped);
-            let identity = runtime.platform_registry.register(Box::new(move |_| {
-                mapped.borrow_mut().push(id);
-                id
-            }));
+            let identity = runtime.platform_registry.register(
+                Box::new(move |_| {
+                    mapped.borrow_mut().push(id);
+                    id
+                }),
+                &EffectOrigin::Application,
+            );
             let reservation = crate::runtime::controller::platform::PlatformResultIngress::reserve(
                 &runtime.platform_results,
             )

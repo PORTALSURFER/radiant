@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use super::SurfaceRuntime;
-use super::owner::{LifecycleDescriptor, RuntimeOwner};
+use super::owner::{AuxiliaryWindowOwner, EffectOrigin, LifecycleDescriptor, RuntimeOwner};
 use crate::runtime::RuntimeBridge;
 
 pub(super) struct PlatformCompletionRegistry<Message> {
@@ -31,6 +31,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
     pub(super) fn register(
         &mut self,
         completion: PlatformCompletion<Message>,
+        origin: &EffectOrigin,
     ) -> PlatformCompletionIdentity {
         let identity = PlatformCompletionIdentity {
             id: self.next_id,
@@ -48,26 +49,35 @@ impl<Message> PlatformCompletionRegistry<Message> {
                     identity.epoch,
                     None,
                 ),
+                origin: origin.clone(),
             },
         );
         identity
     }
 
-    pub(super) fn map_delivery(&mut self, delivery: PlatformResultDelivery) -> Option<Message> {
+    pub(super) fn map_delivery(
+        &mut self,
+        delivery: PlatformResultDelivery,
+    ) -> Option<MappedPlatformMessage<Message>> {
         match delivery {
             PlatformResultDelivery::Completed { identity, result } => {
                 let mapper = self.entries.get(&identity)?;
-                if !mapper.lifecycle.admits(
-                    &self.owner,
-                    identity.id,
-                    identity.epoch,
-                    mapper.lifecycle.slot().is_none(),
-                ) {
+                let current = mapper.origin.is_live()
+                    && mapper.lifecycle.admits(
+                        &self.owner,
+                        identity.id,
+                        identity.epoch,
+                        mapper.lifecycle.slot().is_none(),
+                    );
+                if !current {
                     self.entries.remove(&identity);
                     return None;
                 }
                 let mapper = self.entries.remove(&identity)?;
-                Some((mapper.completion)(result))
+                Some(MappedPlatformMessage {
+                    message: (mapper.completion)(result),
+                    origin: mapper.origin,
+                })
             }
             PlatformResultDelivery::Discarded { identity } => {
                 self.entries.remove(&identity);
@@ -83,6 +93,20 @@ impl<Message> PlatformCompletionRegistry<Message> {
         self.entries.remove(&identity).map(|entry| entry.completion)
     }
 
+    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
+        owner.retire();
+        let origin = EffectOrigin::Auxiliary(owner.clone());
+        let current_ids = self
+            .entries
+            .iter()
+            .filter(|(_, registered)| registered.origin == origin)
+            .map(|(identity, _)| *identity)
+            .collect::<Vec<_>>();
+        for identity in current_ids {
+            self.entries.remove(&identity);
+        }
+    }
+
     pub(super) fn clear(&mut self) {
         self.entries.clear();
         self.epoch = self.epoch.saturating_add(1);
@@ -92,6 +116,12 @@ impl<Message> PlatformCompletionRegistry<Message> {
 struct RegisteredPlatformCompletion<Message> {
     completion: PlatformCompletion<Message>,
     lifecycle: LifecycleDescriptor,
+    origin: EffectOrigin,
+}
+
+pub(super) struct MappedPlatformMessage<Message> {
+    pub(super) message: Message,
+    pub(super) origin: EffectOrigin,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -253,16 +283,24 @@ mod tests {
         let calls = Rc::new(RefCell::new(0));
         let marker = Rc::clone(&calls);
         let mut registry = PlatformCompletionRegistry::<usize>::default();
-        let identity = registry.register(Box::new(move |_| {
-            *marker.borrow_mut() += 1;
-            1
-        }));
+        let identity = registry.register(
+            Box::new(move |_| {
+                *marker.borrow_mut() += 1;
+                1
+            }),
+            &EffectOrigin::Application,
+        );
         let delivery = || PlatformResultDelivery::Completed {
             identity,
             result: Ok(PlatformResponse::Completed),
         };
-        assert_eq!(registry.map_delivery(delivery()), Some(1));
-        assert_eq!(registry.map_delivery(delivery()), None);
+        assert_eq!(
+            registry
+                .map_delivery(delivery())
+                .map(|mapped| mapped.message),
+            Some(1)
+        );
+        assert!(registry.map_delivery(delivery()).is_none());
         assert_eq!(*calls.borrow(), 1);
     }
 
@@ -271,9 +309,12 @@ mod tests {
         let marker = Rc::new(());
         let captured = Rc::clone(&marker);
         let mut registry = PlatformCompletionRegistry::<()>::default();
-        let identity = registry.register(Box::new(move |_| {
-            let _ = &captured;
-        }));
+        let identity = registry.register(
+            Box::new(move |_| {
+                let _ = &captured;
+            }),
+            &EffectOrigin::Application,
+        );
         assert_eq!(Rc::strong_count(&marker), 2);
         registry.clear();
         assert_eq!(Rc::strong_count(&marker), 1);
@@ -292,13 +333,19 @@ mod tests {
         let marker = Rc::new(());
         let mut registry = PlatformCompletionRegistry::<()>::default();
         let first_marker = Rc::clone(&marker);
-        let first = registry.register(Box::new(move |_| {
-            let _ = &first_marker;
-        }));
+        let first = registry.register(
+            Box::new(move |_| {
+                let _ = &first_marker;
+            }),
+            &EffectOrigin::Application,
+        );
         let second_marker = Rc::clone(&marker);
-        let second = registry.register(Box::new(move |_| {
-            let _ = &second_marker;
-        }));
+        let second = registry.register(
+            Box::new(move |_| {
+                let _ = &second_marker;
+            }),
+            &EffectOrigin::Application,
+        );
         assert_eq!(Rc::strong_count(&marker), 3);
 
         let ingress = Arc::new(Mutex::new(PlatformResultIngress::default()));
@@ -326,6 +373,155 @@ mod tests {
             .expect("bounded overflow delivery");
         assert!(registry.map_delivery(delivery).is_some());
         assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn auxiliary_retirement_releases_only_exact_generation_registrations() {
+        let marker = Rc::new(());
+        let old_owner = AuxiliaryWindowOwner::new("settings");
+        let sibling_owner = AuxiliaryWindowOwner::new("inspector");
+        let new_owner = AuxiliaryWindowOwner::new("settings");
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+
+        let application = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    1
+                }),
+                &EffectOrigin::Application,
+            )
+        };
+        let old = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    2
+                }),
+                &EffectOrigin::Auxiliary(old_owner.clone()),
+            )
+        };
+        let sibling = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    3
+                }),
+                &EffectOrigin::Auxiliary(sibling_owner.clone()),
+            )
+        };
+        let new_generation = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    4
+                }),
+                &EffectOrigin::Auxiliary(new_owner.clone()),
+            )
+        };
+        assert_eq!(Rc::strong_count(&marker), 5);
+
+        registry.retire_auxiliary_owner(&old_owner);
+        assert!(!old_owner.is_open());
+        assert!(new_owner.is_open());
+        assert_eq!(Rc::strong_count(&marker), 4);
+
+        let delivery = |identity| PlatformResultDelivery::Completed {
+            identity,
+            result: Ok(PlatformResponse::Completed),
+        };
+        assert!(registry.map_delivery(delivery(old)).is_none());
+        assert_eq!(
+            registry
+                .map_delivery(delivery(application))
+                .map(|mapped| mapped.message),
+            Some(1)
+        );
+        assert_eq!(
+            registry
+                .map_delivery(delivery(sibling))
+                .map(|mapped| mapped.message),
+            Some(3)
+        );
+        assert_eq!(
+            registry
+                .map_delivery(delivery(new_generation))
+                .map(|mapped| mapped.message),
+            Some(4)
+        );
+        assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn retired_origin_late_duplicate_discarded_and_overflow_deliveries_are_inert() {
+        let marker = Rc::new(RefCell::new(0usize));
+        let owner = AuxiliaryWindowOwner::new("settings");
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+        let captured = Rc::clone(&marker);
+        let identity = registry.register(
+            Box::new(move |_| {
+                *captured.borrow_mut() += 1;
+                1
+            }),
+            &EffectOrigin::Auxiliary(owner.clone()),
+        );
+        owner.retire();
+
+        let delivery = || PlatformResultDelivery::Completed {
+            identity,
+            result: Ok(PlatformResponse::Completed),
+        };
+        assert!(registry.map_delivery(delivery()).is_none());
+        assert!(registry.map_delivery(delivery()).is_none());
+        assert_eq!(*marker.borrow(), 0);
+        assert_eq!(Rc::strong_count(&marker), 1);
+
+        let discarded = registry.register(Box::new(|_| 2), &EffectOrigin::Application);
+        assert!(
+            registry
+                .map_delivery(PlatformResultDelivery::Discarded {
+                    identity: discarded
+                })
+                .is_none()
+        );
+
+        let overflow_marker = Rc::new(RefCell::new(0usize));
+        let overflow_owner = AuxiliaryWindowOwner::new("overflow");
+        let captured = Rc::clone(&overflow_marker);
+        let overflow_identity = registry.register(
+            Box::new(move |_| {
+                *captured.borrow_mut() += 1;
+                3
+            }),
+            &EffectOrigin::Auxiliary(overflow_owner.clone()),
+        );
+        overflow_owner.retire();
+        let ingress = Arc::new(Mutex::new(PlatformResultIngress::default()));
+        assert!(
+            ingress
+                .lock()
+                .expect("ingress lock")
+                .enqueue_overflow(delivery_for(overflow_identity))
+        );
+        let delivery = ingress
+            .lock()
+            .expect("ingress lock")
+            .take_pending()
+            .pop()
+            .expect("overflow delivery");
+        assert!(registry.map_delivery(delivery).is_none());
+        assert_eq!(*overflow_marker.borrow(), 0);
+    }
+
+    fn delivery_for(identity: PlatformCompletionIdentity) -> PlatformResultDelivery {
+        PlatformResultDelivery::Completed {
+            identity,
+            result: Ok(PlatformResponse::Completed),
+        }
     }
 
     #[test]

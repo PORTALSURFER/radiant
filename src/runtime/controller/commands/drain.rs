@@ -102,38 +102,53 @@ where
                 let Some(item) = item_batch.pop() else {
                     break;
                 };
-                let message = match item {
-                    RuntimeQueueItem::Message(message) => Some(message),
+                match item {
+                    RuntimeQueueItem::Message(message) => {
+                        self.dispatch_message_inner(message, &mut outcome);
+                    }
                     RuntimeQueueItem::Timer(wake)
                         if wake.owner == RuntimeTimerOwner::Application =>
                     {
-                        self.host_capabilities
-                            .queues
-                            .as_ref()
-                            .and_then(|capability| {
-                                (capability.map_runtime_timer_wake)(&mut self.bridge, wake)
-                            })
-                    }
-                    RuntimeQueueItem::Timer(wake) => self.timer_effects.map_wake(wake),
-                    RuntimeQueueItem::Delivery(delivery) => {
-                        match delivery.downcast::<crate::runtime::PlatformResultDelivery>() {
-                            Ok(delivery) => self.platform_registry.map_delivery(delivery),
-                            Err(delivery) => {
-                                self.host_capabilities
-                                    .queues
-                                    .as_ref()
-                                    .and_then(|capability| {
-                                        (capability.map_runtime_queue_delivery)(
-                                            &mut self.bridge,
-                                            delivery,
-                                        )
-                                    })
-                            }
+                        if let Some(message) =
+                            self.host_capabilities
+                                .queues
+                                .as_ref()
+                                .and_then(|capability| {
+                                    (capability.map_runtime_timer_wake)(&mut self.bridge, wake)
+                                })
+                        {
+                            self.dispatch_message_inner(message, &mut outcome);
                         }
                     }
-                };
-                if let Some(message) = message {
-                    self.dispatch_message_inner(message, &mut outcome);
+                    RuntimeQueueItem::Timer(wake) => {
+                        if let Some(mapped) = self.timer_effects.map_wake(wake) {
+                            self.dispatch_message_inner_with_origin(
+                                mapped.message,
+                                &mut outcome,
+                                mapped.origin,
+                            );
+                        }
+                    }
+                    RuntimeQueueItem::Delivery(delivery) => {
+                        let message =
+                            match delivery.downcast::<crate::runtime::PlatformResultDelivery>() {
+                                Ok(delivery) => self.platform_registry.map_delivery(delivery),
+                                Err(delivery) => {
+                                    self.host_capabilities
+                                        .queues
+                                        .as_ref()
+                                        .and_then(|capability| {
+                                            (capability.map_runtime_queue_delivery)(
+                                                &mut self.bridge,
+                                                delivery,
+                                            )
+                                        })
+                                }
+                            };
+                        if let Some(message) = message {
+                            self.dispatch_message_inner(message, &mut outcome);
+                        }
+                    }
                 }
             }
             if self.lifecycle_accepts_work() {

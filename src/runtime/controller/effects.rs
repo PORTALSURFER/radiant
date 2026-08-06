@@ -917,7 +917,7 @@ mod tests {
     use crate::runtime::{
         DragPreview, DragRequest, ExternalDragEffect, ExternalDragOutcome, ExternalDragRequest,
         PlatformResultDelivery, RuntimeDiagnosticsRecorder, RuntimeHostCapabilities,
-        RuntimeTaskHost, SurfaceNode, UiSurface,
+        RuntimeQueueHost, RuntimeTaskHost, RuntimeTimerWake, SurfaceNode, UiSurface,
     };
     use crate::{
         gui::types::{Point, Vector2},
@@ -927,7 +927,7 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, rc::Rc, time::Duration};
 
     fn register(effect: &mut WorkerEffects<usize>, id: u64, generation: u64) {
         effect.registry.insert(
@@ -1219,6 +1219,123 @@ mod tests {
         let _ = runtime.drain_runtime_messages();
         assert!(runtime.worker_effects.registry.is_empty());
         assert_eq!(runtime.worker_effects.pending, 0);
+    }
+
+    #[test]
+    fn auxiliary_origin_survives_timer_completion_and_chained_command() {
+        let mut runtime = SurfaceRuntime::new(
+            TimerOriginBridge {
+                scheduled: Vec::new(),
+                dispatched: Vec::new(),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+        let _ = runtime.dispatch_message_from_auxiliary(1, owner.clone());
+        let first_wake = runtime.bridge().scheduled[0];
+        let first_origin = runtime
+            .timer_effects
+            .registered_origin(first_wake.id)
+            .expect("first auxiliary timer registration");
+        assert!(matches!(
+            first_origin,
+            EffectOrigin::Auxiliary(actual) if actual.is_same_generation(&owner)
+        ));
+
+        let first_outcome = runtime.drain_runtime_messages();
+        assert_eq!(first_outcome.messages_dispatched, 1);
+        assert_eq!(runtime.bridge().dispatched, [1, 2]);
+
+        let second_wake = runtime.bridge().scheduled[0];
+        let second_origin = runtime
+            .timer_effects
+            .registered_origin(second_wake.id)
+            .expect("chained auxiliary timer registration");
+        assert!(matches!(
+            second_origin,
+            EffectOrigin::Auxiliary(actual) if actual.is_same_generation(&owner)
+        ));
+
+        let second_outcome = runtime.drain_runtime_messages();
+        assert_eq!(second_outcome.messages_dispatched, 1);
+        assert_eq!(runtime.bridge().dispatched, [1, 2, 3]);
+        assert!(runtime.timer_effects.is_empty());
+    }
+
+    #[test]
+    fn auxiliary_timer_retirement_drops_registration_and_fences_late_wake() {
+        let mut runtime = SurfaceRuntime::new(
+            TimerOriginBridge {
+                scheduled: Vec::new(),
+                dispatched: Vec::new(),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let owner = runtime.acquire_auxiliary_effect_owner("settings");
+        let _ = runtime.dispatch_message_from_auxiliary(1, owner.clone());
+        let late_wake = runtime.bridge().scheduled[0];
+
+        assert!(runtime.retire_auxiliary_effect_owner(&owner));
+        assert!(runtime.timer_effects.is_empty());
+        runtime.bridge_mut().scheduled.push(late_wake);
+
+        let outcome = runtime.drain_runtime_messages();
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.bridge().dispatched, [1]);
+        assert!(!runtime.retire_auxiliary_effect_owner(&owner));
+    }
+
+    #[test]
+    fn stale_auxiliary_retirement_does_not_remove_new_same_key_timer() {
+        let mut runtime = SurfaceRuntime::new(
+            TimerOriginBridge {
+                scheduled: Vec::new(),
+                dispatched: Vec::new(),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let old_owner = runtime.acquire_auxiliary_effect_owner("settings");
+        let _ = runtime.dispatch_message_from_auxiliary(1, old_owner.clone());
+        let old_wake = runtime.bridge().scheduled[0];
+        assert!(runtime.retire_auxiliary_effect_owner(&old_owner));
+
+        let new_owner = runtime.acquire_auxiliary_effect_owner("settings");
+        let _ = runtime.dispatch_message_from_auxiliary(1, new_owner.clone());
+        let new_wake = runtime.bridge().scheduled[1];
+        assert!(!old_owner.is_same_generation(&new_owner));
+        assert!(!runtime.retire_auxiliary_effect_owner(&old_owner));
+        assert!(runtime.timer_effects.contains_registration(new_wake.id));
+
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(runtime.bridge().dispatched, [1, 1, 2]);
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(runtime.bridge().dispatched, [1, 1, 2, 3]);
+        assert!(runtime.timer_effects.is_empty());
+        assert_ne!(old_wake.id, new_wake.id);
+    }
+
+    #[test]
+    fn auxiliary_timer_survives_native_recovery_without_retirement() {
+        let mut runtime = SurfaceRuntime::new(
+            TimerOriginBridge {
+                scheduled: Vec::new(),
+                dispatched: Vec::new(),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let owner = runtime.acquire_auxiliary_effect_owner("settings");
+        let _ = runtime.dispatch_message_from_auxiliary(1, owner.clone());
+        let wake = runtime.bridge().scheduled[0];
+        assert!(runtime.timer_effects.contains_registration(wake.id));
+
+        assert!(runtime.begin_native_recovery());
+        assert!(runtime.timer_effects.contains_registration(wake.id));
+        assert!(runtime.finish_native_recovery());
+
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(runtime.bridge().dispatched, [1, 2]);
+        assert!(runtime.auxiliary_effect_owner_is_active(&owner));
     }
 
     #[test]
@@ -2402,6 +2519,50 @@ mod tests {
             _work: Box<dyn FnOnce() + Send + 'static>,
         ) -> bool {
             true
+        }
+    }
+
+    struct TimerOriginBridge {
+        scheduled: Vec<RuntimeTimerWake>,
+        dispatched: Vec<usize>,
+    }
+
+    impl crate::runtime::RuntimeBridge<usize> for TimerOriginBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn reduce_message(&mut self, message: usize) {
+            self.dispatched.push(message);
+        }
+
+        fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+            self.dispatched.push(message);
+            match message {
+                1 | 2 => crate::runtime::Command::after(Duration::ZERO, message + 1),
+                _ => crate::runtime::Command::none(),
+            }
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks().with_queues()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for TimerOriginBridge {
+        fn schedule_timer(&mut self, _delay: Duration, wake: RuntimeTimerWake) -> bool {
+            self.scheduled.push(wake);
+            true
+        }
+    }
+
+    impl RuntimeQueueHost<usize> for TimerOriginBridge {
+        fn take_runtime_timer_wakes(&mut self) -> Vec<RuntimeTimerWake> {
+            std::mem::take(&mut self.scheduled)
         }
     }
 

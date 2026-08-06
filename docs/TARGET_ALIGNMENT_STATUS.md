@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-06**
-- Canonical main: **`ee861887`**
-- Overall estimate: **~83%**
-- Working range: **78–88%**
+- Canonical main: **`d05f6e8e`**
+- Overall estimate: **~84%**
+- Working range: **79–89%**
 - Confidence: **medium**
 
 The estimate reflects the combination of shipped contract, implementation,
@@ -34,9 +34,12 @@ immutable payload construction. PR #1609 now ships the private synchronous
 `SurfaceRuntime` registration/two-pass bridge, including bounded registration
 admission, shell-first layout/query sequencing, complete-batch publication
 through the existing materialization store, retained-subtree reuse, and
-conservative changed/missing/duplicate/terminal handling. The estimate moves
-modestly because no public registration API or product-specific virtualization
-consumer is claimed.
+conservative changed/missing/duplicate/terminal handling. PR #1610 now ships
+the generic, parser-agnostic `NumericEditSession<T>` draft/transaction
+foundation with source-safe terminal boundaries and qualified exports, without
+claiming parser, domain, widget, or runtime integration. The estimate moves
+modestly because numeric edit-session state is now executable and validated,
+while no product-specific numeric policy or virtualization behavior is claimed.
 
 This snapshot distinguishes architecture readiness from shipped runtime
 behavior: the generic private virtualization consumer path is now shipped and
@@ -50,10 +53,10 @@ unshipped.
 | --- | ---: | --- |
 | Public API and module boundaries | 80% | Explicit public/module boundaries and prelude hygiene are shipped; the full target surface is not. |
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
-| Input, provenance, and edit lifecycle | 80% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; broader consumers remain. |
+| Input, provenance, and edit lifecycle | 82% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; the generic parser-agnostic numeric edit-session boundary is now shipped, while broader consumers remain. |
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
-| Numeric controls | 35% | Finite linear/log `ValueMapping` and deterministic allocation-free `ValueFormat` are shipped; edit-session and control integration are not. |
+| Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
 | Runtime, effects, and scheduling | 65% | Runtime controller and host-facing lifecycle foundations exist; the complete effects/scheduling target is not wired. |
 | Rendering, invalidation, retained GPU surfaces | 60% | Revision/damage direction is present; production render-boundary and cache-admission wiring remains. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
@@ -116,6 +119,10 @@ The current foundation includes:
   layout/query sequencing, complete-batch publication through the existing
   materialization store, retained-subtree reuse, and conservative
   changed/missing/duplicate/terminal handling (PR #1609); and
+- the qualified, parser-agnostic `NumericEditSession<T>` with verbatim draft
+  replacement, one shared `EditEvent::Begin`, source-safe caller-certified
+  commit/cancel boundaries, foreign-source preservation, and no common-prelude
+  export (PR #1610); and
 - finite linear/log `ValueMapping`; and
 - deterministic, allocation-free `ValueFormat`.
 
@@ -136,10 +143,11 @@ duplicate, deferred, unavailable, and terminal paths. It remains intentionally
 private and has no product-owned lifecycle or registration consumer yet.
 
 PR #1607 remains the item-level admission prerequisite and PR #1608 the
-complete private batch adapter on which the bridge depends. No public
+complete private batch adapter on which the bridge depends. PR #1610 also
+establishes the generic numeric editing-session boundary, but no public
 registration/API or capability contract version has changed; product-specific
-virtualization consumers and `split_pane` interaction/state/ratio semantics
-remain contract-dependent.
+virtualization consumers, `split_pane` interaction/state/ratio semantics, and
+numeric parser/domain policy remain contract-dependent.
 
 ## Remaining gaps, ordered by leverage
 
@@ -159,19 +167,20 @@ remain contract-dependent.
    state, and ratio semantics; do not invent those contracts in generic Radiant.
    PR #1601 supplies the generic runtime state lifecycle if a product contract
    later makes those slices reasonable.
-2. **Numeric edit session.** Add a parser-agnostic `NumericEditSession` with a
-   runtime-local draft and typed commit/cancel semantics.
-3. **Numeric and input integration.** Complete numeric attachment,
+2. **Numeric and input integration.** Complete numeric attachment,
    `numeric_input`, widget/runtime/focus integration, and the pointer,
-   keyboard, and accessibility domain contract around those paths.
-4. **Richer text editing.** Complete multiline editing, IME/composition, and
+   keyboard, and accessibility domain contract around those paths. This is
+   now the next dependency-correct numeric item, but parser, locale, range,
+   formatting, and product interaction policy must come from a concrete
+   consumer rather than being invented in generic Radiant.
+3. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
-5. **Production frame wiring.** Complete reconciliation, damage propagation,
+4. **Production frame wiring.** Complete reconciliation, damage propagation,
    render-boundary selection, and retained-surface cache admission in the
    production runtime path.
-6. **Profiling and performance proof.** Add first-class `ProfilingMode`,
+5. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
-7. **Platform expansion.** Broaden Linux/Windows runtime validation and
+6. **Platform expansion.** Broaden Linux/Windows runtime validation and
    platform implementation behind the existing boundaries.
 
 dB, tempo, and other custom numeric formats remain later work after the
@@ -195,6 +204,7 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Private runtime virtual-layout bridge](../src/runtime/controller/virtual_layout.rs)
 - [Query capability public tests](../tests/virtual_layout_public_api.rs)
 - [Edit lifecycle and provenance](../src/widgets/interaction/edit.rs)
+- [Numeric edit session](../src/widgets/interaction/numeric_edit.rs)
 - [Value mapping](../src/widgets/interaction/value.rs)
 - [Value formatting](../src/widgets/interaction/format.rs)
 - [Widget revision contract](../src/widgets/contract/revision.rs)
@@ -237,3 +247,4 @@ After each merged alignment slice:
 | 2026-08-06 | `d63a7f32` | ~77% (71–83%, medium confidence) | PR #1607 merged the private tuple-scoped retained-item admission prerequisite with deterministic wrapper identity, declarative/custom-widget output guards, typed rejection, panic containment, and focused/full validation. The estimate remained unchanged because whole-batch admission, materialization integration, and direct runtime registration were still unshipped; the next dependency-correct item was the complete private retained-item batch adapter. |
 | 2026-08-06 | `bd296da3` | ~79% (73–85%, medium confidence) | PR #1608 merged the private complete retained-item batch adapter with exact accepted-key/slot matching, whole-shell-plus-active-batch identity admission, deterministic tuple-scoped wrappers, immutable `SurfaceNode` payloads, typed recoverable rejection, 57 focused tests, full local validation, green CI, and exact-head Terra APPROVE. The estimate moves modestly because materialization-store integration and the separate `SurfaceRuntime` registration/two-pass bridge remain unshipped; that bridge is the next dependency-correct item. |
 | 2026-08-06 | `ee861887` | ~83% (78–88%, medium confidence) | PR #1609 merged the private synchronous `SurfaceRuntime` virtual-layout registration/two-pass bridge with bounded registration admission, shell-first layout/query sequencing, complete-batch publication through the existing materialization store, retained-subtree reuse that skips unchanged post-cache projection/layout, conservative missing/changed/duplicate/deferred/unavailable/terminal handling, and same-ID virtual-to-ordinary regression evidence. Full local validation and green required CI passed with exact-head Terra APPROVE. Generic runtime consumer integration is now shipped; the next generic dependency-correct item is the parser-agnostic `NumericEditSession`, while product-specific virtualization and `split_pane` semantics remain product-dependent. |
+| 2026-08-06 | `d05f6e8e` | ~84% (79–89%, medium confidence) | PR #1610 merged the qualified, parser-agnostic `NumericEditSession<T>` with verbatim draft preservation, one shared `EditEvent::Begin`, source-safe same-source commit/cancel, foreign-source session preservation, generic-domain/public-API coverage, full local validation, green required CI, and exact-head Terra APPROVE. Numeric-control alignment moves from 35% to a conservative 42%; the next numeric integration requires concrete parser/domain/widget policy, while product-specific virtualization and `split_pane` semantics remain product-dependent. |

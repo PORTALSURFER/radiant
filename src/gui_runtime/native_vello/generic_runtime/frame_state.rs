@@ -10,8 +10,8 @@ use super::{
     post_gpu_overlay,
     retained_paint_segments::{
         NativePaintSegmentBenefitAssemblyInput, NativePaintSegmentBenefitLedger,
-        NativePaintSegmentEligibilityPlan, NativeRetainedPaintSegmentStore,
-        assemble_native_paint_segment_fingerprints,
+        NativePaintSegmentCacheAdmission, NativePaintSegmentEligibilityPlan,
+        NativeRetainedPaintSegmentStore, assemble_native_paint_segment_fingerprints,
         classify_native_paint_segment_eligibility_with_spans,
     },
     runtime_helpers::{
@@ -85,6 +85,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) native_retained_paint_segment_store: NativeRetainedPaintSegmentStore,
     pub(super) native_paint_segment_artifact_store: NativePaintSegmentArtifactStore,
     pub(super) native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger,
+    pub(super) native_paint_segment_cache_admission: NativePaintSegmentCacheAdmission,
     pub(super) last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
@@ -169,6 +170,7 @@ impl NativeVelloFrameState {
             native_retained_paint_segment_store: NativeRetainedPaintSegmentStore::default(),
             native_paint_segment_artifact_store: NativePaintSegmentArtifactStore::default(),
             native_paint_segment_benefit_ledger: NativePaintSegmentBenefitLedger::default(),
+            native_paint_segment_cache_admission: NativePaintSegmentCacheAdmission::default(),
             last_native_paint_segment_eligibility: NativePaintSegmentEligibilityPlan::default(),
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
@@ -295,6 +297,7 @@ impl NativeVelloFrameState {
     pub(super) fn clear_native_paint_segment_artifacts(&mut self) {
         self.native_paint_segment_artifact_store.clear();
         self.native_paint_segment_benefit_ledger.clear();
+        self.native_paint_segment_cache_admission.clear();
     }
 
     pub(super) fn invalidate_native_resources_for_recovery(&mut self) {
@@ -389,6 +392,10 @@ impl NativeVelloFrameState {
                 reused_count: benefit_reused_count,
                 append_count: benefit_append_count,
             });
+        self.native_paint_segment_cache_admission.reconcile(
+            self.native_paint_segment_benefit_ledger
+                .latest_frame_evidence(),
+        );
         Ok(())
     }
 
@@ -406,6 +413,10 @@ impl NativeVelloFrameState {
             feasibility,
             target_generation,
             assembly_vetoed,
+        );
+        self.native_paint_segment_cache_admission.reconcile(
+            self.native_paint_segment_benefit_ledger
+                .latest_frame_evidence(),
         );
     }
 

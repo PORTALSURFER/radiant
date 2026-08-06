@@ -41,11 +41,112 @@ struct NativePaintSegmentBenefitSample {
     encoding_counts: ArtifactFeasibilityCounts,
 }
 
+/// The exact segment-level evidence from one accepted frame observation.
+///
+/// This is a metadata-only projection. The counts retain the checked Vello
+/// shape so consumers can distinguish non-zero work from a zero-work reuse;
+/// they are not a cost or memory estimate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegmentBenefitFrameSegment
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime) identity: PaintSegmentIdentity,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) span: PaintSegmentSpan,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) target_generation:
+        NativeTargetGeneration,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) outcome:
+        NativePaintSegmentBenefitOutcome,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) encoding_counts:
+        ArtifactFeasibilityCounts,
+}
+
+impl NativePaintSegmentBenefitFrameSegment {
+    fn from_sample(sample: NativePaintSegmentBenefitSample) -> Self {
+        Self {
+            identity: sample.identity,
+            span: sample.span,
+            revision: sample.revision,
+            target_generation: sample.target_generation,
+            outcome: sample.outcome,
+            encoding_counts: sample.encoding_counts,
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn is_beneficial_non_zero_work(
+        self,
+    ) -> bool {
+        matches!(
+            self.outcome,
+            NativePaintSegmentBenefitOutcome::SuccessfulRetainedReuse
+                | NativePaintSegmentBenefitOutcome::SuccessfulMixedReuse
+        ) && self.encoding_counts != ArtifactFeasibilityCounts::default()
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn is_assembly_veto(self) -> bool {
+        matches!(
+            self.outcome,
+            NativePaintSegmentBenefitOutcome::AssemblyVetoFullEncodeRepair
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NativePaintSegmentBenefitObservation {
     segments: [Option<NativePaintSegmentBenefitSample>; MAX_PAINT_SEGMENTS],
     segment_count: u8,
     target_generation: NativeTargetGeneration,
+}
+
+impl NativePaintSegmentBenefitObservation {
+    const fn unavailable() -> Self {
+        Self {
+            segments: [None; MAX_PAINT_SEGMENTS],
+            segment_count: 0,
+            target_generation: NativeTargetGeneration::unknown(),
+        }
+    }
+}
+
+/// Fixed-capacity projection of the latest accepted ledger observation.
+///
+/// `available` is false when the ledger has no frame evidence. An unavailable
+/// projection is a clearing signal for private observational consumers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegmentBenefitFrameEvidence
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime) epoch: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) segments:
+        [Option<NativePaintSegmentBenefitFrameSegment>; MAX_PAINT_SEGMENTS],
+    pub(in crate::gui_runtime::native_vello::generic_runtime) segment_count: u8,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) target_generation:
+        NativeTargetGeneration,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) available: bool,
+}
+
+impl NativePaintSegmentBenefitFrameEvidence {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) const fn unavailable(
+        epoch: u64,
+    ) -> Self {
+        Self {
+            epoch,
+            segments: [None; MAX_PAINT_SEGMENTS],
+            segment_count: 0,
+            target_generation: NativeTargetGeneration::unknown(),
+            available: false,
+        }
+    }
+
+    fn from_observation(epoch: u64, observation: NativePaintSegmentBenefitObservation) -> Self {
+        Self {
+            epoch,
+            segments: observation
+                .segments
+                .map(|sample| sample.map(NativePaintSegmentBenefitFrameSegment::from_sample)),
+            segment_count: observation.segment_count,
+            target_generation: observation.target_generation,
+            available: true,
+        }
+    }
 }
 
 /// Crate-private aggregate evidence for one stable segment.
@@ -88,6 +189,7 @@ struct NativePaintSegmentBenefitEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegmentBenefitLedger {
     entries: [Option<NativePaintSegmentBenefitEntry>; MAX_PAINT_SEGMENTS],
+    latest_observation: NativePaintSegmentBenefitObservation,
     observation_epoch: u64,
     window_start_epoch: u64,
     target_generation: Option<NativeTargetGeneration>,
@@ -98,6 +200,7 @@ impl Default for NativePaintSegmentBenefitLedger {
     fn default() -> Self {
         Self {
             entries: [None; MAX_PAINT_SEGMENTS],
+            latest_observation: NativePaintSegmentBenefitObservation::unavailable(),
             observation_epoch: 0,
             window_start_epoch: 0,
             target_generation: None,
@@ -111,6 +214,7 @@ impl NativePaintSegmentBenefitLedger {
 
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn clear(&mut self) {
         self.entries = [None; MAX_PAINT_SEGMENTS];
+        self.latest_observation = NativePaintSegmentBenefitObservation::unavailable();
         self.target_generation = None;
         self.available = false;
         self.window_start_epoch = self.observation_epoch;
@@ -153,6 +257,24 @@ impl NativePaintSegmentBenefitLedger {
         self.clear();
     }
 
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn latest_frame_evidence(
+        &self,
+    ) -> NativePaintSegmentBenefitFrameEvidence {
+        if !self.available {
+            return NativePaintSegmentBenefitFrameEvidence::unavailable(self.observation_epoch());
+        }
+        NativePaintSegmentBenefitFrameEvidence::from_observation(
+            self.observation_epoch(),
+            self.latest_observation,
+        )
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) const fn observation_epoch(
+        &self,
+    ) -> u64 {
+        self.observation_epoch
+    }
+
     fn record_observation(&mut self, observation: NativePaintSegmentBenefitObservation) {
         if !valid_observation(observation) {
             self.record_unavailable();
@@ -166,7 +288,11 @@ impl NativePaintSegmentBenefitLedger {
             return;
         }
 
-        self.observation_epoch = self.observation_epoch.saturating_add(1);
+        let Some(next_epoch) = self.observation_epoch.checked_add(1) else {
+            self.record_unavailable();
+            return;
+        };
+        self.observation_epoch = next_epoch;
         if !self.available {
             self.window_start_epoch = self.observation_epoch;
             self.available = true;
@@ -179,6 +305,7 @@ impl NativePaintSegmentBenefitLedger {
             self.window_start_epoch = self.observation_epoch;
         }
         self.target_generation = Some(observation.target_generation);
+        self.latest_observation = observation;
 
         for sample in observation
             .segments
@@ -713,6 +840,43 @@ mod tests {
     }
 
     #[test]
+    fn latest_frame_projection_is_exact_and_epoch_monotonic() {
+        let generation = NativeTargetGeneration::from_test_serial(1);
+        let (paint, encoding, feasibility) = evidence(&[1, 2], &[1, 1], generation);
+        let mut ledger = NativePaintSegmentBenefitLedger::default();
+
+        ledger.record_full_encode(paint, encoding, feasibility, generation, false);
+        let first = ledger.latest_frame_evidence();
+        assert!(first.available);
+        assert_eq!(first.epoch, 1);
+        assert_eq!(
+            first.segments[0].expect("first frame segment").outcome,
+            NativePaintSegmentBenefitOutcome::FreshEncoding
+        );
+
+        let plan = plan_for(&[1, 2], &[1, 1], generation, None);
+        ledger.record_successful_assembly(NativePaintSegmentBenefitAssemblyInput {
+            paint,
+            encoding,
+            feasibility,
+            plan,
+            target_generation: generation,
+            fresh_count: 0,
+            reused_count: 2,
+            append_count: 2,
+        });
+        let second = ledger.latest_frame_evidence();
+        assert!(second.available);
+        assert_eq!(second.epoch, 2);
+        assert_eq!(
+            second.segments[0].expect("latest frame segment").outcome,
+            NativePaintSegmentBenefitOutcome::SuccessfulRetainedReuse
+        );
+        assert_eq!(second.segments[1].unwrap().encoding_counts.draw_tags, 2);
+        assert_eq!(ledger.observation_epoch(), 2);
+    }
+
+    #[test]
     fn veto_repair_is_fresh_work_and_never_successful_reuse() {
         let generation = NativeTargetGeneration::from_test_serial(1);
         let (paint, encoding, feasibility) = evidence(&[1], &[1], generation);
@@ -743,6 +907,9 @@ mod tests {
         ledger.record_full_encode(paint, malformed, feasibility, generation, false);
         assert!(!ledger.available_for_test());
         assert!(ledger.snapshot_for_test().iter().all(Option::is_none));
+        let unavailable = ledger.latest_frame_evidence();
+        assert!(!unavailable.available);
+        assert!(unavailable.segments.iter().all(Option::is_none));
 
         let next_generation = NativeTargetGeneration::from_test_serial(2);
         let mut generation_mismatch_ledger = NativePaintSegmentBenefitLedger::default();

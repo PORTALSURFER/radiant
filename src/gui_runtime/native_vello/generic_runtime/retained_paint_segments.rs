@@ -15,9 +15,13 @@ use crate::runtime::{
     MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentSpan,
 };
 
+mod admission;
 mod benefit;
 
-pub(in crate::gui_runtime::native_vello::generic_runtime) use benefit::NativePaintSegmentBenefitLedger;
+pub(in crate::gui_runtime::native_vello::generic_runtime) use admission::NativePaintSegmentCacheAdmission;
+pub(in crate::gui_runtime::native_vello::generic_runtime) use benefit::{
+    NativePaintSegmentBenefitFrameEvidence, NativePaintSegmentBenefitLedger,
+};
 
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;

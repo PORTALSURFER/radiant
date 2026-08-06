@@ -16,10 +16,11 @@ where
     fn schedule_timer_effect(
         &mut self,
         effect: crate::runtime::command::TimerEffect<Message>,
+        origin: EffectOrigin,
     ) -> bool {
         let capability = self.host_capabilities.tasks.as_ref();
         let bridge = &mut self.bridge;
-        self.timer_effects.schedule(effect, |delay, wake| {
+        self.timer_effects.schedule(effect, origin, |delay, wake| {
             capability.is_some_and(|capability| (capability.schedule_timer)(bridge, delay, wake))
         })
     }
@@ -285,7 +286,7 @@ where
                 outcome.window_logical_size = Some(size);
             }
             Command::Timer(effect) => {
-                if self.schedule_timer_effect(effect) {
+                if self.schedule_timer_effect(effect, origin) {
                     outcome.repaint_requested = true;
                 }
             }

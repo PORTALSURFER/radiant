@@ -1159,6 +1159,7 @@ mod tests {
     #[test]
     fn cached_close_hides_reuses_and_does_not_begin_closing() {
         let mut window = auxiliary_window(true);
+        let owner = window.effect_owner();
 
         let close = window.handle_close_requested();
         assert_eq!(close.messages, [7]);
@@ -1171,6 +1172,7 @@ mod tests {
         );
         assert!(window.active);
         assert!(!window.is_retiring());
+        assert!(window.effect_owner().is_same_generation(&owner));
         assert!(window.runner.core.runtime.begin_closing());
 
         let duplicate = window.handle_close_requested();

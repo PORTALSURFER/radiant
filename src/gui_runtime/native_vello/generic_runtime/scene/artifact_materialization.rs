@@ -90,6 +90,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativePaintSegm
 /// payload preparation cannot lose the identity or generation fence that
 /// authorized it.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifact {
+    plan_index: u8,
     payload: NativePaintSegmentPayload,
 }
 
@@ -122,6 +123,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) enum NativePaintSegmen
 /// replay, or rendering policy.
 #[derive(Default)]
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactMaterialization {
+    plan_entry_count: u8,
+    scene_validity: Option<NativeSceneValidityFingerprint>,
     artifacts: Vec<NativePaintSegmentArtifact>,
 }
 
@@ -129,6 +132,11 @@ impl NativePaintSegmentArtifactMaterialization {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn len(&self) -> usize {
         self.artifacts.len()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_entry_count_for_test(&self) -> usize {
+        usize::from(self.plan_entry_count)
     }
 
     #[cfg(test)]
@@ -151,11 +159,41 @@ impl NativePaintSegmentArtifactMaterialization {
     }
 
     #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn remove_artifact_for_test(
+        &mut self,
+        plan_index: usize,
+    ) -> bool {
+        let Some(index) = self
+            .artifacts
+            .iter()
+            .position(|artifact| usize::from(artifact.plan_index) == plan_index)
+        else {
+            return false;
+        };
+        self.artifacts.remove(index);
+        true
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn clear_artifacts_for_test(&mut self) {
+        self.artifacts.clear();
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_entry_count_for_test(
+        &mut self,
+        plan_entry_count: usize,
+    ) {
+        self.plan_entry_count = plan_entry_count as u8;
+    }
+
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn duplicate_first_for_test(&mut self) {
         let Some(first) = self.artifacts.first() else {
             return;
         };
         let duplicate = NativePaintSegmentArtifact {
+            plan_index: first.plan_index,
             payload: first.payload.clone(),
         };
         self.artifacts.push(duplicate);
@@ -176,6 +214,11 @@ impl NativePaintSegmentArtifact {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn identity_for_test(&self) -> PaintSegmentIdentity {
         self.payload.evidence.identity
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_index_for_test(&self) -> usize {
+        usize::from(self.plan_index)
     }
 
     #[cfg(test)]
@@ -206,6 +249,22 @@ impl NativePaintSegmentArtifact {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn set_revision_for_test(&mut self, revision: u64) {
         self.payload.evidence.revision = revision;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_index_for_test(
+        &mut self,
+        plan_index: usize,
+    ) {
+        self.plan_index = plan_index as u8;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_scene_validity_for_test(
+        &mut self,
+        scene_validity: NativeSceneValidityFingerprint,
+    ) {
+        self.payload.evidence.scene_validity = scene_validity;
     }
 
     #[cfg(test)]
@@ -248,12 +307,16 @@ impl NativePaintSegmentPayload {
 /// reconstruct authoritative scenes, or control rendering/presentation.
 pub(in crate::gui_runtime::native_vello) struct NativePaintSegmentArtifactStore {
     artifacts: [Option<NativePaintSegmentArtifact>; MAX_PAINT_SEGMENTS],
+    plan_entry_count: u8,
+    scene_validity: Option<NativeSceneValidityFingerprint>,
 }
 
 impl Default for NativePaintSegmentArtifactStore {
     fn default() -> Self {
         Self {
             artifacts: [const { None }; MAX_PAINT_SEGMENTS],
+            plan_entry_count: 0,
+            scene_validity: None,
         }
     }
 }
@@ -266,44 +329,71 @@ impl NativePaintSegmentArtifactStore {
         &mut self,
         materialization: NativePaintSegmentArtifactMaterialization,
     ) {
-        if materialization.artifacts.is_empty() {
+        if materialization.plan_entry_count == 0 {
             self.clear();
             return;
         }
+        let plan_entry_count = materialization.plan_entry_count;
+        let scene_validity = materialization.scene_validity;
         let Some(next) = Self::validated_next(materialization) else {
             self.clear();
             return;
         };
         self.artifacts = next;
+        self.plan_entry_count = plan_entry_count;
+        self.scene_validity = scene_validity;
     }
 
     pub(in crate::gui_runtime::native_vello) fn clear(&mut self) {
         self.artifacts = [const { None }; MAX_PAINT_SEGMENTS];
+        self.plan_entry_count = 0;
+        self.scene_validity = None;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_entry_count_for_test(
+        &mut self,
+        plan_entry_count: usize,
+    ) {
+        self.plan_entry_count = plan_entry_count as u8;
     }
 
     pub(super) fn reusable_payload(
         &self,
+        index: usize,
         entry: NativePaintSegmentEligibilityEntry,
         scene_validity: NativeSceneValidityFingerprint,
+        target_generation: NativeTargetGeneration,
     ) -> Option<NativePaintSegmentPayload> {
         let NativePaintSegmentEligibilityDisposition::RetainedCandidate(fingerprint) =
             entry.disposition
         else {
             return None;
         };
-
-        self.artifacts.iter().flatten().find_map(|artifact| {
-            let evidence = artifact.payload.evidence;
-            (evidence.identity == fingerprint.identity
-                && evidence.identity == entry.span.identity
-                && evidence.span == entry.span
-                && evidence.span.start == fingerprint.primitive_start
-                && evidence.span.end == fingerprint.primitive_end
-                && evidence.revision == fingerprint.revision
-                && evidence.target_generation == fingerprint.target_generation
-                && evidence.scene_validity == scene_validity)
-                .then(|| artifact.payload.clone())
-        })
+        if index >= usize::from(self.plan_entry_count)
+            || !target_generation.is_known()
+            || fingerprint.revision == 0
+            || fingerprint.target_generation != target_generation
+            || self.scene_validity != Some(scene_validity)
+        {
+            return None;
+        }
+        let artifact = self.artifacts.get(index).and_then(Option::as_ref)?;
+        if usize::from(artifact.plan_index) != index {
+            return None;
+        }
+        let evidence = artifact.payload.evidence;
+        (evidence.identity == fingerprint.identity
+            && evidence.identity == entry.span.identity
+            && evidence.span == entry.span
+            && evidence.span.start == fingerprint.primitive_start
+            && evidence.span.end == fingerprint.primitive_end
+            && evidence.revision != 0
+            && evidence.revision == fingerprint.revision
+            && evidence.target_generation.is_known()
+            && evidence.target_generation == fingerprint.target_generation
+            && evidence.scene_validity == scene_validity)
+            .then(|| artifact.payload.clone())
     }
 
     fn artifact_for_assembly(
@@ -321,6 +411,9 @@ impl NativePaintSegmentArtifactStore {
         let Some(artifact) = self.artifacts.get(index).and_then(Option::as_ref) else {
             return Err(NativePaintSegmentAssemblyVetoReason::MissingArtifact);
         };
+        if usize::from(artifact.plan_index) != index {
+            return Err(NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch);
+        }
         let evidence = artifact.payload.evidence;
         if evidence.identity != fingerprint.identity
             || evidence.identity != entry.span.identity
@@ -328,6 +421,8 @@ impl NativePaintSegmentArtifactStore {
             || evidence.revision != fingerprint.revision
             || evidence.target_generation != fingerprint.target_generation
             || evidence.target_generation != target_generation
+            || !evidence.target_generation.is_known()
+            || self.scene_validity != Some(scene_validity)
         {
             return Err(NativePaintSegmentAssemblyVetoReason::ArtifactMetadataMismatch);
         }
@@ -342,7 +437,12 @@ impl NativePaintSegmentArtifactStore {
     }
 
     fn has_invalid_bounded_artifact_state(&self, count: usize) -> bool {
-        if count > MAX_PAINT_SEGMENTS || self.has_artifact_after(count) {
+        if count > MAX_PAINT_SEGMENTS
+            || self.has_artifact_after(count)
+            || self.plan_entry_count as usize > MAX_PAINT_SEGMENTS
+            || (self.plan_entry_count == 0 && self.artifacts.iter().any(Option::is_some))
+            || (self.plan_entry_count != 0 && self.plan_entry_count as usize != count)
+        {
             return true;
         }
         let mut previous_end = None;
@@ -353,7 +453,8 @@ impl NativePaintSegmentArtifactStore {
                 continue;
             };
             let evidence = artifact.payload.evidence;
-            if evidence.identity != evidence.span.identity
+            if usize::from(artifact.plan_index) != index
+                || evidence.identity != evidence.span.identity
                 || evidence.span.start >= evidence.span.end
                 || evidence.revision == 0
                 || !evidence.target_generation.is_known()
@@ -373,34 +474,52 @@ impl NativePaintSegmentArtifactStore {
     fn validated_next(
         materialization: NativePaintSegmentArtifactMaterialization,
     ) -> Option<[Option<NativePaintSegmentArtifact>; MAX_PAINT_SEGMENTS]> {
-        if materialization.artifacts.len() > MAX_PAINT_SEGMENTS {
+        let plan_entry_count = usize::from(materialization.plan_entry_count);
+        let scene_validity = materialization.scene_validity?;
+        if plan_entry_count == 0
+            || plan_entry_count > MAX_PAINT_SEGMENTS
+            || materialization.artifacts.len() > plan_entry_count
+        {
             return None;
         }
 
         let mut generation = None;
-        let mut previous_end = None;
-        for (index, artifact) in materialization.artifacts.iter().enumerate() {
+        let mut plan_positions = [None; MAX_PAINT_SEGMENTS];
+        let mut identities = [None; MAX_PAINT_SEGMENTS];
+        for (resident_index, artifact) in materialization.artifacts.iter().enumerate() {
+            let plan_index = usize::from(artifact.plan_index);
             let evidence = artifact.payload.evidence;
             let span = evidence.span;
-            if evidence.identity != span.identity
+            if plan_index >= plan_entry_count
+                || plan_positions[plan_index].is_some()
+                || evidence.identity != span.identity
                 || evidence.revision == 0
                 || !evidence.target_generation.is_known()
+                || evidence.scene_validity != scene_validity
                 || span.start >= span.end
-                || previous_end.is_some_and(|end| span.start < end)
-                || materialization.artifacts[..index]
-                    .iter()
-                    .any(|prior| prior.payload.evidence.identity == evidence.identity)
+                || identities[..resident_index].contains(&Some(evidence.identity))
                 || generation.is_some_and(|existing| existing != evidence.target_generation)
             {
                 return None;
             }
+            plan_positions[plan_index] = Some(resident_index);
+            identities[resident_index] = Some(evidence.identity);
             generation = Some(evidence.target_generation);
-            previous_end = Some(span.end);
         }
 
+        let mut previous_end = None;
         let mut next = [const { None }; MAX_PAINT_SEGMENTS];
-        for (index, artifact) in materialization.artifacts.into_iter().enumerate() {
-            next[index] = Some(artifact);
+        for resident_index in plan_positions.iter().flatten() {
+            let artifact = &materialization.artifacts[*resident_index];
+            if previous_end.is_some_and(|end| artifact.payload.evidence.span.start < end) {
+                return None;
+            }
+            previous_end = Some(artifact.payload.evidence.span.end);
+        }
+
+        for artifact in materialization.artifacts.into_iter() {
+            let plan_index = usize::from(artifact.plan_index);
+            next[plan_index] = Some(artifact);
         }
         Some(next)
     }
@@ -416,6 +535,16 @@ impl NativePaintSegmentArtifactStore {
                 .map(|artifact| artifact.payload.evidence.identity);
         }
         identities
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_entry_count_for_test(&self) -> usize {
+        usize::from(self.plan_entry_count)
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn resident_count_for_test(&self) -> usize {
+        self.artifacts.iter().flatten().count()
     }
 
     #[cfg(test)]
@@ -837,9 +966,15 @@ fn assemble_payload_stream(
         ..RetainedSurfaceEncodeStats::default()
     };
     let materialization = NativePaintSegmentArtifactMaterialization {
+        plan_entry_count: count as u8,
+        scene_validity: Some(scene_validity),
         artifacts: payloads
             .into_iter()
-            .map(|payload| NativePaintSegmentArtifact { payload })
+            .enumerate()
+            .map(|(index, payload)| NativePaintSegmentArtifact {
+                plan_index: index as u8,
+                payload,
+            })
             .collect(),
     };
     Ok(NativePaintSegmentAssemblyBundle {
@@ -1036,9 +1171,17 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn materialize_native_
 
     let artifacts = payloads
         .into_iter()
-        .map(|payload| NativePaintSegmentArtifact { payload })
+        .enumerate()
+        .map(|(index, payload)| NativePaintSegmentArtifact {
+            plan_index: index as u8,
+            payload,
+        })
         .collect();
-    NativePaintSegmentArtifactMaterialization { artifacts }
+    NativePaintSegmentArtifactMaterialization {
+        plan_entry_count: count as u8,
+        scene_validity: Some(scene_validity),
+        artifacts,
+    }
 }
 
 /// Append one standalone payload while preserving the stream context that a

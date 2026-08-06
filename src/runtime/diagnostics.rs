@@ -4,6 +4,7 @@ mod business;
 mod cache_policy;
 mod frame;
 mod gpu_surface;
+mod lifecycle;
 mod retained_surface;
 mod scene;
 mod text;
@@ -30,6 +31,11 @@ pub use gpu_surface::{
     NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+};
+pub(crate) use lifecycle::RuntimeLifecycleController;
+pub use lifecycle::{
+    RUNTIME_LIFECYCLE_HISTORY_CAPACITY, RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase,
+    RuntimeLifecycleTransition,
 };
 pub use retained_surface::NativeRetainedSurfaceDiagnostics;
 pub use scene::{

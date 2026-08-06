@@ -61,7 +61,7 @@ where
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
     ) {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return;
         }
         let refresh_before = outcome.surface_refresh_requested;
@@ -138,7 +138,7 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return;
         }
         if command.requests_paint_only() {
@@ -158,7 +158,7 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return;
         }
         if command.requests_paint_only() {
@@ -180,7 +180,7 @@ where
         refresh_surface: bool,
         deferred_surface_is_fresh: &mut bool,
     ) {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return;
         }
         if !refresh_surface

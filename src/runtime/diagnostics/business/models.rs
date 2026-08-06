@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use super::super::lifecycle::RuntimeLifecycleDiagnostics;
 use crate::runtime::TaskPriority;
 
 pub(super) const RECENT_BUSINESS_EVENTS: usize = 32;
@@ -18,6 +19,8 @@ pub struct RuntimeDiagnostics {
     pub business: BusinessRuntimeDiagnostics,
     /// UI/update responsiveness diagnostics recorded by the generic controller.
     pub ui: UiRuntimeDiagnostics,
+    /// Generic controller-owned lifecycle diagnostics.
+    pub lifecycle: RuntimeLifecycleDiagnostics,
 }
 
 /// Counters for runtime-delivered message queues.

@@ -1,6 +1,32 @@
 use super::*;
-use radiant::runtime::{UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy};
+use radiant::runtime::{
+    RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase, RuntimeLifecycleTransition,
+    UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+};
 use std::{panic, time::Duration};
+
+#[test]
+fn lifecycle_diagnostics_are_available_from_runtime_and_default_is_unknown() {
+    let unavailable = RuntimeLifecycleDiagnostics::default();
+    assert!(!unavailable.available);
+    assert_eq!(unavailable.phase, RuntimeLifecyclePhase::Unknown);
+    assert_eq!(unavailable.transition_count, 0);
+    assert!(unavailable.history.is_empty());
+
+    let runtime = SurfaceRuntime::new(PaintOnlyBridge::default(), Vector2::new(180.0, 40.0));
+    let lifecycle = runtime.runtime_diagnostics().lifecycle;
+    assert!(lifecycle.available);
+    assert_eq!(lifecycle.phase, RuntimeLifecyclePhase::Running);
+    assert_eq!(lifecycle.transition_count, 1);
+    assert_eq!(
+        lifecycle.history,
+        vec![RuntimeLifecycleTransition {
+            sequence: 1,
+            from: RuntimeLifecyclePhase::Starting,
+            to: RuntimeLifecyclePhase::Running,
+        }]
+    );
+}
 
 #[test]
 fn update_handler_diagnostics_record_handler_and_message_identity() {

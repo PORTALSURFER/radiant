@@ -136,7 +136,12 @@ new focused export leaf or a module split, not a formatting workaround.
 - `src/runtime` owns backend-neutral retained surfaces, runtime commands,
   widget traversal, input dispatch, focus, scroll state, resource slots,
   platform requests, paint plans, diagnostics, GPU-surface payload contracts,
-  and the `RuntimeBridge` plus explicit host-capability boundary.
+  generic `SurfaceRuntime` lifecycle transition evidence, and the `RuntimeBridge`
+  plus explicit host-capability boundary. Each generic controller keeps its
+  lifecycle behind one private validated transition authority and exposes only
+  bounded controller-owned evidence through `RuntimeDiagnostics`; this does not
+  transfer native recovery, effect ownership, or scheduler policy to the
+  generic runtime.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

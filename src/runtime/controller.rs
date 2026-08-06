@@ -44,12 +44,13 @@ pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
 use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,
     ExternalDragIdentity, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,
-    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
-    WidgetDispatchResult, WidgetPath, WindowEnvironment,
+    RuntimeDiagnosticsRecorder, RuntimeLifecycleController, SurfaceTraversalIndex, UiSurface,
+    UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath, WindowEnvironment,
 };
 use crate::{
     gui::types::Rect,
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
+    runtime::RuntimeLifecyclePhase,
     widgets::{WidgetId, WidgetInput},
 };
 use effects::WorkerEffects;
@@ -60,30 +61,6 @@ use scratch::RuntimeScratch;
 use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RuntimePhase {
-    Starting,
-    Running,
-    Closing,
-    Recovering,
-    Stopped,
-}
-
-impl RuntimePhase {
-    fn accepts_work(self) -> bool {
-        matches!(self, Self::Starting | Self::Running | Self::Recovering)
-    }
-
-    fn begin_closing(&mut self) -> bool {
-        if !self.accepts_work() {
-            return false;
-        }
-        *self = Self::Closing;
-        true
-    }
-}
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -124,7 +101,7 @@ where
     traversal: RuntimeTraversalState<Message>,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
-    phase: RuntimePhase,
+    lifecycle: RuntimeLifecycleController,
     host_closing_hook_called: bool,
     host_exit_hook_called: bool,
     pub(in crate::runtime) repaint_requested: bool,
@@ -177,7 +154,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(crate) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle.accepts_work() {
             return None;
         }
         earlier_deadline(
@@ -208,7 +185,7 @@ where
     }
 
     pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle.accepts_work() {
             return false;
         }
         let mut changed = self.surface.advance_timed_repaints(now);
@@ -269,7 +246,7 @@ where
         input: WidgetInput,
         refresh_after_message: bool,
     ) -> Option<bool> {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle.accepts_work() {
             return None;
         }
         let bounds = self.layout.rects.get(&widget_id).copied()?;

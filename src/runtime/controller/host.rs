@@ -72,7 +72,7 @@ where
 
     /// Install the host repaint signal when task hosting is enabled.
     pub fn host_install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return;
         }
         if let Some(capability) = self.host_capabilities.tasks.as_ref() {
@@ -86,7 +86,7 @@ where
         delay: Duration,
         wake: crate::runtime::RuntimeTimerWake,
     ) -> bool {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return false;
         }
         self.host_capabilities
@@ -102,7 +102,7 @@ where
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: Box<dyn FnOnce() + Send + 'static>,
     ) -> bool {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return false;
         }
         self.host_capabilities
@@ -118,7 +118,7 @@ where
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
     ) -> Result<(), PlatformServiceFallback<Message>> {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return Err(Box::new((request, on_completed)));
         }
         if self.host_capabilities.platform_result.is_some() {
@@ -162,7 +162,7 @@ where
 
     /// Poll the cached host animation capability.
     pub fn host_animation_activity(&mut self) -> RuntimeAnimationActivity {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return RuntimeAnimationActivity::idle();
         }
         self.host_capabilities
@@ -175,7 +175,7 @@ where
 
     /// Queue one host animation-frame message when enabled.
     pub fn host_queue_animation_frame(&mut self) -> bool {
-        if !self.phase.accepts_work() {
+        if !self.lifecycle_accepts_work() {
             return false;
         }
         self.host_capabilities
@@ -236,7 +236,9 @@ where
 
     /// Run the optional host runtime-exit hook.
     pub fn host_on_runtime_exit(&mut self) -> Option<serde_json::Value> {
-        if self.phase == super::RuntimePhase::Stopped || self.host_exit_hook_called {
+        if self.lifecycle_phase() == crate::runtime::RuntimeLifecyclePhase::Stopped
+            || self.host_exit_hook_called
+        {
             return None;
         }
         self.begin_closing();
@@ -246,7 +248,7 @@ where
             .lifecycle
             .as_ref()
             .and_then(|capability| (capability.on_runtime_exit)(&mut self.bridge));
-        self.phase = super::RuntimePhase::Stopped;
+        let _ = self.transition_lifecycle(crate::runtime::RuntimeLifecyclePhase::Stopped);
         artifact
     }
 

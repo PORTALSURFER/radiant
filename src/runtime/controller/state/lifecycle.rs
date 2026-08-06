@@ -1,6 +1,7 @@
 use super::super::{
-    PlatformCompletionRegistry, RuntimeInteractionState, RuntimePhase, RuntimeScratch,
-    RuntimeTraversalState, RuntimeWorkQueues, SurfaceRuntime,
+    PlatformCompletionRegistry, RuntimeInteractionState, RuntimeLifecycleController,
+    RuntimeLifecyclePhase, RuntimeScratch, RuntimeTraversalState, RuntimeWorkQueues,
+    SurfaceRuntime,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -52,7 +53,7 @@ where
             traversal: RuntimeTraversalState::default(),
             scratch: RuntimeScratch::default(),
             interaction: RuntimeInteractionState::default(),
-            phase: RuntimePhase::Starting,
+            lifecycle: RuntimeLifecycleController::starting(),
             host_closing_hook_called: false,
             host_exit_hook_called: false,
             repaint_requested: false,
@@ -95,7 +96,7 @@ where
             traversal
         };
         runtime.relayout_with_traversal(traversal);
-        runtime.phase = RuntimePhase::Running;
+        let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
         runtime
     }
 
@@ -124,8 +125,29 @@ where
         true
     }
 
+    pub(in crate::runtime::controller) fn transition_lifecycle(
+        &mut self,
+        next: RuntimeLifecyclePhase,
+    ) -> bool {
+        self.lifecycle.transition(next)
+    }
+
+    pub(in crate::runtime::controller) fn lifecycle_phase(&self) -> RuntimeLifecyclePhase {
+        self.lifecycle.phase()
+    }
+
+    pub(in crate::runtime::controller) fn lifecycle_accepts_work(&self) -> bool {
+        self.lifecycle.accepts_work()
+    }
+
+    pub(in crate::runtime::controller) fn lifecycle_diagnostics(
+        &self,
+    ) -> crate::runtime::RuntimeLifecycleDiagnostics {
+        self.lifecycle.diagnostics()
+    }
+
     pub(crate) fn begin_closing(&mut self) -> bool {
-        if !self.phase.begin_closing() {
+        if !self.transition_lifecycle(RuntimeLifecyclePhase::Closing) {
             return false;
         }
         self.reset_tooltip_hover_intent();
@@ -399,17 +421,29 @@ mod tests {
     #[test]
     fn construction_enters_running_phase() {
         let runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
-        assert_eq!(runtime.phase, RuntimePhase::Running);
+        assert_eq!(runtime.lifecycle_phase(), RuntimeLifecyclePhase::Running);
+        let diagnostics = runtime.runtime_diagnostics();
+        assert!(diagnostics.lifecycle.available);
+        assert_eq!(diagnostics.lifecycle.phase, RuntimeLifecyclePhase::Running);
+        assert_eq!(diagnostics.lifecycle.transition_count, 1);
+        assert_eq!(
+            diagnostics.lifecycle.history,
+            vec![crate::runtime::RuntimeLifecycleTransition {
+                sequence: 1,
+                from: RuntimeLifecyclePhase::Starting,
+                to: RuntimeLifecyclePhase::Running,
+            }]
+        );
     }
 
     #[test]
     fn command_exit_closes_once_and_fences_late_commands() {
         let mut runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.0, 40.0));
         assert!(runtime.execute_command(Command::Exit).exit_requested);
-        assert_eq!(runtime.phase, RuntimePhase::Closing);
+        assert_eq!(runtime.lifecycle_phase(), RuntimeLifecyclePhase::Closing);
         assert_eq!(runtime.bridge().closing_calls, 1);
         assert!(!runtime.execute_command(Command::Exit).exit_requested);
-        assert_eq!(runtime.phase, RuntimePhase::Closing);
+        assert_eq!(runtime.lifecycle_phase(), RuntimeLifecyclePhase::Closing);
     }
 
     #[test]
@@ -419,7 +453,21 @@ mod tests {
             runtime.host_on_runtime_exit(),
             Some(serde_json::json!({ "hook_calls": 1 }))
         );
-        assert_eq!(runtime.phase, RuntimePhase::Stopped);
+        assert_eq!(runtime.lifecycle_phase(), RuntimeLifecyclePhase::Stopped);
+        let diagnostics = runtime.runtime_diagnostics();
+        assert_eq!(diagnostics.lifecycle.phase, RuntimeLifecyclePhase::Stopped);
+        assert_eq!(diagnostics.lifecycle.transition_count, 3);
+        assert_eq!(
+            diagnostics
+                .lifecycle
+                .history
+                .last()
+                .map(|transition| (transition.from, transition.to)),
+            Some((
+                RuntimeLifecyclePhase::Closing,
+                RuntimeLifecyclePhase::Stopped
+            ))
+        );
         assert_eq!(runtime.bridge().hook_calls, 1);
         assert_eq!(runtime.bridge().closing_calls, 1);
         assert_eq!(runtime.host_on_runtime_exit(), None);

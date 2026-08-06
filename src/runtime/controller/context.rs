@@ -113,6 +113,7 @@ where
             .stream_events_dropped
             .saturating_add(controller.queue.stream_events_dropped);
         snapshot.ui = controller.ui;
+        snapshot.lifecycle = self.lifecycle_diagnostics();
         snapshot
     }
 

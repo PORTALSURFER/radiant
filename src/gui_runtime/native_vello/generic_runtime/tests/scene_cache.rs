@@ -1078,12 +1078,16 @@ fn scene_artifact_materialization_accepts_mixed_retained_and_fresh_order() {
     let materialized = materialize_fixture((scene, feasibility, plan, payloads));
 
     assert_eq!(materialized.len(), 3);
+    assert_eq!(materialized.plan_entry_count_for_test(), 3);
     for (artifact, expected) in materialized
         .artifacts_for_test()
         .iter()
         .zip(expected.iter())
     {
         assert_encoding_equal(artifact.scene_for_test(), expected.scene_for_test());
+    }
+    for (index, artifact) in materialized.artifacts_for_test().iter().enumerate() {
+        assert_eq!(artifact.plan_index_for_test(), index);
     }
 }
 
@@ -1247,6 +1251,105 @@ fn scene_artifact_store_keeps_mixed_candidates_in_plan_order() {
 }
 
 #[test]
+fn scene_artifact_store_preserves_sparse_plan_indices_without_compaction() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let expected = [
+        plan.entries[0].map(|entry| entry.span.identity),
+        plan.entries[1].map(|entry| entry.span.identity),
+        plan.entries[2].map(|entry| entry.span.identity),
+    ];
+    let mut materialization = materialize_fixture((scene, feasibility, plan, payloads));
+    assert_eq!(materialization.plan_entry_count_for_test(), 3);
+    assert!(materialization.remove_artifact_for_test(1));
+    assert_eq!(materialization.len(), 2);
+
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(materialization);
+
+    let mut expected_slots = [None; crate::runtime::MAX_PAINT_SEGMENTS];
+    expected_slots[0] = expected[0];
+    expected_slots[2] = expected[2];
+    assert_eq!(store.snapshot_identities(), expected_slots);
+    assert_eq!(store.plan_entry_count_for_test(), 3);
+    assert_eq!(store.resident_count_for_test(), 2);
+}
+
+#[test]
+fn scene_artifact_sparse_hole_misses_lookup_and_vetoes_retained_assembly() {
+    let (authoritative, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let scene_validity = test_scene_validity();
+    let source_plan = typed_artifact_source_plan(3);
+    let mut materialization =
+        materialize_fixture((authoritative.clone(), feasibility, plan, payloads));
+    assert!(materialization.remove_artifact_for_test(1));
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(materialization);
+
+    let selection = super::scene::encode_native_paint_segment_payloads(
+        &source_plan.primitives,
+        Vector2::new(320.0, 180.0),
+        paint_for_plan(plan),
+        plan,
+        scene_validity,
+        super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        &store,
+    );
+    assert_eq!(selection.reused_count_for_test(), 2);
+    assert_eq!(selection.fresh_count_for_test(), 1);
+
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &authoritative,
+            feasibility,
+            plan,
+            &store,
+            scene_validity,
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(
+            super::scene::NativePaintSegmentAssemblyVetoReason::MissingArtifact
+        )
+    ));
+}
+
+#[test]
+fn scene_artifact_store_allows_zero_resident_nonzero_cardinality() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(3);
+    let mut materialization = materialize_fixture((scene, feasibility, plan, payloads));
+    materialization.clear_artifacts_for_test();
+    assert_eq!(materialization.plan_entry_count_for_test(), 3);
+    assert_eq!(materialization.len(), 0);
+
+    let mut store = super::scene::NativePaintSegmentArtifactStore::default();
+    store.reconcile(materialization);
+
+    assert_eq!(store.plan_entry_count_for_test(), 3);
+    assert_eq!(store.resident_count_for_test(), 0);
+    assert!(store.snapshot_identities().iter().all(Option::is_none));
+}
+
+#[test]
+fn scene_artifact_store_rejects_zero_cardinality_with_resident_slot() {
+    let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
+    let mut store = artifact_store_for_fixture(&scene, feasibility, plan, &payloads);
+    store.set_plan_entry_count_for_test(0);
+
+    assert!(matches!(
+        super::scene::assemble_retained_native_paint_segment_scene(
+            &scene,
+            feasibility,
+            plan,
+            &store,
+            test_scene_validity(),
+            super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        ),
+        super::scene::NativePaintSegmentAssemblyResult::Veto(
+            super::scene::NativePaintSegmentAssemblyVetoReason::InvalidEvidence
+        )
+    ));
+}
+
+#[test]
 fn scene_artifact_store_clears_for_empty_and_fallback_materializations() {
     let (scene, feasibility, plan, payloads) = typed_artifact_fixture(1);
     let mut store = super::scene::NativePaintSegmentArtifactStore::default();
@@ -1269,7 +1372,7 @@ fn scene_artifact_store_rejects_invalid_input_and_clears_stale_artifacts() {
     type Materialization = super::scene::NativePaintSegmentArtifactMaterialization;
     type Invalidator = fn(&mut Materialization);
 
-    let cases: [(&str, Invalidator); 8] = [
+    let cases: [(&str, Invalidator); 12] = [
         ("unknown generation", |materialization| {
             materialization.artifacts_for_test_mut()[0].set_target_generation_for_test(
                 super::super::runner_state::NativeTargetGeneration::unknown(),
@@ -1305,6 +1408,22 @@ fn scene_artifact_store_rejects_invalid_input_and_clears_stale_artifacts() {
             materialization.artifacts_for_test_mut()[1].set_target_generation_for_test(
                 super::super::runner_state::NativeTargetGeneration::from_test_serial(2),
             );
+        }),
+        ("duplicate plan index", |materialization| {
+            materialization.artifacts_for_test_mut()[1].set_plan_index_for_test(0);
+        }),
+        ("out-of-range plan index", |materialization| {
+            materialization.artifacts_for_test_mut()[0].set_plan_index_for_test(2);
+        }),
+        (
+            "inconsistent cardinality and trailing resident",
+            |materialization| {
+                materialization.set_plan_entry_count_for_test(1);
+            },
+        ),
+        ("stale scene validity", |materialization| {
+            materialization.artifacts_for_test_mut()[0]
+                .set_scene_validity_for_test(test_scene_validity_with_dpi(2.0));
         }),
         ("oversize input", |materialization| {
             while materialization.artifacts_for_test().len() <= crate::runtime::MAX_PAINT_SEGMENTS {

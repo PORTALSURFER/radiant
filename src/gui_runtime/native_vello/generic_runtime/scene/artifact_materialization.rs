@@ -135,6 +135,11 @@ impl NativePaintSegmentArtifactMaterialization {
     }
 
     #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_entry_count_for_test(&self) -> usize {
+        usize::from(self.plan_entry_count)
+    }
+
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn is_empty(&self) -> bool {
         self.artifacts.is_empty()
     }
@@ -151,6 +156,35 @@ impl NativePaintSegmentArtifactMaterialization {
         &mut self,
     ) -> &mut [NativePaintSegmentArtifact] {
         &mut self.artifacts
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn remove_artifact_for_test(
+        &mut self,
+        plan_index: usize,
+    ) -> bool {
+        let Some(index) = self
+            .artifacts
+            .iter()
+            .position(|artifact| usize::from(artifact.plan_index) == plan_index)
+        else {
+            return false;
+        };
+        self.artifacts.remove(index);
+        true
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn clear_artifacts_for_test(&mut self) {
+        self.artifacts.clear();
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_entry_count_for_test(
+        &mut self,
+        plan_entry_count: usize,
+    ) {
+        self.plan_entry_count = plan_entry_count as u8;
     }
 
     #[cfg(test)]
@@ -183,6 +217,11 @@ impl NativePaintSegmentArtifact {
     }
 
     #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_index_for_test(&self) -> usize {
+        usize::from(self.plan_index)
+    }
+
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn span_for_test(&self) -> PaintSegmentSpan {
         self.payload.evidence.span
     }
@@ -210,6 +249,22 @@ impl NativePaintSegmentArtifact {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn set_revision_for_test(&mut self, revision: u64) {
         self.payload.evidence.revision = revision;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_index_for_test(
+        &mut self,
+        plan_index: usize,
+    ) {
+        self.plan_index = plan_index as u8;
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_scene_validity_for_test(
+        &mut self,
+        scene_validity: NativeSceneValidityFingerprint,
+    ) {
+        self.payload.evidence.scene_validity = scene_validity;
     }
 
     #[cfg(test)]
@@ -295,6 +350,14 @@ impl NativePaintSegmentArtifactStore {
         self.scene_validity = None;
     }
 
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn set_plan_entry_count_for_test(
+        &mut self,
+        plan_entry_count: usize,
+    ) {
+        self.plan_entry_count = plan_entry_count as u8;
+    }
+
     pub(super) fn reusable_payload(
         &self,
         index: usize,
@@ -377,6 +440,7 @@ impl NativePaintSegmentArtifactStore {
         if count > MAX_PAINT_SEGMENTS
             || self.has_artifact_after(count)
             || self.plan_entry_count as usize > MAX_PAINT_SEGMENTS
+            || (self.plan_entry_count == 0 && self.artifacts.iter().any(Option::is_some))
             || (self.plan_entry_count != 0 && self.plan_entry_count as usize != count)
         {
             return true;
@@ -473,6 +537,16 @@ impl NativePaintSegmentArtifactStore {
                 .map(|artifact| artifact.payload.evidence.identity);
         }
         identities
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn plan_entry_count_for_test(&self) -> usize {
+        usize::from(self.plan_entry_count)
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn resident_count_for_test(&self) -> usize {
+        self.artifacts.iter().flatten().count()
     }
 
     #[cfg(test)]

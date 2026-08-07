@@ -44,7 +44,6 @@ pub struct Layer<Message> {
     pub(in crate::application) input_policy: LayerInputPolicy,
     pub(in crate::application) input: Option<ViewNode<Message>>,
     pub(in crate::application) view: ViewNode<Message>,
-    pub(in crate::application) source_context: DeclarativeSourceContext,
 }
 
 impl<Message> Layer<Message> {
@@ -54,9 +53,20 @@ impl<Message> Layer<Message> {
             input_policy: LayerInputPolicy::PassThrough,
             input: None,
             view,
-            source_context: DeclarativeSourceContext::default(),
         }
     }
+}
+
+pub(super) struct ExtractedLayerRoot<Message> {
+    node: ViewNode<Message>,
+    context: DeclarativeSourceContext,
+    seed: SourceIdentitySeed,
+}
+
+pub(super) struct ExtractedLayer<Message> {
+    kind: LayerKind,
+    input: Option<ExtractedLayerRoot<Message>>,
+    foreground: ExtractedLayerRoot<Message>,
 }
 
 /// Declarative input behavior for one transient scene layer.
@@ -285,10 +295,10 @@ impl<Message> ViewNode<Message> {
         layers: &mut Vec<Layer<Message>>,
         owner_scope: NodeId,
         context: &DeclarativeSourceContext,
-        output: &mut Vec<Layer<Message>>,
+        output: &mut Vec<ExtractedLayer<Message>>,
     ) {
         let declared_layers = std::mem::take(layers);
-        for (index, mut layer) in declared_layers.into_iter().enumerate() {
+        for (index, layer) in declared_layers.into_iter().enumerate() {
             let layer_context = context.with_overlay(DeclarativeOverlaySource {
                 identity_scope: crate::application::ids::structural_id(
                     owner_scope,
@@ -297,22 +307,43 @@ impl<Message> ViewNode<Message> {
                 ),
                 layer_kind: layer.kind,
             });
-            if let Some(input) = layer.input.as_mut() {
-                input.drain_overlay_layers_in_declaration_order(
+            let input = layer.input.map(|input| {
+                Self::extract_layer_root(
+                    input,
                     owner_scope,
                     crate::application::ids::StructuralRole::SceneInput(index),
-                    &layer_context,
+                    layer_context.clone(),
                     output,
-                );
-            }
-            layer.view.drain_overlay_layers_in_declaration_order(
+                )
+            });
+            let foreground = Self::extract_layer_root(
+                layer.view,
                 owner_scope,
                 crate::application::ids::StructuralRole::SceneLayer(index),
-                &layer_context,
+                layer_context,
                 output,
             );
-            layer.source_context = layer_context;
-            output.push(layer);
+            output.push(ExtractedLayer {
+                kind: layer.kind,
+                input,
+                foreground,
+            });
+        }
+    }
+
+    fn extract_layer_root(
+        mut node: ViewNode<Message>,
+        owner_scope: NodeId,
+        role: crate::application::ids::StructuralRole,
+        context: DeclarativeSourceContext,
+        output: &mut Vec<ExtractedLayer<Message>>,
+    ) -> ExtractedLayerRoot<Message> {
+        let seed = node.source_identity_seed(owner_scope, role);
+        node.drain_overlay_layers_in_declaration_order_with_seed(&context, output, seed);
+        ExtractedLayerRoot {
+            node,
+            context,
+            seed,
         }
     }
 
@@ -321,10 +352,20 @@ impl<Message> ViewNode<Message> {
         parent_scope: NodeId,
         role: crate::application::ids::StructuralRole,
         context: &DeclarativeSourceContext,
-        layers: &mut Vec<Layer<Message>>,
+        layers: &mut Vec<ExtractedLayer<Message>>,
     ) {
-        let node_scope = self.unprobed_structural_scope(parent_scope, role);
-        let node_context = context.with_node(self.source_identity_seed(parent_scope, role));
+        let seed = self.source_identity_seed(parent_scope, role);
+        self.drain_overlay_layers_in_declaration_order_with_seed(context, layers, seed);
+    }
+
+    fn drain_overlay_layers_in_declaration_order_with_seed(
+        &mut self,
+        context: &DeclarativeSourceContext,
+        layers: &mut Vec<ExtractedLayer<Message>>,
+        seed: SourceIdentitySeed,
+    ) {
+        let node_scope = seed.structural_scope;
+        let node_context = context.with_node(seed);
         match &mut self.kind {
             ViewNodeKind::Scene {
                 base,

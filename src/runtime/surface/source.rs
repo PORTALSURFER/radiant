@@ -228,6 +228,34 @@ impl SourceTraversalIndex {
     }
 }
 
+impl<Message> SurfaceNode<Message> {
+    pub(super) fn collect_source_traversal(&self, source: &mut SourceTraversalIndex) {
+        source.record_node(self);
+        match self {
+            Self::Scene(scene) => {
+                scene.base.collect_source_traversal(source);
+                for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        input.collect_source_traversal(source);
+                    }
+                    layer.node.collect_source_traversal(source);
+                }
+            }
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_source_traversal(source);
+                }
+            }
+            Self::Widget(_) | Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                for child in &layer.container.children {
+                    child.child.collect_source_traversal(source);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,6 +275,10 @@ mod tests {
             .into_iter()
             .filter_map(|record| record.metadata)
             .collect()
+    }
+
+    fn metadata_records(surface: &UiSurface<()>) -> Vec<SourceTraversalRecord> {
+        surface.runtime_source_traversal_index().records
     }
 
     fn inferred_surface(order: &[u32]) -> UiSurface<()> {
@@ -429,14 +461,65 @@ mod tests {
     }
 
     #[test]
+    fn flattened_local_overlay_keeps_original_scope_when_an_earlier_overlay_is_added() {
+        fn surface(with_earlier_overlay: bool) -> UiSurface<()> {
+            let target = text::<()>("target")
+                .key("target-owner")
+                .overlays(overlays().modal(text("target-overlay").key("target-overlay")));
+            let base = if with_earlier_overlay {
+                column([
+                    text::<()>("earlier").overlays(overlays().modal(text("earlier-overlay"))),
+                    target,
+                ])
+            } else {
+                column([target])
+            };
+            scene(base).into_view().into_surface()
+        }
+
+        let before = metadata_records(&surface(false))
+            .into_iter()
+            .find(|record| {
+                record.metadata.as_ref().is_some_and(|metadata| {
+                    metadata.identity.origin == DeclarativeIdentityOrigin::ExplicitContinuityKey
+                        && metadata.topology.keyed_nodes.len() == 2
+                        && metadata.topology.overlays.len() == 1
+                })
+            })
+            .expect("target overlay metadata before unrelated insertion");
+        let after = metadata_records(&surface(true))
+            .into_iter()
+            .find(|record| {
+                record.metadata.as_ref().is_some_and(|metadata| {
+                    metadata.identity.origin == DeclarativeIdentityOrigin::ExplicitContinuityKey
+                        && metadata.topology.keyed_nodes.len() == 2
+                        && metadata.topology.overlays.len() == 1
+                })
+            })
+            .expect("target overlay metadata after unrelated insertion");
+
+        let before_identity = before.metadata.expect("before target metadata").identity;
+        let after_identity = after.metadata.expect("after target metadata").identity;
+        assert_eq!(
+            before_identity.structural_scope,
+            after_identity.structural_scope
+        );
+        assert_eq!(before_identity.resolved_id, before.node_id);
+        assert_eq!(after_identity.resolved_id, after.node_id);
+    }
+
+    #[test]
     fn synthesized_layer_input_and_foreground_share_overlay_evidence() {
         let surface = scene::<()>(text("base"))
             .layer(Layer::modal(text("foreground")).block_input())
             .into_view()
             .into_surface();
-        let overlay_records = metadata(&surface)
+        let overlay_records = metadata_records(&surface)
             .into_iter()
-            .filter(|record| !record.topology.overlays.is_empty())
+            .filter_map(|record| {
+                let metadata = record.metadata?;
+                (!metadata.topology.overlays.is_empty()).then_some((record.node_id, metadata))
+            })
             .collect::<Vec<_>>();
 
         assert_eq!(
@@ -445,12 +528,17 @@ mod tests {
             "input and foreground should both be recorded"
         );
         assert_eq!(
-            overlay_records[0].topology.overlays,
-            overlay_records[1].topology.overlays
+            overlay_records[0].1.topology.overlays,
+            overlay_records[1].1.topology.overlays
         );
         assert_eq!(
-            overlay_records[0].topology.overlays[0].layer_kind,
+            overlay_records[0].1.topology.overlays[0].layer_kind,
             crate::runtime::LayerKind::Modal
+        );
+        assert!(
+            overlay_records
+                .iter()
+                .all(|(node_id, metadata)| { metadata.identity.resolved_id == *node_id })
         );
     }
 

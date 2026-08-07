@@ -16,7 +16,9 @@ use crate::{
     layout::VirtualLayoutQueryInputParts,
     runtime::{
         SurfaceNode, SurfaceTraversalIndex, UiSurface,
-        surface::{MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration},
+        surface::{
+            MAX_VIRTUAL_LAYOUT_REGISTRATIONS, SourceTraversalIndex, VirtualLayoutRegistration,
+        },
     },
 };
 use std::convert::Infallible;
@@ -116,6 +118,11 @@ struct RuntimeVirtualLayoutRecord<Message> {
     last_query: Option<VirtualLayoutQueryInputParts>,
     cached_subtree: Option<RuntimeVirtualLayoutSubtree<Message>>,
     retired: bool,
+}
+
+pub(super) struct RuntimeVirtualLayoutProjectionProbe<Message> {
+    pub(super) traversal: SurfaceTraversalIndex<Message>,
+    pub(super) source: SourceTraversalIndex,
 }
 
 impl<Message> RuntimeVirtualLayoutRecord<Message> {
@@ -325,7 +332,7 @@ impl<Message> Drop for RuntimeVirtualLayoutRecord<Message> {
 pub(in crate::runtime) struct RuntimeVirtualLayoutState<Message> {
     records: Vec<RuntimeVirtualLayoutRecord<Message>>,
     next_mount_generation: u64,
-    projection_probe: Option<SurfaceTraversalIndex<Message>>,
+    projection_probe: Option<RuntimeVirtualLayoutProjectionProbe<Message>>,
     #[cfg(test)]
     materialization_passes: u32,
 }
@@ -542,11 +549,16 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.projection_probe = None;
     }
 
-    pub(super) fn take_projection_probe(&mut self) -> Option<SurfaceTraversalIndex<Message>> {
+    pub(super) fn take_projection_probe(
+        &mut self,
+    ) -> Option<RuntimeVirtualLayoutProjectionProbe<Message>> {
         self.projection_probe.take()
     }
 
-    pub(super) fn store_projection_probe(&mut self, probe: SurfaceTraversalIndex<Message>) {
+    pub(super) fn store_projection_probe(
+        &mut self,
+        probe: RuntimeVirtualLayoutProjectionProbe<Message>,
+    ) {
         self.projection_probe = Some(probe);
     }
 
@@ -620,13 +632,22 @@ where
             .virtual_layout_registrations
             .clone();
         self.prepare_virtual_layout_surface(&registrations);
-        let shell_projection = self.surface.runtime_projection();
-        self.layout_root = shell_projection.layout_root;
+        let mut traversal = self.take_reusable_traversal_index(true);
+        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
+            &mut self.scratch.projection_source,
+        );
         self.rebuild_virtual_layout_shell_layout();
         self.materialize_virtual_layout_surface();
-        let final_projection = self.surface.runtime_projection();
-        self.layout_root = final_projection.layout_root;
-        self.relayout_with_traversal(final_projection.traversal);
+        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
+            &mut self.scratch.projection_source,
+        );
+        self.relayout_with_traversal(traversal);
         true
     }
 
@@ -896,6 +917,39 @@ mod tests {
         }
     }
 
+    fn source_node_ids(surface: &UiSurface<()>) -> Vec<u64> {
+        surface
+            .runtime_source_traversal_index()
+            .records
+            .into_iter()
+            .map(|record| record.node_id)
+            .collect()
+    }
+
+    fn assert_authoritative_source(runtime: &SurfaceRuntime<TestBridge, ()>) {
+        let expected = source_node_ids(runtime.surface());
+        let actual = runtime
+            .scratch
+            .projection_source
+            .records
+            .iter()
+            .map(|record| record.node_id)
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn ordinary_startup_keeps_projection_source_authoritative() {
+        let runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: ordinary_surface(),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+
+        assert_authoritative_source(&runtime);
+    }
+
     #[test]
     fn runtime_admits_shell_and_complete_batch_before_installing_children() {
         let calls = Rc::new(Cell::new(0));
@@ -927,6 +981,29 @@ mod tests {
             panic!("virtual shell should remain a layout container");
         };
         assert_eq!(root.children.len(), 2, "shell plus one admitted item");
+        assert_authoritative_source(&runtime);
+    }
+
+    #[test]
+    fn virtual_geometry_relayout_keeps_projection_source_authoritative() {
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration(
+                    Rc::new(ReadyPolicy {
+                        calls: Rc::new(Cell::new(0)),
+                        key: 3,
+                    }),
+                    VirtualLayoutPolicyIdentity::new("geometry-policy"),
+                )),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        let source_capacity = runtime.scratch.projection_source.records.capacity();
+
+        assert!(runtime.relayout_virtual_layout_for_geometry());
+
+        assert_authoritative_source(&runtime);
+        assert!(runtime.scratch.projection_source.records.capacity() >= source_capacity);
     }
 
     #[test]
@@ -984,6 +1061,19 @@ mod tests {
             runtime.refresh_counters().layout,
             runtime.virtual_layout.materialization_passes,
         );
+        let source_capacity = runtime.scratch.projection_source.records.capacity();
+        let stale_source_record = runtime
+            .scratch
+            .projection_source
+            .records
+            .first()
+            .cloned()
+            .expect("virtual startup should have source records");
+        runtime
+            .scratch
+            .projection_source
+            .records
+            .push(stale_source_record);
         let _ = runtime.take_frame_refresh_diagnostics();
         runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
 
@@ -1008,6 +1098,8 @@ mod tests {
             before_refresh.6
         );
         assert!(runtime.base_paint_plan_reuse_eligible());
+        assert_authoritative_source(&runtime);
+        assert!(runtime.scratch.projection_source.records.capacity() >= source_capacity);
         assert_eq!(
             frame.view_delta.effect,
             crate::runtime::surface::ViewDeltaEffect::Unchanged
@@ -1104,6 +1196,7 @@ mod tests {
                 .virtual_layout_registrations
                 .is_empty()
         );
+        assert_authoritative_source(&runtime);
 
         let installed_traversal = runtime.surface().runtime_traversal_index();
         assert!(

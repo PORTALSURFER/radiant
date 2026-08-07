@@ -1,4 +1,4 @@
-use super::{ViewNode, ViewNodeKind};
+use super::{ExtractedLayerRoot, ViewNode, ViewNodeKind};
 use crate::{
     application::{
         DeclarativeSourceContext, IdGenerator, IntoView, ROOT_KEY_SCOPE, SourceIdentitySeed,
@@ -92,11 +92,21 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         scope: u64,
         role: StructuralRole,
         context: DeclarativeSourceContext,
+        source_seed: SourceIdentitySeed,
     ) -> SurfaceNode<Message> {
         let previous_context = std::mem::replace(&mut self.source_context, context);
-        let lowered = self.lower_node(node, scope, role);
+        let lowered = self.lower_node_with_source_seed(node, scope, role, source_seed);
         self.source_context = previous_context;
         lowered
+    }
+
+    fn lower_extracted_layer_root(
+        &mut self,
+        root: ExtractedLayerRoot<Message>,
+        scope: u64,
+        role: StructuralRole,
+    ) -> SurfaceNode<Message> {
+        self.lower_node_with_context(root.node, scope, role, root.context, root.seed)
     }
 
     fn next_node_identity(
@@ -130,22 +140,32 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         scope: u64,
         role: StructuralRole,
     ) -> SurfaceNode<Message> {
+        let source_seed = node.source_identity_seed(scope, role);
+        self.lower_node_with_source_seed(node, scope, role, source_seed)
+    }
+
+    fn lower_node_with_source_seed(
+        &mut self,
+        node: ViewNode<Message>,
+        scope: u64,
+        role: StructuralRole,
+        source_seed: SourceIdentitySeed,
+    ) -> SurfaceNode<Message> {
         let identity = self.next_node_identity(&node, scope, role);
         let id = identity.id;
         let child_scope = identity.scope;
-        let source_seed = node.source_identity_seed(scope, role);
         let source_origin = source_seed.origin;
-        let source_seed = SourceIdentitySeed {
-            resolved_id: match source_origin {
-                crate::application::DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot => {
-                    source_seed.resolved_id
-                }
-                _ => identity.id,
-            },
-            ..source_seed
+        let reidentify_runtime_root = node.id.is_some() || node.key.is_some();
+        let resolved_id = match (&node.kind, source_origin, reidentify_runtime_root) {
+            (
+                ViewNodeKind::Runtime(runtime),
+                crate::application::DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot,
+                false,
+            ) => runtime.id(),
+            _ => identity.id,
         };
         let source_identity = SourceIdentity {
-            resolved_id: source_seed.resolved_id,
+            resolved_id,
             structural_scope: source_seed.structural_scope,
             origin: source_origin,
         };
@@ -157,7 +177,6 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         });
         let source_topology = self.source_topology(&node_context);
         let previous_context = std::mem::replace(&mut self.source_context, node_context);
-        let reidentify_runtime_root = node.id.is_some() || node.key.is_some();
         let style = node.style;
         let hoverable = node.hoverable;
         let scroll_message = node.scroll_message;
@@ -203,20 +222,17 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     .into_iter()
                     .enumerate()
                     .map(|(index, layer)| {
-                        let layer_context = layer.source_context.clone();
                         let input = layer.input.map(|input| {
-                            self.lower_node_with_context(
+                            self.lower_extracted_layer_root(
                                 input,
                                 child_scope,
                                 StructuralRole::SceneInput(index),
-                                layer_context.clone(),
                             )
                         });
-                        let foreground = self.lower_node_with_context(
-                            layer.view,
+                        let foreground = self.lower_extracted_layer_root(
+                            layer.foreground,
                             child_scope,
                             StructuralRole::SceneLayer(index),
-                            layer_context,
                         );
                         SurfaceLayer::with_input(layer.kind, input, foreground)
                     })

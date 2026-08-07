@@ -10,6 +10,7 @@ use crate::layout::{ContainerPolicy, SlotParams};
 pub(in crate::runtime) struct SurfaceRuntimeProjection<Message> {
     pub(in crate::runtime) layout_root: LayoutNode,
     pub(in crate::runtime) traversal: SurfaceTraversalIndex<Message>,
+    pub(in crate::runtime) source: SourceTraversalIndex,
 }
 
 impl<Message> UiSurface<Message> {
@@ -22,6 +23,7 @@ impl<Message> UiSurface<Message> {
         SurfaceRuntimeProjection {
             layout_root,
             traversal,
+            source,
         }
     }
 
@@ -69,6 +71,15 @@ impl<Message> UiSurface<Message> {
         child_path.clear();
         self.root
             .project_runtime(scroll_stack, child_path, traversal, source)
+    }
+
+    pub(in crate::runtime) fn runtime_source_traversal_index_reusing(
+        &self,
+        source: &mut SourceTraversalIndex,
+    ) {
+        let stats = self.root.runtime_traversal_stats();
+        source.clear_for_stats(stats);
+        self.root.collect_source_traversal(source);
     }
 }
 
@@ -147,8 +158,10 @@ impl<Message> SurfaceNode<Message> {
                         children,
                     )
                 } else {
-                    let children =
-                        container_layout_children(&layer.container, |_, child| child.layout_node());
+                    let children = container_layout_children(&layer.container, |_, child| {
+                        child.collect_source_traversal(source);
+                        child.layout_node()
+                    });
                     LayoutNode::container(
                         layer.container.id,
                         layer.container.policy.clone(),

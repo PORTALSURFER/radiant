@@ -109,6 +109,10 @@ fn runtime_projection_matches_separate_layout_and_traversal_passes() {
 
     assert_eq!(projection.layout_root, surface.layout_node());
     assert_eq!(
+        projection.source.records.len(),
+        surface.root.runtime_traversal_stats().source_nodes
+    );
+    assert_eq!(
         projection.traversal.widget_paint_order,
         traversal.widget_paint_order
     );
@@ -140,13 +144,17 @@ fn noninteractive_floating_layer_lays_out_without_pointer_hit_order() {
                 20,
                 Point::new(8.0, -24.0),
                 Vector2::new(120.0, 24.0),
-                SurfaceNode::widget(
-                    ButtonWidget::new(
-                        30,
-                        "Floating",
-                        WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
-                    ),
-                    WidgetMessageMapper::none(),
+                SurfaceNode::column(
+                    31,
+                    0.0,
+                    vec![SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            30,
+                            "Floating",
+                            WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ))],
                 ),
                 false,
             )),
@@ -160,6 +168,19 @@ fn noninteractive_floating_layer_lays_out_without_pointer_hit_order() {
     ));
 
     assert_eq!(projection.traversal.pointer_hit_order, vec![10]);
+    assert!(!projection.traversal.widget_paint_order.contains(&30));
+    assert_eq!(
+        projection.source.records.len(),
+        surface.root.runtime_traversal_stats().source_nodes
+    );
+    assert!(
+        projection
+            .source
+            .records
+            .iter()
+            .map(|record| record.node_id)
+            .eq([1, 10, 20, 31, 30])
+    );
     assert_eq!(
         layout.rects.get(&30).copied(),
         Some(Rect::from_min_size(

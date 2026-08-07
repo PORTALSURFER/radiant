@@ -71,6 +71,11 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(_) => {}
             Self::FloatingLayer(layer) => {
                 if !layer.interactive {
+                    for child in &layer.container.children {
+                        child
+                            .child
+                            .collect_source_traversal_stats(&mut stats.source_nodes);
+                    }
                     return;
                 }
                 let is_scroll = layer.container.policy.kind == ContainerKind::ScrollView;
@@ -90,6 +95,32 @@ impl<Message> SurfaceNode<Message> {
                         child_scroll_depth,
                         stats,
                     );
+                }
+            }
+        }
+    }
+
+    fn collect_source_traversal_stats(&self, source_nodes: &mut usize) {
+        *source_nodes += 1;
+        match self {
+            Self::Scene(scene) => {
+                scene.base.collect_source_traversal_stats(source_nodes);
+                for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        input.collect_source_traversal_stats(source_nodes);
+                    }
+                    layer.node.collect_source_traversal_stats(source_nodes);
+                }
+            }
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_source_traversal_stats(source_nodes);
+                }
+            }
+            Self::Widget(_) | Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                for child in &layer.container.children {
+                    child.child.collect_source_traversal_stats(source_nodes);
                 }
             }
         }

@@ -755,11 +755,11 @@ impl DeclarativeOwnerLedger {
     fn retain_current_identities_after_exhaustion(&mut self) {
         self.next_live.clear();
         for record in &self.live {
-            let current_identity = self
-                .canonical
-                .iter()
-                .any(|descriptor| descriptor.identity == record.token.identity());
-            if current_identity && record.token.is_live() {
+            let current_descriptor = self.canonical.iter().find(|descriptor| {
+                descriptor.identity == record.token.identity()
+                    && descriptor.compatibility == record.compatibility
+            });
+            if current_descriptor.is_some() && record.token.is_live() {
                 self.next_live.push(record.clone());
             } else {
                 record.token.retire();
@@ -1025,9 +1025,12 @@ mod tests {
         application::{IntoView, Layer, column, for_each_by, overlays, scene, text},
         gui::types::Vector2,
         layout::ContainerPolicy,
-        runtime::{SurfaceNode, UiSurface},
+        runtime::{Command, DeclarativeOwnedCommandRuntimeBridge, SurfaceNode, UiSurface},
     };
-    use std::{cell::Cell, rc::Rc};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
 
     fn source_from_surface(surface: UiSurface<()>) -> SourceTraversalIndex {
         surface.runtime_source_traversal_index()
@@ -1043,6 +1046,10 @@ mod tests {
 
     fn keyed_surface() -> UiSurface<()> {
         column([text::<()>("keyed").key("keyed")]).into_surface()
+    }
+
+    fn keyed_surface_for<Message: 'static>() -> UiSurface<Message> {
+        column([text::<Message>("keyed").key("keyed")]).into_surface()
     }
 
     fn overlay_surface() -> UiSurface<()> {
@@ -1470,8 +1477,9 @@ mod tests {
         current_ledger.reconcile(&current);
         assert_eq!(current_ledger.next_generation(), u64::MAX);
         assert!(current_ledger.is_live(&sibling_token));
-        assert!(current_ledger.is_live(&old_first));
-        assert_eq!(current_ledger.live_records().len(), 2);
+        assert!(!current_ledger.is_live(&old_first));
+        assert!(!old_first.is_live());
+        assert_eq!(current_ledger.live_records().len(), 1);
         assert_eq!(
             current_ledger.resolve_live(
                 replacement.owner_identity(),
@@ -1945,21 +1953,44 @@ mod tests {
     fn recovery_and_relayout_preserve_generation_and_refresh_retires_before_chained_reduction() {
         let removed = Rc::new(Cell::new(false));
         let project_removed = Rc::clone(&removed);
-        let mut runtime = SurfaceRuntime::new_declarative_owned(
-            (),
+        let reduce_removed = Rc::clone(&removed);
+        let token_for_chain: Rc<RefCell<Option<DeclarativeOwnerToken>>> =
+            Rc::new(RefCell::new(None));
+        let token_for_update = Rc::clone(&token_for_chain);
+        let chained_reduction_saw_retired = Rc::new(Cell::new(false));
+        let observed_by_update = Rc::clone(&chained_reduction_saw_retired);
+        let mut runtime = SurfaceRuntime::new(
+            DeclarativeOwnedCommandRuntimeBridge::new(
+                (),
+                move |_| {
+                    if project_removed.get() {
+                        UiSurface::new(SurfaceNode::container(
+                            51,
+                            ContainerPolicy::default(),
+                            Vec::new(),
+                        ))
+                    } else {
+                        keyed_surface_for::<u8>()
+                    }
+                },
+                move |_, message: u8| match message {
+                    0 => {
+                        reduce_removed.set(true);
+                        Command::message(1)
+                    }
+                    1 => {
+                        let token = token_for_update.borrow();
+                        assert!(
+                            token.as_ref().is_some_and(|token| !token.is_live()),
+                            "chained reduction must observe retirement after accepted refresh"
+                        );
+                        observed_by_update.set(true);
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+            ),
             Vector2::new(320.0, 240.0),
-            move |_| {
-                if project_removed.get() {
-                    UiSurface::new(SurfaceNode::container(
-                        51,
-                        ContainerPolicy::default(),
-                        Vec::new(),
-                    ))
-                } else {
-                    keyed_surface()
-                }
-            },
-            |_, ()| {},
         );
         let candidate = keyed_candidate(runtime.declarative_owner_projection());
         let context = first_context_with_keyed_node(runtime.declarative_owner_projection());
@@ -1971,6 +2002,7 @@ mod tests {
             DeclarativeOwnerResolution::KeyedNode(token) => token,
             other => panic!("unexpected startup resolution: {other:?}"),
         };
+        *token_for_chain.borrow_mut() = Some(old.clone());
         let generation = old.generation();
 
         runtime.relayout();
@@ -1987,12 +2019,9 @@ mod tests {
         assert!(runtime.finish_native_recovery());
         assert!(runtime.declarative_owner_ledger().is_live(&old));
 
-        removed.set(true);
-        runtime.refresh();
-        // The final accepted refresh retires the old clone before any later
-        // chained reduction could observe the controller ledger.
-        let chained_reduction_saw_retired = !runtime.declarative_owner_ledger().is_live(&old);
-        assert!(chained_reduction_saw_retired);
+        let outcome = runtime.dispatch_message(0);
+        assert_eq!(outcome.messages_dispatched, 2);
+        assert!(chained_reduction_saw_retired.get());
         assert!(!old.is_live());
 
         assert!(runtime.begin_closing());

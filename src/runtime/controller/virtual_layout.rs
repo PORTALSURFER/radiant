@@ -1162,15 +1162,20 @@ mod tests {
 
     #[test]
     fn provisional_virtual_probe_does_not_replace_accepted_owner_projection() {
+        let registration = registration_with_parts(RegistrationParts {
+            policy: Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 12,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("probe-isolation-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("virtual item").key("probe-owner")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+        });
         let mut runtime = SurfaceRuntime::new(
             TestBridge {
-                surface: surface(registration(
-                    Rc::new(ReadyPolicy {
-                        calls: Rc::new(Cell::new(0)),
-                        key: 12,
-                    }),
-                    VirtualLayoutPolicyIdentity::new("probe-isolation-policy"),
-                )),
+                surface: surface(registration),
             },
             Vector2::new(160.0, 80.0),
         );
@@ -1182,14 +1187,55 @@ mod tests {
             .to_vec();
         let installations_before_probe_mutation =
             runtime.declarative_owner_projection().installation_count();
-        let probe = runtime
-            .virtual_layout
-            .projection_probe
-            .as_mut()
-            .expect("unchanged virtual refresh should retain a provisional probe");
-        probe.source.records.clear();
+        let accepted_keyed_node = accepted_before_probe_mutation
+            .first()
+            .expect("keyed virtual item should have accepted owner metadata");
+        let accepted_identity =
+            super::super::declarative_owner::DeclarativeOwnerIdentity::KeyedNode {
+                structural_scope: accepted_keyed_node.identity.structural_scope,
+            };
+        let accepted_token_before = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .iter()
+            .find(|record| record.token.identity() == accepted_identity)
+            .map(|record| record.token.clone())
+            .expect("keyed virtual item should have a live owner token");
+        let generation_before = accepted_token_before.generation();
+        let next_generation_before = runtime.declarative_owner_ledger().next_generation();
+        let reconciliations_before = runtime.declarative_owner_ledger().reconciliation_count();
+        {
+            let probe = runtime
+                .virtual_layout
+                .projection_probe
+                .as_mut()
+                .expect("unchanged virtual refresh should retain a provisional probe");
+            probe.source.records.clear();
+        }
+
+        assert!(
+            runtime
+                .declarative_owner_ledger()
+                .is_live(&accepted_token_before)
+        );
+        assert_eq!(
+            runtime.declarative_owner_ledger().next_generation(),
+            next_generation_before
+        );
+        assert_eq!(
+            runtime.declarative_owner_ledger().reconciliation_count(),
+            reconciliations_before
+        );
 
         runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        let accepted_token_after = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .iter()
+            .find(|record| record.token.identity() == accepted_identity)
+            .map(|record| record.token.clone())
+            .expect("authoritative materialization should retain the keyed owner token");
 
         assert_eq!(
             runtime
@@ -1200,6 +1246,16 @@ mod tests {
         assert_eq!(
             runtime.declarative_owner_projection().installation_count(),
             installations_before_probe_mutation + 1
+        );
+        assert_eq!(accepted_token_after, accepted_token_before);
+        assert_eq!(accepted_token_after.generation(), generation_before);
+        assert_eq!(
+            runtime.declarative_owner_ledger().next_generation(),
+            next_generation_before
+        );
+        assert_eq!(
+            runtime.declarative_owner_ledger().reconciliation_count(),
+            reconciliations_before + 1
         );
         assert_authoritative_source(&runtime);
     }

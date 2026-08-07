@@ -8,7 +8,7 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-07**
-- Canonical main: **`dbc4b9ac`**
+- Canonical main: **`98d23654`**
 - Overall estimate: **~95%**
 - Working range: **90–99%**
 - Confidence: **medium**
@@ -93,9 +93,12 @@ owner-candidate projection and exact selection resolver: keyed and overlay
 identity remains independent, application default/outlive evidence is explicit,
 scoped failures reject without fallback, and accepted projection installation
 stays on final startup, refresh, relayout, and virtual-materialization
-boundaries. No effect origin, admission, generation, or cancellation behavior
-is shipped; the next code dependency is exact-generation reconciliation and
-cancellation. Scheduling budgets and fairness remain later.
+boundaries. PR #1625 now adds checked live generations, exact token fencing,
+accepted-projection reconciliation, removal/reinsertion handling, exhaustion
+containment, and close retirement without authorizing effects. The next code
+dependency is a concrete explicit owner-request consumer before effect-origin
+dispatch and registry cancellation; scheduling budgets and fairness remain
+later.
 
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
@@ -122,7 +125,7 @@ unshipped.
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
-| Runtime, effects, and scheduling | 86% | PRs #1617–#1624 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology prerequisite, and the private accepted owner-candidate projection/exact selection resolver. Keyed and overlay candidates remain independent; application default/outlive and typed no-fallback rejection are covered at final accepted startup, refresh, relayout, and virtual-materialization boundaries. Exact-generation reconciliation/cancellation remains before scheduling budgets or fairness. |
+| Runtime, effects, and scheduling | 88% | PRs #1617–#1625 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology prerequisite, accepted owner-candidate projection/exact selection, and checked live-generation reconciliation with close retirement and exhaustion fencing. A concrete explicit owner-request consumer remains before effect-origin dispatch, registry cancellation, and scheduling budgets/fairness. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
@@ -251,6 +254,11 @@ The current foundation includes:
   compatibility, preserves source-local eligibility separately from accepted
   projection, rejects stale/incompatible scoped selections without fallback,
   and installs only final authoritative evidence (PR #1624).
+- the crate-private declarative owner-generation ledger that preserves exact
+  tokens for compatible accepted reprojection, retires removal/ambiguity and
+  incompatible replacement, allocates checked fresh generations on
+  reinsertion, fences runtime instances, and retires all live clones at close
+  (PR #1625).
 
 These foundations make later slices safer and more composable. They do not
 mean that every target consumer, runtime path, platform, or integration is
@@ -308,11 +316,14 @@ scratch/probe ownership stays authoritative across startup, refresh, cache, and
 geometry paths. PR #1624 now projects that accepted topology into independent
 keyed/overlay candidate catalogs and resolves exact private selections with
 typed rejection and no application/ancestor fallback; provisional probes cannot
-replace accepted evidence. No effect origin, admission, generation, or
-cancellation behavior is shipped. The next implementation order is
-exact-generation reconciliation and cancellation, then explicit-origin
-retirement across the shipped deferred paths. The sequence still does not add
-configurable budgets, fairness, or synthetic GPU-host acceptance.
+replace accepted evidence. PR #1625 now adds checked live generations,
+runtime-instance-safe tokens, deterministic accepted-projection reconciliation,
+fresh reinsertion generations, exhaustion containment, and close retirement;
+it remains evidence-only with no effect admission or registry cancellation.
+The next implementation order requires a concrete explicit owner-request
+consumer, then effect-origin dispatch and registry retirement. The sequence
+still does not add configurable budgets, fairness, or synthetic GPU-host
+acceptance.
 
 ## Remaining gaps, ordered by leverage
 
@@ -353,12 +364,16 @@ configurable budgets, fairness, or synthetic GPU-host acceptance.
    PR #1624 adds private accepted owner-candidate projection and exact
    selection resolution with independent keyed/overlay candidates, explicit
    application default/outlive outcomes, typed no-fallback rejection, and
-   provisional-probe isolation. The next dependency-correct runtime candidate
-   is exact-generation reconciliation and cancellation, then explicit-origin
-   retirement across the shipped deferred paths. Configurable scheduling
-   budgets and fair multi-window policy follow only after executable
-   cancellation; do not claim scheduler fairness before those ownership
-   boundaries are concrete.
+   provisional-probe isolation. PR #1625 adds checked live-generation
+   reconciliation, exact runtime-instance tokens, fresh reinsertion fencing,
+   exhaustion containment, and close retirement without effect authorization.
+   The next dependency-correct runtime candidate is a concrete explicit
+   owner-request consumer; effect-origin dispatch and registry cancellation
+   must not be invented without that consumer contract. If no concrete product
+   consumer supplies the selection policy, the remaining cancellation work is
+   product-dependent. Configurable scheduling budgets and fair multi-window
+   policy follow only after executable cancellation; do not claim scheduler
+   fairness before those ownership boundaries are concrete.
 4. **Richer text editing.** Complete multiline editing, IME/composition, and
    native accessibility semantics.
 5. **Production frame wiring.** Complete reconciliation, damage propagation,
@@ -485,3 +500,4 @@ After each merged alignment slice:
 | 2026-08-06 | `1235f573` | ~95% (90–99%, medium confidence) | PR #1622 merged the documentation-only declarative effect-owner selection and cancellation contract: Application, exact auxiliary-window, overlay, and keyed-node ownership are distinguished; source provenance is candidate-only with explicit application-owned/outlive escape; identity/generation, same-update removal, late-result, recovery/cached-hide, shared-resource, and unkeyed-node boundaries are defined. No executable behavior or estimate changed. Exact-head validation passed with four-file scope, diff check, formatting, 288 guardrails, and documentation build; Terra exact-head APPROVE found no findings. The next code dependency is the private declarative owner-topology/source-provenance bridge before executable overlay/keyed-node cancellation, then budgets or fairness. |
 | 2026-08-06 | `c963cbfd` | ~95% (90–99%, medium confidence) | PR #1623 merged the private declarative source-topology prerequisite: extracted overlay roots preserve pre-flattening structural scope and keyed ancestry while final lowered IDs remain authoritative; complete source traversal includes non-interactive floating descendants; and persistent runtime scratch/probe ownership remains authoritative through startup, refresh, unchanged virtual-layout cache, virtual-to-ordinary transition, and geometry relayout. The overall estimate remains ~95%; Runtime/effects/scheduling moves conservatively from 82% to 84% because executable owner projection/selection and cancellation remain unshipped. Exact-head validation passed with 2,588 library tests plus 1 ignored, 229 examples, 11 doctests plus 1 ignored, 288 guardrails, public API suites 204/23/101/6, all-target/all-feature check, strict Clippy, docs, formatting, diff check, and perf baseline 2/2 matched with 0 slower; GitHub quality and windows-compile passed; Terra exact-head APPROVE found no findings. The next candidate is private declarative owner projection/selection before exact-generation cancellation, then scheduling budgets or fairness. |
 | 2026-08-07 | `dbc4b9ac` | ~95% (90–99%, medium confidence) | PR #1624 merged the private declarative owner-candidate projection and exact selection resolver: keyed and overlay candidates remain independent and use structural scope plus compatibility evidence; application default/outlive outcomes are explicit; scoped removal, reorder, incompatibility, sibling, duplicate, stale-capacity, and provisional-probe cases reject safely without fallback. The overall estimate remains ~95%; Runtime/effects/scheduling moves conservatively from 84% to 86% because exact-generation reconciliation/cancellation and effect-origin integration remain unshipped. Exact-head validation passed with 232 focused controller tests, public API/guardrail suites 204/23/101/6/288, all-target/all-feature check, strict Clippy, docs, formatting, portable Linux/Intel-macOS library checks, and performance comparison; GitHub quality (15m58s) and windows-compile passed; independent Terra exact-head APPROVE found no findings. The next candidate is exact-generation reconciliation and cancellation, then explicit-origin retirement before scheduling budgets or fairness. |
+| 2026-08-07 | `98d23654` | ~95% (90–99%, medium confidence) | PR #1625 merged the private declarative owner-generation ledger: checked monotonic generations and runtime-instance-safe tokens preserve compatible accepted reprojection and keyed reorder, retire removal/ambiguity/incompatible replacement, allocate fresh reinsertion generations, contain exhaustion without disturbing compatible siblings, bind exact live selections, and retire all clones at close while recovery preserves them. The overall estimate remains ~95%; Runtime/effects/scheduling moves conservatively from 86% to 88% because no explicit owner-request consumer, effect-origin dispatch, or registry cancellation is claimed. Exact-head validation passed with 2,607 tests, 0 failures, 1 ignored, public guardrails, all-target/all-feature check, strict Clippy, docs, portable Linux/Intel-macOS checks, and benchmark comparison with no missing scenarios; corrected head passed GitHub quality (7m44s) and windows-compile (2m09s). Fresh exact-head Terra APPROVE followed one bounded correction for exhaustion and lifecycle evidence. The next candidate is a concrete explicit owner-request consumer; if no product consumer supplies that policy, remaining cancellation alignment is product-dependent before scheduling budgets or fairness. |

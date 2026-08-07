@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-07**
-- Canonical main: **`66859796`**
+- Canonical main: **`e537a07d`**
 - Generic architecture-sequence completion: **~97% (92–99%, medium confidence)**
-- Broad end-to-end target coverage: **~74.18% (reported as ~74%)**
+- Broad end-to-end target coverage: **~74.45% (reported as ~74%)**
 
 These are different measurements. Generic architecture-sequence completion
 reflects the evidence-backed dependency sequence of shipped generic contracts,
@@ -19,7 +19,7 @@ prose, diagrams, or examples do not count as shipped implementation; they
 establish the contract against which that sequence is measured. Broad end-to-end
 target coverage is the unweighted mean of the 11 category scores below:
 
-`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 70 + 66 + 75) / 11 = 74.18%`,
+`(80 + 70 + 82 + 96 + 63 + 46 + 93 + 78 + 70 + 66 + 75) / 11 = 74.45%`,
 reported approximately as **~74%**. The ~97% sequence measure is not product
 completeness and does not claim full end-to-end coverage or native acceptance.
 Because the category rows are point estimates, no separate range is claimed for
@@ -166,6 +166,18 @@ remains ~97% because incoming drops, Move/Link negotiation, Linux/Windows
 runtime support, renderer-owned budgeting, and product-specific policy remain
 outside this slice.
 
+PR #1634 now ships the qualified single-line `TextInputRevision` authority
+prerequisite: newer caller revisions apply the projected value, caret, and
+selection; equal or older revisions preserve retained editing state; equal-
+value newer revisions still apply projected selection; revision-mode changes
+are explicit reset boundaries; and unrevisioned inputs retain legacy
+value-equality synchronization. Text/focus/selection alignment moves
+conservatively from 60% to 63%; broad target coverage is
+`819 / 11 = 74.45%` (~74%). The generic architecture-sequence estimate
+remains ~97% because this slice does not claim IME/preedit delivery,
+composition, multiline editing, bidi behavior, clipboard/undo, or native
+accessibility.
+
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
 remaining target requires a supported renderer/adapter contract for resource
@@ -189,7 +201,7 @@ unshipped.
 | Declarative model, identity, reconciliation | 70% | Stable identity, revision, and continuity foundations are shipped; complete production reconciliation remains. |
 | Input, provenance, and edit lifecycle | 82% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; the generic parser-agnostic numeric edit-session boundary is now shipped, while broader consumers remain. |
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
-| Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
+| Text, focus, and selection | 63% | Focus and selection foundations plus qualified single-line revision authority are shipped; richer multiline/IME/composition editing and native accessibility remain. |
 | Numeric controls | 46% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, parser-agnostic `NumericEditSession<T>`, and display-only `ValueFormat` attachment through the official Slider/Knob application builders are shipped; parser/domain/range policy, mapping, numeric input, and broader control integration are not. |
 | Runtime, effects, and scheduling | 93% | PRs #1617–#1627 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology and owner-generation foundations, the explicit owner-request consumer, and eager exact-generation retirement at the existing worker, timer, and platform registries with conservative late-delivery vetoes. Public/product-facing selection/cancellation policy and scheduling budgets/fairness remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
@@ -296,6 +308,10 @@ The current foundation includes:
   pending/session state, exact WindowId-plus-identity routing, one-shot Copy
   and cancellation delivery, stale/duplicate/replacement/shutdown fencing,
   and live Finder acceptance coverage (PR #1633); and
+- the qualified `radiant::widgets::TextInputRevision` authority prerequisite
+  through the single-line application builder, with newer/equal/older,
+  equal-value selection, identity, mode-transition, legacy, and clear-button
+  propagation evidence (PR #1634); and
 - the private generic `RuntimeLifecycleController` with validated
   `Starting`/`Running`/`Recovering`/`Closing`/`Stopped` transitions and
   qualified, bounded `RuntimeLifecycleDiagnostics` with saturating counts and
@@ -476,8 +492,14 @@ explicitly outside the current product scope.
    product consumer; configurable scheduling budgets and fair multi-window
    policy follow only after that product-facing ownership boundary is concrete.
    No further generic runtime slice is selected from the current contracts.
-4. **Richer text editing.** Complete multiline editing, IME/composition, and
-   native accessibility semantics.
+4. **Richer text editing.** PR #1634 ships the qualified single-line
+   `TextInputRevision` authority prerequisite: newer projected revisions apply
+   value/caret/selection, equal or older revisions cannot overwrite retained
+   editing state, and switching revisioned/unrevisioned modes is an explicit
+   reset boundary. Complete multiline editing, IME/composition delivery, and
+   native accessibility semantics remain; those require a concrete macOS
+   text-adapter and product/document contract rather than generic revision
+   plumbing alone.
 5. **Production frame wiring.** Complete reconciliation, damage propagation,
    selective production publication from the bounded admission signal,
    render-boundary selection, and measured retained-surface cache admission in
@@ -642,3 +664,4 @@ the current snapshot because prior snapshots did not record that derived metric.
 | 2026-08-07 | `39c78255` | ~97% (92–99%, medium confidence) | PR #1631 merged the macOS-only live Off/Frame acceptance harness with fixed recorder evidence, independent primary/auxiliary successful-present profiles, Off silence, native auxiliary close, and native primary zoom/resize. A bounded Frame/Frame admission gate and regression test prevent callback arrival order from reversing window ownership. Diagnostics/profiling moves from 58% to 62%, platform/windowing from 60% to 68%, and broad target coverage is `810 / 11 = 73.64%` (~74%). Local focused validation passed with 6 example tests and 288 guardrails; the required GitHub `quality` and `windows-compile` checks passed; exact-head Terra APPROVE found no findings. Linux/Windows remain future portability targets; Detailed profiling, GPU timing, renderer-owned budgeting, and broader performance proof remain. |
 | 2026-08-07 | `e9e5136d` | ~97% (92–99%, medium confidence) | PR #1632 merged the normal stateful/window builder exposure for the existing observational `DevtoolsOverlayOptions` plus a macOS-only live devtools acceptance harness. The harness exercises ordinary buttons, a toggle, bounded Unicode text input, and inspector tree/selection/bounds/paint diagnostics; non-macOS compilation is explicitly guarded and remains a portability fallback. The initial Windows run found only unconditional harness constants under `-D warnings`; the cfg-only correction produced final head `4ad7addf`, which passed local all-target/all-feature checks, strict Clippy, focused example/guardrail tests, and required GitHub `quality` (12m52s) and `windows-compile` (2m07s). Independent Terra exact-head APPROVE found no findings, and the PR merged as `e9e5136d`. Diagnostics/profiling moves from 62% to 66%; broad target coverage is `814 / 11 = 74.00%` (~74%). The remaining inspector limitations are documented: the Vello canvas has no native AX nodes for its in-surface controls, so pointer/text/focus interaction is covered by harness state/projection tests rather than claimed native accessibility. Detailed profiling, runtime switching, inspector/frame correlation, GPU timestamps, renderer-owned budgeting, and broader performance proof remain. |
 | 2026-08-07 | `66859796` | ~97% (92–99%, medium confidence) | PR #1633 merged the macOS outgoing external-drag completion boundary: valid launches remain pending until AppKit reports a terminal result; Copy completes once as accepted; Escape cancellation completes once as unaccepted; and exact WindowId-plus-identity routing plus stale/duplicate/replacement/closed/shutdown fences remain intact. At exact head `03363f18`, local focused/all-target/strict-Clippy/docs gates and green `quality`/`windows-compile` CI passed, independent Terra specialist review ended APPROVE, and live macOS 26.5.2 arm64 Finder trials recorded one 46-byte payload for Copy and no additional payload for Escape cancellation. Platform/windowing moves from 68% to 70%; broad target coverage is `816 / 11 = 74.18%` (~74%). Linux/Windows runtime support, incoming drops, Move/Link negotiation, and broader product/renderer policy remain outside this macOS slice. |
+| 2026-08-07 | `e537a07d` | ~97% (92–99%, medium confidence) | PR #1634 merged the qualified single-line `TextInputRevision` authority prerequisite: newer revisions apply projected value/caret/selection, equal or older revisions preserve retained editing state, equal-value newer revisions apply projected selection, revision-mode changes reset explicitly, and unrevisioned inputs retain legacy synchronization. Text/focus/selection moves conservatively from 60% to 63%; broad target coverage is `819 / 11 = 74.45%` (~74%). Local focused, public API, full test, example, doctest, formatting, diff, all-target/all-feature, strict-Clippy, and documentation gates passed; GitHub `quality` (14m30s) and `windows-compile` (1m33s) passed; independent Terra exact-head APPROVE found no findings. No live native acceptance was required because this slice adds no platform behavior. IME/composition, multiline editing, native accessibility, and product/document authority policy remain. |

@@ -682,7 +682,7 @@ mod tests {
             cpu_fairness: NativeCpuFrameFairnessDiagnostics,
             cpu_observation: NativeCpuFrameObservationDiagnostics,
         },
-        Profile(FrameProfile),
+        Profile(Box<FrameProfile>),
         Message(u8),
     }
 
@@ -732,7 +732,7 @@ mod tests {
             self.events
                 .lock()
                 .expect("ordering test event log should not be poisoned")
-                .push(OrderedAuxiliaryEvent::Profile(profile));
+                .push(OrderedAuxiliaryEvent::Profile(Box::new(profile)));
         }
     }
 
@@ -842,11 +842,11 @@ mod tests {
         ));
         assert_eq!(
             events.get(1),
-            Some(&OrderedAuxiliaryEvent::Profile(FrameProfile {
+            Some(&OrderedAuxiliaryEvent::Profile(Box::new(FrameProfile {
                 window_identity: Some(9),
                 frame_sequence: Some(41),
                 ..FrameProfile::from(NativeFrameDiagnostics::default())
-            }))
+            })))
         );
     }
 

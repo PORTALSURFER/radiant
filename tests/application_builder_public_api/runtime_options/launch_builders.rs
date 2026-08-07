@@ -31,6 +31,19 @@ fn window_builder_exposes_typed_frame_rate_policy() {
 }
 
 #[test]
+fn launch_builders_expose_devtools_overlay_policy() {
+    let default = radiant::window("Default").spec("default");
+    let no_state = radiant::window("Main")
+        .devtools_overlay(DevtoolsOverlayOptions::enabled())
+        .spec("main");
+    let stateful = radiant::app(()).devtools_overlay(DevtoolsOverlayOptions::enabled());
+
+    assert!(!default.native_options().frame.devtools.is_enabled());
+    assert!(no_state.native_options().frame.devtools.is_enabled());
+    let _ = stateful;
+}
+
+#[test]
 fn launch_builders_expose_prewarmed_popup_policy() {
     let no_state = radiant::window("Popup")
         .prewarmed_popup(-32_000.0, -32_000.0)

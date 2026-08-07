@@ -217,8 +217,9 @@ where
             native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
             cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
-            cpu_frame_observation: frame_observation_enabled
-                .then(CpuFrameObservationLedger::default),
+            cpu_frame_observation: frame_diagnostics_enabled
+                .then(CpuFrameObservationLedger::default)
+                .or_else(|| frame_profile_enabled.then(CpuFrameObservationLedger::default)),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
             frame_profile_enabled,

@@ -12,7 +12,11 @@ use super::{
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::AuxiliaryWindowOwner;
 #[cfg(test)]
-use crate::runtime::NativeFrameDiagnostics;
+use crate::runtime::{
+    AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
+    RuntimeBridge,
+};
+#[cfg(not(test))]
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };

@@ -1,4 +1,5 @@
 use super::SurfaceRuntime;
+use super::declarative_owner::DeclarativeOwnerRequest;
 use super::owner::EffectOrigin;
 use crate::runtime::{Command, RuntimeBridge};
 
@@ -39,6 +40,27 @@ where
             &mut outcome,
             EffectOrigin::Auxiliary(owner),
         );
+        self.finish_command_outcome(outcome)
+    }
+
+    /// Reduce one message under an explicit private declarative owner request.
+    ///
+    /// The request is resolved against the accepted source projection and its
+    /// current live-generation ledger before the update handler runs. A
+    /// rejected scoped request returns an empty outcome and cannot register
+    /// follow-up work.
+    #[allow(dead_code)]
+    pub(crate) fn dispatch_message_from_declarative_owner(
+        &mut self,
+        message: Message,
+        request: DeclarativeOwnerRequest,
+        source_node: crate::layout::NodeId,
+    ) -> CommandOutcome {
+        let Some(origin) = self.declarative_owner_origin(request, source_node) else {
+            return CommandOutcome::default();
+        };
+        let mut outcome = CommandOutcome::default();
+        self.dispatch_message_inner_with_origin(message, &mut outcome, origin);
         self.finish_command_outcome(outcome)
     }
 

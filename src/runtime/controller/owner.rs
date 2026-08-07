@@ -1,5 +1,6 @@
 //! Shared private lifecycle state for runtime-owned effects.
 
+use super::declarative_owner::DeclarativeOwnerToken;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -88,6 +89,7 @@ impl AuxiliaryWindowOwner {
 pub(super) enum EffectOrigin {
     Application,
     Auxiliary(AuxiliaryWindowOwner),
+    Declarative(DeclarativeOwnerToken),
 }
 
 impl EffectOrigin {
@@ -95,13 +97,21 @@ impl EffectOrigin {
         match self {
             Self::Application => true,
             Self::Auxiliary(owner) => owner.is_open(),
+            Self::Declarative(owner) => owner.is_live(),
         }
     }
 
-    pub(super) fn auxiliary_owner(&self) -> Option<&AuxiliaryWindowOwner> {
+    pub(super) fn cancellation_probe(&self) -> Option<CancellationProbe> {
         match self {
             Self::Application => None,
-            Self::Auxiliary(owner) => Some(owner),
+            Self::Auxiliary(owner) => {
+                let owner = owner.clone();
+                Some(Arc::new(move || !owner.is_open()))
+            }
+            Self::Declarative(owner) => {
+                let owner = owner.clone();
+                Some(Arc::new(move || !owner.is_live()))
+            }
         }
     }
 }
@@ -111,6 +121,7 @@ impl PartialEq for EffectOrigin {
         match (self, other) {
             (Self::Application, Self::Application) => true,
             (Self::Auxiliary(first), Self::Auxiliary(second)) => first.is_same_generation(second),
+            (Self::Declarative(first), Self::Declarative(second)) => first == second,
             _ => false,
         }
     }

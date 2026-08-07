@@ -2352,21 +2352,23 @@ the work and resulting domain messages.
 The shipped application API does not expose declarative effect-owner selection.
 `UiUpdateContext`, `Command`, `RuntimeBridge`, `ViewNode`, `SurfaceNode`,
 `RuntimeUpdateSnapshot`, and the shipped effect payloads do not promise an
-overlay- or keyed-node owner field. The private controller currently carries
-only `Application` or an exact auxiliary-window generation through its existing
-worker, timer, platform-completion, and chained-command paths. Declarative
-lowering does not yet preserve overlay/keyed source provenance into that
-controller path, so no executable overlay/keyed-node cancellation is shipped.
+overlay- or keyed-node owner field. The private controller now consumes an
+explicitly selected private declarative origin from the accepted source
+projection/live-generation boundary and carries it through existing worker,
+timer, platform-completion, and chained-command paths. The shipped application
+API and declarative lowering still do not expose owner selection, and registry
+retirement and product-facing cancellation remain unshipped.
 
 The target-only contract is described in
 [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation).
 Its source context is only a set of eligible candidates: overlay and keyed-node
 candidates are independent, neither has implicit precedence, and a source
 location never selects ownership automatically. Ordinary primary-surface work
-continues to default to application ownership. A future private implementation
-may admit overlay- or keyed-node-owned work only after explicit owner selection,
-or may use the explicit application-owned/outlive choice when the work must
-survive source removal. That choice is the target detach policy: the work
+continues to default to application ownership. The private controller admits
+overlay- or keyed-node-owned work only after explicit owner selection, while a
+future product-facing integration may supply that policy or use the explicit
+application-owned/outlive choice when the work must survive source removal.
+That choice is the target detach policy: the work
 outlives the source owner but remains subject to application shutdown.
 
 That target contract also requires stable owner identity and exact generations

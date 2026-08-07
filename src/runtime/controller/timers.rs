@@ -210,6 +210,11 @@ impl<Message> TimerEffects<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        application::{IntoView, column, text},
+        gui::types::Vector2,
+        runtime::SurfaceRuntime,
+    };
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -412,6 +417,64 @@ mod tests {
         let mapped = effects.map_wake(wake.unwrap()).expect("scheduled wake");
         assert_eq!(mapped.message, 7);
         assert!(mapped.origin == origin);
+    }
+
+    #[test]
+    fn declarative_origin_is_returned_and_retired_before_timer_mapper() {
+        let mut owner_runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            |_| column([text::<()>("keyed").key("keyed")]).into_surface(),
+            |_, _| {},
+        );
+        let token = owner_runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("keyed declarative owner")
+            .token
+            .clone();
+        let origin = EffectOrigin::Declarative(token.clone());
+        let mut effects = TimerEffects::default();
+        let mut wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: None,
+                map: Box::new(|| 7),
+            },
+            origin.clone(),
+            |_, timer_wake| {
+                wake = Some(timer_wake);
+                true
+            },
+        ));
+        let mapped = effects.map_wake(wake.unwrap()).expect("live timer wake");
+        assert_eq!(mapped.message, 7);
+        assert!(mapped.origin == origin);
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_mapper = Arc::clone(&calls);
+        let mut late_wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: None,
+                map: Box::new(move || {
+                    calls_for_mapper.fetch_add(1, Ordering::SeqCst);
+                    8
+                }),
+            },
+            origin,
+            |_, timer_wake| {
+                late_wake = Some(timer_wake);
+                true
+            },
+        ));
+        assert!(owner_runtime.begin_closing());
+        assert!(!token.is_live());
+        assert!(map_message(&mut effects, late_wake.unwrap()).is_none());
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 
     #[test]

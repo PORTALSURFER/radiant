@@ -6,8 +6,29 @@ use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
 use winit::{event_loop::EventLoopProxy, window::WindowId};
 
 pub(super) struct ExternalDragLaunchContext {
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(
+            dead_code,
+            reason = "The launch context is consumed only by the macOS adapter."
+        )
+    )]
     pub(super) window_id: Option<WindowId>,
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(
+            dead_code,
+            reason = "The launch context is consumed only by the macOS adapter."
+        )
+    )]
     pub(super) event_proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(
+            dead_code,
+            reason = "The launch context is consumed only by the macOS adapter."
+        )
+    )]
     pub(super) identity: ExternalDragIdentity,
 }
 

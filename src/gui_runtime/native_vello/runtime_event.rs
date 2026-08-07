@@ -39,6 +39,10 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         kind: NativeRenderDeviceErrorKind,
         message: String,
     },
+    #[allow(
+        dead_code,
+        reason = "The macOS dragging source is the only native producer of this event."
+    )]
     ExternalDragCompleted {
         window_id: WindowId,
         identity: crate::runtime::ExternalDragIdentity,

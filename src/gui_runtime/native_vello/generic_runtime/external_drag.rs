@@ -11,11 +11,15 @@ mod platform;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum ExternalDragLaunchDisposition {
-    #[expect(
+    #[allow(
         dead_code,
-        reason = "The synchronous disposition is constructed only by the Windows adapter."
+        reason = "The completed disposition is used only by the Windows adapter."
     )]
     Completed(crate::runtime::ExternalDragOutcome),
+    #[allow(
+        dead_code,
+        reason = "The pending disposition is used only by the macOS adapter."
+    )]
     Pending,
 }
 

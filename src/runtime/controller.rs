@@ -6,6 +6,7 @@
 
 mod commands;
 mod context;
+mod declarative_owner;
 mod effects;
 mod events;
 mod focus;
@@ -54,6 +55,7 @@ use crate::{
     runtime::RuntimeLifecyclePhase,
     widgets::{WidgetId, WidgetInput},
 };
+use declarative_owner::DeclarativeOwnerProjection;
 use effects::WorkerEffects;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use owner::RuntimeOwner;
@@ -127,6 +129,7 @@ where
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
     pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
+    declarative_owner: DeclarativeOwnerProjection,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

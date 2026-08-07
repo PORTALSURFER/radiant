@@ -85,6 +85,7 @@ where
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
+            declarative_owner: Default::default(),
         };
         runtime.prepare_virtual_layout_surface(&traversal.virtual_layout_registrations);
         let traversal = if runtime.virtual_layout.is_empty() {
@@ -107,6 +108,7 @@ where
             traversal
         };
         runtime.relayout_with_traversal(traversal);
+        runtime.install_declarative_owner_projection();
         let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
         runtime
     }

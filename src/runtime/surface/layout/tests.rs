@@ -268,6 +268,7 @@ fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers()
         16.0,
     ));
     let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+        source_nodes: 0,
         widgets: 8,
         stateful_widgets: 8,
         scroll_containers: 2,
@@ -322,6 +323,7 @@ fn runtime_projection_reusing_preserves_scratch_stack_capacity() {
         16.0,
     ));
     let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+        source_nodes: 0,
         widgets: 1,
         stateful_widgets: 1,
         scroll_containers: 1,

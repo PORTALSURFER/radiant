@@ -46,6 +46,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             virtual_layout: self.virtual_layout.clone(),
             scroll_message: self.scroll_message.clone(),
             children: self.children.clone(),
+            source: self.source.clone(),
         }
     }
 }
@@ -66,6 +67,7 @@ impl<Message> Clone for SurfaceScene<Message> {
             id: self.id,
             base: self.base.clone(),
             layers: self.layers.clone(),
+            source: self.source.clone(),
         }
     }
 }
@@ -75,6 +77,7 @@ impl<Message> Clone for SurfaceFloatingLayer<Message> {
         Self {
             container: self.container.clone(),
             interactive: self.interactive,
+            source: self.source.clone(),
         }
     }
 }

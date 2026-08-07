@@ -1,3 +1,4 @@
+use super::super::source::SourceMetadata;
 use super::{SurfaceFloatingLayer, SurfaceOverlay, SurfaceScene};
 use crate::{
     gui::automation::{
@@ -11,7 +12,7 @@ use crate::{
     },
     widgets::WidgetStyle,
 };
-use std::time::Instant;
+use std::{rc::Rc, time::Instant};
 
 /// One slot-owned child attachment inside a surface container.
 pub struct SurfaceChild<Message> {
@@ -64,6 +65,7 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) scroll_message:
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
     pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
+    pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
 
 /// Runtime-internal named construction fields for a [`SurfaceContainer`].
@@ -90,6 +92,7 @@ impl<Message> SurfaceContainer<Message> {
             virtual_layout: None,
             scroll_message: None,
             children: parts.children,
+            source: None,
         }
     }
 
@@ -213,6 +216,28 @@ impl<Message> SurfaceNode<Message> {
             Self::FloatingLayer(layer) => layer.container.id = id,
         }
         self
+    }
+
+    pub(crate) fn with_source_metadata(mut self, metadata: SourceMetadata) -> Self {
+        let metadata = Rc::new(metadata);
+        match &mut self {
+            Self::Scene(scene) => scene.source = Some(Rc::clone(&metadata)),
+            Self::Container(container) => container.source = Some(Rc::clone(&metadata)),
+            Self::Widget(widget) => widget.source = Some(Rc::clone(&metadata)),
+            Self::Overlay(overlay) => overlay.source = Some(Rc::clone(&metadata)),
+            Self::FloatingLayer(layer) => layer.source = Some(Rc::clone(&metadata)),
+        }
+        self
+    }
+
+    pub(crate) fn source_metadata_handle(&self) -> Option<Rc<SourceMetadata>> {
+        match self {
+            Self::Scene(scene) => scene.source.clone(),
+            Self::Container(container) => container.source.clone(),
+            Self::Widget(widget) => widget.source.clone(),
+            Self::Overlay(overlay) => overlay.source.clone(),
+            Self::FloatingLayer(layer) => layer.source.clone(),
+        }
     }
 
     pub(in crate::runtime) fn timed_repaint_deadline(&self) -> Option<Instant> {

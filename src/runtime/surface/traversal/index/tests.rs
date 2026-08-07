@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn traversal_records_route_to_expected_buckets() {
     let mut index = SurfaceTraversalIndex::<()>::with_stats(SurfaceTraversalStats {
+        source_nodes: 0,
         widgets: 1,
         stateful_widgets: 1,
         styled_hoverable_containers: 1,

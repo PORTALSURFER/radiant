@@ -12,6 +12,7 @@ mod paint;
 mod path;
 mod projection;
 mod revision;
+mod source;
 mod state_sync;
 mod traversal;
 mod view;
@@ -27,6 +28,10 @@ pub use node::{
 };
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
+pub(crate) use source::{
+    KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
+    SourceTraversalIndex,
+};
 pub(in crate::runtime) use state_sync::WidgetStateSyncPolicy;
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,

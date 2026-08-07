@@ -4,6 +4,7 @@ use crate::application::{
     scoped_key_id,
 };
 use crate::layout::NodeId;
+use crate::runtime::LayerKind;
 use std::collections::HashSet;
 use std::{
     any::type_name,
@@ -16,6 +17,75 @@ use std::{
 pub(in crate::application) struct KeyedIdentity {
     pub(in crate::application) key_type: u64,
     pub(in crate::application) key_fingerprint: u64,
+}
+
+/// Origin of the identity attached to one declarative view node.
+///
+/// This is crate-private source evidence only.  In particular, generated and
+/// numeric identities remain observational and cannot become keyed-node
+/// candidates merely because they reach runtime lowering.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum DeclarativeIdentityOrigin {
+    GeneratedStructural,
+    ExplicitNumericId,
+    ExplicitContinuityKey,
+    InferredKeyedIdentity,
+    UnreidentifiedDirectRuntimeRoot,
+}
+
+impl DeclarativeIdentityOrigin {
+    pub(crate) const fn is_keyed(self) -> bool {
+        matches!(
+            self,
+            Self::ExplicitContinuityKey | Self::InferredKeyedIdentity
+        )
+    }
+}
+
+/// Identity evidence captured before a declarative node is lowered.
+///
+/// `structural_scope` is always the deterministic, unprobed structural
+/// candidate.  `resolved_id` is the id used by the current lowered surface;
+/// generated keyed candidates use the structural candidate until the id
+/// generator has supplied the final (possibly probed) id.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct SourceIdentitySeed {
+    pub(crate) resolved_id: NodeId,
+    pub(crate) structural_scope: NodeId,
+    pub(crate) origin: DeclarativeIdentityOrigin,
+}
+
+/// One stable identity for a declarative overlay declaration.
+///
+/// The layer kind deliberately lives beside this identity rather than being
+/// folded into it, so identity and compatibility evidence remain distinct.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct DeclarativeOverlaySource {
+    pub(crate) identity_scope: NodeId,
+    pub(crate) layer_kind: LayerKind,
+}
+
+/// Source ancestry retained while the application tree is being lowered.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct DeclarativeSourceContext {
+    pub(crate) keyed_nodes: Vec<SourceIdentitySeed>,
+    pub(crate) overlays: Vec<DeclarativeOverlaySource>,
+}
+
+impl DeclarativeSourceContext {
+    pub(crate) fn with_node(&self, seed: SourceIdentitySeed) -> Self {
+        let mut next = self.clone();
+        if seed.origin.is_keyed() {
+            next.keyed_nodes.push(seed);
+        }
+        next
+    }
+
+    pub(crate) fn with_overlay(&self, overlay: DeclarativeOverlaySource) -> Self {
+        let mut next = self.clone();
+        next.overlays.push(overlay);
+        next
+    }
 }
 
 impl KeyedIdentity {
@@ -514,7 +584,25 @@ impl<Message> ViewNode<Message> {
         })
     }
 
-    fn child_scope(&self, parent_scope: u64, role: StructuralRole) -> u64 {
+    pub(crate) fn source_identity_origin(&self) -> DeclarativeIdentityOrigin {
+        if self.id.is_some() {
+            DeclarativeIdentityOrigin::ExplicitNumericId
+        } else if self.key.is_some() {
+            DeclarativeIdentityOrigin::ExplicitContinuityKey
+        } else if self.keyed_identity.is_some() {
+            DeclarativeIdentityOrigin::InferredKeyedIdentity
+        } else if matches!(self.kind, ViewNodeKind::Runtime(_)) {
+            DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot
+        } else {
+            DeclarativeIdentityOrigin::GeneratedStructural
+        }
+    }
+
+    pub(in crate::application) fn unprobed_structural_scope(
+        &self,
+        parent_scope: u64,
+        role: StructuralRole,
+    ) -> NodeId {
         self.resolved_id(parent_scope)
             .or_else(|| {
                 self.keyed_identity.map(|identity| {
@@ -527,6 +615,31 @@ impl<Message> ViewNode<Message> {
                 })
             })
             .unwrap_or_else(|| structural_id(parent_scope, self.structural_kind(), role))
+    }
+
+    pub(in crate::application) fn source_identity_seed(
+        &self,
+        parent_scope: u64,
+        role: StructuralRole,
+    ) -> SourceIdentitySeed {
+        let origin = self.source_identity_origin();
+        let structural_scope = self.unprobed_structural_scope(parent_scope, role);
+        let resolved_id = match (&self.kind, origin) {
+            (
+                ViewNodeKind::Runtime(node),
+                DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot,
+            ) => node.id(),
+            _ => self.resolved_id(parent_scope).unwrap_or(structural_scope),
+        };
+        SourceIdentitySeed {
+            resolved_id,
+            structural_scope,
+            origin,
+        }
+    }
+
+    fn child_scope(&self, parent_scope: u64, role: StructuralRole) -> u64 {
+        self.unprobed_structural_scope(parent_scope, role)
     }
 
     pub(super) fn structural_kind(&self) -> StructuralKind {

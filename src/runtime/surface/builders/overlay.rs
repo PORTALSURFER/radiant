@@ -24,6 +24,7 @@ impl<Message> SurfaceNode<Message> {
             rect,
             label: Some(label.into()),
             style,
+            source: None,
         })
     }
 
@@ -34,6 +35,7 @@ impl<Message> SurfaceNode<Message> {
             rect,
             label: None,
             style,
+            source: None,
         })
     }
 
@@ -83,6 +85,7 @@ impl<Message> SurfaceNode<Message> {
                 vec![SurfaceChild::new(SlotParams::fill(), child)],
             ),
             interactive,
+            source: None,
         })
     }
 }

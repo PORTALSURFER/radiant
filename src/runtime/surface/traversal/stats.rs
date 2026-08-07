@@ -2,6 +2,7 @@ use crate::{layout::ContainerKind, runtime::SurfaceNode};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(in crate::runtime) struct SurfaceTraversalStats {
+    pub(in crate::runtime) source_nodes: usize,
     pub(in crate::runtime) widgets: usize,
     pub(in crate::runtime) stateful_widgets: usize,
     pub(in crate::runtime) scroll_containers: usize,
@@ -24,6 +25,7 @@ impl<Message> SurfaceNode<Message> {
         scroll_depth: usize,
         stats: &mut SurfaceTraversalStats,
     ) {
+        stats.source_nodes += 1;
         stats.max_depth = stats.max_depth.max(depth);
         stats.max_scroll_depth = stats.max_scroll_depth.max(scroll_depth);
         match self {

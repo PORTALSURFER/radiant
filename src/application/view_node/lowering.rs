@@ -1,14 +1,17 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{
-        IdGenerator, IntoView, ROOT_KEY_SCOPE, ViewProjection, WidgetViewContext,
-        ids::StructuralRole, launch::SceneProjection,
+        DeclarativeSourceContext, IdGenerator, IntoView, ROOT_KEY_SCOPE, SourceIdentitySeed,
+        ViewProjection, WidgetViewContext, ids::StructuralRole, launch::SceneProjection,
         view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
-    layout::{ContainerKind, ContainerPolicy, VirtualizationAxis, VirtualizationPolicy},
-    runtime::{SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
+    layout::{ContainerKind, ContainerPolicy, NodeId, VirtualizationAxis, VirtualizationPolicy},
+    runtime::{
+        KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
+        SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
+    },
 };
-use std::panic::panic_any;
+use std::{collections::HashMap, panic::panic_any, rc::Rc};
 
 #[path = "lowering/children.rs"]
 mod children;
@@ -55,11 +58,45 @@ where
 pub(super) struct ViewLowering<'a, Message> {
     ids: &'a mut IdGenerator,
     scene: &'a mut SceneProjection<Message>,
+    source_context: DeclarativeSourceContext,
+    keyed_candidates: HashMap<NodeId, Rc<KeyedNodeEvidence>>,
 }
 
 impl<'a, Message: 'static> ViewLowering<'a, Message> {
     pub(super) fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
-        Self { ids, scene }
+        Self {
+            ids,
+            scene,
+            source_context: DeclarativeSourceContext::default(),
+            keyed_candidates: HashMap::new(),
+        }
+    }
+
+    fn keyed_candidate(&mut self, seed: SourceIdentitySeed) -> Rc<KeyedNodeEvidence> {
+        if let Some(candidate) = self.keyed_candidates.get(&seed.structural_scope) {
+            return Rc::clone(candidate);
+        }
+        let candidate = Rc::new(KeyedNodeEvidence::new(seed));
+        self.keyed_candidates
+            .insert(seed.structural_scope, Rc::clone(&candidate));
+        candidate
+    }
+
+    fn source_topology(&mut self, context: &DeclarativeSourceContext) -> SourceTopology {
+        SourceTopology::from_context(context, |seed| self.keyed_candidate(seed))
+    }
+
+    fn lower_node_with_context(
+        &mut self,
+        node: ViewNode<Message>,
+        scope: u64,
+        role: StructuralRole,
+        context: DeclarativeSourceContext,
+    ) -> SurfaceNode<Message> {
+        let previous_context = std::mem::replace(&mut self.source_context, context);
+        let lowered = self.lower_node(node, scope, role);
+        self.source_context = previous_context;
+        lowered
     }
 
     fn next_node_identity(
@@ -70,7 +107,10 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
     ) -> crate::application::ids::StructuralIdentity {
         if let Some(id) = node.resolved_id(scope) {
             self.ids.claim_explicit(id);
-            return crate::application::ids::StructuralIdentity { id, scope: id };
+            return crate::application::ids::StructuralIdentity {
+                id,
+                scope: node.unprobed_structural_scope(scope, role),
+            };
         }
         if let Some(keyed) = node.keyed_identity {
             return self.ids.next_keyed_structural(
@@ -93,6 +133,30 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let identity = self.next_node_identity(&node, scope, role);
         let id = identity.id;
         let child_scope = identity.scope;
+        let source_seed = node.source_identity_seed(scope, role);
+        let source_origin = source_seed.origin;
+        let source_seed = SourceIdentitySeed {
+            resolved_id: match source_origin {
+                crate::application::DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot => {
+                    source_seed.resolved_id
+                }
+                _ => identity.id,
+            },
+            ..source_seed
+        };
+        let source_identity = SourceIdentity {
+            resolved_id: source_seed.resolved_id,
+            structural_scope: source_seed.structural_scope,
+            origin: source_origin,
+        };
+        let node_context = self.source_context.with_node(source_seed);
+        let current_keyed_candidate = source_origin.is_keyed().then(|| {
+            let candidate = self.keyed_candidate(source_seed);
+            candidate.set_identity(source_identity);
+            candidate
+        });
+        let source_topology = self.source_topology(&node_context);
+        let previous_context = std::mem::replace(&mut self.source_context, node_context);
         let reidentify_runtime_root = node.id.is_some() || node.key.is_some();
         let style = node.style;
         let hoverable = node.hoverable;
@@ -115,27 +179,44 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let lowered = match node.kind {
             ViewNodeKind::Scene {
                 base,
-                layers,
+                mut layers,
                 presentation,
                 shortcuts,
             } => {
                 self.scene.capture(presentation, shortcuts);
                 let mut base = *base;
                 let mut collected_layers = Vec::new();
-                base.drain_overlay_layers_in_declaration_order(&mut collected_layers);
-                collected_layers.extend(layers);
+                base.drain_overlay_layers_in_declaration_order(
+                    child_scope,
+                    StructuralRole::SceneBase,
+                    &self.source_context,
+                    &mut collected_layers,
+                );
+                ViewNode::drain_layer_list_in_declaration_order(
+                    &mut layers,
+                    child_scope,
+                    &self.source_context,
+                    &mut collected_layers,
+                );
                 let base = self.lower_node(base, child_scope, StructuralRole::SceneBase);
                 let layers = collected_layers
                     .into_iter()
                     .enumerate()
                     .map(|(index, layer)| {
+                        let layer_context = layer.source_context.clone();
                         let input = layer.input.map(|input| {
-                            self.lower_node(input, child_scope, StructuralRole::SceneInput(index))
+                            self.lower_node_with_context(
+                                input,
+                                child_scope,
+                                StructuralRole::SceneInput(index),
+                                layer_context.clone(),
+                            )
                         });
-                        let foreground = self.lower_node(
+                        let foreground = self.lower_node_with_context(
                             layer.view,
                             child_scope,
                             StructuralRole::SceneLayer(index),
+                            layer_context,
                         );
                         SurfaceLayer::with_input(layer.kind, input, foreground)
                     })
@@ -234,15 +315,24 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 )
             }
         };
-        let lowered = if accepts_native_file_drop {
+        let mut lowered = if accepts_native_file_drop {
             lowered.accepting_native_file_drop()
         } else {
             lowered
         };
         if let Some(mapper) = native_file_drop {
-            lowered.with_native_file_drop_mapper(mapper)
-        } else {
-            lowered
+            lowered = lowered.with_native_file_drop_mapper(mapper);
         }
+        let compatibility = SourceCompatibility::from_surface_node(&lowered);
+        if let Some(candidate) = current_keyed_candidate {
+            candidate.set_compatibility(compatibility);
+        }
+        let lowered = lowered.with_source_metadata(SourceMetadata::new(
+            source_identity,
+            compatibility,
+            source_topology,
+        ));
+        self.source_context = previous_context;
+        lowered
     }
 }

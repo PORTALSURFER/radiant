@@ -7,8 +7,8 @@ use crate::{
     runtime::{SurfaceNode, UiSurface},
     widgets::{
         EditEvent, EditPhase, InteractionProvenance, KnobEditBatch, KnobMessage,
-        KnobPointerMetadata, PointerButton, PointerModifiers, Widget, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSizing,
+        KnobPointerMetadata, PointerButton, PointerModifiers, ValueFormat, Widget, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::fmt::Debug;
@@ -19,6 +19,23 @@ fn bounds() -> Rect {
 
 fn retained_knob(id: u64, value: f32) -> RetainedKnobWidget {
     RetainedKnobWidget::new(KnobWidget::new(id, value).with_sensitivity(0.01))
+}
+
+#[test]
+fn retained_knob_formats_automation_text_and_keeps_fallback_text() {
+    let mut knob = retained_knob(14, 0.5).with_value_format(Some(ValueFormat::frequency()));
+
+    assert_eq!(knob.knob.state.value, 0.5);
+    assert_eq!(
+        knob.automation_semantics().value_text.as_deref(),
+        Some("0.50 Hz")
+    );
+
+    knob.knob.state.value = f32::NAN;
+    assert_eq!(
+        knob.automation_semantics().value_text.as_deref(),
+        Some("NaN")
+    );
 }
 
 fn pointer_provenance(

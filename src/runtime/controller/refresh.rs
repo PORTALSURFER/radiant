@@ -1777,6 +1777,7 @@ where
                     &mut probe,
                     &mut self.scratch.projection_scroll_stack,
                     &mut self.scratch.projection_child_path,
+                    &mut self.scratch.projection_source,
                 );
                 traversal = probe;
             } else {
@@ -1794,6 +1795,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
         }
         let mut runtime_projection = runtime_projection_started.elapsed();
@@ -1842,6 +1844,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
             runtime_projection =
                 runtime_projection.saturating_add(post_cache_projection_started.elapsed());
@@ -1893,6 +1896,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
             runtime_projection =
                 runtime_projection.saturating_add(final_projection_started.elapsed());

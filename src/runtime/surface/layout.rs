@@ -46,13 +46,13 @@ impl<Message> UiSurface<Message> {
         traversal: &mut SurfaceTraversalIndex<Message>,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
+        source: &mut SourceTraversalIndex,
     ) -> LayoutNode {
-        let mut source = SourceTraversalIndex::default();
         self.runtime_projection_reusing_with_scratch_and_source(
             traversal,
             scroll_stack,
             child_path,
-            &mut source,
+            source,
         )
     }
 

@@ -1,9 +1,10 @@
 use crate::{
+    application::{IntoView, column, for_each_by, text},
     gui::types::{Point, Rect},
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
     runtime::{
         LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface, WidgetMessageMapper,
-        surface::{SurfaceTraversalIndex, SurfaceTraversalStats, WidgetPath},
+        surface::{SourceTraversalIndex, SurfaceTraversalIndex, SurfaceTraversalStats, WidgetPath},
     },
     widgets::{ButtonWidget, WidgetSizing},
 };
@@ -287,10 +288,12 @@ fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers()
 
     let mut scroll_stack = Vec::new();
     let mut child_path = Vec::new();
+    let mut source = SourceTraversalIndex::default();
     let layout_root = surface.runtime_projection_reusing_with_scratch(
         &mut traversal,
         &mut scroll_stack,
         &mut child_path,
+        &mut source,
     );
 
     assert_eq!(layout_root.id(), 1);
@@ -301,6 +304,70 @@ fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers()
     assert!(!traversal.widget_paths.contains_key(&999));
     assert!(traversal.widget_paint_order.capacity() >= widget_order_capacity);
     assert!(traversal.widget_paths.capacity() >= widget_path_capacity);
+}
+
+#[test]
+fn runtime_projection_reusing_clears_source_records_and_retains_owner_capacity() {
+    let surface = column(for_each_by(
+        [1_u32, 2, 3],
+        |item| *item,
+        |item| text::<()>(format!("item-{item}")),
+    ))
+    .into_surface();
+    let stats = surface.root.runtime_traversal_stats();
+    let mut traversal = SurfaceTraversalIndex::with_stats(stats);
+    let mut source = SourceTraversalIndex::with_stats(stats);
+    let mut scroll_stack = Vec::new();
+    let mut child_path = Vec::new();
+
+    surface.runtime_projection_reusing_with_scratch(
+        &mut traversal,
+        &mut scroll_stack,
+        &mut child_path,
+        &mut source,
+    );
+    let first_count = source.records.len();
+    let first_capacity = source.capacity();
+    let first_node_ids = source
+        .records
+        .iter()
+        .map(|record| record.node_id)
+        .collect::<Vec<_>>();
+    let first_metadata_count = source
+        .records
+        .iter()
+        .filter(|record| record.metadata.is_some())
+        .count();
+    assert_eq!(first_count, stats.source_nodes);
+    assert!(first_metadata_count > 0);
+
+    source.records.push(source.records[0].clone());
+
+    surface.runtime_projection_reusing_with_scratch(
+        &mut traversal,
+        &mut scroll_stack,
+        &mut child_path,
+        &mut source,
+    );
+
+    assert_eq!(source.records.len(), first_count);
+    assert_eq!(
+        source
+            .records
+            .iter()
+            .map(|record| record.node_id)
+            .collect::<Vec<_>>(),
+        first_node_ids
+    );
+    assert_eq!(
+        source
+            .records
+            .iter()
+            .filter(|record| record.metadata.is_some())
+            .count(),
+        first_metadata_count
+    );
+    assert!(source.capacity() >= first_capacity);
 }
 
 #[test]
@@ -334,6 +401,7 @@ fn runtime_projection_reusing_preserves_scratch_stack_capacity() {
     });
     let mut scroll_stack = Vec::with_capacity(8);
     let mut child_path = Vec::with_capacity(8);
+    let mut source = SourceTraversalIndex::default();
     let scroll_capacity = scroll_stack.capacity();
     let path_capacity = child_path.capacity();
 
@@ -341,6 +409,7 @@ fn runtime_projection_reusing_preserves_scratch_stack_capacity() {
         &mut traversal,
         &mut scroll_stack,
         &mut child_path,
+        &mut source,
     );
 
     assert_eq!(layout_root.id(), 1);

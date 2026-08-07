@@ -4,7 +4,8 @@ use crate::{
         EmbeddedFont, FrameRate, NativePopupOptions, NativeRunOptions, ProfilingOptions, WindowSpec,
     },
     runtime::{
-        Command, RuntimeBridge, declarative_owned_command_runtime_bridge, run_native_vello_runtime,
+        Command, DevtoolsOverlayOptions, RuntimeBridge, declarative_owned_command_runtime_bridge,
+        run_native_vello_runtime,
     },
 };
 
@@ -46,6 +47,12 @@ impl WindowBuilder {
     /// Configure fixed-cost native frame profiling for this window.
     pub fn profiling(mut self, profiling: ProfilingOptions) -> Self {
         self.options.frame.profiling = profiling;
+        self
+    }
+
+    /// Configure the runtime-local devtools inspector overlay for this window.
+    pub fn devtools_overlay(mut self, options: DevtoolsOverlayOptions) -> Self {
+        self.options.frame.devtools = options;
         self
     }
 
@@ -145,5 +152,26 @@ impl WindowBuilder {
         Message: 'static,
     {
         crate::runtime::run_native_vello_runtime_with_artifacts(self.options, bridge)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn devtools_overlay_builder_preserves_default_and_enabled_option() {
+        let default = WindowBuilder::new("Main");
+        assert_eq!(
+            default.options.frame.devtools,
+            DevtoolsOverlayOptions::disabled()
+        );
+
+        let enabled =
+            WindowBuilder::new("Main").devtools_overlay(DevtoolsOverlayOptions::enabled());
+        assert_eq!(
+            enabled.options.frame.devtools,
+            DevtoolsOverlayOptions::enabled()
+        );
     }
 }

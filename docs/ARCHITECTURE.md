@@ -391,6 +391,12 @@ Current target-specific seams are intentionally narrow:
   harness for the public Off/Frame profile contract. Its non-macOS checked
   fallback keeps the registered example buildable without claiming native
   acceptance on other platforms.
+- `examples/macos_devtools_acceptance.rs` is a macOS-only native acceptance
+  harness for the existing runtime-local devtools overlay through the primary
+  application builder. Its non-macOS checked fallback keeps the registered
+  example buildable without claiming native overlay acceptance on other
+  platforms. The inspector remains observational and uses normal hit testing
+  and focus; the runtime overlay does not own interaction.
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.

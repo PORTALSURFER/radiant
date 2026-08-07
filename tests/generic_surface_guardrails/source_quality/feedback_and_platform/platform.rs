@@ -3,6 +3,7 @@ use crate::rust_sources_under;
 use std::collections::BTreeSet;
 
 const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
+    "examples/macos_devtools_acceptance.rs",
     "examples/macos_frame_profile_acceptance.rs",
     "examples/popup_window/host/child.rs",
     "examples/popup_window/host/prewarm.rs",

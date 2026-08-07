@@ -1721,9 +1721,11 @@ surface is visible so first activation cannot delay the visual reveal. Direct
 non-positive geometry into the platform window layer.
 Use `NativeRunOptions::default().devtools_overlay_enabled(true)` or
 `.devtools_overlay(DevtoolsOverlayOptions::enabled())` to opt into Radiant's
-runtime-local devtools overlay for native inspector builds. The overlay is
-disabled by default and paints as runtime overlay content, so ordinary apps do
-not pay for inspector presentation unless they enable it.
+runtime-local devtools overlay for native inspector builds. The primary-window
+`WindowBuilder` and `StatefulAppBuilder` expose the same option through their
+`.devtools_overlay(...)` methods. The overlay is disabled by default and paints
+as runtime overlay content, so ordinary apps do not pay for inspector
+presentation unless they enable it.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.on_startup(...)`,
@@ -2515,9 +2517,10 @@ Radiant's built-in overlay.
 Native inspector builds can enable a lightweight runtime overlay with
 `NativeRunOptions::default().devtools_overlay_enabled(true)` or configure it
 directly with `DevtoolsOverlayOptions`; this reuses the same snapshot data and
-stays disabled by default. The overlay paints a compact surface tree,
-selected-node detail panel, and runtime summary from backend-neutral paint
-primitives.
+stays disabled by default. The inspector is observational: it uses the
+existing normal hit-testing and focus state without taking focus or intercepting
+input. The overlay paints a compact surface tree, selected-node detail panel,
+and runtime summary from backend-neutral paint primitives.
 
 ## Layout
 
@@ -3569,6 +3572,44 @@ This is live native macOS presentation evidence only. It does not claim Linux
 or Windows support, runtime profiling-mode switching, GPU timestamp queries,
 or a target-alignment percentage update.
 
+### macOS live devtools acceptance
+
+`macos_devtools_acceptance` is the checked public-API harness for the existing
+runtime-local devtools overlay. It enables the overlay through
+`radiant::app(...).devtools_overlay(DevtoolsOverlayOptions::enabled())`, uses
+ordinary buttons, a toggle, and one text input, and is explicitly macOS-only.
+The non-macOS checked target returns an explicit unsupported error; it does not
+claim native overlay acceptance on other platforms.
+
+The inspector is observational and uses the app's normal hit testing and focus
+paths; it does not take focus or block interaction.
+
+The harness keeps only fixed-size application state: a bounded action counter,
+one input string capped at 64 Unicode characters, one toggle value, and one
+last-action string. It performs no file I/O or unbounded logging. Build and
+stage it as a normal macOS app:
+
+```bash
+cargo build --example macos_devtools_acceptance
+export RADIANT_DEV_APP_NAME=RadiantDevtoolsAcceptance
+export RADIANT_DEV_APP_BINARY="$PWD/target/debug/examples/macos_devtools_acceptance"
+scripts/dev_app_bundle.sh
+```
+
+For a direct checked-example smoke run without the `.app` wrapper, use
+`cargo run --example macos_devtools_acceptance`.
+
+With the overlay visible at startup, move the pointer across both buttons, the
+toggle, and the text input. The selected tree row, hover state, selected-node
+metadata, and highlighted bounds should follow normal hit testing. Click and
+edit the text input, then use Tab/Shift-Tab to traverse focusable controls;
+focus state should change without the overlay taking focus or blocking
+interaction. Resize the primary window with a control selected and confirm the
+selected bounds and tree geometry update while the controls remain usable.
+This is live native macOS presentation evidence only; Linux and Windows
+portable compilation is guarded, and native runtime acceptance remains
+deferred.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile
@@ -3590,8 +3631,8 @@ manual validation:
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
-| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance` |
-| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance` |
+| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

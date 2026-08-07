@@ -3,6 +3,7 @@ use crate::{
     application::AppBridgeLifecycle,
     application::launch::IntoView,
     gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions, ProfilingOptions},
+    runtime::DevtoolsOverlayOptions,
 };
 use std::{cell::RefCell, rc::Rc};
 use std::{marker::PhantomData, path::PathBuf};
@@ -52,6 +53,12 @@ impl<State> StatefulAppBuilder<State> {
     /// Configure fixed-cost native frame profiling for this app window.
     pub fn profiling(mut self, profiling: ProfilingOptions) -> Self {
         self.options.frame.profiling = profiling;
+        self
+    }
+
+    /// Configure the runtime-local devtools inspector overlay for this app window.
+    pub fn devtools_overlay(mut self, options: DevtoolsOverlayOptions) -> Self {
+        self.options.frame.devtools = options;
         self
     }
 
@@ -159,6 +166,22 @@ mod tests {
         theme::DpiScale,
     };
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn devtools_overlay_builder_preserves_default_and_enabled_option() {
+        let default = StatefulAppBuilder::new(());
+        assert_eq!(
+            default.options.frame.devtools,
+            DevtoolsOverlayOptions::disabled()
+        );
+
+        let enabled =
+            StatefulAppBuilder::new(()).devtools_overlay(DevtoolsOverlayOptions::enabled());
+        assert_eq!(
+            enabled.options.frame.devtools,
+            DevtoolsOverlayOptions::enabled()
+        );
+    }
 
     #[test]
     fn context_aware_projection_receives_updated_window_environment() {

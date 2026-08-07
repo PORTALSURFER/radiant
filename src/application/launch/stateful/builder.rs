@@ -2,7 +2,7 @@ use super::with_view::StatefulAppWithView;
 use crate::{
     application::AppBridgeLifecycle,
     application::launch::IntoView,
-    gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions},
+    gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions, ProfilingOptions},
 };
 use std::{cell::RefCell, rc::Rc};
 use std::{marker::PhantomData, path::PathBuf};
@@ -46,6 +46,12 @@ impl<State> StatefulAppBuilder<State> {
     /// Set the minimum logical window size using floating-point logical pixels.
     pub fn min_logical_size(mut self, width: f32, height: f32) -> Self {
         self.options.window.geometry.min_inner_size = Some([width, height]);
+        self
+    }
+
+    /// Configure fixed-cost native frame profiling for this app window.
+    pub fn profiling(mut self, profiling: ProfilingOptions) -> Self {
+        self.options.frame.profiling = profiling;
         self
     }
 

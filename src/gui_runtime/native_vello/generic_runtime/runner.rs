@@ -39,7 +39,7 @@ use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{
-        NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
+        FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
         NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
         RuntimeAnimationActivity, RuntimeBridge,
     },
@@ -73,6 +73,8 @@ where
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
     pub(super) frame_diagnostics_enabled: bool,
+    pub(super) frame_profile_enabled: bool,
+    pub(super) frame_observation_enabled: bool,
     pub(super) frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
@@ -197,6 +199,9 @@ where
             devtools_overlay,
         );
         let frame_diagnostics_enabled = core.has_frame_diagnostics_observer();
+        let frame_profile_enabled =
+            options.frame.profiling.is_frame() && core.has_frame_profile_observer();
+        let frame_observation_enabled = frame_diagnostics_enabled || frame_profile_enabled;
         Self {
             options,
             core,
@@ -213,9 +218,12 @@ where
             frame_scheduler: NativeFrameScheduler::default(),
             cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
             cpu_frame_observation: frame_diagnostics_enabled
-                .then(CpuFrameObservationLedger::default),
+                .then(CpuFrameObservationLedger::default)
+                .or_else(|| frame_profile_enabled.then(CpuFrameObservationLedger::default)),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
+            frame_profile_enabled,
+            frame_observation_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
@@ -239,14 +247,14 @@ where
     }
 
     pub(super) fn require_primary_frame_diagnostics_schedule_admission(&mut self) {
-        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+        if self.frame_observation_enabled && !self.auxiliary_owner {
             self.frame_diagnostics_publication
                 .require_schedule_admission();
         }
     }
 
     pub(super) fn stage_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
-        if !self.frame_diagnostics_enabled {
+        if !self.frame_observation_enabled {
             return;
         }
         if self.auxiliary_owner {
@@ -262,7 +270,7 @@ where
     }
 
     pub(super) fn publish_staged_frame_diagnostics(&mut self) {
-        if !self.frame_diagnostics_enabled {
+        if !self.frame_observation_enabled {
             return;
         }
         if let Some(mut diagnostics) = self.frame_diagnostics_publication.take_ready() {
@@ -278,9 +286,16 @@ where
                 .map_or_else(NativeCpuFrameObservationDiagnostics::default, |ledger| {
                     ledger.project_frame_diagnostics(&FrameScheduleKey::Primary)
                 });
-            self.core
-                .runtime
-                .host_observe_frame_diagnostics(diagnostics);
+            if self.frame_diagnostics_enabled {
+                self.core
+                    .runtime
+                    .host_observe_frame_diagnostics(diagnostics);
+            }
+            if self.frame_profile_enabled {
+                self.core
+                    .runtime
+                    .host_observe_frame_profile(FrameProfile::from(diagnostics));
+            }
         }
     }
 
@@ -296,7 +311,7 @@ where
             ledger.mark_admitted(&key);
         }
         self.frame_scheduler.record_admission(key);
-        if self.frame_diagnostics_enabled && !self.auxiliary_owner && is_primary {
+        if self.frame_observation_enabled && !self.auxiliary_owner && is_primary {
             self.frame_diagnostics_publication
                 .mark_schedule_admission_recorded();
         }
@@ -358,7 +373,7 @@ where
             return;
         };
         ledger.finish(admission, capture, redraw_failed);
-        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+        if self.frame_observation_enabled && !self.auxiliary_owner {
             self.frame_diagnostics_publication
                 .mark_observation_finalized();
         }
@@ -372,7 +387,7 @@ where
     ) {
         let capture = std::mem::take(&mut self.cpu_frame_observation_capture);
         owner.finish(admission, capture, redraw_failed);
-        if self.frame_diagnostics_enabled && !self.auxiliary_owner {
+        if self.frame_observation_enabled && !self.auxiliary_owner {
             self.frame_diagnostics_publication
                 .mark_observation_finalized();
         }
@@ -1097,7 +1112,7 @@ where
     }
 
     pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
-        if !self.frame_diagnostics_enabled {
+        if !self.frame_observation_enabled {
             return;
         }
         self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
@@ -1105,13 +1120,13 @@ where
 
     pub(super) fn record_native_interactive_arrival(&mut self, arrived_at: Instant) {
         self.timing.record_native_interactive_arrival_if_enabled(
-            self.frame_diagnostics_enabled,
+            self.frame_observation_enabled,
             arrived_at,
         );
     }
 
     pub(super) fn take_pending_frame_work(&mut self) -> FrameWork {
-        if !self.frame_diagnostics_enabled {
+        if !self.frame_observation_enabled {
             return FrameWork::None;
         }
         let frame_work = self.timing.pending_frame_work;
@@ -1827,10 +1842,11 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            NativeCpuFrameCompletionOutcome, NativeCpuFrameFairnessDiagnostics,
+            FrameProfile, NativeCpuFrameCompletionOutcome, NativeCpuFrameFairnessDiagnostics,
             NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
-            NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeAnimationActivity,
-            RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
+            NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, ProfilingOptions,
+            RuntimeAnimationActivity, RuntimeBridge, RuntimeFrameDiagnosticsHost,
+            RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
         },
     };
     use std::{
@@ -1868,6 +1884,31 @@ mod tests {
                 .lock()
                 .expect("publication test events should not be poisoned")
                 .push(diagnostics);
+        }
+    }
+
+    type PublishedFrameProfiles = Arc<Mutex<Vec<FrameProfile>>>;
+
+    struct RecordingFrameProfileBridge {
+        published: PublishedFrameProfiles,
+    }
+
+    impl RuntimeBridge<()> for RecordingFrameProfileBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_frame_profile()
+        }
+    }
+
+    impl RuntimeFrameProfileHost for RecordingFrameProfileBridge {
+        fn observe_frame_profile(&mut self, profile: FrameProfile) {
+            self.published
+                .lock()
+                .expect("profile publication test events should not be poisoned")
+                .push(profile);
         }
     }
 
@@ -1991,6 +2032,85 @@ mod tests {
         assert!(!runner.frame_diagnostics_enabled);
         assert!(runner.cpu_frame_observation.is_none());
         assert_eq!(runner.frame_diagnostics_publication.take(), None);
+    }
+
+    #[test]
+    fn profiling_off_suppresses_profile_publication() {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            RecordingFrameProfileBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+
+        runner.stage_frame_diagnostics(staged_diagnostics());
+        runner
+            .frame_diagnostics_publication
+            .mark_observation_finalized();
+        runner.publish_staged_frame_diagnostics();
+
+        assert!(!runner.frame_profile_enabled);
+        assert!(!runner.frame_observation_enabled);
+        assert!(
+            published
+                .lock()
+                .expect("profile publication test events should not be poisoned")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn frame_profiling_delivers_successful_present_profiles_even_without_sequence() {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut options = NativeRunOptions::default();
+        options.frame.profiling = ProfilingOptions::frame();
+        let mut runner = GenericNativeVelloRunner::new(
+            options,
+            RecordingFrameProfileBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        let diagnostics = staged_diagnostics();
+
+        runner.stage_frame_diagnostics(diagnostics);
+        runner
+            .frame_diagnostics_publication
+            .mark_observation_finalized();
+        runner.publish_staged_frame_diagnostics();
+
+        assert!(runner.frame_profile_enabled);
+        assert_eq!(
+            *published
+                .lock()
+                .expect("profile publication test events should not be poisoned"),
+            vec![FrameProfile::from(diagnostics)]
+        );
+
+        let mut runner = GenericNativeVelloRunner::new(
+            {
+                let mut options = NativeRunOptions::default();
+                options.frame.profiling = ProfilingOptions::frame();
+                options
+            },
+            RecordingFrameProfileBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        runner.stage_frame_diagnostics(NativeFrameDiagnostics::default());
+        runner
+            .frame_diagnostics_publication
+            .mark_observation_finalized();
+        runner.publish_staged_frame_diagnostics();
+
+        let published = published
+            .lock()
+            .expect("profile publication test events should not be poisoned");
+        assert_eq!(published.len(), 2);
+        assert_eq!(published[1].frame_sequence, None);
     }
 
     #[test]

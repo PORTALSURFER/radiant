@@ -5,19 +5,31 @@ use crate::runtime::{
 };
 use std::sync::Arc;
 
+#[derive(Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct AuxiliaryFrameDiagnostics {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) diagnostics: NativeFrameDiagnostics,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) profile_enabled: bool,
+}
+
 pub(super) struct AuxiliarySurfaceBridge<Message> {
     pub(super) surface: Arc<UiSurface<Message>>,
     outbox: Vec<Message>,
-    frame_diagnostics_enabled: bool,
+    frame_observation_enabled: bool,
+    frame_profile_enabled: bool,
     frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
 }
 
 impl<Message> AuxiliarySurfaceBridge<Message> {
-    pub(super) fn new(surface: Arc<UiSurface<Message>>, frame_diagnostics_enabled: bool) -> Self {
+    pub(super) fn new(
+        surface: Arc<UiSurface<Message>>,
+        frame_diagnostics_enabled: bool,
+        frame_profile_enabled: bool,
+    ) -> Self {
         Self {
             surface,
             outbox: Vec::new(),
-            frame_diagnostics_enabled,
+            frame_observation_enabled: frame_diagnostics_enabled || frame_profile_enabled,
+            frame_profile_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
         }
     }
@@ -27,32 +39,42 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
     }
 
     pub(super) fn require_schedule_admission(&mut self) {
-        if self.frame_diagnostics_enabled {
+        if self.frame_observation_enabled {
             self.frame_diagnostics_publication
                 .require_schedule_admission();
         }
     }
 
     pub(super) fn mark_observation_finalized(&mut self) {
-        if self.frame_diagnostics_enabled {
+        if self.frame_observation_enabled {
             self.frame_diagnostics_publication
                 .mark_observation_finalized();
         }
     }
 
     pub(super) fn mark_schedule_admission_recorded(&mut self) {
-        if self.frame_diagnostics_enabled {
+        if self.frame_observation_enabled {
             self.frame_diagnostics_publication
                 .mark_schedule_admission_recorded();
         }
     }
 
+    #[cfg(test)]
     pub(super) fn take_ready_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
-        if self.frame_diagnostics_enabled {
-            self.frame_diagnostics_publication.take_ready()
-        } else {
-            None
+        self.take_ready_frame_observation()
+            .map(|handoff| handoff.diagnostics)
+    }
+
+    pub(super) fn take_ready_frame_observation(&mut self) -> Option<AuxiliaryFrameDiagnostics> {
+        if !self.frame_observation_enabled {
+            return None;
         }
+        self.frame_diagnostics_publication
+            .take_ready()
+            .map(|diagnostics| AuxiliaryFrameDiagnostics {
+                diagnostics,
+                profile_enabled: self.frame_profile_enabled,
+            })
     }
 
     pub(super) fn discard_frame_diagnostics(&mut self) {
@@ -71,7 +93,7 @@ impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
-        if self.frame_diagnostics_enabled {
+        if self.frame_observation_enabled {
             RuntimeHostCapabilities::new().with_frame_diagnostics()
         } else {
             RuntimeHostCapabilities::new()
@@ -81,7 +103,7 @@ impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
 
 impl<Message> RuntimeFrameDiagnosticsHost for AuxiliarySurfaceBridge<Message> {
     fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
-        if !self.frame_diagnostics_enabled {
+        if !self.frame_observation_enabled {
             return;
         }
 
@@ -106,7 +128,7 @@ mod tests {
 
     #[test]
     fn auxiliary_bridge_queues_surface_messages_until_drained() {
-        let mut bridge = AuxiliarySurfaceBridge::new(empty_surface(), false);
+        let mut bridge = AuxiliarySurfaceBridge::new(empty_surface(), false, false);
 
         let _ = bridge.update("open");
         let _ = bridge.update("close");
@@ -117,7 +139,7 @@ mod tests {
 
     #[test]
     fn auxiliary_bridge_keeps_frame_diagnostics_disabled_without_capability_work() {
-        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), false);
+        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), false, false);
         let diagnostics = NativeFrameDiagnostics {
             window_identity: Some(
                 crate::runtime::NativeWindowDiagnosticIdentity::from_runtime_value(2),
@@ -133,7 +155,7 @@ mod tests {
 
     #[test]
     fn auxiliary_bridge_hands_off_each_enabled_frame_once_without_stale_state() {
-        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), true);
+        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), true, false);
         let first = NativeFrameDiagnostics {
             window_identity: Some(
                 crate::runtime::NativeWindowDiagnosticIdentity::from_runtime_value(2),
@@ -163,7 +185,7 @@ mod tests {
 
     #[test]
     fn auxiliary_bridge_keeps_scheduled_value_until_admission_is_recorded() {
-        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), true);
+        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), true, false);
         let diagnostics = NativeFrameDiagnostics {
             window_identity: Some(
                 crate::runtime::NativeWindowDiagnosticIdentity::from_runtime_value(2),
@@ -179,5 +201,26 @@ mod tests {
 
         bridge.mark_schedule_admission_recorded();
         assert_eq!(bridge.take_ready_frame_diagnostics(), Some(diagnostics));
+    }
+
+    #[test]
+    fn auxiliary_bridge_carries_profile_eligibility_through_frame_handoff() {
+        let mut bridge = AuxiliarySurfaceBridge::<()>::new(empty_surface(), false, true);
+        let diagnostics = NativeFrameDiagnostics {
+            frame_sequence: Some(11),
+            ..NativeFrameDiagnostics::default()
+        };
+
+        assert!(bridge.host_capabilities().has_frame_diagnostics());
+        bridge.observe_frame_diagnostics(diagnostics);
+        bridge.mark_observation_finalized();
+
+        assert_eq!(
+            bridge.take_ready_frame_observation(),
+            Some(AuxiliaryFrameDiagnostics {
+                diagnostics,
+                profile_enabled: true,
+            })
+        );
     }
 }

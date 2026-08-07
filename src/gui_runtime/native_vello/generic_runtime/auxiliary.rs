@@ -11,10 +11,16 @@ use super::{
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::runtime::AuxiliaryWindowOwner;
+#[cfg(test)]
 use crate::runtime::{
     AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
     RuntimeBridge,
 };
+#[cfg(not(test))]
+use crate::runtime::{
+    AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
+};
+pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
 use std::time::Instant;
@@ -51,6 +57,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         parent_options: &NativeRunOptions,
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
         frame_diagnostics_enabled: bool,
+        frame_profile_host_enabled: bool,
     ) -> Self {
         let owner = AuxiliaryWindowOwner::new(&projection.key);
         Self::new_with_owner(
@@ -58,6 +65,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             parent_options,
             native_window_diagnostic_identity,
             frame_diagnostics_enabled,
+            frame_profile_host_enabled,
             owner,
         )
     }
@@ -67,6 +75,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         parent_options: &NativeRunOptions,
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
         frame_diagnostics_enabled: bool,
+        frame_profile_host_enabled: bool,
         owner: AuxiliaryWindowOwner,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
@@ -76,7 +85,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if options.text.embedded_fonts.is_empty() && options.text.font_paths.is_empty() {
             options.text = parent_options.text.clone();
         }
-        let bridge = AuxiliarySurfaceBridge::new(projection.surface, frame_diagnostics_enabled);
+        let frame_profile_enabled =
+            options.frame.profiling.is_frame() && frame_profile_host_enabled;
+        let bridge = AuxiliarySurfaceBridge::new(
+            projection.surface,
+            frame_diagnostics_enabled,
+            frame_profile_enabled,
+        );
         let mut runner = GenericNativeVelloRunner::new_with_diagnostic_identity(
             options,
             bridge,
@@ -133,6 +148,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .mark_schedule_admission_recorded();
     }
 
+    #[cfg(test)]
     pub(super) fn take_ready_frame_diagnostics(&mut self) -> Option<NativeFrameDiagnostics> {
         self.runner
             .core
@@ -141,15 +157,23 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .take_ready_frame_diagnostics()
     }
 
-    pub(super) fn finalize_parent_frame_diagnostics(
+    pub(super) fn take_ready_frame_observation(&mut self) -> Option<AuxiliaryFrameDiagnostics> {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .take_ready_frame_observation()
+    }
+
+    pub(super) fn finalize_parent_frame_observation(
         &mut self,
         scheduled_admission_recorded: bool,
-    ) -> Option<NativeFrameDiagnostics> {
+    ) -> Option<AuxiliaryFrameDiagnostics> {
         self.mark_parent_observation_finalized();
         if scheduled_admission_recorded {
             self.mark_scheduled_frame_admission_recorded();
         }
-        self.take_ready_frame_diagnostics()
+        self.take_ready_frame_observation()
     }
 
     #[cfg(test)]
@@ -890,6 +914,7 @@ where
                         &self.options,
                         native_window_diagnostic_identity,
                         self.frame_diagnostics_enabled,
+                        self.core.has_frame_profile_observer(),
                         owner.clone(),
                     );
                     window
@@ -1029,6 +1054,7 @@ mod tests {
             &NativeRunOptions::default(),
             Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
             frame_diagnostics_enabled,
+            false,
         )
     }
 
@@ -1228,7 +1254,7 @@ mod tests {
         let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
         let mut parent = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
-            AuxiliarySurfaceBridge::new(surface, false),
+            AuxiliarySurfaceBridge::new(surface, false, false),
             Vector2::new(1280.0, 720.0),
         );
         parent.auxiliary_windows.push(auxiliary_window(false));

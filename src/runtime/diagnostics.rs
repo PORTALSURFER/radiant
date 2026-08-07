@@ -5,6 +5,7 @@ mod cache_policy;
 mod frame;
 mod gpu_surface;
 mod lifecycle;
+mod profile;
 mod retained_surface;
 mod scene;
 mod text;
@@ -36,6 +37,21 @@ pub(crate) use lifecycle::RuntimeLifecycleController;
 pub use lifecycle::{
     RUNTIME_LIFECYCLE_HISTORY_CAPACITY, RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase,
     RuntimeLifecycleTransition,
+};
+pub use profile::{
+    FrameProfile, FrameProfileCacheCounters, FrameProfileCompositedBaseTiming,
+    FrameProfileCounters, FrameProfileCpuCompletionOutcome, FrameProfileCpuFairnessCounters,
+    FrameProfileCpuFairnessDisposition, FrameProfileCpuObservationCounters,
+    FrameProfileGpuSurfaceAtlasCounters, FrameProfileGpuSurfaceCompositeCounters,
+    FrameProfileGpuSurfaceCounters, FrameProfileGpuSurfaceCustomShaderCounters,
+    FrameProfileGpuSurfaceCustomShaderFailureCounters, FrameProfileGpuSurfaceSignalCounters,
+    FrameProfileGpuSurfaceUnsupportedCustomShaderCounters, FrameProfileGpuTimingStatus,
+    FrameProfileRetainedSurfaceCounters, FrameProfileSceneCounters, FrameProfileSceneMediaCounters,
+    FrameProfileSceneSurfaceCounters, FrameProfileSceneTextCounters,
+    FrameProfileSceneTraversalCounters, FrameProfileSurfaceRecoveryCounters,
+    FrameProfileTextCacheCounters, FrameProfileTextCounters, FrameProfileTextQualityCounters,
+    FrameProfileTimings, FrameProfileTransientOverlayTiming, FrameProfileWorkTimings,
+    ProfilingMode, ProfilingOptions,
 };
 pub use retained_surface::NativeRetainedSurfaceDiagnostics;
 pub use scene::{

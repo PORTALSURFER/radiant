@@ -51,7 +51,7 @@ where
         // App views can introduce scene-scoped overlays after any state
         // refresh, so this capability must remain stable for the bridge
         // lifetime even when the initial projection has no overlay.
-        let capabilities = RuntimeHostCapabilities::new()
+        let mut capabilities = RuntimeHostCapabilities::new()
             .with_input()
             .with_tasks()
             .with_platform_results()
@@ -60,20 +60,18 @@ where
             .with_runtime_diagnostics()
             .with_lifecycle()
             .with_transient_overlays();
-        let capabilities = if self.lifecycle.auxiliary_windows.is_some() {
-            capabilities.with_windows()
-        } else {
-            capabilities
-        };
-        let capabilities = if self.lifecycle.retained_painters.is_empty() {
-            capabilities
-        } else {
-            capabilities.with_retained_surfaces()
-        };
-        if self.lifecycle.native_frame_diagnostics.is_some() {
-            capabilities.with_frame_diagnostics()
-        } else {
-            capabilities
+        if self.lifecycle.auxiliary_windows.is_some() {
+            capabilities = capabilities.with_windows();
         }
+        if !self.lifecycle.retained_painters.is_empty() {
+            capabilities = capabilities.with_retained_surfaces();
+        }
+        if self.lifecycle.native_frame_diagnostics.is_some() {
+            capabilities = capabilities.with_frame_diagnostics();
+        }
+        if self.lifecycle.native_frame_profile.is_some() {
+            capabilities = capabilities.with_frame_profile();
+        }
+        capabilities
     }
 }

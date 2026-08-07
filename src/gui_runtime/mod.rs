@@ -43,7 +43,7 @@ pub use options::{
     MIN_NATIVE_TARGET_FPS, NativeFrameOptions, NativeGpuBackend, NativeGpuOptions,
     NativePopupOptions, NativeRunOptions, NativeRunOptionsError, NativeTextOptions,
     NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode, NativeWindowOptions,
-    WindowIconRgba,
+    ProfilingMode, ProfilingOptions, WindowIconRgba,
 };
 pub use window_manifest::{
     WindowManifest, WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,

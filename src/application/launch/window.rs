@@ -1,6 +1,8 @@
 use crate::{
     application::{Result, launch::IntoView},
-    gui_runtime::{EmbeddedFont, FrameRate, NativePopupOptions, NativeRunOptions, WindowSpec},
+    gui_runtime::{
+        EmbeddedFont, FrameRate, NativePopupOptions, NativeRunOptions, ProfilingOptions, WindowSpec,
+    },
     runtime::{
         Command, RuntimeBridge, declarative_owned_command_runtime_bridge, run_native_vello_runtime,
     },
@@ -38,6 +40,12 @@ impl WindowBuilder {
     /// Set the maximum native animation and presentation cadence.
     pub fn frame_rate(mut self, frame_rate: FrameRate) -> Self {
         self.options.frame.target_fps = frame_rate.as_u32();
+        self
+    }
+
+    /// Configure fixed-cost native frame profiling for this window.
+    pub fn profiling(mut self, profiling: ProfilingOptions) -> Self {
+        self.options.frame.profiling = profiling;
         self
     }
 

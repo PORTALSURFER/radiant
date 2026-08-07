@@ -125,6 +125,21 @@ where
         self
     }
 
+    /// Observe a backend-neutral fixed-cost profile after a successful native
+    /// frame presentation.
+    ///
+    /// Delivery requires [`crate::runtime::ProfilingOptions::frame`] on the
+    /// app's native frame options. The callback is ordered with the existing
+    /// successful-presentation publication path and is independent of the
+    /// compatibility diagnostics callback.
+    pub fn on_frame_profile(
+        mut self,
+        profile: impl FnMut(&mut State, crate::runtime::FrameProfile) + 'static,
+    ) -> Self {
+        self.lifecycle.native_frame_profile = Some(Box::new(profile));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

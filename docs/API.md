@@ -3520,6 +3520,55 @@ resource lifetime/budgeting, or live native-window acceptance. The current
 product/support scope is macOS; Linux and Windows remain future portability
 targets and do not block this contract.
 
+### macOS live frame-profile acceptance
+
+`macos_frame_profile_acceptance` is the checked public-API harness for native
+Off/Frame acceptance. It is explicitly macOS-only. The selected modes are read
+once at startup; restart the harness to change them. The callback retains only
+fixed counters and last-value fields, so it performs no file I/O, unbounded
+logging, or unbounded collection on the presentation path.
+
+Build the checked example and stage it as a normal macOS application:
+
+```bash
+cargo build --example macos_frame_profile_acceptance
+export RADIANT_DEV_APP_NAME=RadiantFrameProfileAcceptance
+export RADIANT_DEV_APP_BINARY="$PWD/target/debug/examples/macos_frame_profile_acceptance"
+scripts/dev_app_bundle.sh --main=off --aux=off
+```
+
+For a direct checked-example smoke run without the `.app` wrapper, use
+`cargo run --example macos_frame_profile_acceptance -- --main=off --aux=off`.
+
+Repeat the final command with each startup configuration below. Close the
+application between runs so each recorder starts from zero:
+
+```bash
+scripts/dev_app_bundle.sh --main=frame --aux=off
+scripts/dev_app_bundle.sh --main=off --aux=frame
+scripts/dev_app_bundle.sh --main=frame --aux=frame
+```
+
+Use the visible primary `Record click` and auxiliary `Record auxiliary click`
+controls as needed, close the auxiliary window to expose the primary when
+needed, then resize the primary window during each run. Inspect the bounded
+recorder text in both windows. Expected evidence is:
+
+- `--main=off --aux=off`: zero primary and auxiliary profile callbacks.
+- `--main=frame --aux=off`: at least two primary successful-present profiles,
+  one stable primary identity, strictly increasing available sequences, and
+  `FrameProfileGpuTimingStatus::Unavailable` for every recorded profile; the
+  auxiliary callback count remains zero.
+- `--main=off --aux=frame`: zero primary callbacks and at least two auxiliary
+  successful-present profiles with stable identity and increasing sequences.
+- `--main=frame --aux=frame`: both windows expose at least two profiles; the
+  auxiliary identity differs from the primary identity and the recorder shows
+  the auxiliary primary handoff callbacks.
+
+This is live native macOS presentation evidence only. It does not claim Linux
+or Windows support, runtime profiling-mode switching, GPU timestamp queries,
+or a target-alignment percentage update.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile
@@ -3541,8 +3590,8 @@ manual validation:
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
-| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
-| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
+| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance` |
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

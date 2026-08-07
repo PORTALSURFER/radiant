@@ -158,6 +158,10 @@ name = "host_surface_frame"
 path = "examples/host_surface_frame.rs"
 
 [[example]]
+name = "macos_frame_profile_acceptance"
+path = "examples/macos_frame_profile_acceptance.rs"
+
+[[example]]
 name = "passive_widgets"
 path = "examples/passive_widgets.rs"
 

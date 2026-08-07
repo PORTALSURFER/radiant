@@ -387,6 +387,10 @@ Current target-specific seams are intentionally narrow:
   `src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs` own
   macOS activation and application-reopen integration. The activation policy
   remains backend-neutral while unsupported targets use explicit no-op hooks.
+- `examples/macos_frame_profile_acceptance.rs` is a macOS-only native acceptance
+  harness for the public Off/Frame profile contract. Its non-macOS checked
+  fallback keeps the registered example buildable without claiming native
+  acceptance on other platforms.
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.

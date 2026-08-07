@@ -10,7 +10,7 @@ use super::{
 };
 use crate::runtime::{
     FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
-    NativeFrameDiagnostics, RuntimeBridge,
+    RuntimeBridge,
 };
 use std::time::{Duration, Instant};
 use tracing::warn;
@@ -155,7 +155,7 @@ where
                     self.auxiliary_windows[index].discard_frame_diagnostics();
                     None
                 } else {
-                    self.auxiliary_windows[index].finalize_parent_frame_diagnostics(false)
+                    self.auxiliary_windows[index].finalize_parent_frame_observation(false)
                 };
             forward_auxiliary_frame_diagnostics(self, &auxiliary_key, frame_diagnostics);
             if shutdown_requested {
@@ -521,7 +521,7 @@ where
                                 .iter_mut()
                                 .find(|window| window.key() == key)
                             {
-                                window.finalize_parent_frame_diagnostics(true)
+                                window.finalize_parent_frame_observation(true)
                             } else {
                                 None
                             }
@@ -582,11 +582,15 @@ fn native_resource_maintenance_deadline(now: Instant, pending: bool) -> Option<I
 fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
     runner: &mut GenericNativeVelloRunner<Bridge, Message>,
     key: &FrameScheduleKey,
-    diagnostics: Option<NativeFrameDiagnostics>,
+    handoff: Option<super::AuxiliaryFrameDiagnostics>,
 ) where
     Bridge: RuntimeBridge<Message>,
 {
-    if let Some(mut diagnostics) = diagnostics {
+    if let Some(super::AuxiliaryFrameDiagnostics {
+        mut diagnostics,
+        profile_enabled,
+    }) = handoff
+    {
         diagnostics.cpu_fairness = runner
             .cpu_frame_fairness
             .as_ref()
@@ -605,7 +609,7 @@ fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
                 .runtime
                 .host_observe_frame_diagnostics(diagnostics);
         }
-        if runner.frame_profile_enabled && diagnostics.frame_sequence.is_some() {
+        if profile_enabled {
             runner
                 .core
                 .runtime
@@ -655,10 +659,11 @@ mod tests {
         assess_cpu_frame_fairness, timed_frame_cadence, timed_frame_target_fps,
     };
     use crate::runtime::{
-        Command, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
-        NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
-        NativeWindowDiagnosticIdentity, RuntimeAnimationActivity, RuntimeBridge,
-        RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, UiSurface,
+        Command, FrameProfile, NativeCpuFrameFairnessDiagnostics,
+        NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
+        NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, ProfilingOptions,
+        RuntimeAnimationActivity, RuntimeBridge, RuntimeFrameDiagnosticsHost,
+        RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
     };
     use crate::{application::empty, prelude::IntoView};
     use std::sync::{Arc, Mutex};
@@ -668,7 +673,7 @@ mod tests {
         event::{DeviceId, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent},
     };
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     enum OrderedAuxiliaryEvent {
         Diagnostics {
             window_identity: Option<u64>,
@@ -677,6 +682,7 @@ mod tests {
             cpu_fairness: NativeCpuFrameFairnessDiagnostics,
             cpu_observation: NativeCpuFrameObservationDiagnostics,
         },
+        Profile(FrameProfile),
         Message(u8),
     }
 
@@ -698,7 +704,9 @@ mod tests {
         }
 
         fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, u8> {
-            RuntimeHostCapabilities::new().with_frame_diagnostics()
+            RuntimeHostCapabilities::new()
+                .with_frame_diagnostics()
+                .with_frame_profile()
         }
     }
 
@@ -719,6 +727,15 @@ mod tests {
         }
     }
 
+    impl RuntimeFrameProfileHost for OrderedAuxiliaryBridge {
+        fn observe_frame_profile(&mut self, profile: FrameProfile) {
+            self.events
+                .lock()
+                .expect("ordering test event log should not be poisoned")
+                .push(OrderedAuxiliaryEvent::Profile(profile));
+        }
+    }
+
     fn auxiliary_window_with_diagnostics() -> AuxiliaryNativeWindow<u8> {
         let surface = crate::runtime::test_arc_surface(empty::<u8>().into_surface());
         AuxiliaryNativeWindow::new(
@@ -729,6 +746,23 @@ mod tests {
             ),
             &crate::gui_runtime::NativeRunOptions::default(),
             Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            true,
+            false,
+        )
+    }
+
+    fn auxiliary_window_with_profile(
+        parent_options: &crate::gui_runtime::NativeRunOptions,
+        profiling: ProfilingOptions,
+    ) -> AuxiliaryNativeWindow<u8> {
+        let surface = crate::runtime::test_arc_surface(empty::<u8>().into_surface());
+        let mut options = crate::gui_runtime::NativeRunOptions::default();
+        options.frame.profiling = profiling;
+        AuxiliaryNativeWindow::new(
+            crate::runtime::AuxiliaryWindow::new("settings", options, surface),
+            parent_options,
+            Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+            false,
             true,
         )
     }
@@ -753,6 +787,67 @@ mod tests {
         });
         capture.mark_successful_presentation();
         ledger.finish(admission, capture, false);
+    }
+
+    fn auxiliary_profile_events(
+        parent_profiling: ProfilingOptions,
+        auxiliary_profiling: ProfilingOptions,
+    ) -> Vec<OrderedAuxiliaryEvent> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut parent_options = crate::gui_runtime::NativeRunOptions::default();
+        parent_options.frame.profiling = parent_profiling;
+        let mut auxiliary = auxiliary_window_with_profile(&parent_options, auxiliary_profiling);
+        let mut runner = GenericNativeVelloRunner::new(
+            parent_options,
+            OrderedAuxiliaryBridge {
+                events: Arc::clone(&events),
+            },
+            crate::gui::types::Vector2::new(320.0, 40.0),
+        );
+        let diagnostics = NativeFrameDiagnostics {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(9)),
+            frame_sequence: Some(41),
+            ..NativeFrameDiagnostics::default()
+        };
+
+        auxiliary.stage_frame_diagnostics_for_test(diagnostics);
+        let handoff = auxiliary.finalize_parent_frame_observation(false);
+        forward_auxiliary_frame_diagnostics(
+            &mut runner,
+            &FrameScheduleKey::Auxiliary("settings".to_owned()),
+            handoff,
+        );
+
+        events
+            .lock()
+            .expect("profile test event log should not be poisoned")
+            .clone()
+    }
+
+    #[test]
+    fn auxiliary_profile_delivery_uses_auxiliary_profiling_option() {
+        assert!(
+            auxiliary_profile_events(ProfilingOptions::frame(), ProfilingOptions::off())
+                .iter()
+                .all(|event| !matches!(event, OrderedAuxiliaryEvent::Profile(_)))
+        );
+
+        let events = auxiliary_profile_events(ProfilingOptions::off(), ProfilingOptions::frame());
+        assert!(matches!(
+            events.first(),
+            Some(OrderedAuxiliaryEvent::Diagnostics {
+                frame_sequence: Some(41),
+                ..
+            })
+        ));
+        assert_eq!(
+            events.get(1),
+            Some(&OrderedAuxiliaryEvent::Profile(FrameProfile {
+                window_identity: Some(9),
+                frame_sequence: Some(41),
+                ..FrameProfile::from(NativeFrameDiagnostics::default())
+            }))
+        );
     }
 
     #[test]
@@ -891,7 +986,7 @@ mod tests {
 
         auxiliary.stage_frame_diagnostics_for_test(diagnostics);
         assert_eq!(auxiliary.take_ready_frame_diagnostics(), None);
-        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        let diagnostics = auxiliary.finalize_parent_frame_observation(false);
         let key = FrameScheduleKey::Auxiliary("settings".to_owned());
         forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
         let _ = runner.core.runtime.dispatch_message(7);
@@ -951,7 +1046,7 @@ mod tests {
             frame_sequence: Some(41),
             ..NativeFrameDiagnostics::default()
         });
-        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        let diagnostics = auxiliary.finalize_parent_frame_observation(false);
         forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
 
         assert_eq!(
@@ -1016,7 +1111,7 @@ mod tests {
             ..NativeFrameDiagnostics::default()
         });
         runner.record_frame_schedule_admission(key.clone());
-        let diagnostics = auxiliary.finalize_parent_frame_diagnostics(true);
+        let diagnostics = auxiliary.finalize_parent_frame_observation(true);
         forward_auxiliary_frame_diagnostics(&mut runner, &key, diagnostics);
         let _ = runner.core.runtime.dispatch_message(7);
 
@@ -1065,7 +1160,7 @@ mod tests {
         };
 
         auxiliary.require_scheduled_frame_admission();
-        let no_present_diagnostics = auxiliary.finalize_parent_frame_diagnostics(true);
+        let no_present_diagnostics = auxiliary.finalize_parent_frame_observation(true);
         assert_eq!(no_present_diagnostics, None);
         let key = FrameScheduleKey::Auxiliary("settings".to_owned());
         forward_auxiliary_frame_diagnostics(&mut runner, &key, no_present_diagnostics);
@@ -1079,7 +1174,7 @@ mod tests {
 
         record_parent_observation(&mut runner, &key);
         auxiliary.stage_frame_diagnostics_for_test(diagnostics);
-        let frame_diagnostics = auxiliary.finalize_parent_frame_diagnostics(false);
+        let frame_diagnostics = auxiliary.finalize_parent_frame_observation(false);
         forward_auxiliary_frame_diagnostics(&mut runner, &key, frame_diagnostics);
         let _ = runner.core.runtime.dispatch_message(2);
         assert_eq!(

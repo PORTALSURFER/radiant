@@ -290,7 +290,7 @@ where
                     .runtime
                     .host_observe_frame_diagnostics(diagnostics);
             }
-            if self.frame_profile_enabled && diagnostics.frame_sequence.is_some() {
+            if self.frame_profile_enabled {
                 self.core
                     .runtime
                     .host_observe_frame_profile(FrameProfile::from(diagnostics));
@@ -2061,7 +2061,7 @@ mod tests {
     }
 
     #[test]
-    fn frame_profiling_delivers_only_successful_present_profiles() {
+    fn frame_profiling_delivers_successful_present_profiles_even_without_sequence() {
         let published = Arc::new(Mutex::new(Vec::new()));
         let mut options = NativeRunOptions::default();
         options.frame.profiling = ProfilingOptions::frame();
@@ -2105,13 +2105,11 @@ mod tests {
             .mark_observation_finalized();
         runner.publish_staged_frame_diagnostics();
 
-        assert_eq!(
-            published
-                .lock()
-                .expect("profile publication test events should not be poisoned")
-                .len(),
-            1
-        );
+        let published = published
+            .lock()
+            .expect("profile publication test events should not be poisoned");
+        assert_eq!(published.len(), 2);
+        assert_eq!(published[1].frame_sequence, None);
     }
 
     #[test]

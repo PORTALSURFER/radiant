@@ -62,22 +62,25 @@ Radiant should scale from simple “hello world” interfaces to advanced applic
 
 ## Platform Target
 
-Radiant should be developed macOS-first while preserving a cross-platform
-architecture and public API.
+Radiant's current product and support scope is macOS-only. The current native
+implementation and acceptance work is scoped to macOS. Radiant should preserve
+a cross-platform architecture and a platform-neutral public/core API.
 
-The initial primary development and testing target is:
+The current primary development and testing target is:
 
 - macOS
 
-Radiant should be architected so it can support additional platforms as the
-implementation matures:
+The architecture should support additional platforms as the implementation
+matures. Linux and Windows are future portability targets, not currently
+supported platforms:
 
 - Linux
 - Windows
 
 Cross-platform support does not need to be fully implemented immediately, but the architecture should avoid unnecessary Windows-only assumptions in core library code.
 
-Platform-specific code should be isolated behind clear boundaries. The public Radiant API should remain as platform-neutral as practical.
+Platform-specific code should be isolated behind clear boundaries. The public
+and core Radiant APIs should remain as platform-neutral as practical.
 
 The goal is:
 

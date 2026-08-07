@@ -8,16 +8,26 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-07**
-- Canonical main: **`dd0c92e8`**
-- Overall estimate: **~97%**
-- Working range: **92–99%**
-- Confidence: **medium**
+- Canonical main: **`6ad8b954`**
+- Generic architecture-sequence completion: **~97% (92–99%, medium confidence)**
+- Broad end-to-end target coverage: **~72%**
 
-The estimate reflects the combination of shipped contract, implementation,
-tests, documentation, and integration evidence. Target-only prose, diagrams,
-or examples do not count as shipped implementation; they establish the
-contract against which progress is measured. PR #1602 reduced contract
-ambiguity and sequencing risk without changing the numeric estimate; PR #1603
+These are different measurements. Generic architecture-sequence completion
+reflects the evidence-backed dependency sequence of shipped generic contracts,
+implementation, tests, documentation, and integration evidence. Target-only
+prose, diagrams, or examples do not count as shipped implementation; they
+establish the contract against which that sequence is measured. Broad end-to-end
+target coverage is the unweighted mean of the 11 category scores below:
+
+`(80 + 70 + 82 + 96 + 60 + 42 + 93 + 78 + 60 + 50 + 75) / 11 = 71.45%`,
+reported approximately as **~72%**. The ~97% sequence measure is not product
+completeness and does not claim full end-to-end coverage or native acceptance.
+Because the category rows are point estimates, no separate range is claimed for
+the derived broad-coverage measure.
+
+PR #1602 reduced contract
+ambiguity and sequencing risk without changing the architecture-sequence
+estimate; PR #1603
 adds the first executable keyed query capability and PR #1604 adds a private,
 query-only visible-window coordinator with accepted-state, logical-index delta,
 anchor/fallback, exact-fence, and owner-token evidence. PR #1605 adds a
@@ -59,7 +69,8 @@ cardinality remain intact, and full and mixed paths share one frame-state owner.
 PR #1616 now makes render-boundary selection an explicit private native Vello
 consumer: Warming probes and Admitted residents are selected only when exact
 residency is present, while zero-selection and unsafe cases use authoritative
-full-scene encoding. The estimate moves modestly because this closes the
+full-scene encoding. The generic architecture-sequence estimate moves
+modestly because this closes the
 generic render-selection gap without adding renderer-owned GPU lifetime or
 budgeting, platform profiling, or product-specific numeric, virtualization, or
 cache policy. PR #1617 now ships the generic controller-owned lifecycle
@@ -103,7 +114,8 @@ and worker, timer, platform, and chained paths recheck liveness before mapping
 or reduction. PR #1627 now drains exact retired declarative generations at the
 accepted projection boundary and eagerly removes matching worker, timer, and
 platform registrations while preserving late-delivery and
-sibling/application/later-generation fences. The estimate moves modestly to
+sibling/application/later-generation fences. The generic architecture-sequence
+estimate moves modestly to
 ~97% (92–99%); Runtime/effects/scheduling moves from 91% to 93%.
 Public selection/cancellation policy, product integration, and scheduling
 budgets/fairness remain later or product-dependent.
@@ -135,7 +147,7 @@ unshipped.
 | Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
 | Runtime, effects, and scheduling | 93% | PRs #1617–#1627 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology and owner-generation foundations, the explicit owner-request consumer, and eager exact-generation retirement at the existing worker, timer, and platform registries with conservative late-delivery vetoes. Public/product-facing selection/cancellation policy and scheduling budgets/fairness remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
-| Platform, windowing, and host boundaries | 60% | macOS-first host-facing boundaries are established; broader Linux/Windows runtime validation remains. |
+| Platform, windowing, and host boundaries | 60% | macOS host-facing boundaries are established, but native macOS support and acceptance remain current work; Linux/Windows runtime implementation and validation are explicitly deferred portability work and do not block this macOS-scoped goal. |
 | Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
 
@@ -425,8 +437,11 @@ budgets, fairness, or synthetic GPU-host acceptance.
    Radiant.
 6. **Profiling and performance proof.** Add first-class `ProfilingMode`,
    `FrameProfile`, a debug inspector, and broader performance validation.
-7. **Platform expansion.** Broaden Linux/Windows runtime validation and
-   platform implementation behind the existing boundaries.
+7. **Platform portability (deferred).** macOS native support and acceptance
+   remain current work. Linux/Windows runtime implementation and validation are
+   explicitly deferred portability work behind the existing boundaries and do
+   not block the current macOS-scoped support goal. This status does not claim
+   that native macOS acceptance is complete.
 
 dB, tempo, and other custom numeric formats remain later work after the
 parser-agnostic edit-session and generic numeric integration contracts are
@@ -485,17 +500,24 @@ example is not promoted to shipped status without that supporting proof.
 After each merged alignment slice:
 
 1. update the snapshot date and canonical main SHA;
-2. update the overall estimate and working range;
-3. update the affected category score and evidence/status;
-4. move an item only when code, tests, documentation, and integration justify
+2. update the generic architecture-sequence completion and its working range;
+3. recompute broad end-to-end target coverage from the 11 category scores and
+   record the arithmetic; do not treat it as product or native-acceptance
+   completeness;
+4. update the affected category score and evidence/status;
+5. move an item only when code, tests, documentation, and integration justify
    the change;
-5. record the next dependency-correct gap; and
-6. keep GitHub as the delivery record rather than duplicating its workflow
+6. record the next dependency-correct gap; and
+7. keep GitHub as the delivery record rather than duplicating its workflow
    ledger here.
 
 ### Initial entry
 
-| Date | Canonical main | Overall | Note |
+Historical values in this table are generic architecture-sequence completion
+measurements. The broad end-to-end target-coverage mean is reported only for
+the current snapshot because prior snapshots did not record that derived metric.
+
+| Date | Canonical main | Architecture-sequence completion | Note |
 | --- | --- | ---: | --- |
 | 2026-08-05 | `b6991a3a` | ~63% (56–70%, medium confidence) | Initial durable target-alignment snapshot; the next recommended gap is the unshipped parser-agnostic `NumericEditSession`. |
 | 2026-08-05 | `3207bd7e` | ~63% (56–70%, medium confidence) | PR #1597 shipped backend-neutral split-pane geometry; layout alignment moves from 60% to a conservative 61%, while runtime interaction, `split_pane`, and virtualization proof remain. |

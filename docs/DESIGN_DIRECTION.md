@@ -1746,8 +1746,10 @@ column([
 
 `Slider` is a shipped control. The target API for sliders and other range
 controls includes a value, a range, optional formatting, and a change message;
-the `.format(ValueFormat::percent(0))` call below is illustrative target API
-only for control attachment and is not currently shipped. The qualified
+the `.format(ValueFormat::percent(0))` attachment is now shipped for the
+official application `slider(...)` and `knob(...)` builders. It affects only
+retained automation value text; the range, step, domain mapping, and typed
+change API shown below remain illustrative target APIs. The qualified
 `ValueFormat` policy foundation used by that example is shipped separately.
 Their layout is still owned by the enclosing container.
 
@@ -1774,10 +1776,12 @@ change within that source. Replacing the draft emits no typed Update. The
 session does not parse, validate, localize, map, clamp, quantize, step, format,
 persist, invoke callbacks, or attach `ValueMapping` or `ValueFormat` policy.
 It is available from the qualified `radiant::widgets::interaction` module and
-the `radiant::widgets` root, not the common prelude. This foundation is shipped;
-parser and domain policy, numeric widget and application-builder/runtime
-integration, and focus, pointer, keyboard, text-input, and accessibility
-behavior remain deferred.
+the `radiant::widgets` root, not the common prelude. This foundation is shipped.
+The official application Slider and Knob builders additionally accept
+`.format(ValueFormat)` for display-only automation text; that attachment does
+not change interaction values or edit events. Parser and domain policy, numeric
+widget/runtime integration, and focus, pointer, keyboard, text-input, and
+accessibility behavior remain deferred.
 
 The shipped `ValueMapping` foundation exposes only finite `f32` linear and
 logarithmic mappings. It validates finite bounds and monotonicity at
@@ -1804,14 +1808,16 @@ domain value. Enter or focus commit will emit a typed accepted value; Escape or
 explicit cancel will restore the displayed value without an accidental domain
 mutation.
 
-The `ValueFormat` policy foundation is shipped as a qualified API. `.format(...)`
-control attachment, `numeric_input`, and the remaining mapping or formatting
-forms—including grouping, decibel, tempo, and arbitrary custom formatting—are
-target/future APIs and remain separate follow-up slices.
+The `ValueFormat` policy foundation is shipped as a qualified API, and the
+official application Slider and Knob builders now attach it for display-only
+automation semantics. Direct low-level/public primitive attachment,
+`numeric_input`, and the remaining mapping or formatting forms—including
+grouping, decibel, tempo, and arbitrary custom formatting—are target/future
+APIs and remain separate follow-up slices.
 
 The following `numeric_input`/`.format(...)` attachment example is target API
-and is not currently shipped; its `ValueFormat` policy argument is shipped
-separately:
+and is not currently shipped; its `ValueFormat` policy argument and the
+display-only builder attachment are shipped separately:
 
 ```rust
 numeric_input(state.cutoff)
@@ -1866,8 +1872,10 @@ presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation
 deterministically.
 
-The following `Knob` snippet illustrates target API only: `Knob` is shipped,
-but its `.format(ValueFormat::frequency())` call is not currently shipped.
+The following `Knob` snippet illustrates the target domain-control API. `Knob`
+is shipped, and its builder-level `.format(ValueFormat::frequency())` display
+attachment is shipped, but the range, domain mapping, and target `.on_edit(...)`
+composition remain future integration work.
 
 ```rust
 knob(state.cutoff, 20.0..=20_000.0)

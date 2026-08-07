@@ -1003,11 +1003,14 @@ the Begin value and returns a terminal `Cancel` event. Successful terminal
 transitions consume the session and preserve the shared transaction and start
 value.
 
-This slice deliberately does not provide a parser, validator, locale, range,
-clamping, quantization, stepping, `ValueMapping`/`ValueFormat` attachment,
-numeric widget, application-builder or runtime integration, Update events,
+This session deliberately does not provide a parser, validator, locale, range,
+clamping, quantization, stepping, or `ValueMapping`/`ValueFormat` policy inside
+the session, nor a numeric widget, domain mapping, `numeric_input`, or runtime
+input integration. The separate official application Slider and Knob builders
+now accept `ValueFormat` for display-only automation text; that attachment does
+not add parsing or change emitted interaction values/events. Update events,
 focus/pointer/keyboard/text-input/accessibility policy, callbacks, persistence,
-or raw transaction construction. Those are future domain and integration
+and raw transaction construction remain future domain and integration
 boundaries around this small session foundation.
 
 ### Value mappings
@@ -1029,8 +1032,9 @@ Both conversion methods reject nonfinite input and clamp finite input to the
 normalized or domain range, respectively. They use `f64` intermediates and
 return `Option<f32>` so invalid input or an unexpected nonfinite result cannot
 enter a control state. This foundation currently covers only linear and
-logarithmic mappings; `ValueFormat` is a separate shipped policy API, while
-control attachment and widget integration remain separate APIs.
+logarithmic mappings; `ValueFormat` is a separate shipped policy API with
+display-only Slider/Knob builder attachment, while domain mapping and broader
+widget/input integration remain separate APIs.
 
 ### Value formatting
 
@@ -1060,12 +1064,14 @@ named maximum.
 Nonfinite values are rejected before writing, and caller writer failures return
 the typed `ValueFormatError::WriteFailed` variant.
 
-This slice ships only the policy foundation and the decimal, percent, and
-frequency forms. It does not attach formatting through `.format(...)`, add
-`numeric_input`, change widgets or runtime behavior, or add grouping, decibel,
-tempo, or arbitrary custom formatting. These types are qualified exports from
-`radiant::widgets::interaction` and `radiant::widgets`; they are intentionally
-not exported through the common prelude.
+This slice ships the policy foundation and the decimal, percent, and frequency
+forms. The official application Slider and Knob builders consume the policy
+only for display/automation value text; direct low-level/public primitive
+attachment, `numeric_input`, domain mapping, and input/runtime behavior remain
+future. Grouping, decibel, tempo, and arbitrary custom formatting are also
+future. These types are qualified exports from `radiant::widgets::interaction`
+and `radiant::widgets`; they are intentionally not exported through the common
+prelude.
 
 `ActivationInputResult::Activated { provenance }` preserves the accepted input
 source and native evidence while `.activated()` remains the compatibility

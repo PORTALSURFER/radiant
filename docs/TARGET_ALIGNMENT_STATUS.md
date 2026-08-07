@@ -19,7 +19,7 @@ prose, diagrams, or examples do not count as shipped implementation; they
 establish the contract against which that sequence is measured. Broad end-to-end
 target coverage is the unweighted mean of the 11 category scores below:
 
-`(80 + 70 + 82 + 96 + 60 + 42 + 93 + 78 + 60 + 50 + 75) / 11 = 71.45%`,
+`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 60 + 50 + 75) / 11 = 71.82%`,
 reported approximately as **~72%**. The ~97% sequence measure is not product
 completeness and does not claim full end-to-end coverage or native acceptance.
 Because the category rows are point estimates, no separate range is claimed for
@@ -120,6 +120,15 @@ estimate moves modestly to
 Public selection/cancellation policy, product integration, and scheduling
 budgets/fairness remain later or product-dependent.
 
+PR #1629 now ships display-only `ValueFormat` attachment through the official
+application Slider and Knob builders: configured automation value text uses the
+existing bounded policy, unconfigured controls retain their three-decimal text,
+and normalized interaction values, edit batches, low-level constructors, and
+public widget shapes remain unchanged. Numeric-controls alignment moves
+conservatively from 42% to 46%; the generic architecture-sequence estimate
+remains ~97% because parser, domain/range, mapping, numeric-input, focus, and
+accessibility integration remain unshipped.
+
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
 remaining target requires a supported renderer/adapter contract for resource
@@ -144,7 +153,7 @@ unshipped.
 | Input, provenance, and edit lifecycle | 82% | Shared provenance and `EditEvent` lifecycle are adopted by `Slider`, `Knob`, and `PanelResizeState`; the generic parser-agnostic numeric edit-session boundary is now shipped, while broader consumers remain. |
 | Layout, composition, virtualization | 96% | Backend-neutral `SplitPaneLayout` geometry, UI-local capability/revision evidence, revision-2 declared hit-region projection/query, generic version-3 layout pointer admission/capture, runtime-owned version-4 typed container state, the qualified query-only keyed virtualization capability, a private query-only keyed visible-window coordinator, a private materialization/recycling correctness kernel, the normative runtime consumer boundary, the tuple-scoped and complete private retained-item adapters, and the private synchronous `SurfaceRuntime` registration/two-pass bridge are shipped in PRs #1597–#1609. Product-specific `split_pane` behavior, public/product-owned virtualization consumers, and executable product virtualization proof remain unshipped. |
 | Text, focus, and selection | 60% | Focus and selection foundations exist; richer multiline/IME/composition editing and native accessibility remain. |
-| Numeric controls | 42% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, and the parser-agnostic `NumericEditSession<T>` draft/commit/cancel foundation are shipped; parser/domain policy and control integration are not. |
+| Numeric controls | 46% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, parser-agnostic `NumericEditSession<T>`, and display-only `ValueFormat` attachment through the official Slider/Knob application builders are shipped; parser/domain/range policy, mapping, numeric input, and broader control integration are not. |
 | Runtime, effects, and scheduling | 93% | PRs #1617–#1627 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology and owner-generation foundations, the explicit owner-request consumer, and eager exact-generation retirement at the existing worker, timer, and platform registries with conservative late-delivery vetoes. Public/product-facing selection/cancellation policy and scheduling budgets/fairness remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS host-facing boundaries are established, but native macOS support and acceptance remain current work; Linux/Windows runtime implementation and validation are explicitly deferred portability work and do not block this macOS-scoped goal. |
@@ -379,10 +388,12 @@ budgets, fairness, or synthetic GPU-host acceptance.
    state, and ratio semantics; do not invent those contracts in generic Radiant.
    PR #1601 supplies the generic runtime state lifecycle if a product contract
    later makes those slices reasonable.
-2. **Numeric and input integration.** Complete numeric attachment,
-   `numeric_input`, widget/runtime/focus integration, and the pointer,
-   keyboard, and accessibility domain contract around those paths. This is
-   now the next dependency-correct numeric item, but parser, locale, range,
+2. **Numeric and input integration.** Display-only `ValueFormat` attachment
+   is now shipped through the official Slider/Knob application builders, with
+   normalized interaction values and edit events intentionally unchanged.
+   Remaining work is `ValueMapping`/range/domain integration, `numeric_input`,
+   widget/runtime/focus integration, and the pointer, keyboard, and
+   accessibility domain contract around those paths. Parser, locale, range,
    formatting, and product interaction policy must come from a concrete
    consumer rather than being invented in generic Radiant.
 3. **Runtime, effects, and scheduling integration.** PRs #1617–#1625 ship
@@ -444,8 +455,8 @@ budgets, fairness, or synthetic GPU-host acceptance.
    that native macOS acceptance is complete.
 
 dB, tempo, and other custom numeric formats remain later work after the
-parser-agnostic edit-session and generic numeric integration contracts are
-established.
+parser-agnostic edit-session, display attachment, and generic numeric
+integration contracts are established.
 
 ## Evidence map
 

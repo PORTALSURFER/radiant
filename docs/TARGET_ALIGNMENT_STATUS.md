@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-07**
-- Canonical main: **`ffe98d3f`**
+- Canonical main: **`2f1668a3`**
 - Generic architecture-sequence completion: **~97% (92–99%, medium confidence)**
-- Broad end-to-end target coverage: **~72%**
+- Broad end-to-end target coverage: **~73%**
 
 These are different measurements. Generic architecture-sequence completion
 reflects the evidence-backed dependency sequence of shipped generic contracts,
@@ -19,8 +19,8 @@ prose, diagrams, or examples do not count as shipped implementation; they
 establish the contract against which that sequence is measured. Broad end-to-end
 target coverage is the unweighted mean of the 11 category scores below:
 
-`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 60 + 50 + 75) / 11 = 71.82%`,
-reported approximately as **~72%**. The ~97% sequence measure is not product
+`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 60 + 58 + 75) / 11 = 72.55%`,
+reported approximately as **~73%**. The ~97% sequence measure is not product
 completeness and does not claim full end-to-end coverage or native acceptance.
 Because the category rows are point estimates, no separate range is claimed for
 the derived broad-coverage measure.
@@ -129,6 +129,17 @@ conservatively from 42% to 46%; the generic architecture-sequence estimate
 remains ~97% because parser, domain/range, mapping, numeric-input, focus, and
 accessibility integration remain unshipped.
 
+PR #1630 now ships the first bounded public profiling path: `ProfilingMode::Off`
+and `Frame`, copyable `ProfilingOptions`, backend-neutral `FrameProfile`
+projection, an independent `RuntimeFrameProfileHost` capability, and the
+stateful application callback. Profiles are published only after successful
+presentation, preserve primary/auxiliary correlation and bounded ordering, and
+report GPU timing as explicitly unavailable. Diagnostics/profiling alignment
+moves conservatively from 50% to 58%; broad target coverage is `798 / 11 =
+72.55%` (~73%). The generic architecture-sequence estimate remains ~97% because
+Detailed profiling, runtime switching, inspector correlation, GPU timestamp
+queries, broader performance proof, and live native macOS acceptance remain.
+
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
 remaining target requires a supported renderer/adapter contract for resource
@@ -157,7 +168,7 @@ unshipped.
 | Runtime, effects, and scheduling | 93% | PRs #1617–#1627 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology and owner-generation foundations, the explicit owner-request consumer, and eager exact-generation retirement at the existing worker, timer, and platform registries with conservative late-delivery vetoes. Public/product-facing selection/cancellation policy and scheduling budgets/fairness remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
 | Platform, windowing, and host boundaries | 60% | macOS host-facing boundaries are established, but native macOS support and acceptance remain current work; Linux/Windows runtime implementation and validation are explicitly deferred portability work and do not block this macOS-scoped goal. |
-| Diagnostics, profiling, and performance validation | 50% | Bounded diagnostics and validation foundations exist; first-class profiling/debug inspection and broader proof remain. |
+| Diagnostics, profiling, and performance validation | 58% | Bounded diagnostics plus public Off/Frame `FrameProfile` delivery are shipped; Detailed profiling, inspector correlation, GPU timestamps, live macOS acceptance, and broader performance proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
 
 ## Shipped foundations
@@ -446,8 +457,13 @@ budgets, fairness, or synthetic GPU-host acceptance.
    and a named product workload define importance, staleness, pressure, and
    degradation policy; product-specific cache policy remains outside generic
    Radiant.
-6. **Profiling and performance proof.** Add first-class `ProfilingMode`,
-   `FrameProfile`, a debug inspector, and broader performance validation.
+6. **Profiling and performance proof.** PR #1630 ships the first bounded public
+   `ProfilingMode::{Off, Frame}` and `FrameProfile` path with successful-present
+   publication and explicit GPU-timing unavailability. Remaining work is
+   `Detailed(ProfileSelection)`, runtime mode switching, debug-inspector
+   correlation, backend GPU timestamp queries, renderer-owned lifetime/budgeting,
+   and broader performance validation. These require renderer/platform contracts;
+   live macOS native-window acceptance remains separately outstanding.
 7. **Platform portability (deferred).** macOS native support and acceptance
    remain current work. Linux/Windows runtime implementation and validation are
    explicitly deferred portability work behind the existing boundaries and do
@@ -489,6 +505,8 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Value mapping](../src/widgets/interaction/value.rs)
 - [Value formatting](../src/widgets/interaction/format.rs)
 - [Generic lifecycle diagnostics](../src/runtime/diagnostics/lifecycle.rs)
+- [Public frame profiling model](../src/runtime/diagnostics/profile.rs)
+- [Frame profiling host capability](../src/runtime/bridge/capabilities/diagnostics.rs)
 - [Native recovery/controller bridge](../src/gui_runtime/native_vello/generic_runtime/runner.rs)
 - [Controller recovery lifecycle boundary](../src/runtime/controller/state/lifecycle.rs)
 - [Runtime owner and auxiliary generation fence](../src/runtime/controller/owner.rs)
@@ -565,3 +583,4 @@ the current snapshot because prior snapshots did not record that derived metric.
 | 2026-08-07 | `dd0c92e8` | ~97% (92–99%, medium confidence) | PR #1627 merged the private accepted-projection retirement handoff: exact retired declarative generations now eagerly remove matching worker registrations/pending admissions, timer registrations/latest slots, and platform-completion mappers while preserving late-delivery and sibling/application/later-generation isolation. Full local validation passed with 2,618 library tests plus integration targets, examples, 3 doctests plus 1 ignored and 8 compile-fail doctests, all-target/all-feature check, strict Clippy, formatting, and diff checks; required GitHub `quality` (11m51s) and `windows-compile` (1m53s) passed, and exact-head Terra APPROVE found no findings. Runtime/effects/scheduling moves conservatively from 91% to 93%; remaining public selection/cancellation policy and scheduler budgets/fairness require product/consumer contracts, while the other open target gaps require named product workloads, renderer contracts, or platform scope. |
 | 2026-08-07 | `6e727ca2` | ~97% (92–99%, medium confidence) | PR #1628 merged the macOS-only support-scope and estimate correction: generic architecture-sequence completion remains ~97%, while the transparent 11-category broad end-to-end mean is ~72%. The target now identifies macOS as the current product and acceptance scope, with Linux/Windows retained as future portability targets; no native macOS acceptance or category-score change is claimed. Docs-only diff check passed, required GitHub `quality` (12m30s) and `windows-compile` (1m28s) passed, and exact-head Terra APPROVE found no findings. |
 | 2026-08-07 | `ffe98d3f` | ~97% (92–99%, medium confidence) | PR #1629 merged display-only `ValueFormat` attachment through the official Slider and Knob application builders. Configured automation text uses the bounded policy; default text, normalized interaction values, edit batches, low-level constructors, and public widget shapes remain unchanged. Numeric-controls alignment moves conservatively from 42% to 46%; broad target coverage is `790 / 11 = 71.82%` (~72%), with no native macOS acceptance claimed. Focused local tests, formatting, diff check, and strict Clippy passed; GitHub `quality` (15m25s) and `windows-compile` (1m11s) passed; fresh exact-head Terra APPROVE found no findings after one test-coverage correction. |
+| 2026-08-07 | `2f1668a3` | ~97% (92–99%, medium confidence) | PR #1630 merged the first bounded public Off/Frame profiling path: `ProfilingOptions` flows through native launch builders, `FrameProfile` projects successful-present diagnostics through an independent host capability and stateful callback, primary/auxiliary ordering and exhausted-sequence behavior are covered, and GPU timing is explicitly unavailable. Diagnostics/profiling moves from 50% to 58%; broad target coverage is `798 / 11 = 72.55%` (~73%). Local Clippy, 2,626 library tests plus integration targets, 288 guardrails, formatting, and diff checks passed; GitHub `quality` (8m56s) and `windows-compile` (1m21s) passed; fresh exact-head Terra APPROVE found no findings. No live native macOS presentation run or Linux/Windows support is claimed. |

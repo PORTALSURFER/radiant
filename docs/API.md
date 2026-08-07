@@ -3480,6 +3480,46 @@ classification, and the native render profile emits the same policy as
 `text_quality_status`, so hosts can distinguish clean frames, shaping-limited
 frames, font-coverage-limited frames, and frames with both issues.
 
+### Fixed-cost native frame profiling
+
+`ProfilingOptions` configures the first bounded public profiling path through
+`ProfilingMode::Off` (the default) or `ProfilingMode::Frame`:
+
+```rust
+app.profiling(ProfilingOptions::frame())
+    .on_frame_profile(|state, profile| {
+        // Inspect or retain the backend-neutral profile in application policy.
+        let _ = (state, profile);
+    });
+```
+
+`WindowBuilder::profiling(...)` and `StatefulAppBuilder::profiling(...)` carry
+the same option into `NativeFrameOptions`. Stateful applications receive
+profiles through `StatefulAppWithView::on_frame_profile(...)`; lower-level
+runtime hosts opt in by implementing `RuntimeFrameProfileHost` and registering
+`RuntimeHostCapabilities::with_frame_profile()`.
+
+`FrameProfile` is a copyable, backend-neutral projection of the existing native
+frame diagnostics. It contains the optional native window identity and
+successful-presentation sequence, input-to-present latency, stable work and
+invalidation labels, fixed CPU timing groups, and bounded scene/text/surface,
+recovery, fairness, and observation counters. `FrameProfile::from_native_frame_diagnostics(...)`
+is available when a host needs to project an existing diagnostics value itself.
+
+Profile publication occurs only after successful presentation and uses the same
+bounded primary publication boundary and auxiliary parent handoff as native
+frame diagnostics. Auxiliary windows evaluate their own profiling option, and
+delivery remains ordered with existing diagnostics before application messages.
+An exhausted frame sequence is represented as `None` rather than suppressing a
+profile. `FrameProfileGpuTimingStatus::Unavailable` is explicit: current native
+timing fields are CPU-side envelopes and are never relabeled as GPU timestamps.
+
+This surface intentionally does not provide `Detailed(ProfileSelection)`, runtime
+mode switching, a debug inspector, backend GPU timestamp queries, renderer-owned
+resource lifetime/budgeting, or live native-window acceptance. The current
+product/support scope is macOS; Linux and Windows remain future portability
+targets and do not block this contract.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile

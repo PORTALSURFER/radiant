@@ -5,7 +5,8 @@ use crate::{
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        SliderEditBatch, SliderMessage, SliderWidget, WidgetProminence, WidgetSizing, WidgetStyle,
+        SliderEditBatch, SliderMessage, SliderWidget, ValueFormat, WidgetProminence, WidgetSizing,
+        WidgetStyle,
     },
 };
 
@@ -17,6 +18,7 @@ pub struct SliderBuilder {
     paints_focus: Option<bool>,
     track_height: Option<f32>,
     paints_track_border: bool,
+    value_format: Option<ValueFormat>,
 }
 
 impl SliderBuilder {
@@ -63,6 +65,12 @@ impl SliderBuilder {
         self
     }
 
+    /// Attach a display-only policy for the retained automation value text.
+    pub fn format(mut self, format: ValueFormat) -> Self {
+        self.value_format = Some(format);
+        self
+    }
+
     /// Emit a host message mapped from the normalized slider value.
     pub fn message<Message: 'static>(
         self,
@@ -97,7 +105,7 @@ impl SliderBuilder {
         }
         slider = slider.with_track_border(self.paints_track_border);
         let mut node = view_node_from_widget(MappedWidget::new(
-            RetainedSliderWidget::new(slider),
+            RetainedSliderWidget::new(slider).with_value_format(self.value_format),
             messages,
         ));
         node.style = self.style;
@@ -114,6 +122,7 @@ pub fn slider(value: f32) -> SliderBuilder {
         paints_focus: None,
         track_height: None,
         paints_track_border: false,
+        value_format: None,
     }
 }
 

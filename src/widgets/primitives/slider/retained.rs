@@ -5,7 +5,9 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{Widget, WidgetCapabilities, WidgetSemantics};
-use crate::widgets::interaction::{EditEvent, SliderEditBatch, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{
+    EditEvent, SliderEditBatch, ValueFormat, WidgetInput, WidgetOutput,
+};
 
 use super::{SliderWidget, input, paint};
 use crate::widgets::primitives::support::WidgetCommon;
@@ -19,6 +21,7 @@ use crate::widgets::primitives::support::WidgetCommon;
 pub(crate) struct RetainedSliderWidget {
     pub(crate) slider: SliderWidget,
     active_edit: Option<EditEvent<f32>>,
+    value_format: Option<ValueFormat>,
 }
 
 impl RetainedSliderWidget {
@@ -26,7 +29,13 @@ impl RetainedSliderWidget {
         Self {
             slider,
             active_edit: None,
+            value_format: None,
         }
+    }
+
+    pub(crate) fn with_value_format(mut self, value_format: Option<ValueFormat>) -> Self {
+        self.value_format = value_format;
+        self
     }
 
     pub(super) fn handle_edit_input(
@@ -44,7 +53,20 @@ impl WidgetSemantics for RetainedSliderWidget {
     }
 
     fn automation_value_text(&self) -> Option<String> {
-        Some(format!("{:.3}", self.slider.state.value))
+        let fallback = || format!("{:.3}", self.slider.state.value);
+        let Some(value_format) = self.value_format else {
+            return Some(fallback());
+        };
+
+        let mut output = String::new();
+        if value_format
+            .write_into(self.slider.state.value, &mut output)
+            .is_ok()
+        {
+            Some(output)
+        } else {
+            Some(fallback())
+        }
     }
 }
 

@@ -2,8 +2,8 @@ use crate::{
     application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{
-        KnobEditBatch, KnobMessage, KnobWidget, RetainedKnobWidget, WidgetProminence, WidgetSizing,
-        WidgetStyle,
+        KnobEditBatch, KnobMessage, KnobWidget, RetainedKnobWidget, ValueFormat, WidgetProminence,
+        WidgetSizing, WidgetStyle,
     },
 };
 
@@ -16,6 +16,7 @@ pub struct KnobBuilder {
     sizing: Option<crate::layout::Vector2>,
     enabled: bool,
     automation_active: bool,
+    value_format: Option<ValueFormat>,
 }
 
 impl KnobBuilder {
@@ -68,6 +69,12 @@ impl KnobBuilder {
         self
     }
 
+    /// Attach a display-only policy for the retained automation value text.
+    pub fn format(mut self, format: ValueFormat) -> Self {
+        self.value_format = Some(format);
+        self
+    }
+
     /// Map explicit gesture lifecycle outputs into host messages.
     pub fn message<Message: 'static>(
         self,
@@ -97,8 +104,10 @@ impl KnobBuilder {
         }
         knob.common.state.disabled = !self.enabled;
         knob.common.state.automation_active = self.automation_active;
-        let mut node =
-            view_node_from_widget(MappedWidget::new(RetainedKnobWidget::new(knob), messages));
+        let mut node = view_node_from_widget(MappedWidget::new(
+            RetainedKnobWidget::new(knob).with_value_format(self.value_format),
+            messages,
+        ));
         node.style = self.style;
         node
     }
@@ -114,6 +123,7 @@ pub fn knob(value: f32) -> KnobBuilder {
         sizing: None,
         enabled: true,
         automation_active: false,
+        value_format: None,
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
     widgets::contract::Widget,
     widgets::interaction::{
         EditEvent, EditPhase, InteractionProvenance, PointerButton, PointerModifiers,
-        SliderEditBatch, SliderMessage, WidgetInput, WidgetKey, WidgetOutput,
+        SliderEditBatch, SliderMessage, ValueFormat, WidgetInput, WidgetKey, WidgetOutput,
     },
 };
 use std::fmt::Debug;
@@ -39,6 +39,23 @@ fn retained_slider(id: u64, value: f32) -> RetainedSliderWidget {
         value,
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     ))
+}
+
+#[test]
+fn retained_slider_formats_automation_text_and_keeps_fallback_text() {
+    let mut slider = retained_slider(14, 0.125).with_value_format(Some(ValueFormat::percent(1)));
+
+    assert_eq!(slider.slider.state.value, 0.125);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("12.5%")
+    );
+
+    slider.slider.state.value = f32::NAN;
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("NaN")
+    );
 }
 
 #[test]

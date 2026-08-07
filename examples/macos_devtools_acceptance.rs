@@ -5,12 +5,18 @@ use radiant::prelude::*;
 #[cfg(any(target_os = "macos", test))]
 use radiant::runtime::DevtoolsOverlayOptions;
 
+#[cfg(any(target_os = "macos", test))]
 const PRIMARY_ACTION_ID: u64 = 10;
+#[cfg(any(target_os = "macos", test))]
 const SECONDARY_ACTION_ID: u64 = 11;
+#[cfg(any(target_os = "macos", test))]
 const INPUT_ID: u64 = 12;
+#[cfg(any(target_os = "macos", test))]
 const TOGGLE_ID: u64 = 13;
+#[cfg(any(target_os = "macos", test))]
 const STATUS_ID: u64 = 14;
 /// Maximum number of Unicode scalar values retained from the text input.
+#[cfg(any(target_os = "macos", test))]
 const MAX_INPUT_CHARS: usize = 64;
 
 #[cfg(target_os = "macos")]

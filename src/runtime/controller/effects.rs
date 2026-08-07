@@ -667,13 +667,11 @@ impl<Message> WorkerEffects<Message> {
         }
     }
 
-    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
-        owner.retire();
-        let origin = EffectOrigin::Auxiliary(owner.clone());
+    pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
         let current_ids = self
             .registry
             .iter()
-            .filter(|(_, registered)| registered.origin == origin)
+            .filter(|(_, registered)| registered.origin.eq(origin))
             .map(|(id, _)| *id)
             .collect::<Vec<_>>();
         for id in current_ids {
@@ -685,12 +683,18 @@ impl<Message> WorkerEffects<Message> {
         let pending_ids = self
             .pending_registrations
             .iter()
-            .filter(|(_, registered_origin)| **registered_origin == origin)
+            .filter(|(_, registered_origin)| (*registered_origin).eq(origin))
             .map(|(registration_id, _)| *registration_id)
             .collect::<Vec<_>>();
         for registration_id in pending_ids {
             let _ = self.release_pending(registration_id);
         }
+    }
+
+    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
+        owner.retire();
+        let origin = EffectOrigin::Auxiliary(owner.clone());
+        self.retire_origin(&origin);
     }
 
     fn apply_terminal(
@@ -925,7 +929,11 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use std::{cell::RefCell, rc::Rc, time::Duration};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        time::Duration,
+    };
 
     fn register(effect: &mut WorkerEffects<usize>, id: u64, generation: u64) {
         effect.registry.insert(
@@ -980,6 +988,104 @@ mod tests {
         );
         effect.pending_registrations.insert(registration_id, origin);
         effect.pending += 1;
+    }
+
+    fn register_stream_owned(
+        effect: &mut WorkerEffects<usize>,
+        id: u64,
+        registration_id: u64,
+        origin: EffectOrigin,
+    ) -> Arc<LatestStreamState> {
+        let state = Arc::new(LatestStreamState {
+            gate: Mutex::new(LatestStreamGate {
+                closed: false,
+                marker_enqueued: false,
+                latest: None,
+            }),
+            ingress: effect.ingress.clone_handle(),
+            id: EffectId(id),
+            generation: EffectGeneration(1),
+            registration_id,
+            epoch: effect.epoch,
+            origin: origin.clone(),
+        });
+        effect.registry.insert(
+            EffectId(id),
+            Registered {
+                generation: EffectGeneration(1),
+                registration_id,
+                epoch: effect.epoch,
+                is_cancelled: None,
+                lifecycle: LifecycleDescriptor::new(effect.owner.clone(), id, None, 1, None),
+                mapper: RegisteredMapper::Stream {
+                    latest: true,
+                    latest_state: Some(Arc::clone(&state)),
+                    map_event: Box::new(|output| {
+                        Some(*output.downcast::<usize>().expect("usize output"))
+                    }),
+                    map_final: Box::new(|output| {
+                        Some(*output.downcast::<usize>().expect("usize output"))
+                    }),
+                },
+                origin: origin.clone(),
+            },
+        );
+        effect.pending_registrations.insert(registration_id, origin);
+        effect.pending += 1;
+        state
+    }
+
+    fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
+        let phase = Rc::new(Cell::new(0_u8));
+        let project_phase = Rc::clone(&phase);
+        let mut runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            move |_| {
+                if project_phase.get() == 1 {
+                    text::<usize>("raw").into_surface()
+                } else {
+                    column([text::<usize>("old").key("old")]).into_surface()
+                }
+            },
+            |_, _| {},
+        );
+        let old = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("old declarative owner")
+            .token
+            .clone();
+        let sibling_runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            |_| column([text::<usize>("sibling").key("sibling")]).into_surface(),
+            |_, _| {},
+        );
+        let sibling = sibling_runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("sibling declarative owner")
+            .token
+            .clone();
+        phase.set(1);
+        runtime.refresh();
+        phase.set(2);
+        runtime.refresh();
+        let new = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("later declarative owner generation")
+            .token
+            .clone();
+        (
+            EffectOrigin::Declarative(old),
+            EffectOrigin::Declarative(sibling),
+            EffectOrigin::Declarative(new),
+        )
     }
 
     #[test]
@@ -1096,6 +1202,62 @@ mod tests {
         ));
         assert!(effects.drain().is_empty());
         assert_eq!(effects.pending, 0);
+    }
+
+    #[test]
+    fn declarative_retirement_closes_stream_releases_pending_and_isolates_origins() {
+        let (old_origin, sibling_origin, new_origin) = declarative_origins();
+        assert!(!old_origin.eq(&new_origin));
+        assert!(new_origin.is_live());
+        let mut effects = WorkerEffects::<usize>::default();
+        let stream_state = register_stream_owned(&mut effects, 61, 601, old_origin.clone());
+        register_owned(&mut effects, 62, 1, 602, sibling_origin.clone());
+        register_owned(&mut effects, 63, 1, 603, EffectOrigin::Application);
+        register_owned(&mut effects, 64, 1, 604, new_origin.clone());
+
+        effects.retire_origin(&old_origin);
+
+        assert!(
+            stream_state
+                .gate
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .closed
+        );
+        assert!(!effects.registry.contains_key(&EffectId(61)));
+        assert!(effects.registry.contains_key(&EffectId(62)));
+        assert!(effects.registry.contains_key(&EffectId(63)));
+        assert!(effects.registry.contains_key(&EffectId(64)));
+        assert_eq!(effects.pending, 3);
+
+        let send = |effects: &WorkerEffects<usize>, id, registration_id, origin| {
+            effects.ingress.send_with_registration(
+                EffectId(id),
+                EffectGeneration(1),
+                registration_id,
+                effects.epoch,
+                origin,
+                EffectResult::Completed(Box::new(id as usize)),
+            )
+        };
+        assert!(send(&effects, 61, 601, &old_origin));
+        assert!(send(&effects, 62, 602, &sibling_origin));
+        assert!(send(&effects, 63, 603, &EffectOrigin::Application));
+        assert!(send(&effects, 64, 604, &new_origin));
+        assert_eq!(effects.drain(), vec![62, 63, 64]);
+        assert_eq!(effects.pending, 0);
+
+        effects.retire_origin(&old_origin);
+        assert_eq!(effects.pending, 0);
+        assert!(effects.ingress.send_with_registration(
+            EffectId(61),
+            EffectGeneration(1),
+            601,
+            effects.epoch,
+            &old_origin,
+            EffectResult::Completed(Box::new(610_usize)),
+        ));
+        assert!(effects.drain().is_empty());
     }
 
     #[test]

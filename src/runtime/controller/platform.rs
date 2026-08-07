@@ -93,18 +93,22 @@ impl<Message> PlatformCompletionRegistry<Message> {
         self.entries.remove(&identity).map(|entry| entry.completion)
     }
 
-    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
-        owner.retire();
-        let origin = EffectOrigin::Auxiliary(owner.clone());
+    pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
         let current_ids = self
             .entries
             .iter()
-            .filter(|(_, registered)| registered.origin == origin)
+            .filter(|(_, registered)| registered.origin.eq(origin))
             .map(|(identity, _)| *identity)
             .collect::<Vec<_>>();
         for identity in current_ids {
             self.entries.remove(&identity);
         }
+    }
+
+    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
+        owner.retire();
+        let origin = EffectOrigin::Auxiliary(owner.clone());
+        self.retire_origin(&origin);
     }
 
     pub(super) fn clear(&mut self) {
@@ -278,10 +282,63 @@ mod tests {
         runtime::SurfaceRuntime,
     };
     use std::{
-        cell::RefCell,
+        cell::{Cell, RefCell},
         rc::Rc,
         sync::{Arc, Mutex},
     };
+
+    fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
+        let phase = Rc::new(Cell::new(0_u8));
+        let project_phase = Rc::clone(&phase);
+        let mut runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            move |_| {
+                if project_phase.get() == 1 {
+                    text::<usize>("raw").into_surface()
+                } else {
+                    column([text::<usize>("old").key("old")]).into_surface()
+                }
+            },
+            |_, _| {},
+        );
+        let old = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("old declarative owner")
+            .token
+            .clone();
+        let sibling_runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            |_| column([text::<usize>("sibling").key("sibling")]).into_surface(),
+            |_, _| {},
+        );
+        let sibling = sibling_runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("sibling declarative owner")
+            .token
+            .clone();
+        phase.set(1);
+        runtime.refresh();
+        phase.set(2);
+        runtime.refresh();
+        let new = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("later declarative owner generation")
+            .token
+            .clone();
+        (
+            EffectOrigin::Declarative(old),
+            EffectOrigin::Declarative(sibling),
+            EffectOrigin::Declarative(new),
+        )
+    }
 
     #[test]
     fn mapper_runs_once_and_duplicate_delivery_is_ignored() {
@@ -509,6 +566,81 @@ mod tests {
             Some(4)
         );
         assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn declarative_retirement_drops_only_matching_completion_mappers() {
+        let (old_origin, sibling_origin, new_origin) = declarative_origins();
+        let marker = Rc::new(());
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+        let application = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    1
+                }),
+                &EffectOrigin::Application,
+            )
+        };
+        let old = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    2
+                }),
+                &old_origin,
+            )
+        };
+        let sibling = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    3
+                }),
+                &sibling_origin,
+            )
+        };
+        let new_generation = {
+            let marker = Rc::clone(&marker);
+            registry.register(
+                Box::new(move |_| {
+                    let _ = &marker;
+                    4
+                }),
+                &new_origin,
+            )
+        };
+        assert_eq!(Rc::strong_count(&marker), 5);
+
+        registry.retire_origin(&old_origin);
+
+        assert_eq!(Rc::strong_count(&marker), 4);
+        assert!(registry.map_delivery(delivery_for(old)).is_none());
+        assert_eq!(
+            registry
+                .map_delivery(delivery_for(application))
+                .map(|mapped| mapped.message),
+            Some(1)
+        );
+        assert_eq!(
+            registry
+                .map_delivery(delivery_for(sibling))
+                .map(|mapped| mapped.message),
+            Some(3)
+        );
+        assert_eq!(
+            registry
+                .map_delivery(delivery_for(new_generation))
+                .map(|mapped| mapped.message),
+            Some(4)
+        );
+        assert_eq!(Rc::strong_count(&marker), 1);
+
+        registry.retire_origin(&old_origin);
+        assert!(registry.map_delivery(delivery_for(old)).is_none());
     }
 
     #[test]

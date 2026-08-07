@@ -180,7 +180,9 @@ it does not transfer ownership to the declarative tree or split the shared
 ingress. These shipped bridges are evidence for the seam, not evidence that
 overlay/keyed-node cancellation exists.
 
-The future declarative seam is private and has five dependency-ordered stages:
+The private declarative seam has five dependency-ordered stages. Generic
+matching registry retirement is now shipped at the accepted projection
+boundary; product-facing owner selection/cancellation remains deferred:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible

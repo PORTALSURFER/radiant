@@ -2356,8 +2356,9 @@ overlay- or keyed-node owner field. The private controller now consumes an
 explicitly selected private declarative origin from the accepted source
 projection/live-generation boundary and carries it through existing worker,
 timer, platform-completion, and chained-command paths. The shipped application
-API and declarative lowering still do not expose owner selection, and registry
-retirement and product-facing cancellation remain unshipped.
+API and declarative lowering still do not expose owner selection, while private
+matching registry retirement is now performed at the accepted projection
+boundary. Product-facing selection/cancellation remains unshipped.
 
 The target-only contract is described in
 [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation).

@@ -1,8 +1,8 @@
 //! Private declarative owner projection and live-generation reconciliation.
 //!
-//! This module owns the controller-private live-generation boundary and the
-//! conversion from an accepted explicit request into a private effect origin.
-//! It does not admit work or retire any registry entry.
+//! This module owns the controller-private live-generation boundary, the
+//! conversion from an accepted explicit request into a private effect origin,
+//! and the bounded retirement handoff to the existing effect registries.
 
 #![allow(dead_code)]
 
@@ -619,6 +619,7 @@ pub(crate) struct DeclarativeOwnerLedger {
     next_live: Vec<DeclarativeOwnerRecord>,
     canonical: Vec<DeclarativeOwnerDescriptor>,
     generation_unavailable: Vec<DeclarativeOwnerIdentity>,
+    retired_tokens: Vec<DeclarativeOwnerToken>,
     reconciliation_count: u64,
 }
 
@@ -648,14 +649,19 @@ impl DeclarativeOwnerLedger {
         }
 
         // Retirement happens before any replacement record is published.
-        for record in &self.live {
-            let descriptor = DeclarativeOwnerDescriptor {
-                identity: record.token.identity(),
-                compatibility: record.compatibility,
-            };
-            if !self.canonical.contains(&descriptor) {
-                record.token.retire();
-            }
+        let retired = self
+            .live
+            .iter()
+            .filter(|record| {
+                !self.canonical.contains(&DeclarativeOwnerDescriptor {
+                    identity: record.token.identity(),
+                    compatibility: record.compatibility,
+                })
+            })
+            .map(|record| record.token.clone())
+            .collect::<Vec<_>>();
+        for token in retired {
+            self.retire_token(&token);
         }
 
         self.next_live.clear();
@@ -751,6 +757,15 @@ impl DeclarativeOwnerLedger {
         self.reconciliation_count
     }
 
+    /// Drain the exact live-generation tokens retired by reconciliation.
+    ///
+    /// The controller consumes this handoff immediately after installing an
+    /// accepted projection, before any later registry mapping or reduction.
+    /// The backing allocation remains reusable across refreshes.
+    pub(super) fn drain_retired_tokens(&mut self) -> Vec<DeclarativeOwnerToken> {
+        self.retired_tokens.drain(..).collect()
+    }
+
     fn has_live_compatible(&self, descriptor: DeclarativeOwnerDescriptor) -> bool {
         self.live.iter().any(|record| {
             record.token.is_live()
@@ -768,19 +783,28 @@ impl DeclarativeOwnerLedger {
 
     fn retain_current_identities_after_exhaustion(&mut self) {
         self.next_live.clear();
-        for record in &self.live {
+        let current = self.live.clone();
+        for record in current {
             let current_descriptor = self.canonical.iter().find(|descriptor| {
                 descriptor.identity == record.token.identity()
                     && descriptor.compatibility == record.compatibility
             });
             if current_descriptor.is_some() && record.token.is_live() {
-                self.next_live.push(record.clone());
+                self.next_live.push(record);
             } else {
-                record.token.retire();
+                self.retire_token(&record.token);
             }
         }
         std::mem::swap(&mut self.live, &mut self.next_live);
         self.next_live.clear();
+    }
+
+    fn retire_token(&mut self, token: &DeclarativeOwnerToken) {
+        if !token.is_live() {
+            return;
+        }
+        token.retire();
+        self.retired_tokens.push(token.clone());
     }
 }
 
@@ -1021,6 +1045,16 @@ where
             .install_from_source(&self.scratch.projection_source);
         self.declarative_owner_ledger
             .reconcile(&self.declarative_owner);
+
+        // Reconciliation is the accepted-projection retirement boundary.  A
+        // retired token is removed from every existing registry before any
+        // later completion, wake, or result can reach mapping or reduction.
+        for token in self.declarative_owner_ledger.drain_retired_tokens() {
+            let origin = EffectOrigin::Declarative(token);
+            self.worker_effects.retire_origin(&origin);
+            self.timer_effects.retire_origin(&origin);
+            self.platform_registry.retire_origin(&origin);
+        }
     }
 
     pub(crate) fn declarative_owner_projection(&self) -> &DeclarativeOwnerProjection {
@@ -1209,6 +1243,7 @@ mod tests {
         let before_source = source_from_surface(before);
         projection.install_from_source(&before_source);
         ledger.reconcile(&projection);
+        assert!(ledger.drain_retired_tokens().is_empty());
         let identities: Vec<_> = projection
             .accepted_keyed_nodes()
             .iter()
@@ -1226,6 +1261,7 @@ mod tests {
 
         projection.install_from_source(&before_source);
         ledger.reconcile(&projection);
+        assert!(ledger.drain_retired_tokens().is_empty());
         assert_eq!(ledger.next_generation(), allocated);
         for (identity, token, generation) in &initial {
             let current = live_token(&ledger, *identity);
@@ -1545,6 +1581,8 @@ mod tests {
         assert!(!old.is_live());
         assert!(!ledger.is_live(&old));
         assert!(ledger.live_records().is_empty());
+        assert_eq!(ledger.drain_retired_tokens(), vec![old.clone()]);
+        assert!(ledger.drain_retired_tokens().is_empty());
 
         projection.install_from_source(&source_from_surface(keyed_surface()));
         ledger.reconcile(&projection);
@@ -1754,6 +1792,11 @@ mod tests {
         assert!(!current_ledger.is_live(&old_first));
         assert!(!old_first.is_live());
         assert_eq!(current_ledger.live_records().len(), 1);
+        assert_eq!(
+            current_ledger.drain_retired_tokens(),
+            vec![old_first.clone()]
+        );
+        assert!(current_ledger.drain_retired_tokens().is_empty());
         assert_eq!(
             current_ledger.resolve_live(
                 replacement.owner_identity(),

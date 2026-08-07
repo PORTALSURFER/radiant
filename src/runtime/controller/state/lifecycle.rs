@@ -86,6 +86,7 @@ where
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
             declarative_owner: Default::default(),
+            declarative_owner_ledger: Default::default(),
         };
         runtime.prepare_virtual_layout_surface(&traversal.virtual_layout_registrations);
         let traversal = if runtime.virtual_layout.is_empty() {
@@ -210,6 +211,7 @@ where
             return false;
         }
         self.reset_tooltip_hover_intent();
+        self.declarative_owner_ledger.retire_all();
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
         self.retire_virtual_layout();

@@ -8,9 +8,9 @@ record for individual slices and reviews.
 ## Snapshot
 
 - Snapshot date: **2026-08-07**
-- Canonical main: **`e9e5136d`**
+- Canonical main: **`66859796`**
 - Generic architecture-sequence completion: **~97% (92–99%, medium confidence)**
-- Broad end-to-end target coverage: **~74%**
+- Broad end-to-end target coverage: **~74.18% (reported as ~74%)**
 
 These are different measurements. Generic architecture-sequence completion
 reflects the evidence-backed dependency sequence of shipped generic contracts,
@@ -19,7 +19,7 @@ prose, diagrams, or examples do not count as shipped implementation; they
 establish the contract against which that sequence is measured. Broad end-to-end
 target coverage is the unweighted mean of the 11 category scores below:
 
-`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 68 + 66 + 75) / 11 = 74.00%`,
+`(80 + 70 + 82 + 96 + 60 + 46 + 93 + 78 + 70 + 66 + 75) / 11 = 74.18%`,
 reported approximately as **~74%**. The ~97% sequence measure is not product
 completeness and does not claim full end-to-end coverage or native acceptance.
 Because the category rows are point estimates, no separate range is claimed for
@@ -153,6 +153,19 @@ remains ~97% because Detailed profiling, runtime switching, inspector/frame
 correlation, GPU timestamp queries, renderer-owned lifetime/budgeting, and
 broader performance proof remain.
 
+PR #1633 now ships the macOS outgoing external-drag completion boundary:
+valid launches remain pending until AppKit reports a terminal result, Copy
+completes exactly once as accepted, Escape cancellation completes exactly once
+as unaccepted, and stale/duplicate/replaced/closed/shutdown results remain
+fenced. The public macOS acceptance harness passed live Finder Copy and
+cancellation trials at exact head, including one received payload and no
+additional payload after cancellation. Platform/windowing alignment moves
+conservatively from 68% to 70%; broad target coverage is
+`816 / 11 = 74.18%` (~74%). The generic architecture-sequence estimate
+remains ~97% because incoming drops, Move/Link negotiation, Linux/Windows
+runtime support, renderer-owned budgeting, and product-specific policy remain
+outside this slice.
+
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
 remaining target requires a supported renderer/adapter contract for resource
@@ -180,7 +193,7 @@ unshipped.
 | Numeric controls | 46% | Finite linear/log `ValueMapping`, deterministic allocation-free `ValueFormat`, parser-agnostic `NumericEditSession<T>`, and display-only `ValueFormat` attachment through the official Slider/Knob application builders are shipped; parser/domain/range policy, mapping, numeric input, and broader control integration are not. |
 | Runtime, effects, and scheduling | 93% | PRs #1617–#1627 ship generic lifecycle authority/diagnostics, the native Vello recovery bridge, stable auxiliary-window owner/origin retirement consumers for worker, timer, and platform effects, the private declarative source-topology and owner-generation foundations, the explicit owner-request consumer, and eager exact-generation retirement at the existing worker, timer, and platform registries with conservative late-delivery vetoes. Public/product-facing selection/cancellation policy and scheduling budgets/fairness remain. |
 | Rendering, invalidation, retained GPU surfaces | 78% | Revision/damage direction, private committed native paint-segment benefit evidence, bounded observational admission, plan-index-preserving sparse artifact residency, executable mixed assembly, admission-gated sparse publication, and explicit admission-aware render-boundary selection with conservative full-scene fallback are shipped; renderer-owned retained-resource lifetime/budgeting, platform profiling, and product-specific cache policy remain. |
-| Platform, windowing, and host boundaries | 68% | macOS host-facing boundaries now have live `.app` acceptance for primary/auxiliary successful presents, independent profiling modes, native auxiliary close, native primary zoom/resize, and the normal builder path for the observational devtools overlay; Linux/Windows runtime implementation and validation remain explicitly deferred portability work and do not block this macOS-scoped goal. |
+| Platform, windowing, and host boundaries | 70% | macOS host-facing boundaries now have live `.app` acceptance for primary/auxiliary successful presents, independent profiling modes, native auxiliary close, native primary zoom/resize, the normal builder path for the observational devtools overlay, and outgoing Finder drag Copy/cancellation completion; Linux/Windows runtime implementation and validation remain explicitly deferred portability work and do not block this macOS-scoped goal. |
 | Diagnostics, profiling, and performance validation | 66% | Bounded diagnostics, public Off/Frame `FrameProfile` delivery, checked live macOS successful-present acceptance, and normal builder exposure plus live inspector evidence for the observational devtools overlay are shipped; Detailed profiling, runtime switching, inspector/frame correlation, GPU timestamps, renderer-owned lifetime/budgeting, and broader performance proof remain. |
 | Examples, documentation, and CI guardrails | 75% | Normative docs, API references, tests, and CI guardrails are substantial; target-only examples do not substitute for integration evidence. |
 
@@ -279,6 +292,10 @@ The current foundation includes:
 - normal stateful/window builder `devtools_overlay(DevtoolsOverlayOptions)`
   setters plus a macOS-only live devtools acceptance harness with ordinary
   controls, bounded text input, and inspector projection tests (PR #1632); and
+- the private macOS outgoing external-drag completion boundary with bounded
+  pending/session state, exact WindowId-plus-identity routing, one-shot Copy
+  and cancellation delivery, stale/duplicate/replacement/shutdown fencing,
+  and live Finder acceptance coverage (PR #1633); and
 - the private generic `RuntimeLifecycleController` with validated
   `Starting`/`Running`/`Recovering`/`Closing`/`Stopped` transitions and
   qualified, bounded `RuntimeLifecycleDiagnostics` with saturating counts and
@@ -397,6 +414,14 @@ or reduction. The remaining runtime ownership work requires product-facing
 selection/cancellation policy; the sequence still does not add configurable
 budgets, fairness, or synthetic GPU-host acceptance.
 
+PR #1633 now closes the macOS outgoing-drag host boundary through the existing
+UI-owned completion mapper: admission is pending, AppKit's terminal callback
+maps Copy or cancellation once, exact window/identity routing isolates primary
+and auxiliary owners, and stale or post-shutdown deliveries are inert. Live
+Finder evidence covers both accepted Copy and Escape cancellation. Incoming
+drop semantics, Move/Link negotiation, and non-macOS runtime support remain
+explicitly outside the current product scope.
+
 ## Remaining gaps, ordered by leverage
 
 1. **Product-specific virtualization consumers and product proof.**
@@ -485,10 +510,11 @@ budgets, fairness, or synthetic GPU-host acceptance.
    renderer-owned lifetime/budgeting, and broader performance validation.
    These require renderer/platform contracts or a broader named workload.
 7. **Platform portability (deferred).** The current macOS native support and
-   public profiling acceptance boundary are now live-validated. Linux/Windows
-   runtime implementation and validation remain explicitly deferred portability
-   work behind the existing boundaries and do not block the current macOS-scoped
-   support goal. Product-specific native accessibility and control semantics
+   public profiling, devtools, and outgoing-drag acceptance boundaries are now
+   live-validated. Linux/Windows runtime implementation and validation remain
+   explicitly deferred portability work behind the existing boundaries and do
+   not block the current macOS-scoped support goal. Incoming drops, Move/Link
+   negotiation, and product-specific native accessibility/control semantics
    remain tracked with their text/input and product contracts.
 
 dB, tempo, and other custom numeric formats remain later work after the
@@ -532,6 +558,10 @@ The target and implementation evidence for this snapshot is mapped here:
 - [Stateful devtools overlay builder](../src/application/launch/stateful/builder.rs)
 - [Window devtools overlay builder](../src/application/launch/window.rs)
 - [macOS devtools overlay acceptance harness](../examples/macos_devtools_acceptance.rs)
+- [macOS external-drag acceptance harness](../examples/macos_external_drag_acceptance.rs)
+- [External-drag lifecycle contract](../src/gui_runtime/native_vello/generic_runtime/external_drag.rs)
+- [External-drag platform routing](../src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs)
+- [macOS external-drag source bridge](../src/gui_runtime/native_vello/generic_runtime/external_drag/macos/source.rs)
 - [Native recovery/controller bridge](../src/gui_runtime/native_vello/generic_runtime/runner.rs)
 - [Controller recovery lifecycle boundary](../src/runtime/controller/state/lifecycle.rs)
 - [Runtime owner and auxiliary generation fence](../src/runtime/controller/owner.rs)
@@ -611,3 +641,4 @@ the current snapshot because prior snapshots did not record that derived metric.
 | 2026-08-07 | `2f1668a3` | ~97% (92–99%, medium confidence) | PR #1630 merged the first bounded public Off/Frame profiling path: `ProfilingOptions` flows through native launch builders, `FrameProfile` projects successful-present diagnostics through an independent host capability and stateful callback, primary/auxiliary ordering and exhausted-sequence behavior are covered, and GPU timing is explicitly unavailable. Diagnostics/profiling moves from 50% to 58%; broad target coverage is `798 / 11 = 72.55%` (~73%). Local Clippy, 2,626 library tests plus integration targets, 288 guardrails, formatting, and diff checks passed; GitHub `quality` (8m56s) and `windows-compile` (1m21s) passed; fresh exact-head Terra APPROVE found no findings. No live native macOS presentation run or Linux/Windows support is claimed. |
 | 2026-08-07 | `39c78255` | ~97% (92–99%, medium confidence) | PR #1631 merged the macOS-only live Off/Frame acceptance harness with fixed recorder evidence, independent primary/auxiliary successful-present profiles, Off silence, native auxiliary close, and native primary zoom/resize. A bounded Frame/Frame admission gate and regression test prevent callback arrival order from reversing window ownership. Diagnostics/profiling moves from 58% to 62%, platform/windowing from 60% to 68%, and broad target coverage is `810 / 11 = 73.64%` (~74%). Local focused validation passed with 6 example tests and 288 guardrails; the required GitHub `quality` and `windows-compile` checks passed; exact-head Terra APPROVE found no findings. Linux/Windows remain future portability targets; Detailed profiling, GPU timing, renderer-owned budgeting, and broader performance proof remain. |
 | 2026-08-07 | `e9e5136d` | ~97% (92–99%, medium confidence) | PR #1632 merged the normal stateful/window builder exposure for the existing observational `DevtoolsOverlayOptions` plus a macOS-only live devtools acceptance harness. The harness exercises ordinary buttons, a toggle, bounded Unicode text input, and inspector tree/selection/bounds/paint diagnostics; non-macOS compilation is explicitly guarded and remains a portability fallback. The initial Windows run found only unconditional harness constants under `-D warnings`; the cfg-only correction produced final head `4ad7addf`, which passed local all-target/all-feature checks, strict Clippy, focused example/guardrail tests, and required GitHub `quality` (12m52s) and `windows-compile` (2m07s). Independent Terra exact-head APPROVE found no findings, and the PR merged as `e9e5136d`. Diagnostics/profiling moves from 62% to 66%; broad target coverage is `814 / 11 = 74.00%` (~74%). The remaining inspector limitations are documented: the Vello canvas has no native AX nodes for its in-surface controls, so pointer/text/focus interaction is covered by harness state/projection tests rather than claimed native accessibility. Detailed profiling, runtime switching, inspector/frame correlation, GPU timestamps, renderer-owned budgeting, and broader performance proof remain. |
+| 2026-08-07 | `66859796` | ~97% (92–99%, medium confidence) | PR #1633 merged the macOS outgoing external-drag completion boundary: valid launches remain pending until AppKit reports a terminal result; Copy completes once as accepted; Escape cancellation completes once as unaccepted; and exact WindowId-plus-identity routing plus stale/duplicate/replacement/closed/shutdown fences remain intact. At exact head `03363f18`, local focused/all-target/strict-Clippy/docs gates and green `quality`/`windows-compile` CI passed, independent Terra specialist review ended APPROVE, and live macOS 26.5.2 arm64 Finder trials recorded one 46-byte payload for Copy and no additional payload for Escape cancellation. Platform/windowing moves from 68% to 70%; broad target coverage is `816 / 11 = 74.18%` (~74%). Linux/Windows runtime support, incoming drops, Move/Link negotiation, and broader product/renderer policy remain outside this macOS slice. |

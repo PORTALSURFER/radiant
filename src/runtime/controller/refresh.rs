@@ -2000,6 +2000,11 @@ where
             self.restore_focused_widget_state(widget_id);
         }
 
+        // Only the source buffer produced by the final accepted projection is
+        // allowed to replace the controller-owned declarative owner evidence.
+        // Virtual-layout probes remain provisional until this boundary.
+        self.install_declarative_owner_projection();
+
         view_delta.damage = damage.finish(&self.surface, &self.layout);
 
         self.record_refresh_diagnostics(

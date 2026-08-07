@@ -15,6 +15,7 @@ where
             &mut self.scratch.projection_source,
         );
         self.relayout_with_traversal(traversal);
+        self.install_declarative_owner_projection();
     }
 
     pub(in crate::runtime::controller) fn relayout_current_surface(&mut self) {

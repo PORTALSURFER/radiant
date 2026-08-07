@@ -648,6 +648,7 @@ where
             &mut self.scratch.projection_source,
         );
         self.relayout_with_traversal(traversal);
+        self.install_declarative_owner_projection();
         true
     }
 
@@ -948,6 +949,10 @@ mod tests {
         );
 
         assert_authoritative_source(&runtime);
+        assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            1
+        );
     }
 
     #[test]
@@ -982,6 +987,10 @@ mod tests {
         };
         assert_eq!(root.children.len(), 2, "shell plus one admitted item");
         assert_authoritative_source(&runtime);
+        assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            1
+        );
     }
 
     #[test]
@@ -1004,6 +1013,10 @@ mod tests {
 
         assert_authoritative_source(&runtime);
         assert!(runtime.scratch.projection_source.records.capacity() >= source_capacity);
+        assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            2
+        );
     }
 
     #[test]
@@ -1061,6 +1074,7 @@ mod tests {
             runtime.refresh_counters().layout,
             runtime.virtual_layout.materialization_passes,
         );
+        let owner_installations = runtime.declarative_owner_projection().installation_count();
         let source_capacity = runtime.scratch.projection_source.records.capacity();
         let stale_source_record = runtime
             .scratch
@@ -1101,6 +1115,10 @@ mod tests {
         assert_authoritative_source(&runtime);
         assert!(runtime.scratch.projection_source.records.capacity() >= source_capacity);
         assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            owner_installations + 1
+        );
+        assert_eq!(
             frame.view_delta.effect,
             crate::runtime::surface::ViewDeltaEffect::Unchanged
         );
@@ -1140,6 +1158,50 @@ mod tests {
         assert!(runtime.virtual_layout.projection_probe.is_some());
         runtime.virtual_layout.retire_all();
         assert!(runtime.virtual_layout.projection_probe.is_none());
+    }
+
+    #[test]
+    fn provisional_virtual_probe_does_not_replace_accepted_owner_projection() {
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration(
+                    Rc::new(ReadyPolicy {
+                        calls: Rc::new(Cell::new(0)),
+                        key: 12,
+                    }),
+                    VirtualLayoutPolicyIdentity::new("probe-isolation-policy"),
+                )),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        let accepted_before_probe_mutation = runtime
+            .declarative_owner_projection()
+            .accepted_keyed_nodes()
+            .to_vec();
+        let installations_before_probe_mutation =
+            runtime.declarative_owner_projection().installation_count();
+        let probe = runtime
+            .virtual_layout
+            .projection_probe
+            .as_mut()
+            .expect("unchanged virtual refresh should retain a provisional probe");
+        probe.source.records.clear();
+
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(
+            runtime
+                .declarative_owner_projection()
+                .accepted_keyed_nodes(),
+            accepted_before_probe_mutation.as_slice()
+        );
+        assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            installations_before_probe_mutation + 1
+        );
+        assert_authoritative_source(&runtime);
     }
 
     #[test]

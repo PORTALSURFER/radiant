@@ -196,4 +196,7 @@ pub use surface::{
     ScrollMessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode,
     SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };
+pub(crate) use surface::{
+    KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
+};
 pub use update_snapshot::RuntimeUpdateSnapshot;

@@ -1,8 +1,8 @@
 use super::{
-    SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode, SurfaceScene,
-    SurfaceTraversalIndex, SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord,
-    UiSurface,
+    SourceTraversalIndex, SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode,
+    SurfaceScene, SurfaceTraversalIndex, SurfaceTraversalStats, UiSurface,
 };
+use super::{SurfaceWidget, SurfaceWidgetTraversalRecord};
 use crate::layout::supports_layout_capabilities_contract;
 use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
 use crate::layout::{ContainerPolicy, SlotParams};
@@ -10,29 +10,36 @@ use crate::layout::{ContainerPolicy, SlotParams};
 pub(in crate::runtime) struct SurfaceRuntimeProjection<Message> {
     pub(in crate::runtime) layout_root: LayoutNode,
     pub(in crate::runtime) traversal: SurfaceTraversalIndex<Message>,
+    pub(in crate::runtime) source: SourceTraversalIndex,
 }
 
 impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection<Message> {
         let stats = self.root.runtime_traversal_stats();
         let mut traversal = SurfaceTraversalIndex::with_stats(stats);
-        let layout_root = self.runtime_projection_into(&mut traversal, stats);
+        let mut source = SourceTraversalIndex::with_stats(stats);
+        let layout_root =
+            self.runtime_projection_into_with_source(&mut traversal, stats, &mut source);
         SurfaceRuntimeProjection {
             layout_root,
             traversal,
+            source,
         }
     }
 
-    pub(in crate::runtime) fn runtime_projection_into(
+    pub(in crate::runtime) fn runtime_projection_into_with_source(
         &self,
         traversal: &mut SurfaceTraversalIndex<Message>,
         stats: SurfaceTraversalStats,
+        source: &mut SourceTraversalIndex,
     ) -> LayoutNode {
         traversal.clear_for_stats(stats);
+        source.clear_for_stats(stats);
         self.root.project_runtime(
             &mut Vec::with_capacity(stats.max_scroll_depth),
             &mut Vec::with_capacity(stats.max_depth),
             traversal,
+            source,
         )
     }
 
@@ -41,12 +48,38 @@ impl<Message> UiSurface<Message> {
         traversal: &mut SurfaceTraversalIndex<Message>,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
+        source: &mut SourceTraversalIndex,
+    ) -> LayoutNode {
+        self.runtime_projection_reusing_with_scratch_and_source(
+            traversal,
+            scroll_stack,
+            child_path,
+            source,
+        )
+    }
+
+    pub(in crate::runtime) fn runtime_projection_reusing_with_scratch_and_source(
+        &self,
+        traversal: &mut SurfaceTraversalIndex<Message>,
+        scroll_stack: &mut Vec<NodeId>,
+        child_path: &mut Vec<usize>,
+        source: &mut SourceTraversalIndex,
     ) -> LayoutNode {
         traversal.clear_for_reuse();
+        source.clear_for_reuse();
         scroll_stack.clear();
         child_path.clear();
         self.root
-            .project_runtime(scroll_stack, child_path, traversal)
+            .project_runtime(scroll_stack, child_path, traversal, source)
+    }
+
+    pub(in crate::runtime) fn runtime_source_traversal_index_reusing(
+        &self,
+        source: &mut SourceTraversalIndex,
+    ) {
+        let stats = self.root.runtime_traversal_stats();
+        source.clear_for_stats(stats);
+        self.root.collect_source_traversal(source);
     }
 }
 
@@ -73,17 +106,19 @@ impl<Message> SurfaceNode<Message> {
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
         traversal: &mut SurfaceTraversalIndex<Message>,
+        source: &mut SourceTraversalIndex,
     ) -> LayoutNode {
+        source.record_node(self);
         match self {
             Self::Scene(scene) => {
                 if !scene.has_layers() {
                     return scene
                         .base
-                        .project_runtime(scroll_stack, child_path, traversal);
+                        .project_runtime(scroll_stack, child_path, traversal, source);
                 }
                 scene_layout_node(scene, |scene_child_index, child| {
                     child_path.push(scene_child_index);
-                    let layout = child.project_runtime(scroll_stack, child_path, traversal);
+                    let layout = child.project_runtime(scroll_stack, child_path, traversal, source);
                     child_path.pop();
                     layout
                 })
@@ -92,7 +127,7 @@ impl<Message> SurfaceNode<Message> {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
                 let children = container_layout_children(container, |child_index, child| {
                     child_path.push(child_index);
-                    let layout = child.project_runtime(scroll_stack, child_path, traversal);
+                    let layout = child.project_runtime(scroll_stack, child_path, traversal, source);
                     child_path.pop();
                     layout
                 });
@@ -111,7 +146,8 @@ impl<Message> SurfaceNode<Message> {
                     let children =
                         container_layout_children(&layer.container, |child_index, child| {
                             child_path.push(child_index);
-                            let layout = child.project_runtime(scroll_stack, child_path, traversal);
+                            let layout =
+                                child.project_runtime(scroll_stack, child_path, traversal, source);
                             child_path.pop();
                             layout
                         });
@@ -122,8 +158,10 @@ impl<Message> SurfaceNode<Message> {
                         children,
                     )
                 } else {
-                    let children =
-                        container_layout_children(&layer.container, |_, child| child.layout_node());
+                    let children = container_layout_children(&layer.container, |_, child| {
+                        child.collect_source_traversal(source);
+                        child.layout_node()
+                    });
                     LayoutNode::container(
                         layer.container.id,
                         layer.container.policy.clone(),

@@ -1,5 +1,7 @@
+use super::super::source::SourceMetadata;
 use super::{SurfaceContainer, SurfaceNode};
 use crate::{gui::types::Rect, layout::NodeId, runtime::PaintText, widgets::WidgetStyle};
+use std::rc::Rc;
 
 /// Stable category for one scene layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,12 +87,14 @@ pub struct SurfaceOverlay {
     pub(in crate::runtime::surface) rect: Rect,
     pub(in crate::runtime::surface) label: Option<PaintText>,
     pub(in crate::runtime::surface) style: WidgetStyle,
+    pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
 
 /// One floating child tree with explicit layout placement and input policy.
 pub struct SurfaceFloatingLayer<Message> {
     pub(in crate::runtime::surface) container: SurfaceContainer<Message>,
     pub(in crate::runtime::surface) interactive: bool,
+    pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
 
 #[cfg(test)]
@@ -126,6 +130,7 @@ mod tests {
                 vec![SurfaceChild::new(SlotParams::fill(), child)],
             ),
             interactive: true,
+            source: None,
         };
 
         assert_eq!(layer.container.children.len(), 1);

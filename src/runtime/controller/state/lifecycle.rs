@@ -32,9 +32,14 @@ where
         let host_capabilities = bridge.host_capabilities();
         let SurfaceRuntimeProjection {
             layout_root,
-            traversal,
+            mut traversal,
+            source,
         } = surface.runtime_projection();
         let effect_owner = super::super::owner::RuntimeOwner::new();
+        let scratch = RuntimeScratch {
+            projection_source: source,
+            ..RuntimeScratch::default()
+        };
         let mut runtime = Self {
             bridge,
             host_capabilities,
@@ -51,7 +56,7 @@ where
             completed_layout: None,
             external_layout_dirty: false,
             traversal: RuntimeTraversalState::default(),
-            scratch: RuntimeScratch::default(),
+            scratch,
             interaction: RuntimeInteractionState::default(),
             lifecycle: RuntimeLifecycleController::starting(),
             host_closing_hook_called: false,
@@ -85,15 +90,20 @@ where
         let traversal = if runtime.virtual_layout.is_empty() {
             traversal
         } else {
-            let shell_projection = runtime.surface.runtime_projection();
-            runtime.layout_root = shell_projection.layout_root;
+            runtime.layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
+                &mut traversal,
+                &mut runtime.scratch.projection_scroll_stack,
+                &mut runtime.scratch.projection_child_path,
+                &mut runtime.scratch.projection_source,
+            );
             runtime.rebuild_virtual_layout_shell_layout();
             runtime.materialize_virtual_layout_surface();
-            let SurfaceRuntimeProjection {
-                layout_root,
-                traversal,
-            } = runtime.surface.runtime_projection();
-            runtime.layout_root = layout_root;
+            runtime.layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
+                &mut traversal,
+                &mut runtime.scratch.projection_scroll_stack,
+                &mut runtime.scratch.projection_child_path,
+                &mut runtime.scratch.projection_source,
+            );
             traversal
         };
         runtime.relayout_with_traversal(traversal);

@@ -1,3 +1,5 @@
+#[cfg(test)]
+use super::SourceTraversalIndex;
 use super::UiSurface;
 
 mod index;
@@ -20,6 +22,15 @@ impl<Message> UiSurface<Message> {
             &mut index,
         );
         index
+    }
+
+    #[cfg(test)]
+    pub(in crate::runtime) fn runtime_source_traversal_index(&self) -> SourceTraversalIndex {
+        let stats = self.root.runtime_traversal_stats();
+        let mut traversal = SurfaceTraversalIndex::with_stats(stats);
+        let mut source = SourceTraversalIndex::with_stats(stats);
+        self.runtime_projection_into_with_source(&mut traversal, stats, &mut source);
+        source
     }
 }
 

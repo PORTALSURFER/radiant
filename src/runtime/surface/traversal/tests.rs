@@ -97,6 +97,7 @@ fn traversal_tracks_only_widgets_that_need_state_synchronization() {
 #[test]
 fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() {
     let mut index = SurfaceTraversalIndex::<()>::with_stats(SurfaceTraversalStats {
+        source_nodes: 0,
         widgets: 4,
         stateful_widgets: 4,
         styled_hoverable_containers: 1,
@@ -107,6 +108,7 @@ fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() 
     });
 
     index.clear_for_stats(SurfaceTraversalStats {
+        source_nodes: 0,
         widgets: 96,
         stateful_widgets: 24,
         styled_hoverable_containers: 12,

@@ -12,6 +12,7 @@ where
             &mut traversal,
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
+            &mut self.scratch.projection_source,
         );
         self.relayout_with_traversal(traversal);
     }

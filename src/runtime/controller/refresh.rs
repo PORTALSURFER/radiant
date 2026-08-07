@@ -1,6 +1,9 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
-use super::{SurfaceRuntime, layout_state::SurfaceLayoutStateDiagnostics};
+use super::{
+    SurfaceRuntime, layout_state::SurfaceLayoutStateDiagnostics,
+    virtual_layout::RuntimeVirtualLayoutProjectionProbe,
+};
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
@@ -1770,19 +1773,28 @@ where
         let had_virtual_layout = !self.virtual_layout.is_empty();
         let mut traversal;
         let mut layout_root;
+        let mut raw_probe_source = None;
         let runtime_projection_started = Instant::now();
         if had_virtual_layout {
             if let Some(mut probe) = self.virtual_layout.take_projection_probe() {
-                layout_root = next_surface.runtime_projection_reusing_with_scratch(
-                    &mut probe,
+                layout_root = next_surface.runtime_projection_reusing_with_scratch_and_source(
+                    &mut probe.traversal,
                     &mut self.scratch.projection_scroll_stack,
                     &mut self.scratch.projection_child_path,
+                    &mut probe.source,
                 );
-                traversal = probe;
+                raw_probe_source = Some(probe.source);
+                traversal = probe.traversal;
             } else {
                 let projection = next_surface.runtime_projection();
-                layout_root = projection.layout_root;
-                traversal = projection.traversal;
+                let crate::runtime::SurfaceRuntimeProjection {
+                    layout_root: projected_layout_root,
+                    traversal: projected_traversal,
+                    source,
+                } = projection;
+                layout_root = projected_layout_root;
+                raw_probe_source = Some(source);
+                traversal = projected_traversal;
             }
         } else {
             std::mem::swap(
@@ -1794,6 +1806,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
         }
         let mut runtime_projection = runtime_projection_started.elapsed();
@@ -1801,8 +1814,8 @@ where
             self.refresh_counters.runtime_projection.saturating_add(1);
 
         // Keep the prior admitted traversal available until the cached result
-        // has authoritative unchanged evidence; the probe is reusable scratch
-        // for the raw registration projection.
+        // has authoritative unchanged evidence; the paired probe is reusable
+        // scratch for the raw registration projection.
         self.virtual_layout
             .prepare_surface(&mut next_surface, &traversal.virtual_layout_registrations);
 
@@ -1817,16 +1830,41 @@ where
             && reuse_completed_layout;
         let mut paths_prepared = !had_virtual_layout;
         if unchanged_virtual_layout {
-            self.virtual_layout.store_projection_probe(traversal);
+            self.virtual_layout
+                .store_projection_probe(RuntimeVirtualLayoutProjectionProbe {
+                    traversal,
+                    source: match raw_probe_source.take() {
+                        Some(source) => source,
+                        None => {
+                            next_surface.runtime_source_traversal_index_reusing(
+                                &mut self.scratch.projection_source,
+                            );
+                            self.scratch.projection_source.clone()
+                        }
+                    },
+                });
             // The installed traversal is authoritative for this exact cached
             // result. Take it directly instead of swapping to the prior
             // reusable path buffer before the unchanged decision is consumed.
             paths_prepared = true;
             traversal = self.take_reusable_traversal_index(true);
             layout_root = self.layout_root.clone();
+            next_surface
+                .runtime_source_traversal_index_reusing(&mut self.scratch.projection_source);
         } else if !self.virtual_layout.is_empty() {
             let probe = if had_virtual_layout {
-                let probe = traversal;
+                let probe = RuntimeVirtualLayoutProjectionProbe {
+                    traversal,
+                    source: match raw_probe_source.take() {
+                        Some(source) => source,
+                        None => {
+                            next_surface.runtime_source_traversal_index_reusing(
+                                &mut self.scratch.projection_source,
+                            );
+                            self.scratch.projection_source.clone()
+                        }
+                    },
+                };
                 std::mem::swap(
                     &mut self.traversal.widgets.paths.previous,
                     &mut self.traversal.widgets.paths.current,
@@ -1842,6 +1880,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
             runtime_projection =
                 runtime_projection.saturating_add(post_cache_projection_started.elapsed());
@@ -1850,6 +1889,11 @@ where
             if let Some(probe) = probe {
                 self.virtual_layout.store_projection_probe(probe);
             }
+        }
+
+        if had_virtual_layout && self.virtual_layout.is_empty() {
+            next_surface
+                .runtime_source_traversal_index_reusing(&mut self.scratch.projection_source);
         }
 
         self.base_paint_plan_reuse_eligible =
@@ -1893,6 +1937,7 @@ where
                 &mut traversal,
                 &mut self.scratch.projection_scroll_stack,
                 &mut self.scratch.projection_child_path,
+                &mut self.scratch.projection_source,
             );
             runtime_projection =
                 runtime_projection.saturating_add(final_projection_started.elapsed());

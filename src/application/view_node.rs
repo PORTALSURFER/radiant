@@ -13,6 +13,10 @@ mod virtual_layout;
 
 pub(in crate::application) use identity::KeyedIdentity;
 pub use identity::{ContinuityKey, preserve_state};
+pub(crate) use identity::{
+    DeclarativeIdentityOrigin, DeclarativeOverlaySource, DeclarativeSourceContext,
+    SourceIdentitySeed,
+};
 pub(crate) use virtual_layout::{
     VirtualLayoutViewAdmissionError, VirtualLayoutViewBatch, lower_virtual_layout_batch,
     lower_virtual_layout_item, lower_virtual_layout_shell,
@@ -51,6 +55,18 @@ impl<Message> Layer<Message> {
             view,
         }
     }
+}
+
+pub(super) struct ExtractedLayerRoot<Message> {
+    node: ViewNode<Message>,
+    context: DeclarativeSourceContext,
+    seed: SourceIdentitySeed,
+}
+
+pub(super) struct ExtractedLayer<Message> {
+    kind: LayerKind,
+    input: Option<ExtractedLayerRoot<Message>>,
+    foreground: ExtractedLayerRoot<Message>,
 }
 
 /// Declarative input behavior for one transient scene layer.
@@ -275,38 +291,143 @@ impl<Message> Layer<Message> {
 }
 
 impl<Message> ViewNode<Message> {
+    pub(super) fn drain_layer_list_in_declaration_order(
+        layers: &mut Vec<Layer<Message>>,
+        owner_scope: NodeId,
+        context: &DeclarativeSourceContext,
+        output: &mut Vec<ExtractedLayer<Message>>,
+    ) {
+        let declared_layers = std::mem::take(layers);
+        for (index, layer) in declared_layers.into_iter().enumerate() {
+            let layer_context = context.with_overlay(DeclarativeOverlaySource {
+                identity_scope: crate::application::ids::structural_id(
+                    owner_scope,
+                    crate::application::ids::StructuralKind::Overlay,
+                    crate::application::ids::StructuralRole::SceneLayer(index),
+                ),
+                layer_kind: layer.kind,
+            });
+            let input = layer.input.map(|input| {
+                Self::extract_layer_root(
+                    input,
+                    owner_scope,
+                    crate::application::ids::StructuralRole::SceneInput(index),
+                    layer_context.clone(),
+                    output,
+                )
+            });
+            let foreground = Self::extract_layer_root(
+                layer.view,
+                owner_scope,
+                crate::application::ids::StructuralRole::SceneLayer(index),
+                layer_context,
+                output,
+            );
+            output.push(ExtractedLayer {
+                kind: layer.kind,
+                input,
+                foreground,
+            });
+        }
+    }
+
+    fn extract_layer_root(
+        mut node: ViewNode<Message>,
+        owner_scope: NodeId,
+        role: crate::application::ids::StructuralRole,
+        context: DeclarativeSourceContext,
+        output: &mut Vec<ExtractedLayer<Message>>,
+    ) -> ExtractedLayerRoot<Message> {
+        let seed = node.source_identity_seed(owner_scope, role);
+        node.drain_overlay_layers_in_declaration_order_with_seed(&context, output, seed);
+        ExtractedLayerRoot {
+            node,
+            context,
+            seed,
+        }
+    }
+
     pub(in crate::application) fn drain_overlay_layers_in_declaration_order(
         &mut self,
-        layers: &mut Vec<Layer<Message>>,
+        parent_scope: NodeId,
+        role: crate::application::ids::StructuralRole,
+        context: &DeclarativeSourceContext,
+        layers: &mut Vec<ExtractedLayer<Message>>,
     ) {
+        let seed = self.source_identity_seed(parent_scope, role);
+        self.drain_overlay_layers_in_declaration_order_with_seed(context, layers, seed);
+    }
+
+    fn drain_overlay_layers_in_declaration_order_with_seed(
+        &mut self,
+        context: &DeclarativeSourceContext,
+        layers: &mut Vec<ExtractedLayer<Message>>,
+        seed: SourceIdentitySeed,
+    ) {
+        let node_scope = seed.structural_scope;
+        let node_context = context.with_node(seed);
         match &mut self.kind {
             ViewNodeKind::Scene {
                 base,
                 layers: scene_layers,
                 ..
             } => {
-                base.drain_overlay_layers_in_declaration_order(layers);
-                for layer in scene_layers {
-                    if let Some(input) = layer.input.as_mut() {
-                        input.drain_overlay_layers_in_declaration_order(layers);
-                    }
-                    layer.view.drain_overlay_layers_in_declaration_order(layers);
-                }
+                base.drain_overlay_layers_in_declaration_order(
+                    node_scope,
+                    crate::application::ids::StructuralRole::SceneBase,
+                    &node_context,
+                    layers,
+                );
+                Self::drain_layer_list_in_declaration_order(
+                    scene_layers,
+                    node_scope,
+                    &node_context,
+                    layers,
+                );
             }
             ViewNodeKind::Container { children, .. } => {
-                for child in children {
-                    child.drain_overlay_layers_in_declaration_order(layers);
+                for (index, child) in children.iter_mut().enumerate() {
+                    child.drain_overlay_layers_in_declaration_order(
+                        node_scope,
+                        crate::application::ids::StructuralRole::ContainerChild(index),
+                        &node_context,
+                        layers,
+                    );
                 }
             }
-            ViewNodeKind::Scroll { child }
-            | ViewNodeKind::VirtualScroll { child, .. }
-            | ViewNodeKind::FloatingLayer { child, .. } => {
-                child.drain_overlay_layers_in_declaration_order(layers);
+            ViewNodeKind::Scroll { child } => {
+                child.drain_overlay_layers_in_declaration_order(
+                    node_scope,
+                    crate::application::ids::StructuralRole::ScrollChild,
+                    &node_context,
+                    layers,
+                );
+            }
+            ViewNodeKind::VirtualScroll { child, .. } => {
+                child.drain_overlay_layers_in_declaration_order(
+                    node_scope,
+                    crate::application::ids::StructuralRole::VirtualScrollChild,
+                    &node_context,
+                    layers,
+                );
+            }
+            ViewNodeKind::FloatingLayer { child, .. } => {
+                child.drain_overlay_layers_in_declaration_order(
+                    node_scope,
+                    crate::application::ids::StructuralRole::FloatingLayerChild,
+                    &node_context,
+                    layers,
+                );
             }
             ViewNodeKind::Runtime(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }
-        layers.append(&mut self.overlay_layers);
+        Self::drain_layer_list_in_declaration_order(
+            &mut self.overlay_layers,
+            node_scope,
+            &node_context,
+            layers,
+        );
     }
 }

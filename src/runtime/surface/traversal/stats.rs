@@ -2,6 +2,7 @@ use crate::{layout::ContainerKind, runtime::SurfaceNode};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(in crate::runtime) struct SurfaceTraversalStats {
+    pub(in crate::runtime) source_nodes: usize,
     pub(in crate::runtime) widgets: usize,
     pub(in crate::runtime) stateful_widgets: usize,
     pub(in crate::runtime) scroll_containers: usize,
@@ -24,6 +25,7 @@ impl<Message> SurfaceNode<Message> {
         scroll_depth: usize,
         stats: &mut SurfaceTraversalStats,
     ) {
+        stats.source_nodes += 1;
         stats.max_depth = stats.max_depth.max(depth);
         stats.max_scroll_depth = stats.max_scroll_depth.max(scroll_depth);
         match self {
@@ -69,6 +71,11 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(_) => {}
             Self::FloatingLayer(layer) => {
                 if !layer.interactive {
+                    for child in &layer.container.children {
+                        child
+                            .child
+                            .collect_source_traversal_stats(&mut stats.source_nodes);
+                    }
                     return;
                 }
                 let is_scroll = layer.container.policy.kind == ContainerKind::ScrollView;
@@ -88,6 +95,32 @@ impl<Message> SurfaceNode<Message> {
                         child_scroll_depth,
                         stats,
                     );
+                }
+            }
+        }
+    }
+
+    fn collect_source_traversal_stats(&self, source_nodes: &mut usize) {
+        *source_nodes += 1;
+        match self {
+            Self::Scene(scene) => {
+                scene.base.collect_source_traversal_stats(source_nodes);
+                for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        input.collect_source_traversal_stats(source_nodes);
+                    }
+                    layer.node.collect_source_traversal_stats(source_nodes);
+                }
+            }
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_source_traversal_stats(source_nodes);
+                }
+            }
+            Self::Widget(_) | Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                for child in &layer.container.children {
+                    child.child.collect_source_traversal_stats(source_nodes);
                 }
             }
         }

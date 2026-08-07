@@ -1,3 +1,4 @@
+use super::source::SourceMetadata;
 use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
@@ -6,6 +7,7 @@ use crate::{
         WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
     },
 };
+use std::rc::Rc;
 
 mod mapper;
 
@@ -21,6 +23,7 @@ pub struct SurfaceWidget<Message> {
     messages: WidgetMessageMapper<Message>,
     accepts_native_file_drop: bool,
     revision_evidence: SurfaceWidgetRevisionEvidence,
+    pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
 
 /// Immutable widget evidence captured when the widget crosses the erased
@@ -77,6 +80,7 @@ impl<Message> Clone for SurfaceWidget<Message> {
             messages: self.messages.clone(),
             accepts_native_file_drop: self.accepts_native_file_drop,
             revision_evidence: self.revision_evidence.clone(),
+            source: self.source.clone(),
         }
     }
 }
@@ -110,6 +114,7 @@ impl<Message> SurfaceWidget<Message> {
             messages,
             accepts_native_file_drop: false,
             revision_evidence,
+            source: None,
         }
     }
 

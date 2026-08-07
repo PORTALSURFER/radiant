@@ -349,7 +349,7 @@ acceptance.
    now the next dependency-correct numeric item, but parser, locale, range,
    formatting, and product interaction policy must come from a concrete
    consumer rather than being invented in generic Radiant.
-3. **Runtime, effects, and scheduling integration.** PRs #1617–#1623 ship
+3. **Runtime, effects, and scheduling integration.** PRs #1617–#1625 ship
    generic lifecycle authority/diagnostics, the bounded native Vello
    recovery/effect-preservation bridge, and stable auxiliary-window
    owner/origin retirement for worker, timer, and platform effects: accepted

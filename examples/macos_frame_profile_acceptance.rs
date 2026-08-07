@@ -25,7 +25,7 @@ fn main() -> radiant::Result {
             state.recorder.observe(profile);
         })
         .auxiliary_windows(|state: &mut AcceptanceState| {
-            if !state.auxiliary_visible {
+            if !state.auxiliary_visible || !state.auxiliary_window_is_ready() {
                 return Vec::new();
             }
             let mut window = AuxiliaryWindow::utility(
@@ -290,6 +290,16 @@ impl AcceptanceState {
             auxiliary_visible: true,
         }
     }
+
+    // Combined Frame/Frame must establish the primary identity before the
+    // auxiliary window can publish a profile; otherwise callback arrival order
+    // can classify the auxiliary identity as primary.
+    fn auxiliary_window_is_ready(&self) -> bool {
+        !matches!(
+            (self.config.main, self.config.aux),
+            (ProfileMode::Frame, ProfileMode::Frame)
+        ) || self.recorder.primary.identity.is_some()
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -476,5 +486,40 @@ mod tests {
         assert_eq!(recorder.primary.callbacks, 0);
         assert!(recorder.auxiliary.strictly_increasing_sequences());
         assert_eq!(recorder.auxiliary_handoffs, 2);
+    }
+
+    #[test]
+    fn combined_frame_auxiliary_projection_waits_for_primary_identity() {
+        let config = ProfileConfig {
+            main: ProfileMode::Frame,
+            aux: ProfileMode::Frame,
+        };
+        let mut state = AcceptanceState::new(config);
+
+        // The admission closure must withhold this window until primary
+        // identity is observed, so an auxiliary callback cannot win the slot.
+        assert!(!state.auxiliary_window_is_ready());
+
+        state.recorder.observe(profile(7, 10));
+
+        assert_eq!(state.recorder.primary.identity, Some(7));
+        assert!(state.auxiliary_window_is_ready());
+
+        for config in [
+            ProfileConfig {
+                main: ProfileMode::Off,
+                aux: ProfileMode::Off,
+            },
+            ProfileConfig {
+                main: ProfileMode::Frame,
+                aux: ProfileMode::Off,
+            },
+            ProfileConfig {
+                main: ProfileMode::Off,
+                aux: ProfileMode::Frame,
+            },
+        ] {
+            assert!(AcceptanceState::new(config).auxiliary_window_is_ready());
+        }
     }
 }

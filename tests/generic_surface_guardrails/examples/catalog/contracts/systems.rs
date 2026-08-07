@@ -142,6 +142,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "FrameTick",
             "CloseAuxiliary",
             "auxiliary_visible",
+            "auxiliary_window_is_ready",
+            "combined_frame_auxiliary_projection_waits_for_primary_identity",
             "resize the primary window",
             "#[cfg(target_os = \"macos\")]",
             "#[cfg(test)]",

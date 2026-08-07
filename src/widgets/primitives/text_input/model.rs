@@ -1,4 +1,5 @@
 use crate::runtime::PaintText;
+use crate::widgets::interaction::TextInputRevision;
 
 mod editing;
 mod navigation;
@@ -18,6 +19,8 @@ pub struct TextInputProps {
     pub character_limit: Option<usize>,
     /// Visual chrome treatment for the input bounds.
     pub chrome: TextInputChrome,
+    /// Optional host-authority evidence for controlled value reprojection.
+    pub revision: Option<TextInputRevision>,
 }
 
 /// Visual chrome treatment for a reusable single-line text input.

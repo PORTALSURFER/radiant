@@ -7,8 +7,8 @@ use crate::{
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        TextInputChrome, TextInputMessage, TextInputWidget, WidgetId, WidgetProminence,
-        WidgetStyle, stable_widget_id,
+        TextInputChrome, TextInputMessage, TextInputRevision, TextInputWidget, WidgetId,
+        WidgetProminence, WidgetStyle, stable_widget_id,
     },
 };
 
@@ -25,6 +25,7 @@ pub struct TextInputBuilder {
     style: Option<WidgetStyle>,
     selection: Option<(usize, usize)>,
     chrome: TextInputChrome,
+    revision: Option<TextInputRevision>,
 }
 
 impl TextInputBuilder {
@@ -59,6 +60,17 @@ impl TextInputBuilder {
     pub fn select_all(mut self) -> Self {
         let end = self.value.chars().count();
         self.selection = Some((0, end));
+        self
+    }
+
+    /// Attach caller-supplied authority evidence for controlled reprojection.
+    ///
+    /// A newer revision may replace retained value and selection state; an
+    /// equal or older revision is treated as stale and cannot overwrite local
+    /// editing state. Ordinary builders without a revision retain their
+    /// existing value-equality synchronization behavior.
+    pub fn revision(mut self, revision: TextInputRevision) -> Self {
+        self.revision = Some(revision);
         self
     }
 
@@ -134,11 +146,13 @@ impl TextInputBuilder {
             style,
             selection,
             chrome,
+            revision,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
         input.props.placeholder = placeholder.map(TextContent::into_paint_text);
         input.props.completion_suffix = completion_suffix.map(TextContent::into_paint_text);
         input.props.chrome = chrome;
+        input.props.revision = revision;
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;
             input.state.caret = caret;
@@ -296,6 +310,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
         style: None,
         selection: None,
         chrome: TextInputChrome::Full,
+        revision: None,
     }
 }
 

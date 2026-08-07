@@ -3,10 +3,11 @@ use radiant::runtime::EventMapper;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase,
-    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance, KnobEditBatch,
-    MarkerRunWidget, PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch,
-    SliderMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, ValueFormat,
-    WidgetInput, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance,
+    InteractionSource, KnobEditBatch, MarkerRunWidget, PaintBounds, PointerModifiers,
+    SelectableWidget, SliderEditBatch, SliderMessage, TextInputWidget, TextWidget, ToggleMessage,
+    ToggleWidget, ValueFormat, WidgetInput, WidgetOutput, WidgetProminence, WidgetStyle,
+    WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -495,53 +496,92 @@ fn official_numeric_builder_formats_are_display_only_and_default_text_is_stable(
             })
             .collect::<Vec<_>>()
     };
+    let assert_pointer_transaction = |events: &[EditEvent<f32>]| {
+        let begin = events
+            .first()
+            .expect("edit sequence should contain a begin event");
+        assert_eq!(begin.phase, EditPhase::Begin);
+        let transaction = begin.transaction;
+        let begin_source = begin.provenance.source();
+        assert_eq!(begin_source, InteractionSource::Pointer);
+        assert!(events.iter().all(|event| {
+            event.transaction == transaction && event.provenance.source() == begin_source
+        }));
+    };
 
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
     let mut formatted_slider = formatted_slider;
     let mut plain_slider = plain_slider;
+    let slider_sequence = |surface: &mut UiSurface<SliderEditBatch>, widget_id| {
+        let mut events = Vec::new();
+        for input in [
+            WidgetInput::primary_press(Point::new(60.0, 14.0)),
+            WidgetInput::pointer_move(Point::new(90.0, 14.0)),
+            WidgetInput::primary_release(Point::new(90.0, 14.0)),
+        ] {
+            let batch = surface
+                .dispatch_widget_input(widget_id, bounds, input)
+                .expect("official slider output")
+                .typed_copied::<SliderEditBatch>()
+                .expect("official slider should retain typed output");
+            events.extend(batch.events().iter().copied());
+        }
+        events
+    };
+    let formatted_slider_events = slider_sequence(&mut formatted_slider, 50);
+    let plain_slider_events = slider_sequence(&mut plain_slider, 51);
+    assert_pointer_transaction(&formatted_slider_events);
+    assert_pointer_transaction(&plain_slider_events);
     assert_eq!(
-        formatted_slider
-            .dispatch_widget_input(
-                50,
-                bounds,
-                WidgetInput::primary_press(Point::new(60.0, 14.0)),
-            )
-            .expect("formatted slider output")
-            .typed_copied::<SliderEditBatch>()
-            .map(|batch| project_events(batch.events())),
-        plain_slider
-            .dispatch_widget_input(
-                51,
-                bounds,
-                WidgetInput::primary_press(Point::new(60.0, 14.0)),
-            )
-            .expect("plain slider output")
-            .typed_copied::<SliderEditBatch>()
-            .map(|batch| project_events(batch.events()))
+        formatted_slider_events
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [
+            EditPhase::Begin,
+            EditPhase::Update,
+            EditPhase::Update,
+            EditPhase::Commit
+        ]
+    );
+    assert_eq!(
+        project_events(&formatted_slider_events),
+        project_events(&plain_slider_events)
     );
 
     let knob_bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
     let mut formatted_knob = formatted_knob;
     let mut plain_knob = plain_knob;
+    let knob_sequence = |surface: &mut UiSurface<KnobEditBatch>, widget_id| {
+        let mut events = Vec::new();
+        for input in [
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+            WidgetInput::primary_release(Point::new(20.0, 10.0)),
+        ] {
+            let batch = surface
+                .dispatch_widget_input(widget_id, knob_bounds, input)
+                .expect("official knob output")
+                .typed_copied::<KnobEditBatch>()
+                .expect("official knob should retain typed output");
+            events.extend(batch.events().iter().copied());
+        }
+        events
+    };
+    let formatted_knob_events = knob_sequence(&mut formatted_knob, 52);
+    let plain_knob_events = knob_sequence(&mut plain_knob, 53);
+    assert_pointer_transaction(&formatted_knob_events);
+    assert_pointer_transaction(&plain_knob_events);
     assert_eq!(
-        formatted_knob
-            .dispatch_widget_input(
-                52,
-                knob_bounds,
-                WidgetInput::primary_press(Point::new(20.0, 20.0)),
-            )
-            .expect("formatted knob output")
-            .typed_copied::<KnobEditBatch>()
-            .map(|batch| project_events(batch.events())),
-        plain_knob
-            .dispatch_widget_input(
-                53,
-                knob_bounds,
-                WidgetInput::primary_press(Point::new(20.0, 20.0)),
-            )
-            .expect("plain knob output")
-            .typed_copied::<KnobEditBatch>()
-            .map(|batch| project_events(batch.events()))
+        formatted_knob_events
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+    );
+    assert_eq!(
+        project_events(&formatted_knob_events),
+        project_events(&plain_knob_events)
     );
 }
 

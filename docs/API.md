@@ -279,6 +279,14 @@ fixed-height control slot while absent. Use
 reserved clear-button slot without app-local row assembly; `.id(...)` or
 `.key(...)` on that builder identifies the text input and Radiant derives the
 clear affordance identity. Use
+`text_input(value).revision(TextInputRevision::new(n))` when a host-controlled
+single-line value needs explicit authority evidence across reprojection; import
+`TextInputRevision` from `radiant::widgets` because it is intentionally not in
+the common prelude. A strictly newer revision applies the projected value and
+selection, while an equal or older revision preserves retained editing state.
+This is a single-line authority prerequisite only: it does not add IME,
+composition, multiline, clipboard, undo, or native accessibility behavior.
+Use
 `text_line(label, height)` for
 fixed-height single-line labels that should fill their parent width and truncate
 rather than wrap. Use `children().push(...).push_opt(...).push_if(...)` when a

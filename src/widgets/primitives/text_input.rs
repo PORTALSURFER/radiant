@@ -58,6 +58,7 @@ impl TextInputWidget {
                 submit_on_enter: true,
                 character_limit: None,
                 chrome: TextInputChrome::Full,
+                revision: None,
             },
             state: TextInputState::from_value(parts.value),
         }
@@ -113,10 +114,24 @@ impl Widget for TextInputWidget {
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
-        if let Some(previous) = previous.as_any().downcast_ref::<TextInputWidget>()
-            && self.state.value == previous.state.value
-        {
-            self.state = previous.state.clone();
+        let Some(previous_widget) = previous.as_any().downcast_ref::<TextInputWidget>() else {
+            return;
+        };
+        if self.common.id != previous_widget.common.id {
+            return;
+        }
+
+        match (previous_widget.props.revision, self.props.revision) {
+            (Some(previous_revision), Some(current_revision))
+                if current_revision <= previous_revision =>
+            {
+                self.state = previous_widget.state.clone();
+            }
+            (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => {}
+            (None, None) if self.state.value == previous_widget.state.value => {
+                self.state = previous_widget.state.clone();
+            }
+            (None, None) => {}
         }
     }
 

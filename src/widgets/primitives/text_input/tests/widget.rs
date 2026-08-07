@@ -3,7 +3,7 @@ use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::Widget;
 use crate::widgets::interaction::{
-    PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey,
+    PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
 };
 
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
@@ -245,4 +245,101 @@ fn text_input_paint_carries_inline_completion_suffix() {
         PaintPrimitive::TextInput(text_input)
             if text_input.completion_suffix.as_deref() == Some("ck")
     )));
+}
+
+#[test]
+fn newer_text_input_revision_applies_projected_value_and_selection() {
+    let sizing = WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing);
+    previous.props.revision = Some(TextInputRevision::new(3));
+    previous.state.caret = 2;
+    previous.state.selection_anchor = 2;
+
+    let mut current = TextInputWidget::new(7, "saved", sizing);
+    current.props.revision = Some(TextInputRevision::new(4));
+    current.state.selection_anchor = 1;
+    current.state.caret = 3;
+
+    current.synchronize_from_previous(&previous);
+
+    assert_eq!(current.state.value, "saved");
+    assert_eq!(current.state.selection_anchor, 1);
+    assert_eq!(current.state.caret, 3);
+}
+
+#[test]
+fn newer_equal_value_text_input_revision_applies_projected_selection() {
+    let sizing = WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "same", sizing);
+    previous.props.revision = Some(TextInputRevision::new(3));
+    previous.state.caret = 1;
+    previous.state.selection_anchor = 1;
+
+    let mut current = TextInputWidget::new(7, "same", sizing);
+    current.props.revision = Some(TextInputRevision::new(4));
+    current.state.selection_anchor = 0;
+    current.state.caret = 2;
+
+    current.synchronize_from_previous(&previous);
+
+    assert_eq!(current.state.value, "same");
+    assert_eq!(current.state.selection_anchor, 0);
+    assert_eq!(current.state.caret, 2);
+}
+
+#[test]
+fn equal_or_older_text_input_revision_preserves_retained_editing_state() {
+    let sizing = WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0));
+    for current_revision in [3, 2] {
+        let mut previous = TextInputWidget::new(7, "draft", sizing);
+        previous.props.revision = Some(TextInputRevision::new(3));
+        previous.state.caret = 2;
+        previous.state.selection_anchor = 1;
+
+        let mut current = TextInputWidget::new(7, "saved", sizing);
+        current.props.revision = Some(TextInputRevision::new(current_revision));
+
+        current.synchronize_from_previous(&previous);
+
+        assert_eq!(current.state.value, "draft");
+        assert_eq!(current.state.selection_anchor, 1);
+        assert_eq!(current.state.caret, 2);
+    }
+}
+
+#[test]
+fn text_input_revision_mode_changes_are_explicit_reset_boundaries() {
+    let sizing = WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0));
+
+    let mut previous_revisioned = TextInputWidget::new(7, "draft", sizing);
+    previous_revisioned.props.revision = Some(TextInputRevision::new(3));
+    previous_revisioned.state.caret = 2;
+    previous_revisioned.state.selection_anchor = 1;
+    let mut current_unrevisioned = TextInputWidget::new(7, "saved", sizing);
+    current_unrevisioned.synchronize_from_previous(&previous_revisioned);
+    assert_eq!(current_unrevisioned.state.value, "saved");
+    assert_eq!(current_unrevisioned.state.selection_range(), (5, 5));
+
+    let previous_unrevisioned = TextInputWidget::new(7, "draft", sizing);
+    let mut current_revisioned = TextInputWidget::new(7, "saved", sizing);
+    current_revisioned.props.revision = Some(TextInputRevision::new(1));
+    current_revisioned.synchronize_from_previous(&previous_unrevisioned);
+    assert_eq!(current_revisioned.state.value, "saved");
+}
+
+#[test]
+fn text_input_revision_requires_matching_identity_and_unrevisioned_inputs_keep_legacy_sync() {
+    let sizing = WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "same", sizing);
+    previous.state.caret = 1;
+    previous.state.selection_anchor = 0;
+
+    let mut current = TextInputWidget::new(7, "same", sizing);
+    current.synchronize_from_previous(&previous);
+    assert_eq!(current.state.selection_anchor, 0);
+    assert_eq!(current.state.caret, 1);
+
+    let mut different_identity = TextInputWidget::new(8, "same", sizing);
+    different_identity.synchronize_from_previous(&previous);
+    assert_eq!(different_identity.state.selection_range(), (4, 4));
 }

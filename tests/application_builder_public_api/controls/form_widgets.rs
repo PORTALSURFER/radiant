@@ -2,7 +2,7 @@ use super::super::*;
 use radiant::runtime::SurfaceRuntime;
 use radiant::widgets::{
     IconButtonWidget, InteractiveRowWidget, PointerShieldMessage, PointerShieldWidget,
-    ProgressBarMessage, ProgressBarWidget, TextInputMessage, TextInputWidget,
+    ProgressBarMessage, ProgressBarWidget, TextInputMessage, TextInputRevision, TextInputWidget,
 };
 
 #[test]
@@ -358,6 +358,35 @@ fn text_input_builder_can_seed_selection_and_route_full_input_events() {
         Some(TextInputMessage::Submitted {
             value: String::from("Renamed"),
         })
+    );
+}
+
+#[test]
+fn text_input_builder_exposes_qualified_revision_authority() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let revision = TextInputRevision::new(9);
+    let surface: UiSurface<()> = ui::text_input("saved")
+        .revision(revision)
+        .message(|_| ())
+        .id(12)
+        .into_surface();
+
+    let input = widget_ref::<TextInputWidget, _>(&surface, 12, "revisioned text input");
+    assert_eq!(input.props.revision, Some(revision));
+    assert_eq!(revision.value(), 9);
+
+    let clear_surface: UiSurface<()> = ui::text_input("saved")
+        .revision(revision)
+        .clear_button(())
+        .id(13)
+        .message(|_| ())
+        .into_surface();
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(&clear_surface, 13, "clearable revisioned input")
+            .props
+            .revision,
+        Some(revision)
     );
 }
 

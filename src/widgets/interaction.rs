@@ -10,6 +10,7 @@ mod messages;
 mod numeric_edit;
 mod output;
 mod provenance;
+mod text_input_revision;
 mod value;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
@@ -32,4 +33,5 @@ pub use messages::{
 pub use numeric_edit::NumericEditSession;
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
+pub use text_input_revision::TextInputRevision;
 pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};

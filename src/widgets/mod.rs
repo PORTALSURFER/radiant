@@ -79,9 +79,9 @@ pub use interaction::{
     KnobWheelMetadata, ListItemMessage, NumericEditSession, PointerButton, PointerModifiers,
     PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
     SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind,
-    ValueMapping, ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput, WidgetKey,
-    WidgetOutput, handle_activation_input,
+    TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError,
+    ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput,
+    WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

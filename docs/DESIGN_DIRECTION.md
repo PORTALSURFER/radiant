@@ -284,6 +284,14 @@ generation, so ordinary `text_input(value)` and `text_editor(document)` remain
 concise while still rejecting a stale reprojection during IME composition or
 editing.
 
+The shipped single-line application builder exposes the qualified
+`TextInputRevision` authority prerequisite through `.revision(...)`. A newer
+caller-supplied revision applies the projected value and selection, while an
+equal or older revision cannot overwrite retained value, caret, or selection;
+switching revisioned and unrevisioned modes is an explicit reset boundary.
+This does not claim IME or composition delivery, which remains a later platform
+adapter and text-area contract.
+
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
 tasks, platform operations, timers, asset preparation, and other asynchronous
 work. A worker entry is conceptually `Effect::worker<Output: Send + 'static>`:

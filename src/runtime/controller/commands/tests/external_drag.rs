@@ -59,6 +59,53 @@ fn external_drag_completion_dispatches_host_message() {
 }
 
 #[test]
+fn external_drag_terminal_completion_is_admitted_once_after_duplicate_events() {
+    let bridge = QueuedCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    runtime.execute_command(Command::begin_external_drag(
+        ExternalDragRequest::files([PathBuf::from("kick.wav")], "kick.wav"),
+        |result| usize::from(result.is_ok_and(ExternalDragOutcome::accepted)),
+    ));
+    let launch = runtime
+        .take_external_drag_launch()
+        .expect("external drag launch");
+    let terminal = Ok(ExternalDragOutcome {
+        effect: ExternalDragEffect::Copy,
+    });
+
+    assert!(
+        runtime
+            .dispatch_external_drag_launch_result(launch.identity, terminal)
+            .runtime_work_remaining
+    );
+    assert_eq!(
+        runtime
+            .dispatch_external_drag_launch_result(
+                launch.identity,
+                Ok(ExternalDragOutcome {
+                    effect: ExternalDragEffect::None,
+                }),
+            )
+            .messages_dispatched,
+        0
+    );
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(
+        runtime
+            .dispatch_external_drag_launch_result(
+                launch.identity,
+                Ok(ExternalDragOutcome {
+                    effect: ExternalDragEffect::Copy,
+                }),
+            )
+            .messages_dispatched,
+        0
+    );
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
 fn external_drag_completion_mapper_is_ui_local_and_released_by_replacement() {
     let bridge = QueuedCommandBridge::default();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
@@ -192,6 +239,31 @@ fn external_drag_stale_and_duplicate_results_are_ignored_after_replacement() {
     );
     assert_eq!(stale_outcome.messages_dispatched, 0);
     assert!(!stale_outcome.runtime_work_remaining);
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+}
+
+#[test]
+fn external_drag_terminal_event_after_shutdown_is_inert() {
+    let bridge = QueuedCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    runtime.execute_command(Command::begin_external_drag(
+        ExternalDragRequest::files([PathBuf::from("kick.wav")], "kick.wav"),
+        |_| 1,
+    ));
+    let launch = runtime
+        .take_external_drag_launch()
+        .expect("external drag launch");
+    runtime.host_on_runtime_exit();
+
+    let outcome = runtime.dispatch_external_drag_launch_result(
+        launch.identity,
+        Ok(ExternalDragOutcome {
+            effect: ExternalDragEffect::Copy,
+        }),
+    );
+
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert!(!outcome.runtime_work_remaining);
     assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
 }
 

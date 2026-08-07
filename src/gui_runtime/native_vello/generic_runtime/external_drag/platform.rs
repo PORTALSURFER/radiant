@@ -1,6 +1,29 @@
 //! Platform selection for native external drag launching.
 
-use crate::runtime::{ExternalDragOutcome, ExternalDragRequest};
+use super::ExternalDragLaunchDisposition;
+use crate::gui_runtime::native_vello::RuntimeUserEvent;
+use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
+use winit::{event_loop::EventLoopProxy, window::WindowId};
+
+pub(super) struct ExternalDragLaunchContext {
+    pub(super) window_id: Option<WindowId>,
+    pub(super) event_proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
+    pub(super) identity: ExternalDragIdentity,
+}
+
+impl ExternalDragLaunchContext {
+    pub(super) const fn new(
+        window_id: Option<WindowId>,
+        event_proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
+        identity: ExternalDragIdentity,
+    ) -> Self {
+        Self {
+            window_id,
+            event_proxy,
+            identity,
+        }
+    }
+}
 
 #[cfg(target_os = "macos")]
 pub(super) fn should_launch_before_app_switch(
@@ -33,21 +56,24 @@ mod macos;
 #[cfg(target_os = "windows")]
 pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
-) -> Result<ExternalDragOutcome, String> {
-    windows::start_external_drag(request)
+    _context: ExternalDragLaunchContext,
+) -> Result<ExternalDragLaunchDisposition, String> {
+    windows::start_external_drag(request).map(ExternalDragLaunchDisposition::Completed)
 }
 
 #[cfg(target_os = "macos")]
 pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
-) -> Result<ExternalDragOutcome, String> {
-    macos::start_external_drag(request)
+    context: ExternalDragLaunchContext,
+) -> Result<ExternalDragLaunchDisposition, String> {
+    macos::start_external_drag(request, context)
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub(super) fn start_external_drag(
     _request: &ExternalDragRequest,
-) -> Result<ExternalDragOutcome, String> {
+    _context: ExternalDragLaunchContext,
+) -> Result<ExternalDragLaunchDisposition, String> {
     Err(String::from(
         "External drag-out is only supported on Windows and macOS in this backend",
     ))

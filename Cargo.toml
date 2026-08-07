@@ -166,6 +166,10 @@ name = "macos_devtools_acceptance"
 path = "examples/macos_devtools_acceptance.rs"
 
 [[example]]
+name = "macos_external_drag_acceptance"
+path = "examples/macos_external_drag_acceptance.rs"
+
+[[example]]
 name = "passive_widgets"
 path = "examples/passive_widgets.rs"
 

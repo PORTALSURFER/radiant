@@ -84,18 +84,26 @@ fn native_external_drag_platform_selection_stays_focused() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs"),
     )
     .expect("native external drag Windows module should be readable");
+    let macos = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/macos.rs"),
+    )
+    .expect("native external drag macOS module should be readable");
+    let macos_source = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/external_drag/macos/source.rs"),
+    )
+    .expect("native external drag macOS source module should be readable");
 
     assert!(
         orchestration.contains("mod platform;")
-            && orchestration.contains(
-                "use super::{FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome};"
-            )
-            && orchestration.contains("use crate::runtime::{ExternalDragPayload, RuntimeBridge};")
+            && orchestration.contains("GenericRouteOutcome")
+            && orchestration.contains("ExternalDragIdentity")
+            && orchestration.contains("ExternalDragLaunchDisposition")
             && orchestration.contains("use tracing::info;")
-            && orchestration.contains("platform::start_external_drag(&launch.request)")
+            && orchestration.contains("platform::start_external_drag(")
             && orchestration.contains("take_external_drag_launch()")
-            && orchestration
-                .contains("dispatch_external_drag_launch_result(launch.identity, result)")
+            && orchestration.contains("dispatch_external_drag_launch_disposition")
+            && orchestration.contains("dispatch_external_drag_launch_result(identity, result)")
             && !orchestration.starts_with("use super::*;")
             && !orchestration.contains("cfg(target_os")
             && !orchestration.contains("External drag-out is only supported on Windows"),
@@ -107,13 +115,28 @@ fn native_external_drag_platform_selection_stays_focused() {
             && platform.contains("windows::start_external_drag(request)")
             && platform.contains("#[cfg(target_os = \"macos\")]")
             && platform.contains("#[path = \"macos.rs\"]")
-            && platform.contains("macos::start_external_drag(request)")
+            && platform.contains("macos::start_external_drag(request, context)")
             && platform
                 .contains("#[cfg(not(any(target_os = \"windows\", target_os = \"macos\")))]")
             && platform.contains(
                 "External drag-out is only supported on Windows and macOS in this backend"
             ),
         "external drag platform support and fallback should stay in platform.rs"
+    );
+    assert!(
+        macos.contains("dragging_source(event_proxy, window_id, context.identity)")
+            && macos.contains("begin_dragging_session(view, items, event, source.source())")
+            && macos.contains("source.commit_to_session()")
+            && macos.contains("ExternalDragLaunchDisposition::Pending"),
+        "macOS external drag should admit the AppKit session and defer its terminal result"
+    );
+    assert!(
+        macos_source.contains("draggingSession:endedAtPoint:operation:")
+            && macos_source.contains("RuntimeUserEvent::ExternalDragCompleted")
+            && macos_source.contains("source_ownership")
+            && macos_source.contains("terminal_result(operation)")
+            && macos_source.contains("send_event(event)"),
+        "macOS external drag source should own one asynchronous terminal callback and release path"
     );
     assert!(
         windows.contains("pub(super) fn start_external_drag")

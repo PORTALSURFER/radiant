@@ -380,9 +380,12 @@ Current target-specific seams are intentionally narrow:
   events into Radiant's backend-neutral file-open command route, while other
   targets keep the same runtime contract with an explicit no-op registration.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs` owns
-  external drag-out platform selection. Windows delegates to the native drag
-  implementation; other targets report an explicit unsupported result through
-  the normal runtime command path.
+  external drag-out platform selection. Windows delegates to the native OLE
+  implementation, macOS delegates to the macOS AppKit implementation, and
+  other targets report an explicit unsupported result through the normal
+  runtime command path. macOS admits the native dragging session first and
+  publishes its terminal copy-or-cancel result asynchronously through the
+  runtime event loop.
 - `src/gui_runtime/native_vello/generic_runtime/activation/platform.rs` and
   `src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs` own
   macOS activation and application-reopen integration. The activation policy
@@ -397,6 +400,11 @@ Current target-specific seams are intentionally narrow:
   example buildable without claiming native overlay acceptance on other
   platforms. The inspector remains observational and uses normal hit testing
   and focus; the runtime overlay does not own interaction.
+- `examples/macos_external_drag_acceptance.rs` is a macOS-only native
+  acceptance harness for outgoing file drags through the public drag APIs. Its
+  live path owns one disposable temporary source, while its non-macOS fallback
+  and tests remain buildable without creating a temporary source or claiming
+  native Finder acceptance.
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.
@@ -412,6 +420,15 @@ Current target-specific seams are intentionally narrow:
   `SurfaceRuntime` now owns the immutable per-window `WindowEnvironment`
   snapshot and updates it before deferred projection; custom bridges may opt in
   through the default-no-op `RuntimeBridge::set_window_environment` hook.
+- `src/gui_runtime/native_vello/generic_runtime/external_drag/macos.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/macos/bridge.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/macos/payload.rs`,
+  and
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/macos/source.rs`
+  are the macOS-only AppKit file-drag implementation behind that selector.
+  The source callback reports the terminal operation only after AppKit ends
+  the dragging session, and native ownership is released on both completion
+  and startup failure.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs`,

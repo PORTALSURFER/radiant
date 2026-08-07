@@ -1,6 +1,7 @@
 use super::super::*;
 use crate::runtime::{DragPreview, DragRequest, ExternalDragRequest, PaintPrimitive};
 use crate::widgets::PointerModifiers;
+use std::rc::Rc;
 
 #[test]
 fn active_runtime_drag_moves_through_transient_overlay_without_scene_rebuild() {
@@ -101,6 +102,54 @@ fn active_runtime_drag_can_transfer_to_external_drag() {
     assert!(!runner.core.runtime.drag_session_active());
     assert!(runner.core.runtime.pointer_capture().is_none());
     assert_eq!(launch.request.preview.label, "kick.wav");
+}
+
+#[test]
+fn pending_external_drag_waits_for_native_terminal_result() {
+    let mapper_token = Rc::new(());
+    let mapper_token_for_callback = Rc::clone(&mapper_token);
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_external_drag(
+            ExternalDragRequest::files([std::path::PathBuf::from("kick.wav")], "kick.wav"),
+            move |_| {
+                drop(mapper_token_for_callback);
+                GpuWheelMessage::default()
+            },
+        ));
+    let launch = runner
+        .core
+        .runtime
+        .take_external_drag_launch()
+        .expect("external drag launch");
+
+    assert_eq!(
+        runner.dispatch_external_drag_launch_disposition(
+            launch.identity,
+            Ok(super::super::super::super::external_drag::ExternalDragLaunchDisposition::Pending),
+        )
+        .messages_dispatched,
+        0
+    );
+    assert_eq!(Rc::strong_count(&mapper_token), 2);
+    assert!(!runner.core.drain_runtime_messages().routed);
+
+    let outcome = runner.core.runtime.dispatch_external_drag_launch_result(
+        launch.identity,
+        Ok(crate::runtime::ExternalDragOutcome {
+            effect: crate::runtime::ExternalDragEffect::Copy,
+        }),
+    );
+    assert!(outcome.runtime_work_remaining);
+    assert_eq!(Rc::strong_count(&mapper_token), 2);
+    assert!(runner.core.drain_runtime_messages().routed);
+    assert_eq!(Rc::strong_count(&mapper_token), 1);
 }
 
 #[test]

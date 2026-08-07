@@ -20,6 +20,7 @@ use crate::runtime::{
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
+use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
@@ -385,6 +386,26 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.is_admitted()
             .then_some(self.runner.window.id)
             .flatten()
+    }
+
+    pub(super) fn dispatch_external_drag_completion(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        identity: ExternalDragIdentity,
+        result: Result<ExternalDragOutcome, String>,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        if !self.is_admitted() || !self.runner.is_running() {
+            return;
+        }
+        let outcome = self
+            .runner
+            .core
+            .runtime
+            .dispatch_external_drag_launch_result(identity, result);
+        let routed = self.runner.core.route_command_outcome(outcome);
+        self.runner
+            .handle_route_outcome_with_adapter(event_loop, routed, adapter, None);
     }
 
     pub(super) fn frame_schedule_eligibility(

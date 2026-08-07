@@ -1,8 +1,15 @@
 use std::ffi::{CStr, c_char, c_void};
 
 pub(super) type Id = *mut c_void;
+pub(super) type Ivar = *mut c_void;
 pub(super) type Sel = *mut c_void;
 pub(super) type ObjcBool = i8;
+
+#[repr(C)]
+pub(super) struct ObjcSuper {
+    pub(super) receiver: Id,
+    pub(super) superclass: Id,
+}
 
 pub(super) const YES: ObjcBool = 1;
 pub(super) const NO: ObjcBool = 0;
@@ -47,13 +54,25 @@ unsafe extern "C" {
     pub(super) fn objc_getClass(name: *const c_char) -> Id;
     fn objc_msgSend();
     pub(super) fn objc_registerClassPair(class: Id);
+    pub(super) fn objc_disposeClassPair(class: Id);
+    pub(super) fn class_addIvar(
+        class: Id,
+        name: *const c_char,
+        size: usize,
+        alignment: u8,
+        types: *const c_char,
+    ) -> ObjcBool;
+    pub(super) fn class_getInstanceVariable(class: Id, name: *const c_char) -> Ivar;
     pub(super) fn class_addMethod(
         class: Id,
         name: Sel,
         imp: *const c_void,
         types: *const c_char,
     ) -> ObjcBool;
+    pub(super) fn object_getIvar(object: Id, ivar: Ivar) -> Id;
+    pub(super) fn object_setIvar(object: Id, ivar: Ivar, value: Id);
     fn sel_registerName(name: *const c_char) -> Sel;
+    fn objc_msgSendSuper();
 }
 
 pub(super) struct AutoreleasePool {
@@ -302,6 +321,16 @@ pub(super) unsafe fn msg_void(receiver: Id, selector: Sel) {
     let msg: unsafe extern "C" fn(Id, Sel) =
         unsafe { std::mem::transmute(objc_msgSend as *const ()) };
     unsafe { msg(receiver, selector) }
+}
+
+pub(super) unsafe fn msg_super_void(receiver: Id, superclass: Id, selector: Sel) {
+    let msg: unsafe extern "C" fn(*mut ObjcSuper, Sel) =
+        unsafe { std::mem::transmute(objc_msgSendSuper as *const ()) };
+    let mut superclass_call = ObjcSuper {
+        receiver,
+        superclass,
+    };
+    unsafe { msg(&mut superclass_call, selector) };
 }
 
 pub(super) unsafe fn msg_void_id(receiver: Id, selector: Sel, arg: Id) {

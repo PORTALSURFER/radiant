@@ -91,6 +91,42 @@ fn examples_are_checked_portable_sandboxes() {
 }
 
 #[test]
+fn macos_external_drag_example_has_cataloged_portable_fallback() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let source =
+        fs::read_to_string(manifest_dir.join("examples/macos_external_drag_acceptance.rs"))
+            .expect("macOS external drag acceptance example should be readable");
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+
+    assert!(
+        manifest.contains("name = \"macos_external_drag_acceptance\"")
+            && manifest.contains("path = \"examples/macos_external_drag_acceptance.rs\""),
+        "macOS external drag acceptance should be an explicit Cargo example target"
+    );
+    for required in [
+        "#[cfg(target_os = \"macos\")]",
+        "#[cfg(not(target_os = \"macos\"))]",
+        "macos_external_drag_acceptance is macOS-only",
+        "context.begin_drag_with_external(",
+        "ExternalDragRequest::files(",
+        "#[cfg(test)]",
+    ] {
+        assert!(
+            source.contains(required),
+            "macOS external drag acceptance should contain `{required}`"
+        );
+    }
+    assert!(
+        docs.contains("cargo run --example macos_external_drag_acceptance")
+            && docs.contains("### macOS live external-drag acceptance"),
+        "API docs should describe the macOS external drag acceptance target"
+    );
+}
+
+#[test]
 fn api_docs_map_examples_to_target_areas() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
@@ -107,6 +143,7 @@ fn api_docs_map_examples_to_target_areas() {
         "| Advanced creative-tool surfaces |",
         "| Text, diagnostics, and performance inspection |",
         "| Window and host integration |",
+        "`macos_external_drag_acceptance`",
     ] {
         assert!(
             docs.contains(required),
@@ -158,6 +195,7 @@ fn api_docs_map_examples_to_target_areas() {
         "host_surface_frame",
         "multi_window_manifest",
         "popup_window",
+        "macos_external_drag_acceptance",
     ] {
         assert!(
             registered_examples.iter().any(|name| name == example),

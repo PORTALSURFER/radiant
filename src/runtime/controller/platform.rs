@@ -272,6 +272,11 @@ impl Drop for PlatformResultReservation {
 mod tests {
     use super::*;
     use crate::runtime::PlatformResponse;
+    use crate::{
+        application::{IntoView, column, text},
+        gui::types::Vector2,
+        runtime::SurfaceRuntime,
+    };
     use std::{
         cell::RefCell,
         rc::Rc,
@@ -302,6 +307,56 @@ mod tests {
         );
         assert!(registry.map_delivery(delivery()).is_none());
         assert_eq!(*calls.borrow(), 1);
+    }
+
+    #[test]
+    fn declarative_origin_maps_live_and_vetoes_late_platform_result() {
+        let mut owner_runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            |_| column([text::<usize>("keyed").key("keyed")]).into_surface(),
+            |_, _| {},
+        );
+        let token = owner_runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("keyed declarative owner")
+            .token
+            .clone();
+        let origin = EffectOrigin::Declarative(token.clone());
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+        let identity = registry.register(Box::new(|_| 7), &origin);
+        let delivery = PlatformResultDelivery::Completed {
+            identity,
+            result: Ok(PlatformResponse::Completed),
+        };
+        let mapped = registry
+            .map_delivery(delivery)
+            .expect("live declarative platform result");
+        assert_eq!(mapped.message, 7);
+        assert!(mapped.origin == origin);
+
+        let calls = Rc::new(RefCell::new(0));
+        let calls_for_mapper = Rc::clone(&calls);
+        let late_identity = registry.register(
+            Box::new(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+                8
+            }),
+            &origin,
+        );
+        assert!(owner_runtime.begin_closing());
+        assert!(!token.is_live());
+        assert!(
+            registry
+                .map_delivery(PlatformResultDelivery::Completed {
+                    identity: late_identity,
+                    result: Ok(PlatformResponse::Completed),
+                })
+                .is_none()
+        );
+        assert_eq!(*calls.borrow(), 0);
     }
 
     #[test]

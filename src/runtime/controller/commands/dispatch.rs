@@ -13,6 +13,17 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    fn effect_origin_is_active(&self, origin: &EffectOrigin) -> bool {
+        if !origin.is_live() {
+            return false;
+        }
+        match origin {
+            EffectOrigin::Application => true,
+            EffectOrigin::Auxiliary(owner) => self.auxiliary_effect_owner_is_active(owner),
+            EffectOrigin::Declarative(token) => self.declarative_owner_ledger.is_live(token),
+        }
+    }
+
     fn schedule_timer_effect(
         &mut self,
         effect: crate::runtime::command::TimerEffect<Message>,
@@ -83,9 +94,7 @@ where
         if !self.lifecycle_accepts_work() {
             return;
         }
-        if let Some(owner) = origin.auxiliary_owner()
-            && !self.auxiliary_effect_owner_is_active(owner)
-        {
+        if !self.effect_origin_is_active(&origin) {
             return;
         }
         let refresh_before = outcome.surface_refresh_requested;
@@ -211,9 +220,7 @@ where
         if !self.lifecycle_accepts_work() {
             return;
         }
-        if let Some(owner) = origin.auxiliary_owner()
-            && !self.auxiliary_effect_owner_is_active(owner)
-        {
+        if !self.effect_origin_is_active(&origin) {
             return;
         }
         if !refresh_surface

@@ -311,9 +311,9 @@ through that node. The conceptual owner kinds are:
 
 These owner kinds, identities, and selection rules are target-only conceptual
 policy, not public names or a promise to add a new public effect API. The
-shipped runtime currently has only private `Application` and exact-generation
-`Auxiliary` origin plumbing, and declarative lowering erases overlay/keyed
-source provenance before commands reach that plumbing.
+private declarative origin plumbing now exists only after explicit request
+resolution, while public APIs and declarative lowering do not expose that
+selection.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
 primary-surface work application-owned. An overlay or keyed node may provide a

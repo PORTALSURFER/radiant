@@ -1,11 +1,12 @@
 //! Private declarative owner projection and live-generation reconciliation.
 //!
-//! This module stops at the controller-private live-generation boundary.  It
-//! does not create an effect origin, admit work, or retire any registry entry.
+//! This module owns the controller-private live-generation boundary and the
+//! conversion from an accepted explicit request into a private effect origin.
+//! It does not admit work or retire any registry entry.
 
 #![allow(dead_code)]
 
-use super::SurfaceRuntime;
+use super::{SurfaceRuntime, owner::EffectOrigin};
 use crate::{
     layout::NodeId,
     runtime::{
@@ -286,8 +287,8 @@ pub(crate) enum DeclarativeOwnerCandidateOutcome {
 
 /// Private resolution bound to one current live declarative token.
 ///
-/// This remains controller evidence only; it is not an
-/// [`super::super::owner::EffectOrigin`] and cannot change effect admission.
+/// The controller consumes accepted resolutions through [`Self::effect_origin`]
+/// while rejected evidence remains non-admitting.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DeclarativeOwnerResolution {
     Application,
@@ -295,6 +296,19 @@ pub(crate) enum DeclarativeOwnerResolution {
     Overlay(DeclarativeOwnerToken),
     KeyedNode(DeclarativeOwnerToken),
     Rejected(DeclarativeOwnerRejection),
+}
+
+impl DeclarativeOwnerResolution {
+    /// Convert one resolved request into the private origin consumed by the
+    /// existing controller dispatch and registry paths.  Rejected evidence
+    /// cannot acquire an origin and therefore cannot admit work.
+    pub(super) fn effect_origin(self) -> Option<EffectOrigin> {
+        match self {
+            Self::Application | Self::ApplicationOutlive => Some(EffectOrigin::Application),
+            Self::Overlay(token) | Self::KeyedNode(token) => Some(EffectOrigin::Declarative(token)),
+            Self::Rejected(_) => None,
+        }
+    }
 }
 
 /// Compatibility alias for the source-only outcome used by the preceding
@@ -1016,6 +1030,16 @@ where
     pub(crate) fn declarative_owner_ledger(&self) -> &DeclarativeOwnerLedger {
         &self.declarative_owner_ledger
     }
+
+    pub(super) fn declarative_owner_origin(
+        &self,
+        request: DeclarativeOwnerRequest,
+        source_node: NodeId,
+    ) -> Option<EffectOrigin> {
+        self.declarative_owner
+            .resolve_for_source(request, source_node, &self.declarative_owner_ledger)
+            .effect_origin()
+    }
 }
 
 #[cfg(test)]
@@ -1025,7 +1049,9 @@ mod tests {
         application::{IntoView, Layer, column, for_each_by, overlays, scene, text},
         gui::types::Vector2,
         layout::ContainerPolicy,
-        runtime::{Command, DeclarativeOwnedCommandRuntimeBridge, SurfaceNode, UiSurface},
+        runtime::{
+            Command, CommandOutcome, DeclarativeOwnedCommandRuntimeBridge, SurfaceNode, UiSurface,
+        },
     };
     use std::{
         cell::{Cell, RefCell},
@@ -1054,6 +1080,13 @@ mod tests {
 
     fn overlay_surface() -> UiSurface<()> {
         scene(text::<()>("base"))
+            .layer(Layer::modal(text("overlay")))
+            .into_view()
+            .into_surface()
+    }
+
+    fn overlay_surface_for<Message: 'static>() -> UiSurface<Message> {
+        scene(text::<Message>("base"))
             .layer(Layer::modal(text("overlay")))
             .into_view()
             .into_surface()
@@ -1237,9 +1270,26 @@ mod tests {
             projection.resolve(DeclarativeOwnerRequest::ApplicationOutlive, None, &ledger,),
             DeclarativeOwnerResolution::ApplicationOutlive
         );
+        assert!(matches!(
+            DeclarativeOwnerResolution::Application.effect_origin(),
+            Some(EffectOrigin::Application)
+        ));
+        assert!(matches!(
+            DeclarativeOwnerResolution::ApplicationOutlive.effect_origin(),
+            Some(EffectOrigin::Application)
+        ));
+        assert!(matches!(
+            DeclarativeOwnerResolution::KeyedNode(token.clone()).effect_origin(),
+            Some(EffectOrigin::Declarative(actual)) if actual == token
+        ));
         assert_eq!(
             projection.resolve(DeclarativeOwnerRequest::KeyedNode(candidate), None, &ledger,),
             DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::MissingSourceContext)
+        );
+        assert!(
+            DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::AbsentCandidate)
+                .effect_origin()
+                .is_none()
         );
 
         let (overlay_projection, overlay_context) = context_and_projection(overlay_surface());
@@ -1255,6 +1305,230 @@ mod tests {
             other => panic!("unexpected overlay resolution: {other:?}"),
         };
         assert!(overlay_ledger.is_live(&overlay_token));
+    }
+
+    #[test]
+    fn explicit_owner_dispatch_allows_scoped_and_application_fallbacks() {
+        let updates = Rc::new(Cell::new(0));
+        let updates_for_handler = Rc::clone(&updates);
+        let mut runtime = SurfaceRuntime::new(
+            DeclarativeOwnedCommandRuntimeBridge::new(
+                (),
+                |_| keyed_surface_for::<u8>(),
+                move |_, message| {
+                    updates_for_handler.set(updates_for_handler.get() + usize::from(message));
+                    Command::none()
+                },
+            ),
+            Vector2::new(320.0, 240.0),
+        );
+        let candidate = keyed_candidate(runtime.declarative_owner_projection());
+        let context = first_context_with_keyed_node(runtime.declarative_owner_projection());
+
+        let scoped = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            context.source_node,
+        );
+        assert_eq!(scoped.messages_dispatched, 1);
+        assert_eq!(updates.get(), 1);
+
+        let default = runtime.dispatch_message_from_declarative_owner(
+            2,
+            DeclarativeOwnerRequest::Default,
+            context.source_node,
+        );
+        assert_eq!(default.messages_dispatched, 1);
+        assert_eq!(updates.get(), 3);
+
+        let outlive = runtime.dispatch_message_from_declarative_owner(
+            4,
+            DeclarativeOwnerRequest::ApplicationOutlive,
+            context.source_node,
+        );
+        assert_eq!(outlive.messages_dispatched, 1);
+        assert_eq!(updates.get(), 7);
+    }
+
+    #[test]
+    fn overlay_owner_dispatch_is_explicit_and_does_not_use_keyed_precedence() {
+        let updates = Rc::new(Cell::new(0));
+        let updates_for_handler = Rc::clone(&updates);
+        let mut runtime = SurfaceRuntime::new(
+            DeclarativeOwnedCommandRuntimeBridge::new(
+                (),
+                |_| overlay_surface_for::<u8>(),
+                move |_, _| {
+                    updates_for_handler.set(updates_for_handler.get() + 1);
+                    Command::none()
+                },
+            ),
+            Vector2::new(320.0, 240.0),
+        );
+        let candidate = overlay_candidate(runtime.declarative_owner_projection());
+        let context = first_context_with_overlay(runtime.declarative_owner_projection());
+
+        let outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::Overlay(candidate),
+            context.source_node,
+        );
+
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert_eq!(updates.get(), 1);
+    }
+
+    #[test]
+    fn rejected_owner_dispatches_run_no_handler_or_follow_up_work() {
+        let updates = Rc::new(Cell::new(0));
+        let updates_for_handler = Rc::clone(&updates);
+        let mut runtime = SurfaceRuntime::new(
+            DeclarativeOwnedCommandRuntimeBridge::new(
+                (),
+                |_| keyed_surface_for::<u8>(),
+                move |_, _| {
+                    updates_for_handler.set(updates_for_handler.get() + 1);
+                    Command::message(99)
+                },
+            ),
+            Vector2::new(320.0, 240.0),
+        );
+        let candidate = keyed_candidate(runtime.declarative_owner_projection());
+        let context = first_context_with_keyed_node(runtime.declarative_owner_projection());
+        let source_node = context.source_node;
+        let incompatible = DeclarativeKeyedNodeCandidate::new(
+            candidate.identity,
+            SourceCompatibility::from_surface_node(&SurfaceNode::<u8>::container(
+                99,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )),
+        );
+        let ineligible = DeclarativeKeyedNodeCandidate::new(
+            SourceIdentity {
+                structural_scope: candidate.identity.structural_scope + 1,
+                ..candidate.identity
+            },
+            candidate.compatibility,
+        );
+
+        let missing = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            u64::MAX,
+        );
+        assert_eq!(missing, CommandOutcome::default());
+
+        let ineligible_outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(ineligible),
+            source_node,
+        );
+        assert_eq!(ineligible_outcome, CommandOutcome::default());
+
+        let incompatible_outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(incompatible),
+            source_node,
+        );
+        assert_eq!(incompatible_outcome, CommandOutcome::default());
+
+        runtime.declarative_owner.accepted_keyed_nodes.clear();
+        let absent_outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            source_node,
+        );
+        assert_eq!(absent_outcome, CommandOutcome::default());
+
+        runtime
+            .declarative_owner
+            .accepted_keyed_nodes
+            .push(candidate);
+        let source_record_index = runtime
+            .declarative_owner
+            .captured_sources
+            .iter()
+            .position(|record| record.source_node == source_node)
+            .expect("keyed source record");
+        let insert_at = runtime.declarative_owner.captured_sources[source_record_index].keyed_end;
+        runtime
+            .declarative_owner
+            .captured_keyed_nodes
+            .insert(insert_at, incompatible);
+        runtime.declarative_owner.captured_sources[source_record_index].keyed_end += 1;
+        let ambiguous_outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            source_node,
+        );
+        assert_eq!(ambiguous_outcome, CommandOutcome::default());
+        runtime
+            .declarative_owner
+            .captured_keyed_nodes
+            .remove(insert_at);
+        runtime.declarative_owner.captured_sources[source_record_index].keyed_end -= 1;
+
+        runtime
+            .declarative_owner_ledger
+            .generation_unavailable
+            .push(candidate.owner_identity());
+        let unavailable_outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            source_node,
+        );
+        assert_eq!(unavailable_outcome, CommandOutcome::default());
+
+        assert_eq!(updates.get(), 0);
+        assert!(runtime.timer_effects.is_empty());
+        assert_eq!(runtime.drain_runtime_messages(), CommandOutcome::default());
+    }
+
+    #[test]
+    fn owner_removal_during_update_vetoes_layout_dependent_follow_up() {
+        let removed = Rc::new(Cell::new(false));
+        let project_removed = Rc::clone(&removed);
+        let update_removed = Rc::clone(&removed);
+        let mut runtime = SurfaceRuntime::new(
+            DeclarativeOwnedCommandRuntimeBridge::new(
+                (),
+                move |_| {
+                    if project_removed.get() {
+                        UiSurface::new(SurfaceNode::container(
+                            41,
+                            ContainerPolicy::default(),
+                            Vec::new(),
+                        ))
+                    } else {
+                        keyed_surface_for::<u8>()
+                    }
+                },
+                move |_, _| {
+                    update_removed.set(true);
+                    Command::focus(42)
+                },
+            ),
+            Vector2::new(320.0, 240.0),
+        );
+        let candidate = keyed_candidate(runtime.declarative_owner_projection());
+        let context = first_context_with_keyed_node(runtime.declarative_owner_projection());
+        let token = live_token(
+            runtime.declarative_owner_ledger(),
+            candidate.owner_identity(),
+        );
+
+        let outcome = runtime.dispatch_message_from_declarative_owner(
+            1,
+            DeclarativeOwnerRequest::KeyedNode(candidate),
+            context.source_node,
+        );
+
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert!(removed.get());
+        assert!(!token.is_live());
+        assert!(!runtime.declarative_owner_ledger().is_live(&token));
+        assert_eq!(runtime.focused_widget(), None);
     }
 
     #[test]

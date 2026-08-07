@@ -330,10 +330,7 @@ impl<Message> WorkerEffects<Message> {
             .as_ref()
             .map(crate::application::LatestTaskTransaction::cancellation_probe);
         let token_probe: Option<CancellationProbe> = effect.is_cancelled.map(Arc::from);
-        let origin_probe = origin.auxiliary_owner().map(|owner| {
-            let owner = owner.clone();
-            Arc::new(move || !owner.is_open()) as CancellationProbe
-        });
+        let origin_probe = origin.cancellation_probe();
         let is_cancelled = combine_cancellation_probes(
             combine_cancellation_probes(token_probe, transaction_probe),
             origin_probe,
@@ -920,6 +917,7 @@ mod tests {
         RuntimeQueueHost, RuntimeTaskHost, RuntimeTimerWake, SurfaceNode, UiSurface,
     };
     use crate::{
+        application::{IntoView, column, text},
         gui::types::{Point, Vector2},
         runtime::SurfaceRuntime,
     };
@@ -1159,7 +1157,8 @@ mod tests {
 
     #[test]
     fn auxiliary_origin_survives_worker_completion_and_chained_command() {
-        let mut runtime = SurfaceRuntime::new(OriginBridge, Vector2::new(80.0, 40.0));
+        let mut runtime =
+            SurfaceRuntime::new(OriginBridge { show_owner: true }, Vector2::new(80.0, 40.0));
         let owner = runtime.acquire_auxiliary_effect_owner("settings");
 
         let _ = runtime.dispatch_message_from_auxiliary(1, owner.clone());
@@ -1219,6 +1218,78 @@ mod tests {
         let _ = runtime.drain_runtime_messages();
         assert!(runtime.worker_effects.registry.is_empty());
         assert_eq!(runtime.worker_effects.pending, 0);
+    }
+
+    #[test]
+    fn declarative_origin_survives_worker_chain_and_vetoes_late_completion() {
+        let mut runtime =
+            SurfaceRuntime::new(OriginBridge { show_owner: true }, Vector2::new(80.0, 40.0));
+        let token = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("keyed declarative owner")
+            .token
+            .clone();
+        let origin = EffectOrigin::Declarative(token.clone());
+
+        let mut outcome = crate::runtime::CommandOutcome::default();
+        runtime.dispatch_message_inner_with_origin(1, &mut outcome, origin.clone());
+        let first = runtime
+            .worker_effects
+            .registry
+            .get(&EffectId(1))
+            .expect("first declarative worker registration");
+        let first_registration = (first.generation, first.registration_id, first.epoch);
+        assert!(first.origin == origin);
+        assert!(runtime.worker_effects.ingress.send_with_registration(
+            EffectId(1),
+            first_registration.0,
+            first_registration.1,
+            first_registration.2,
+            &origin,
+            EffectResult::Completed(Box::new(1_usize)),
+        ));
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        let second = runtime
+            .worker_effects
+            .registry
+            .get(&EffectId(2))
+            .expect("chained declarative worker registration");
+        let second_registration = (second.generation, second.registration_id, second.epoch);
+        assert!(second.origin == origin);
+        assert!(runtime.worker_effects.ingress.send_with_registration(
+            EffectId(2),
+            second_registration.0,
+            second_registration.1,
+            second_registration.2,
+            &origin,
+            EffectResult::Completed(Box::new(2_usize)),
+        ));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert!(runtime.worker_effects.registry.is_empty());
+
+        let mut outcome = crate::runtime::CommandOutcome::default();
+        runtime.dispatch_message_inner_with_origin(1, &mut outcome, origin.clone());
+        let late = runtime
+            .worker_effects
+            .registry
+            .get(&EffectId(1))
+            .expect("late declarative worker registration");
+        let late_registration = (late.generation, late.registration_id, late.epoch);
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert!(!token.is_live());
+        assert!(runtime.worker_effects.ingress.send_with_registration(
+            EffectId(1),
+            late_registration.0,
+            late_registration.1,
+            late_registration.2,
+            &origin,
+            EffectResult::Completed(Box::new(3_usize)),
+        ));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     }
 
     #[test]
@@ -2482,15 +2553,23 @@ mod tests {
         assert_ne!(first_ticket.ticket(), second_ticket.ticket());
     }
 
-    struct OriginBridge;
+    struct OriginBridge {
+        show_owner: bool,
+    }
 
     impl crate::runtime::RuntimeBridge<usize> for OriginBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
-                1,
-                ContainerPolicy::default(),
-                Vec::new(),
-            )))
+            if self.show_owner {
+                crate::runtime::test_arc_surface(
+                    column([text::<usize>("keyed").key("keyed")]).into_surface(),
+                )
+            } else {
+                crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                    1,
+                    ContainerPolicy::default(),
+                    Vec::new(),
+                )))
+            }
         }
 
         fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {

@@ -166,10 +166,11 @@ model. Declarative lowering and traversal under `src/application` construct
 `ViewNode`/`SurfaceNode` projections and route application messages, but they do
 not preserve overlay or keyed-node source provenance into command dispatch.
 `src/runtime/controller/commands/dispatch.rs` therefore enters ordinary work
-with the private application origin unless an existing controller path supplies
-an auxiliary origin. The private `RuntimeOwner`/`AuxiliaryWindowOwner` model in
-`src/runtime/controller/owner.rs` currently distinguishes only application work
-and exact auxiliary-window generations.
+with the private `Application` origin unless an existing auxiliary path or the
+new private explicit declarative owner-request consumer supplies a live
+declarative origin. The private `EffectOrigin` model in
+`src/runtime/controller/owner.rs` now distinguishes `Application`, `Auxiliary`
+generations, and live declarative tokens.
 
 That private auxiliary generation is already carried through the existing
 worker, timer, and platform-completion registries in

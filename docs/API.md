@@ -1227,6 +1227,18 @@ preview, a native external-drag payload, both, or neither. Use
 known to exist and should be started together. Explicit runtime bridges can use
 the corresponding `Command` constructors, but normal application handlers should
 stay on the typed `UiUpdateContext` surface.
+External file drags use `ExternalDragRequest::files(...)` from
+`radiant::runtime`; the generic native Vello backend supports Windows OLE and
+macOS AppKit file receivers, while unsupported targets deliver an explicit
+unsupported error through the same completion callback. The completion mapper
+is UI-owned and one-shot. On Windows the native drag call supplies its terminal
+effect before Radiant defers the mapper to the next controller drain. On macOS
+the native launch only admits an `NSDraggingSession`; AppKit later calls the
+dragging-source terminal callback when the target copies or rejects the files,
+and Radiant then posts the result back to the originating window before the
+next UI drain invokes the mapper. `ExternalDragOutcome::accepted()` is true
+for any non-`None` terminal effect. Late, duplicate, replaced, and
+post-shutdown results are ignored.
 Dense custom row painters can use `push_dense_row_chrome(...)` with
 `DenseRowChromeParts`, `DenseRowMarkerStyle`, and `DenseRowOutlineStyle` when
 one row needs standard fill, leading/trailing markers, and optional outline
@@ -3610,6 +3622,32 @@ This is live native macOS presentation evidence only; Linux and Windows
 portable compilation is guarded, and native runtime acceptance remains
 deferred.
 
+### macOS live external-drag acceptance
+
+`macos_external_drag_acceptance` is the checked public-API harness for outgoing
+file drags. It uses `drag_handle()`,
+`UiUpdateContext::begin_drag_with_external(...)`, and
+`ExternalDragRequest::files(...)` so the in-window preview and native file
+payload are armed as one gesture. The live macOS path creates one disposable
+source file in the system temporary directory and removes it when the harness
+exits; the non-macOS fallback and tests use a synthetic relative path and do
+not create a temporary source.
+
+The harness reports a bounded callback count, terminal `ExternalDragEffect`,
+whether the terminal outcome was accepted, and whether the completion mapper
+has received its terminal result. Build and run it directly on macOS with:
+
+```bash
+cargo run --example macos_external_drag_acceptance
+```
+
+Drag the handle out of the window into Finder or another file receiver, then
+wait for the native session to finish. A successful terminal copy should show
+`Terminal effect: copy`, `Accepted: true`, and `Callback terminal: true`; a
+cancelled or rejected session should report `none` and `false` instead. This
+section documents the manual acceptance procedure and does not claim that a
+live Finder run has been performed.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile
@@ -3632,7 +3670,7 @@ manual validation:
 | Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
-| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_external_drag_acceptance` |
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

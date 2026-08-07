@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use winit::window::WindowId;
 
 use super::generic_runtime::{
     NativeAdapterGeneration, NativeRecoveryEpisodeToken, NativeRenderDeviceErrorKind,
@@ -37,6 +38,15 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         generation: NativeAdapterGeneration,
         kind: NativeRenderDeviceErrorKind,
         message: String,
+    },
+    #[allow(
+        dead_code,
+        reason = "The macOS dragging source is the only native producer of this event."
+    )]
+    ExternalDragCompleted {
+        window_id: WindowId,
+        identity: crate::runtime::ExternalDragIdentity,
+        result: Result<crate::runtime::ExternalDragOutcome, String>,
     },
     NativeResourceMaintenanceRequested,
     #[cfg(target_os = "macos")]
@@ -91,6 +101,22 @@ impl PartialEq for RuntimeUserEvent {
                     && left_generation == right_generation
                     && left_kind == right_kind
                     && left_message == right_message
+            }
+            (
+                Self::ExternalDragCompleted {
+                    window_id: left_window_id,
+                    identity: left_identity,
+                    result: left_result,
+                },
+                Self::ExternalDragCompleted {
+                    window_id: right_window_id,
+                    identity: right_identity,
+                    result: right_result,
+                },
+            ) => {
+                left_window_id == right_window_id
+                    && left_identity == right_identity
+                    && left_result == right_result
             }
             #[cfg(target_os = "macos")]
             (Self::AccessibilityDisplayChanged, Self::AccessibilityDisplayChanged) => true,

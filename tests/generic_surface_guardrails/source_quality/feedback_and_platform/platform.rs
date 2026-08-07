@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 
 const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "examples/macos_devtools_acceptance.rs",
+    "examples/macos_external_drag_acceptance.rs",
     "examples/macos_frame_profile_acceptance.rs",
     "examples/popup_window/host/child.rs",
     "examples/popup_window/host/prewarm.rs",
@@ -15,6 +16,10 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/formats.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/medium.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/macos.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/macos/bridge.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/macos/payload.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/macos/source.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/payload.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/payload/dropfiles.rs",
@@ -78,6 +83,15 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
         .iter()
         .copied()
         .collect::<BTreeSet<_>>();
+    assert!(
+        external_drag_platform
+            .contains("#[cfg(target_os = \"windows\")]\n#[path = \"windows.rs\"]")
+            && external_drag_platform
+                .contains("#[cfg(target_os = \"macos\")]\n#[path = \"macos.rs\"]")
+            && external_drag_platform
+                .contains("#[cfg(not(any(target_os = \"windows\", target_os = \"macos\")))]",),
+        "external drag platform selector should cover Windows, macOS, and the explicit fallback"
+    );
     let mut undocumented = Vec::new();
 
     for path in rust_sources_under(&manifest_dir.join("src"))
@@ -107,11 +121,19 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
         if relative.starts_with("src/gui_runtime/native_vello/generic_runtime/external_drag/")
             && relative != "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs"
         {
-            assert!(
-                external_drag_platform.contains("#[cfg(target_os = \"windows\")]")
-                    && external_drag_platform.contains("#[path = \"windows.rs\"]"),
-                "Windows-only external drag modules should stay behind the cfg-gated platform selector"
-            );
+            if relative.contains("/macos/") || relative.ends_with("/external_drag/macos.rs") {
+                assert!(
+                    external_drag_platform.contains("#[cfg(target_os = \"macos\")]")
+                        && external_drag_platform.contains("#[path = \"macos.rs\"]"),
+                    "macOS external drag modules should stay behind the cfg-gated platform selector"
+                );
+            } else {
+                assert!(
+                    external_drag_platform.contains("#[cfg(target_os = \"windows\")]")
+                        && external_drag_platform.contains("#[path = \"windows.rs\"]"),
+                    "Windows-only external drag modules should stay behind the cfg-gated platform selector"
+                );
+            }
         }
     }
 

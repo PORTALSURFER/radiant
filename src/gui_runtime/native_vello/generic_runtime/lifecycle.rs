@@ -308,6 +308,11 @@ where
                 kind,
                 message,
             ),
+            RuntimeUserEvent::ExternalDragCompleted {
+                window_id,
+                identity,
+                result,
+            } => self.handle_external_drag_completion(event_loop, window_id, identity, result),
             RuntimeUserEvent::NativeResourceMaintenanceRequested => {
                 if self.is_closing() {
                     self.advance_native_closing(event_loop, Instant::now());

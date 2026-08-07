@@ -165,6 +165,10 @@ fn radiant_examples_pass_reusable_non_blocking_guardrail() {
             "examples/folder_browser/storage/scan.rs",
             "folder browser filesystem scan worker boundary invoked through business runtime",
         )
+        .allow_path_fragment(
+            "examples/macos_external_drag_acceptance.rs",
+            "macOS live acceptance source lifecycle is a native platform boundary",
+        )
         .scan_roots([manifest_dir.join("examples")])
         .expect("Radiant examples should keep blocking work inside explicit worker or platform boundaries");
 }

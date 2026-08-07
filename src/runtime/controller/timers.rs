@@ -158,13 +158,11 @@ impl<Message> TimerEffects<Message> {
         })
     }
 
-    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
-        owner.retire();
-        let origin = EffectOrigin::Auxiliary(owner.clone());
+    pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
         let current_ids = self
             .registry
             .iter()
-            .filter(|(_, registered)| registered.origin == origin)
+            .filter(|(_, registered)| registered.origin.eq(origin))
             .map(|(id, _)| *id)
             .collect::<Vec<_>>();
         for id in current_ids {
@@ -181,6 +179,12 @@ impl<Message> TimerEffects<Message> {
             }
             drop(registered);
         }
+    }
+
+    pub(super) fn retire_auxiliary_owner(&mut self, owner: &AuxiliaryWindowOwner) {
+        owner.retire();
+        let origin = EffectOrigin::Auxiliary(owner.clone());
+        self.retire_origin(&origin);
     }
 
     #[cfg(test)]
@@ -215,13 +219,70 @@ mod tests {
         gui::types::Vector2,
         runtime::SurfaceRuntime,
     };
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
+    use std::{
+        cell::Cell,
+        rc::Rc,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
     };
 
     fn map_message(effects: &mut TimerEffects<usize>, wake: RuntimeTimerWake) -> Option<usize> {
         effects.map_wake(wake).map(|mapped| mapped.message)
+    }
+
+    fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
+        let phase = Rc::new(Cell::new(0_u8));
+        let project_phase = Rc::clone(&phase);
+        let mut runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            move |_| {
+                if project_phase.get() == 1 {
+                    text::<usize>("raw").into_surface()
+                } else {
+                    column([text::<usize>("old").key("old")]).into_surface()
+                }
+            },
+            |_, _| {},
+        );
+        let old = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("old declarative owner")
+            .token
+            .clone();
+        let sibling_runtime = SurfaceRuntime::new_declarative_owned(
+            (),
+            Vector2::new(80.0, 40.0),
+            |_| column([text::<usize>("sibling").key("sibling")]).into_surface(),
+            |_, _| {},
+        );
+        let sibling = sibling_runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("sibling declarative owner")
+            .token
+            .clone();
+        phase.set(1);
+        runtime.refresh();
+        phase.set(2);
+        runtime.refresh();
+        let new = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("later declarative owner generation")
+            .token
+            .clone();
+        (
+            EffectOrigin::Declarative(old),
+            EffectOrigin::Declarative(sibling),
+            EffectOrigin::Declarative(new),
+        )
     }
 
     #[test]
@@ -542,6 +603,87 @@ mod tests {
         );
 
         effects.retire_auxiliary_owner(&owner);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn declarative_retirement_drops_mapper_repairs_latest_and_isolates_origins() {
+        let (old_origin, sibling_origin, new_origin) = declarative_origins();
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut effects = TimerEffects::default();
+        let mut latest = crate::application::LatestTask::new();
+        let transaction = latest.begin_timer_replacement();
+        let slot = transaction.slot();
+        let retired_sentinel = DropSentinel(Arc::clone(&drops));
+        let mut old_wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: Some(transaction),
+                map: Box::new(move || {
+                    let _sentinel = retired_sentinel;
+                    1
+                }),
+            },
+            old_origin.clone(),
+            |_, wake| {
+                old_wake = Some(wake);
+                true
+            },
+        ));
+        let mut sibling_wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: None,
+                map: Box::new(|| 2),
+            },
+            sibling_origin,
+            |_, wake| {
+                sibling_wake = Some(wake);
+                true
+            },
+        ));
+        let mut application_wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: None,
+                map: Box::new(|| 3),
+            },
+            EffectOrigin::Application,
+            |_, wake| {
+                application_wake = Some(wake);
+                true
+            },
+        ));
+        let mut new_wake = None;
+        assert!(effects.schedule(
+            TimerEffect {
+                delay: Duration::ZERO,
+                transaction: None,
+                map: Box::new(|| 4),
+            },
+            new_origin,
+            |_, wake| {
+                new_wake = Some(wake);
+                true
+            },
+        ));
+
+        effects.retire_origin(&old_origin);
+
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert!(!effects.latest.contains_key(&slot));
+        assert!(map_message(&mut effects, old_wake.unwrap()).is_none());
+        assert_eq!(map_message(&mut effects, sibling_wake.unwrap()), Some(2));
+        assert_eq!(
+            map_message(&mut effects, application_wake.unwrap()),
+            Some(3)
+        );
+        assert_eq!(map_message(&mut effects, new_wake.unwrap()), Some(4));
+
+        effects.retire_origin(&old_origin);
         assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 

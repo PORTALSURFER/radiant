@@ -178,6 +178,41 @@ remains ~97% because this slice does not claim IME/preedit delivery,
 composition, multiline editing, bidi behavior, clipboard/undo, or native
 accessibility.
 
+## Terminal generic-sequence boundary
+
+After PR #1634, no further generic implementation PR is selected from the
+current contracts. The remaining target work is implementable only after a
+consumer, renderer, scheduler, or macOS adapter supplies the missing policy:
+
+- **macOS text editing:** choose the supported host boundary and adapter
+  mechanism (`NSTextInputClient`, Winit IME events, or an explicit split); define
+  backend-neutral preedit/commit/cancel payloads, marked-text and replacement
+  ranges, focus-loss/close behavior, stale-event fencing, AppKit UTF-16 to
+  scalar/grapheme/visual-position conversion, the first document/delta owner,
+  undo/clipboard and character-limit policy, and what a newer
+  `TextInputRevision` does during active composition. The first acceptance
+  workload must include marked text, commit, cancellation, replacement, focus
+  transition, and revision-during-composition behavior.
+- **Numeric input:** choose the domain type, parser and locale grammar,
+  invalid-draft/range policy, formatting round-trip, edit lifecycle, and
+  whether typed events carry normalized or domain values before wiring
+  `NumericEditSession` into production controls.
+- **Scheduling:** define public owner selection/cancellation, executable stage
+  boundaries, budgets, quotas, starvation/coalescing behavior, refresh-rate
+  policy, and a measurable primary/auxiliary macOS workload before
+  observational fairness evidence can become execution policy.
+- **Profiling and rendering:** define selected-scope lifetime/capture and
+  inspector correlation, renderer-wide accounting and ownership, exact fence
+  retirement, timestamp-query fallback, degradation/eviction policy, and named
+  product workloads before detailed profiling, GPU timing, or retained-resource
+  budgeting can be implemented.
+
+Linux and Windows runtime delivery remain future portability targets, not
+blockers for this macOS-scoped goal. Resume the generic sequence only when one
+of these decision sets is made normative and identifies a concrete consumer;
+until then, further vocabulary-only or observational slices would not advance
+alignment evidence.
+
 Rendering terminal boundary after PR #1616: no further generic rendering
 implementation slice is selected from the current Radiant contracts. The
 remaining target requires a supported renderer/adapter contract for resource

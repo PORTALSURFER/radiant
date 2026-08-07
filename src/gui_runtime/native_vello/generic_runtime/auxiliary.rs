@@ -889,7 +889,7 @@ where
                         projection,
                         &self.options,
                         native_window_diagnostic_identity,
-                        self.frame_diagnostics_enabled,
+                        self.frame_observation_enabled,
                         owner.clone(),
                     );
                     window

@@ -7,11 +7,11 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        AuxiliaryWindow, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
-        PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformResultDelivery,
-        PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
-        RuntimeHostCapabilities, RuntimePlatformResultSink, RuntimeRetainedSurfaceCapability,
-        ScrollUpdate, TaskPriority, TransientOverlayContext,
+        AuxiliaryWindow, Command, FrameProfile, NativeFileDrop, NativeFileOpen,
+        NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
+        PlatformResultDelivery, PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge,
+        RuntimeDiagnostics, RuntimeHostCapabilities, RuntimePlatformResultSink,
+        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -224,6 +224,16 @@ where
     pub(crate) fn host_observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
         if let Some(capability) = self.host_capabilities.frame_diagnostics.as_ref() {
             (capability.observe_frame_diagnostics)(&mut self.bridge, diagnostics);
+        }
+    }
+
+    pub(crate) fn has_frame_profile_host(&self) -> bool {
+        self.host_capabilities.has_frame_profile()
+    }
+
+    pub(crate) fn host_observe_frame_profile(&mut self, profile: FrameProfile) {
+        if let Some(capability) = self.host_capabilities.frame_profile.as_ref() {
+            (capability.observe_frame_profile)(&mut self.bridge, profile);
         }
     }
 

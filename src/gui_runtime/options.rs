@@ -7,6 +7,7 @@ mod popup;
 mod run;
 mod text;
 
+pub use crate::runtime::{ProfilingMode, ProfilingOptions};
 pub use frame_rate::FrameRate;
 pub use gpu::{NativeGpuBackend, NativeGpuOptions};
 pub use icon::WindowIconRgba;

@@ -9,7 +9,7 @@ use super::{
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::{
-    NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
+    FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
     NativeFrameDiagnostics, RuntimeBridge,
 };
 use std::time::{Duration, Instant};
@@ -599,10 +599,18 @@ fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
             .map_or_else(NativeCpuFrameObservationDiagnostics::default, |ledger| {
                 ledger.project_frame_diagnostics(key)
             });
-        runner
-            .core
-            .runtime
-            .host_observe_frame_diagnostics(diagnostics);
+        if runner.frame_diagnostics_enabled {
+            runner
+                .core
+                .runtime
+                .host_observe_frame_diagnostics(diagnostics);
+        }
+        if runner.frame_profile_enabled && diagnostics.frame_sequence.is_some() {
+            runner
+                .core
+                .runtime
+                .host_observe_frame_profile(FrameProfile::from(diagnostics));
+        }
     }
 }
 

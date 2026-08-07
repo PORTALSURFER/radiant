@@ -207,6 +207,10 @@ where
         self.runtime.has_frame_diagnostics_host()
     }
 
+    pub(super) fn has_frame_profile_observer(&self) -> bool {
+        self.runtime.has_frame_profile_host()
+    }
+
     pub(super) fn refresh_surface(&mut self) {
         self.runtime.refresh();
     }

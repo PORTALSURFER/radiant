@@ -2,8 +2,8 @@ use super::super::super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
     runtime::{
-        RuntimeDiagnostics, RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost,
-        RuntimeLifecycleHost,
+        FrameProfile, RuntimeDiagnostics, RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost,
+        RuntimeFrameProfileHost, RuntimeLifecycleHost,
     },
 };
 
@@ -19,6 +19,22 @@ where
     fn observe_frame_diagnostics(&mut self, diagnostics: crate::runtime::NativeFrameDiagnostics) {
         if let Some(observer) = self.lifecycle.native_frame_diagnostics.as_mut() {
             observer(&mut self.state, diagnostics);
+        }
+    }
+}
+
+impl<State, Message, Project, Update, View> RuntimeFrameProfileHost
+    for AppBridge<State, Message, Project, Update, View>
+where
+    Project: FnMut(&State) -> View + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
+    View: IntoView<Message> + 'static,
+    Message: 'static,
+    State: 'static,
+{
+    fn observe_frame_profile(&mut self, profile: FrameProfile) {
+        if let Some(observer) = self.lifecycle.native_frame_profile.as_mut() {
+            observer(&mut self.state, profile);
         }
     }
 }

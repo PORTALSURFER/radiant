@@ -47,7 +47,7 @@ where
         };
         self.cpu_frame_observation_capture.mark_frame_path_started();
         let profile_enabled = render_profile_enabled();
-        let diagnostics_requested = self.frame_diagnostics_enabled;
+        let diagnostics_requested = self.frame_observation_enabled;
         let slow_profile_enabled = slow_render_profile_enabled();
         let mut profile = RenderFrameProfile::recording(
             profile_enabled || diagnostics_requested || slow_profile_enabled,

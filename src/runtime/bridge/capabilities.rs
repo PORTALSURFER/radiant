@@ -12,7 +12,9 @@ mod tasks;
 
 pub use animation::RuntimeAnimationHost;
 pub use auxiliary::RuntimeWindowHost;
-pub use diagnostics::{RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost};
+pub use diagnostics::{
+    RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameProfileHost,
+};
 pub use input::RuntimeInputHost;
 pub use lifecycle::RuntimeLifecycleHost;
 #[allow(deprecated)]
@@ -26,12 +28,15 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        NativeFrameDiagnostics, PaintPrimitive, RuntimeAnimationActivity, TransientOverlayContext,
+        FrameProfile, NativeFrameDiagnostics, PaintPrimitive, RuntimeAnimationActivity,
+        TransientOverlayContext,
     },
 };
 pub(crate) use animation::RuntimeAnimationCapability;
 pub(crate) use auxiliary::RuntimeWindowCapability;
-pub(crate) use diagnostics::{RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability};
+pub(crate) use diagnostics::{
+    RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability, RuntimeFrameProfileCapability,
+};
 pub(crate) use input::RuntimeInputCapability;
 pub(crate) use lifecycle::RuntimeLifecycleCapability;
 pub(crate) use platform::{RuntimePlatformCapability, RuntimePlatformResultCapability};
@@ -59,6 +64,7 @@ pub struct RuntimeHostCapabilities<Bridge, Message> {
     pub(crate) transient_overlay: Option<RuntimeTransientOverlayCapability<Bridge>>,
     pub(crate) runtime_diagnostics: Option<RuntimeDiagnosticsCapability<Bridge>>,
     pub(crate) frame_diagnostics: Option<RuntimeFrameDiagnosticsCapability<Bridge>>,
+    pub(crate) frame_profile: Option<RuntimeFrameProfileCapability<Bridge>>,
     pub(crate) lifecycle: Option<RuntimeLifecycleCapability<Bridge>>,
 }
 
@@ -77,6 +83,7 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
             transient_overlay: None,
             runtime_diagnostics: None,
             frame_diagnostics: None,
+            frame_profile: None,
             lifecycle: None,
         }
     }
@@ -181,6 +188,15 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
         self
     }
 
+    /// Enable backend-neutral fixed-cost frame profile delivery.
+    pub fn with_frame_profile(mut self) -> Self
+    where
+        Bridge: RuntimeFrameProfileHost,
+    {
+        self.frame_profile = Some(RuntimeFrameProfileCapability::new());
+        self
+    }
+
     /// Enable runtime-exit and close-request lifecycle hooks.
     pub fn with_lifecycle(mut self) -> Self
     where
@@ -198,6 +214,11 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
     /// Return whether native per-frame diagnostics were explicitly enabled.
     pub const fn has_frame_diagnostics(&self) -> bool {
         self.frame_diagnostics.is_some()
+    }
+
+    /// Return whether backend-neutral frame profile delivery was enabled.
+    pub const fn has_frame_profile(&self) -> bool {
+        self.frame_profile.is_some()
     }
 
     /// Poll explicitly enabled host animation activity.
@@ -264,6 +285,15 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
             return false;
         };
         (capability.observe_frame_diagnostics)(bridge, diagnostics);
+        true
+    }
+
+    /// Deliver a backend-neutral frame profile when enabled.
+    pub fn observe_frame_profile(&self, bridge: &mut Bridge, profile: FrameProfile) -> bool {
+        let Some(capability) = self.frame_profile.as_ref() else {
+            return false;
+        };
+        (capability.observe_frame_profile)(bridge, profile);
         true
     }
 

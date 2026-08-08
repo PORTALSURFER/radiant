@@ -1,5 +1,6 @@
+use super::super::SurfaceRuntime;
+use super::super::focus::FocusTransition;
 use super::super::pointer::PointInputDispatch;
-use super::super::{SurfaceRuntime, focus::FocusTransition};
 use crate::{
     gui::input::InputTimestamp,
     gui::types::Point,

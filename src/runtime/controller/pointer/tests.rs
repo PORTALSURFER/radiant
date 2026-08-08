@@ -101,10 +101,15 @@ impl FocusDecisionWidget {
         decision: Rc<Cell<FocusLossDecision>>,
         events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
         emit_focus_loss_output: bool,
+        focusable: bool,
     ) -> Self {
         Self {
             common: WidgetCommon::fixed(id, 160.0, 28.0)
-                .with_keyboard_focus()
+                .with_focus(if focusable {
+                    FocusBehavior::Keyboard
+                } else {
+                    FocusBehavior::None
+                })
                 .without_default_chrome(),
             decision,
             events,
@@ -175,6 +180,7 @@ struct FocusDecisionBridge {
     target_decision: Rc<Cell<FocusLossDecision>>,
     events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
     remove_old: bool,
+    target_focusable: bool,
 }
 
 impl FocusDecisionBridge {
@@ -184,7 +190,13 @@ impl FocusDecisionBridge {
             target_decision: Rc::new(Cell::new(FocusLossDecision::Allow)),
             events: Rc::new(RefCell::new(Vec::new())),
             remove_old: false,
+            target_focusable: true,
         }
+    }
+
+    fn with_target_focusable(mut self, focusable: bool) -> Self {
+        self.target_focusable = focusable;
+        self
     }
 
     fn row(&self) -> SurfaceNode<FocusDecisionEvent> {
@@ -197,6 +209,7 @@ impl FocusDecisionBridge {
                         10,
                         Rc::clone(&self.old_decision),
                         Rc::clone(&self.events),
+                        true,
                         true,
                     ),
                     WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
@@ -211,6 +224,7 @@ impl FocusDecisionBridge {
                     Rc::clone(&self.target_decision),
                     Rc::clone(&self.events),
                     false,
+                    self.target_focusable,
                 ),
                 WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
             ),
@@ -2396,6 +2410,38 @@ fn removed_focused_widget_cannot_veto_forced_cleanup() {
 }
 
 #[test]
+fn invalid_focus_targets_do_not_prepare_a_vetoing_owner() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionBridge::new().with_target_focusable(false),
+        Vector2::new(200.0, 80.0),
+    );
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    assert!(!runtime.focus_widget(20));
+    assert!(!runtime.focus_widget(999));
+
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert!(runtime.bridge().events.borrow().is_empty());
+    assert!(
+        runtime
+            .surface()
+            .find_widget(10)
+            .expect("vetoing widget")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+}
+
+#[test]
 fn pointer_focus_veto_unwinds_press_and_double_click_capture_without_target_input() {
     let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
 
@@ -2424,6 +2470,34 @@ fn pointer_focus_veto_unwinds_press_and_double_click_capture_without_target_inpu
         runtime.dispatch_event(Event::primary_double_click(target_point)),
         None
     );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+}
+
+#[test]
+fn pointer_non_focusable_hit_with_veto_retains_focus_and_unwinds_capture() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionBridge::new().with_target_focusable(false),
+        Vector2::new(200.0, 80.0),
+    );
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(4.0, 32.0))),
+        None
+    );
+
     assert_eq!(runtime.focused_widget(), Some(10));
     assert_eq!(runtime.pointer_capture(), None);
     assert_eq!(

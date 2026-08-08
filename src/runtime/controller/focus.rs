@@ -126,18 +126,11 @@ where
     }
 
     fn prepare_focus_loss(&mut self, widget_id: WidgetId) -> FocusLossDecision {
-        let Some(child_path) = self
-            .traversal
-            .widgets
-            .paths
-            .current
-            .get(&widget_id)
-            .cloned()
-        else {
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return FocusLossDecision::Allow;
         };
         self.surface
-            .find_widget_mut_at_path(widget_id, &child_path)
+            .find_widget_mut_at_path(widget_id, child_path)
             .map(|widget| widget.widget_object_mut_runtime().prepare_focus_loss())
             .unwrap_or(FocusLossDecision::Allow)
     }

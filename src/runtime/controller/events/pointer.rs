@@ -1,4 +1,6 @@
 use super::super::SurfaceRuntime;
+use super::super::focus::FocusTransition;
+use super::super::pointer::PointInputDispatch;
 use crate::{
     gui::input::InputTimestamp,
     gui::types::Point,
@@ -18,6 +20,13 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.scroll_affordance_at(position).is_some()
+            && self.clear_focus_with_transition() == FocusTransition::Vetoed
+        {
+            self.cancel_layout_pointer_capture();
+            self.unwind_provisional_pointer_capture();
+            return None;
+        }
         if self.start_scrollbar_drag_at(position) {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
@@ -71,7 +80,14 @@ where
         };
         self.interaction.pointer.capture = Some(widget_id);
         self.reset_tooltip_hover_intent();
-        self.dispatch_input_at(position, input)
+        match self.dispatch_input_at_output(position, input) {
+            PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
+            PointInputDispatch::FocusVetoed => {
+                self.unwind_provisional_pointer_capture();
+                None
+            }
+            PointInputDispatch::Miss => None,
+        }
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_double_click_event(
@@ -81,6 +97,13 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.scroll_affordance_at(position).is_some()
+            && self.clear_focus_with_transition() == FocusTransition::Vetoed
+        {
+            self.cancel_layout_pointer_capture();
+            self.unwind_provisional_pointer_capture();
+            return None;
+        }
         if self.start_scrollbar_drag_at(position) {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
@@ -136,11 +159,41 @@ where
         self.reset_tooltip_hover_intent();
         let routed = self.dispatch_input_at_output(position, input);
         match routed {
-            Some((widget_id, true)) => Some(widget_id),
-            _ => self.dispatch_input_at(
-                position,
-                WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp),
-            ),
+            PointInputDispatch::Routed(widget_id, true) => Some(widget_id),
+            PointInputDispatch::Routed(_, false) => {
+                match self.dispatch_input_at_output(
+                    position,
+                    WidgetInput::pointer_press_with_timestamp(
+                        position, button, modifiers, timestamp,
+                    ),
+                ) {
+                    PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
+                    PointInputDispatch::FocusVetoed => {
+                        self.unwind_provisional_pointer_capture();
+                        None
+                    }
+                    PointInputDispatch::Miss => None,
+                }
+            }
+            PointInputDispatch::FocusVetoed => {
+                self.unwind_provisional_pointer_capture();
+                None
+            }
+            PointInputDispatch::Miss => {
+                match self.dispatch_input_at_output(
+                    position,
+                    WidgetInput::pointer_press_with_timestamp(
+                        position, button, modifiers, timestamp,
+                    ),
+                ) {
+                    PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
+                    PointInputDispatch::FocusVetoed => {
+                        self.unwind_provisional_pointer_capture();
+                        None
+                    }
+                    PointInputDispatch::Miss => None,
+                }
+            }
         }
     }
 

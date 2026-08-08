@@ -453,6 +453,23 @@ bounds, instead of repeating `Point` plus `Vector2` construction. Dense
 visualizations can use `ColorRamp` and `ColorRampStop` for normalized heatmap
 and intensity palettes without local interpolation helpers.
 
+Focus-loss veto is an additive advanced widget contract. Import
+`radiant::widgets::{FocusLossDecision, Widget}` explicitly when a custom widget
+needs to participate in focus-release validation. `Widget::prepare_focus_loss`
+defaults to `FocusLossDecision::Allow`; returning `Veto` keeps the exact
+controller-owned focus target and focused state, suppresses both focus-change
+inputs and host terminal output for the rejected transition, and requests
+repaint. The controller validates a proposed target before asking the current
+owner to release focus. An allowed transition installs the proposed owner
+before routing `FocusChanged(false)`, so focus-loss output sees the new owner
+during synchronous reprojection, and `FocusChanged(true)` is delivered only if
+the target remains live, focusable, and authoritative afterward. Direct
+`focus_widget` requests for missing or non-focusable targets are invalid and
+leave controller focus unchanged. Stale or removed-widget cleanup bypasses the
+hook. The synchronous, allocation-free contract is
+intentionally excluded from `radiant::prelude::*`, while the default preserves
+existing custom-widget behavior.
+
 Custom canvas, image, GPU surface, and overlay widgets can explicitly import
 their advanced contracts from `radiant::widgets` and `radiant::runtime`, then use
 `WidgetCommon::fixed(...)` when a fixed-size custom widget can declare identity
@@ -3101,7 +3118,13 @@ into caller-owned storage for diagnostics or host integrations that inspect
 focus order repeatedly without reallocating.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
-widget by stable `WidgetId`.
+widget by stable `WidgetId`. When a pointer press or double-click would move
+focus and the current widget vetoes focus loss, Radiant suppresses that
+initiating input and rolls back provisional pointer capture. A pointer press or
+double-click on a non-focusable hit target preserves the pre-existing behavior
+of clearing current controller focus before routing target input. If the current
+owner vetoes that clear, Radiant suppresses target input and unwinds provisional
+pointer capture.
 Tests, automation, and embedded hosts that need ordinary pointer activation can
 use `SurfaceRuntime::dispatch_pointer_click(...)` or
 `dispatch_primary_click(...)` / `dispatch_secondary_click(...)`; the returned

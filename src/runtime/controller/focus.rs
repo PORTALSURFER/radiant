@@ -1,12 +1,21 @@
 use std::collections::HashMap;
 
 use super::{FocusTraversal, SurfaceRuntime};
+use crate::widgets::FocusLossDecision;
 use crate::{
     gui::input::InputTimestamp,
     gui::{focus::FocusSurface, input::KeyPress},
     runtime::RuntimeBridge,
     widgets::{WidgetId, WidgetInput, WidgetKey},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FocusTransition {
+    InvalidTarget,
+    Vetoed,
+    Unchanged,
+    Changed,
+}
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -15,29 +24,115 @@ where
     /// Give keyboard focus to one focusable widget.
     ///
     /// Returns `false` when the widget is absent or does not participate in
-    /// focus. Focus changes are routed into affected widgets so their retained
-    /// interaction state can update before the next paint plan.
+    /// focus. A valid target may retain the current owner when that widget
+    /// vetoes focus loss. Focus changes are routed into affected widgets so
+    /// their retained interaction state can update before the next paint plan.
     pub fn focus_widget(&mut self, widget_id: WidgetId) -> bool {
-        if !self.traversal.widgets.focusable.contains(widget_id) {
-            return false;
-        }
-        if self.interaction.focus.focused_widget == Some(widget_id) {
-            return true;
-        }
-
-        if let Some(previous) = self.interaction.focus.focused_widget {
-            self.route_focus_changed(previous, false);
-        }
-        self.interaction.focus.focused_widget = Some(widget_id);
-        self.route_focus_changed(widget_id, true);
-        true
+        !matches!(
+            self.request_focus(widget_id),
+            FocusTransition::InvalidTarget
+        )
     }
 
     /// Clear keyboard focus when a surface or backend loses focus ownership.
     pub fn clear_focus(&mut self) {
-        if let Some(previous) = self.interaction.focus.focused_widget.take() {
+        let _ = self.clear_focus_with_transition();
+    }
+
+    pub(super) fn clear_focus_with_transition(&mut self) -> FocusTransition {
+        let Some(previous) = self.interaction.focus.focused_widget else {
+            return FocusTransition::Unchanged;
+        };
+        let previous_is_live = self.focus_owner_can_prepare_loss(previous);
+        if previous_is_live && self.prepare_focus_loss(previous) == FocusLossDecision::Veto {
+            self.repaint_requested = true;
+            return FocusTransition::Vetoed;
+        }
+        self.interaction.focus.focused_widget = None;
+        if previous_is_live {
             self.route_focus_changed(previous, false);
         }
+        FocusTransition::Changed
+    }
+
+    pub(super) fn request_focus(&mut self, widget_id: WidgetId) -> FocusTransition {
+        if !self.is_live_focus_target(widget_id) {
+            return FocusTransition::InvalidTarget;
+        }
+        if self.interaction.focus.focused_widget == Some(widget_id) {
+            return FocusTransition::Unchanged;
+        }
+
+        if let Some(previous) = self.interaction.focus.focused_widget {
+            let previous_is_live = self.focus_owner_can_prepare_loss(previous);
+            if previous_is_live && self.prepare_focus_loss(previous) == FocusLossDecision::Veto {
+                self.repaint_requested = true;
+                return FocusTransition::Vetoed;
+            }
+
+            // Install the controller-owned target before FocusChanged(false)
+            // can emit a message and synchronously reproject the surface.
+            self.interaction.focus.focused_widget = Some(widget_id);
+            let application_projection_before = self.refresh_counters().application_projection;
+            if previous_is_live {
+                self.route_focus_changed(previous, false);
+            }
+            let reprojected =
+                self.refresh_counters().application_projection != application_projection_before;
+            if !reprojected && self.is_authoritative_focus_target(widget_id) {
+                self.route_focus_changed(widget_id, true);
+            }
+        } else {
+            self.interaction.focus.focused_widget = Some(widget_id);
+            if self.is_authoritative_focus_target(widget_id) {
+                self.route_focus_changed(widget_id, true);
+            }
+        }
+        if self.interaction.focus.focused_widget == Some(widget_id)
+            && !self.is_authoritative_focus_target(widget_id)
+        {
+            // A focus-loss output may remove or supersede the proposed target
+            // while the old owner is being routed out.
+            self.interaction.focus.focused_widget = None;
+            return FocusTransition::InvalidTarget;
+        }
+        if self.interaction.focus.focused_widget == Some(widget_id) {
+            FocusTransition::Changed
+        } else {
+            FocusTransition::InvalidTarget
+        }
+    }
+
+    pub(super) fn is_live_focus_target(&self, widget_id: WidgetId) -> bool {
+        self.traversal
+            .widgets
+            .paths
+            .current
+            .contains_key(&widget_id)
+            && self.traversal.widgets.focusable.contains(widget_id)
+            && self.layout.rects.contains_key(&widget_id)
+            && self
+                .surface_widget(widget_id)
+                .is_some_and(|widget| widget.is_focusable())
+    }
+
+    pub(super) fn is_authoritative_focus_target(&self, widget_id: WidgetId) -> bool {
+        self.interaction.focus.focused_widget == Some(widget_id)
+            && self.is_live_focus_target(widget_id)
+    }
+
+    fn focus_owner_can_prepare_loss(&self, widget_id: WidgetId) -> bool {
+        self.is_live_focus_target(widget_id)
+    }
+
+    fn prepare_focus_loss(&mut self, widget_id: WidgetId) -> FocusLossDecision {
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
+            return FocusLossDecision::Allow;
+        };
+        self.surface
+            .find_widget_mut_at_path(widget_id, child_path)
+            .map(|widget| widget.widget_object_mut_runtime().prepare_focus_loss())
+            .unwrap_or(FocusLossDecision::Allow)
     }
 
     /// Move keyboard focus through the current declarative tree.
@@ -51,7 +146,10 @@ where
             self.traversal.widgets.keyboard_focus.rank(),
             direction,
         )?;
-        self.focus_widget(next).then_some(next)
+        match self.request_focus(next) {
+            FocusTransition::Changed | FocusTransition::Unchanged => Some(next),
+            FocusTransition::InvalidTarget | FocusTransition::Vetoed => None,
+        }
     }
 
     /// Route a keyboard interaction to the current focus target.

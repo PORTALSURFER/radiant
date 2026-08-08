@@ -8,6 +8,7 @@ mod format;
 mod input;
 mod messages;
 mod numeric_edit;
+mod numeric_policy;
 mod output;
 mod provenance;
 mod text_input_revision;

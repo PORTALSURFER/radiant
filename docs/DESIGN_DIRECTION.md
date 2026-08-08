@@ -289,8 +289,10 @@ The shipped single-line application builder exposes the qualified
 caller-supplied revision applies the projected value and selection, while an
 equal or older revision cannot overwrite retained value, caret, or selection;
 switching revisioned and unrevisioned modes is an explicit reset boundary.
-This does not claim IME or composition delivery, which remains a later platform
-adapter and text-area contract.
+The target text contract includes explicit composition start, pre-edit update,
+commit, and cancellation events. Platform adapters own candidate-window and
+host-specific IME behavior; the backend-neutral text model owns the logical
+composition range. A numeric codec never emits typed values from pre-edit text.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
 tasks, platform operations, timers, asset preparation, and other asynchronous
@@ -704,12 +706,15 @@ The migration order is explicit:
 6. Ship `PanelResizeState` as the splitter-resize shared-edit consumer with a
    qualified typed boundary API, concise compatibility projection, and
    deterministic cancellation rollback.
-7. Reconcile remaining continuous controls after the shared-edit compatibility
+7. Ship the public generic numeric control with its required codec and
+   adjustment policies, then validate text, keyboard, pointer, wheel, arrow,
+   IME, and accessibility boundaries as one bounded consumer.
+8. Reconcile remaining continuous controls after the shared-edit compatibility
    review.
 
 The shared edit-event foundation, Slider, Knob, and PanelResizeState adoption
 are shipped API. The qualified lifecycle APIs remain outside the common prelude;
-numeric input and other continuous controls are later adopters.
+the generic numeric control is the next target adopter.
 
 ### Frame packets and backpressure
 
@@ -792,6 +797,12 @@ projection, layout, and paint-plan boundaries.
 - Animation, pointer motion, scroll, redraw requests, and stale visual/background results are latest-wins. Discrete input, lifecycle events, edit terminal events, and platform completions are never coalesced. Preserve the last complete frame, replace obsolete pending visual packets, and never synchronously wait for unrelated work.
 - Diagnostics record per-window admission/defer/starvation-promotion counts, stage durations and budget breaches, due lateness, input-to-present latency, coalesced/dropped visual work, queue depth, and requested/effective cadence. They remain non-authoritative until wired to this contract; implementation starts with private evidence and contract tests before any public scheduling API.
 - Named macOS acceptance workload: primary editor at 60 Hz with continuous pointer/drag activity; two visible auxiliary windows at 30 Hz/caret activity; one maintenance-heavy auxiliary; inject stale redraws, input, close, and recovery. Assert no discrete input coalescing, at most one in-flight plus one newest pending visual packet, no fairness-eligible due key waits beyond two complete epochs, generation fences reject stale work, and deferral occurs only at stage boundaries. The workload may defer coalescible pointer/drag/transient work under promotion but never an already-admitted lifecycle or discrete-input stage.
+
+The named workload is the hardware-backed native acceptance path on the M5 Pro
+macOS host. Linux and Windows use the same scheduler invariants in their
+required GitHub Actions lanes, including headless Wayland and native-host
+smoke coverage where the runner permits, but those lanes do not establish
+hardware-backed presentation, latency, or GPU timing evidence.
 
 ## Node Model
 
@@ -1787,8 +1798,8 @@ row([
 Numeric controls separate the stored domain value from its interaction and
 display mapping.
 
-`NumericEditSession<T>` is the shipped, parser-agnostic foundation for a future
-numeric editing buffer. It retains caller-provided draft text verbatim and one
+`NumericEditSession<T>` is the shipped, parser-agnostic foundation for numeric
+editing buffers. It retains caller-provided draft text verbatim and one
 `EditEvent<T>` Begin event, then accepts only caller-certified Commit or Cancel
 terminal boundaries from the same `InteractionSource`; native metadata may
 change within that source. Replacing the draft emits no typed Update. The
@@ -1798,9 +1809,9 @@ It is available from the qualified `radiant::widgets::interaction` module and
 the `radiant::widgets` root, not the common prelude. This foundation is shipped.
 The official application Slider and Knob builders additionally accept
 `.format(ValueFormat)` for display-only automation text; that attachment does
-not change interaction values or edit events. Parser and domain policy, numeric
-widget/runtime integration, and focus, pointer, keyboard, text-input, and
-accessibility behavior remain deferred.
+not change interaction values or edit events. The public numeric control adds
+the policy and runtime integration described below without changing this
+session's ownership boundary.
 
 The shipped `ValueMapping` foundation exposes only finite `f32` linear and
 logarithmic mappings. It validates finite bounds and monotonicity at
@@ -1817,33 +1828,71 @@ separator is explicit (`Period` or `Comma`)
 and never comes from ambient operating-system locale. Frequency defaults to two
 fractional digits; percent scales by 100 and frequency appends ` Hz`.
 
-### Next numeric-control domain contract
+### Public generic numeric-control contract
 
-- Ownership: the application owns domain type T and durable value; Radiant owns transient draft, focus, and edit lifecycle. Each control supplies one immutable policy for parsing, validation, mapping, stepping, and formatting. Core Radiant must not assume f32; shipped ValueMapping remains the finite linear/log f32 foundation.
-- Parser and locale: never read ambient operating-system locale. Default invariant grammar accepts ASCII digits, optional leading sign, one period decimal separator, and optional e/E exponent. Empty, sign-only, decimal-only, and incomplete exponent strings remain representable drafts. Locale, grouping, and custom grammars require an explicit codec from the control or application.
-- Validation and range: the domain declares an inclusive finite range. Parsing distinguishes Incomplete, Invalid, OutOfRange, and Valid(T). Non-valid text never mutates the last valid domain value or emits typed Update or Commit. Pointer and keyboard paths clamp only through declared mapping/range; typed text is never silently clamped.
-- Mapping and stepping: one total finite monotonic mapping and checked inverse are shared by pointer, keyboard, accessibility, and displayed-value semantics. Ambiguous or nonfinite inverse results reject. Each control declares no step, reject off-step, or round-to-step; pointer/keyboard updates and typed commit follow that policy.
-- Formatting and round trip: Each editable control supplies a matching codec pair: parse and format_editable(T). The round-trip requirement applies only to that pair, and parsing canonical editable output returns the same domain value or the domain's declared equality. The existing ValueFormat policy remains display-only and is never assumed parseable. If editable text includes percent, Hz, comma decimal, grouping, or units, the control must select an explicit codec that accepts and emits that representation. An accepted commit replaces the draft with canonical editable text; an invalid draft remains visible with an error state. Formatting is pure, bounded, and independent of ambient locale.
-- Lifecycle and provenance: Begin once per interaction source; accepted continuous values emit same-transaction Update events. Pointer release, Enter, or valid focus loss commits. Escape, capture loss, or explicit cancel restores Begin. A foreign source cannot terminally commit or cancel. Typed events carry T, start value, phase, transaction identity, and InteractionProvenance; invalid text emits no typed event.
-- Accessibility and input boundary: pointer, keyboard, text, and accessibility actions use the same policy and lifecycle. Platform accessibility exposure is an adapter and acceptance concern, not hidden parser behavior.
-- Fixtures and non-goals: percent 0..=1 linear uses invariant editable decimal text with optional display-only percent formatting, or an explicit percent codec if percent signs are editable; frequency 20..=20,000 logarithmic uses an explicit Hz-aware codec if units are editable; comma decimal uses an explicit locale codec; bounded integer count remains an acceptance fixture. Decibel, tempo, arbitrary units, persistence, and product-specific locale policy remain consumer supplied. ValueFormat is display-only and never supplies parsing. Implementation starts with a private typed policy/codec contract and focused tests, then one concrete control; this docs slice does not implement that consumer.
+- Public construction requires both an application-supplied `NumericCodec<T>`
+  and `NumericAdjustment<T>`: `numeric_input(value, codec, adjustment)`. There
+  is no implicit grammar, range, step, or adjustment for a generic `T`.
+- Ownership remains split: the application owns `T` and its durable value;
+  Radiant owns draft text, caret, selection, focus, composition, and edit
+  lifecycle. `NumericCodec<T>` owns text parsing, domain validation, and
+  canonical editable formatting. `NumericAdjustment<T>` owns the finite
+  monotonic mapping, pointer scrubbing, wheel changes, and arrow-key steps.
+- The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
+  `Valid(T)`. These states are public implementation vocabulary so applications
+  can implement codecs, but non-valid states remain inside the control. Only
+  valid `EditEvent<T>` values cross `on_edit`; construction and policy errors
+  are returned explicitly.
+- Codecs never consult ambient locale. An invariant codec may accept ASCII
+  digits, an optional sign, period decimal separator, and exponent. Locale,
+  grouping, percent signs, units, and custom grammars require an explicit
+  application codec. `ValueFormat` remains display-only and is never used for
+  parsing.
+- Every adjustment policy declares a finite domain, a total monotonic mapping
+  and checked inverse, explicit base/fine/coarse steps, and bounded pure
+  sensitivities. Standard linear and logarithmic mappings are provided;
+  applications may provide custom mappings for their domain types. Semantic
+  `Fine` and `Coarse` modifiers map to Shift everywhere, Command on macOS, and
+  Control on Linux and Windows, with application override allowed.
+- Text, keyboard, pointer, wheel, and accessibility actions use one lifecycle.
+  A pointer press/release, contiguous wheel burst, or key press/repeat sequence
+  is one transaction. Valid Enter, valid focus loss, pointer release, and
+  gesture completion commit; Escape, capture loss, and explicit cancellation
+  restore the transaction start. Invalid or incomplete drafts remain visible,
+  retain focus on rejected commit, and never silently clamp typed text.
+- The first acceptance fixtures are exact and intentionally small: a `u32`
+  count over `0..=100` accepts ASCII digits without sign, grouping, or units;
+  its base/fine/coarse steps are `1/1/10`. A `Percent` newtype over linear
+  `0..=1` accepts invariant decimal text without a `%` suffix, canonicalizes
+  to shortest round-tripping decimal text, and uses base/fine/coarse steps
+  `0.01/0.001/0.1`; display-only percent formatting may add `%`. A
+  `FrequencyHz` newtype over logarithmic `20..=20_000` accepts invariant
+  decimal text followed by exactly one ASCII space and `Hz`, canonicalizes to
+  shortest round-tripping decimal text plus ` Hz`, and uses normalized
+  base/fine/coarse steps `0.01/0.001/0.1`. Adjustments clamp only at declared
+  domain boundaries; typed text never silently clamps. Decibel, tempo,
+  arbitrary-unit, and product-specific locale codecs remain application-
+  supplied until a named consumer requires them.
+- Slider and Knob remain separate controls. Their existing normalized `f32`
+  APIs stay source-compatible; domain mapping adopts the shared adjustment
+  contract in separate bounded slices, Slider first and Knob second. Numeric
+  text codecs are not retrofitted into either control.
 
-The following `numeric_input`/`.format(...)` attachment example is target API
-and is not currently shipped; its `ValueFormat` policy argument and the
-display-only builder attachment are shipped separately:
+The target `numeric_input` example is illustrative; `FrequencyCodec` and
+`FrequencyAdjustment` are application-provided policy names:
 
 ```rust
-numeric_input(state.cutoff)
-    .mapping(ValueMapping::logarithmic(20.0..=20_000.0))
-    .format(ValueFormat::frequency())
-    .fine_step(Modifier::SHIFT)
-    .coarse_step(Modifier::COMMAND)
+numeric_input(
+    state.cutoff,
+    FrequencyCodec::new(20.0..=20_000.0),
+    FrequencyAdjustment::logarithmic(20.0..=20_000.0),
+)
     .on_edit(Message::CutoffEdit);
 ```
 
-Under the future numeric-control contract, pointer scrubbing and arrow-key
-increments will use the same mapping, `InteractionProvenance` vocabulary, and
-`EditTransaction` lifecycle. `Slider` is a shipped production shared-edit
+Under this numeric-control contract, pointer scrubbing, wheel changes, and
+arrow-key increments use the same mapping, `InteractionProvenance` vocabulary,
+and `EditTransaction` lifecycle. `Slider` is a shipped production shared-edit
 consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and
@@ -1854,9 +1903,9 @@ source-compatible. Focus loss and explicit capture cancellation restore the
 transaction start without committing. Official retained Knob lowering also
 delivers typed `Cancel` for both interruption reasons, including no-op active
 gestures; its legacy projections keep focus-loss `GestureEnded` with the last
-value and suppress pointer-capture cancellation. Wheel,
-accessibility actions, domain mapping, and `numeric_input` remain outside this
-adoption slice. Knob is also shipped, and PanelResizeState is the next shipped
+value and suppress pointer-capture cancellation. Numeric text editing remains
+a separate consumer; Slider and Knob domain mapping are separate adoption
+slices. Knob is also shipped, and PanelResizeState is the next shipped
 shared-edit consumer; the generic `LayoutInteraction` capability and runtime
 `split_pane` construction remain future work.
 The target API will allow applications to provide a custom mapping only when it
@@ -1885,10 +1934,10 @@ presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation
 deterministically.
 
-The following `Knob` snippet illustrates the target domain-control API. `Knob`
-is shipped, and its builder-level `.format(ValueFormat::frequency())` display
-attachment is shipped, but the range, domain mapping, and target `.on_edit(...)`
-composition remain future integration work.
+The following `Knob` snippet illustrates the eventual domain-control API.
+`Knob` is shipped, and its builder-level `.format(ValueFormat::frequency())`
+display attachment is shipped; its domain mapping remains a separate adoption
+slice after the generic numeric contract.
 
 ```rust
 knob(state.cutoff, 20.0..=20_000.0)
@@ -2387,6 +2436,14 @@ and accessibility/native-window integration. Reducers return owned `Effect`s;
 the runtime executes them after the state commit and returns an owned result
 message. A service never blocks the input or frame path and never exposes a raw
 platform handle.
+
+The target host matrix is modern macOS, Windows, and Linux/Wayland; direct
+X11 hosting is out of scope. Native adapters may differ in window, clipboard,
+IME, accessibility, and presentation plumbing, but they must satisfy the same
+backend-neutral capability and lifecycle contracts. The M5 Pro macOS host is
+the native hardware-acceptance path. Linux and Windows GitHub Actions lanes
+provide build, API, integration, and headless-host smoke evidence without
+claiming hardware-backed visual, latency, GPU, IME, or accessibility results.
 
 ```rust
 fn update(&mut self, message: Message) -> Effects<Message> {

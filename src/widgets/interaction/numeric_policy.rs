@@ -1,37 +1,38 @@
-//! Private typed policy and codec boundaries for numeric controls.
+//! Generic codec contract and private policy evidence for numeric controls.
 
 #![allow(dead_code)]
 
 use std::{fmt, ops::RangeInclusive};
 
-/// The result of interpreting editable numeric text.
+/// The result of interpreting editable numeric text through a [`NumericCodec`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum NumericParseResult<T> {
+pub enum NumericParseResult<T> {
     /// The draft is a valid prefix of an otherwise accepted value.
     Incomplete,
     /// The draft does not match the selected codec grammar.
     Invalid,
-    /// The draft is valid text, but its value is outside the policy range.
+    /// The draft is valid text, but its value is outside the codec's domain.
     OutOfRange,
-    /// The draft is valid text and its value is inside the policy range.
+    /// The draft is valid text and its value is inside the codec's domain.
     Valid(T),
 }
 
-/// A private pair of parsing and canonical editable-formatting operations.
+/// A caller-provided parser and canonical editable formatter for a domain type.
 ///
-/// Implementations own their grammar and formatting representation. The
-/// display-only [`super::ValueFormat`] policy is deliberately not part of this
-/// contract and is never used to parse editable text.
-pub(crate) trait NumericEditableCodec<T> {
+/// Implementations own their grammar, domain validation, and formatting
+/// representation. The display-only [`super::ValueFormat`] policy is
+/// deliberately not part of this contract and is never used to parse editable
+/// text. Formatting borrows the domain value, so codecs do not require `T` to
+/// implement `Clone`.
+pub trait NumericCodec<T> {
+    /// The error returned when canonical editable text cannot be written.
+    type Error;
+
     /// Interpret a draft without mutating any durable domain value.
     fn parse(&self, text: &str) -> NumericParseResult<T>;
 
     /// Write canonical editable text into caller-owned storage.
-    fn format_editable(
-        &self,
-        value: T,
-        output: &mut dyn fmt::Write,
-    ) -> Result<(), NumericFormatError>;
+    fn format_editable(&self, value: &T, output: &mut dyn fmt::Write) -> Result<(), Self::Error>;
 }
 
 /// Errors returned while constructing or using the private numeric policy.
@@ -92,7 +93,9 @@ impl InvariantF32Policy {
     }
 }
 
-impl NumericEditableCodec<f32> for InvariantF32Policy {
+impl NumericCodec<f32> for InvariantF32Policy {
+    type Error = NumericFormatError;
+
     fn parse(&self, text: &str) -> NumericParseResult<f32> {
         match classify_invariant_decimal(text) {
             LexicalResult::Incomplete => NumericParseResult::Incomplete,
@@ -115,9 +118,10 @@ impl NumericEditableCodec<f32> for InvariantF32Policy {
 
     fn format_editable(
         &self,
-        value: f32,
+        value: &f32,
         output: &mut dyn fmt::Write,
     ) -> Result<(), NumericFormatError> {
+        let value = *value;
         if !value.is_finite() {
             return Err(NumericFormatError::NonFiniteValue);
         }
@@ -314,7 +318,7 @@ mod tests {
         ] {
             let mut output = String::new();
             policy
-                .format_editable(value, &mut output)
+                .format_editable(&value, &mut output)
                 .expect("finite in-range value formats");
             assert_eq!(
                 policy.parse(&output),
@@ -330,11 +334,11 @@ mod tests {
         let mut output = String::new();
 
         assert_eq!(
-            policy.format_editable(f32::NAN, &mut output),
+            policy.format_editable(&f32::NAN, &mut output),
             Err(NumericFormatError::NonFiniteValue)
         );
         assert_eq!(
-            policy.format_editable(2.0, &mut output),
+            policy.format_editable(&2.0, &mut output),
             Err(NumericFormatError::OutOfRange { value: 2.0 })
         );
 
@@ -346,7 +350,7 @@ mod tests {
         }
 
         assert_eq!(
-            policy.format_editable(0.5, &mut FailingWriter),
+            policy.format_editable(&0.5, &mut FailingWriter),
             Err(NumericFormatError::WriteFailed)
         );
     }

@@ -32,6 +32,7 @@ pub use messages::{
     ToggleMessage,
 };
 pub use numeric_edit::NumericEditSession;
+pub use numeric_policy::{NumericCodec, NumericParseResult};
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
 pub use text_input_revision::TextInputRevision;

@@ -8,7 +8,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        TextEditCommand, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        KeyboardModifiers, TextEditCommand, Widget, WidgetCommon, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -108,6 +109,8 @@ fn injected_keyboard_event_timestamp_survives_event_to_widget_dispatch() {
     assert_eq!(
         runtime.dispatch_event(Event::KeyPress {
             key: WidgetKey::Enter,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
             timestamp,
         }),
         Some(40)

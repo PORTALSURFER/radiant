@@ -1,14 +1,68 @@
 use super::super::*;
 use crate::{
-    gui::input::{InputTimestamp, KeyCode, KeyPress},
-    runtime::{RuntimeBridge, SurfaceNode, UiSurface},
-    widgets::{CanvasMessage, TextEditCommand, WidgetInput, WidgetKey, WidgetSizing},
+    gui::{
+        input::{InputTimestamp, KeyCode, KeyPress},
+        types::Rect,
+    },
+    layout::LayoutOutput,
+    runtime::{PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper},
+    theme::ThemeTokens,
+    widgets::{
+        CanvasMessage, CanvasWidget, KeyboardModifiers, TextEditCommand, Widget, WidgetCommon,
+        WidgetId, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+    },
 };
 use std::sync::Arc;
+use winit::keyboard::ModifiersState;
+
+#[derive(Clone)]
+struct FocusedKeyboardMetadataWidget {
+    inner: CanvasWidget,
+}
+
+impl FocusedKeyboardMetadataWidget {
+    fn new(id: WidgetId) -> Self {
+        Self {
+            inner: CanvasWidget::new(id, WidgetSizing::fixed(Vector2::new(160.0, 28.0))),
+        }
+    }
+}
+
+impl Widget for FocusedKeyboardMetadataWidget {
+    fn common(&self) -> &WidgetCommon {
+        Widget::common(&self.inner)
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        Widget::common_mut(&mut self.inner)
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        CanvasWidget::handle_input(&mut self.inner, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn accepts_text_input(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        Widget::append_paint(&self.inner, primitives, bounds, layout, theme);
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum KeyboardTimestampMessage {
-    KeyPress(Option<InputTimestamp>),
+    KeyPress {
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<InputTimestamp>,
+    },
     Character {
         character: char,
         timestamp: Option<InputTimestamp>,
@@ -24,13 +78,22 @@ struct KeyboardTimestampBridge {
 
 impl RuntimeBridge<KeyboardTimestampMessage> for KeyboardTimestampBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<KeyboardTimestampMessage>> {
-        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::canvas_mapped(
-            90,
-            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
-            |message| match message {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            FocusedKeyboardMetadataWidget::new(90),
+            WidgetMessageMapper::canvas(|message| match message {
                 CanvasMessage::Input {
-                    input: WidgetInput::KeyPress { timestamp, .. },
-                } => KeyboardTimestampMessage::KeyPress(timestamp),
+                    input:
+                        WidgetInput::KeyPress {
+                            modifiers,
+                            repeat,
+                            timestamp,
+                            ..
+                        },
+                } => KeyboardTimestampMessage::KeyPress {
+                    modifiers,
+                    repeat,
+                    timestamp,
+                },
                 CanvasMessage::Input {
                     input:
                         WidgetInput::Character {
@@ -45,7 +108,7 @@ impl RuntimeBridge<KeyboardTimestampMessage> for KeyboardTimestampBridge {
                     input: WidgetInput::TextEdit { timestamp, .. },
                 } => KeyboardTimestampMessage::TextEdit(timestamp),
                 CanvasMessage::Input { .. } => KeyboardTimestampMessage::Ignored,
-            },
+            }),
         )))
     }
 
@@ -70,12 +133,114 @@ fn direct_physical_key_route_preserves_one_timestamp() {
             KeyPress::new(KeyCode::Enter),
             Some(WidgetKey::Enter),
             timestamp,
+            false,
         )
         .routed
     );
     assert_eq!(
         core.runtime.bridge().messages,
-        vec![KeyboardTimestampMessage::KeyPress(timestamp)]
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
+    let timestamp = Some(InputTimestamp::capture());
+    let mut core = GenericNativeRuntimeCore::new(
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+
+    assert!(core.runtime.focus_widget(90));
+    assert!(
+        core.route_key_press_with_timestamp(
+            KeyPress {
+                key: KeyCode::ArrowRight,
+                command: true,
+                control: true,
+                shift: true,
+                alt: true,
+            },
+            Some(WidgetKey::ArrowRight),
+            timestamp,
+            true,
+        )
+        .routed
+    );
+    assert_eq!(
+        core.runtime.bridge().messages,
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers: KeyboardModifiers {
+                command: true,
+                control: true,
+                shift: true,
+                alt: true,
+            },
+            repeat: true,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn focused_text_input_enter_and_tab_preserve_native_key_metadata() {
+    let enter_timestamp = Some(InputTimestamp::capture());
+    let tab_timestamp = Some(InputTimestamp::capture());
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+
+    assert!(runner.core.runtime.focus_widget(90));
+    runner.input.modifiers = ModifiersState::SHIFT;
+
+    let mut enter_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::Enter,
+        None,
+        enter_timestamp,
+        true,
+        &mut enter_outcome,
+    ));
+
+    let mut tab_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::Tab,
+        None,
+        tab_timestamp,
+        false,
+        &mut tab_outcome,
+    ));
+
+    assert_eq!(
+        runner.core.runtime.bridge().messages,
+        vec![
+            KeyboardTimestampMessage::KeyPress {
+                modifiers: KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: true,
+                    alt: false,
+                },
+                repeat: true,
+                timestamp: enter_timestamp,
+            },
+            KeyboardTimestampMessage::KeyPress {
+                modifiers: KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: true,
+                    alt: false,
+                },
+                repeat: false,
+                timestamp: tab_timestamp,
+            },
+        ]
     );
 }
 

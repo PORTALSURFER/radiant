@@ -12,14 +12,14 @@ use radiant::{
         CanvasWidgetParts, CardWidget, CardWidgetParts, DragHandleWidget, DragHandleWidgetParts,
         EditEvent, EditPhase, EditTransaction, IconButtonWidget, IconButtonWidgetParts,
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
-        InteractiveRowWidget, InteractiveRowWidgetParts, KnobEditBatch, KnobMessage,
-        KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget, ListItemWidgetParts,
-        NumericAdjustment, NumericCodec, NumericEditSession, NumericParseResult, NumericStep,
-        NumericStepDirection, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
-        SelectableWidget, SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState,
-        SliderWidget, SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget,
-        TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSizing, WidgetSizingParts,
+        InteractiveRowWidget, InteractiveRowWidgetParts, KeyboardModifiers, KnobEditBatch,
+        KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
+        ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
+        NumericParseResult, NumericStep, NumericStepDirection, ScrollbarAxis, ScrollbarWidget,
+        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
+        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
+        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -306,6 +306,29 @@ fn numeric_adjustment_is_qualified_generic_and_supports_non_clone_domain_values(
     ));
     assert!(!prelude_widgets.contains("NumericAdjustment"));
     assert!(!prelude_widgets.contains("NumericStep"));
+}
+
+#[test]
+fn keyboard_modifier_payload_is_qualified_and_not_in_prelude() {
+    let qualified = radiant::widgets::interaction::KeyboardModifiers {
+        command: true,
+        control: true,
+        shift: true,
+        alt: false,
+    };
+    let root: KeyboardModifiers = qualified;
+
+    assert!(root.command);
+    assert!(root.control);
+    assert!(root.shift);
+    assert!(!root.alt);
+    assert!(!KeyboardModifiers::default().command);
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_widgets.contains("KeyboardModifiers"));
 }
 
 #[test]

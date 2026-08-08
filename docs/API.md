@@ -444,6 +444,10 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint callback signature | `PaintPrimitive` |
 
+`KeyboardModifiers` is intentionally excluded from `radiant::prelude::*`; use
+`radiant::widgets::KeyboardModifiers` for the normalized keyboard modifier
+payload.
+
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
 `Rgba8::blend_opaque_toward` for common color manipulation. Use
@@ -3317,15 +3321,18 @@ inputs with no timestamp retain absent timestamp metadata. The added public
 `metadata` field means external destructuring of `KnobKeyboardGesture` must
 account for that field. This metadata is observational only and does not
 affect key mapping, focus, clamping, routing, acceptance, or repaint behavior.
-`Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
-`KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
-timestamps. The public `Event::key_press(...)`, `Event::character(...)`,
-`WidgetInput::key_press(...)`, `WidgetInput::character(...)`, and
-`WidgetInput::text_edit(...)` constructors omit the timestamp. Native keyboard
-adapters capture one timestamp after pressed/repeat acceptance and preserve it
-through physical and logical shortcut routing, focused-widget preemption,
-printable-character fan-out, and text-edit commands; this metadata does not
-change keyboard precedence or shortcut resolution.
+`Event::KeyPress` and the corresponding `WidgetInput::KeyPress` form carry the
+normalized `KeyboardModifiers` state, the native `repeat` flag, and an optional
+input timestamp. `KeyboardModifiers` keeps command, control, shift, and alt
+distinct. The public `Event::key_press(...)` and `WidgetInput::key_press(...)`
+constructors use no modifiers, `repeat: false`, and no timestamp. Native
+adapters preserve the physical key's modifier and repeat metadata through
+focused-widget dispatch, alongside the timestamp captured after pressed/repeat
+acceptance. Generated logical shortcut fallback has no physical modifier sample
+and therefore retains only its timestamp. This metadata is observational in this
+slice: it does not change current widget key mapping, shortcut precedence, or
+edit provenance; a future numeric consumer will select semantic Fine/Coarse
+steps from it.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

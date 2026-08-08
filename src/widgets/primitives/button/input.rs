@@ -145,7 +145,7 @@ pub(super) fn handle_button_input(
             }
             None
         }
-        WidgetInput::KeyPress { key, timestamp }
+        WidgetInput::KeyPress { key, timestamp, .. }
             if button.common.state.focused && activate_on_keyboard(key) =>
         {
             Some(ButtonMessage::Activate {

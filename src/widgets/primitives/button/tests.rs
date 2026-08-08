@@ -5,8 +5,8 @@ use crate::gui::{
 };
 use crate::widgets::contract::WidgetState;
 use crate::widgets::interaction::{
-    DragHandleMessage, DragHandleMetadata, InteractionProvenance, PointerButton, PointerModifiers,
-    WidgetInput, WidgetKey,
+    DragHandleMessage, DragHandleMetadata, InteractionProvenance, KeyboardModifiers, PointerButton,
+    PointerModifiers, WidgetInput, WidgetKey,
 };
 use std::sync::Arc;
 
@@ -76,6 +76,8 @@ fn focused_button_space_emits_activation() {
                 Rect::default(),
                 WidgetInput::KeyPress {
                     key,
+                    modifiers: KeyboardModifiers::default(),
+                    repeat: false,
                     timestamp: Some(timestamp),
                 },
             ),

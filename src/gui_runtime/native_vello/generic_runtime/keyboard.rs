@@ -93,8 +93,12 @@ where
                 );
                 return;
             }
-            if self.route_focused_widget_preempting_shortcut_key(key, timestamp, &mut route_outcome)
-            {
+            if self.route_focused_widget_preempting_shortcut_key(
+                key,
+                timestamp,
+                repeat,
+                &mut route_outcome,
+            ) {
                 self.route_keyboard_outcome(
                     event_loop,
                     route_outcome,
@@ -116,6 +120,7 @@ where
                 key,
                 logical_text,
                 timestamp,
+                repeat,
                 &mut route_outcome,
             ) {
                 self.route_keyboard_outcome(
@@ -130,6 +135,7 @@ where
                 keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
                 timestamp,
+                repeat,
             );
             route_outcome.merge(outcome);
         }
@@ -139,7 +145,7 @@ where
         {
             let outcome = self
                 .core
-                .route_key_press_with_timestamp(press, None, timestamp);
+                .route_key_press_with_timestamp(press, None, timestamp, false);
             route_outcome.merge(outcome);
             if route_outcome.routed {
                 self.route_keyboard_outcome(

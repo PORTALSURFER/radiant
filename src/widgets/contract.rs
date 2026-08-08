@@ -25,4 +25,4 @@ pub use semantics::{
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};
 pub use style::{WidgetProminence, WidgetStyle, WidgetTone};
-pub use widget::{PointerCapturePolicy, Widget};
+pub use widget::{FocusLossDecision, PointerCapturePolicy, Widget};

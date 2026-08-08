@@ -15,10 +15,10 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, InteractionSource,
-        InteractiveRowWidget, PointerButton, PointerModifiers, PointerShieldMessage,
-        PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
+        InteractionSource, InteractiveRowWidget, PointerButton, PointerModifiers,
+        PointerShieldMessage, PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget,
+        Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -75,6 +75,165 @@ impl RuntimeBridge<usize> for FocusLossOutputBridge {
 
     fn reduce_message(&mut self, message: usize) {
         self.dispatched.push(message);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FocusDecisionEvent {
+    Prepare(usize),
+    Changed(usize, bool),
+    Press(usize),
+    DoubleClick(usize),
+    HostOutput,
+}
+
+#[derive(Clone)]
+struct FocusDecisionWidget {
+    common: WidgetCommon,
+    decision: Rc<Cell<FocusLossDecision>>,
+    events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
+    emit_focus_loss_output: bool,
+}
+
+impl FocusDecisionWidget {
+    fn new(
+        id: u64,
+        decision: Rc<Cell<FocusLossDecision>>,
+        events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
+        emit_focus_loss_output: bool,
+    ) -> Self {
+        Self {
+            common: WidgetCommon::fixed(id, 160.0, 28.0)
+                .with_keyboard_focus()
+                .without_default_chrome(),
+            decision,
+            events,
+            emit_focus_loss_output,
+        }
+    }
+}
+
+impl Widget for FocusDecisionWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+        self.events
+            .borrow_mut()
+            .push(FocusDecisionEvent::Prepare(self.common.id as usize));
+        self.decision.get()
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                self.events.borrow_mut().push(FocusDecisionEvent::Changed(
+                    self.common.id as usize,
+                    focused,
+                ));
+                if !focused && self.emit_focus_loss_output {
+                    Some(WidgetOutput::typed(FocusDecisionEvent::HostOutput))
+                } else {
+                    None
+                }
+            }
+            WidgetInput::PointerPress { position, .. } if bounds.contains(position) => {
+                self.events
+                    .borrow_mut()
+                    .push(FocusDecisionEvent::Press(self.common.id as usize));
+                None
+            }
+            WidgetInput::PointerDoubleClick { position, .. } if bounds.contains(position) => {
+                self.events
+                    .borrow_mut()
+                    .push(FocusDecisionEvent::DoubleClick(self.common.id as usize));
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Clone)]
+struct FocusDecisionBridge {
+    old_decision: Rc<Cell<FocusLossDecision>>,
+    target_decision: Rc<Cell<FocusLossDecision>>,
+    events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
+    remove_old: bool,
+}
+
+impl FocusDecisionBridge {
+    fn new() -> Self {
+        Self {
+            old_decision: Rc::new(Cell::new(FocusLossDecision::Allow)),
+            target_decision: Rc::new(Cell::new(FocusLossDecision::Allow)),
+            events: Rc::new(RefCell::new(Vec::new())),
+            remove_old: false,
+        }
+    }
+
+    fn row(&self) -> SurfaceNode<FocusDecisionEvent> {
+        let mut children = Vec::with_capacity(if self.remove_old { 1 } else { 2 });
+        if !self.remove_old {
+            children.push(fixed_child(
+                28.0,
+                SurfaceNode::widget(
+                    FocusDecisionWidget::new(
+                        10,
+                        Rc::clone(&self.old_decision),
+                        Rc::clone(&self.events),
+                        true,
+                    ),
+                    WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                ),
+            ));
+        }
+        children.push(fixed_child(
+            28.0,
+            SurfaceNode::widget(
+                FocusDecisionWidget::new(
+                    20,
+                    Rc::clone(&self.target_decision),
+                    Rc::clone(&self.events),
+                    false,
+                ),
+                WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+            ),
+        ));
+        SurfaceNode::column(1, 0.0, children)
+    }
+}
+
+impl Default for FocusDecisionBridge {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<FocusDecisionEvent>> {
+        crate::runtime::test_arc_surface(UiSurface::new(self.row()))
+    }
+
+    fn reduce_message(&mut self, message: FocusDecisionEvent) {
+        if message == FocusDecisionEvent::HostOutput {
+            self.events.borrow_mut().push(message);
+        }
     }
 }
 
@@ -2105,8 +2264,184 @@ fn pointer_move_fanout_preserves_one_sample_metadata_for_hover_capture_and_pass_
 }
 
 #[test]
+fn focus_loss_veto_retains_owner_without_focus_events_or_host_output() {
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    assert!(runtime.focus_widget(20));
+
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    assert!(runtime.repaint_requested());
+    assert!(
+        runtime
+            .surface()
+            .find_widget(10)
+            .expect("vetoing widget")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(20)
+            .expect("focus target")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+}
+
+#[test]
+fn clear_focus_veto_retains_owner_without_focus_events() {
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    runtime.clear_focus();
+
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    assert!(runtime.repaint_requested());
+}
+
+#[test]
+fn focus_loss_allow_commits_owner_before_focus_loss_output_reprojection() {
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().events.borrow_mut().clear();
+
+    assert!(runtime.focus_widget(20));
+
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+            FocusDecisionEvent::Changed(20, true),
+        ]
+    );
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(10)
+            .expect("previous widget")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("new focus owner")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+}
+
+#[test]
+fn default_focus_loss_decision_allows_existing_widget_contracts() {
+    let mut button =
+        ButtonWidget::new(10, "Default", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+
+    assert_eq!(FocusLossDecision::default(), FocusLossDecision::Allow);
+    assert_eq!(button.prepare_focus_loss(), FocusLossDecision::Allow);
+}
+
+#[test]
+fn removed_focused_widget_cannot_veto_forced_cleanup() {
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+    runtime.bridge_mut().remove_old = true;
+    runtime.refresh();
+
+    assert_eq!(runtime.focused_widget(), None);
+    assert!(runtime.surface().find_widget(10).is_none());
+    assert!(runtime.bridge().events.borrow().is_empty());
+}
+
+#[test]
+fn pointer_focus_veto_unwinds_press_and_double_click_capture_without_target_input() {
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    let target_point = Point::new(4.0, 32.0);
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(target_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+
+    runtime.bridge().events.borrow_mut().clear();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(target_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+}
+
+#[test]
 fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
     let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .map(|widget| widget.is_focusable()),
+        Some(false)
+    );
 
     runtime.dispatch_event(Event::PointerPress {
         position: Point::new(4.0, 4.0),
@@ -2116,12 +2451,15 @@ fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
     });
     assert_eq!(runtime.focused_widget(), Some(10));
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: Point::new(4.0, 32.0),
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-        timestamp: None,
-    });
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(4.0, 32.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(20)
+    );
 
     assert_eq!(runtime.focused_widget(), None);
 }

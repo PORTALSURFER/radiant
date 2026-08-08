@@ -1,3 +1,4 @@
+use super::focus::FocusTransition;
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
@@ -5,6 +6,12 @@ use crate::{
     runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
+
+pub(super) enum PointInputDispatch {
+    Miss,
+    FocusVetoed,
+    Routed(WidgetId, bool),
+}
 
 mod move_routing;
 #[cfg(test)]
@@ -118,25 +125,52 @@ where
     ///
     /// Returns the targeted widget id when a projected widget handled the point.
     pub fn dispatch_input_at(&mut self, point: Point, input: WidgetInput) -> Option<WidgetId> {
-        self.dispatch_input_at_output(point, input)
-            .map(|(widget_id, _)| widget_id)
+        match self.dispatch_input_at_output(point, input) {
+            PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
+            PointInputDispatch::Miss | PointInputDispatch::FocusVetoed => None,
+        }
     }
 
     pub(super) fn dispatch_input_at_output(
         &mut self,
         point: Point,
         input: WidgetInput,
-    ) -> Option<(WidgetId, bool)> {
-        let widget_id = self.widget_at_for_input(point, &input)?;
+    ) -> PointInputDispatch {
+        let Some(widget_id) = self.widget_at_for_input(point, &input) else {
+            return PointInputDispatch::Miss;
+        };
         if matches!(
             input,
             WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
-        ) && !self.focus_widget(widget_id)
-        {
-            self.clear_focus();
+        ) {
+            let focus_transition = self.request_focus(widget_id);
+            match focus_transition {
+                FocusTransition::Vetoed => return PointInputDispatch::FocusVetoed,
+                FocusTransition::InvalidTarget
+                    if self
+                        .surface_widget(widget_id)
+                        .is_some_and(|widget| !widget.is_focusable()) =>
+                {
+                    let clear_transition = self.clear_focus_with_transition();
+                    if clear_transition == FocusTransition::Vetoed {
+                        return PointInputDispatch::FocusVetoed;
+                    }
+                }
+                FocusTransition::InvalidTarget => {}
+                FocusTransition::Unchanged | FocusTransition::Changed => {}
+            }
         }
-        self.dispatch_input_output(widget_id, input)
-            .map(|emitted_output| (widget_id, emitted_output))
+        match self.dispatch_input_output(widget_id, input) {
+            Some(emitted_output) => PointInputDispatch::Routed(widget_id, emitted_output),
+            None => PointInputDispatch::Miss,
+        }
+    }
+
+    pub(super) fn unwind_provisional_pointer_capture(&mut self) {
+        self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_state = None;
+        self.interaction.pointer.scroll_drag_capture = None;
+        self.reset_tooltip_hover_intent();
     }
 
     /// Return whether a runtime-owned drag preview session is active.

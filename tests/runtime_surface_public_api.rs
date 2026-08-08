@@ -25,7 +25,7 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleMetadata, DragHandleWidget,
-        GpuSurfaceMessage, GpuSurfaceWidget, PointerButton, PointerModifiers,
+        FocusLossDecision, GpuSurfaceMessage, GpuSurfaceWidget, PointerButton, PointerModifiers,
         RetainedSurfaceDescriptor, TextEditCommand, TextInputWidget, TextWidget, Widget,
         WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence,
         WidgetSemantics, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,

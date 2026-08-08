@@ -1,4 +1,8 @@
 use super::*;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 #[test]
 fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
@@ -225,6 +229,125 @@ fn surface_runtime_clears_focus_when_refresh_removes_widget() {
     assert!(
         runtime.surface().find_widget(12).is_none(),
         "the refreshed surface should no longer contain the focused widget"
+    );
+}
+
+#[derive(Clone)]
+struct PublicFocusVetoWidget {
+    common: WidgetCommon,
+    decision: Rc<Cell<FocusLossDecision>>,
+    prepare_count: Rc<Cell<usize>>,
+    changes: Rc<RefCell<Vec<bool>>>,
+}
+
+impl PublicFocusVetoWidget {
+    fn new(
+        decision: Rc<Cell<FocusLossDecision>>,
+        prepare_count: Rc<Cell<usize>>,
+        changes: Rc<RefCell<Vec<bool>>>,
+    ) -> Self {
+        Self {
+            common: WidgetCommon::fixed(10, 96.0, 28.0)
+                .with_keyboard_focus()
+                .without_default_chrome(),
+            decision,
+            prepare_count,
+            changes,
+        }
+    }
+}
+
+impl Widget for PublicFocusVetoWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+        self.prepare_count
+            .set(self.prepare_count.get().saturating_add(1));
+        self.decision.get()
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::FocusChanged(focused) = input {
+            self.common.state.focused = focused;
+            self.changes.borrow_mut().push(focused);
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[test]
+fn public_focus_loss_decision_supports_veto_and_allow_with_default_widgets() {
+    let decision = Rc::new(Cell::new(FocusLossDecision::Veto));
+    let prepare_count = Rc::new(Cell::new(0));
+    let changes = Rc::new(RefCell::new(Vec::new()));
+    let bridge = declarative_runtime_bridge(
+        (),
+        {
+            let decision = Rc::clone(&decision);
+            let prepare_count = Rc::clone(&prepare_count);
+            let changes = Rc::clone(&changes);
+            move |_| {
+                crate::arc_surface(UiSurface::new(SurfaceNode::row(
+                    1,
+                    8.0,
+                    vec![
+                        SurfaceChild::fill(SurfaceNode::custom_widget(
+                            PublicFocusVetoWidget::new(
+                                Rc::clone(&decision),
+                                Rc::clone(&prepare_count),
+                                Rc::clone(&changes),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )),
+                        SurfaceChild::fill(SurfaceNode::static_widget(ButtonWidget::new(
+                            20,
+                            "Target",
+                            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                        ))),
+                    ],
+                )))
+            }
+        },
+        |_, ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 40.0));
+
+    assert!(runtime.focus_widget(10));
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(prepare_count.get(), 0);
+    changes.borrow_mut().clear();
+
+    assert!(runtime.focus_widget(20));
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(prepare_count.get(), 1);
+    assert!(changes.borrow().is_empty());
+
+    decision.set(FocusLossDecision::Allow);
+    assert!(runtime.focus_widget(20));
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert_eq!(prepare_count.get(), 2);
+    assert_eq!(changes.borrow().as_slice(), [false]);
+
+    let mut default_button =
+        ButtonWidget::new(30, "Default", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    assert_eq!(
+        default_button.prepare_focus_loss(),
+        FocusLossDecision::Allow
     );
 }
 

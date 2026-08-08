@@ -39,6 +39,16 @@ pub enum PointerCapturePolicy {
     PassThrough,
 }
 
+/// Decision returned when the focused widget is asked to release focus.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum FocusLossDecision {
+    /// Allow the controller to deliver focus loss and continue the transition.
+    #[default]
+    Allow,
+    /// Keep the controller-owned focus target and reject the transition.
+    Veto,
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.
@@ -87,6 +97,15 @@ pub trait Widget: WidgetClone + Any {
     /// or repaint optimization consumes this hook yet.
     fn revision(&self) -> WidgetRevision {
         WidgetRevision::conservative()
+    }
+
+    /// Prepare to release keyboard focus.
+    ///
+    /// This synchronous, allocation-free decision seam lets a focused widget
+    /// retain focus when a terminal edit is invalid or incomplete. The default
+    /// preserves the existing focus-loss behavior for custom widgets.
+    fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+        FocusLossDecision::Allow
     }
 
     /// Return the shared identity, sizing, focus, state, and style contract.

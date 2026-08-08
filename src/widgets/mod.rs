@@ -63,7 +63,7 @@ mod theme;
 
 pub(crate) use contract::WidgetRevisionComponents;
 pub use contract::{
-    FocusBehavior, PaintBounds, PaintContract, PointerCapturePolicy,
+    FocusBehavior, FocusLossDecision, PaintBounds, PaintContract, PointerCapturePolicy,
     WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext,
     WidgetProminence, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
     WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,

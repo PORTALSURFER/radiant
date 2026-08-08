@@ -1,8 +1,8 @@
 //! Private executable contract for the next application-level frame policy.
 //!
-//! This module is deliberately not wired into the native selector yet. It
-//! makes the normative stage, cadence, fairness, budget, and coalescing rules
-//! testable before a runtime consumer changes admission behavior.
+//! The native selector consumes the private demand, fairness, and stable-key
+//! admission pieces. Cadence caps, diagnostic budgets, and coalescing rules
+//! remain private policy until their corresponding runtime consumers exist.
 
 #![allow(dead_code)]
 
@@ -214,6 +214,18 @@ impl SchedulerFairnessLedger {
         }
     }
 
+    /// Retire stable keys that are absent from the current parent snapshot.
+    pub(super) fn remove_absent(&mut self, demands: &[SchedulerDemand]) {
+        for state in &mut self.states {
+            if state
+                .as_ref()
+                .is_some_and(|state| !demands.iter().any(|demand| demand.key() == &state.key))
+            {
+                *state = None;
+            }
+        }
+    }
+
     /// Whether an eligible key has already received its one bundle this epoch.
     pub(super) fn can_admit(&self, demand: &SchedulerDemand) -> bool {
         if !demand.eligibility.is_fairness_eligible() {
@@ -268,19 +280,29 @@ impl SchedulerFairnessLedger {
         demands: &[SchedulerDemand],
         last_admitted: Option<&FrameScheduleKey>,
     ) -> Option<FrameScheduleKey> {
-        let has_unserved = demands
+        let unserved_priority = demands
             .iter()
-            .any(|demand| demand.eligibility.is_fairness_eligible() && self.can_admit(demand));
+            .filter(|demand| {
+                demand.eligibility.is_fairness_eligible()
+                    && !self.is_overflow(demand)
+                    && self.can_admit(demand)
+            })
+            .map(|demand| self.effective_class(demand).rank())
+            .min();
         let mut best: Option<(usize, SchedulerWorkClass, Instant)> = None;
 
         for (index, demand) in demands.iter().enumerate() {
-            if !demand.eligibility.is_fairness_eligible()
-                || self.is_overflow(demand)
-                || (has_unserved && !self.can_admit(demand))
-            {
+            if !demand.eligibility.is_fairness_eligible() || self.is_overflow(demand) {
                 continue;
             }
             let class = self.effective_class(demand);
+            // Fairness gates repeats at equal or lower priority; a newly due
+            // higher-priority class still outranks an unserved visual key.
+            let fairness_excludes_candidate = unserved_priority
+                .is_some_and(|priority| !self.can_admit(demand) && class.rank() >= priority);
+            if fairness_excludes_candidate {
+                continue;
+            }
             let candidate = (index, class, demand.deadline);
             let is_better = best.is_none_or(|current| {
                 class.rank() < current.1.rank()

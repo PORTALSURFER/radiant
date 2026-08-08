@@ -863,7 +863,7 @@ mod tests {
             maintenance: Some(now + Duration::from_millis(5)),
             ..FrameScheduleDeadlines::default()
         };
-        let scheduler = NativeFrameScheduler::default();
+        let mut scheduler = NativeFrameScheduler::default();
         let before = scheduler.observe(now, &demands, deadlines);
         let assessment = assess_cpu_frame_fairness(now, &demands, None);
         let mut ledger = CpuFrameFairnessLedger::default();
@@ -886,7 +886,7 @@ mod tests {
 
     fn record_turn(
         ledger: &mut CpuFrameFairnessLedger,
-        scheduler: &NativeFrameScheduler,
+        scheduler: &mut NativeFrameScheduler,
         now: Instant,
         demands: &[FrameScheduleDemand],
     ) -> FrameSchedulerPlan {
@@ -911,7 +911,7 @@ mod tests {
         let now = Instant::now();
         let stable_key = key("lateness");
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
+        let mut scheduler = NativeFrameScheduler::default();
         let overdue = [demand(
             stable_key.clone(),
             TimedFrameCadence::DrainNow {
@@ -919,7 +919,7 @@ mod tests {
                 next_wake: now + Duration::from_secs(1),
             },
         )];
-        record_turn(&mut ledger, &scheduler, now, &overdue);
+        record_turn(&mut ledger, &mut scheduler, now, &overdue);
         assert_eq!(
             ledger
                 .project_frame_diagnostics(&stable_key)
@@ -931,7 +931,7 @@ mod tests {
             stable_key.clone(),
             TimedFrameCadence::WaitUntil(now + Duration::from_millis(4)),
         )];
-        record_turn(&mut ledger, &scheduler, now, &waiting);
+        record_turn(&mut ledger, &mut scheduler, now, &waiting);
         assert_eq!(
             ledger
                 .project_frame_diagnostics(&stable_key)
@@ -972,8 +972,8 @@ mod tests {
             due_demand(auxiliary_key.clone(), now),
         ];
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
-        let plan = record_turn(&mut ledger, &scheduler, now, &demands);
+        let mut scheduler = NativeFrameScheduler::default();
+        let plan = record_turn(&mut ledger, &mut scheduler, now, &demands);
 
         assert_eq!(plan.selected, Some(primary_key.clone()));
         assert_eq!(
@@ -1013,9 +1013,9 @@ mod tests {
         let stable_key = key("vetoed");
         let demands = [due_demand(stable_key.clone(), now)];
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
+        let mut scheduler = NativeFrameScheduler::default();
 
-        let plan = record_turn(&mut ledger, &scheduler, now, &demands);
+        let plan = record_turn(&mut ledger, &mut scheduler, now, &demands);
         assert_eq!(plan.selected, Some(stable_key.clone()));
         assert_eq!(
             latest_sample(&ledger, &stable_key).disposition,
@@ -1042,8 +1042,13 @@ mod tests {
             demand(auxiliary_key.clone(), TimedFrameCadence::Idle),
         ];
         let mut primary_ledger = CpuFrameFairnessLedger::default();
-        let primary_scheduler = NativeFrameScheduler::default();
-        let primary_plan = record_turn(&mut primary_ledger, &primary_scheduler, now, &primary_due);
+        let mut primary_scheduler = NativeFrameScheduler::default();
+        let primary_plan = record_turn(
+            &mut primary_ledger,
+            &mut primary_scheduler,
+            now,
+            &primary_due,
+        );
         assert_eq!(primary_plan.selected, Some(FrameScheduleKey::Primary));
         assert_eq!(
             latest_sample(&primary_ledger, &FrameScheduleKey::Primary).disposition,
@@ -1059,10 +1064,10 @@ mod tests {
             due_demand(auxiliary_key.clone(), now),
         ];
         let mut auxiliary_ledger = CpuFrameFairnessLedger::default();
-        let auxiliary_scheduler = NativeFrameScheduler::default();
+        let mut auxiliary_scheduler = NativeFrameScheduler::default();
         let auxiliary_plan = record_turn(
             &mut auxiliary_ledger,
-            &auxiliary_scheduler,
+            &mut auxiliary_scheduler,
             now,
             &auxiliary_due,
         );
@@ -1100,8 +1105,8 @@ mod tests {
         );
         let demands = [timed, pending];
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
-        let plan = record_turn(&mut ledger, &scheduler, now, &demands);
+        let mut scheduler = NativeFrameScheduler::default();
+        let plan = record_turn(&mut ledger, &mut scheduler, now, &demands);
 
         assert_eq!(plan.selected, Some(timed_key.clone()));
         let timed_work = latest_sample(&ledger, &timed_key).work;
@@ -1130,9 +1135,9 @@ mod tests {
             demand(first_key.clone(), TimedFrameCadence::Idle),
         ];
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
-        record_turn(&mut ledger, &scheduler, now, &first_turn);
-        record_turn(&mut ledger, &scheduler, now, &second_turn);
+        let mut scheduler = NativeFrameScheduler::default();
+        record_turn(&mut ledger, &mut scheduler, now, &first_turn);
+        record_turn(&mut ledger, &mut scheduler, now, &second_turn);
 
         let first = ledger.projection().window(&first_key).unwrap();
         assert_eq!(first.key(), &first_key);
@@ -1147,10 +1152,10 @@ mod tests {
         let now = Instant::now();
         let stable_key = key("bounded");
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
+        let mut scheduler = NativeFrameScheduler::default();
         for _ in 0..(CPU_FRAME_FAIRNESS_SAMPLE_CAPACITY + 3) {
             let demands = [demand(stable_key.clone(), TimedFrameCadence::Idle)];
-            record_turn(&mut ledger, &scheduler, now, &demands);
+            record_turn(&mut ledger, &mut scheduler, now, &demands);
         }
         let window = ledger.projection().window(&stable_key).unwrap();
         assert_eq!(window.sample_count(), CPU_FRAME_FAIRNESS_SAMPLE_CAPACITY);
@@ -1163,11 +1168,11 @@ mod tests {
         for index in 0..CPU_FRAME_FAIRNESS_KEY_CAPACITY {
             let key = key(&format!("window-{index}"));
             let demands = [demand(key, TimedFrameCadence::Idle)];
-            record_turn(&mut ledger, &scheduler, now, &demands);
+            record_turn(&mut ledger, &mut scheduler, now, &demands);
         }
         let overflow_key = key("overflow");
         let demands = [demand(overflow_key.clone(), TimedFrameCadence::Idle)];
-        record_turn(&mut ledger, &scheduler, now, &demands);
+        record_turn(&mut ledger, &mut scheduler, now, &demands);
         assert_eq!(ledger.len(), CPU_FRAME_FAIRNESS_KEY_CAPACITY);
         assert!(ledger.state(&overflow_key).is_none());
     }
@@ -1185,8 +1190,8 @@ mod tests {
             cursor_admissions: u64::MAX,
         };
         let demands = [due_demand(stable_key.clone(), now)];
-        let scheduler = NativeFrameScheduler::default();
-        record_turn(&mut ledger, &scheduler, now, &demands);
+        let mut scheduler = NativeFrameScheduler::default();
+        record_turn(&mut ledger, &mut scheduler, now, &demands);
         ledger.mark_admitted(&stable_key);
         assert_eq!(
             ledger.projection().window(&stable_key).unwrap().counters(),
@@ -1205,8 +1210,8 @@ mod tests {
         let stable_key = key("settings");
         let demands = [due_demand(stable_key.clone(), now)];
         let mut ledger = CpuFrameFairnessLedger::default();
-        let scheduler = NativeFrameScheduler::default();
-        record_turn(&mut ledger, &scheduler, now, &demands);
+        let mut scheduler = NativeFrameScheduler::default();
+        record_turn(&mut ledger, &mut scheduler, now, &demands);
         ledger.mark_admitted(&stable_key);
         ledger.remove(&stable_key);
         assert!(ledger.projection().window(&stable_key).is_none());
@@ -1218,7 +1223,7 @@ mod tests {
         );
 
         let reinserted = [demand(stable_key.clone(), TimedFrameCadence::Idle)];
-        record_turn(&mut ledger, &scheduler, now, &reinserted);
+        record_turn(&mut ledger, &mut scheduler, now, &reinserted);
         let counters = ledger.projection().window(&stable_key).unwrap().counters();
         assert_eq!(counters.selected_turns, 0);
         assert_eq!(counters.not_due_turns, 1);

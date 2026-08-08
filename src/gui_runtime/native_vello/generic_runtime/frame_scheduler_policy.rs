@@ -7,13 +7,17 @@
 #![allow(dead_code)]
 
 use super::frame_scheduler::FrameScheduleKey;
-use std::time::{Duration, Instant};
+use std::{
+    cmp::Ordering,
+    time::{Duration, Instant},
+};
 
 /// The safe-boundary order for one non-preemptive stage bundle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SchedulerStage {
     Lifecycle,
     DiscreteInput,
+    ImmediateTransient,
     Deadline,
     Projection,
     Layout,
@@ -24,9 +28,10 @@ pub(super) enum SchedulerStage {
 
 impl SchedulerStage {
     /// The normative order used when a frame boundary admits a stage.
-    pub(super) const ORDER: [Self; 8] = [
+    pub(super) const ORDER: [Self; 9] = [
         Self::Lifecycle,
         Self::DiscreteInput,
+        Self::ImmediateTransient,
         Self::Deadline,
         Self::Projection,
         Self::Layout,
@@ -61,8 +66,8 @@ impl SchedulerWorkClass {
         match self {
             Self::Lifecycle => 0,
             Self::DiscreteInput => 1,
-            Self::Deadline => 2,
-            Self::Transient => 3,
+            Self::Transient => 2,
+            Self::Deadline => 3,
             Self::Animation => 4,
             Self::Projection => 5,
             Self::Layout => 6,
@@ -145,10 +150,18 @@ impl SchedulerDemand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SchedulerFairnessLedger {
     epoch: u64,
+    overflow_deferrals: u64,
     states: [Option<SchedulerFairnessState>; MAX_SCHEDULER_KEYS],
 }
 
-const MAX_SCHEDULER_KEYS: usize = 16;
+pub(super) const MAX_SCHEDULER_KEYS: usize = 16;
+
+/// Explicit result for a bounded fairness-ledger admission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SchedulerAdmissionResult {
+    Tracked,
+    OverflowDeferred,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SchedulerFairnessState {
@@ -161,6 +174,7 @@ impl Default for SchedulerFairnessLedger {
     fn default() -> Self {
         Self {
             epoch: 0,
+            overflow_deferrals: 0,
             states: std::array::from_fn(|_| None),
         }
     }
@@ -173,9 +187,30 @@ impl SchedulerFairnessLedger {
     }
 
     /// Record one complete stage bundle for the current epoch.
-    pub(super) fn record_admission(&mut self, key: &FrameScheduleKey) {
+    pub(super) fn record_admission(&mut self, key: &FrameScheduleKey) -> SchedulerAdmissionResult {
         if let Some(state) = self.state_or_insert(key) {
             state.admitted_this_epoch = true;
+            SchedulerAdmissionResult::Tracked
+        } else {
+            self.overflow_deferrals = self.overflow_deferrals.saturating_add(1);
+            SchedulerAdmissionResult::OverflowDeferred
+        }
+    }
+
+    /// Number of admissions or epoch observations explicitly deferred because
+    /// the bounded key ledger was full.
+    pub(super) const fn overflow_deferrals(&self) -> u64 {
+        self.overflow_deferrals
+    }
+
+    /// Release a retired key's slot for a later stable-key admission.
+    pub(super) fn remove(&mut self, key: &FrameScheduleKey) {
+        if let Some(state) = self
+            .states
+            .iter_mut()
+            .find(|state| state.as_ref().is_some_and(|state| &state.key == key))
+        {
+            *state = None;
         }
     }
 
@@ -184,14 +219,17 @@ impl SchedulerFairnessLedger {
         if !demand.eligibility.is_fairness_eligible() {
             return true;
         }
-        self.state(&demand.key)
-            .is_none_or(|state| !state.admitted_this_epoch)
+        match self.state(&demand.key) {
+            Some(state) => !state.admitted_this_epoch,
+            None => self.has_capacity(),
+        }
     }
 
     /// Close one complete epoch and update the bounded promotion counter.
     pub(super) fn complete_epoch(&mut self, demands: &[SchedulerDemand]) {
         for demand in demands {
             let Some(state) = self.state_or_insert(&demand.key) else {
+                self.overflow_deferrals = self.overflow_deferrals.saturating_add(1);
                 continue;
             };
             if demand.eligibility.is_fairness_eligible() {
@@ -233,38 +271,50 @@ impl SchedulerFairnessLedger {
         let has_unserved = demands
             .iter()
             .any(|demand| demand.eligibility.is_fairness_eligible() && self.can_admit(demand));
-        let candidate_count = demands.len();
-        let last_index =
-            last_admitted.and_then(|key| demands.iter().position(|demand| demand.key() == key));
-        let mut best: Option<(usize, SchedulerWorkClass, Instant, usize)> = None;
+        let mut best: Option<(usize, SchedulerWorkClass, Instant)> = None;
 
         for (index, demand) in demands.iter().enumerate() {
             if !demand.eligibility.is_fairness_eligible()
+                || self.is_overflow(demand)
                 || (has_unserved && !self.can_admit(demand))
             {
                 continue;
             }
             let class = self.effective_class(demand);
-            let distance = round_robin_distance(index, last_index, candidate_count);
-            let candidate = (index, class, demand.deadline, distance);
+            let candidate = (index, class, demand.deadline);
             let is_better = best.is_none_or(|current| {
                 class.rank() < current.1.rank()
                     || (class.rank() == current.1.rank()
                         && (demand.deadline < current.2
-                            || (demand.deadline == current.2 && distance < current.3)))
+                            || (demand.deadline == current.2
+                                && stable_key_precedes(
+                                    demand.key(),
+                                    demands[current.0].key(),
+                                    last_admitted,
+                                ))))
             });
             if is_better {
                 best = Some(candidate);
             }
         }
 
-        best.map(|(index, _, _, _)| demands[index].key.clone())
+        best.map(|(index, _, _)| demands[index].key.clone())
     }
 
     fn state(&self, key: &FrameScheduleKey) -> Option<&SchedulerFairnessState> {
         self.states
             .iter()
             .find_map(|state| state.as_ref().filter(|state| &state.key == key))
+    }
+
+    fn has_capacity(&self) -> bool {
+        self.states.iter().any(Option::is_none)
+    }
+
+    fn is_overflow(&self, demand: &SchedulerDemand) -> bool {
+        demand.eligibility.is_fairness_eligible()
+            && self.state(&demand.key).is_none()
+            && !self.has_capacity()
     }
 
     fn state_or_insert(&mut self, key: &FrameScheduleKey) -> Option<&mut SchedulerFairnessState> {
@@ -285,11 +335,31 @@ impl SchedulerFairnessLedger {
     }
 }
 
-fn round_robin_distance(index: usize, last_index: Option<usize>, count: usize) -> usize {
-    let Some(last_index) = last_index else {
-        return index;
+fn stable_key_precedes(
+    candidate: &FrameScheduleKey,
+    current: &FrameScheduleKey,
+    last_admitted: Option<&FrameScheduleKey>,
+) -> bool {
+    let Some(last_admitted) = last_admitted else {
+        return compare_keys(candidate, current).is_lt();
     };
-    (index + count - last_index - 1) % count
+
+    let candidate_after_cursor = compare_keys(candidate, last_admitted).is_gt();
+    let current_after_cursor = compare_keys(current, last_admitted).is_gt();
+    match (candidate_after_cursor, current_after_cursor) {
+        (true, false) => true,
+        (false, true) => false,
+        _ => compare_keys(candidate, current).is_lt(),
+    }
+}
+
+fn compare_keys(left: &FrameScheduleKey, right: &FrameScheduleKey) -> Ordering {
+    match (left, right) {
+        (FrameScheduleKey::Primary, FrameScheduleKey::Primary) => Ordering::Equal,
+        (FrameScheduleKey::Primary, FrameScheduleKey::Auxiliary(_)) => Ordering::Less,
+        (FrameScheduleKey::Auxiliary(_), FrameScheduleKey::Primary) => Ordering::Greater,
+        (FrameScheduleKey::Auxiliary(left), FrameScheduleKey::Auxiliary(right)) => left.cmp(right),
+    }
 }
 
 /// Normalize the requested cadence against host/display and activity caps.
@@ -400,6 +470,7 @@ mod tests {
             [
                 SchedulerStage::Lifecycle,
                 SchedulerStage::DiscreteInput,
+                SchedulerStage::ImmediateTransient,
                 SchedulerStage::Deadline,
                 SchedulerStage::Projection,
                 SchedulerStage::Layout,
@@ -521,6 +592,23 @@ mod tests {
     }
 
     #[test]
+    fn immediate_transient_feedback_precedes_due_deadline_work() {
+        let now = Instant::now();
+        let transient = demand_at(
+            "pointer",
+            SchedulerWorkClass::Transient,
+            now + Duration::from_millis(10),
+        );
+        let deadline = demand_at("animation", SchedulerWorkClass::Deadline, now);
+
+        assert_eq!(
+            SchedulerFairnessLedger::default()
+                .select_candidate(&[deadline, transient.clone()], None,),
+            Some(transient.key().clone())
+        );
+    }
+
+    #[test]
     fn selection_uses_promotion_priority_deadline_then_stable_round_robin() {
         let now = Instant::now();
         let starved = demand_at(
@@ -565,6 +653,51 @@ mod tests {
                 Some(tied_first.key()),
             ),
             Some(tied_second.key().clone())
+        );
+
+        let tied_third = demand_at("tied-third", SchedulerWorkClass::Paint, now);
+        assert_eq!(
+            ledger.select_candidate(
+                &[tied_first, tied_third.clone(), tied_second.clone()],
+                Some(tied_second.key()),
+            ),
+            Some(tied_third.key().clone())
+        );
+    }
+
+    #[test]
+    fn ledger_overflow_is_explicitly_deferred_and_retires_cleanly() {
+        let mut ledger = SchedulerFairnessLedger::default();
+        let tracked: Vec<_> = (0..MAX_SCHEDULER_KEYS)
+            .map(|index| demand(&format!("tracked-{index}"), SchedulerWorkClass::Animation))
+            .collect();
+
+        for demand in &tracked {
+            assert_eq!(
+                ledger.record_admission(demand.key()),
+                SchedulerAdmissionResult::Tracked
+            );
+        }
+
+        let overflow = demand("overflow", SchedulerWorkClass::Animation);
+        assert!(!ledger.can_admit(&overflow));
+        assert_eq!(
+            ledger.record_admission(overflow.key()),
+            SchedulerAdmissionResult::OverflowDeferred
+        );
+        let before_epoch_observation = ledger.overflow_deferrals();
+        ledger.complete_epoch(std::slice::from_ref(&overflow));
+        assert_eq!(ledger.overflow_deferrals(), before_epoch_observation + 1);
+        assert!(
+            ledger
+                .select_candidate(std::slice::from_ref(&overflow), None)
+                .is_none()
+        );
+
+        ledger.remove(tracked[0].key());
+        assert_eq!(
+            ledger.record_admission(overflow.key()),
+            SchedulerAdmissionResult::Tracked
         );
     }
 

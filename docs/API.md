@@ -4,8 +4,12 @@ Radiant is a reusable declarative GUI library. Host applications own domain
 state and business logic; Radiant owns view-tree identity, layout, input
 routing, focus, style resolution, invalidation, renderer-facing paint plans,
 typed platform services, and business-work scheduling.
-Radiant's current native implementation is macOS-first, while its backend-neutral
-GUI contracts and host boundaries are designed for cross-platform use.
+Radiant targets macOS, Windows, and Linux through native Wayland. The current
+native implementation is macOS-first, while backend-neutral GUI contracts and
+host boundaries are designed for cross-platform use across all three in-scope
+platforms. X11 is an explicit non-goal. See `docs/TARGET.md` for the
+modern-system matrix and the
+CI-versus-native acceptance boundary.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
 boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see
@@ -284,8 +288,10 @@ single-line value needs explicit authority evidence across reprojection; import
 `TextInputRevision` from `radiant::widgets` because it is intentionally not in
 the common prelude. A strictly newer revision applies the projected value and
 selection, while an equal or older revision preserves retained editing state.
-This is a single-line authority prerequisite only: it does not add IME,
-composition, multiline, clipboard, undo, or native accessibility behavior.
+This is a single-line authority prerequisite only; composition, multiline,
+clipboard, undo, and native accessibility remain separate capabilities. The
+target text contract nevertheless requires platform adapters to translate
+pre-edit, commit, and cancellation into backend-neutral composition state.
 Use
 `text_line(label, height)` for
 fixed-height single-line labels that should fill their parent width and truncate
@@ -933,7 +939,8 @@ The public `SliderState` remains the source-compatible one-field
 crate-private retained adapter that owns the active transaction; a bare public
 `SliderWidget` keeps the concise `handle_input(...) -> Option<SliderMessage>`
 contract and does not carry typed lifecycle state. `Knob` is also a shipped
-shared-edit adopter, and the remaining continuous controls are next.
+shared-edit adopter, and `PanelResizeState` is the next shipped shared-edit
+consumer.
 `KnobWidget` follows the same contract through the
 qualified `KnobEditBatch` message. It carries one to four ordered
 `EditEvent<f32>` values in fixed-capacity copy-only storage and exposes the
@@ -1013,13 +1020,32 @@ value.
 
 This session deliberately does not provide a parser, validator, locale, range,
 clamping, quantization, stepping, or `ValueMapping`/`ValueFormat` policy inside
-the session, nor a numeric widget, domain mapping, `numeric_input`, or runtime
-input integration. The separate official application Slider and Knob builders
-now accept `ValueFormat` for display-only automation text; that attachment does
-not add parsing or change emitted interaction values/events. Update events,
-focus/pointer/keyboard/text-input/accessibility policy, callbacks, persistence,
-and raw transaction construction remain future domain and integration
-boundaries around this small session foundation.
+the session. The separate official application Slider and Knob builders now
+accept `ValueFormat` for display-only automation text; that attachment does not
+add parsing or change emitted interaction values/events.
+
+The target public numeric control is generic and requires an application-
+supplied `NumericCodec<T>` and `NumericAdjustment<T>` at construction:
+`numeric_input(value, codec, adjustment)`. The codec parses, validates, and
+canonically formats editable text; the adjustment supplies a finite monotonic
+mapping, explicit steps, pointer scrubbing, wheel changes, and arrow-key
+behavior. `Incomplete`, `Invalid`, `OutOfRange`, and `Valid(T)` are public
+codec vocabulary, but only valid typed `EditEvent<T>` values are delivered to
+the application. Non-valid drafts remain local and visible. The target uses
+one transaction lifecycle for text, keyboard, pointer, wheel, and accessibility
+actions, with semantic Fine/Coarse modifiers and no implicit locale or clamping.
+
+The first acceptance fixtures are exact and intentionally small: a `u32` count
+over `0..=100` with ASCII-digit text and base/fine/coarse steps `1/1/10`; a
+linear `Percent` value over `0..=1` with invariant decimal text, no editable
+`%` suffix, and steps `0.01/0.001/0.1`; and a logarithmic `FrequencyHz` value
+over `20..=20_000` with invariant decimal text plus exactly one ASCII-space
+`Hz` suffix and normalized steps `0.01/0.001/0.1`. Canonical output is
+shortest round-tripping text; adjustment clamps only at declared boundaries,
+while typed text never silently clamps. Decibel, tempo, arbitrary-unit, and
+product-specific locale codecs remain application-supplied. This generic
+numeric control is a target contract and is not yet shipped by the current
+source.
 
 ### Value mappings
 
@@ -2417,6 +2443,11 @@ This is a target boundary, not a new public name or API table entry. It does not
 change `Command`, `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`,
 `ViewNode`, `SurfaceNode`, or effect payload compatibility, and it makes no
 claim about scheduler budgets, fairness, queue capacity, or wake ordering.
+Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
+priority, wake ordering, and stage ordering to the separately normative [`Next
+scheduler policy contract`](DESIGN_DIRECTION.md#next-scheduler-policy-contract);
+overlay/keyed-node cancellation is implementation sequencing, not authority to
+define scheduler policy.
 
 ## UI-First Runtime Threading
 
@@ -3538,10 +3569,14 @@ profile. `FrameProfileGpuTimingStatus::Unavailable` is explicit: current native
 timing fields are CPU-side envelopes and are never relabeled as GPU timestamps.
 
 This surface intentionally does not provide `Detailed(ProfileSelection)`, runtime
-mode switching, a debug inspector, backend GPU timestamp queries, renderer-owned
-resource lifetime/budgeting, or live native-window acceptance. The current
-product/support scope is macOS; Linux and Windows remain future portability
-targets and do not block this contract.
+mode switching, a debug inspector, or backend GPU timestamp queries. Renderer-
+owned resource lifetime/budgeting and live native-window acceptance remain
+backend capabilities. macOS live acceptance runs on the M5 Pro development
+host; current Linux and Windows CI is limited to portable/build/compile/check
+evidence. The target GitHub Actions lanes must eventually add integration and
+headless Wayland/native-host smoke coverage where runners permit; until then,
+no Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 ### macOS live frame-profile acceptance
 
@@ -3588,9 +3623,11 @@ recorder text in both windows. Expected evidence is:
   auxiliary identity differs from the primary identity and the recorder shows
   the auxiliary primary handoff callbacks.
 
-This is live native macOS presentation evidence only. It does not claim Linux
-or Windows support, runtime profiling-mode switching, GPU timestamp queries,
-or a target-alignment percentage update.
+This is live native macOS presentation evidence only. It does not claim
+Linux/Windows presentation, runtime profiling-mode switching, or GPU timestamp
+queries. Current Linux/Windows CI is limited to portable/build/compile/check
+evidence; the target headless Wayland/native-host smoke lanes are future
+evidence, not current acceptance.
 
 ### macOS live devtools acceptance
 
@@ -3626,9 +3663,11 @@ edit the text input, then use Tab/Shift-Tab to traverse focusable controls;
 focus state should change without the overlay taking focus or blocking
 interaction. Resize the primary window with a control selected and confirm the
 selected bounds and tree geometry update while the controls remain usable.
-This is live native macOS presentation evidence only; Linux and Windows
-portable compilation is guarded, and native runtime acceptance remains
-deferred.
+This is live native macOS presentation evidence only. Current Linux/Windows CI
+is limited to portable/build/compile/check evidence; the prescribed headless
+Wayland/native-host smoke lanes are a future target where runners permit, and
+no Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 ### macOS live external-drag acceptance
 
@@ -4152,11 +4191,12 @@ their role and state. `GuiAutomationSnapshot::target_snapshot()` flattens the
 tree into coordinate-bearing automation targets with tree order, depth,
 root-to-node path, bounds, center point, role, label/value text, current state,
 actions, and metadata; this is the supported bridge shape for tests, devtools,
-Computer Use sidecars, and future native adapters that need stable GUI targets
+Computer Use sidecars, and native adapters that need stable GUI targets
 without coupling to host state. Directional focus hints and live-region values
-are backend-neutral hints only; Radiant does not implement AccessKit,
-screen-reader bridges, web accessibility, or OS accessibility trees in the
-current phase.
+are backend-neutral hints only. Native platform adapters consume this semantic
+tree for the required macOS, Wayland, and Windows accessibility contracts;
+ordinary application APIs do not expose AccessKit, screen-reader, or OS tree
+handles.
 The macOS development app-bundle helper improves process/window discovery for
 app-level automation tools. `RADIANT_AUTOMATION_TARGET_EXPORT` pairs with that
 launch path by exposing the current flattened target snapshot to external

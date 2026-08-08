@@ -62,32 +62,41 @@ Radiant should scale from simple “hello world” interfaces to advanced applic
 
 ## Platform Target
 
-Radiant's current product and support scope is macOS-only. The current native
-implementation and acceptance work is scoped to macOS. Radiant should preserve
-a cross-platform architecture and a platform-neutral public/core API.
+Radiant's target support scope is macOS, Windows, and Linux through a native
+Wayland session. X11 sessions and a direct X11 backend are explicit
+non-goals. The public API and core architecture remain platform-neutral while
+native host adapters own windowing, input, text, accessibility, surface, and
+presentation details.
 
-The current primary development and testing target is:
+Implementation and acceptance may be phased, but the target is not complete
+until all three in-scope platforms satisfy the feature Definition of Done.
+The authoritative modern-system matrix is:
 
-- macOS
+- macOS: the current supported macOS on the M5 Pro development host;
+- Linux: Ubuntu 26.04 LTS Desktop with its default GNOME Wayland session;
+- Windows: Windows 11 25H2 as the broad-deployment baseline.
 
-The architecture should support additional platforms as the implementation
-matures. Linux and Windows are future portability targets, not currently
-supported platforms:
-
-- Linux
-- Windows
-
-Cross-platform support does not need to be fully implemented immediately, but the architecture should avoid unnecessary Windows-only assumptions in core library code.
+Exact versions, runner images, hardware, and validation results belong in
+review and CI evidence rather than in the public API contract. Current
+Linux/Windows repository CI evidence is limited to the portable, build,
+compile, and check jobs actually present; it does not include the target
+integration or headless Wayland/native-host smoke lanes. Those lanes must
+eventually be added through GitHub Actions where runners permit. Until then,
+Linux/Windows CI establishes no host, IME, accessibility, presentation,
+latency, GPU, or performance acceptance.
 
 Platform-specific code should be isolated behind clear boundaries. The public
 and core Radiant APIs should remain as platform-neutral as practical.
 
 The goal is:
 
-- Build and validate Radiant on macOS first.
-- Avoid hardcoding platform-specific assumptions into core systems.
-- Keep windowing, surface creation, platform event handling, file/resource behavior, and backend integration modular.
-- Make additional platform support an extension of the architecture, not a rewrite.
+- Keep core GUI, layout, input, text, scheduling, and rendering contracts
+  platform-neutral.
+- Isolate Wayland, Windows, and macOS host integration behind explicit
+  adapters.
+- Validate the native macOS path on the M5 Pro; eventually validate
+  Linux/Windows paths through the required GitHub Actions lanes.
+- Make platform support an extension of the architecture, not a rewrite.
 
 ## Windowing and Platform Integration
 
@@ -161,11 +170,13 @@ At this stage, Radiant should also not replace Vello or attempt to build a full 
 
 VST/plugin integration belongs to the application or plugin framework using Radiant. Radiant should provide the GUI/window/surface/rendering/event APIs that make plugin UI integration possible, but the plugin-domain layer should own VST-specific behavior.
 
-Accessibility is also not a priority for the current implementation stage. The
-target-state design still reserves backend-neutral semantics, focus, and
-automation boundaries so future native accessibility adapters do not require a
-second UI model. Full native accessibility integration remains a future concern,
-not a current implementation target.
+Accessibility is a target requirement. Radiant owns one backend-neutral
+semantic and automation model; macOS, Wayland, and Windows adapters expose that
+model through their native accessibility systems. The current implementation
+may still be incomplete, but it must not introduce a second platform-specific
+UI model. Native macOS acceptance is hardware-backed. Current Linux and
+Windows CI does not establish accessibility acceptance; the required future
+native-host lanes are target smoke evidence, not hardware-backed acceptance.
 
 Radiant may support sample managers, DAWs, plugins, todo apps, editors, and other tools, but it should do so through general-purpose GUI primitives and extensible architecture.
 
@@ -869,25 +880,16 @@ Full internationalization can be a future concern, but the core text system shou
 
 ## Accessibility
 
-Accessibility is not a current implementation priority for Radiant. The
-target-state contract in `docs/DESIGN_DIRECTION.md` still treats semantic tree
-ownership and focus behavior as GUI architecture concerns; native accessibility
-adapters remain deferred until those runtime contracts are ready.
-
-Full accessibility support is a non-goal for the current phase.
-
-Do not spend implementation effort on accessibility-specific systems unless they are directly needed for another core feature. Accessibility can be revisited later once the core library architecture is stronger.
-
 Radiant does own backend-neutral automation snapshots and flattened automation
-target projections for tests, devtools, direct-manipulation sidecars, and future
+target projections for tests, devtools, direct-manipulation sidecars, and native
 adapters. These may carry generic roles, labels, values, bounds, center points,
 stable action names, focus state, and metadata when that information already
 belongs to reusable widgets or runtime layout.
 
-However, avoid unnecessary design choices that would make future accessibility
-impossible if there is no meaningful cost to keeping the architecture flexible.
-Keep native accessibility adapters as a future integration layer until the core
-runtime and widget semantics are ready to support them deliberately.
+Native adapters consume this model; they do not replace it or expose raw host
+handles through ordinary application APIs. Accessibility actions use the same
+focus, identity, virtualization, and edit-transaction contracts as pointer and
+keyboard input.
 
 ## Application Independence
 
@@ -1200,7 +1202,8 @@ Radiant documentation should clarify:
 - How to avoid common performance mistakes
 - How to structure applications built with Radiant
 - How examples map to supported features
-- What is currently out of scope, including VST SDK integration, accessibility, and replacing Vello
+- What is currently out of scope, including VST SDK integration, a direct X11
+  backend, and replacing Vello
 
 Documentation should stay aligned with the examples and the actual public API.
 
@@ -1239,6 +1242,15 @@ Where practical, CI or local validation should cover:
 - Example builds
 - Documentation builds where useful
 - Benchmarks or performance examples for manual/profiling runs
+
+The GitHub Actions platform lanes are part of the target evidence contract, not
+current repository evidence. Current Linux/Windows jobs provide only the
+portable, build, compile, and check evidence present in `.github/workflows/ci.yml`;
+they do not provide the target integration or native-host smoke evidence. The
+target lanes must eventually add Linux headless Wayland and Linux/Windows
+native-host smoke coverage where runners permit. Until those lanes exist, no
+Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 Examples should not be treated as throwaway demos. They should compile and remain aligned with the intended public API.
 
@@ -1331,15 +1343,16 @@ Avoid combining unrelated changes in one commit.
 
 The following decisions do not need to be finalized immediately, but should remain visible:
 
-- Exact windowing/event-loop strategy.
 - Exact text shaping/rendering stack.
-- Exact Linux and Windows support timeline beyond the macOS-first implementation.
 - Exact plugin-host integration adapter design.
-- Whether any optional accessibility foundation should be added later.
-- Which performance benchmarks should become formal release gates.
+- Which additional performance workloads should become formal release gates;
+  the cross-platform scheduler workload and stage budgets are already
+  normative.
 - Whether Vello should ever be replaced or supplemented by a custom full renderer in the future.
 
-Do not block current work on these decisions unless a change would make a future decision much harder.
+These are implementation or future-product details, not permission to weaken
+the current three-platform target or its accessibility, CI, and evidence
+requirements.
 
 ## Review Checklist
 
@@ -1382,8 +1395,11 @@ Radiant is moving toward the target when it has:
 - Clean integration between Vello-rendered UI and direct-WGPU custom surfaces
 - No unnecessary leakage of Vello or WGPU internals into normal application code
 - Rendering architecture that can evolve later without requiring a public API rewrite
-- macOS-first implementation without unnecessary platform-specific assumptions in core code
-- Cross-platform architecture that can extend to Linux and Windows
+- Native macOS, Windows, and Linux/Wayland support without unnecessary
+  platform-specific assumptions in core code
+- GitHub Actions portable/build/compile/check evidence and, where runners
+  permit, the required Linux/Windows integration and headless Wayland/native-host
+  lanes, plus native M5 Pro acceptance for macOS
 - No direct VST SDK integration inside Radiant
 - A plugin-friendly GUI architecture that can be integrated by application/plugin frameworks
 - Clean internal module structure

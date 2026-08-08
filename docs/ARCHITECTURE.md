@@ -147,10 +147,11 @@ new focused export leaf or a module split, not a formatting workaround.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,
   panels, lists, selection, shortcuts, text-line placement, visualization
   helpers, automation snapshots, and visual snapshots.
-- `src/gui_runtime` owns native runtime integration and renderer adapters. Its
-  native Vello runtime is the macOS-first implementation path and keeps WGPU,
-  Vello, font loading, scene caching, native input, window policy, and popup
-  behavior behind Radiant-owned runtime options.
+- `src/gui_runtime` owns native runtime integration and renderer adapters. The
+  current native Vello runtime is the macOS implementation path; the target
+  adds native Wayland and Windows host adapters behind the same Radiant-owned
+  WGPU, Vello, font loading, scene caching, input, window-policy, and popup
+  boundaries.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,
@@ -220,9 +221,12 @@ global admission and lifecycle authorities throughout this seam. Owner
 metadata, reconciliation, and registry retirement must respect the existing
 `Accepting -> Closing -> Stopped` boundary and the current recovery path; they
 must not add a per-owner event loop or bypass lifecycle vetoes. The seam defines
-ownership identity, admission, and retirement only. Queue capacity, scheduler
-budgets, fairness, priority, and wake ordering remain later policy work after
-executable overlay/keyed-node cancellation is implemented.
+ownership identity, admission, and retirement only. It does not implement or
+override the separately normative scheduler contract in
+`docs/DESIGN_DIRECTION.md` (`Next scheduler policy contract`), including queue
+capacity, budgets, fairness, priority, wake ordering, and stage ordering.
+Overlay/keyed-node cancellation is an implementation-sequencing dependency for
+completing this seam, not permission to define scheduler policy later.
 
 ## Rendering Boundary
 
@@ -350,15 +354,23 @@ or renderer internals.
 
 ## Platform Boundary
 
-Radiant is macOS-first today, with a cross-platform design goal. Core GUI,
-runtime, widget, layout, and paint-plan code should stay platform-neutral.
+Radiant is macOS-first today as an implementation path, with a cross-platform
+design goal; the target is modern macOS, Windows, and Linux/Wayland systems.
+Core GUI, runtime, widget, layout, and paint-plan code stays platform-neutral.
+X11 is an explicit
+non-goal.
 Platform-specific integration belongs in native runtime/windowing modules or
 explicitly named platform adapters. Platform services such as file dialogs and
 URL opening flow through typed `PlatformRequest` commands and the opt-in
 `RuntimePlatformHost` capability. Application update handlers request those
 services through Radiant context helpers instead of calling platform APIs
-directly. The portable library boundary should keep compiling for additional
-targets while native runtime behavior is validated on macOS.
+directly. The portable library boundary must compile for all three targets.
+Native macOS behavior is validated on the M5 Pro development host. Current
+Linux/Windows repository CI is limited to portable/build/compile/check
+evidence. The target GitHub Actions lanes must eventually add integration and
+Linux headless Wayland plus Linux/Windows native-host smoke coverage where
+runners permit; no current Linux/Windows host, IME, accessibility,
+presentation, latency, GPU, or performance acceptance is established.
 
 Current target-specific seams are intentionally narrow:
 
@@ -495,14 +507,21 @@ normal quality lane before merging meaningful changes.
   `cargo test -j 1 --lib --tests` when diagnosing order-sensitive failures or
   reducing concurrent resource pressure locally.
 - Example compile checks: `cargo test --examples`.
-- Portable library boundary: after installing the targets with
-  `rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin`, run
-  `cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu`
-  and
-  `cargo check --lib --no-default-features --target x86_64-apple-darwin`.
-  These checks do not prove native Linux/macOS runtime behavior, but they do
-  catch accidental Windows-only imports, target-specific dependency leakage, and
-  public/core API drift that would make future platform support a rewrite.
+- Portable library boundary: after installing the Unix targets with
+  `rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin` and the
+  Windows target with `rustup target add x86_64-pc-windows-msvc`, run
+  `cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu`,
+  `cargo check --lib --no-default-features --target x86_64-pc-windows-msvc`,
+  and `cargo check --lib --no-default-features --target x86_64-apple-darwin`.
+  These checks do not prove native host, presentation, latency, GPU, IME,
+  accessibility, or performance behavior, but they catch target-specific
+  dependency leakage and public/core API drift across the in-scope platforms.
+- Native-host CI (future target): the Linux lane should use a headless Wayland
+  compositor and the Windows lane should run native-host smoke tests where the
+  runner permits. These lanes are not present in current repository CI, which
+  provides only portable/build/compile/check evidence for Linux/Windows; until
+  they exist, no Linux/Windows host, IME, accessibility, presentation, latency,
+  GPU, or performance acceptance is established.
 - Performance smoke: `cargo bench --bench perf_harness -- --list`, then a
   focused JSONL baseline round trip such as
   `cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\target\perf-baseline.jsonl`
@@ -520,13 +539,17 @@ data preparation.
 ## Current Non-Goals
 
 Radiant should not own VST SDK integration, audio-domain host behavior,
-application-specific asset models, product-specific state, or accessibility
-systems in the current phase. Those concerns can integrate with Radiant through
-host-owned state, platform services, custom widgets, business-runtime requests,
-and embedded-host surfaces without becoming Radiant core.
+application-specific asset models, product-specific state, or an X11 backend.
+Accessibility is a required platform-adapter capability, while its semantic
+model remains backend-neutral; hardware-backed accessibility systems in the
+current phase remain unverified on Linux and Windows. Host-owned state,
+platform services, custom widgets, business-runtime requests, and embedded-host
+surfaces must not become
+product state in Radiant core.
 
 Avoid new architecture that creates parallel application models, leaks renderer
-internals into normal app code, couples core modules to Windows-only behavior,
+internals into normal app code, creates accidental Windows-only imports, or
+couples core modules to Windows-only behavior,
 or makes examples the only proof of a public feature. A feature is aligned when
 it has a coherent API, clean module ownership, tests or guardrails where
 practical, and an example or documentation path that shows how application code

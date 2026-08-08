@@ -14,11 +14,12 @@ use radiant::{
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
         InteractiveRowWidget, InteractiveRowWidgetParts, KnobEditBatch, KnobMessage,
         KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget, ListItemWidgetParts,
-        NumericCodec, NumericEditSession, NumericParseResult, ScrollbarAxis, ScrollbarWidget,
-        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
-        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
-        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        NumericAdjustment, NumericCodec, NumericEditSession, NumericParseResult, NumericStep,
+        NumericStepDirection, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
+        SelectableWidget, SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState,
+        SliderWidget, SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget,
+        TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -121,6 +122,61 @@ impl NumericCodec<NonCloneNumericValue> for NonCloneNumericCodec {
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct NumericAdjustmentTestError;
+
+struct NonCloneNumericAdjustment;
+
+impl NumericAdjustment<NonCloneNumericValue> for NonCloneNumericAdjustment {
+    type Error = NumericAdjustmentTestError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<NonCloneNumericValue, Self::Error> {
+        Ok(NonCloneNumericValue((normalized * 100.0) as i32))
+    }
+
+    fn value_to_normalized(&self, value: &NonCloneNumericValue) -> Result<f32, Self::Error> {
+        Ok(value.0 as f32 / 100.0)
+    }
+
+    fn step(
+        &self,
+        value: &NonCloneNumericValue,
+        direction: NumericStepDirection,
+        step: NumericStep,
+    ) -> Result<NonCloneNumericValue, Self::Error> {
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        let signed = match direction {
+            NumericStepDirection::Decrease => -amount,
+            NumericStepDirection::Increase => amount,
+        };
+        Ok(NonCloneNumericValue(value.0 + signed))
+    }
+
+    fn scrub(
+        &self,
+        value: &NonCloneNumericValue,
+        normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<NonCloneNumericValue, Self::Error> {
+        Ok(NonCloneNumericValue(
+            value.0 + (normalized_delta * 100.0) as i32,
+        ))
+    }
+
+    fn wheel(
+        &self,
+        value: &NonCloneNumericValue,
+        delta: f32,
+        _step: NumericStep,
+    ) -> Result<NonCloneNumericValue, Self::Error> {
+        Ok(NonCloneNumericValue(value.0 + delta as i32))
+    }
+}
+
 #[test]
 fn numeric_edit_session_can_be_named_with_a_non_clone_type() {
     let _: Option<NumericEditSession<NonCloneNumericValue>> = None;
@@ -203,6 +259,53 @@ fn numeric_codec_is_qualified_generic_and_supports_non_clone_domain_values() {
     ));
     assert!(!prelude_widgets.contains("NumericCodec"));
     assert!(!prelude_widgets.contains("NumericParseResult"));
+}
+
+#[test]
+fn numeric_adjustment_is_qualified_generic_and_supports_non_clone_domain_values() {
+    let adjustment = NonCloneNumericAdjustment;
+    let _: &dyn radiant::widgets::interaction::NumericAdjustment<
+        NonCloneNumericValue,
+        Error = NumericAdjustmentTestError,
+    > = &adjustment;
+
+    let _: radiant::widgets::interaction::NumericStep = NumericStep::Base;
+    let _: radiant::widgets::interaction::NumericStepDirection = NumericStepDirection::Decrease;
+    let _: &dyn radiant::widgets::NumericAdjustment<
+        NonCloneNumericValue,
+        Error = NumericAdjustmentTestError,
+    > = &adjustment;
+
+    assert_eq!(NumericStep::Base, NumericStep::Base);
+    assert_eq!(NumericStep::Fine, NumericStep::Fine);
+    assert_eq!(NumericStep::Coarse, NumericStep::Coarse);
+    assert_eq!(
+        NumericStepDirection::Decrease,
+        NumericStepDirection::Decrease
+    );
+    assert_eq!(
+        NumericStepDirection::Increase,
+        NumericStepDirection::Increase
+    );
+    assert_eq!(
+        adjustment.value_to_normalized(&NonCloneNumericValue(25)),
+        Ok(0.25)
+    );
+    assert_eq!(
+        adjustment.step(
+            &NonCloneNumericValue(10),
+            NumericStepDirection::Increase,
+            NumericStep::Coarse,
+        ),
+        Ok(NonCloneNumericValue(20))
+    );
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_widgets.contains("NumericAdjustment"));
+    assert!(!prelude_widgets.contains("NumericStep"));
 }
 
 #[test]

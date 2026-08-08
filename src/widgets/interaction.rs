@@ -7,6 +7,7 @@ mod edit;
 mod format;
 mod input;
 mod messages;
+mod numeric_adjustment;
 mod numeric_edit;
 mod numeric_policy;
 mod output;
@@ -31,6 +32,7 @@ pub use messages::{
     SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
     ToggleMessage,
 };
+pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirection};
 pub use numeric_edit::NumericEditSession;
 pub use numeric_policy::{NumericCodec, NumericParseResult};
 pub use output::{CustomWidgetOutput, WidgetOutput};

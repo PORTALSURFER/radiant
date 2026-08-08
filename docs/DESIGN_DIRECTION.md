@@ -782,6 +782,17 @@ deferred stages, input-to-present latency, and budget breaches. It does not
 attempt unsafe mid-layout interruption; fairness is achieved at explicit
 projection, layout, and paint-plan boundaries.
 
+### Next scheduler policy contract
+
+- One parent UI/frame scheduler owns one native event-loop owner; stable logical window keys are scheduled; each window keeps its local scheduler; no second event loop or per-window work queue.
+- Non-preemptive order at safe boundaries: lifecycle/generation fences; discrete native input and immediate transient feedback; due presentation, animation, and caret; projection/reconciliation; layout; paint planning, encoding, and presentation; maintenance/background. A selected stage runs to completion and incomplete work is never presented.
+- Normalize requested FPS; effective FPS is the minimum of normalized request, host/display capability, and explicit activity cap. Idle windows have no periodic frame, input stays immediate, and standalone caret animation stays capped at 30 Hz.
+- A scheduling epoch gives each eligible key at most one complete stage bundle before any key gets a second. Within priority, choose oldest due deadline then stable-key round robin. A due key with no admission for two complete epochs is promoted ahead of ordinary work. Lifecycle, input, transient, and deadline work outrank maintenance/background.
+- With I equal to one divided by effective FPS, default diagnostic soft budgets are: input/transient min(I/8, 2 ms); projection/reconciliation min(I/4, 4 ms); layout/paint-plan min(I/4, 4 ms); encode/present min(I/2, 6 ms); maintenance/background min(I/8, 2 ms). These are safe-boundary targets, not preemption. An over-budget stage completes, records a breach, and defers only lower-priority work at the next boundary.
+- Animation, pointer motion, scroll, redraw requests, and stale visual/background results are latest-wins. Discrete input, lifecycle events, edit terminal events, and platform completions are never coalesced. Preserve the last complete frame, replace obsolete pending visual packets, and never synchronously wait for unrelated work.
+- Diagnostics record per-window admission/defer/starvation-promotion counts, stage durations and budget breaches, due lateness, input-to-present latency, coalesced/dropped visual work, queue depth, and requested/effective cadence. They remain non-authoritative until wired to this contract; implementation starts with private evidence and contract tests before any public scheduling API.
+- Named macOS acceptance workload: primary editor at 60 Hz with continuous pointer/drag activity; two visible auxiliary windows at 30 Hz/caret activity; one maintenance-heavy auxiliary; inject stale redraws, input, close, and recovery. Assert no discrete input coalescing, at most one in-flight plus one newest pending visual packet, no eligible due key waits beyond two epochs, generation fences reject stale work, and deferral occurs only at stage boundaries.
+
 ## Node Model
 
 Radiant has two distinct node kinds. They are deliberately separate.
@@ -1806,22 +1817,16 @@ separator is explicit (`Period` or `Comma`)
 and never comes from ambient operating-system locale. Frequency defaults to two
 fractional digits; percent scales by 100 and frequency appends ` Hz`.
 
-The future numeric-control contract will build on the session and include
-linear, logarithmic, decibel, tempo, and custom monotonic mappings. It will use
-one mapping for pointer position, keyboard increments, accessibility range
-semantics, and displayed values so those views agree. A future `numeric_input`
-will add a locale-aware parser and validator around the session so an
-incomplete or invalid string can be shown without replacing the last valid
-domain value. Enter or focus commit will emit a typed accepted value; Escape or
-explicit cancel will restore the displayed value without an accidental domain
-mutation.
+### Next numeric-control domain contract
 
-The `ValueFormat` policy foundation is shipped as a qualified API, and the
-official application Slider and Knob builders now attach it for display-only
-automation semantics. Direct low-level/public primitive attachment,
-`numeric_input`, and the remaining mapping or formatting forms—including
-grouping, decibel, tempo, and arbitrary custom formatting—are target/future
-APIs and remain separate follow-up slices.
+- Ownership: the application owns domain type T and durable value; Radiant owns transient draft, focus, and edit lifecycle. Each control supplies one immutable policy for parsing, validation, mapping, stepping, and formatting. Core Radiant must not assume f32; shipped ValueMapping remains the finite linear/log f32 foundation.
+- Parser and locale: never read ambient operating-system locale. Default invariant grammar accepts ASCII digits, optional leading sign, one period decimal separator, and optional e/E exponent. Empty, sign-only, decimal-only, and incomplete exponent strings remain representable drafts. Locale, grouping, and custom grammars require an explicit codec from the control or application.
+- Validation and range: the domain declares an inclusive finite range. Parsing distinguishes Incomplete, Invalid, OutOfRange, and Valid(T). Non-valid text never mutates the last valid domain value or emits typed Update or Commit. Pointer and keyboard paths clamp only through declared mapping/range; typed text is never silently clamped.
+- Mapping and stepping: one total finite monotonic mapping and checked inverse are shared by pointer, keyboard, accessibility, and displayed-value semantics. Ambiguous or nonfinite inverse results reject. Each control declares no step, reject off-step, or round-to-step; pointer/keyboard updates and typed commit follow that policy.
+- Formatting and round trip: format(T) is canonical and explicit; parsing canonical output returns the same domain value or declared equality. Accepted commit replaces draft with canonical text; invalid draft remains visible with an error state. Formatting is pure, bounded, and independent of ambient locale.
+- Lifecycle and provenance: Begin once per interaction source; accepted continuous values emit same-transaction Update events. Pointer release, Enter, or valid focus loss commits. Escape, capture loss, or explicit cancel restores Begin. A foreign source cannot terminally commit or cancel. Typed events carry T, start value, phase, transaction identity, and InteractionProvenance; invalid text emits no typed event.
+- Accessibility and input boundary: pointer, keyboard, text, and accessibility actions use the same policy and lifecycle. Platform accessibility exposure is an adapter and acceptance concern, not hidden parser behavior.
+- Fixtures and non-goals: percent 0..=1 linear, frequency 20..=20,000 logarithmic, and bounded integer count are acceptance fixtures. Decibel, tempo, arbitrary units, persistence, and product-specific locale policy are consumer supplied. Implementation starts with a private typed policy/codec contract and focused tests, then one concrete control; this docs slice does not implement that consumer.
 
 The following `numeric_input`/`.format(...)` attachment example is target API
 and is not currently shipped; its `ValueFormat` policy argument and the

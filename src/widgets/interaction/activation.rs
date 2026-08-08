@@ -127,7 +127,7 @@ pub fn handle_activation_input(
             }
             ActivationInputResult::None
         }
-        WidgetInput::KeyPress { key, timestamp }
+        WidgetInput::KeyPress { key, timestamp, .. }
             if policy.keyboard && state.focused && activate_on_keyboard(*key) =>
         {
             ActivationInputResult::Activated {

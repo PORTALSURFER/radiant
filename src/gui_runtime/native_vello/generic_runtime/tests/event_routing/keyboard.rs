@@ -2,13 +2,19 @@ use super::super::*;
 use crate::{
     gui::input::{InputTimestamp, KeyCode, KeyPress},
     runtime::{RuntimeBridge, SurfaceNode, UiSurface},
-    widgets::{CanvasMessage, TextEditCommand, WidgetInput, WidgetKey, WidgetSizing},
+    widgets::{
+        CanvasMessage, KeyboardModifiers, TextEditCommand, WidgetInput, WidgetKey, WidgetSizing,
+    },
 };
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
 enum KeyboardTimestampMessage {
-    KeyPress(Option<InputTimestamp>),
+    KeyPress {
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<InputTimestamp>,
+    },
     Character {
         character: char,
         timestamp: Option<InputTimestamp>,
@@ -29,8 +35,18 @@ impl RuntimeBridge<KeyboardTimestampMessage> for KeyboardTimestampBridge {
             WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
             |message| match message {
                 CanvasMessage::Input {
-                    input: WidgetInput::KeyPress { timestamp, .. },
-                } => KeyboardTimestampMessage::KeyPress(timestamp),
+                    input:
+                        WidgetInput::KeyPress {
+                            modifiers,
+                            repeat,
+                            timestamp,
+                            ..
+                        },
+                } => KeyboardTimestampMessage::KeyPress {
+                    modifiers,
+                    repeat,
+                    timestamp,
+                },
                 CanvasMessage::Input {
                     input:
                         WidgetInput::Character {
@@ -70,12 +86,56 @@ fn direct_physical_key_route_preserves_one_timestamp() {
             KeyPress::new(KeyCode::Enter),
             Some(WidgetKey::Enter),
             timestamp,
+            false,
         )
         .routed
     );
     assert_eq!(
         core.runtime.bridge().messages,
-        vec![KeyboardTimestampMessage::KeyPress(timestamp)]
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
+    let timestamp = Some(InputTimestamp::capture());
+    let mut core = GenericNativeRuntimeCore::new(
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+
+    assert!(core.runtime.focus_widget(90));
+    assert!(
+        core.route_key_press_with_timestamp(
+            KeyPress {
+                key: KeyCode::ArrowRight,
+                command: true,
+                control: true,
+                shift: true,
+                alt: true,
+            },
+            Some(WidgetKey::ArrowRight),
+            timestamp,
+            true,
+        )
+        .routed
+    );
+    assert_eq!(
+        core.runtime.bridge().messages,
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers: KeyboardModifiers {
+                command: true,
+                control: true,
+                shift: true,
+                alt: true,
+            },
+            repeat: true,
+            timestamp,
+        }]
     );
 }
 

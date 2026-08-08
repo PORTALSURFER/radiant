@@ -200,8 +200,8 @@ mod tests {
         layout::{LayoutOutput, Vector2},
         runtime::{PaintPrimitive, UiSurface},
         widgets::{
-            ButtonMessage, InteractionProvenance, PointerButton, PointerModifiers, Widget,
-            WidgetInput, WidgetKey,
+            ButtonMessage, InteractionProvenance, KeyboardModifiers, PointerButton,
+            PointerModifiers, Widget, WidgetInput, WidgetKey,
         },
     };
 
@@ -302,6 +302,8 @@ mod tests {
                         bounds,
                         WidgetInput::KeyPress {
                             key,
+                            modifiers: KeyboardModifiers::default(),
+                            repeat: false,
                             timestamp: Some(timestamp),
                         },
                     )

@@ -431,11 +431,11 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `KeyboardModifiers`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
 | Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
-| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate`, `ScrollUpdateMetadata` |
+| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate`, `ScrollUpdateMetadata`, `KeyboardModifiers` |
 | Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
 | Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
 | Platform-service inputs/results | `FileDialogRequest`, `FileDialogFilter`, `ConfirmDialogRequest`, `ConfirmationLevel`, `ConfirmationButtons`, `ConfirmationResponse`, `PlatformResult`, `PlatformResultExt` |
@@ -3317,15 +3317,18 @@ inputs with no timestamp retain absent timestamp metadata. The added public
 `metadata` field means external destructuring of `KnobKeyboardGesture` must
 account for that field. This metadata is observational only and does not
 affect key mapping, focus, clamping, routing, acceptance, or repaint behavior.
-`Event::KeyPress` and `Event::Character`, plus the corresponding `WidgetInput`
-`KeyPress`, `Character`, and `TextEdit` forms, carry optional native input
-timestamps. The public `Event::key_press(...)`, `Event::character(...)`,
-`WidgetInput::key_press(...)`, `WidgetInput::character(...)`, and
-`WidgetInput::text_edit(...)` constructors omit the timestamp. Native keyboard
-adapters capture one timestamp after pressed/repeat acceptance and preserve it
-through physical and logical shortcut routing, focused-widget preemption,
-printable-character fan-out, and text-edit commands; this metadata does not
-change keyboard precedence or shortcut resolution.
+`Event::KeyPress` and the corresponding `WidgetInput::KeyPress` form carry the
+normalized `KeyboardModifiers` state, the native `repeat` flag, and an optional
+input timestamp. `KeyboardModifiers` keeps command, control, shift, and alt
+distinct. The public `Event::key_press(...)` and `WidgetInput::key_press(...)`
+constructors use no modifiers, `repeat: false`, and no timestamp. Native
+adapters preserve the physical key's modifier and repeat metadata through
+focused-widget dispatch, alongside the timestamp captured after pressed/repeat
+acceptance. Generated logical shortcut fallback has no physical modifier sample
+and therefore retains only its timestamp. This metadata is observational in this
+slice: it does not change current widget key mapping, shortcut precedence, or
+edit provenance; a future numeric consumer will select semantic Fine/Coarse
+steps from it.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

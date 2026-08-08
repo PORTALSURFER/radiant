@@ -1,4 +1,32 @@
-use crate::gui::input::KeyCode;
+use crate::gui::input::{KeyCode, KeyPress};
+
+/// Keyboard modifier state preserved at the backend-neutral widget boundary.
+///
+/// The command and control flags remain distinct so a numeric consumer can
+/// apply the platform's semantic Fine/Coarse policy without guessing which
+/// native modifier was pressed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct KeyboardModifiers {
+    /// Whether the platform command modifier is held.
+    pub command: bool,
+    /// Whether physical Control is held separately from the command modifier.
+    pub control: bool,
+    /// Whether Shift is held.
+    pub shift: bool,
+    /// Whether Alt/Option is held.
+    pub alt: bool,
+}
+
+impl From<KeyPress> for KeyboardModifiers {
+    fn from(press: KeyPress) -> Self {
+        Self {
+            command: press.command,
+            control: press.control,
+            shift: press.shift,
+            alt: press.alt,
+        }
+    }
+}
 
 /// Backend-neutral key intents consumed by reusable widget primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -50,6 +78,27 @@ impl WidgetKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keyboard_modifiers_preserve_distinct_command_and_control_state() {
+        let modifiers = KeyboardModifiers::from(KeyPress {
+            key: KeyCode::G,
+            command: true,
+            control: true,
+            shift: true,
+            alt: false,
+        });
+
+        assert_eq!(
+            modifiers,
+            KeyboardModifiers {
+                command: true,
+                control: true,
+                shift: true,
+                alt: false,
+            }
+        );
+    }
 
     #[test]
     fn widget_key_maps_supported_gui_key_codes() {

@@ -1,7 +1,9 @@
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::{Point, Rect, Vector2},
-    widgets::interaction::input::{PointerButton, PointerModifiers, TextEditCommand, WidgetKey},
+    widgets::interaction::input::{
+        KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WidgetKey,
+    },
 };
 
 /// Backend-neutral interaction routed into a reusable widget primitive.
@@ -91,6 +93,10 @@ pub enum WidgetInput {
     KeyPress {
         /// Normalized key identity.
         key: WidgetKey,
+        /// Keyboard modifiers captured with this key sample.
+        modifiers: KeyboardModifiers,
+        /// Whether this sample is a native key-repeat event.
+        repeat: bool,
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
     },
@@ -301,7 +307,22 @@ impl WidgetInput {
         key: WidgetKey,
         timestamp: Option<InputTimestamp>,
     ) -> Self {
-        Self::KeyPress { key, timestamp }
+        Self::key_press_with_metadata(key, KeyboardModifiers::default(), false, timestamp)
+    }
+
+    /// Build a key-press input with native modifier and repeat metadata.
+    pub(crate) fn key_press_with_metadata(
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::KeyPress {
+            key,
+            modifiers,
+            repeat,
+            timestamp,
+        }
     }
 
     /// Build a character input with an optional native input timestamp.
@@ -488,6 +509,8 @@ mod tests {
             WidgetInput::key_press(WidgetKey::Enter),
             WidgetInput::KeyPress {
                 key: WidgetKey::Enter,
+                modifiers: KeyboardModifiers::default(),
+                repeat: false,
                 timestamp: None,
             }
         );

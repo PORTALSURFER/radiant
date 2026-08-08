@@ -280,15 +280,21 @@ impl KnobWidget {
                 self.common.state.focused = focused;
                 None
             }
-            WidgetInput::KeyPress { key, timestamp } if self.common.state.focused => match key {
-                WidgetKey::ArrowLeft | WidgetKey::ArrowDown => self
-                    .keyboard_gesture(self.state.value - self.props.sensitivity * 16.0, timestamp),
-                WidgetKey::ArrowRight | WidgetKey::ArrowUp => self
-                    .keyboard_gesture(self.state.value + self.props.sensitivity * 16.0, timestamp),
-                WidgetKey::Home => self.keyboard_gesture(0.0, timestamp),
-                WidgetKey::End => self.keyboard_gesture(1.0, timestamp),
-                _ => None,
-            },
+            WidgetInput::KeyPress { key, timestamp, .. } if self.common.state.focused => {
+                match key {
+                    WidgetKey::ArrowLeft | WidgetKey::ArrowDown => self.keyboard_gesture(
+                        self.state.value - self.props.sensitivity * 16.0,
+                        timestamp,
+                    ),
+                    WidgetKey::ArrowRight | WidgetKey::ArrowUp => self.keyboard_gesture(
+                        self.state.value + self.props.sensitivity * 16.0,
+                        timestamp,
+                    ),
+                    WidgetKey::Home => self.keyboard_gesture(0.0, timestamp),
+                    WidgetKey::End => self.keyboard_gesture(1.0, timestamp),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }

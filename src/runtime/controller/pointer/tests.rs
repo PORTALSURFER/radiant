@@ -16,9 +16,10 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
-        InteractionSource, InteractiveRowWidget, PointerButton, PointerModifiers,
-        PointerShieldMessage, PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget,
-        Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        InteractionSource, InteractiveRowWidget, KeyboardModifiers, PointerButton,
+        PointerModifiers, PointerShieldMessage, PointerShieldWidget, SliderEditBatch,
+        TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
+        WidgetSizing,
     },
 };
 use std::{
@@ -2863,6 +2864,8 @@ fn captured_slider_ignores_keyboard_edits_until_pointer_release() {
         assert_eq!(
             runtime.dispatch_event(Event::KeyPress {
                 key,
+                modifiers: KeyboardModifiers::default(),
+                repeat: false,
                 timestamp: None,
             }),
             Some(31)

@@ -171,7 +171,7 @@ pub(super) fn handle_slider_edit_input(
                 cancel_active_pointer_edit(slider, active_edit)
             }
         }
-        WidgetInput::KeyPress { key, timestamp }
+        WidgetInput::KeyPress { key, timestamp, .. }
             if slider.common.state.focused && slider.is_editable() && active_edit.is_none() =>
         {
             let candidate =

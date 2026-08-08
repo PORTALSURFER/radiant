@@ -131,6 +131,8 @@ fn native_like_keyboard_activation_preserves_accepted_key_press_timestamp() {
         bounds(),
         &WidgetInput::KeyPress {
             key: WidgetKey::Enter,
+            modifiers: crate::widgets::KeyboardModifiers::default(),
+            repeat: false,
             timestamp: Some(timestamp),
         },
         ActivationInputPolicy::focusable(),

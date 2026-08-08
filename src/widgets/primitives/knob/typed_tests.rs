@@ -6,7 +6,7 @@ use crate::{
     },
     runtime::{SurfaceNode, UiSurface},
     widgets::{
-        EditEvent, EditPhase, InteractionProvenance, KnobEditBatch, KnobMessage,
+        EditEvent, EditPhase, InteractionProvenance, KeyboardModifiers, KnobEditBatch, KnobMessage,
         KnobPointerMetadata, PointerButton, PointerModifiers, ValueFormat, Widget, WidgetInput,
         WidgetKey, WidgetOutput, WidgetSizing,
     },
@@ -251,6 +251,8 @@ fn retained_knob_keyboard_wheel_and_reset_are_atomic_and_preserve_metadata() {
         bounds,
         WidgetInput::KeyPress {
             key: WidgetKey::ArrowRight,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
             timestamp: Some(keyboard_timestamp),
         },
     ) else {

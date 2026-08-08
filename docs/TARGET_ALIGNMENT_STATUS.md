@@ -9,7 +9,7 @@
 | --- | ---: |
 | Public API and module boundaries | 81% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 83% |
+| Input, provenance, and edit lifecycle | 85% |
 | Layout, composition, virtualization | 96% |
 | Text, focus, and selection | 65% |
 | Numeric controls | 56% |

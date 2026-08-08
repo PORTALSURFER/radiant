@@ -11,7 +11,9 @@ use crate::gui::{
 };
 use crate::runtime::WheelOrScrollRoute;
 use crate::runtime::{Event, RepaintScope, RuntimeBridge};
-use crate::widgets::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
+use crate::widgets::{
+    KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey,
+};
 use std::time::Instant;
 
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
@@ -344,7 +346,7 @@ where
         press: KeyPress,
         widget_key: Option<WidgetKey>,
     ) -> GenericRouteOutcome {
-        self.route_key_press_with_timestamp(press, widget_key, None)
+        self.route_key_press_with_timestamp(press, widget_key, None, false)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press_with_timestamp(
@@ -352,12 +354,14 @@ where
         press: KeyPress,
         widget_key: Option<WidgetKey>,
         timestamp: Option<InputTimestamp>,
+        repeat: bool,
     ) -> GenericRouteOutcome {
         let routed = self.runtime.dispatch_key_press_with_timestamp(
             press,
             widget_key,
             FocusSurface::None,
             timestamp,
+            repeat,
         );
         self.route_outcome(routed)
     }
@@ -381,9 +385,21 @@ where
         key: WidgetKey,
         timestamp: Option<InputTimestamp>,
     ) -> GenericRouteOutcome {
+        self.route_widget_key_with_metadata(key, KeyboardModifiers::default(), false, timestamp)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_widget_key_with_metadata(
+        &mut self,
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .dispatch_event(Event::key_press_with_timestamp(key, timestamp))
+            .dispatch_event(Event::key_press_with_metadata(
+                key, modifiers, repeat, timestamp,
+            ))
             .is_some();
         self.route_outcome(routed)
     }

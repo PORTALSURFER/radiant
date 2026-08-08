@@ -183,7 +183,7 @@ pub(super) fn handle_knob_edit_input(
                 )
             }
         }
-        WidgetInput::KeyPress { key, timestamp }
+        WidgetInput::KeyPress { key, timestamp, .. }
             if knob.common.state.focused
                 && knob.is_editable()
                 && active_edit.is_none()

@@ -67,9 +67,14 @@ where
                 self.observe_pointer_position(position);
                 self.dispatch_pointer_release_event(position, button, modifiers, timestamp)
             }
-            Event::KeyPress { key, timestamp } => {
-                self.dispatch_focused_input(WidgetInput::key_press_with_timestamp(key, timestamp))
-            }
+            Event::KeyPress {
+                key,
+                modifiers,
+                repeat,
+                timestamp,
+            } => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
+                key, modifiers, repeat, timestamp,
+            )),
             Event::Character {
                 character,
                 timestamp,

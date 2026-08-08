@@ -1,7 +1,9 @@
+use super::keypress_from_input;
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::InputTimestamp;
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
+use crate::widgets::KeyboardModifiers;
 use crate::widgets::TextEditCommand;
 use crate::widgets::WidgetKey;
 
@@ -102,6 +104,7 @@ where
         &mut self,
         key: KeyCode,
         timestamp: Option<InputTimestamp>,
+        repeat: bool,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if self.input.modifiers.control_key()
@@ -119,9 +122,13 @@ where
         {
             return false;
         }
-        let outcome = self
-            .core
-            .route_widget_key_with_timestamp(widget_key, timestamp);
+        let press = keypress_from_input(key, self.input.modifiers);
+        let outcome = self.core.route_widget_key_with_metadata(
+            widget_key,
+            KeyboardModifiers::from(press),
+            repeat,
+            timestamp,
+        );
         route_outcome.merge(outcome);
         outcome.routed
     }

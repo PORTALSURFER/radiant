@@ -208,6 +208,7 @@ impl InteractiveRowWidget {
             WidgetInput::KeyPress {
                 key: WidgetKey::Enter | WidgetKey::Space,
                 timestamp,
+                ..
             } if self.common.state.focused => Some(InteractiveRowMessage::Activate {
                 provenance: InteractionProvenance::Keyboard { timestamp },
             }),

@@ -7,8 +7,9 @@ use crate::{
     theme::ThemeTokens,
     widgets::contract::Widget,
     widgets::interaction::{
-        EditEvent, EditPhase, InteractionProvenance, PointerButton, PointerModifiers,
-        SliderEditBatch, SliderMessage, ValueFormat, WidgetInput, WidgetKey, WidgetOutput,
+        EditEvent, EditPhase, InteractionProvenance, KeyboardModifiers, PointerButton,
+        PointerModifiers, SliderEditBatch, SliderMessage, ValueFormat, WidgetInput, WidgetKey,
+        WidgetOutput,
     },
 };
 use std::fmt::Debug;
@@ -484,6 +485,8 @@ fn slider_keyboard_batches_are_atomic_timestamped_and_noop_keys_emit_nothing() {
         bounds,
         WidgetInput::KeyPress {
             key: WidgetKey::ArrowRight,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
             timestamp: Some(timestamp),
         },
     ) else {

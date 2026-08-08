@@ -64,7 +64,7 @@ pub(super) fn handle_toggle_input(
             }
             None
         }
-        WidgetInput::KeyPress { key, timestamp }
+        WidgetInput::KeyPress { key, timestamp, .. }
             if toggle.common.state.focused && activate_on_keyboard(key) =>
         {
             Some(toggle.toggle(InteractionProvenance::Keyboard { timestamp }))

@@ -1082,10 +1082,9 @@ borrows `&T`, writes canonical editable text into caller-owned `fmt::Write`
 storage, and returns the codec's associated error type. Codecs never consult
 ambient locale, and display-only `ValueFormat` is never used for parsing.
 
-`NumericAdjustment<T>`, `numeric_input`, and text/keyboard/pointer/wheel/
-accessibility lifecycle integration remain future work. Non-valid drafts and
-the surrounding numeric edit lifecycle therefore remain outside this codec
-contract.
+`numeric_input` and text/keyboard/pointer/wheel/accessibility lifecycle
+integration remain future work. Non-valid drafts and the surrounding numeric
+edit lifecycle therefore remain outside this codec contract.
 
 The target public numeric control is generic and will require both an
 application-supplied `NumericCodec<T>` and `NumericAdjustment<T>` at
@@ -1106,6 +1105,73 @@ while typed text never silently clamps. Decibel, tempo, arbitrary-unit, and
 product-specific locale codecs remain application-supplied. This generic
 numeric control is a target contract and is not yet shipped by the current
 source.
+
+### Numeric adjustment contract
+
+Radiant also ships the qualified generic `NumericAdjustment<T>` policy boundary
+under `radiant::widgets::interaction`; it is re-exported from
+`radiant::widgets` and intentionally excluded from the common prelude. The
+policy supplies the checked normalized mapping and inverse, explicit
+`NumericStep::Base`, `Fine`, and `Coarse` behavior, plus pure bounded scrubbing
+and wheel changes. `NumericStepDirection` describes discrete increase and
+decrease operations.
+
+```rust
+use radiant::widgets::interaction::{
+    NumericAdjustment, NumericStep, NumericStepDirection,
+};
+
+struct DomainValue;
+struct AdjustmentError;
+struct DomainAdjustment;
+
+impl NumericAdjustment<DomainValue> for DomainAdjustment {
+    type Error = AdjustmentError;
+
+    fn normalized_to_value(&self, _: f32) -> Result<DomainValue, Self::Error> {
+        # Ok(DomainValue)
+    }
+
+    fn value_to_normalized(&self, _: &DomainValue) -> Result<f32, Self::Error> {
+        # Ok(0.0)
+    }
+
+    fn step(
+        &self,
+        _: &DomainValue,
+        _: NumericStepDirection,
+        _: NumericStep,
+    ) -> Result<DomainValue, Self::Error> {
+        # Ok(DomainValue)
+    }
+
+    fn scrub(
+        &self,
+        _: &DomainValue,
+        _: f32,
+        _: NumericStep,
+    ) -> Result<DomainValue, Self::Error> {
+        # Ok(DomainValue)
+    }
+
+    fn wheel(
+        &self,
+        _: &DomainValue,
+        _: f32,
+        _: NumericStep,
+    ) -> Result<DomainValue, Self::Error> {
+        # Ok(DomainValue)
+    }
+}
+```
+
+Adjustment policies own their finite domain, total monotonic mapping, checked
+inverse, explicit steps, and bounded pure sensitivities. Finite adjustment
+inputs clamp only at declared boundaries; nonfinite inputs and policy failures
+are returned through the associated error. This is a policy contract only:
+`numeric_input`, text/keyboard/pointer event routing, the shared transaction
+lifecycle, accessibility, and platform behavior remain separate future slices.
+Radiant does not expose a concrete public `f32` adjustment in this boundary.
 
 ### Value mappings
 

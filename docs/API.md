@@ -3567,9 +3567,11 @@ This surface intentionally does not provide `Detailed(ProfileSelection)`, runtim
 mode switching, a debug inspector, or backend GPU timestamp queries. Renderer-
 owned resource lifetime/budgeting and live native-window acceptance remain
 backend capabilities. macOS live acceptance runs on the M5 Pro development
-host; Linux and Windows use GitHub Actions build, API, integration, and
-headless native-host smoke lanes and remain hardware-unverified for visual,
-latency, GPU, IME, and native-accessibility behavior.
+host; current Linux and Windows CI is limited to portable/build/compile/check
+evidence. The target GitHub Actions lanes must eventually add integration and
+headless Wayland/native-host smoke coverage where runners permit; until then,
+no Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 ### macOS live frame-profile acceptance
 
@@ -3617,9 +3619,10 @@ recorder text in both windows. Expected evidence is:
   the auxiliary primary handoff callbacks.
 
 This is live native macOS presentation evidence only. It does not claim
-hardware-backed Linux or Windows presentation, runtime profiling-mode
-switching, or GPU timestamp queries. Linux and Windows CI lanes provide the
-corresponding portable and headless evidence.
+Linux/Windows presentation, runtime profiling-mode switching, or GPU timestamp
+queries. Current Linux/Windows CI is limited to portable/build/compile/check
+evidence; the target headless Wayland/native-host smoke lanes are future
+evidence, not current acceptance.
 
 ### macOS live devtools acceptance
 
@@ -3655,9 +3658,11 @@ edit the text input, then use Tab/Shift-Tab to traverse focusable controls;
 focus state should change without the overlay taking focus or blocking
 interaction. Resize the primary window with a control selected and confirm the
 selected bounds and tree geometry update while the controls remain usable.
-This is live native macOS presentation evidence only; Linux and Windows use the
-prescribed GitHub Actions build and headless native-host smoke lanes, while
-hardware-backed runtime acceptance remains unavailable.
+This is live native macOS presentation evidence only. Current Linux/Windows CI
+is limited to portable/build/compile/check evidence; the prescribed headless
+Wayland/native-host smoke lanes are a future target where runners permit, and
+no Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 ### macOS live external-drag acceptance
 

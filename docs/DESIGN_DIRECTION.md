@@ -372,10 +372,12 @@ generation or reject a late result, so it cannot implicitly become an
 owner-scoped cancellation target. Such work remains application-owned unless
 a later contract supplies an explicit stable identity.
 
-This contract defines owner identity, admission, and retirement only. It does
-not select queue capacity, scheduler budgets, fairness, priority, wake order,
-or a second scheduler. Those policies remain later work after executable
-overlay/keyed-node cancellation is in place.
+This local seam defines owner identity, admission, and retirement only. It does
+not implement or override the separately normative scheduler contract in
+`Next scheduler policy contract`, including queue capacity, budgets, fairness,
+priority, wake order, and stage ordering. Overlay/keyed-node cancellation is an
+implementation-sequencing dependency for completing this seam, not permission
+to define scheduler policy later.
 
 ### Runtime lifecycle and non-reentrancy
 
@@ -799,10 +801,12 @@ projection, layout, and paint-plan boundaries.
 - Named macOS acceptance workload: primary editor at 60 Hz with continuous pointer/drag activity; two visible auxiliary windows at 30 Hz/caret activity; one maintenance-heavy auxiliary; inject stale redraws, input, close, and recovery. Assert no discrete input coalescing, at most one in-flight plus one newest pending visual packet, no fairness-eligible due key waits beyond two complete epochs, generation fences reject stale work, and deferral occurs only at stage boundaries. The workload may defer coalescible pointer/drag/transient work under promotion but never an already-admitted lifecycle or discrete-input stage.
 
 The named workload is the hardware-backed native acceptance path on the M5 Pro
-macOS host. Linux and Windows use the same scheduler invariants in their
-required GitHub Actions lanes, including headless Wayland and native-host
-smoke coverage where the runner permits, but those lanes do not establish
-hardware-backed presentation, latency, or GPU timing evidence.
+macOS host. Linux and Windows are future validation lanes: GitHub Actions must
+eventually exercise the same scheduler invariants with the requested headless
+Wayland/native-host smoke coverage where runners permit. Current repository CI
+provides only portable/build/compile/check evidence, so it establishes no
+Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance.
 
 ## Node Model
 
@@ -2441,9 +2445,12 @@ The target host matrix is modern macOS, Windows, and Linux/Wayland; direct
 X11 hosting is out of scope. Native adapters may differ in window, clipboard,
 IME, accessibility, and presentation plumbing, but they must satisfy the same
 backend-neutral capability and lifecycle contracts. The M5 Pro macOS host is
-the native hardware-acceptance path. Linux and Windows GitHub Actions lanes
-provide build, API, integration, and headless-host smoke evidence without
-claiming hardware-backed visual, latency, GPU, IME, or accessibility results.
+the native hardware-acceptance path. The target Linux and Windows GitHub
+Actions lanes must eventually provide build, API, integration, and headless-host
+smoke evidence, including the requested headless Wayland/native-host smoke
+where runners permit. Current repository CI provides only
+portable/build/compile/check evidence and establishes no Linux/Windows host,
+IME, accessibility, presentation, latency, GPU, or performance acceptance.
 
 ```rust
 fn update(&mut self, message: Message) -> Effects<Message> {

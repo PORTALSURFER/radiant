@@ -221,9 +221,12 @@ global admission and lifecycle authorities throughout this seam. Owner
 metadata, reconciliation, and registry retirement must respect the existing
 `Accepting -> Closing -> Stopped` boundary and the current recovery path; they
 must not add a per-owner event loop or bypass lifecycle vetoes. The seam defines
-ownership identity, admission, and retirement only. Queue capacity, scheduler
-budgets, fairness, priority, and wake ordering remain later policy work after
-executable overlay/keyed-node cancellation is implemented.
+ownership identity, admission, and retirement only. It does not implement or
+override the separately normative scheduler contract in
+`docs/DESIGN_DIRECTION.md` (`Next scheduler policy contract`), including queue
+capacity, budgets, fairness, priority, wake ordering, and stage ordering.
+Overlay/keyed-node cancellation is an implementation-sequencing dependency for
+completing this seam, not permission to define scheduler policy later.
 
 ## Rendering Boundary
 
@@ -362,9 +365,12 @@ URL opening flow through typed `PlatformRequest` commands and the opt-in
 `RuntimePlatformHost` capability. Application update handlers request those
 services through Radiant context helpers instead of calling platform APIs
 directly. The portable library boundary must compile for all three targets.
-Native macOS behavior is validated on the M5 Pro development host; Linux and
-Windows use the required GitHub Actions build, integration, and headless
-native-host smoke lanes and remain hardware-unverified.
+Native macOS behavior is validated on the M5 Pro development host. Current
+Linux/Windows repository CI is limited to portable/build/compile/check
+evidence. The target GitHub Actions lanes must eventually add integration and
+Linux headless Wayland plus Linux/Windows native-host smoke coverage where
+runners permit; no current Linux/Windows host, IME, accessibility,
+presentation, latency, GPU, or performance acceptance is established.
 
 Current target-specific seams are intentionally narrow:
 
@@ -507,13 +513,15 @@ normal quality lane before merging meaningful changes.
   `cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu`,
   `cargo check --lib --no-default-features --target x86_64-pc-windows-msvc`,
   and `cargo check --lib --no-default-features --target x86_64-apple-darwin`.
-  These checks do not prove native presentation, GPU, IME, or accessibility
-  behavior, but they catch target-specific dependency leakage and public/core
-  API drift across the in-scope platforms.
-- Native-host CI: the Linux lane uses a headless Wayland compositor and the
-  Windows lane runs native host smoke tests where the runner permits. These
-  lanes establish automated host evidence, not hardware-backed visual,
-  latency, GPU, IME, or accessibility acceptance.
+  These checks do not prove native host, presentation, latency, GPU, IME,
+  accessibility, or performance behavior, but they catch target-specific
+  dependency leakage and public/core API drift across the in-scope platforms.
+- Native-host CI (future target): the Linux lane should use a headless Wayland
+  compositor and the Windows lane should run native-host smoke tests where the
+  runner permits. These lanes are not present in current repository CI, which
+  provides only portable/build/compile/check evidence for Linux/Windows; until
+  they exist, no Linux/Windows host, IME, accessibility, presentation, latency,
+  GPU, or performance acceptance is established.
 - Performance smoke: `cargo bench --bench perf_harness -- --list`, then a
   focused JSONL baseline round trip such as
   `cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\target\perf-baseline.jsonl`

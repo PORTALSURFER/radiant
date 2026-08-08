@@ -77,10 +77,13 @@ The authoritative modern-system matrix is:
 - Windows: Windows 11 25H2 as the broad-deployment baseline.
 
 Exact versions, runner images, hardware, and validation results belong in
-review and CI evidence rather than in the public API contract. Linux and
-Windows CI evidence is valid for build, API, unit, integration, and headless
-native-host smoke coverage; it is explicitly hardware-unverified for visual,
-latency, GPU, IME, and native-accessibility behavior.
+review and CI evidence rather than in the public API contract. Current
+Linux/Windows repository CI evidence is limited to the portable, build,
+compile, and check jobs actually present; it does not include the target
+integration or headless Wayland/native-host smoke lanes. Those lanes must
+eventually be added through GitHub Actions where runners permit. Until then,
+Linux/Windows CI establishes no host, IME, accessibility, presentation,
+latency, GPU, or performance acceptance.
 
 Platform-specific code should be isolated behind clear boundaries. The public
 and core Radiant APIs should remain as platform-neutral as practical.
@@ -91,8 +94,8 @@ The goal is:
   platform-neutral.
 - Isolate Wayland, Windows, and macOS host integration behind explicit
   adapters.
-- Validate the native macOS path on the M5 Pro and validate Linux/Windows
-  paths through the prescribed GitHub Actions lanes.
+- Validate the native macOS path on the M5 Pro; eventually validate
+  Linux/Windows paths through the required GitHub Actions lanes.
 - Make platform support an extension of the architecture, not a rewrite.
 
 ## Windowing and Platform Integration
@@ -171,8 +174,9 @@ Accessibility is a target requirement. Radiant owns one backend-neutral
 semantic and automation model; macOS, Wayland, and Windows adapters expose that
 model through their native accessibility systems. The current implementation
 may still be incomplete, but it must not introduce a second platform-specific
-UI model. Native macOS acceptance is hardware-backed; Linux and Windows
-accessibility evidence is CI-limited until suitable native runners exist.
+UI model. Native macOS acceptance is hardware-backed. Current Linux and
+Windows CI does not establish accessibility acceptance; the required future
+native-host lanes are target smoke evidence, not hardware-backed acceptance.
 
 Radiant may support sample managers, DAWs, plugins, todo apps, editors, and other tools, but it should do so through general-purpose GUI primitives and extensible architecture.
 
@@ -1239,13 +1243,14 @@ Where practical, CI or local validation should cover:
 - Documentation builds where useful
 - Benchmarks or performance examples for manual/profiling runs
 
-The GitHub Actions platform lanes are part of the target evidence contract.
-The Linux lane runs the native-host smoke surface under a headless Wayland
-compositor; the Windows lane runs its native-host smoke surface where the
-runner permits. These lanes establish automated build, API, integration, and
-headless-host evidence, but do not claim hardware-backed visual, latency, GPU,
-IME, or native-accessibility acceptance. Those claims require the named native
-host; currently only macOS on the M5 Pro has that evidence path.
+The GitHub Actions platform lanes are part of the target evidence contract, not
+current repository evidence. Current Linux/Windows jobs provide only the
+portable, build, compile, and check evidence present in `.github/workflows/ci.yml`;
+they do not provide the target integration or native-host smoke evidence. The
+target lanes must eventually add Linux headless Wayland and Linux/Windows
+native-host smoke coverage where runners permit. Until those lanes exist, no
+Linux/Windows host, IME, accessibility, presentation, latency, GPU, or
+performance acceptance is established.
 
 Examples should not be treated as throwaway demos. They should compile and remain aligned with the intended public API.
 
@@ -1392,8 +1397,9 @@ Radiant is moving toward the target when it has:
 - Rendering architecture that can evolve later without requiring a public API rewrite
 - Native macOS, Windows, and Linux/Wayland support without unnecessary
   platform-specific assumptions in core code
-- GitHub Actions build, API, integration, and headless-host evidence for Linux
-  and Windows, plus native M5 Pro acceptance for macOS
+- GitHub Actions portable/build/compile/check evidence and, where runners
+  permit, the required Linux/Windows integration and headless Wayland/native-host
+  lanes, plus native M5 Pro acceptance for macOS
 - No direct VST SDK integration inside Radiant
 - A plugin-friendly GUI architecture that can be integrated by application/plugin frameworks
 - Clean internal module structure

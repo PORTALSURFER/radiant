@@ -698,6 +698,54 @@ mod tests {
     }
 
     #[test]
+    fn new_deadline_precedes_unserved_stale_redraw_after_admission() {
+        let now = Instant::now();
+        let primary = due_demand_with_cadence(
+            FrameScheduleKey::Primary,
+            TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + Duration::from_millis(16),
+            },
+        );
+        let stale_redraw = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Auxiliary("stale".into()),
+            TimedFrameCadence::Idle,
+            60,
+            RuntimeAnimationActivity::idle(),
+            false,
+            FrameScheduleRedrawEvidence {
+                pending_redraw_requested: true,
+                pending_redraw_retry_deadline: Some(now - Duration::from_millis(1)),
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        );
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(
+            now,
+            &[primary.clone(), stale_redraw.clone()],
+            FrameScheduleDeadlines::default(),
+        );
+        assert_eq!(first.selected, Some(FrameScheduleKey::Primary));
+        scheduler.record_admission(FrameScheduleKey::Primary);
+
+        let newly_due_primary = due_demand_with_cadence(
+            FrameScheduleKey::Primary,
+            TimedFrameCadence::DrainNow {
+                due_at: now - Duration::from_millis(1),
+                next_wake: now + Duration::from_millis(15),
+            },
+        );
+        let second = scheduler.observe(
+            now,
+            &[stale_redraw, newly_due_primary],
+            FrameScheduleDeadlines::default(),
+        );
+
+        assert_eq!(second.selected, Some(FrameScheduleKey::Primary));
+    }
+
+    #[test]
     fn earliest_deadline_uses_minimum_composition() {
         let now = Instant::now();
         let earliest = now + Duration::from_millis(2);

@@ -280,19 +280,29 @@ impl SchedulerFairnessLedger {
         demands: &[SchedulerDemand],
         last_admitted: Option<&FrameScheduleKey>,
     ) -> Option<FrameScheduleKey> {
-        let has_unserved = demands
+        let unserved_priority = demands
             .iter()
-            .any(|demand| demand.eligibility.is_fairness_eligible() && self.can_admit(demand));
+            .filter(|demand| {
+                demand.eligibility.is_fairness_eligible()
+                    && !self.is_overflow(demand)
+                    && self.can_admit(demand)
+            })
+            .map(|demand| self.effective_class(demand).rank())
+            .min();
         let mut best: Option<(usize, SchedulerWorkClass, Instant)> = None;
 
         for (index, demand) in demands.iter().enumerate() {
-            if !demand.eligibility.is_fairness_eligible()
-                || self.is_overflow(demand)
-                || (has_unserved && !self.can_admit(demand))
-            {
+            if !demand.eligibility.is_fairness_eligible() || self.is_overflow(demand) {
                 continue;
             }
             let class = self.effective_class(demand);
+            // Fairness gates repeats at equal or lower priority; a newly due
+            // higher-priority class still outranks an unserved visual key.
+            let fairness_excludes_candidate = unserved_priority
+                .is_some_and(|priority| !self.can_admit(demand) && class.rank() >= priority);
+            if fairness_excludes_candidate {
+                continue;
+            }
             let candidate = (index, class, demand.deadline);
             let is_better = best.is_none_or(|current| {
                 class.rank() < current.1.rank()

@@ -120,6 +120,7 @@ where
                 key,
                 logical_text,
                 timestamp,
+                repeat,
                 &mut route_outcome,
             ) {
                 self.route_keyboard_outcome(

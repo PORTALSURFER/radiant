@@ -431,11 +431,11 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `KeyboardModifiers`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `WidgetPaintContext`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
 | Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
-| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate`, `ScrollUpdateMetadata`, `KeyboardModifiers` |
+| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate`, `ScrollUpdateMetadata` |
 | Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
 | Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
 | Platform-service inputs/results | `FileDialogRequest`, `FileDialogFilter`, `ConfirmDialogRequest`, `ConfirmationLevel`, `ConfirmationButtons`, `ConfirmationResponse`, `PlatformResult`, `PlatformResultExt` |
@@ -443,6 +443,10 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint callback signature | `PaintPrimitive` |
+
+`KeyboardModifiers` is intentionally excluded from `radiant::prelude::*`; use
+`radiant::widgets::KeyboardModifiers` for the normalized keyboard modifier
+payload.
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and

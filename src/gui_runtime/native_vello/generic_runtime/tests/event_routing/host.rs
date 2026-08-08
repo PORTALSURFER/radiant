@@ -118,6 +118,7 @@ fn focused_text_input_typing_preempts_host_shortcuts() {
         KeyCode::E,
         Some("e"),
         None,
+        false,
         &mut outcome,
     ));
 
@@ -160,6 +161,7 @@ fn focused_text_input_routes_all_scalars_from_one_text_event() {
         KeyCode::E,
         Some("éx"),
         None,
+        false,
         &mut outcome,
     ));
 
@@ -182,6 +184,7 @@ fn focused_text_input_backspace_preempts_host_shortcuts() {
         KeyCode::E,
         Some("e"),
         None,
+        false,
         &mut type_outcome,
     ));
     assert_eq!(runner.core.runtime.bridge().state.name, "e");
@@ -191,6 +194,7 @@ fn focused_text_input_backspace_preempts_host_shortcuts() {
         KeyCode::Backspace,
         None,
         None,
+        false,
         &mut backspace_outcome,
     ));
 
@@ -213,6 +217,7 @@ fn focused_text_input_tab_routes_completion_before_host_shortcuts() {
         KeyCode::E,
         Some("e"),
         None,
+        false,
         &mut type_outcome,
     ));
     let mut tab_outcome = GenericRouteOutcome::default();
@@ -220,6 +225,7 @@ fn focused_text_input_tab_routes_completion_before_host_shortcuts() {
         KeyCode::Tab,
         None,
         None,
+        false,
         &mut tab_outcome,
     ));
 

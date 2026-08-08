@@ -138,6 +138,7 @@ where
         key: KeyCode,
         text: Option<&str>,
         timestamp: Option<InputTimestamp>,
+        repeat: bool,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if self.input.modifiers.control_key()
@@ -163,17 +164,19 @@ where
                 route_outcome.merge(outcome);
                 outcome.routed
             }
-            KeyCode::Enter => {
-                let outcome = self
-                    .core
-                    .route_widget_key_with_timestamp(WidgetKey::Enter, timestamp);
-                route_outcome.merge(outcome);
-                outcome.routed
-            }
-            KeyCode::Tab => {
-                let outcome = self
-                    .core
-                    .route_widget_key_with_timestamp(WidgetKey::Tab, timestamp);
+            KeyCode::Enter | KeyCode::Tab => {
+                let widget_key = match key {
+                    KeyCode::Enter => WidgetKey::Enter,
+                    KeyCode::Tab => WidgetKey::Tab,
+                    _ => unreachable!("focused text input key must be Enter or Tab"),
+                };
+                let press = keypress_from_input(key, self.input.modifiers);
+                let outcome = self.core.route_widget_key_with_metadata(
+                    widget_key,
+                    KeyboardModifiers::from(press),
+                    repeat,
+                    timestamp,
+                );
                 route_outcome.merge(outcome);
                 outcome.routed
             }

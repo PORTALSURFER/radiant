@@ -76,12 +76,12 @@ pub use interaction::{
     EditTransaction, GpuSurfaceMessage, InteractionProvenance, InteractionSource,
     InteractiveRowMessage, InteractiveRowMetadata, KnobAutomationEvent, KnobEditBatch,
     KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture,
-    KnobWheelMetadata, ListItemMessage, NumericEditSession, PointerButton, PointerModifiers,
-    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
-    SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError,
-    ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput,
-    WidgetKey, WidgetOutput, handle_activation_input,
+    KnobWheelMetadata, ListItemMessage, NumericCodec, NumericEditSession, NumericParseResult,
+    PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
+    SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
+    ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
+    WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

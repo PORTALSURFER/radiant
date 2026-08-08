@@ -14,14 +14,19 @@ use radiant::{
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
         InteractiveRowWidget, InteractiveRowWidgetParts, KnobEditBatch, KnobMessage,
         KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget, ListItemWidgetParts,
-        NumericEditSession, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
-        SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
-        SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
-        ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput,
-        WidgetSizing, WidgetSizingParts,
+        NumericCodec, NumericEditSession, NumericParseResult, ScrollbarAxis, ScrollbarWidget,
+        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
+        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
+        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
-use std::{cell::RefCell, fmt::Debug, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    fmt::{self, Debug},
+    rc::Rc,
+    sync::Arc,
+};
 
 #[path = "widgets_public_api/composition.rs"]
 mod composition;
@@ -84,7 +89,37 @@ fn value_format_is_available_through_qualified_and_widgets_root_exports() {
 #[derive(Clone, Debug, PartialEq)]
 struct GenericNumericValue(u32);
 
-struct NonCloneNumericValue;
+#[derive(Debug, PartialEq)]
+struct NonCloneNumericValue(i32);
+
+#[derive(Debug, PartialEq)]
+enum NumericCodecError {
+    WriteFailed,
+}
+
+struct NonCloneNumericCodec;
+
+impl NumericCodec<NonCloneNumericValue> for NonCloneNumericCodec {
+    type Error = NumericCodecError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<NonCloneNumericValue> {
+        match text {
+            "" => NumericParseResult::Incomplete,
+            "invalid" => NumericParseResult::Invalid,
+            "-1" => NumericParseResult::OutOfRange,
+            "7" => NumericParseResult::Valid(NonCloneNumericValue(7)),
+            _ => NumericParseResult::Invalid,
+        }
+    }
+
+    fn format_editable(
+        &self,
+        value: &NonCloneNumericValue,
+        output: &mut dyn fmt::Write,
+    ) -> Result<(), Self::Error> {
+        write!(output, "{}", value.0).map_err(|_| NumericCodecError::WriteFailed)
+    }
+}
 
 #[test]
 fn numeric_edit_session_can_be_named_with_a_non_clone_type() {
@@ -123,6 +158,51 @@ fn numeric_edit_session_accepts_a_generic_domain_value_without_numeric_policy() 
         "/src/prelude/widgets.rs"
     ));
     assert!(!prelude_widgets.contains("NumericEditSession"));
+}
+
+#[test]
+fn numeric_codec_is_qualified_generic_and_supports_non_clone_domain_values() {
+    let codec = NonCloneNumericCodec;
+    let _: &dyn radiant::widgets::interaction::NumericCodec<
+        NonCloneNumericValue,
+        Error = NumericCodecError,
+    > = &codec;
+    let _: radiant::widgets::interaction::NumericParseResult<NonCloneNumericValue> =
+        codec.parse("");
+
+    assert_eq!(codec.parse(""), NumericParseResult::Incomplete);
+    assert_eq!(codec.parse("invalid"), NumericParseResult::Invalid);
+    assert_eq!(codec.parse("-1"), NumericParseResult::OutOfRange);
+    assert_eq!(
+        codec.parse("7"),
+        NumericParseResult::Valid(NonCloneNumericValue(7))
+    );
+
+    let value = NonCloneNumericValue(42);
+    let mut output = String::new();
+    codec
+        .format_editable(&value, &mut output)
+        .expect("caller-owned writer should receive canonical text");
+    assert_eq!(output, "42");
+
+    struct FailingWriter;
+    impl fmt::Write for FailingWriter {
+        fn write_str(&mut self, _: &str) -> fmt::Result {
+            Err(fmt::Error)
+        }
+    }
+
+    assert_eq!(
+        codec.format_editable(&value, &mut FailingWriter),
+        Err(NumericCodecError::WriteFailed)
+    );
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_widgets.contains("NumericCodec"));
+    assert!(!prelude_widgets.contains("NumericParseResult"));
 }
 
 #[test]

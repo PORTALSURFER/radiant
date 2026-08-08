@@ -1041,16 +1041,59 @@ the session. The separate official application Slider and Knob builders now
 accept `ValueFormat` for display-only automation text; that attachment does not
 add parsing or change emitted interaction values/events.
 
-The target public numeric control is generic and requires an application-
-supplied `NumericCodec<T>` and `NumericAdjustment<T>` at construction:
-`numeric_input(value, codec, adjustment)`. The codec parses, validates, and
-canonically formats editable text; the adjustment supplies a finite monotonic
-mapping, explicit steps, pointer scrubbing, wheel changes, and arrow-key
-behavior. `Incomplete`, `Invalid`, `OutOfRange`, and `Valid(T)` are public
-codec vocabulary, but only valid typed `EditEvent<T>` values are delivered to
-the application. Non-valid drafts remain local and visible. The target uses
-one transaction lifecycle for text, keyboard, pointer, wheel, and accessibility
-actions, with semantic Fine/Coarse modifiers and no implicit locale or clamping.
+### Numeric codec contract
+
+Radiant ships the qualified generic `NumericCodec<T>` and
+`NumericParseResult<T>` contract under `radiant::widgets::interaction`; both
+are also re-exported from `radiant::widgets` and are intentionally excluded
+from the common prelude. Applications provide the concrete codec for their
+domain type; Radiant does not expose a concrete public `f32` codec.
+
+```rust
+use std::fmt;
+use radiant::widgets::interaction::{NumericCodec, NumericParseResult};
+
+struct DomainValue;
+struct CodecError;
+struct MyCodec;
+
+impl NumericCodec<DomainValue> for MyCodec {
+    type Error = CodecError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<DomainValue> {
+        # let _ = text;
+        # NumericParseResult::Incomplete
+    }
+
+    fn format_editable(
+        &self,
+        value: &DomainValue,
+        output: &mut dyn fmt::Write,
+    ) -> Result<(), Self::Error> {
+        # let _ = (value, output);
+        # Ok(())
+    }
+}
+```
+
+`parse(...)` owns the codec grammar and domain validation, returning
+`Incomplete`, `Invalid`, `OutOfRange`, or `Valid(T)`. `format_editable(...)`
+borrows `&T`, writes canonical editable text into caller-owned `fmt::Write`
+storage, and returns the codec's associated error type. Codecs never consult
+ambient locale, and display-only `ValueFormat` is never used for parsing.
+
+`NumericAdjustment<T>`, `numeric_input`, and text/keyboard/pointer/wheel/
+accessibility lifecycle integration remain future work. Non-valid drafts and
+the surrounding numeric edit lifecycle therefore remain outside this codec
+contract.
+
+The target public numeric control is generic and will require both an
+application-supplied `NumericCodec<T>` and `NumericAdjustment<T>` at
+construction: `numeric_input(value, codec, adjustment)`. The adjustment will
+provide a finite monotonic mapping, explicit steps, pointer scrubbing, wheel
+changes, and arrow-key behavior. The target will use one transaction lifecycle
+for text, keyboard, pointer, wheel, and accessibility actions, with semantic
+Fine/Coarse modifiers and no implicit locale or clamping.
 
 The first acceptance fixtures are exact and intentionally small: a `u32` count
 over `0..=100` with ASCII-digit text and base/fine/coarse steps `1/1/10`; a

@@ -103,8 +103,26 @@ impl FocusDecisionWidget {
         emit_focus_loss_output: bool,
         focusable: bool,
     ) -> Self {
+        Self::new_with_size(
+            id,
+            decision,
+            events,
+            Vector2::new(160.0, 28.0),
+            emit_focus_loss_output,
+            focusable,
+        )
+    }
+
+    fn new_with_size(
+        id: u64,
+        decision: Rc<Cell<FocusLossDecision>>,
+        events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
+        size: Vector2,
+        emit_focus_loss_output: bool,
+        focusable: bool,
+    ) -> Self {
         Self {
-            common: WidgetCommon::fixed(id, 160.0, 28.0)
+            common: WidgetCommon::fixed(id, size.x, size.y)
                 .with_focus(if focusable {
                     FocusBehavior::Keyboard
                 } else {
@@ -181,6 +199,7 @@ struct FocusDecisionBridge {
     events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
     remove_old: bool,
     target_focusable: bool,
+    scroll: bool,
 }
 
 impl FocusDecisionBridge {
@@ -191,6 +210,7 @@ impl FocusDecisionBridge {
             events: Rc::new(RefCell::new(Vec::new())),
             remove_old: false,
             target_focusable: true,
+            scroll: false,
         }
     }
 
@@ -199,7 +219,29 @@ impl FocusDecisionBridge {
         self
     }
 
+    fn with_scroll(mut self) -> Self {
+        self.scroll = true;
+        self
+    }
+
     fn row(&self) -> SurfaceNode<FocusDecisionEvent> {
+        if self.scroll {
+            return SurfaceNode::scroll_area(
+                30,
+                SurfaceNode::widget(
+                    FocusDecisionWidget::new_with_size(
+                        10,
+                        Rc::clone(&self.old_decision),
+                        Rc::clone(&self.events),
+                        Vector2::new(300.0, 200.0),
+                        true,
+                        true,
+                    ),
+                    WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                ),
+            );
+        }
+
         let mut children = Vec::with_capacity(if self.remove_old { 1 } else { 2 });
         if !self.remove_old {
             children.push(fixed_child(
@@ -2472,6 +2514,96 @@ fn pointer_focus_veto_unwinds_press_and_double_click_capture_without_target_inpu
     );
     assert_eq!(runtime.focused_widget(), Some(10));
     assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+}
+
+#[test]
+fn scrollbar_press_focus_veto_prevents_capture_and_scroll() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionBridge::new().with_scroll(),
+        Vector2::new(100.0, 50.0),
+    );
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+    let initial_offset = runtime.layout_state.scroll_offset(30);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(!runtime.scrollbar_drag_active());
+    assert_eq!(runtime.hovered_scroll_affordance(), None);
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(scrollbar_point.x, 49.5)));
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(!runtime.scrollbar_drag_active());
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+}
+
+#[test]
+fn scrollbar_double_click_focus_veto_prevents_capture_and_scroll() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionBridge::new().with_scroll(),
+        Vector2::new(100.0, 50.0),
+    );
+
+    assert!(runtime.focus_widget(10));
+    runtime.take_repaint_requested();
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+    let initial_offset = runtime.layout_state.scroll_offset(30);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(scrollbar_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(!runtime.scrollbar_drag_active());
+    assert_eq!(runtime.hovered_scroll_affordance(), None);
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+
+    let _ = runtime.dispatch_event(Event::pointer_move(Point::new(scrollbar_point.x, 49.5)));
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(!runtime.scrollbar_drag_active());
     assert_eq!(
         runtime.bridge().events.borrow().as_slice(),
         [FocusDecisionEvent::Prepare(10)]

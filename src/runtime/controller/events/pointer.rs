@@ -1,5 +1,5 @@
-use super::super::SurfaceRuntime;
 use super::super::pointer::PointInputDispatch;
+use super::super::{SurfaceRuntime, focus::FocusTransition};
 use crate::{
     gui::input::InputTimestamp,
     gui::types::Point,
@@ -19,6 +19,13 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.scroll_affordance_at(position).is_some()
+            && self.clear_focus_with_transition() == FocusTransition::Vetoed
+        {
+            self.cancel_layout_pointer_capture();
+            self.unwind_provisional_pointer_capture();
+            return None;
+        }
         if self.start_scrollbar_drag_at(position) {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
@@ -89,6 +96,13 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.scroll_affordance_at(position).is_some()
+            && self.clear_focus_with_transition() == FocusTransition::Vetoed
+        {
+            self.cancel_layout_pointer_capture();
+            self.unwind_provisional_pointer_capture();
+            return None;
+        }
         if self.start_scrollbar_drag_at(position) {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;

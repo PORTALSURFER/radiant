@@ -666,6 +666,35 @@ mod tests {
     }
 
     #[test]
+    fn canonical_tie_breaking_is_permutation_independent_and_wraps() {
+        let now = Instant::now();
+        let primary = SchedulerDemand::new(
+            FrameScheduleKey::Primary,
+            SchedulerWorkClass::Paint,
+            now,
+            eligible(),
+        );
+        let alpha = demand_at("alpha", SchedulerWorkClass::Paint, now);
+        let beta = demand_at("beta", SchedulerWorkClass::Paint, now);
+        let ledger = SchedulerFairnessLedger::default();
+
+        let forward = ledger.select_candidate(
+            &[primary.clone(), alpha.clone(), beta.clone()],
+            Some(primary.key()),
+        );
+        let permuted = ledger.select_candidate(
+            &[beta.clone(), primary.clone(), alpha.clone()],
+            Some(primary.key()),
+        );
+        assert_eq!(forward, Some(alpha.key().clone()));
+        assert_eq!(permuted, forward);
+
+        let wrapped =
+            ledger.select_candidate(&[alpha, beta.clone(), primary.clone()], Some(beta.key()));
+        assert_eq!(wrapped, Some(primary.key().clone()));
+    }
+
+    #[test]
     fn ledger_overflow_is_explicitly_deferred_and_retires_cleanly() {
         let mut ledger = SchedulerFairnessLedger::default();
         let tracked: Vec<_> = (0..MAX_SCHEDULER_KEYS)

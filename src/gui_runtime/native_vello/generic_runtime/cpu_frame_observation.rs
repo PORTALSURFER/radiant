@@ -1099,7 +1099,7 @@ mod tests {
                 FrameScheduleRedrawEvidence::default(),
             ),
         ];
-        let scheduler = NativeFrameScheduler::default();
+        let mut scheduler = NativeFrameScheduler::default();
         let before = scheduler.observe(now, &demands, FrameScheduleDeadlines::default());
         let mut ledger = CpuFrameObservationLedger::default();
         let admission = ledger.begin(

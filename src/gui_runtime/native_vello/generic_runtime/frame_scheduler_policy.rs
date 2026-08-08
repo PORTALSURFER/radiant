@@ -1,8 +1,8 @@
 //! Private executable contract for the next application-level frame policy.
 //!
-//! This module is deliberately not wired into the native selector yet. It
-//! makes the normative stage, cadence, fairness, budget, and coalescing rules
-//! testable before a runtime consumer changes admission behavior.
+//! The native selector consumes the private demand, fairness, and stable-key
+//! admission pieces. Cadence caps, diagnostic budgets, and coalescing rules
+//! remain private policy until their corresponding runtime consumers exist.
 
 #![allow(dead_code)]
 
@@ -211,6 +211,18 @@ impl SchedulerFairnessLedger {
             .find(|state| state.as_ref().is_some_and(|state| &state.key == key))
         {
             *state = None;
+        }
+    }
+
+    /// Retire stable keys that are absent from the current parent snapshot.
+    pub(super) fn remove_absent(&mut self, demands: &[SchedulerDemand]) {
+        for state in &mut self.states {
+            if state
+                .as_ref()
+                .is_some_and(|state| !demands.iter().any(|demand| demand.key() == &state.key))
+            {
+                *state = None;
+            }
         }
     }
 

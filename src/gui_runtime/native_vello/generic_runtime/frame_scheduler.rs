@@ -5,6 +5,9 @@
 //! apply.  The native redraw and route paths remain the only owners of redraw
 //! admission and presentation.
 
+use super::frame_scheduler_policy::{
+    SchedulerDemand, SchedulerFairnessEligibility, SchedulerFairnessLedger, SchedulerWorkClass,
+};
 use super::{
     CpuFramePendingRedrawAge, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
     GenericRouteOutcome, SceneRebuildMode, TimedFrameCadence, animation_frame_interval,
@@ -336,11 +339,12 @@ pub(super) struct FrameSchedulerPlan {
 #[derive(Default)]
 pub(super) struct NativeFrameScheduler {
     last_admitted: Option<FrameScheduleKey>,
+    fairness: SchedulerFairnessLedger,
 }
 
 impl NativeFrameScheduler {
     pub(super) fn observe(
-        &self,
+        &mut self,
         now: Instant,
         demands: &[FrameScheduleDemand],
         external_deadlines: FrameScheduleDeadlines,
@@ -349,35 +353,67 @@ impl NativeFrameScheduler {
         for demand in demands {
             deadlines = deadlines.merge(demand.deadlines(now));
         }
+        let policy_demands = demands
+            .iter()
+            .map(|demand| scheduler_policy_demand(demand, now))
+            .collect::<Vec<_>>();
+        self.fairness.remove_absent(&policy_demands);
+        let has_eligible_demand = policy_demands
+            .iter()
+            .any(|demand| demand.eligibility().is_fairness_eligible());
+        if has_eligible_demand
+            && policy_demands
+                .iter()
+                .filter(|demand| demand.eligibility().is_fairness_eligible())
+                .all(|demand| !self.fairness.can_admit(demand))
+        {
+            self.fairness.complete_epoch(&policy_demands);
+        }
         FrameSchedulerPlan {
-            selected: self.select_due(now, demands),
+            selected: self
+                .fairness
+                .select_candidate(&policy_demands, self.last_admitted.as_ref()),
             deadlines,
         }
     }
 
     pub(super) fn record_admission(&mut self, key: FrameScheduleKey) {
+        let _ = self.fairness.record_admission(&key);
         self.last_admitted = Some(key);
     }
+}
 
-    fn select_due(
-        &self,
-        now: Instant,
-        demands: &[FrameScheduleDemand],
-    ) -> Option<FrameScheduleKey> {
-        if demands.is_empty() {
-            return None;
+fn scheduler_policy_demand(demand: &FrameScheduleDemand, now: Instant) -> SchedulerDemand {
+    let work = demand.work(now);
+    let class = if work.drain_timed_frame {
+        SchedulerWorkClass::Deadline
+    } else if work.advance_timed_repaint || work.reissue_pending_redraw {
+        SchedulerWorkClass::Animation
+    } else {
+        SchedulerWorkClass::Transient
+    };
+    let deadline = if work.drain_timed_frame {
+        match demand.cadence() {
+            TimedFrameCadence::DrainNow { due_at, .. } => due_at,
+            TimedFrameCadence::Idle | TimedFrameCadence::WaitUntil(_) => now,
         }
-        let start = self
-            .last_admitted
-            .as_ref()
-            .and_then(|last| demands.iter().position(|demand| demand.key() == last))
-            .map_or(0, |index| (index + 1) % demands.len());
-        (0..demands.len())
-            .map(|offset| (start + offset) % demands.len())
-            .map(|index| &demands[index])
-            .find(|demand| demand.has_due_work(now))
-            .map(|demand| demand.key.clone())
-    }
+    } else if work.advance_timed_repaint {
+        demand.timed_repaint_deadline.unwrap_or(now)
+    } else if work.reissue_pending_redraw {
+        demand.pending_redraw_retry_deadline.unwrap_or(now)
+    } else {
+        now
+    };
+    SchedulerDemand::new(
+        demand.key.clone(),
+        class,
+        deadline,
+        SchedulerFairnessEligibility {
+            due_work: !work.is_empty(),
+            passes_lifecycle_native_generation_fences: true,
+            ..SchedulerFairnessEligibility::default()
+        },
+    )
 }
 
 /// Route/redraw work applied to one selected native runner.
@@ -442,12 +478,22 @@ mod tests {
     use crate::runtime::RuntimeAnimationActivity;
 
     fn due_demand(key: FrameScheduleKey, now: Instant) -> FrameScheduleDemand {
-        FrameScheduleDemand::from_cadence(
+        due_demand_with_cadence(
             key,
             TimedFrameCadence::DrainNow {
                 due_at: now,
                 next_wake: now + Duration::from_millis(16),
             },
+        )
+    }
+
+    fn due_demand_with_cadence(
+        key: FrameScheduleKey,
+        cadence: TimedFrameCadence,
+    ) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            cadence,
             60,
             RuntimeAnimationActivity::paint_only(),
             false,
@@ -603,7 +649,7 @@ mod tests {
         let now = Instant::now();
         let primary = due_demand(FrameScheduleKey::Primary, now);
         let auxiliary = due_demand(FrameScheduleKey::Auxiliary("settings".into()), now);
-        let demands = [primary.clone(), auxiliary.clone()];
+        let demands = [auxiliary.clone(), primary.clone()];
         let mut scheduler = NativeFrameScheduler::default();
 
         let first = scheduler.observe(now, &demands, FrameScheduleDeadlines::default());
@@ -618,6 +664,37 @@ mod tests {
             Some(FrameScheduleKey::Auxiliary("settings".into()))
         );
         assert_eq!(third.selected, Some(FrameScheduleKey::Primary));
+    }
+
+    #[test]
+    fn due_selection_uses_original_due_boundary_not_next_wake_order() {
+        let now = Instant::now();
+        let earlier = due_demand_with_cadence(
+            FrameScheduleKey::Auxiliary("earlier".into()),
+            TimedFrameCadence::DrainNow {
+                due_at: now - Duration::from_millis(8),
+                next_wake: now + Duration::from_millis(16),
+            },
+        );
+        let later = due_demand_with_cadence(
+            FrameScheduleKey::Auxiliary("later".into()),
+            TimedFrameCadence::DrainNow {
+                due_at: now - Duration::from_millis(2),
+                next_wake: now + Duration::from_millis(1),
+            },
+        );
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let plan = scheduler.observe(
+            now,
+            &[later, earlier.clone()],
+            FrameScheduleDeadlines::default(),
+        );
+
+        assert_eq!(
+            plan.selected,
+            Some(FrameScheduleKey::Auxiliary("earlier".into()))
+        );
     }
 
     #[test]
@@ -739,8 +816,8 @@ mod tests {
         );
         assert_eq!(
             after_removal.selected,
-            Some(FrameScheduleKey::Primary),
-            "removing the remembered key must not retarget its old vector slot"
+            Some(FrameScheduleKey::Auxiliary("second".into())),
+            "removing a remembered key must preserve the stable-key fairness cursor"
         );
         scheduler.record_admission(after_removal.selected.unwrap());
 

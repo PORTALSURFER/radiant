@@ -2443,6 +2443,11 @@ This is a target boundary, not a new public name or API table entry. It does not
 change `Command`, `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`,
 `ViewNode`, `SurfaceNode`, or effect payload compatibility, and it makes no
 claim about scheduler budgets, fairness, queue capacity, or wake ordering.
+Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
+priority, wake ordering, and stage ordering to the separately normative [`Next
+scheduler policy contract`](DESIGN_DIRECTION.md#next-scheduler-policy-contract);
+overlay/keyed-node cancellation is implementation sequencing, not authority to
+define scheduler policy.
 
 ## UI-First Runtime Threading
 

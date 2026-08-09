@@ -1420,9 +1420,18 @@ semantic arrow stepping remains unimplemented. The following is a target-only,
 backend-neutral keyboard-adjustment contract and does not add numeric stepping,
 capture, or edit-lifecycle behavior.
 
-Keyboard modifier selection remains a target-only policy. Radiant ships the
-qualified public output envelope as a fixed-capacity, behaviorally unconsumed
-foundation. Its exact interaction-part shape is:
+Radiant ships the pure, qualified `KeyboardModifier` and
+`NumericStepModifiers` selector foundation. Both are also re-exported from
+`radiant::widgets` and are intentionally absent from the common prelude.
+`NumericStepModifiers::new(fine, coarse)` stores explicit semantic selectors;
+`fine()` and `coarse()` expose them, and `select_step(modifiers)` recomputes
+`Base`, `Fine`, or `Coarse` from one lossless `KeyboardModifiers` sample with
+Fine precedence. The associated `MACOS_DEFAULT` and `WINDOWS_LINUX_DEFAULT`
+constants provide explicit Shift/Command and Shift/Control policies; Radiant
+does not resolve either constant from the host platform.
+
+The qualified public output envelope below remains a fixed-capacity,
+behaviorally unconsumed foundation. Its exact interaction-part shape is:
 
 ```rust
 use std::rc::Rc;
@@ -1454,14 +1463,14 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
     },
 }
 
-enum KeyboardModifier {
+pub enum KeyboardModifier {
     Shift,
     Command,
     Control,
     Alt,
 }
 
-struct NumericStepModifiers {
+pub struct NumericStepModifiers {
     fine: KeyboardModifier,
     coarse: KeyboardModifier,
 }
@@ -1481,14 +1490,14 @@ produces or consumes it, and semantic arrow-key adjustment remains
 unimplemented.
 
 `KeyboardModifier` is a semantic normalized selector, not a native key name.
-Defaults are Fine=`Shift` everywhere and Coarse=`Command` on macOS or
-`Control` on Windows and Linux; `Alt` is available only for an explicit target
-override. The target attachment point is
-`NumericInputBuilder::step_modifiers(NumericStepModifiers { fine, coarse })`.
-Fine wins when both configured selectors are held, and the selected step is
-recomputed from the modifiers on every press or accepted repeat. The exact target storage for
-the shipped `NumericInputEditBatch<T>` is fixed at two events and remains
-independent from this target-only modifier policy.
+The public target attachment is
+`NumericInputBuilder::step_modifiers(NumericStepModifiers::new(fine, coarse))`.
+It stores the policy on the numeric widget; an unconfigured builder retains
+`None`, and the current text-first consumer does not read the option. Fine wins
+when both configured selectors are held, and the pure selector can be
+recomputed for every sample. The exact target storage for the shipped
+`NumericInputEditBatch<T>` is fixed at two events and remains independent from
+this unconsumed modifier policy.
 
 Only a focused, enabled, non-read-only input without an active text mutation
 may step. `ArrowUp` selects `Increase` and `ArrowDown` selects `Decrease`;

@@ -2167,28 +2167,34 @@ value; none of those boundaries commits it.
 Step selection is recomputed from each sample's normalized modifiers. The
 defaults are `Fine = Shift` everywhere and `Coarse = Command` on macOS or
 `Control` on Windows and Linux. Fine takes precedence when both configured
-matches are present. The backend-neutral target override has this shape.
+matches are present. Radiant now ships this pure selector/configuration
+foundation, while the semantic keyboard consumer remains unimplemented.
 `KeyboardModifier` is a semantic normalized selector, not a native key name:
 
 ```rust
-enum KeyboardModifier {
+pub enum KeyboardModifier {
     Shift,
     Command,
     Control,
     Alt,
 }
 
-struct NumericStepModifiers {
+pub struct NumericStepModifiers {
     fine: KeyboardModifier,
     coarse: KeyboardModifier,
 }
 ```
 
-A target `NumericInputBuilder::step_modifiers(...)` attachment supplies this
-override. Fine defaults to Shift everywhere; Coarse defaults to Command on
-macOS and Control on Windows and Linux. Fine wins when both configured
-selectors are held, and the selector is reevaluated for every sample. These
-are target illustrative names, not shipped public Rust types.
+`NumericStepModifiers::new(fine, coarse)`, `fine()`, `coarse()`, and
+`select_step(KeyboardModifiers)` are public through the qualified interaction
+module and `radiant::widgets`, not the common prelude. Its associated
+`MACOS_DEFAULT` and `WINDOWS_LINUX_DEFAULT` constants are explicit policies;
+widgets and application builders do not resolve a platform. A
+`NumericInputBuilder::step_modifiers(...)` attachment stores `Some(policy)` on
+the numeric widget, while an unconfigured builder retains `None` for the future
+consumer. No current numeric widget or runtime reads this option, invokes
+`NumericAdjustment::step`, captures a key, creates a transaction, or produces
+numeric output; semantic keyboard stepping remains unimplemented.
 
 Radiant ships the qualified public output-envelope foundation for this target
 vocabulary. It carries typed context for every failed attempt, but no current

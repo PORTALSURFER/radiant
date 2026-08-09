@@ -59,6 +59,14 @@ unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
 The five other shared-gate consumers—IME/composition, keyboard adjustment,
 pointer, wheel, and accessibility—remain target-only and unimplemented.
+The public `KeyboardModifier`/`NumericStepModifiers` selector and
+`NumericInputBuilder::step_modifiers(...)` attachment are now shipped as a
+pure configuration foundation. The selector evaluates lossless
+`KeyboardModifiers` samples without allocation or retained state; the widget
+stores `None` when unconfigured or exactly `Some(policy)` when attached, but no
+current producer or consumer reads it. Semantic stepping, adjustment calls,
+capture, transactions, and numeric output remain unimplemented. This storage
+foundation has zero impact on the estimates.
 The native keyboard boundary now also ships a lossless widget-modifier
 projection alongside the unchanged host-shortcut `KeyPress` projection:
 Linux/Windows Control remains host `command` for shortcut resolution but reaches

@@ -12,6 +12,7 @@ mod numeric_edit;
 mod numeric_input;
 mod numeric_ownership;
 mod numeric_policy;
+mod numeric_step_modifiers;
 mod output;
 mod provenance;
 mod text_input_revision;
@@ -44,6 +45,7 @@ pub use numeric_input::{
 };
 pub(crate) use numeric_ownership::{NumericInteractionGate, NumericInteractionOwner};
 pub use numeric_policy::{NumericCodec, NumericParseResult};
+pub use numeric_step_modifiers::{KeyboardModifier, NumericStepModifiers};
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
 pub use text_input_revision::TextInputRevision;

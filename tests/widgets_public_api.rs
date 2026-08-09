@@ -13,16 +13,16 @@ use radiant::{
         CanvasWidgetParts, CardWidget, CardWidgetParts, DragHandleWidget, DragHandleWidgetParts,
         EditEvent, EditPhase, EditTransaction, IconButtonWidget, IconButtonWidgetParts,
         ImageWidget, ImageWidgetParts, InteractionProvenance, InteractionSource,
-        InteractiveRowWidget, InteractiveRowWidgetParts, KeyboardModifiers, KnobEditBatch,
-        KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
+        InteractiveRowWidget, InteractiveRowWidgetParts, KeyboardModifier, KeyboardModifiers,
+        KnobEditBatch, KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
         ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
         NumericInputInteractionBatch, NumericParseResult, NumericStep, NumericStepAttempt,
-        NumericStepDirection, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
-        SelectableWidget, SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState,
-        SliderWidget, SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget,
-        TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSizing, WidgetSizingParts,
+        NumericStepDirection, NumericStepModifiers, ScrollbarAxis, ScrollbarWidget,
+        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
+        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
+        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -258,7 +258,12 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
         >,
         NumericInputConstructionError<NumericCodecError, NumericAdjustmentTestError>,
     > = radiant::application::numeric_input(GenericNumericValue(7), codec, adjustment);
-    let builder = result.expect("generic public numeric input should construct");
+    let builder = result
+        .expect("generic public numeric input should construct")
+        .step_modifiers(NumericStepModifiers::new(
+            KeyboardModifier::Alt,
+            KeyboardModifier::Control,
+        ));
     let _: fn(
         NumericInputEditBatch<GenericNumericValue>,
     ) -> NumericInputEditBatch<GenericNumericValue> = |batch| batch;
@@ -762,6 +767,70 @@ fn keyboard_modifier_payload_is_qualified_and_not_in_prelude() {
         "/src/prelude/widgets.rs"
     ));
     assert!(!prelude_widgets.contains("KeyboardModifiers"));
+}
+
+#[test]
+fn numeric_step_modifiers_are_public_qualified_and_not_in_prelude() {
+    fn assert_copy<T: Copy>() {}
+    fn assert_debug<T: std::fmt::Debug>() {}
+    fn assert_eq_hash<T: Eq + std::hash::Hash>() {}
+
+    assert_copy::<KeyboardModifier>();
+    assert_copy::<NumericStepModifiers>();
+    assert_debug::<KeyboardModifier>();
+    assert_debug::<NumericStepModifiers>();
+    assert_eq_hash::<KeyboardModifier>();
+    assert_eq_hash::<NumericStepModifiers>();
+
+    let qualified_modifier: radiant::widgets::interaction::KeyboardModifier =
+        radiant::widgets::interaction::KeyboardModifier::Alt;
+    let root_modifier: radiant::widgets::KeyboardModifier = qualified_modifier;
+    let qualified_policy = radiant::widgets::interaction::NumericStepModifiers::new(
+        radiant::widgets::interaction::KeyboardModifier::Shift,
+        radiant::widgets::interaction::KeyboardModifier::Command,
+    );
+    let root_policy: radiant::widgets::NumericStepModifiers = qualified_policy;
+
+    assert_eq!(root_modifier, KeyboardModifier::Alt);
+    assert_eq!(root_policy.fine(), KeyboardModifier::Shift);
+    assert_eq!(root_policy.coarse(), KeyboardModifier::Command);
+    assert_eq!(
+        radiant::widgets::NumericStepModifiers::MACOS_DEFAULT,
+        root_policy
+    );
+    assert_eq!(
+        radiant::widgets::NumericStepModifiers::WINDOWS_LINUX_DEFAULT.coarse(),
+        KeyboardModifier::Control
+    );
+    assert_eq!(
+        root_policy.select_step(KeyboardModifiers {
+            command: true,
+            control: false,
+            shift: true,
+            alt: false,
+        }),
+        NumericStep::Fine
+    );
+    assert_eq!(
+        root_policy.select_step(KeyboardModifiers {
+            command: true,
+            control: false,
+            shift: false,
+            alt: false,
+        }),
+        NumericStep::Coarse
+    );
+    assert_eq!(
+        root_policy.select_step(KeyboardModifiers::default()),
+        NumericStep::Base
+    );
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_widgets.contains("KeyboardModifier"));
+    assert!(!prelude_widgets.contains("NumericStepModifiers"));
 }
 
 #[test]

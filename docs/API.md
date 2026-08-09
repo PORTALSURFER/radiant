@@ -1749,9 +1749,30 @@ pointer, has compatible stable identity and current external authority, is
 enabled and non-read-only, and has no active text edit, keyboard adjustment,
 pointer scrub, IME/composition, accessibility edit, or other edit owner. An
 ineligible sample stays unhandled for the existing widget and scroll-container
-fallback. An eligible `Started` sample may retain pending ownership without
-emitting `Begin`; if its sequence never becomes effective, `Ended` clears the
+fallback. A phase-less or `Discrete` sample rejected before policy invocation
+also stays unhandled. An eligible `Started` sample may retain pending ownership
+without emitting `Begin`; if its sequence produces no accepted changed
+candidate and no policy or formatting failure is reported, `Ended` clears the
 pending ownership without an edit event.
+
+#### Target numeric wheel ownership matrix
+
+The following routing matrix is normative. A usable sample has passed admission
+and validation and is eligible to invoke `NumericAdjustment::wheel`; a changed
+candidate differs from the current value.
+
+| Condition | Numeric outcome | Routing and ownership |
+| --- | --- | --- |
+| Ineligible target or conflicting edit owner | No numeric attempt and no typed failure | Unhandled; existing widget/scroll-container fallback remains available. |
+| Sample rejected as unusable before `NumericAdjustment::wheel` invocation (zero, horizontal-only, nonfinite, malformed, or unsupported) | No numeric candidate | Unhandled; existing widget/scroll-container fallback remains available. |
+| Adjustment succeeds with a candidate equal to the current value | Formatter is not invoked; no candidate or edit | A phase-less/`Discrete` sample remains unhandled for scroll fallback. An admitted explicit sequence emits no `Update` and retains ownership. |
+| Eligible, usable sample whose adjustment returns an error | Numeric-owned handled `InitialAdjustmentFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Eligible, usable sample whose changed candidate formatting returns an error | Numeric-owned handled `InitialFormatFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Successful changed, formatted candidate | Bounded edit lifecycle | A phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit`; the first effective candidate in an admitted explicit sequence emits `Begin`, `Update`, and `Ended` emits `Commit`. |
+
+Policy and formatting failures are handled numeric outcomes under the rows
+above. They are not classified as ineffective, unchanged, no-candidate,
+unhandled, or fallback.
 
 An explicit `Started` -> `Changed`* -> `Ended` sequence is one transaction.
 `Started` captures the exact starting typed value, canonical draft, caret,
@@ -1760,16 +1781,25 @@ candidate that adjustment and codec formatting accept and that changes the
 value emits `Begin(start)` followed by `Update(candidate)`. Each later
 effective sample emits at most one `Update`; an unchanged sample emits no
 `Update` but retains ownership. `Ended` emits `Commit(current)` when the edit
-began. A pending sequence that has no effective update emits no `Begin`,
-`Commit`, or `Cancel` at its end.
+began. A pending sequence with no accepted changed candidate and no initial
+failure emits no `Begin`, `Commit`, or `Cancel` at its end.
+
+The first policy attempt in an admitted explicit sequence follows the initial
+failure rows above. An adjustment or changed-candidate formatting failure is a
+numeric-owned handled `InitialAdjustmentFailed` or `InitialFormatFailed` result
+with `cancelled: false`; it leaves the exact UI unchanged, emits no transaction,
+clears pending ownership, and makes later `Changed`/`Ended` samples orphaned.
+Those later phases never join guessed history or become scroll fallback.
 
 A phase-less sample and a `Discrete` sample are conservatively one atomic
 gesture. One effective sample emits `Begin(start)`, `Update(candidate)`, and
-`Commit(candidate)` in that bounded order. An ineligible or ineffective
-phase-less/`Discrete` sample is unhandled. `Changed` or `Ended` without a
+`Commit(candidate)` in that bounded order. A phase-less/`Discrete` sample
+rejected before policy invocation, or whose
+successful adjustment candidate equals the current value, is unhandled.
+`Changed` or `Ended` without a
 matching admitted `Started` sequence uses the conservative discrete/orphan
 fallback and never joins guessed history; it can process only that one sample
-as an atomic gesture when eligibility and effectiveness pass.
+as an atomic gesture when eligibility and changed-candidate checks pass.
 
 Step selection is recomputed for each effective sample: Base is unmodified,
 Fine is Shift, and Coarse is Command on macOS or Control on Windows/Linux.
@@ -1840,12 +1870,12 @@ Deterministic target fixtures:
 | 1. Focused/hovered admission versus scroll fallback | A focused, enabled, editable numeric input under the pointer and selected as the wheel target may admit an eligible sample. A focused input outside the pointer, an unfocused input, an ineligible target, or a sample over only a scroll container remains unhandled so existing widget/scroll-container fallback can consume it. |
 | 2. Unit-preserving line/pixel normalization | `Lines(Vector2::new(0.0, 1.0))` reaches policy conversion as `+1.0`; `Pixels(Vector2::new(0.0, 40.0))` reaches it as `+1.0`; a smaller pixel delta remains precise until conversion. The validated line-equivalence is exactly `40.0` logical pixels per line. |
 | 3. Direction and unusable samples | Positive finite vertical movement increases, negative finite vertical movement decreases. Zero, horizontal-only, nonfinite, malformed, and unusable samples create no candidate; phase-less/`Discrete` cases remain unhandled for fallback. |
-| 4. Explicit continuity | `Started` -> `Changed`* -> `Ended` is one transaction: the first effective changed candidate emits `Begin(start)` then `Update(candidate)`, later effective samples emit at most one `Update`, and `Ended` commits current. An ineffective pending sequence ends without an edit event. |
+| 4. Explicit continuity | `Started` -> `Changed`* -> `Ended` is one transaction: the first effective changed candidate emits `Begin(start)` then `Update(candidate)`, later effective samples emit at most one `Update`, and `Ended` commits current. A pending sequence with no changed candidate ends without an edit event. |
 | 5. Explicit and non-phase cancellation | `Cancelled`, Escape, focus/identity loss, incompatible reprojection, changed authority, disable/read-only, and explicit cancel restore the exact start snapshot. An active edit emits exactly one same-transaction `Cancel(start)` before cleanup; a pending edit emits none. |
-| 6. Atomic discrete and malformed/orphan phases | One effective phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit` in order. An ineligible/ineffective sample remains unhandled. A `Changed`/`Ended` without a matching admitted start follows one-sample discrete/orphan fallback and never joins guessed history; malformed phase/unit evidence creates no candidate. |
+| 6. Atomic discrete and malformed/orphan phases | One effective phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit` in order. An ineligible/conflicting-owner or pre-policy unusable sample (zero, horizontal-only, nonfinite, malformed, or unsupported) remains unhandled with scroll fallback; an eligible usable policy/format failure is numeric-owned handled as a typed initial failure with `cancelled: false` and never falls back. A `Changed`/`Ended` without a matching admitted start follows one-sample discrete/orphan fallback and never joins guessed history; a first policy failure in an admitted explicit sequence clears pending ownership and orphans later phases. |
 | 7. Base/Fine/Coarse and modifier changes | Unmodified selects Base, Shift selects Fine, Command on macOS or Control on Windows/Linux selects Coarse, and Fine wins when both match. A per-sample modifier change selects the new step for the next effective sample without a jump, second transaction, or guessed continuity break. |
-| 8. Unchanged candidates | An unchanged initial discrete candidate publishes no transaction or edit event and remains available to scroll fallback. An unchanged sample in an admitted explicit sequence emits no `Update` and retains ownership through its terminal phase. |
-| 9. Typed failures and rollback ordering | An initial adjustment/format failure returns the typed initial failure with `cancelled: false` and no transaction. After an effective update, a failed adjustment/format candidate is suppressed, the exact start is restored, one `Cancel(start)` is emitted first, and the typed update failure with `cancelled: true` follows; no failed `Update` is published. |
+| 8. Unchanged candidates | When adjustment succeeds with a candidate equal to the current value, the formatter is not invoked and no candidate or edit exists. An atomic phase-less/`Discrete` sample remains unhandled for scroll fallback; an unchanged sample in an admitted explicit sequence emits no `Update` and retains ownership through its terminal phase. This is distinct from a policy/formatting failure, which is handled numerically and never falls back. |
+| 9. Typed failures and rollback ordering | For an eligible usable sample, an adjustment/format failure is numeric-owned handled as the typed initial failure with `cancelled: false`; exact UI is unchanged, no transaction is emitted, and scroll fallback is unavailable. On the first policy attempt of an admitted explicit sequence, that failure clears pending ownership and orphans later phases. After an effective update, a failed adjustment/format candidate is suppressed, the exact start is restored, one `Cancel(start)` is emitted first, and the typed update failure with `cancelled: true` follows; no failed `Update` is published. |
 | 10. Reprojection and authority | Same-identity compatible reprojection with unchanged external value preserves pending/active state and continuity. Changed authority or identity cancels before the new authority applies and never rebases the old sequence. |
 | 11. Exact metadata and cleanup | Every edit phase uses pointer provenance. Effective samples copy exact modifiers, timestamp, and complete sequence range; a native-metadata terminal copies its metadata. Escape/focus/identity/authority/disable/read-only cleanup with no input sample uses absent metadata and fabricates nothing. |
 | 12. Observational metadata proof | Delayed samples still follow explicit ownership without an idle timeout; timestamps and sequence ranges do not define continuity, deadlines, scheduling, accumulation, cache admission, reuse, renderer resources, render selection, or execution. Different observational metadata cannot authorize any of those decisions. |

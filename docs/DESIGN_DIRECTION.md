@@ -2400,10 +2400,30 @@ pointer is over its wheel target, the input is enabled and non-read-only, its
 identity and current authority are compatible, and no text edit, keyboard
 adjustment, pointer scrub, IME/composition, accessibility edit, or other edit
 owner is active. An ineligible input remains unhandled for existing widget and
-scroll-container fallback. A phase-less or `Discrete` sample that is ineligible
-or ineffective also remains unhandled. An explicitly `Started` eligible
+scroll-container fallback. A phase-less or `Discrete` sample rejected before
+policy invocation also remains unhandled. An explicitly `Started` eligible
 sequence may retain pending ownership without emitting `Begin`; if its samples
-remain ineffective, `Ended` clears that pending sequence without an edit event.
+produce no accepted changed candidate and no policy or formatting failure is
+reported, `Ended` clears that pending sequence without an edit event.
+
+#### Target numeric wheel ownership matrix
+
+The following routing matrix is normative. A usable sample has passed admission
+and validation and is eligible to invoke `NumericAdjustment::wheel`; a changed
+candidate differs from the current value.
+
+| Condition | Numeric outcome | Routing and ownership |
+| --- | --- | --- |
+| Ineligible target or conflicting edit owner | No numeric attempt and no typed failure | Unhandled; existing widget/scroll-container fallback remains available. |
+| Sample rejected as unusable before `NumericAdjustment::wheel` invocation (zero, horizontal-only, nonfinite, malformed, or unsupported) | No numeric candidate | Unhandled; existing widget/scroll-container fallback remains available. |
+| Adjustment succeeds with a candidate equal to the current value | Formatter is not invoked; no candidate or edit | A phase-less/`Discrete` sample remains unhandled for scroll fallback. An admitted explicit sequence emits no `Update` and retains ownership. |
+| Eligible, usable sample whose adjustment returns an error | Numeric-owned handled `InitialAdjustmentFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Eligible, usable sample whose changed candidate formatting returns an error | Numeric-owned handled `InitialFormatFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Successful changed, formatted candidate | Bounded edit lifecycle | A phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit`; the first effective candidate in an admitted explicit sequence emits `Begin`, `Update`, and `Ended` emits `Commit`. |
+
+Policy and formatting failures are handled numeric outcomes under the rows
+above. They are not classified as ineffective, unchanged, no-candidate,
+unhandled, or fallback.
 
 An explicit `Started` -> zero or more `Changed` -> `Ended` sequence is one
 transaction. `Started` admits and records the exact starting typed value,
@@ -2413,15 +2433,22 @@ is successfully adjusted, formatted, and different from the start emits
 `Begin(start)` followed by `Update(candidate)`. Each later effective sample
 emits at most one `Update`; an unchanged sample emits no `Update` but retains
 ownership. `Ended` commits the current value when an edit began. A pending
-sequence that never produced an effective change ends without `Begin`,
-`Commit`, or `Cancel`.
+sequence with no accepted changed candidate and no initial failure ends without
+`Begin`, `Commit`, or `Cancel`.
+
+The first policy attempt in an admitted explicit sequence follows the initial
+failure rows above. An adjustment or changed-candidate formatting failure is a
+numeric-owned handled `InitialAdjustmentFailed` or `InitialFormatFailed` result
+with `cancelled: false`; it leaves the exact UI unchanged, emits no transaction,
+clears pending ownership, and makes later `Changed`/`Ended` samples orphaned.
+Those later phases never join guessed history or become scroll fallback.
 
 A phase-less sample, or a sample marked `Discrete`, is conservatively one
 atomic gesture. One effective sample emits `Begin(start)`, `Update(candidate)`,
 and `Commit(candidate)` in that bounded order. `Changed` or `Ended` without a
 matching admitted `Started` sequence follows the conservative discrete/orphan
 fallback: it never joins guessed history and may only process that one sample
-as an atomic gesture when the ordinary eligibility and effectiveness checks
+as an atomic gesture when the ordinary eligibility and changed-candidate checks
 pass. Otherwise it remains available to existing fallback routing.
 
 Step selection is recomputed for every effective sample. Unmodified selects

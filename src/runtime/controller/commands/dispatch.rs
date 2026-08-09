@@ -70,12 +70,30 @@ where
         &mut self,
         messages: Vec<Message>,
     ) {
-        if messages.is_empty() {
+        if messages.is_empty() || !self.lifecycle_accepts_work() {
             return;
         }
         let mut outcome = CommandOutcome::default();
+        // Keep this batch refresh-local: every mapped terminal message must be
+        // reduced before a command can alter lifecycle, projection, or work
+        // admission.
+        let origin = EffectOrigin::Application;
+        let mut commands = Vec::with_capacity(messages.len());
         for message in messages {
-            self.dispatch_message_inner_deferred_refresh(message, &mut outcome);
+            let Some(command) = self.reduce_message_inner(message, &mut outcome, &origin) else {
+                break;
+            };
+            commands.push(command);
+        }
+        let mut deferred_surface_is_fresh = false;
+        for command in commands {
+            self.dispatch_command_inner_with_refresh_state(
+                command,
+                &mut outcome,
+                false,
+                &mut deferred_surface_is_fresh,
+                origin.clone(),
+            );
         }
         self.finish_command_outcome(outcome);
     }
@@ -105,15 +123,43 @@ where
         deferred_surface_is_fresh: &mut bool,
         origin: EffectOrigin,
     ) {
-        if !self.lifecycle_accepts_work() {
+        let Some(command) = self.reduce_message_inner(message, outcome, &origin) else {
             return;
+        };
+        self.dispatch_command_inner_with_refresh_state(
+            command,
+            outcome,
+            refresh_surface,
+            deferred_surface_is_fresh,
+            origin,
+        );
+    }
+
+    fn reduce_message_inner(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+        origin: &EffectOrigin,
+    ) -> Option<Command<Message>> {
+        if !self.lifecycle_accepts_work() || !self.effect_origin_is_active(origin) {
+            return None;
         }
-        if !self.effect_origin_is_active(&origin) {
+        outcome.messages_dispatched += 1;
+        Some(self.run_update_handler(message))
+    }
+
+    fn dispatch_command_inner_with_refresh_state(
+        &mut self,
+        command: Command<Message>,
+        outcome: &mut CommandOutcome,
+        refresh_surface: bool,
+        deferred_surface_is_fresh: &mut bool,
+        origin: EffectOrigin,
+    ) {
+        if !self.lifecycle_accepts_work() || !self.effect_origin_is_active(&origin) {
             return;
         }
         let refresh_before = outcome.surface_refresh_requested;
-        outcome.messages_dispatched += 1;
-        let command = self.run_update_handler(message);
         if !refresh_surface {
             *deferred_surface_is_fresh = false;
             outcome.surface_refresh_applied = false;

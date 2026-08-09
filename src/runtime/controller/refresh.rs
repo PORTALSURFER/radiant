@@ -71,7 +71,8 @@ mod tests {
             SlotParams,
         },
         runtime::{
-            RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+            Command, RuntimeBridge, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceChild,
+            SurfaceNode, TaskPriority, UiSurface, WidgetMessageMapper,
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
         widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextWidget, WidgetSizing},
@@ -258,6 +259,8 @@ mod tests {
             id: u64,
             marker: u8,
         },
+        Project,
+        ExternalWork,
     }
 
     #[derive(Default)]
@@ -284,6 +287,15 @@ mod tests {
     struct TeardownMessage {
         id: u64,
         marker: u8,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum TeardownDispatchMode {
+        None,
+        Exit,
+        Focus,
+        Nested,
+        External,
     }
 
     #[derive(Clone)]
@@ -396,6 +408,8 @@ mod tests {
 
     struct TeardownBridge {
         mode: TeardownMode,
+        dispatch_mode: TeardownDispatchMode,
+        record_projections: bool,
         log: Rc<RefCell<TeardownLog>>,
         projection_depth: Rc<Cell<usize>>,
         reduced: Vec<TeardownMessage>,
@@ -408,6 +422,8 @@ mod tests {
             (
                 Self {
                     mode,
+                    dispatch_mode: TeardownDispatchMode::None,
+                    record_projections: false,
                     log: Rc::clone(&log),
                     projection_depth,
                     reduced: Vec::new(),
@@ -482,10 +498,37 @@ mod tests {
     impl RuntimeBridge<TeardownMessage> for TeardownBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<TeardownMessage>> {
             assert_eq!(self.projection_depth.get(), 0);
+            if self.record_projections {
+                self.log.borrow_mut().events.push(TeardownEvent::Project);
+            }
             self.projection_depth.set(1);
             let surface = self.surface();
             self.projection_depth.set(0);
             crate::runtime::test_arc_surface(surface)
+        }
+
+        fn update(&mut self, message: TeardownMessage) -> Command<TeardownMessage> {
+            self.reduce_message(message);
+            if message.id != 20 {
+                return Command::none();
+            }
+            match self.dispatch_mode {
+                TeardownDispatchMode::None => Command::none(),
+                TeardownDispatchMode::Exit => Command::exit(),
+                TeardownDispatchMode::Focus => Command::focus(20),
+                TeardownDispatchMode::Nested => Command::message(TeardownMessage {
+                    id: 99,
+                    marker: message.marker,
+                }),
+                TeardownDispatchMode::External => Command::perform_worker_effect_with_priority(
+                    "teardown-external-work",
+                    TaskPriority::Background,
+                    None,
+                    0,
+                    || (),
+                    |_| TeardownMessage { id: 98, marker: 0 },
+                ),
+            }
         }
 
         fn reduce_message(&mut self, message: TeardownMessage) {
@@ -494,6 +537,27 @@ mod tests {
                 marker: message.marker,
             });
             self.reduced.push(message);
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, TeardownMessage> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<TeardownMessage> for TeardownBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            self.log
+                .borrow_mut()
+                .events
+                .push(TeardownEvent::ExternalWork);
+            drop(work);
+            true
         }
     }
 
@@ -506,6 +570,121 @@ mod tests {
             marker,
             maps_output: true,
         }
+    }
+
+    fn terminal_batch_fixture(
+        dispatch_mode: TeardownDispatchMode,
+        record_projections: bool,
+    ) -> (Vec<TeardownMessage>, Vec<TeardownEvent>) {
+        let (bridge, log) =
+            TeardownBridge::new(TeardownMode::Multiple([active_probe(1), active_probe(2)]));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        log.borrow_mut().events.clear();
+        let bridge = runtime.bridge_mut();
+        bridge.mode = TeardownMode::Multiple([
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+        ]);
+        bridge.dispatch_mode = dispatch_mode;
+        bridge.record_projections = record_projections;
+
+        runtime.refresh();
+
+        let reduced = runtime.bridge().reduced.clone();
+        let events = log.borrow().events.clone();
+        (reduced, events)
+    }
+
+    fn reduced_ids(events: &[TeardownEvent]) -> Vec<u64> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                TeardownEvent::Reduce { id, .. } => Some(*id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn terminal_messages_reduce_before_exit_focus_nested_or_external_work() {
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Exit, false);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        assert_eq!(reduced_ids(&events), [20, 21]);
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Focus, true);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        assert_eq!(reduced_ids(&events), [20, 21]);
+        let project_positions = events
+            .iter()
+            .enumerate()
+            .filter_map(|(index, event)| matches!(event, TeardownEvent::Project).then_some(index))
+            .collect::<Vec<_>>();
+        let second_project = *project_positions
+            .get(1)
+            .expect("focus should open a fresh surface after reduction");
+        let second_terminal_reduce = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::Reduce { id: 21, .. }))
+            .expect("second terminal should reduce");
+        assert!(
+            second_terminal_reduce < second_project,
+            "fresh-surface focus must not project between terminal reducers"
+        );
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Nested, false);
+        assert_eq!(reduced_ids(&events), [20, 21, 99]);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+                TeardownMessage { id: 99, marker: 1 },
+            ]
+        );
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::External, false);
+        assert_eq!(reduced_ids(&events), [20, 21]);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        let second_terminal_reduce = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::Reduce { id: 21, .. }))
+            .expect("second terminal should reduce");
+        let external_work = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::ExternalWork))
+            .expect("external-work command should be admitted");
+        assert!(
+            second_terminal_reduce < external_work,
+            "external work must not interleave terminal reduction"
+        );
     }
 
     #[test]

@@ -6,8 +6,8 @@ use crate::{
     runtime::WidgetMessageMapper,
     widgets::{
         NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputWidget, NumericStepModifiers, TextInputChrome, WidgetProminence, WidgetSizing,
-        WidgetStyle,
+        NumericInputInteractionBatch, NumericInputWidget, NumericStepModifiers, TextInputChrome,
+        WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -78,10 +78,28 @@ where
         self,
         map: impl Fn(NumericInputEditBatch<T>) -> Message + 'static,
     ) -> ViewNode<Message> {
-        let mut node = view_node_from_widget(MappedWidget::new(
-            self.input,
-            WidgetMessageMapper::typed(map),
-        ));
+        let mut input = self.input;
+        input.set_compatibility_output_mode();
+        let mut node =
+            view_node_from_widget(MappedWidget::new(input, WidgetMessageMapper::typed(map)));
+        node.style = self.style;
+        node
+    }
+
+    /// Emit a host message for the complete ordered numeric interaction
+    /// lifecycle.
+    pub fn on_interaction<Message: 'static>(
+        self,
+        map: impl Fn(NumericInputInteractionBatch<T, A::Error, C::Error>) -> Message + 'static,
+    ) -> ViewNode<Message>
+    where
+        A::Error: 'static,
+        C::Error: 'static,
+    {
+        let mut input = self.input;
+        input.set_complete_output_mode();
+        let mut node =
+            view_node_from_widget(MappedWidget::new(input, WidgetMessageMapper::typed(map)));
         node.style = self.style;
         node
     }

@@ -77,9 +77,10 @@ mod tests {
         },
         widgets::{
             ButtonWidget, EditPhase, InteractionProvenance, NumericAdjustment, NumericCodec,
-            NumericInputEditBatch, NumericInputWidget, NumericParseResult, NumericStep,
-            NumericStepDirection, ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget,
-            WidgetInput, WidgetKey, WidgetSizing,
+            NumericInputEditBatch, NumericInputInteraction, NumericInputInteractionBatch,
+            NumericInputWidget, NumericParseResult, NumericStep, NumericStepDirection,
+            ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget, WidgetInput, WidgetKey,
+            WidgetSizing,
         },
     };
     use std::{
@@ -1029,6 +1030,161 @@ mod tests {
         );
         assert!(!successor.preempts_host_shortcut_key(WidgetKey::Escape));
         assert_eq!(runtime.focused_widget(), None);
+    }
+
+    #[derive(Clone, Copy)]
+    enum NumericRefreshOutputMode {
+        Compatibility,
+        Complete,
+    }
+
+    enum NumericRefreshMessage {
+        Compatibility(NumericInputEditBatch<u32>),
+        Complete(NumericInputInteractionBatch<u32, (), ()>),
+    }
+
+    struct NumericModeRefreshBridge {
+        value: u32,
+        mode: NumericRefreshOutputMode,
+        reduced: Vec<NumericRefreshMessage>,
+        compatibility_mapper_calls: Rc<Cell<usize>>,
+        complete_mapper_calls: Rc<Cell<usize>>,
+    }
+
+    impl NumericModeRefreshBridge {
+        fn surface(&self) -> UiSurface<NumericRefreshMessage> {
+            let mut input = NumericInputWidget::try_new(
+                self.value,
+                RefreshNumericCodec,
+                RefreshNumericAdjustment,
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            )
+            .expect("numeric mode refresh fixture should construct");
+            let messages = match self.mode {
+                NumericRefreshOutputMode::Compatibility => {
+                    let calls = Rc::clone(&self.compatibility_mapper_calls);
+                    WidgetMessageMapper::typed(move |batch: NumericInputEditBatch<u32>| {
+                        calls.set(calls.get() + 1);
+                        NumericRefreshMessage::Compatibility(batch)
+                    })
+                }
+                NumericRefreshOutputMode::Complete => {
+                    input.set_complete_output_mode();
+                    let calls = Rc::clone(&self.complete_mapper_calls);
+                    WidgetMessageMapper::typed(
+                        move |batch: NumericInputInteractionBatch<u32, (), ()>| {
+                            calls.set(calls.get() + 1);
+                            NumericRefreshMessage::Complete(batch)
+                        },
+                    )
+                }
+            };
+            UiSurface::new(SurfaceNode::widget(input, messages).with_id(21))
+        }
+    }
+
+    impl RuntimeBridge<NumericRefreshMessage> for NumericModeRefreshBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<NumericRefreshMessage>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn reduce_message(&mut self, message: NumericRefreshMessage) {
+            self.reduced.push(message);
+        }
+    }
+
+    fn numeric_mode_refresh_message(
+        old_mode: NumericRefreshOutputMode,
+        new_mode: NumericRefreshOutputMode,
+    ) -> (NumericRefreshMessage, usize, usize, bool) {
+        let bridge = NumericModeRefreshBridge {
+            value: 7,
+            mode: old_mode,
+            reduced: Vec::new(),
+            compatibility_mapper_calls: Rc::new(Cell::new(0)),
+            complete_mapper_calls: Rc::new(Cell::new(0)),
+        };
+        let compatibility_mapper_calls = Rc::clone(&bridge.compatibility_mapper_calls);
+        let complete_mapper_calls = Rc::clone(&bridge.complete_mapper_calls);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+        runtime.refresh();
+        assert!(runtime.focus_widget(21));
+        assert_eq!(
+            runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::SelectAll,)),
+            Some(21)
+        );
+        assert_eq!(
+            runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::InsertText(
+                "8".to_owned(),
+            ))),
+            Some(21)
+        );
+
+        runtime.bridge_mut().mode = new_mode;
+        runtime.refresh();
+
+        let message = runtime
+            .bridge_mut()
+            .reduced
+            .pop()
+            .expect("mode change should retire one active numeric edit");
+        let successor_active = runtime
+            .surface
+            .find_widget(21)
+            .expect("numeric successor should remain installed")
+            .widget()
+            .preempts_host_shortcut_key(WidgetKey::Escape);
+        (
+            message,
+            compatibility_mapper_calls.get(),
+            complete_mapper_calls.get(),
+            successor_active,
+        )
+    }
+
+    #[test]
+    fn numeric_refresh_mode_change_uses_only_retiring_mapper_in_both_directions() {
+        let (complete_to_compatibility, compatibility_calls, complete_calls, successor_active) =
+            numeric_mode_refresh_message(
+                NumericRefreshOutputMode::Complete,
+                NumericRefreshOutputMode::Compatibility,
+            );
+        let NumericRefreshMessage::Complete(batch) = complete_to_compatibility else {
+            panic!("complete retiring widget must use the complete mapper");
+        };
+        let [NumericInputInteraction::Edit(edit)] = batch.parts() else {
+            panic!("complete retirement must contain one outer Edit");
+        };
+        assert_eq!(
+            edit.events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            [EditPhase::Begin, EditPhase::Cancel]
+        );
+        assert_eq!(compatibility_calls, 0);
+        assert_eq!(complete_calls, 1);
+        assert!(!successor_active);
+
+        let (compatibility_to_complete, compatibility_calls, complete_calls, successor_active) =
+            numeric_mode_refresh_message(
+                NumericRefreshOutputMode::Compatibility,
+                NumericRefreshOutputMode::Complete,
+            );
+        let NumericRefreshMessage::Compatibility(batch) = compatibility_to_complete else {
+            panic!("compatibility retiring widget must use the compatibility mapper");
+        };
+        assert_eq!(
+            batch
+                .events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            [EditPhase::Begin, EditPhase::Cancel]
+        );
+        assert_eq!(compatibility_calls, 1);
+        assert_eq!(complete_calls, 0);
+        assert!(!successor_active);
     }
 
     #[derive(Clone, Copy)]

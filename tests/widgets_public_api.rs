@@ -26,7 +26,7 @@ use radiant::{
     },
 };
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     fmt::{self, Debug},
     rc::Rc,
     sync::Arc,
@@ -127,6 +127,12 @@ impl NumericCodec<NonCloneNumericValue> for NonCloneNumericCodec {
 
 #[derive(Debug, PartialEq)]
 struct NumericAdjustmentTestError;
+
+#[derive(Debug, PartialEq)]
+struct LocalAdjustmentError(Rc<Cell<usize>>);
+
+#[derive(Debug, PartialEq)]
+struct LocalCodecError(Rc<Cell<usize>>);
 
 struct NonCloneNumericAdjustment;
 
@@ -246,6 +252,69 @@ impl NumericAdjustment<GenericNumericValue> for UiLocalNumericAdjustment {
     }
 }
 
+struct LocalErrorNumericCodec;
+
+impl NumericCodec<GenericNumericValue> for LocalErrorNumericCodec {
+    type Error = LocalCodecError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<GenericNumericValue> {
+        match text {
+            "" => NumericParseResult::Incomplete,
+            "7" => NumericParseResult::Valid(GenericNumericValue(7)),
+            _ => NumericParseResult::Invalid,
+        }
+    }
+
+    fn format_editable(
+        &self,
+        value: &GenericNumericValue,
+        output: &mut dyn fmt::Write,
+    ) -> Result<(), Self::Error> {
+        write!(output, "{}", value.0).map_err(|_| LocalCodecError(Rc::new(Cell::new(0))))
+    }
+}
+
+struct LocalErrorNumericAdjustment;
+
+impl NumericAdjustment<GenericNumericValue> for LocalErrorNumericAdjustment {
+    type Error = LocalAdjustmentError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<GenericNumericValue, Self::Error> {
+        Ok(GenericNumericValue(normalized as u32))
+    }
+
+    fn value_to_normalized(&self, value: &GenericNumericValue) -> Result<f32, Self::Error> {
+        Ok(value.0 as f32)
+    }
+
+    fn step(
+        &self,
+        value: &GenericNumericValue,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn scrub(
+        &self,
+        value: &GenericNumericValue,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn wheel(
+        &self,
+        value: &GenericNumericValue,
+        _delta: f32,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+}
+
 #[test]
 fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified() {
     let codec = UiLocalNumericCodec(Rc::new(RefCell::new(0)));
@@ -310,6 +379,235 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
             .collect::<Vec<_>>(),
         [EditPhase::Begin, EditPhase::Commit]
     );
+}
+
+#[test]
+fn numeric_input_on_interaction_keeps_error_order_without_thread_bounds() {
+    let builder = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        LocalErrorNumericCodec,
+        LocalErrorNumericAdjustment,
+    )
+    .expect("local error policies should construct");
+    let _: radiant::runtime::UiSurface<()> = builder
+        .on_interaction(
+            |batch: NumericInputInteractionBatch<
+                GenericNumericValue,
+                LocalAdjustmentError,
+                LocalCodecError,
+            >| {
+                assert_eq!(batch.len(), 1);
+            },
+        )
+        .id(78)
+        .into_surface();
+}
+
+#[test]
+fn numeric_input_on_interaction_maps_one_complete_text_edit_envelope() {
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    let map_calls = Rc::new(Cell::new(0));
+    let map_calls_for_mapper = Rc::clone(&map_calls);
+    let mut surface: radiant::runtime::UiSurface<Batch> = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        UiLocalNumericCodec(Rc::new(RefCell::new(0))),
+        UiLocalNumericAdjustment(Rc::new(RefCell::new(0))),
+    )
+    .expect("generic numeric input should construct")
+    .on_interaction(move |batch| {
+        map_calls_for_mapper.set(map_calls_for_mapper.get() + 1);
+        batch
+    })
+    .id(79)
+    .into_surface();
+    let bounds = radiant::gui::types::Rect::from_min_size(
+        radiant::gui::types::Point::default(),
+        radiant::gui::types::Vector2::new(120.0, 28.0),
+    );
+
+    assert!(
+        surface
+            .dispatch_widget_input(79, bounds, WidgetInput::FocusChanged(true))
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                79,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::SelectAll),
+            )
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                79,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::InsertText(
+                    String::from("8"),
+                )),
+            )
+            .is_none()
+    );
+
+    let output = surface
+        .dispatch_widget_input(79, bounds, WidgetInput::key_press(WidgetKey::Enter))
+        .expect("complete mode should emit one raw interaction output");
+    assert!(
+        output
+            .typed_ref::<NumericInputEditBatch<GenericNumericValue>>()
+            .is_none()
+    );
+    let message = surface
+        .dispatch_widget_output(79, output)
+        .expect("complete output should map to one host message");
+    assert_eq!(map_calls.get(), 1);
+    assert_eq!(message.len(), 1);
+    let [NumericInputInteraction::Edit(edit)] = message.parts() else {
+        panic!("complete TextEdit output should contain one outer Edit");
+    };
+    assert_eq!(
+        edit.events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Commit]
+    );
+    assert_eq!(edit.events()[0].transaction, edit.events()[1].transaction);
+    assert_eq!(edit.events()[0].start_value, GenericNumericValue(7));
+    assert_eq!(edit.events()[1].value, GenericNumericValue(8));
+}
+
+#[test]
+fn numeric_input_on_interaction_maps_focus_loss_commit_once() {
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    let mut surface: radiant::runtime::UiSurface<Batch> = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        UiLocalNumericCodec(Rc::new(RefCell::new(0))),
+        UiLocalNumericAdjustment(Rc::new(RefCell::new(0))),
+    )
+    .expect("generic numeric input should construct")
+    .on_interaction(|batch| batch)
+    .id(80)
+    .into_surface();
+    let bounds = radiant::gui::types::Rect::from_min_size(
+        radiant::gui::types::Point::default(),
+        radiant::gui::types::Vector2::new(120.0, 28.0),
+    );
+
+    assert!(
+        surface
+            .dispatch_widget_input(80, bounds, WidgetInput::FocusChanged(true))
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                80,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::SelectAll),
+            )
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                80,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::InsertText(
+                    String::from("8"),
+                )),
+            )
+            .is_none()
+    );
+
+    let output = surface
+        .dispatch_widget_input(80, bounds, WidgetInput::FocusChanged(false))
+        .expect("valid focus loss should emit one complete output");
+    let message = surface
+        .dispatch_widget_output(80, output)
+        .expect("focus-loss output should map once");
+    let [NumericInputInteraction::Edit(edit)] = message.parts() else {
+        panic!("focus-loss output should contain one outer Edit");
+    };
+    assert_eq!(
+        edit.events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Commit]
+    );
+}
+
+#[test]
+fn numeric_input_on_interaction_preserves_synthetic_typed_failures() {
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+    type Interaction =
+        NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
+
+    let surface: radiant::runtime::UiSurface<Batch> = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        UiLocalNumericCodec(Rc::new(RefCell::new(0))),
+        UiLocalNumericAdjustment(Rc::new(RefCell::new(0))),
+    )
+    .expect("generic numeric input should construct")
+    .on_interaction(|batch| batch)
+    .id(81)
+    .into_surface();
+    let keyboard = InteractionProvenance::Keyboard { timestamp: None };
+    let step = Interaction::step_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        keyboard,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let format = Interaction::format_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Decrease,
+        NumericStep::Fine,
+        keyboard,
+        NumericCodecError::WriteFailed,
+        false,
+    );
+    let step_batch = Batch::from_interactions(&[step])
+        .expect("synthetic step failure should retain its exact envelope");
+    let format_batch = Batch::from_interactions(&[format])
+        .expect("synthetic format failure should retain its exact envelope");
+
+    let mapped_step = surface
+        .dispatch_widget_output(81, WidgetOutput::typed(step_batch))
+        .expect("synthetic step failure should use the complete mapper");
+    assert_eq!(
+        mapped_step.parts()[0].step_error(),
+        Some(&NumericAdjustmentTestError)
+    );
+    assert!(mapped_step.parts()[0].format_error().is_none());
+
+    let mapped_format = surface
+        .dispatch_widget_output(81, WidgetOutput::typed(format_batch))
+        .expect("synthetic format failure should use the complete mapper");
+    assert_eq!(
+        mapped_format.parts()[0].format_error(),
+        Some(&NumericCodecError::WriteFailed)
+    );
+    assert!(mapped_format.parts()[0].step_error().is_none());
 }
 
 #[test]
@@ -394,7 +692,7 @@ fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
 }
 
 #[test]
-fn numeric_input_interaction_batch_accepts_only_keyboard_envelope_shapes() {
+fn numeric_input_interaction_batch_accepts_keyboard_and_text_edit_envelope_shapes() {
     type Interaction =
         NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
     type Batch = NumericInputInteractionBatch<
@@ -509,6 +807,8 @@ fn numeric_input_interaction_batch_accepts_only_keyboard_envelope_shapes() {
     assert_legal(std::slice::from_ref(&cancel_edit));
     assert_legal(std::slice::from_ref(&initial_step));
     assert_legal(std::slice::from_ref(&initial_format));
+    assert_legal(std::slice::from_ref(&begin_commit));
+    assert_legal(std::slice::from_ref(&begin_cancel));
     assert_legal(&[rollback.clone(), repeat_step.clone()]);
     assert_legal(&[rollback.clone(), repeat_format.clone()]);
 
@@ -540,6 +840,12 @@ fn numeric_input_interaction_batch_accepts_only_keyboard_envelope_shapes() {
     let programmatic_begin_update = edit(&[programmatic_begin, programmatic_update]);
     let programmatic_rollback = edit(std::slice::from_ref(&programmatic_cancel));
     let programmatic_edit = edit(std::slice::from_ref(&programmatic_cancel));
+    let programmatic_begin_for_terminal = EditEvent::begin(GenericNumericValue(7), programmatic);
+    let programmatic_begin_cancel = programmatic_begin_for_terminal
+        .clone()
+        .cancel(programmatic)
+        .expect("matching source should cancel");
+    let programmatic_terminal = edit(&[programmatic_begin_for_terminal, programmatic_begin_cancel]);
     let programmatic_failure = Interaction::step_failed(
         NumericStepAttempt::Initial,
         NumericStepDirection::Increase,
@@ -581,12 +887,11 @@ fn numeric_input_interaction_batch_accepts_only_keyboard_envelope_shapes() {
     assert_rejected(&[commit_edit.clone(), repeat_step.clone()]);
     assert_rejected(&[begin_commit.clone(), repeat_step.clone()]);
     assert_rejected(&[begin_cancel.clone(), repeat_step.clone()]);
-    assert_rejected(std::slice::from_ref(&begin_commit));
-    assert_rejected(std::slice::from_ref(&begin_cancel));
     assert_rejected(&[begin_update.clone(), update_edit.clone()]);
     assert_rejected(&[rollback.clone(), rollback.clone()]);
     assert_rejected(std::slice::from_ref(&programmatic_edit));
     assert_rejected(std::slice::from_ref(&programmatic_begin_update));
+    assert_rejected(std::slice::from_ref(&programmatic_terminal));
     assert_rejected(std::slice::from_ref(&programmatic_failure));
     assert_rejected(&[programmatic_rollback.clone(), repeat_step.clone()]);
     assert_rejected(&[rollback, mismatched_repeat]);

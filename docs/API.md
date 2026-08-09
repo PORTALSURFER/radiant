@@ -1481,17 +1481,18 @@ acceptance criteria and do not describe passing current runtime behavior.
 | Stale identity or authority | A sample whose pinned identity or authority is no longer current is `Ignore`; it is not rebased, sent to a fallback host path, or delivered to a successor/new focus. |
 | Native, backend-neutral, and synthetic equivalence | Equivalent evidence produces the same route, host-call count, and owner-delivery count on all three paths; native translation adds no precedence. |
 
-### Target numeric interaction output mapping and dispatch (not yet shipped)
+### Numeric interaction output mapping foundation (TextEdit shipped; semantic keyboard production not yet shipped)
 
-This is a target-only, backend-neutral contract for mapping and dispatching
-numeric interaction output. It is normative for the future complete binding but
-is not shipped. It defines one selected public mapper and one host dispatch per
-input or teardown boundary; it does not implement `on_interaction`, output-mode
-storage, mapper logic, routing, capture, stepping, repeats, release, rollback,
-or semantic `KeyboardAdjustment` production. No current Rust source, public API,
-runtime, native adapter, widget, or test behavior changes in this contract.
+This is the shipped, backend-neutral TextEdit output-mapping foundation plus the
+target-only contract for future semantic keyboard production. It defines one
+selected public mapper and one host dispatch per input or teardown boundary. The
+current implementation ships `on_interaction`, crate-private output-mode
+storage, mode-specific encoders, TextEdit terminal validation, and complete
+TextEdit mapping; it does not implement metadata-aware routing, capture,
+stepping, repeats, release, rollback production, or semantic
+`KeyboardAdjustment`. Native adapters and focused-key routing remain target-only.
 
-The exact target complete binding on `NumericInputBuilder<T, C, A>` is:
+The complete binding on `NumericInputBuilder<T, C, A>` is:
 
 ```rust
 pub fn on_interaction<Message: 'static>(
@@ -1509,22 +1510,23 @@ signature has only the shown `'static` requirements; it does not add
 constructor errors and are not delivered through this mapper.
 
 `on_interaction` is the sole complete mapping boundary. Complete mode emits
-exactly one `NumericInputInteractionBatch<T, A::Error, C::Error>` payload type;
-it never alternates a bare `NumericInputEditBatch<T>` with an interaction
-batch. One accepted input or teardown boundary produces at most one
-interaction batch, invokes the selected mapper at most once, and dispatches at
-most one host message. The interaction parts are not separately reduced or
-dispatched. In particular, a repeat rollback `[Edit([Cancel]), failure]`
-remains one ordered batch with rollback before the exact typed failure and no
-interleaving mapper or host dispatch.
+exactly one `NumericInputInteractionBatch<T, A::Error, C::Error>` payload type
+for the shipped TextEdit lifecycle; it never alternates a bare
+`NumericInputEditBatch<T>` with an interaction batch. One accepted TextEdit
+input or teardown boundary produces at most one interaction batch, invokes the
+selected mapper at most once, and dispatches at most one host message. The
+interaction parts are not separately reduced or dispatched. Future keyboard
+production will use the same one-batch boundary; in particular, a repeat
+rollback `[Edit([Cancel]), failure]` remains one ordered batch with rollback
+before the exact typed failure and no interleaving mapper or host dispatch.
 
 TextEdit `[Begin, Commit]` and `[Begin, Cancel]` terminal fragments, including
-replacement teardown, are eventually represented in complete mode as exactly
-one outer `Edit(NumericInputEditBatch<T>)` part. The inner batch and both inner
-events retain their original transaction, value, phase, provenance, and
-timestamp without rewriting. The target validator eventually accepts these two
-TextEdit terminal shapes in addition to the existing keyboard shapes. The
-capacities remain `NumericInputEditBatch::MAX_EVENTS == 2` and
+replacement teardown, are represented in complete mode as exactly one outer
+`Edit(NumericInputEditBatch<T>)` part. The inner batch and both inner events
+retain their original transaction, value, phase, provenance, and timestamp
+without rewriting. The validator accepts these two TextEdit terminal shapes in
+addition to the existing keyboard shapes. The capacities remain
+`NumericInputEditBatch::MAX_EVENTS == 2` and
 `NumericInputInteractionBatch::MAX_INTERACTIONS == 2`.
 
 `on_edit` remains the exact TextEdit-only compatibility binding. It maps the
@@ -1545,32 +1547,32 @@ batch, mapper call, or host message. An invalid text draft emits no interaction
 failure. Typed step and format errors remain their exact UI-local typed parts:
 they never panic, become a string, log, no-op, bare edit, or fallback output.
 
-The complete target validator preserves the existing keyboard-only shapes:
-one keyboard `Edit` containing `[Begin, Update]`, `[Update]`, `[Commit]`, or
-`[Cancel]`, one initial typed `StepFailed` or `FormatFailed`, or one ordered
-`[Edit([Cancel]), failure]` repeat rollback. Those are the current
-`from_interactions(...)` truth. It does not yet accept the TextEdit terminal
-shapes above; accepting them and producing the complete mapping behavior are
-future work. All behavior and fixtures in this subsection are target-only and
-unshipped, including the complete binding and its dispatch guarantees.
+The validator preserves the existing keyboard shapes: one keyboard `Edit`
+containing `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial
+typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
+repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
+all retain the existing capacity and illegal-shape rejection rules. TextEdit
+mapping and mapper exclusivity are shipped. Semantic keyboard production,
+typed-failure production, metadata-aware routing, and the remaining keyboard
+fixtures below remain target-only.
 
-#### Target numeric interaction output mapping acceptance fixtures
+#### Numeric interaction output mapping acceptance fixtures (shipped TextEdit; target keyboard)
 
 | Fixture | Expected target behavior |
 | --- | --- |
-| 1. Existing `on_edit` commit | One bare `NumericInputEditBatch<T>` containing `[Begin, Commit]` is mapped once and produces one host message. No interaction envelope is emitted. |
-| 2. Existing `on_edit` cancel or teardown | One bare `NumericInputEditBatch<T>` containing `[Begin, Cancel]` is mapped once, including replacement teardown, and produces one host message. |
-| 3. `on_edit` plus arrows | Arrows perform no step, format call, capture, transaction, typed failure, mapper invocation, or mutation; `step_modifiers` remains inert. |
-| 4. Complete-mode TextEdit commit | One `NumericInputInteractionBatch<T, A::Error, C::Error>` contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Commit]` inner events; the mapper and host are each used once. |
-| 5. Complete-mode TextEdit cancel or teardown | One interaction batch contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Cancel]` inner events; the selected retiring mapper and host are each used once. |
+| 1. Existing `on_edit` commit | One bare `NumericInputEditBatch<T>` containing `[Begin, Commit]` is mapped once and produces one host message. No interaction envelope is emitted. (Shipped.) |
+| 2. Existing `on_edit` cancel or teardown | One bare `NumericInputEditBatch<T>` containing `[Begin, Cancel]` is mapped once, including replacement teardown, and produces one host message. (Shipped.) |
+| 3. `on_edit` plus arrows | Arrows perform no step, format call, capture, transaction, typed failure, mapper invocation, or mutation; `step_modifiers` remains inert. (Shipped.) |
+| 4. Complete-mode TextEdit commit | One `NumericInputInteractionBatch<T, A::Error, C::Error>` contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Commit]` inner events; the mapper and host are each used once. (Shipped.) |
+| 5. Complete-mode TextEdit cancel or teardown | One interaction batch contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Cancel]` inner events; the selected retiring mapper and host are each used once. (Shipped.) |
 | 6. Initial keyboard step | One interaction batch contains one keyboard `Edit` with `[Begin, Update]`, and one mapper invocation and host message occur for the accepted boundary. |
 | 7. Keyboard repeat and release | Each accepted repeat or release produces one interaction batch containing `Edit([Update])` or `Edit([Commit])`, respectively, with one mapper invocation and one host message. |
 | 8. Initial typed step or format failure | The one interaction batch contains the exact typed `StepFailed` or `FormatFailed` part only; no edit, transaction, capture, or fallback output occurs. |
 | 9. Repeat typed failure | One interaction batch is ordered `Edit([Cancel])` then the exact typed failure, and one mapper invocation and host message occur with no interleaving. |
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. |
-| 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. |
-| 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. |
-| 13. Current-runtime truth | Every behavior and fixture above is target-only and unshipped. Current `from_interactions(...)` remains keyboard-only and does not accept TextEdit terminal shapes; current semantic `KeyboardAdjustment` remains unshipped. |
+| 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
+| 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
+| 13. Current-runtime truth | TextEdit mapping, terminal validation, and both binding modes are shipped. Semantic `KeyboardAdjustment`, metadata-aware focused-key routing, and keyboard production remain unshipped. |
 
 ### Target numeric keyboard adjustment (semantic behavior not yet shipped)
 

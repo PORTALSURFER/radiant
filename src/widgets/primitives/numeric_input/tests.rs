@@ -1,5 +1,5 @@
 use super::*;
-use crate::widgets::interaction::NumericInteractionOwner;
+use crate::widgets::interaction::{NumericInputInteraction, NumericInteractionOwner};
 use crate::{
     gui::{
         input::InputTimestamp,
@@ -327,15 +327,19 @@ fn u32_input_with_policy_calls() -> U32PolicyCalls {
     }
 }
 
-fn u32_input_with_step_calls() -> (
+type U32StepCalls = (
     NumericInputWidget<u32, U32Codec, U32Adjustment>,
     Rc<Cell<usize>>,
-) {
+    Rc<Cell<usize>>,
+);
+
+fn u32_input_with_step_calls() -> U32StepCalls {
     let step_calls = Rc::new(Cell::new(0));
+    let format_calls = Rc::new(Cell::new(0));
     let input = NumericInputWidget::try_new(
         7,
         U32Codec {
-            format_calls: Rc::new(Cell::new(0)),
+            format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
         },
@@ -347,7 +351,7 @@ fn u32_input_with_step_calls() -> (
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
     .expect("u32 fixture should construct");
-    (input, step_calls)
+    (input, step_calls, format_calls)
 }
 
 fn focus<T, C, A>(input: &mut NumericInputWidget<T, C, A>)
@@ -365,6 +369,26 @@ fn output<T: Clone + 'static>(
     output: Option<crate::widgets::WidgetOutput>,
 ) -> Option<NumericInputEditBatch<T>> {
     output.and_then(|output| output.typed_cloned())
+}
+
+type CompleteU32Batch = NumericInputInteractionBatch<u32, AdjustmentError, CodecError>;
+
+fn complete_output(output: Option<crate::widgets::WidgetOutput>) -> Option<CompleteU32Batch> {
+    output.and_then(|output| output.typed_cloned())
+}
+
+fn complete_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = u32_input();
+    input.set_complete_output_mode();
+    input
+}
+
+fn complete_edit(batch: &CompleteU32Batch) -> &NumericInputEditBatch<u32> {
+    assert_eq!(batch.len(), 1);
+    let [NumericInputInteraction::Edit(edit)] = batch.parts() else {
+        panic!("complete TextEdit output should contain one outer Edit");
+    };
+    edit
 }
 
 fn replace_u32(input: &mut NumericInputWidget<u32, U32Codec, U32Adjustment>, text: &str) {
@@ -451,74 +475,81 @@ fn arrow_key_samples_remain_no_ops_with_default_and_override_policies() {
         )),
     ];
 
-    for policy in policies {
-        let (mut input, step_calls) = u32_input_with_step_calls();
-        if let Some(policy) = policy {
-            input.set_step_modifiers(policy);
-        }
-        assert_eq!(input.step_modifiers, policy);
-        focus(&mut input);
-        let before_text = input.text_input.state.clone();
-        let before_focus = input.text_input.common.state;
+    for complete in [false, true] {
+        for policy in policies {
+            let (mut input, step_calls, format_calls) = u32_input_with_step_calls();
+            if complete {
+                input.set_complete_output_mode();
+            }
+            if let Some(policy) = policy {
+                input.set_step_modifiers(policy);
+            }
+            assert_eq!(input.step_modifiers, policy);
+            focus(&mut input);
+            let before_text = input.text_input.state.clone();
+            let before_focus = input.text_input.common.state;
+            let format_calls_before_arrows = format_calls.get();
 
-        for (key, modifiers) in [
-            (WidgetKey::ArrowUp, KeyboardModifiers::default()),
-            (
-                WidgetKey::ArrowDown,
-                KeyboardModifiers {
-                    command: true,
-                    control: true,
-                    shift: true,
-                    alt: true,
-                },
-            ),
-        ] {
-            assert!(
-                Widget::handle_input(
-                    &mut input,
-                    Rect::default(),
-                    WidgetInput::KeyPress {
-                        key,
-                        modifiers,
-                        repeat: false,
-                        timestamp: None,
+            for (key, modifiers) in [
+                (WidgetKey::ArrowUp, KeyboardModifiers::default()),
+                (
+                    WidgetKey::ArrowDown,
+                    KeyboardModifiers {
+                        command: true,
+                        control: true,
+                        shift: true,
+                        alt: true,
                     },
-                )
-                .is_none()
-            );
-            assert!(
-                Widget::handle_input(
-                    &mut input,
-                    Rect::default(),
-                    WidgetInput::KeyPress {
-                        key,
-                        modifiers,
-                        repeat: true,
-                        timestamp: None,
-                    },
-                )
-                .is_none()
-            );
-            assert!(
-                Widget::handle_input(
-                    &mut input,
-                    Rect::default(),
-                    WidgetInput::KeyRelease {
-                        key,
-                        modifiers,
-                        timestamp: None,
-                    },
-                )
-                .is_none()
-            );
-        }
+                ),
+            ] {
+                assert!(
+                    Widget::handle_input(
+                        &mut input,
+                        Rect::default(),
+                        WidgetInput::KeyPress {
+                            key,
+                            modifiers,
+                            repeat: false,
+                            timestamp: None,
+                        },
+                    )
+                    .is_none()
+                );
+                assert!(
+                    Widget::handle_input(
+                        &mut input,
+                        Rect::default(),
+                        WidgetInput::KeyPress {
+                            key,
+                            modifiers,
+                            repeat: true,
+                            timestamp: None,
+                        },
+                    )
+                    .is_none()
+                );
+                assert!(
+                    Widget::handle_input(
+                        &mut input,
+                        Rect::default(),
+                        WidgetInput::KeyRelease {
+                            key,
+                            modifiers,
+                            timestamp: None,
+                        },
+                    )
+                    .is_none()
+                );
+            }
 
-        assert_eq!(step_calls.get(), 0);
-        assert_eq!(input.value, 7);
-        assert_eq!(input.text_input.state, before_text);
-        assert_eq!(input.text_input.common.state, before_focus);
-        assert!(input.active.is_none());
-        assert_eq!(input.interaction_gate.incumbent(), None);
+            assert_eq!(step_calls.get(), 0);
+            assert_eq!(format_calls.get(), format_calls_before_arrows);
+            assert_eq!(input.value, 7);
+            assert_eq!(input.text_input.state, before_text);
+            assert_eq!(input.text_input.common.state, before_focus);
+            assert!(input.active.is_none());
+            assert_eq!(input.interaction_gate.incumbent(), None);
+        }
     }
 }
 
@@ -742,24 +773,31 @@ fn no_op_first_mutation_releases_text_admission() {
 
 #[test]
 fn incomplete_and_out_of_range_drafts_are_retained_without_terminal_output() {
-    for draft in ["-", "101"] {
-        let mut input = u32_input();
-        replace_u32(&mut input, draft);
-        assert_eq!(input.text_input.state.value, draft);
-        assert!(input.active.is_some());
-        assert!(
-            output::<u32>(Widget::handle_input(
+    for complete in [false, true] {
+        for draft in ["-", "101"] {
+            let mut input = u32_input();
+            if complete {
+                input.set_complete_output_mode();
+            }
+            replace_u32(&mut input, draft);
+            assert_eq!(input.text_input.state.value, draft);
+            assert!(input.active.is_some());
+            let terminal_output = Widget::handle_input(
                 &mut input,
                 Rect::default(),
                 WidgetInput::key_press(WidgetKey::Enter),
-            ))
-            .is_none()
-        );
-        assert_eq!(input.text_input.state.value, draft);
-        assert_eq!(
-            Widget::prepare_focus_loss(&mut input),
-            FocusLossDecision::Veto
-        );
+            );
+            if complete {
+                assert!(complete_output(terminal_output).is_none());
+            } else {
+                assert!(output::<u32>(terminal_output).is_none());
+            }
+            assert_eq!(input.text_input.state.value, draft);
+            assert_eq!(
+                Widget::prepare_focus_loss(&mut input),
+                FocusLossDecision::Veto
+            );
+        }
     }
 }
 
@@ -792,6 +830,148 @@ fn valid_enter_emits_begin_then_commit_with_one_keyboard_transaction() {
     assert_eq!(batch.events()[1].value, 8);
     assert!(input.active.is_none());
     assert_eq!(input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn complete_mode_wraps_enter_and_focus_loss_in_one_unchanged_edit() {
+    let mut enter = complete_u32_input();
+    replace_u32(&mut enter, "8");
+    let commit_timestamp = Some(InputTimestamp::capture());
+    let enter_batch = complete_output(Widget::handle_input(
+        &mut enter,
+        Rect::default(),
+        WidgetInput::key_press_with_timestamp(WidgetKey::Enter, commit_timestamp),
+    ))
+    .expect("complete Enter should emit one interaction envelope");
+    let enter_edit = complete_edit(&enter_batch);
+    assert_eq!(
+        enter_edit
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Commit]
+    );
+    assert_eq!(
+        enter_edit.events()[0].transaction,
+        enter_edit.events()[1].transaction
+    );
+    assert_eq!(enter_edit.events()[0].value, 7);
+    assert_eq!(enter_edit.events()[1].value, 8);
+    assert_eq!(
+        enter_edit.events()[1].provenance,
+        InteractionProvenance::Keyboard {
+            timestamp: commit_timestamp
+        }
+    );
+
+    let mut focus_loss = complete_u32_input();
+    replace_u32(&mut focus_loss, "8");
+    let focus_loss_batch = complete_output(Widget::handle_input(
+        &mut focus_loss,
+        Rect::default(),
+        WidgetInput::FocusChanged(false),
+    ))
+    .expect("complete focus loss should emit one interaction envelope");
+    let focus_loss_edit = complete_edit(&focus_loss_batch);
+    assert_eq!(
+        focus_loss_edit
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Commit]
+    );
+    assert_eq!(
+        focus_loss_edit.events()[0].transaction,
+        focus_loss_edit.events()[1].transaction
+    );
+    assert_eq!(focus_loss_edit.events()[0].value, 7);
+    assert_eq!(focus_loss_edit.events()[1].value, 8);
+}
+
+#[test]
+fn complete_mode_wraps_escape_and_all_replacement_cancels_once() {
+    let mut escape = complete_u32_input();
+    replace_u32(&mut escape, "8");
+    let escape_batch = complete_output(Widget::handle_input(
+        &mut escape,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::Escape),
+    ))
+    .expect("complete Escape should emit one interaction envelope");
+    let escape_edit = complete_edit(&escape_batch);
+    assert_eq!(escape_edit.events()[0].phase, EditPhase::Begin);
+    assert_eq!(escape_edit.events()[1].phase, EditPhase::Cancel);
+    assert_eq!(escape_edit.events()[1].value, 7);
+
+    let mut removed = active_complete_u32_input();
+    let removed_batch = complete_output(Widget::prepare_replacement(&mut removed, None))
+        .expect("complete removal should emit one interaction envelope");
+    assert_eq!(
+        complete_edit(&removed_batch).events()[1].phase,
+        EditPhase::Cancel
+    );
+
+    let mut changed_value = active_complete_u32_input();
+    let changed_successor = u32_input_with_value(9);
+    let changed_batch = complete_output(Widget::prepare_replacement(
+        &mut changed_value,
+        Some(&changed_successor as &dyn Widget),
+    ))
+    .expect("complete changed value should emit one interaction envelope");
+    assert_eq!(
+        complete_edit(&changed_batch).events()[1].phase,
+        EditPhase::Cancel
+    );
+
+    let mut disabled = active_complete_u32_input();
+    let mut disabled_successor = u32_input();
+    disabled_successor.text_input.common.state.disabled = true;
+    let disabled_batch = complete_output(Widget::prepare_replacement(
+        &mut disabled,
+        Some(&disabled_successor as &dyn Widget),
+    ))
+    .expect("complete disabled successor should emit one interaction envelope");
+    assert_eq!(
+        complete_edit(&disabled_batch).events()[1].phase,
+        EditPhase::Cancel
+    );
+
+    let mut read_only = active_complete_u32_input();
+    let mut read_only_successor = u32_input();
+    read_only_successor.text_input.common.state.read_only = true;
+    let read_only_batch = complete_output(Widget::prepare_replacement(
+        &mut read_only,
+        Some(&read_only_successor as &dyn Widget),
+    ))
+    .expect("complete read-only successor should emit one interaction envelope");
+    assert_eq!(
+        complete_edit(&read_only_batch).events()[1].phase,
+        EditPhase::Cancel
+    );
+
+    let mut incompatible = active_complete_u32_input();
+    let incompatible_successor = ButtonWidget::new(
+        0,
+        "replacement",
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    );
+    let incompatible_batch = complete_output(Widget::prepare_replacement(
+        &mut incompatible,
+        Some(&incompatible_successor as &dyn Widget),
+    ))
+    .expect("complete incompatible successor should emit one interaction envelope");
+    assert_eq!(
+        complete_edit(&incompatible_batch).events()[1].phase,
+        EditPhase::Cancel
+    );
+}
+
+fn active_complete_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = complete_u32_input();
+    replace_u32(&mut input, "8");
+    input
 }
 
 #[test]
@@ -973,6 +1153,58 @@ fn compatible_replacement_preserves_active_session_for_normal_sync() {
     assert_eq!(synchronized.text_input.state.caret, 0);
     assert_eq!(synchronized.text_input.state.selection_anchor, 1);
     assert!(synchronized.active.is_some());
+    assert_eq!(
+        synchronized.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+}
+
+#[test]
+fn output_mode_changes_retire_old_encoder_and_never_inherit_active_state() {
+    let mut old_complete = active_complete_u32_input();
+    let compatibility_successor = u32_input();
+    let complete_cancel = complete_output(Widget::prepare_replacement(
+        &mut old_complete,
+        Some(&compatibility_successor as &dyn Widget),
+    ))
+    .expect("complete-to-compatibility change should retire through old mode");
+    assert_eq!(
+        complete_edit(&complete_cancel).events()[1].phase,
+        EditPhase::Cancel
+    );
+    assert!(old_complete.active.is_none());
+
+    let mut compatibility_current = compatibility_successor;
+    Widget::synchronize_from_previous(&mut compatibility_current, &old_complete);
+    assert!(compatibility_current.active.is_none());
+    assert_eq!(compatibility_current.interaction_gate.incumbent(), None);
+
+    let mut old_compatibility = active_u32_input();
+    let complete_successor = complete_u32_input();
+    let compatibility_cancel = output(Widget::prepare_replacement(
+        &mut old_compatibility,
+        Some(&complete_successor as &dyn Widget),
+    ))
+    .expect("compatibility-to-complete change should retire through old mode");
+    assert_cancel_batch(&compatibility_cancel);
+    assert!(old_compatibility.active.is_none());
+
+    let mut complete_current = complete_successor;
+    Widget::synchronize_from_previous(&mut complete_current, &old_compatibility);
+    assert!(complete_current.active.is_none());
+    assert_eq!(complete_current.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn same_complete_mode_replacement_preserves_active_session() {
+    let mut previous = active_complete_u32_input();
+    let successor = complete_u32_input();
+
+    assert!(Widget::prepare_replacement(&mut previous, Some(&successor as &dyn Widget),).is_none());
+    let mut synchronized = successor;
+    Widget::synchronize_from_previous(&mut synchronized, &previous);
+    assert!(synchronized.active.is_some());
+    assert_eq!(synchronized.text_input.state.value, "8");
     assert_eq!(
         synchronized.interaction_gate.incumbent(),
         Some(NumericInteractionOwner::TextEdit)
@@ -1172,6 +1404,37 @@ fn disabled_and_read_only_inputs_do_not_mutate_or_start_sessions() {
             Rect::default(),
             WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
         )
+        .is_none()
+    );
+    assert_eq!(read_only.text_input.state.value, "7");
+    assert!(read_only.active.is_none());
+}
+
+#[test]
+fn complete_mode_disabled_and_read_only_inputs_are_silent() {
+    let mut disabled = complete_u32_input();
+    disabled.text_input.common.state.focused = true;
+    disabled.text_input.common.state.disabled = true;
+    assert!(
+        complete_output(Widget::handle_input(
+            &mut disabled,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
+        ))
+        .is_none()
+    );
+    assert_eq!(disabled.text_input.state.value, "7");
+    assert!(disabled.active.is_none());
+
+    let mut read_only = complete_u32_input();
+    read_only.text_input.common.state.focused = true;
+    read_only.text_input.common.state.read_only = true;
+    assert!(
+        complete_output(Widget::handle_input(
+            &mut read_only,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
+        ))
         .is_none()
     );
     assert_eq!(read_only.text_input.state.value, "7");

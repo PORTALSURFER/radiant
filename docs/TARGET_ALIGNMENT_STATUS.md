@@ -33,6 +33,8 @@ caches draft classification for the synchronous allocation-free focus-loss
 veto seam, commits valid Enter/focus-loss edits, cancels active Escape edits,
 and retains draft/caret/session state only for an actually active edit during
 same-ID reprojection. Qualified exports remain outside the common prelude.
-Semantic keyboard adjustment is contract-defined but unimplemented. Pointer/
-wheel scrubbing, IME, accessibility, Slider/Knob, platform, scheduler,
-renderer, and product policy remain out of scope for this slice.
+Semantic keyboard adjustment is contract-defined but unimplemented. The
+backend-neutral IME/composition lifecycle is now defined but unimplemented; the
+current source has no composition event or state. Pointer/wheel scrubbing,
+accessibility, Slider/Knob, platform, scheduler, renderer, and product policy
+remain out of scope for this slice.

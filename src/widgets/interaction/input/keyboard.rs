@@ -33,6 +33,8 @@ impl From<KeyPress> for KeyboardModifiers {
 pub enum WidgetKey {
     /// Activate or submit the focused widget.
     Enter,
+    /// Cancel the active edit in the focused widget.
+    Escape,
     /// Request completion for the focused widget.
     Tab,
     /// Activate the focused widget.
@@ -60,6 +62,7 @@ impl WidgetKey {
     pub fn from_key_code(key: KeyCode) -> Option<Self> {
         Some(match key {
             KeyCode::Enter => Self::Enter,
+            KeyCode::Escape => Self::Escape,
             KeyCode::Tab => Self::Tab,
             KeyCode::Space => Self::Space,
             KeyCode::Backspace => Self::Backspace,
@@ -105,6 +108,10 @@ mod tests {
         assert_eq!(
             WidgetKey::from_key_code(KeyCode::Enter),
             Some(WidgetKey::Enter)
+        );
+        assert_eq!(
+            WidgetKey::from_key_code(KeyCode::Escape),
+            Some(WidgetKey::Escape)
         );
         assert_eq!(WidgetKey::from_key_code(KeyCode::Tab), Some(WidgetKey::Tab));
         assert_eq!(

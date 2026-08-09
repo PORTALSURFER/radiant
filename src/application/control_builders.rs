@@ -12,6 +12,7 @@ mod icon_button;
 mod interactive_row;
 mod knob;
 mod marker_run;
+mod numeric_input;
 mod pointer_shield;
 mod pointer_target;
 mod progress_bar;
@@ -49,6 +50,7 @@ pub use interactive_row::{
 };
 pub use knob::{KnobBuilder, knob, knob_edit_mapped, knob_mapped};
 pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
+pub use numeric_input::{NumericInputBuilder, numeric_input};
 pub use pointer_shield::{
     PointerShieldBuilder, pointer_drop_shield, pointer_move_shield, pointer_shield,
 };

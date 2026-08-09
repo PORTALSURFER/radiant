@@ -8,6 +8,7 @@ use super::{EditEvent, InteractionProvenance};
 /// shared [`EditEvent`] lifecycle for its terminal boundary. Draft replacement
 /// never produces a typed update. The caller owns parsing, validation, domain
 /// policy, and any application or widget integration around the session.
+#[derive(Clone)]
 pub struct NumericEditSession<T> {
     draft: String,
     begin: EditEvent<T>,

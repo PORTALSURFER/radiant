@@ -307,6 +307,59 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
 }
 
 #[test]
+fn numeric_input_edit_batch_accepts_only_begin_then_terminal_pairs() {
+    let provenance = InteractionProvenance::Programmatic;
+    let begin = EditEvent::begin(GenericNumericValue(7), provenance);
+    let commit = begin
+        .clone()
+        .commit(GenericNumericValue(8), provenance)
+        .expect("matching source should commit");
+    let cancel = begin
+        .clone()
+        .cancel(provenance)
+        .expect("matching source should cancel");
+
+    let commit_batch = radiant::widgets::interaction::NumericInputEditBatch::from_events(&[
+        begin.clone(),
+        commit.clone(),
+    ])
+    .expect("Begin followed by Commit should be accepted");
+    assert_eq!(
+        commit_batch.len(),
+        NumericInputEditBatch::<GenericNumericValue>::MAX_EVENTS
+    );
+    assert_eq!(commit_batch.events()[0].phase, EditPhase::Begin);
+    assert_eq!(commit_batch.events()[1].phase, EditPhase::Commit);
+
+    let cancel_batch = NumericInputEditBatch::from_events(&[begin.clone(), cancel.clone()])
+        .expect("Begin followed by Cancel should be accepted");
+    assert_eq!(cancel_batch.events()[0].phase, EditPhase::Begin);
+    assert_eq!(cancel_batch.events()[1].phase, EditPhase::Cancel);
+
+    assert!(NumericInputEditBatch::<GenericNumericValue>::from_events(&[]).is_none());
+    assert!(NumericInputEditBatch::from_events(std::slice::from_ref(&begin)).is_none());
+    assert!(NumericInputEditBatch::from_events(&[begin.clone(), begin.clone()]).is_none());
+
+    let update = begin
+        .clone()
+        .update(GenericNumericValue(9), provenance)
+        .expect("matching source should update");
+    assert!(NumericInputEditBatch::from_events(&[begin.clone(), update]).is_none());
+    assert!(NumericInputEditBatch::from_events(&[commit.clone(), begin.clone()]).is_none());
+    assert!(
+        NumericInputEditBatch::from_events(&[begin.clone(), commit.clone(), cancel.clone(),])
+            .is_none()
+    );
+
+    let other_begin = EditEvent::begin(GenericNumericValue(7), provenance);
+    let other_commit = other_begin
+        .clone()
+        .commit(GenericNumericValue(8), provenance)
+        .expect("matching source should commit");
+    assert!(NumericInputEditBatch::from_events(&[begin, other_commit]).is_none());
+}
+
+#[test]
 fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
     let prelude_controls = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

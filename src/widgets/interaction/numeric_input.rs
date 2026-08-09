@@ -34,23 +34,25 @@ impl<T: Clone> NumericInputEditBatch<T> {
     /// The maximum number of ordered events carried by one batch.
     pub const MAX_EVENTS: usize = 2;
 
-    /// Build a batch from one or two events sharing one transaction.
+    /// Build a batch from exactly `Begin` followed by `Commit` or `Cancel`.
+    ///
+    /// The two events must share one transaction; any other shape returns
+    /// `None`.
     pub fn from_events(events: &[EditEvent<T>]) -> Option<Self> {
-        if !(1..=Self::MAX_EVENTS).contains(&events.len()) {
+        let [begin, terminal] = events else {
             return None;
-        }
-        let transaction = events.first()?.transaction;
-        if events.iter().any(|event| event.transaction != transaction) {
+        };
+        if begin.phase != EditPhase::Begin
+            || !terminal.phase.is_terminal()
+            || begin.transaction != terminal.transaction
+        {
             return None;
         }
 
-        let mut stored = std::array::from_fn(|_| events[0].clone());
-        for (slot, event) in stored.iter_mut().zip(events.iter()) {
-            *slot = event.clone();
-        }
+        let stored = [begin.clone(), terminal.clone()];
         Some(Self {
             events: stored,
-            len: events.len() as u8,
+            len: Self::MAX_EVENTS as u8,
         })
     }
 

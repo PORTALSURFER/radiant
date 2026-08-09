@@ -40,3 +40,7 @@ contract-defined but unimplemented. Wheel adjustment is now contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
+Shared numeric interaction ownership and admission arbitration are
+contract-defined but unimplemented; the IME/composition, keyboard, pointer,
+wheel, and accessibility interaction contracts remain target-only and
+unimplemented.

@@ -1501,19 +1501,35 @@ The start snapshot is retained exactly for rollback. A press does not emit
 not rechecked at release, and changing Alt/Option cannot turn capture into
 ordinary text input or change the transaction boundary.
 
+Before any move, admission initializes `NumericScrubAnchor` explicitly:
+
+```rust
+let anchor = NumericScrubAnchor {
+    position: press_position,
+    value: start_typed_value,
+};
+```
+
+The first move therefore normalizes from the captured press position and
+starting typed value; later moves use the current anchor.
+
 #### Target geometry, anchors, and step selection
 
 The latched logical bounds must have finite coordinates and a finite strictly
 positive width. Pointer positions used for normalization must be finite and
 within those declared bounds. The normalized horizontal delta is the signed
 displacement from the current anchor divided by that width: positive increases
-and negative decreases. Vertical displacement has no effect. Invalid,
-nonfinite, or out-of-bounds geometry or position is unknown evidence; the
-target does not clamp it, invent a coordinate, or publish a guessed candidate.
-The invalid sample leaves the anchor and any existing transaction unchanged.
+and negative decreases. A valid sample with zero horizontal displacement from
+the current anchor is a handler-level no-op before invoking
+`NumericAdjustment::scrub`: it creates no candidate, edit transaction, update,
+or value change and retains the current anchor. Vertical-only motion is such a
+sample. Invalid, nonfinite, or out-of-bounds geometry or position is unknown
+evidence; the target does not clamp it, invent a coordinate, or publish a
+guessed candidate. The invalid sample leaves the anchor and any existing
+transaction unchanged.
 
-Every valid move invokes exactly the target adjustment boundary with its
-current anchor:
+Every valid move with nonzero horizontal displacement invokes exactly the target
+adjustment boundary with its current anchor:
 
 ```rust
 let candidate = adjustment.scrub(anchor_value, normalized_delta, selected_step)?;
@@ -1622,8 +1638,8 @@ Deterministic target fixtures:
 | Fixture | Expected target behavior |
 | --- | --- |
 | 1. Alt/Option primary versus unmodified primary | An enabled, editable numeric input admits Alt/Option plus primary-button horizontal drag and latches capture. The same press without Alt/Option remains ordinary text caret/selection behavior and does not begin scrub. |
-| 2. First effective move and release | With a base-step input, an admitted press at `p0` followed by an effective move to `p1` emits `Begin(start)` with press provenance, then `Update(candidate)` with move provenance; matching captured release emits one `Commit(candidate)` with release provenance. |
-| 3. Sub-quantum accumulation | A move whose scrub candidate is unchanged emits nothing and leaves the anchor at its prior position/value. A later move accumulates the pending displacement; vertical-only motion has no effect; the first changed candidate opens the transaction. |
+| 2. First effective move and release | With a base-step input, admission initializes the anchor to `{ position: p0, value: start_typed_value }`; the first effective move to `p1` normalizes from that captured press/value and emits `Begin(start)` with press provenance, then `Update(candidate)` with move provenance. Matching captured release emits one `Commit(candidate)` with release provenance. |
+| 3. Sub-quantum accumulation | A valid zero-horizontal move, including vertical-only motion, is a handler-level no-op before `scrub`: it creates no candidate, edit transaction, update, or value change and retains the current anchor. A nonzero move whose scrub candidate is unchanged also emits nothing and leaves the anchor at its prior position/value; a later nonzero move accumulates pending displacement, and the first changed candidate opens the transaction. |
 | 4. Fine/Coarse selection and reanchor | Removing the latched Alt/Option chord leaves Base unmodified, Fine with Shift, and Coarse with Command on macOS or Control on Windows/Linux; Fine wins when both match. Changing mode reanchors at the current position/value, so the next displacement starts without a jump. |
 | 5. Blocked overlap | While text mutation, keyboard adjustment, IME composition, accessibility edit, or another transaction is active, the Alt/Option primary press is blocked: it does not scrub, parse, commit, or cancel the active interaction. |
 | 6. Exact cancellation rollback | Starting from a typed value/draft/caret/selection, an effective scrub emits `Begin`, `Update`, then Escape, capture loss, focus loss, explicit cancel, or a disable/read-only boundary emits exactly one `Cancel(start)` before cleanup and restores every starting field. Escape is consumed; a pending capture emits no edit event. |

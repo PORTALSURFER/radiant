@@ -2173,18 +2173,26 @@ runtime pointer capture. The activation chord is latched for the whole
 captured sequence through release or cancellation, even if Alt/Option changes
 after the press.
 
+Before any move, admission initializes `NumericScrubAnchor` as
+`{ position: press_position, value: start_typed_value }`. The first move
+therefore normalizes displacement from the captured press position and
+starting typed value; later moves use the current anchor.
+
 The target snapshot's logical geometry is evidence, not a value to repair. Its
 coordinates must be finite, its width must be finite and strictly positive,
 and the pointer positions used for normalization must be finite and within the
 declared bounds. Horizontal displacement is normalized by that positive width:
 positive normalized displacement increases the value and negative displacement
-decreases it. Vertical displacement has no effect. Invalid, nonfinite, or
+decreases it. A valid sample with zero horizontal displacement from the current
+anchor is a handler-level no-op before invoking `NumericAdjustment::scrub`: it
+creates no candidate, edit transaction, update, or value change and retains the
+current anchor. Vertical-only motion is such a sample. Invalid, nonfinite, or
 out-of-bounds geometry or positions are unknown evidence; the target does not
 guess a clamp or manufacture a replacement coordinate. Such a sample produces
 no candidate and does not advance the anchor.
 
-Each captured move uses an anchor position and anchor value. It invokes the
-supplied policy as
+Each captured move with nonzero horizontal displacement uses an anchor position
+and anchor value. It invokes the supplied policy as
 `NumericAdjustment::scrub(anchor_value, normalized_delta, selected_step)`.
 An unchanged candidate publishes nothing and retains the anchor, so sub-
 quantum motion accumulates across samples. A successfully adjusted,

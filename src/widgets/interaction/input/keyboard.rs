@@ -2,9 +2,10 @@ use crate::gui::input::{KeyCode, KeyPress};
 
 /// Keyboard modifier state preserved at the backend-neutral widget boundary.
 ///
-/// The command and control flags remain distinct so a numeric consumer can
-/// apply the platform's semantic Fine/Coarse policy without guessing which
-/// native modifier was pressed.
+/// At the native widget boundary, `command` represents physical Super/Meta and
+/// `control` represents physical Control. Host shortcut `KeyPress` values may
+/// project Control into `command` on non-macOS platforms; widget delivery keeps
+/// these physical modifiers separate.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct KeyboardModifiers {
     /// Whether the platform command modifier is held.

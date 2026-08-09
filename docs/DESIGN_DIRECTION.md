@@ -2130,6 +2130,17 @@ the shipped normalized
 `WidgetInput::KeyPress { key, modifiers, repeat, timestamp }` boundaries. A
 release is a distinct input sample, never another press.
 
+The native adapter now keeps host and widget modifier projections separate. The
+host `KeyPress` retains existing shortcut semantics, including Control folded
+into `command` on Linux and Windows; an unhandled sample reaches the focused
+widget with lossless physical modifiers, mapping Super/Meta to `command` and
+Control to `control` while preserving Shift and Alt independently. Press,
+repeat, and release use the same current native projection, host handling stays
+first, and handled shortcuts do not reach the widget. Public and synthetic
+dispatch remain field-for-field compatible. This is a prerequisite correction
+only: no numeric step, capture, transaction, or semantic keyboard consumer is
+shipped by this slice.
+
 Only a focused, enabled, non-read-only numeric input may step, and it may do so
 only when no text mutation is active. `ArrowUp` means `Increase` and `ArrowDown`
 means `Decrease`. `ArrowLeft`, `ArrowRight`, `Home`, and `End` remain text

@@ -346,13 +346,20 @@ where
         press: KeyPress,
         widget_key: Option<WidgetKey>,
     ) -> GenericRouteOutcome {
-        self.route_key_press_with_timestamp(press, widget_key, None, false)
+        self.route_key_press_with_timestamp(
+            press,
+            widget_key,
+            KeyboardModifiers::from(press),
+            None,
+            false,
+        )
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press_with_timestamp(
         &mut self,
         press: KeyPress,
         widget_key: Option<WidgetKey>,
+        widget_modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
         repeat: bool,
     ) -> GenericRouteOutcome {
@@ -360,6 +367,7 @@ where
             press,
             widget_key,
             FocusSurface::None,
+            widget_modifiers,
             timestamp,
             repeat,
         );
@@ -393,6 +401,7 @@ where
         self.route_widget_key_with_timestamp(key, None)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_widget_key_with_timestamp(
         &mut self,
         key: WidgetKey,

@@ -205,7 +205,14 @@ where
         widget_key: Option<WidgetKey>,
         focus: FocusSurface,
     ) -> bool {
-        self.dispatch_key_press_with_timestamp(press, widget_key, focus, None, false)
+        self.dispatch_key_press_with_timestamp(
+            press,
+            widget_key,
+            focus,
+            KeyboardModifiers::from(press),
+            None,
+            false,
+        )
     }
 
     /// Resolve one keypress and preserve an optional native input timestamp on
@@ -215,6 +222,7 @@ where
         press: KeyPress,
         widget_key: Option<WidgetKey>,
         focus: FocusSurface,
+        widget_modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
         repeat: bool,
     ) -> bool {
@@ -233,7 +241,7 @@ where
             .and_then(|key| {
                 self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
                     key,
-                    KeyboardModifiers::from(press),
+                    widget_modifiers,
                     repeat,
                     timestamp,
                 ))

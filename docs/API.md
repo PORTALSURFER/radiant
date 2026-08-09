@@ -4477,13 +4477,17 @@ normalized `KeyboardModifiers` state, the native `repeat` flag, and an optional
 input timestamp. `KeyboardModifiers` keeps command, control, shift, and alt
 distinct. The public `Event::key_press(...)` and `WidgetInput::key_press(...)`
 constructors use no modifiers, `repeat: false`, and no timestamp. Native
-adapters preserve the physical key's modifier and repeat metadata through
-focused-widget dispatch, alongside the timestamp captured after pressed/repeat
-acceptance. Generated logical shortcut fallback has no physical modifier sample
-and therefore retains only its timestamp. This metadata is observational in this
+adapters keep two projections of each physical sample: host `KeyPress` retains
+platform shortcut semantics, including Control folded into `command` on
+Linux/Windows, while focused widgets receive lossless physical modifiers with
+Super/Meta as `command` and Control as `control`. Press, repeat, and release
+use the same current native projection; host resolution remains first and a
+handled shortcut does not reach the widget. Generated logical shortcut fallback
+has no physical modifier sample and therefore retains only its timestamp.
+Public and synthetic dispatch still derives widget modifiers field-for-field
+from the supplied `KeyPress`. This metadata remains observational in this
 slice: it does not change current widget key mapping, shortcut precedence, or
-edit provenance; a future numeric consumer will select semantic Fine/Coarse
-steps from it.
+edit provenance; semantic numeric stepping remains unimplemented.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

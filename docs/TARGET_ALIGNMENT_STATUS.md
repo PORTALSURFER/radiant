@@ -59,3 +59,12 @@ unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
 The five other shared-gate consumers—IME/composition, keyboard adjustment,
 pointer, wheel, and accessibility—remain target-only and unimplemented.
+The native keyboard boundary now also ships a lossless widget-modifier
+projection alongside the unchanged host-shortcut `KeyPress` projection:
+Linux/Windows Control remains host `command` for shortcut resolution but reaches
+an unhandled focused widget as `control`, while Super/Meta reaches it as
+`command`; combined and Shift/Alt states remain independent across press,
+repeat, and release. Host handling remains first, and handled shortcuts do not
+reach widgets. This prerequisite correction has zero impact on the estimates
+and does not ship numeric stepping, capture, transactions, or a numeric
+consumer.

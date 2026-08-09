@@ -77,13 +77,14 @@ pub use interaction::{
     InteractiveRowMessage, InteractiveRowMetadata, KeyboardModifiers, KnobAutomationEvent,
     KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata,
     KnobWheelGesture, KnobWheelMetadata, ListItemMessage, NumericAdjustment, NumericCodec,
-    NumericEditSession, NumericInputConstructionError, NumericInputEditBatch, NumericParseResult,
-    NumericStep, NumericStepDirection, PointerButton, PointerModifiers, PointerShieldMessage,
-    RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage,
-    TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
-    TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping,
-    ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    handle_activation_input,
+    NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
+    NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericStep,
+    NumericStepAttempt, NumericStepDirection, PointerButton, PointerModifiers,
+    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
+    SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
+    TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError,
+    ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput,
+    WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{

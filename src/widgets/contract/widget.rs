@@ -136,6 +136,23 @@ pub trait Widget: WidgetClone + Any {
     /// requiring the runtime controller to know concrete widget types.
     fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {}
 
+    /// Prepare this widget's local interaction state for removal or loss of
+    /// authority during surface reconciliation.
+    ///
+    /// The runtime calls this at most once for each installed stateful widget
+    /// that crosses a refresh boundary. `Some` is an exact, proposed
+    /// compatible successor; `None` conservatively represents removal,
+    /// identity loss, incompatibility, or ambiguous evidence. Implementations
+    /// own the teardown of their local state before returning an optional
+    /// terminal [`WidgetOutput`]. The runtime maps that output through this
+    /// retiring widget and never retains the successor reference.
+    ///
+    /// The default is a no-op so existing custom [`Widget`] implementations
+    /// remain source-compatible.
+    fn prepare_replacement(&mut self, _successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+        None
+    }
+
     /// Return whether this widget needs refresh-time state reconciliation.
     ///
     /// Custom widgets default to `true` so existing widgets keep their previous

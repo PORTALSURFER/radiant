@@ -284,6 +284,20 @@ generation, so ordinary `text_input(value)` and `text_editor(document)` remain
 concise while still rejecting a stale reprojection during IME composition or
 editing.
 
+Reconciliation also has a generic widget-owned terminal boundary. Before
+retained state is synchronized, an installed stateful widget may implement the
+additive object-safe `Widget::prepare_replacement(...)` hook. The runtime passes
+an exact compatible successor only when identity, path, revision, and
+compatibility evidence is unique; removal, incompatible replacement, authority
+loss, or missing/ambiguous evidence passes `None`. The retiring widget mutates
+its own local state and may return a UI-local `WidgetOutput`. The old surface
+mapper collects those outputs in prior-widget order before the old surface is
+discarded, and the existing deferred command path reduces them only after the
+new surface has reached a non-reentrant installation boundary. Compatible
+unchanged reprojection remains ordinary `synchronize_from_previous(...)`; no
+successor reference or persistent terminal queue is introduced, and the default
+hook preserves source compatibility for existing widgets.
+
 The shipped single-line application builder exposes the qualified
 `TextInputRevision` authority prerequisite through `.revision(...)`. A newer
 caller-supplied revision applies the projected value and selection, while an

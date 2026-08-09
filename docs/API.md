@@ -3511,6 +3511,19 @@ ID and calls `Widget::synchronize_from_previous(...)`. Built-in widgets use that
 hook for transient interaction state such as text-input caret/selection and
 scrollbar drag grip state, and custom widgets can use the same hook for their
 own retained state without adding runtime downcasts or central widget cases.
+Before that synchronization can transfer retained state, the runtime gives each
+installed stateful widget one additive `Widget::prepare_replacement(...)` seam.
+It passes an exact proposed compatible successor when the identity, path,
+revision, and compatibility evidence is unambiguous; removal, identity loss,
+incompatible replacement, or ambiguous evidence passes `None`. The retiring
+widget owns its local teardown and may return a UI-local `WidgetOutput`. Radiant
+maps that output through the retiring `SurfaceWidget` mapper, collects outputs in
+the previous widget order before discarding the old surface, installs the new
+surface, and only then reduces the bounded batch through the existing deferred
+command path. The successor is borrowed only for the call and is never retained.
+The default hook is a no-op, so existing custom `Widget` implementations remain
+source-compatible; compatible unchanged successors continue through ordinary
+`synchronize_from_previous(...)` with no terminal output.
 Retained synchronization is compatibility-aware: the additive default
 `Widget::compatibility_kind()` descriptor is derived from the concrete custom
 widget type, so an ID reused by a different widget kind is treated as a safe

@@ -1,3 +1,4 @@
+use super::state_sync::WidgetStateSyncEvidence;
 use super::{
     SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
 };
@@ -14,6 +15,46 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(super) fn prepare_widget_replacement_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        successor: Option<&dyn crate::widgets::Widget>,
+    ) -> (bool, WidgetDispatchResult<Message>) {
+        let Some(widget) = self
+            .find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+        else {
+            return (false, WidgetDispatchResult::NoOutput);
+        };
+        let Some(output) = widget.prepare_replacement(successor) else {
+            return (true, WidgetDispatchResult::NoOutput);
+        };
+        let result = widget
+            .dispatch_output(widget_id, output)
+            .map(WidgetDispatchResult::Message)
+            .unwrap_or(WidgetDispatchResult::UnmappedOutput);
+        (true, result)
+    }
+
+    pub(super) fn prepare_widget_replacement(
+        &mut self,
+        widget_id: WidgetId,
+        successor: Option<&dyn crate::widgets::Widget>,
+    ) -> (bool, WidgetDispatchResult<Message>) {
+        let Some(widget) = self.find_widget_mut(widget_id) else {
+            return (false, WidgetDispatchResult::NoOutput);
+        };
+        let Some(output) = widget.prepare_replacement(successor) else {
+            return (true, WidgetDispatchResult::NoOutput);
+        };
+        let result = widget
+            .dispatch_output(widget_id, output)
+            .map(WidgetDispatchResult::Message)
+            .unwrap_or(WidgetDispatchResult::UnmappedOutput);
+        (true, result)
+    }
+
     pub(super) fn widget_compatibility_at_path(
         &self,
         child_path: &[usize],
@@ -26,6 +67,7 @@ impl<Message> SurfaceNode<Message> {
         })
     }
 
+    #[allow(dead_code)]
     pub(super) fn synchronize_widget_state_from_paths(
         &mut self,
         stateful_widget_order: &[WidgetId],
@@ -34,11 +76,39 @@ impl<Message> SurfaceNode<Message> {
         previous_paths: &HashMap<WidgetId, WidgetPath>,
         policy: WidgetStateSyncPolicy,
     ) {
-        for widget_id in stateful_widget_order {
-            let Some(current_path) = current_paths.get(widget_id) else {
+        self.synchronize_widget_state_from_paths_with_evidence(
+            WidgetStateSyncEvidence {
+                stateful_widget_order,
+                current_paths,
+                previous_paths,
+                previous_widget_order: &[],
+                current_widget_order: &[],
+                retired_widget_ids: &[],
+                policy,
+            },
+            previous,
+        );
+    }
+
+    pub(super) fn synchronize_widget_state_from_paths_with_evidence(
+        &mut self,
+        evidence: WidgetStateSyncEvidence<'_>,
+        previous: &Self,
+    ) {
+        for widget_id in evidence.stateful_widget_order {
+            if evidence.retired_widget_ids.contains(widget_id) {
+                continue;
+            }
+            if !evidence.previous_widget_order.is_empty()
+                && (!has_unique_widget_id(evidence.previous_widget_order, *widget_id)
+                    || !has_unique_widget_id(evidence.current_widget_order, *widget_id))
+            {
+                continue;
+            }
+            let Some(current_path) = evidence.current_paths.get(widget_id) else {
                 continue;
             };
-            let Some(previous_path) = previous_paths.get(widget_id) else {
+            let Some(previous_path) = evidence.previous_paths.get(widget_id) else {
                 continue;
             };
             let Some(previous_widget) = previous
@@ -62,7 +132,7 @@ impl<Message> SurfaceNode<Message> {
             current_widget
                 .widget_object_mut_runtime()
                 .synchronize_from_previous(previous_widget.widget_object());
-            if policy.clears_retained_hover_for(*widget_id) {
+            if evidence.policy.clears_retained_hover_for(*widget_id) {
                 current_widget
                     .widget_object_mut_runtime()
                     .common_mut()
@@ -290,6 +360,20 @@ impl<Message> SurfaceNode<Message> {
             _ => None,
         }
     }
+}
+
+fn has_unique_widget_id(widget_order: &[WidgetId], widget_id: WidgetId) -> bool {
+    let mut found = false;
+    for candidate in widget_order {
+        if *candidate != widget_id {
+            continue;
+        }
+        if found {
+            return false;
+        }
+        found = true;
+    }
+    found
 }
 
 #[cfg(test)]

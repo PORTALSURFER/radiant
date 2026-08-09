@@ -24,6 +24,14 @@ The broad estimate is the unweighted mean of the category rows:
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
+The generic widget interaction teardown seam is now executable: an additive
+defaulted `Widget` hook can terminate retiring local state, old-surface mappers
+collect ordered UI-local output before discard, and the existing deferred
+command path reduces it after installation. Conservative removal, incompatible
+replacement, authority/disabled/read-only loss, compatible preservation, old
+mapper ownership, unmapped cleanup, ordering, exactly-once behavior, and
+non-reentrant projection are covered by private runtime fixtures. These results
+do not change the estimates above.
 
 The current numeric evidence is a public generic `numeric_input(value, codec,
 adjustment)` builder with typed construction failures and the shipped

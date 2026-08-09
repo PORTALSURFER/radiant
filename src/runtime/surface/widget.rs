@@ -262,6 +262,14 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.needs_state_synchronization()
     }
 
+    pub(in crate::runtime::surface) fn prepare_replacement(
+        &mut self,
+        successor: Option<&dyn Widget>,
+    ) -> Option<WidgetOutput> {
+        self.widget_object_mut_runtime()
+            .prepare_replacement(successor)
+    }
+
     pub(in crate::runtime) fn suppresses_container_hover(&self) -> bool {
         let common = self.widget.common();
         !common.state.disabled

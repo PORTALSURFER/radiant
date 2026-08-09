@@ -66,6 +66,20 @@ where
         );
     }
 
+    pub(in crate::runtime::controller) fn dispatch_deferred_surface_messages(
+        &mut self,
+        messages: Vec<Message>,
+    ) {
+        if messages.is_empty() {
+            return;
+        }
+        let mut outcome = CommandOutcome::default();
+        for message in messages {
+            self.dispatch_message_inner_deferred_refresh(message, &mut outcome);
+        }
+        self.finish_command_outcome(outcome);
+    }
+
     fn dispatch_message_inner_with_refresh(
         &mut self,
         message: Message,

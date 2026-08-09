@@ -1107,6 +1107,14 @@ qualified `NumericInputConstructionError<CodecError, AdjustmentError>`,
 from `radiant::widgets` (and their qualified `interaction` module), but none of
 these numeric-input-specific types are exported through the common prelude.
 
+`NumericInputEditBatch<T>` is the shipped bounded incremental carrier
+foundation. Its private inline storage has capacity two and accepts exactly the
+non-empty fragments `[Update]`, `[Commit]`, `[Cancel]`, `[Begin, Update]`,
+`[Begin, Commit]`, and `[Begin, Cancel]`; a two-event fragment must preserve one
+transaction. The shipped text-first widget still emits only `[Begin, Commit]`
+and `[Begin, Cancel]`. The carrier provides storage and shape validation only;
+it does not implement semantic keyboard stepping.
+
 Construction requires both application policies:
 
 ```rust

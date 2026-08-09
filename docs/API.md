@@ -1880,6 +1880,177 @@ Deterministic target fixtures:
 | 11. Exact metadata and cleanup | Every edit phase uses pointer provenance. Effective samples copy exact modifiers, timestamp, and complete sequence range; a native-metadata terminal copies its metadata. Escape/focus/identity/authority/disable/read-only cleanup with no input sample uses absent metadata and fabricates nothing. |
 | 12. Observational metadata proof | Delayed samples still follow explicit ownership without an idle timeout; timestamps and sequence ranges do not define continuity, deadlines, scheduling, accumulation, cache admission, reuse, renderer resources, render selection, or execution. Different observational metadata cannot authorize any of those decisions. |
 
+### Target numeric accessibility action lifecycle (not yet shipped)
+
+The following is an illustrative target-only, backend-neutral lifecycle for
+accessibility actions on the shipped generic `numeric_input` consumer. It is
+not shipped behavior. The current automation snapshot, action-name export,
+generic consumer, and native adapters do not execute it. The action names are
+neutral target vocabulary only, not native action names, handles, APIs, or
+payload formats.
+
+The illustrative request and result vocabulary is:
+
+```rust
+// Illustrative target-only shapes; not shipped public Rust types.
+enum NumericAccessibilityAction {
+    Increment,
+    Decrement,
+    SetValueText(String),
+}
+
+struct NumericAccessibilityRequest {
+    target: AutomationTarget,
+    action: NumericAccessibilityAction,
+}
+
+enum NumericAccessibilityEditOwner {
+    TextEdit,
+    KeyboardAdjustment,
+    PointerScrub,
+    WheelSequence,
+    ImeComposition,
+    AccessibilityEdit,
+    Other,
+}
+
+enum NumericAccessibilityParseFailure {
+    Incomplete,
+    Invalid,
+    OutOfRange,
+}
+
+enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    NoChange {
+        action: NumericAccessibilityAction,
+    },
+    Unavailable {
+        reason: NumericAccessibilityUnavailableReason,
+    },
+    Rejected {
+        reason: NumericAccessibilityRejectedReason,
+    },
+    Blocked {
+        owner: NumericAccessibilityEditOwner,
+    },
+    AdjustmentFailed {
+        action: NumericAccessibilityAction,
+        error: AdjustmentError,
+    },
+    ParseFailed {
+        outcome: NumericAccessibilityParseFailure,
+    },
+    FormatFailed {
+        action: NumericAccessibilityAction,
+        error: FormatError,
+    },
+}
+```
+
+`NumericAccessibilityAction` is the complete neutral illustrative vocabulary:
+`Increment`, `Decrement`, and `SetValueText(String)`. A future native or
+platform adapter may translate a platform request into one of these values,
+but this contract selects no native action name, handle, API, or payload
+format. Each request is discrete; platform timing does not imply repetition
+or continuity.
+
+#### Target ownership and conservative authority rules
+
+The application owns the durable `T` value and supplies `NumericCodec<T>` and
+`NumericAdjustment<T>`. The numeric input owns draft text, caret, selection,
+focus-local edit state, and the edit lifecycle. Runtime ownership includes
+the current stable numeric widget identity, authority/revision, focus
+transition, materialization status, and active edit-owner admission. A future
+adapter owns only translation into the neutral action vocabulary. The
+automation snapshot and flattened target projection are read-only evidence;
+they do not own dispatch or mutation.
+
+Before each request, current authority is revalidated. The target must still
+map to the same stable numeric widget identity, the action must still be
+supported, and the widget must be enabled and non-read-only. Unknown, stale,
+removed, unsupported, or unmaterialized targets produce an explicit
+`Unavailable` or `Rejected` result and no edit. Snapshot revision, advertised
+actions, bounds, labels, and values are veto/evidence only; they never
+independently authorize execution. An identity/reprojection replacement is
+stale even if an older snapshot still contains the target.
+
+Offscreen or unmaterialized virtual targets are unavailable. This action
+contract cannot authorize materialization, scrolling, scheduling, cache
+admission, reuse, renderer work, renderer resources, or other work required to
+make an unavailable target executable. Those decisions belong to separate
+runtime, virtualization, scheduler, cache, and renderer contracts.
+
+#### Target focus and edit-owner rules
+
+An eligible request performs the ordinary focus transition before any numeric
+mutation. The current focused control receives its normal focus-loss veto. A
+focus-transfer veto, inability to focus the target, or focus loss before the
+final authority check returns a typed `Rejected` result without changing
+either control. The request never commits, cancels, or replaces an existing
+draft to obtain focus.
+
+An action is `Blocked` when it would interrupt an active text edit, keyboard
+adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit,
+or other edit owner. A blocked request does not commit, cancel, parse, format,
+or otherwise alter the existing interaction. After focus succeeds, identity,
+action support, enabled/read-only state, and the absence of a conflicting
+owner are checked again immediately before policy invocation.
+
+#### Target action semantics and atomic edit result
+
+`Increment` and `Decrement` each invoke exactly one
+`NumericAdjustment::step` with the corresponding direction and
+`NumericStep::Base`. Accessibility supplies no Fine or Coarse modifiers, and
+platform repeat timing cannot turn one request into multiple steps. An
+adjustment error returns typed `AdjustmentFailed` with no edit lifecycle and
+the exact UI unchanged.
+
+`SetValueText(String)` sends the complete text once through
+`NumericCodec::parse`. Only `Valid(T)` proceeds. `Incomplete`, `Invalid`, and
+`OutOfRange` are distinct typed `ParseFailed` outcomes with no formatting,
+mutation, commit, cancel, or edit. The payload is not appended to a draft and
+is never silently clamped.
+
+When the policy result is known equal to the current value, the result is
+`NoChange`: there is no edit event and `NumericCodec::format_editable` is not
+invoked. A changed candidate must first pass
+`NumericCodec::format_editable`; a formatting failure returns typed
+`FormatFailed`, preserves the exact value/draft/caret/selection/focus, and
+emits no `Begin`, `Update`, `Commit`, or `Cancel`.
+
+Each accepted changed request publishes one bounded atomic `EditTransaction` with
+one transaction identity and exactly `Begin(start)`, `Update(candidate)`, and
+`Commit(candidate)`. All phases use
+`InteractionProvenance::Accessibility`. The request does not join an older
+keyboard, pointer, wheel, IME, or accessibility sequence, and another request
+must independently revalidate current authority.
+
+#### Target provenance and execution boundaries
+
+Accessibility phases carry no fabricated timestamp, modifiers, or sequence
+range. Missing native metadata remains absent; platform timing cannot infer
+repetition or continuity. Snapshot/action metadata is observational only and
+cannot authorize execution, scheduling, cache admission, reuse, renderer
+resources, materialization, scrolling, or render work.
+
+Deterministic target fixtures:
+
+| Fixture | Expected target behavior |
+| --- | --- |
+| 1. Increment and Decrement | For current value `7`, each action invokes exactly one Base `NumericAdjustment::step` in its direction; no Fine/Coarse modifier or repeat is inferred. |
+| 2. Valid SetValueText | A complete text whose parse result is `Valid(T)` is formatted once through `NumericCodec::format_editable`, and canonical editable text is published only with the accepted changed transaction. |
+| 3. Atomic lifecycle and provenance | A changed action emits one transaction identity with `Begin(start)`, `Update(candidate)`, `Commit(candidate)` in order; every phase is `InteractionProvenance::Accessibility`. |
+| 4. Unchanged boundary | An adjustment boundary no-op, or valid text equal to the current value, returns `NoChange`, emits no edit event, and does not invoke the formatter when equality is known. |
+| 5. Typed failures without partial lifecycle | Adjustment failure, `Incomplete`, `Invalid`, `OutOfRange`, and formatting failure each produce a typed failure with exact UI unchanged and no `Begin`, `Update`, `Commit`, or `Cancel`. |
+| 6. Target eligibility | Disabled, read-only, unsupported, missing, unknown, stale, removed, or unavailable targets produce explicit unavailable/rejected results and no edit. |
+| 7. Focus transfer and focus-loss veto | Ordinary focus transfer precedes mutation. A current-control focus-loss veto or inability to focus the target rejects without changing either control; focus loss before final dispatch revalidation also rejects without an edit. |
+| 8. Every active edit owner blocks | Active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit, or other owner returns `Blocked`; no commit, cancel, parse, or alteration occurs. |
+| 9. Identity/reprojection replacement | A request captured before replacement or incompatible reprojection is stale/unavailable at dispatch and is never rebased; no policy, codec, formatter, or edit lifecycle runs. |
+| 10. Missing native metadata | Accepted phases use Accessibility provenance with timestamp, modifiers, and sequence range absent; no native metadata or timing is fabricated. |
+| 11. Unmaterialized virtual target | An offscreen/unmaterialized virtual target is unavailable even when advertised by a semantic snapshot; the action cannot authorize materialization or scrolling. |
+| 12. Snapshot/action metadata proof | Snapshot revision, action advertisement, geometry, timing, and other observational metadata cannot authorize dispatch, execution, scheduling, cache admission, reuse, renderer resources, renderer work, or materialization without independent current authority. |
+
 ### Numeric adjustment contract
 
 Radiant also ships the qualified generic `NumericAdjustment<T>` policy boundary
@@ -5112,6 +5283,14 @@ app-level automation tools. `RADIANT_AUTOMATION_TARGET_EXPORT` pairs with that
 launch path by exposing the current flattened target snapshot to external
 sidecars, but it does not replace the semantic automation snapshot and does not
 by itself expose per-widget native accessibility nodes.
+The current snapshot `actions` field and action-name export are advertisement
+and inspection only: they do not dispatch an action, transfer focus,
+materialize a virtual target, or authorize execution. The target-only numeric
+accessibility action lifecycle above is a separate future dispatch contract;
+only a future adapter may map an external request into its neutral
+`Increment`, `Decrement`, or `SetValueText(String)` vocabulary after current
+authority revalidation. No current automation export or native adapter
+executes that vocabulary.
 
 `radiant::gui::snapshot` owns deterministic rendered-frame snapshot primitives:
 `VisualSnapshot`, `SnapshotPrimitive`, `SnapshotTextRun`, `SnapshotRect`,

@@ -6,8 +6,8 @@ use crate::{
         types::{Point, Vector2},
     },
     widgets::{
-        EditPhase, InteractionSource, KeyboardModifier, KeyboardModifiers, NumericStep,
-        NumericStepDirection, NumericStepModifiers, PointerModifiers, TextEditCommand,
+        ButtonWidget, EditPhase, InteractionSource, KeyboardModifier, KeyboardModifiers,
+        NumericStep, NumericStepDirection, NumericStepModifiers, PointerModifiers, TextEditCommand,
     },
 };
 use std::{cell::Cell, fmt, rc::Rc};
@@ -246,7 +246,25 @@ impl NumericAdjustment<FrequencyHz> for FrequencyAdjustment {
 }
 
 fn u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
-    u32_input_with_parse_calls().0
+    u32_input_with_value(7)
+}
+
+fn u32_input_with_value(value: u32) -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    NumericInputWidget::try_new(
+        value,
+        U32Codec {
+            format_calls: Rc::new(Cell::new(0)),
+            parse_calls: Rc::new(Cell::new(0)),
+            fail_format: false,
+        },
+        U32Adjustment {
+            inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
+            fail_inverse: false,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("u32 fixture should construct")
 }
 
 fn u32_input_with_parse_calls() -> (
@@ -270,6 +288,43 @@ fn u32_input_with_parse_calls() -> (
     )
     .map(|input| (input, parse_calls))
     .expect("u32 fixture should construct")
+}
+
+struct U32PolicyCalls {
+    input: NumericInputWidget<u32, U32Codec, U32Adjustment>,
+    format_calls: Rc<Cell<usize>>,
+    parse_calls: Rc<Cell<usize>>,
+    inverse_calls: Rc<Cell<usize>>,
+    step_calls: Rc<Cell<usize>>,
+}
+
+fn u32_input_with_policy_calls() -> U32PolicyCalls {
+    let format_calls = Rc::new(Cell::new(0));
+    let parse_calls = Rc::new(Cell::new(0));
+    let inverse_calls = Rc::new(Cell::new(0));
+    let step_calls = Rc::new(Cell::new(0));
+    let input = NumericInputWidget::try_new(
+        7,
+        U32Codec {
+            format_calls: Rc::clone(&format_calls),
+            parse_calls: Rc::clone(&parse_calls),
+            fail_format: false,
+        },
+        U32Adjustment {
+            inverse_calls: Rc::clone(&inverse_calls),
+            step_calls: Rc::clone(&step_calls),
+            fail_inverse: false,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("u32 fixture should construct");
+    U32PolicyCalls {
+        input,
+        format_calls,
+        parse_calls,
+        inverse_calls,
+        step_calls,
+    }
 }
 
 fn u32_input_with_step_calls() -> (
@@ -329,6 +384,26 @@ fn replace_u32(input: &mut NumericInputWidget<u32, U32Codec, U32Adjustment>, tex
             WidgetInput::text_edit(TextEditCommand::InsertText(text.to_owned())),
         )
         .is_none()
+    );
+}
+
+fn active_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = u32_input();
+    replace_u32(&mut input, "8");
+    input
+}
+
+fn assert_cancel_batch(batch: &NumericInputEditBatch<u32>) {
+    assert_eq!(batch.len(), 2);
+    assert_eq!(batch.events()[0].phase, EditPhase::Begin);
+    assert_eq!(batch.events()[1].phase, EditPhase::Cancel);
+    assert_eq!(batch.events()[0].transaction, batch.events()[1].transaction);
+    assert_eq!(batch.events()[0].value, 7);
+    assert_eq!(batch.events()[1].start_value, 7);
+    assert_eq!(batch.events()[1].value, 7);
+    assert_eq!(
+        batch.events()[1].provenance,
+        InteractionProvenance::Keyboard { timestamp: None }
     );
 }
 
@@ -811,6 +886,155 @@ fn escape_emits_begin_cancel_and_restores_starting_value_and_draft() {
         &input,
         WidgetKey::Escape
     ));
+}
+
+#[test]
+fn replacement_teardown_cancels_removed_incompatible_and_changed_value_once() {
+    let mut removed = active_u32_input();
+    let batch = output::<u32>(Widget::prepare_replacement(&mut removed, None))
+        .expect("removal should cancel the active text edit");
+    assert_cancel_batch(&batch);
+    assert!(removed.active.is_none());
+    assert_eq!(removed.text_input.state.value, "7");
+    assert_eq!(removed.interaction_gate.incumbent(), None);
+
+    let mut incompatible = active_u32_input();
+    let successor = ButtonWidget::new(
+        0,
+        "replacement",
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    );
+    let batch = output::<u32>(Widget::prepare_replacement(
+        &mut incompatible,
+        Some(&successor as &dyn Widget),
+    ))
+    .expect("incompatible replacement should cancel the active text edit");
+    assert_cancel_batch(&batch);
+    assert!(incompatible.active.is_none());
+    assert_eq!(incompatible.text_input.state.value, "7");
+
+    let mut changed_value = active_u32_input();
+    let changed_successor = u32_input_with_value(9);
+    let batch = output::<u32>(Widget::prepare_replacement(
+        &mut changed_value,
+        Some(&changed_successor as &dyn Widget),
+    ))
+    .expect("changed external value should cancel the active text edit");
+    assert_cancel_batch(&batch);
+    assert!(changed_value.active.is_none());
+    assert_eq!(changed_value.text_input.state.value, "7");
+}
+
+#[test]
+fn replacement_teardown_cancels_identity_disabled_and_read_only_successors() {
+    let mut changed_identity = active_u32_input();
+    let mut identity_successor = u32_input();
+    Widget::common_mut(&mut identity_successor).id = 1;
+    let batch = output::<u32>(Widget::prepare_replacement(
+        &mut changed_identity,
+        Some(&identity_successor as &dyn Widget),
+    ))
+    .expect("changed identity should cancel the active text edit");
+    assert_cancel_batch(&batch);
+
+    for read_only in [false, true] {
+        let mut input = active_u32_input();
+        let mut successor = u32_input();
+        Widget::common_mut(&mut successor).state.disabled = !read_only;
+        Widget::common_mut(&mut successor).state.read_only = read_only;
+        let batch = output::<u32>(Widget::prepare_replacement(
+            &mut input,
+            Some(&successor as &dyn Widget),
+        ))
+        .expect("disabled or read-only successor should cancel the active text edit");
+        assert_cancel_batch(&batch);
+        assert!(input.active.is_none());
+        assert_eq!(input.interaction_gate.incumbent(), None);
+    }
+}
+
+#[test]
+fn compatible_replacement_preserves_active_session_for_normal_sync() {
+    let mut previous = active_u32_input();
+    previous.text_input.state.caret = 0;
+    previous.text_input.state.selection_anchor = 1;
+    let successor = u32_input();
+
+    assert!(Widget::prepare_replacement(&mut previous, Some(&successor as &dyn Widget),).is_none());
+    assert!(previous.active.is_some());
+    assert_eq!(
+        previous.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+
+    let mut synchronized = successor;
+    Widget::synchronize_from_previous(&mut synchronized, &previous);
+    assert_eq!(synchronized.text_input.state.value, "8");
+    assert_eq!(synchronized.text_input.state.caret, 0);
+    assert_eq!(synchronized.text_input.state.selection_anchor, 1);
+    assert!(synchronized.active.is_some());
+    assert_eq!(
+        synchronized.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+}
+
+#[test]
+fn replacement_teardown_restores_invalid_incomplete_and_out_of_range_without_policy_calls() {
+    for draft in ["invalid", "-", "101"] {
+        let policy_calls = u32_input_with_policy_calls();
+        let mut input = policy_calls.input;
+        let format_calls = policy_calls.format_calls;
+        let parse_calls = policy_calls.parse_calls;
+        let inverse_calls = policy_calls.inverse_calls;
+        let step_calls = policy_calls.step_calls;
+        replace_u32(&mut input, draft);
+        input.text_input.state.caret = 0;
+        input.text_input.state.selection_anchor = 1;
+        let calls_after_draft = (
+            format_calls.get(),
+            parse_calls.get(),
+            inverse_calls.get(),
+            step_calls.get(),
+        );
+
+        let batch = output::<u32>(Widget::prepare_replacement(&mut input, None))
+            .expect("every non-valid draft should cancel during teardown");
+        assert_cancel_batch(&batch);
+        assert_eq!(input.value, 7);
+        assert_eq!(input.text_input.state.value, "7");
+        assert_eq!(input.text_input.state.caret, 1);
+        assert_eq!(input.text_input.state.selection_anchor, 0);
+        assert!(input.active.is_none());
+        assert_eq!(input.interaction_gate.incumbent(), None);
+        assert_eq!(
+            (
+                format_calls.get(),
+                parse_calls.get(),
+                inverse_calls.get(),
+                step_calls.get(),
+            ),
+            calls_after_draft,
+            "teardown must not consult codec or adjustment policy for {draft:?}"
+        );
+    }
+}
+
+#[test]
+fn inactive_and_repeated_replacement_teardown_are_no_ops() {
+    let mut inactive = u32_input();
+    let before = inactive.text_input.state.clone();
+    assert!(Widget::prepare_replacement(&mut inactive, None).is_none());
+    assert_eq!(inactive.text_input.state, before);
+    assert_eq!(inactive.interaction_gate.incumbent(), None);
+
+    let mut active = active_u32_input();
+    assert!(Widget::prepare_replacement(&mut active, None).is_some());
+    assert!(Widget::prepare_replacement(&mut active, None).is_none());
+    assert_eq!(active.value, 7);
+    assert_eq!(active.text_input.state.value, "7");
+    assert!(active.active.is_none());
+    assert_eq!(active.interaction_gate.incumbent(), None);
 }
 
 #[test]

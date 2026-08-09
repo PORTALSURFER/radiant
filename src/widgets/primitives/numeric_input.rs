@@ -447,6 +447,22 @@ where
         }
     }
 
+    fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+        let compatible = successor
+            .and_then(|successor| successor.as_any().downcast_ref::<Self>())
+            .is_some_and(|successor| {
+                self.text_input.common.id == successor.text_input.common.id
+                    && self.value == successor.value
+                    && !successor.text_input.common.state.disabled
+                    && !successor.text_input.common.state.read_only
+            });
+        if compatible {
+            return None;
+        }
+
+        self.cancel_active(None).map(WidgetOutput::typed)
+    }
+
     fn accepts_text_input(&self) -> bool {
         self.is_editable()
     }

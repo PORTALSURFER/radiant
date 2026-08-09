@@ -1094,10 +1094,11 @@ until an application supplies a valid terminal value.
 ### Numeric text input consumer
 
 For the target numeric interaction set, the first actual text mutation is the
-TextEdit admission boundary: it may acquire the shared owner only when the
-incumbent is None. A different pending or active owner denies text admission
-before parsing, formatting, focus transfer, or edit lifecycle mutation. The
-shipped consumer does not claim that this target arbitration is implemented.
+TextEdit admission boundary. The shipped consumer now uses the crate-private
+shared gate: it acquires TextEdit only when the incumbent is None, and a
+different pending or active owner denies text admission before parsing,
+formatting, focus transfer, or edit lifecycle mutation. The gate remains
+unadopted by the five other target consumers.
 
 Radiant ships a bounded public, text-first numeric consumer through the explicit
 `radiant::application::{numeric_input, NumericInputBuilder}` exports. The
@@ -1158,14 +1159,15 @@ product-specific locale codecs remain application-supplied. The current
 consumer exercises generic construction and the `u32` text lifecycle; the
 other adjustment-consuming behavior remains outside this slice.
 
-### Target numeric interaction ownership and admission (not yet shipped)
+### Numeric interaction ownership and admission (TextEdit foundation shipped)
 
 This is one shared, target-only, backend-neutral contract for the numeric
-interaction set. It is illustrative design vocabulary, not a shipped runtime,
-public Rust API, native adapter, storage shape, or implementation claim. The
-contract applies to each stable numeric-input identity and is the common
-arbitration boundary for text edit, IME composition, keyboard adjustment,
-pointer scrub, wheel sequence, and accessibility edit.
+interaction set. The crate-private gate is shipped for TextEdit admission in
+the generic text consumer; IME composition, keyboard adjustment, pointer scrub,
+wheel sequence, and accessibility edit remain target-only consumers. The gate
+is not a public Rust API, native adapter, storage shape, or product policy.
+The contract applies to each stable numeric-input identity and is the common
+arbitration boundary for all six interaction kinds.
 
 The owner vocabulary is conceptual and consists exactly of TextEdit,
 ImeComposition, KeyboardAdjustment, PointerScrub, WheelSequence,
@@ -1240,8 +1242,9 @@ interrupt an incumbent.
 
 #### Target shared-owner acceptance fixtures
 
-The target contract is accepted only when this matrix holds; it does not claim
-that any fixture currently passes through a shipped runtime:
+The target contract is accepted only when this matrix holds. The shipped text
+consumer covers the TextEdit admission and cleanup foundation; rows for the
+five other consumers remain target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |

@@ -1,4 +1,5 @@
 use super::*;
+use crate::widgets::interaction::NumericInteractionOwner;
 use crate::{
     gui::{
         input::InputTimestamp,
@@ -394,6 +395,10 @@ fn draft_mutation_is_verbatim_has_no_typed_output_and_does_not_reformat_or_adjus
     replace_u32(&mut input, "invalid");
     assert_eq!(input.text_input.state.value, "invalid");
     assert!(input.active.is_some());
+    assert_eq!(
+        input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
     assert_eq!(format_calls.get(), 1);
     assert_eq!(inverse_calls.get(), 1);
     assert!(
@@ -405,6 +410,135 @@ fn draft_mutation_is_verbatim_has_no_typed_output_and_does_not_reformat_or_adjus
         .is_none()
     );
     assert_eq!(input.text_input.state.value, "invalid");
+    assert_eq!(
+        input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+}
+
+#[test]
+fn denied_text_admission_precedes_policy_calls_and_preserves_widget_state() {
+    let format_calls = Rc::new(Cell::new(0));
+    let parse_calls = Rc::new(Cell::new(0));
+    let inverse_calls = Rc::new(Cell::new(0));
+    let mut input = NumericInputWidget::try_new(
+        7,
+        U32Codec {
+            format_calls: Rc::clone(&format_calls),
+            parse_calls: Rc::clone(&parse_calls),
+            fail_format: false,
+        },
+        U32Adjustment {
+            inverse_calls: Rc::clone(&inverse_calls),
+            fail_inverse: false,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("fixture should construct");
+    focus(&mut input);
+    input.text_input.state.caret = 0;
+    input.text_input.state.selection_anchor = 1;
+    let before_text = input.text_input.state.clone();
+    let before_focus = input.text_input.common.state;
+    assert!(
+        input
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::KeyboardAdjustment)
+    );
+
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
+        )
+        .is_none()
+    );
+
+    assert_eq!(input.value, 7);
+    assert_eq!(input.text_input.state, before_text);
+    assert_eq!(input.text_input.common.state, before_focus);
+    assert!(input.active.is_none());
+    assert_eq!(parse_calls.get(), 0);
+    assert_eq!(format_calls.get(), 1);
+    assert_eq!(inverse_calls.get(), 1);
+    assert_eq!(
+        input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::KeyboardAdjustment)
+    );
+}
+
+#[test]
+fn first_mutation_admits_text_edit_and_continuation_keeps_one_session() {
+    let mut input = u32_input();
+    focus(&mut input);
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::SelectAll),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
+        )
+        .is_none()
+    );
+    let transaction = input
+        .active
+        .as_ref()
+        .expect("first mutation should start a session")
+        .session
+        .begin_event()
+        .transaction;
+    assert_eq!(
+        input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::text_edit(TextEditCommand::InsertText("9".to_owned())),
+        )
+        .is_none()
+    );
+
+    let active = input.active.as_ref().expect("continuation remains active");
+    assert_eq!(active.session.begin_event().transaction, transaction);
+    assert_eq!(active.session.draft(), "89");
+    assert_eq!(input.text_input.state.value, "89");
+    assert_eq!(
+        input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+}
+
+#[test]
+fn no_op_first_mutation_releases_text_admission() {
+    let mut input = u32_input();
+    focus(&mut input);
+    input.text_input.state.caret = 0;
+    input.text_input.state.selection_anchor = 0;
+
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::Backspace),
+        )
+        .is_none()
+    );
+
+    assert_eq!(input.value, 7);
+    assert_eq!(input.text_input.state.value, "7");
+    assert!(input.active.is_none());
+    assert_eq!(input.interaction_gate.incumbent(), None);
 }
 
 #[test]
@@ -458,6 +592,7 @@ fn valid_enter_emits_begin_then_commit_with_one_keyboard_transaction() {
     assert_eq!(batch.events()[0].value, 7);
     assert_eq!(batch.events()[1].value, 8);
     assert!(input.active.is_none());
+    assert_eq!(input.interaction_gate.incumbent(), None);
 }
 
 #[test]
@@ -492,6 +627,7 @@ fn valid_focus_loss_commits_and_invalid_focus_loss_vetoes_idempotently() {
     );
     assert_eq!(valid_parse_calls.get(), parse_calls_after_draft);
     assert!(!valid.text_input.common.state.focused);
+    assert_eq!(valid.interaction_gate.incumbent(), None);
 
     let (mut invalid, invalid_parse_calls) = u32_input_with_parse_calls();
     replace_u32(&mut invalid, "-");
@@ -518,6 +654,10 @@ fn valid_focus_loss_commits_and_invalid_focus_loss_vetoes_idempotently() {
     assert_eq!(invalid_parse_calls.get(), parse_calls_after_invalid_draft);
     assert!(invalid.text_input.common.state.focused);
     assert_eq!(invalid.text_input.state.value, "-");
+    assert_eq!(
+        invalid.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
 }
 
 #[test]
@@ -542,6 +682,7 @@ fn escape_emits_begin_cancel_and_restores_starting_value_and_draft() {
     assert_eq!(input.value, 7);
     assert_eq!(input.text_input.state.value, "7");
     assert!(input.text_input.common.state.focused);
+    assert_eq!(input.interaction_gate.incumbent(), None);
     assert!(!Widget::preempts_host_shortcut_key(
         &input,
         WidgetKey::Escape
@@ -561,6 +702,10 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     assert_eq!(retained.text_input.state.caret, 0);
     assert_eq!(retained.text_input.state.selection_anchor, 1);
     assert!(retained.active.is_some());
+    assert_eq!(
+        retained.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
 
     let mut changed = NumericInputWidget::try_new(
         9,
@@ -579,18 +724,27 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     Widget::synchronize_from_previous(&mut changed, &previous);
     assert_eq!(changed.text_input.state.value, "9");
     assert!(changed.active.is_none());
+    assert_eq!(changed.interaction_gate.incumbent(), None);
 
     let mut disabled = u32_input();
     disabled.text_input.common.state.disabled = true;
     Widget::synchronize_from_previous(&mut disabled, &previous);
     assert_eq!(disabled.text_input.state.value, "7");
     assert!(disabled.active.is_none());
+    assert_eq!(disabled.interaction_gate.incumbent(), None);
 
     let mut read_only = u32_input();
     read_only.text_input.common.state.read_only = true;
     Widget::synchronize_from_previous(&mut read_only, &previous);
     assert_eq!(read_only.text_input.state.value, "7");
     assert!(read_only.active.is_none());
+
+    let mut identity_reset = u32_input();
+    replace_u32(&mut identity_reset, "8");
+    identity_reset.text_input.common.id = 1;
+    Widget::synchronize_from_previous(&mut identity_reset, &previous);
+    assert!(identity_reset.active.is_none());
+    assert_eq!(identity_reset.interaction_gate.incumbent(), None);
 }
 
 #[test]

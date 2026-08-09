@@ -2179,17 +2179,29 @@ macOS and Control on Windows and Linux. Fine wins when both configured
 selectors are held, and the selector is reevaluated for every sample. These
 are target illustrative names, not shipped public Rust types.
 
-The target result vocabulary carries typed context for every failed attempt:
+Radiant ships the qualified public output-envelope foundation for this target
+vocabulary. It carries typed context for every failed attempt, but no current
+numeric widget or runtime produces or consumes it; semantic keyboard stepping
+remains unimplemented.
 
 ```rust
-enum NumericInputInteraction<T, StepError, FormatError> {
-    Edit(BoundedEditEvents<T>),
+use std::rc::Rc;
+
+use radiant::widgets::interaction::NumericInputEditBatch;
+
+pub enum NumericStepAttempt {
+    Initial,
+    Repeat,
+}
+
+pub enum NumericInputInteraction<T, StepError, FormatError> {
+    Edit(NumericInputEditBatch<T>),
     StepFailed {
         attempt: NumericStepAttempt,
         direction: NumericStepDirection,
         step: NumericStep,
         provenance: InteractionProvenance,
-        error: StepError,
+        error: Rc<StepError>,
         cancelled: bool,
     },
     FormatFailed {
@@ -2197,11 +2209,21 @@ enum NumericInputInteraction<T, StepError, FormatError> {
         direction: NumericStepDirection,
         step: NumericStep,
         provenance: InteractionProvenance,
-        error: FormatError,
+        error: Rc<FormatError>,
         cancelled: bool,
     },
 }
+
 ```
+
+The shipped `NumericInputInteractionBatch<T, StepError, FormatError>` keeps
+private inline capacity two and validates exactly one keyboard `Edit` fragment
+`[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial typed
+failure, or a repeat failure only after a matching keyboard `[Cancel]` rollback.
+It preserves ordered parts, transaction identity, direction, selected step,
+exact keyboard provenance, and typed errors without adding a producer or
+consumer. This foundation has zero impact on the estimates or on semantic
+keyboard behavior.
 
 A successful unchanged candidate is a no-op. An unchanged initial step opens no
 transaction, takes no capture, and publishes nothing. An unchanged repeat

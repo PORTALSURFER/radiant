@@ -16,7 +16,8 @@ use radiant::{
         InteractiveRowWidget, InteractiveRowWidgetParts, KeyboardModifiers, KnobEditBatch,
         KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
         ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
-        NumericInputConstructionError, NumericInputEditBatch, NumericParseResult, NumericStep,
+        NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
+        NumericInputInteractionBatch, NumericParseResult, NumericStep, NumericStepAttempt,
         NumericStepDirection, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
         SelectableWidget, SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState,
         SliderWidget, SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget,
@@ -388,6 +389,205 @@ fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
 }
 
 #[test]
+fn numeric_input_interaction_batch_accepts_only_keyboard_envelope_shapes() {
+    type Interaction =
+        NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    fn assert_clone<T: Clone>() {}
+
+    assert_clone::<Interaction>();
+    assert_clone::<Batch>();
+    let _: Option<
+        radiant::widgets::interaction::NumericInputInteraction<
+            GenericNumericValue,
+            NumericAdjustmentTestError,
+            NumericCodecError,
+        >,
+    > = None;
+    let _: Option<
+        radiant::widgets::interaction::NumericInputInteractionBatch<
+            GenericNumericValue,
+            NumericAdjustmentTestError,
+            NumericCodecError,
+        >,
+    > = None;
+
+    let keyboard = InteractionProvenance::Keyboard { timestamp: None };
+    let programmatic = InteractionProvenance::Programmatic;
+    let begin = EditEvent::begin(GenericNumericValue(7), keyboard);
+    let update = begin
+        .clone()
+        .update(GenericNumericValue(8), keyboard)
+        .expect("matching source should update");
+    let commit = update
+        .clone()
+        .commit(GenericNumericValue(9), keyboard)
+        .expect("matching source should commit");
+    let cancel = update
+        .clone()
+        .cancel(keyboard)
+        .expect("matching source should cancel");
+
+    let edit = |events: &[EditEvent<GenericNumericValue>]| -> Interaction {
+        Interaction::edit(
+            NumericInputEditBatch::from_events(events)
+                .expect("underlying edit fragment should be legal"),
+        )
+    };
+    let begin_update = edit(&[begin.clone(), update.clone()]);
+    let update_edit = edit(std::slice::from_ref(&update));
+    let commit_edit = edit(std::slice::from_ref(&commit));
+    let cancel_edit = edit(std::slice::from_ref(&cancel));
+    let begin_commit = edit(&[begin.clone(), commit.clone()]);
+    let begin_cancel = edit(&[begin.clone(), cancel.clone()]);
+
+    let initial_step = Interaction::step_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        keyboard,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let initial_format = Interaction::format_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        keyboard,
+        NumericCodecError::WriteFailed,
+        false,
+    );
+    assert_eq!(initial_step.step_error(), Some(&NumericAdjustmentTestError));
+    assert!(initial_step.format_error().is_none());
+    assert_eq!(
+        initial_format.format_error(),
+        Some(&NumericCodecError::WriteFailed)
+    );
+    assert!(initial_format.step_error().is_none());
+
+    let repeat_step = Interaction::step_failed(
+        NumericStepAttempt::Repeat,
+        NumericStepDirection::Increase,
+        NumericStep::Fine,
+        keyboard,
+        NumericAdjustmentTestError,
+        true,
+    );
+    let repeat_format = Interaction::format_failed(
+        NumericStepAttempt::Repeat,
+        NumericStepDirection::Increase,
+        NumericStep::Fine,
+        keyboard,
+        NumericCodecError::WriteFailed,
+        true,
+    );
+    let rollback = cancel_edit.clone();
+
+    let assert_legal = |parts: &[Interaction]| {
+        let batch = Batch::from_interactions(parts)
+            .expect("legal keyboard interaction envelope should be accepted");
+        assert_eq!(batch.parts(), parts);
+        assert_eq!(batch.events(), parts);
+        assert_eq!(batch.len(), parts.len());
+        assert!(!batch.is_empty());
+    };
+
+    assert_eq!(Batch::MAX_INTERACTIONS, 2);
+    assert_legal(std::slice::from_ref(&begin_update));
+    assert_legal(std::slice::from_ref(&update_edit));
+    assert_legal(std::slice::from_ref(&commit_edit));
+    assert_legal(std::slice::from_ref(&cancel_edit));
+    assert_legal(std::slice::from_ref(&initial_step));
+    assert_legal(std::slice::from_ref(&initial_format));
+    assert_legal(&[rollback.clone(), repeat_step.clone()]);
+    assert_legal(&[rollback.clone(), repeat_format.clone()]);
+
+    let initial_cancelled = Interaction::step_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        keyboard,
+        NumericAdjustmentTestError,
+        true,
+    );
+    let repeat_not_cancelled = Interaction::step_failed(
+        NumericStepAttempt::Repeat,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        keyboard,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let programmatic_begin = EditEvent::begin(GenericNumericValue(7), programmatic);
+    let programmatic_update = programmatic_begin
+        .clone()
+        .update(GenericNumericValue(8), programmatic)
+        .expect("matching source should update");
+    let programmatic_cancel = programmatic_update
+        .clone()
+        .cancel(programmatic)
+        .expect("matching source should cancel");
+    let programmatic_begin_update = edit(&[programmatic_begin, programmatic_update]);
+    let programmatic_rollback = edit(std::slice::from_ref(&programmatic_cancel));
+    let programmatic_edit = edit(std::slice::from_ref(&programmatic_cancel));
+    let programmatic_failure = Interaction::step_failed(
+        NumericStepAttempt::Initial,
+        NumericStepDirection::Increase,
+        NumericStep::Base,
+        programmatic,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let mismatched_repeat = Interaction::step_failed(
+        NumericStepAttempt::Repeat,
+        NumericStepDirection::Increase,
+        NumericStep::Fine,
+        programmatic,
+        NumericAdjustmentTestError,
+        true,
+    );
+
+    let assert_rejected = |parts: &[Interaction]| {
+        assert!(
+            Batch::from_interactions(parts).is_none(),
+            "illegal keyboard interaction envelope was accepted"
+        );
+    };
+
+    assert_rejected(&[]);
+    assert_rejected(&[rollback.clone(), repeat_step.clone(), repeat_format.clone()]);
+    assert_rejected(&[initial_step.clone(), rollback.clone()]);
+    assert_rejected(&[repeat_step.clone(), rollback.clone()]);
+    assert_rejected(&[initial_step.clone(), initial_format.clone()]);
+    assert_rejected(&[repeat_step.clone(), repeat_format.clone()]);
+    assert_rejected(std::slice::from_ref(&repeat_step));
+    assert_rejected(std::slice::from_ref(&repeat_format));
+    assert_rejected(std::slice::from_ref(&initial_cancelled));
+    assert_rejected(std::slice::from_ref(&repeat_not_cancelled));
+    assert_rejected(&[rollback.clone(), initial_step.clone()]);
+    assert_rejected(&[rollback.clone(), initial_format.clone()]);
+    assert_rejected(&[update_edit.clone(), repeat_step.clone()]);
+    assert_rejected(&[begin_update.clone(), repeat_step.clone()]);
+    assert_rejected(&[commit_edit.clone(), repeat_step.clone()]);
+    assert_rejected(&[begin_commit.clone(), repeat_step.clone()]);
+    assert_rejected(&[begin_cancel.clone(), repeat_step.clone()]);
+    assert_rejected(std::slice::from_ref(&begin_commit));
+    assert_rejected(std::slice::from_ref(&begin_cancel));
+    assert_rejected(&[begin_update.clone(), update_edit.clone()]);
+    assert_rejected(&[rollback.clone(), rollback.clone()]);
+    assert_rejected(std::slice::from_ref(&programmatic_edit));
+    assert_rejected(std::slice::from_ref(&programmatic_begin_update));
+    assert_rejected(std::slice::from_ref(&programmatic_failure));
+    assert_rejected(&[programmatic_rollback.clone(), repeat_step.clone()]);
+    assert_rejected(&[rollback, mismatched_repeat]);
+}
+
+#[test]
 fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
     let prelude_controls = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -401,9 +601,12 @@ fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
         assert!(!source.contains("numeric_input"));
         assert!(!source.contains("NumericInputBuilder"));
         assert!(!source.contains("NumericInputEditBatch"));
+        assert!(!source.contains("NumericInputInteraction"));
+        assert!(!source.contains("NumericInputInteractionBatch"));
         assert!(!source.contains("NumericInputConstructionError"));
         assert!(!source.contains("NumericCodec"));
         assert!(!source.contains("NumericAdjustment"));
+        assert!(!source.contains("NumericStepAttempt"));
     }
 }
 

@@ -38,6 +38,14 @@ classification for the synchronous allocation-free focus-loss veto seam,
 commits valid Enter/focus-loss edits, cancels active Escape edits, and retains
 draft/caret/session state only for an actually active edit during same-ID
 reprojection. Qualified exports remain outside the common prelude.
+The qualified `NumericStepAttempt`, `NumericInputInteraction<T, StepError,
+FormatError>`, and `NumericInputInteractionBatch<T, StepError, FormatError>`
+are now shipped as a fixed-capacity keyboard output-envelope foundation. The
+batch validates successful keyboard edit fragments and typed initial or
+rollback-before-repeat failures, but it is behaviorally unconsumed: no current
+widget or runtime produces or consumes these parts, and semantic keyboard
+adjustment remains unimplemented. This public storage/validation foundation has
+zero impact on the estimates.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
 admission, no-op cleanup, terminal cleanup, and compatible active reprojection.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime

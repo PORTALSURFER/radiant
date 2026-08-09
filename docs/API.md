@@ -1420,10 +1420,40 @@ semantic arrow stepping remains unimplemented. The following is a target-only,
 backend-neutral keyboard-adjustment contract and does not add numeric stepping,
 capture, or edit-lifecycle behavior.
 
-The target policy and result vocabulary is equivalent to:
+Keyboard modifier selection remains a target-only policy. Radiant ships the
+qualified public output envelope as a fixed-capacity, behaviorally unconsumed
+foundation. Its exact interaction-part shape is:
 
 ```rust
-// Illustrative target shapes; not public Rust types in this PR.
+use std::rc::Rc;
+
+use radiant::widgets::interaction::NumericInputEditBatch;
+
+pub enum NumericStepAttempt {
+    Initial,
+    Repeat,
+}
+
+pub enum NumericInputInteraction<T, StepError, FormatError> {
+    Edit(NumericInputEditBatch<T>),
+    StepFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: Rc<StepError>,
+        cancelled: bool,
+    },
+    FormatFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: Rc<FormatError>,
+        cancelled: bool,
+    },
+}
+
 enum KeyboardModifier {
     Shift,
     Command,
@@ -1435,32 +1465,20 @@ struct NumericStepModifiers {
     fine: KeyboardModifier,
     coarse: KeyboardModifier,
 }
-
-enum NumericStepAttempt {
-    Initial,
-    Repeat,
-}
-
-enum NumericInputInteraction<T, StepError, FormatError> {
-    Edit(BoundedEditEvents<T>),
-    StepFailed {
-        attempt: NumericStepAttempt,
-        direction: NumericStepDirection,
-        step: NumericStep,
-        provenance: InteractionProvenance,
-        error: StepError,
-        cancelled: bool,
-    },
-    FormatFailed {
-        attempt: NumericStepAttempt,
-        direction: NumericStepDirection,
-        step: NumericStep,
-        provenance: InteractionProvenance,
-        error: FormatError,
-        cancelled: bool,
-    },
-}
 ```
+
+`NumericInputInteractionBatch<T, StepError, FormatError>` is the qualified
+public fixed-capacity envelope around these parts. Its private inline storage
+has `MAX_INTERACTIONS == 2`; `from_interactions(...)` accepts exactly one
+keyboard `Edit` containing `[Begin, Update]`, `[Update]`, `[Commit]`, or
+`[Cancel]`, one initial `StepFailed` or `FormatFailed` with
+`cancelled: false`, or `[Edit([Cancel]), failure]` for a repeat failure with
+matching keyboard provenance and `cancelled: true`. `parts()`, `events()`,
+`len()`, and `is_empty()` expose the validated ordered slice. `step_error()`
+and `format_error()` borrow the typed error without copying it. The batch is a
+storage and shape-validation foundation only; no shipped widget or runtime
+produces or consumes it, and semantic arrow-key adjustment remains
+unimplemented.
 
 `KeyboardModifier` is a semantic normalized selector, not a native key name.
 Defaults are Fine=`Shift` everywhere and Coarse=`Command` on macOS or
@@ -1469,8 +1487,8 @@ override. The target attachment point is
 `NumericInputBuilder::step_modifiers(NumericStepModifiers { fine, coarse })`.
 Fine wins when both configured selectors are held, and the selected step is
 recomputed from the modifiers on every press or accepted repeat. The exact target storage for
-`BoundedEditEvents<T>` is not fixed here; it must preserve ordered incremental
-`Begin`/`Update`/`Commit` or `Cancel` events without an unbounded batch.
+the shipped `NumericInputEditBatch<T>` is fixed at two events and remains
+independent from this target-only modifier policy.
 
 Only a focused, enabled, non-read-only input without an active text mutation
 may step. `ArrowUp` selects `Increase` and `ArrowDown` selects `Decrease`;

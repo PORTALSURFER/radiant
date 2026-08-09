@@ -1168,6 +1168,15 @@ translation from those offsets into backend-neutral scalar evidence. The
 generic contract does not prescribe UTF-16, byte, grapheme, or any other
 backend-specific offset convention.
 
+Every composition replacement range and every `Update.selection` is a bounded
+half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in
+`0..=scalar_len` and `start <= end`. For a replacement range, `scalar_len` is
+the captured committed text scalar length; for `Update.selection`, it is that
+update's preedit scalar length. `start == end` means a collapsed caret.
+Malformed, inverted (`start > end`), or out-of-bounds endpoints are invalid
+evidence and follow the conservative cancel/retain/no-committed-mutation
+outcome below.
+
 Ownership is explicit:
 
 - The application owns committed text and its durable `TextInputRevision` and
@@ -1235,9 +1244,10 @@ Every `Start`, `Update`, `Commit`, and `Cancel` from an old widget identity or
 captured revision is stale and ignored. Such a sample cannot mutate the new
 widget's committed text, selection, or revision.
 
-Malformed native ranges are unknown evidence, not a reason to guess. Invalid
-scalar ranges, invalid UTF-16-to-scalar mappings, out-of-bounds selections, and
-other malformed native range evidence must not be clamped, appended, silently
+Malformed native ranges and interval endpoints are unknown evidence, not a
+reason to guess. Malformed or inverted (`start > end`) intervals, out-of-bounds
+endpoints, invalid scalar ranges, invalid UTF-16-to-scalar mappings, and other
+malformed native range evidence must not be clamped, appended, silently
 accepted, or converted by an invented convention. The conservative target
 outcome for an invalid `Start`, `Update`, or `Commit` is to cancel composition,
 retain committed text and current scalar selection, and make no committed
@@ -1256,11 +1266,12 @@ is fabricated.
 
 The target contract is accepted only when these fixtures hold:
 
-The ranges in fixture 1 are Unicode-scalar half-open ranges.
+Every interval in these fixtures uses the contract-wide bounded half-open
+Unicode-scalar convention above.
 
 | Fixture | Expected result |
 | --- | --- |
-| 1. Start on committed `"a"` with captured Unicode-scalar half-open replacement range `0..1` and captured scalar selection `0..1`; `Update { preedit: "あ", selection: 1..1 }`; then `Update { preedit: "あい", selection: 1..2 }` | Committed text remains exactly `"a"`; final preedit is exactly `"あい"` with final selection exactly `1..2`; the second update replaces rather than appends; no ordinary `Changed`, `NumericCodec` call, or numeric edit output occurs. |
+| 1. Start on committed `"a"` with captured replacement range `0..1` and captured scalar selection `0..1`; `Update { preedit: "あ", selection: 1..1 }`; then `Update { preedit: "あい", selection: 1..2 }` | Committed text remains exactly `"a"`; final preedit is exactly `"あい"` with final selection exactly `1..2`; the second update replaces rather than appends; no ordinary `Changed`, `NumericCodec` call, or numeric edit output occurs. |
 | 2. Empty preedit | Empty preedit is a valid visible state, not an implicit cancel. |
 | 3. Commit `"あい"` | Exactly one atomic captured-range replacement and one committed text change; parsing/value conversion is permitted only after commit. |
 | 4. Cancel | Original committed text, captured range, and selection are restored with no committed text change. |

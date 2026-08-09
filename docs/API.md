@@ -1152,6 +1152,126 @@ product-specific locale codecs remain application-supplied. The current
 consumer exercises generic construction and the `u32` text lifecycle; the
 other adjustment-consuming behavior remains outside this slice.
 
+### Target numeric keyboard adjustment (not yet shipped)
+
+The preceding `numeric_input` section documents the shipped text-first
+consumer. The following is a target-only, backend-neutral keyboard contract;
+the current source does not provide normalized `KeyRelease` or semantic arrow
+stepping. This section does not add public Rust types in this PR.
+
+The target policy and result vocabulary is equivalent to:
+
+```rust
+// Illustrative target shapes; not public Rust types in this PR.
+enum KeyboardModifier {
+    Shift,
+    Command,
+    Control,
+    Alt,
+}
+
+struct NumericStepModifiers {
+    fine: KeyboardModifier,
+    coarse: KeyboardModifier,
+}
+
+enum NumericStepAttempt {
+    Initial,
+    Repeat,
+}
+
+enum NumericInputInteraction<T, StepError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    StepFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    },
+    FormatFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    },
+}
+```
+
+`KeyboardModifier` is a semantic normalized selector, not a native key name.
+Defaults are Fine=`Shift` everywhere and Coarse=`Command` on macOS or
+`Control` on Windows and Linux; `Alt` is available only for an explicit target
+override. The target attachment point is
+`NumericInputBuilder::step_modifiers(NumericStepModifiers { fine, coarse })`.
+Fine wins when both configured selectors are held, and the selected step is
+recomputed from the modifiers on every press or accepted repeat. The exact target storage for
+`BoundedEditEvents<T>` is not fixed here; it must preserve ordered incremental
+`Begin`/`Update`/`Commit` or `Cancel` events without an unbounded batch.
+
+Only a focused, enabled, non-read-only input without an active text mutation
+may step. `ArrowUp` selects `Increase` and `ArrowDown` selects `Decrease`;
+`ArrowLeft`, `ArrowRight`, `Home`, and `End` remain text navigation. An active
+text mutation blocks stepping and the numeric path neither parses nor
+commits/cancels the draft. Before an uncaptured initial Up/Down press, host
+shortcut routing runs first: a handled result prevents capture, while an
+unhandled press may begin numeric adjustment. A captured sequence owns matching
+repeats and its matching release, which bypass host routing. Orphan repeats or
+releases and competing arrow keys are ignored.
+
+The first effective step starts one physical-sequence transaction with
+`Begin(start)` followed by `Update(candidate)`. Every accepted matching repeat
+performs one step and emits at most one `Update`; the matching release emits
+`Commit(current)`. Escape, capture loss, focus loss, disable, and read-only
+transition emit cancellation and restore the start value. A successful
+unchanged initial step creates no transaction, capture, or publication; an
+unchanged repeat emits no update but does not end an existing capture, so a
+later matching release can commit after an earlier effective update. The
+adjustment policy owns clamp, wrap, and quantization.
+
+While an active numeric text or keyboard transaction receives Escape, the
+numeric consumer handles it before host Escape routing, including when any
+modifiers are held; no host Escape action is invoked. With no active numeric
+transaction, ordinary host Escape routing remains in force.
+
+`StepFailed` and `FormatFailed` carry the attempt, `NumericStepDirection`,
+`NumericStep`, `InteractionProvenance`, typed error, and `cancelled` result
+context shown above. Initial step or formatting failures have
+`cancelled: false`, emit no events, and take no capture. Repeat failures have
+`cancelled: true`, restore the transaction, and publish no failed candidate or
+partial `Edit`; a release after that cancellation is orphaned. Failures never
+panic and never become successful no-ops.
+
+The later additive release boundary is carried through both normalized
+`Event::KeyRelease { key, modifiers, timestamp }` and
+`WidgetInput::KeyRelease { key, modifiers, timestamp }`; the current source
+still lacks both. It preserves shipped normalized
+`Event::KeyPress { key, modifiers, repeat, timestamp }` and
+`WidgetInput::KeyPress { key, modifiers, repeat, timestamp }`; a release is not
+another press.
+Every edit phase carries keyboard provenance. The initial press timestamp is
+used for `Begin` and its first `Update`, each repeat uses its own timestamp, and
+the matching release supplies the `Commit` timestamp. Missing timestamps stay
+absent, keyboard events receive no fabricated sequence ranges, and synthetic
+inputs use default modifiers, `repeat: false` for a press, and no timestamp.
+Repeat cadence, delay, and rate are outside the contract.
+
+Deterministic target fixtures:
+
+| Fixture | Expected target behavior |
+| --- | --- |
+| `7`, `ArrowUp` press at `t1`, matching repeat at `t2`, matching release at `t3` | `Edit`: `Begin(7, t1)`, `Update(8, t1)`, `Update(9, t2)`, `Commit(9, t3)` for a base step of `1`. |
+| Default modifiers and override | Unmodified selects Base; Shift selects Fine everywhere; Command on macOS or Control on Windows/Linux selects Coarse. An explicit `NumericStepModifiers` override changes the selectors; if Fine and Coarse both match, Fine wins, including after a per-sample modifier change. |
+| Text navigation and active text mutation | Left/Right/Home/End stay with text navigation. While text is actively mutating, Up/Down produce no numeric step and do not parse, commit, or cancel the draft. |
+| Host-handled versus unhandled initial press | A handled initial Up/Down produces no numeric capture or edit. An unhandled eligible initial press can capture only after an effective step; matching captured repeats and release bypass host routing. |
+| Orphan or competing key | A repeat/release without capture, or the opposite arrow during an active capture, is ignored; the current capture and transaction remain unchanged. |
+| Escape, capture loss, focus loss, disable, or read-only | The active keyboard transaction is cancelled and restored to its start value; it does not commit. |
+| Initial no-op and boundary after prior updates | An unchanged initial candidate produces no transaction, capture, or publication. After an earlier update, a boundary repeat produces no `Update`; release still commits the current value. |
+| Initial/repeat errors and delayed release | Initial `StepFailed`/`FormatFailed` emits nothing and takes no capture. A repeat failure restores atomically and returns the typed failure without a failed `Edit`; a release after that cancellation is orphaned. Separately, a successful sequence with a delayed matching release still commits at the release timestamp, with no timeout implied by the delay. |
+| Metadata and synthetic defaults | `Begin`/first `Update` preserve the initial press timestamp, repeat updates preserve their own timestamps, and `Commit` preserves release metadata through keyboard provenance. No keyboard sequence range is fabricated; synthetic press/release defaults have no modifiers and no timestamp, with `repeat: false` on the press. |
+
 ### Numeric adjustment contract
 
 Radiant also ships the qualified generic `NumericAdjustment<T>` policy boundary

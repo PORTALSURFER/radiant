@@ -1841,7 +1841,8 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   Radiant owns draft text, caret, selection, focus, composition, and edit
   lifecycle. `NumericCodec<T>` owns text parsing, domain validation, and
   canonical editable formatting. `NumericAdjustment<T>` owns the finite
-  monotonic mapping, pointer scrubbing, wheel changes, and arrow-key steps.
+  monotonic mapping, pointer scrubbing, wheel changes, and the discrete
+  keyboard steps defined in the target keyboard contract below.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -1859,7 +1860,7 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   `Fine` and `Coarse` modifiers map to Shift everywhere, Command on macOS, and
   Control on Linux and Windows, with application override allowed.
 - Text, keyboard, pointer, wheel, and accessibility actions use one lifecycle.
-  A pointer press/release, contiguous wheel burst, or key press/repeat sequence
+  A pointer press/release, contiguous wheel burst, or target keyboard sequence
   is one transaction. Valid Enter, valid focus loss, pointer release, and
   gesture completion commit; Escape, capture loss, and explicit cancellation
   restore the transaction start. Invalid or incomplete drafts remain visible,
@@ -1894,10 +1895,123 @@ numeric_input(
     .on_edit(Message::CutoffEdit);
 ```
 
-Under this numeric-control contract, pointer scrubbing, wheel changes, and
-arrow-key increments use the same mapping, `InteractionProvenance` vocabulary,
-and `EditTransaction` lifecycle. `Slider` is a shipped production shared-edit
-consumer: its fixed-capacity
+### Target numeric keyboard adjustment contract (not yet shipped)
+
+The following keyboard behavior is target-only. The shipped text-first
+`numeric_input` consumer does not consume it, and this subsection claims no
+runtime or native-platform evidence. It later adds normalized
+`Event::KeyRelease { key, modifiers, timestamp }` and
+`WidgetInput::KeyRelease { key, modifiers, timestamp }` boundaries; the current
+source still lacks both. It preserves the shipped normalized
+`Event::KeyPress { key, modifiers, repeat, timestamp }` and
+`WidgetInput::KeyPress { key, modifiers, repeat, timestamp }` boundaries. A
+release is a distinct input sample, never another press.
+
+Only a focused, enabled, non-read-only numeric input may step, and it may do so
+only when no text mutation is active. `ArrowUp` means `Increase` and `ArrowDown`
+means `Decrease`. `ArrowLeft`, `ArrowRight`, `Home`, and `End` remain text
+navigation. An active text mutation blocks numeric stepping; the step path does
+not parse, commit, or cancel that draft.
+
+For an uncaptured initial `ArrowUp` or `ArrowDown` press, host shortcut routing
+has first refusal. A handled host result prevents numeric capture; an unhandled
+initial press may attempt the numeric step. Once captured, matching repeats and
+the matching release bypass host routing. Orphan repeats or releases without a
+capture, and competing `ArrowUp`/`ArrowDown` keys during another capture, are
+ignored and do not commit, cancel, or re-enter host routing.
+
+One physical held-key sequence is one edit transaction. The first effective
+step emits `Begin(start)` followed by `Update(candidate)` from the initial
+press. Each accepted matching repeat invokes exactly one step and can emit at
+most one corresponding `Update`; the matching release emits `Commit(current)`.
+Begin, updates, and the terminal boundary remain ordered and are delivered
+incrementally through bounded storage or batches; the contract does not require
+an unbounded event accumulator. `Escape`, capture loss, focus loss, disable, or
+a read-only transition cancels the keyboard transaction and restores its start
+value; none of those boundaries commits it.
+
+Step selection is recomputed from each sample's normalized modifiers. The
+defaults are `Fine = Shift` everywhere and `Coarse = Command` on macOS or
+`Control` on Windows and Linux. Fine takes precedence when both configured
+matches are present. The backend-neutral target override has this shape.
+`KeyboardModifier` is a semantic normalized selector, not a native key name:
+
+```rust
+enum KeyboardModifier {
+    Shift,
+    Command,
+    Control,
+    Alt,
+}
+
+struct NumericStepModifiers {
+    fine: KeyboardModifier,
+    coarse: KeyboardModifier,
+}
+```
+
+A target `NumericInputBuilder::step_modifiers(...)` attachment supplies this
+override. Fine defaults to Shift everywhere; Coarse defaults to Command on
+macOS and Control on Windows and Linux. Fine wins when both configured
+selectors are held, and the selector is reevaluated for every sample. These
+are target illustrative names, not shipped public Rust types.
+
+The target result vocabulary carries typed context for every failed attempt:
+
+```rust
+enum NumericInputInteraction<T, StepError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    StepFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    },
+    FormatFailed {
+        attempt: NumericStepAttempt,
+        direction: NumericStepDirection,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    },
+}
+```
+
+A successful unchanged candidate is a no-op. An unchanged initial step opens no
+transaction, takes no capture, and publishes nothing. An unchanged repeat
+publishes no `Update` but keeps an already captured sequence alive; a later
+matching release commits the current value only when that sequence already has
+an effective update. Domain adjustment owns clamp, wrap, and quantization; the
+keyboard consumer does not impose a second domain policy.
+
+Initial and repeat adjustment errors return the typed `StepFailed` context
+above; candidate formatting errors return the typed `FormatFailed` context.
+Initial failures carry `cancelled: false`, emit no events, and take no capture.
+Repeat failures carry `cancelled: true`, restore the transaction atomically, and
+publish no failed or partial `Edit`; a later release is orphaned. Errors never
+panic and are never converted into successful no-ops.
+
+While an active numeric text or keyboard transaction receives Escape, the
+numeric consumer handles it before host Escape routing, including held
+modifiers; no host Escape action is invoked. With no active numeric transaction,
+ordinary host Escape routing remains in force.
+
+Every emitted phase uses `InteractionProvenance::Keyboard`. `Begin` and its
+first `Update` use the initial press timestamp, each repeat `Update` uses that
+repeat sample's timestamp, and `Commit` uses the matching release timestamp;
+cancellation uses the timestamp of its cancelling boundary when one exists.
+Missing timestamps stay absent. Keyboard input never receives a fabricated
+sequence range. Synthetic press/release inputs use normalized default
+modifiers, `repeat: false` for a synthetic press, and no timestamp. Native
+repeat cadence, delay, and rate are outside this contract.
+
+Under this numeric-control contract, pointer scrubbing and wheel changes use
+the same mapping, `InteractionProvenance` vocabulary, and `EditTransaction`
+lifecycle; the target keyboard rules above are not current runtime behavior.
+`Slider` is a shipped production shared-edit consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and
 `on_change` APIs project only effective value changes. Official Slider lowering

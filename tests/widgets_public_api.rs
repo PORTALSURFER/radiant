@@ -307,56 +307,81 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
 }
 
 #[test]
-fn numeric_input_edit_batch_accepts_only_begin_then_terminal_pairs() {
+fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
     let provenance = InteractionProvenance::Programmatic;
     let begin = EditEvent::begin(GenericNumericValue(7), provenance);
+    let update = begin
+        .clone()
+        .update(GenericNumericValue(8), provenance)
+        .expect("matching source should update");
     let commit = begin
         .clone()
-        .commit(GenericNumericValue(8), provenance)
+        .commit(GenericNumericValue(9), provenance)
         .expect("matching source should commit");
     let cancel = begin
         .clone()
         .cancel(provenance)
         .expect("matching source should cancel");
 
-    let commit_batch = radiant::widgets::interaction::NumericInputEditBatch::from_events(&[
-        begin.clone(),
-        commit.clone(),
-    ])
-    .expect("Begin followed by Commit should be accepted");
-    assert_eq!(
-        commit_batch.len(),
-        NumericInputEditBatch::<GenericNumericValue>::MAX_EVENTS
-    );
-    assert_eq!(commit_batch.events()[0].phase, EditPhase::Begin);
-    assert_eq!(commit_batch.events()[1].phase, EditPhase::Commit);
+    let assert_round_trip = |events: &[EditEvent<GenericNumericValue>]| {
+        let batch = NumericInputEditBatch::from_events(events)
+            .expect("legal numeric edit fragment should be accepted");
+        assert_eq!(batch.events(), events);
+        assert_eq!(batch.len(), events.len());
+        assert_eq!(batch.transaction(), events[0].transaction);
+        assert!(!batch.is_empty());
+    };
 
-    let cancel_batch = NumericInputEditBatch::from_events(&[begin.clone(), cancel.clone()])
-        .expect("Begin followed by Cancel should be accepted");
-    assert_eq!(cancel_batch.events()[0].phase, EditPhase::Begin);
-    assert_eq!(cancel_batch.events()[1].phase, EditPhase::Cancel);
+    assert_round_trip(std::slice::from_ref(&update));
+    assert_round_trip(std::slice::from_ref(&commit));
+    assert_round_trip(std::slice::from_ref(&cancel));
+    assert_round_trip(&[begin.clone(), update.clone()]);
+    assert_round_trip(&[begin.clone(), commit.clone()]);
+    assert_round_trip(&[begin.clone(), cancel.clone()]);
 
-    assert!(NumericInputEditBatch::<GenericNumericValue>::from_events(&[]).is_none());
-    assert!(NumericInputEditBatch::from_events(std::slice::from_ref(&begin)).is_none());
-    assert!(NumericInputEditBatch::from_events(&[begin.clone(), begin.clone()]).is_none());
-
-    let update = begin
-        .clone()
-        .update(GenericNumericValue(9), provenance)
-        .expect("matching source should update");
-    assert!(NumericInputEditBatch::from_events(&[begin.clone(), update]).is_none());
-    assert!(NumericInputEditBatch::from_events(&[commit.clone(), begin.clone()]).is_none());
-    assert!(
-        NumericInputEditBatch::from_events(&[begin.clone(), commit.clone(), cancel.clone(),])
-            .is_none()
-    );
+    assert_eq!(NumericInputEditBatch::<GenericNumericValue>::MAX_EVENTS, 2);
+    let terminal_batch = NumericInputEditBatch::terminal(begin.clone(), commit.clone())
+        .expect("Begin followed by Commit should remain accepted by terminal");
+    assert_eq!(terminal_batch.events(), &[begin.clone(), commit.clone()]);
+    assert!(NumericInputEditBatch::terminal(begin.clone(), update.clone()).is_none());
 
     let other_begin = EditEvent::begin(GenericNumericValue(7), provenance);
+    let other_update = other_begin
+        .clone()
+        .update(GenericNumericValue(8), provenance)
+        .expect("matching source should update");
     let other_commit = other_begin
         .clone()
-        .commit(GenericNumericValue(8), provenance)
+        .commit(GenericNumericValue(9), provenance)
         .expect("matching source should commit");
-    assert!(NumericInputEditBatch::from_events(&[begin, other_commit]).is_none());
+    let other_cancel = other_begin
+        .clone()
+        .cancel(provenance)
+        .expect("matching source should cancel");
+
+    let assert_rejected = |events: &[EditEvent<GenericNumericValue>]| {
+        assert!(
+            NumericInputEditBatch::from_events(events).is_none(),
+            "illegal numeric edit fragment was accepted"
+        );
+    };
+
+    assert_rejected(&[]);
+    assert_rejected(std::slice::from_ref(&begin));
+    assert_rejected(&[begin.clone(), begin.clone()]);
+    assert_rejected(&[begin.clone(), other_update.clone()]);
+    assert_rejected(&[begin.clone(), other_commit.clone()]);
+    assert_rejected(&[begin.clone(), other_cancel.clone()]);
+    assert_rejected(&[update.clone(), update.clone()]);
+    assert_rejected(&[update.clone(), commit.clone()]);
+    assert_rejected(&[update.clone(), cancel.clone()]);
+    assert_rejected(&[commit.clone(), update.clone()]);
+    assert_rejected(&[commit.clone(), commit.clone()]);
+    assert_rejected(&[commit.clone(), cancel.clone()]);
+    assert_rejected(&[cancel.clone(), update.clone()]);
+    assert_rejected(&[cancel.clone(), commit.clone()]);
+    assert_rejected(&[cancel.clone(), cancel.clone()]);
+    assert_rejected(&[begin.clone(), update.clone(), commit.clone()]);
 }
 
 #[test]

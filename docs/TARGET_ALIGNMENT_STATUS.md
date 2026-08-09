@@ -26,13 +26,18 @@ adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
 
 The current numeric evidence is a public generic `numeric_input(value, codec,
-adjustment)` builder with typed construction failures and a fixed-capacity
-`Begin` plus terminal edit batch. It formats the initial value through the
-application codec, validates the adjustment inverse, preserves verbatim drafts,
-caches draft classification for the synchronous allocation-free focus-loss
-veto seam, commits valid Enter/focus-loss edits, cancels active Escape edits,
-and retains draft/caret/session state only for an actually active edit during
-same-ID reprojection. Qualified exports remain outside the common prelude.
+adjustment)` builder with typed construction failures and the shipped
+fixed-capacity `NumericInputEditBatch<T>` bounded incremental carrier. The
+carrier accepts exactly `[Update]`, `[Commit]`, `[Cancel]`, `[Begin, Update]`,
+`[Begin, Commit]`, and `[Begin, Cancel]` in private inline capacity-two
+storage. The shipped text-first widget still emits only `[Begin, Commit]` and
+`[Begin, Cancel]`; this carrier is storage and shape validation foundation
+only. The consumer formats the initial value through the application codec,
+validates the adjustment inverse, preserves verbatim drafts, caches draft
+classification for the synchronous allocation-free focus-loss veto seam,
+commits valid Enter/focus-loss edits, cancels active Escape edits, and retains
+draft/caret/session state only for an actually active edit during same-ID
+reprojection. Qualified exports remain outside the common prelude.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
 admission, no-op cleanup, terminal cleanup, and compatible active reprojection.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime
@@ -44,5 +49,5 @@ contract-defined but unimplemented. Wheel adjustment is now contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The five other shared-gate consumers—IME/composition, keyboard adjustment,
-pointer, wheel, and accessibility—remain target-only and unimplemented.
+The other four shared-gate consumers—IME/composition, pointer, wheel, and
+accessibility—remain target-only and unimplemented.

@@ -19,11 +19,13 @@ pub enum NumericInputConstructionError<CodecError, AdjustmentError> {
     },
 }
 
-/// One bounded, ordered terminal lifecycle for a generic numeric text edit.
+/// One bounded, ordered lifecycle fragment for a generic numeric text edit.
 ///
-/// The first slice carries exactly `Begin` and one terminal `Commit` or
-/// `Cancel`. Storage is inline and private; the public event slice exposes only
-/// the populated prefix.
+/// Accepted fragments are a singleton `Update`, `Commit`, or `Cancel`, or
+/// `Begin` followed by one of those phases in the same transaction. Storage is
+/// inline and private; the public event slice exposes only the populated
+/// prefix. The text-first widget currently emits only `Begin` plus a terminal
+/// event; this carrier does not implement semantic keyboard adjustment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NumericInputEditBatch<T> {
     events: [EditEvent<T>; 2],
@@ -34,29 +36,45 @@ impl<T: Clone> NumericInputEditBatch<T> {
     /// The maximum number of ordered events carried by one batch.
     pub const MAX_EVENTS: usize = 2;
 
-    /// Build a batch from exactly `Begin` followed by `Commit` or `Cancel`.
+    /// Build a batch from one legal incremental lifecycle fragment.
     ///
-    /// The two events must share one transaction; any other shape returns
-    /// `None`.
+    /// A singleton must be `Update`, `Commit`, or `Cancel`. A two-event
+    /// fragment must begin with `Begin`, continue with one of those phases,
+    /// and share one transaction; any other shape returns `None`.
     pub fn from_events(events: &[EditEvent<T>]) -> Option<Self> {
-        let [begin, terminal] = events else {
-            return None;
-        };
-        if begin.phase != EditPhase::Begin
-            || !terminal.phase.is_terminal()
-            || begin.transaction != terminal.transaction
-        {
-            return None;
+        match events {
+            [event]
+                if matches!(
+                    event.phase,
+                    EditPhase::Update | EditPhase::Commit | EditPhase::Cancel
+                ) =>
+            {
+                Some(Self {
+                    events: [event.clone(), event.clone()],
+                    len: 1,
+                })
+            }
+            [begin, next]
+                if begin.phase == EditPhase::Begin
+                    && matches!(
+                        next.phase,
+                        EditPhase::Update | EditPhase::Commit | EditPhase::Cancel
+                    )
+                    && begin.transaction == next.transaction =>
+            {
+                Some(Self {
+                    events: [begin.clone(), next.clone()],
+                    len: Self::MAX_EVENTS as u8,
+                })
+            }
+            _ => None,
         }
-
-        let stored = [begin.clone(), terminal.clone()];
-        Some(Self {
-            events: stored,
-            len: Self::MAX_EVENTS as u8,
-        })
     }
 
-    /// Build the required `Begin` plus terminal batch.
+    /// Build the text-first `Begin` plus terminal batch.
+    ///
+    /// This helper intentionally does not accept an intermediate `Update`;
+    /// use [`Self::from_events`] for an incremental fragment.
     pub fn terminal(begin: EditEvent<T>, terminal: EditEvent<T>) -> Option<Self> {
         if begin.phase != EditPhase::Begin || !terminal.phase.is_terminal() {
             return None;
@@ -79,7 +97,7 @@ impl<T: Clone> NumericInputEditBatch<T> {
         self.len == 0
     }
 
-    /// Return the transaction shared by the populated events.
+    /// Return the transaction carried by the populated events.
     pub const fn transaction(&self) -> EditTransaction {
         self.events[0].transaction
     }

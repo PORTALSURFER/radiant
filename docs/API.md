@@ -1236,13 +1236,21 @@ numeric consumer handles it before host Escape routing, including when any
 modifiers are held; no host Escape action is invoked. With no active numeric
 transaction, ordinary host Escape routing remains in force.
 
-`StepFailed` and `FormatFailed` carry the attempt, `NumericStepDirection`,
-`NumericStep`, `InteractionProvenance`, typed error, and `cancelled` result
-context shown above. Initial step or formatting failures have
-`cancelled: false`, emit no events, and take no capture. Repeat failures have
-`cancelled: true`, restore the transaction, and publish no failed candidate or
-partial `Edit`; a release after that cancellation is orphaned. Failures never
-panic and never become successful no-ops.
+Initial step or formatting failures return the typed `StepFailed` or
+`FormatFailed` context with `attempt: Initial` and `cancelled: false`; they
+produce no transaction, capture, `Edit`, or `Cancel`. For an accepted matching
+repeat after `Begin` and at least one effective `Update`, suppress the failed
+candidate `Update`, restore the transaction start, and publish exactly one
+terminal `Edit` containing `Cancel(start)` with the existing transaction
+identity and `InteractionProvenance::Keyboard { timestamp: failing_timestamp }`.
+Only after that terminal `Edit(Cancel(start))`, publish the corresponding typed
+`StepFailed` or `FormatFailed` with `attempt: Repeat`, the attempted
+`NumericStepDirection`, modifier-selected `NumericStep`, the same failing-repeat
+keyboard provenance/timestamp, and `cancelled: true`. The timestamp may be
+absent when the failing repeat has no timestamp. This cancel ends capture; a
+later matching release is orphaned. The rollback `Edit` is mandatory; no
+failed or partial candidate `Edit` or `Update` is published. Errors never panic
+and never become successful no-ops.
 
 The later additive release boundary is carried through both normalized
 `Event::KeyRelease { key, modifiers, timestamp }` and
@@ -1269,7 +1277,7 @@ Deterministic target fixtures:
 | Orphan or competing key | A repeat/release without capture, or the opposite arrow during an active capture, is ignored; the current capture and transaction remain unchanged. |
 | Escape, capture loss, focus loss, disable, or read-only | The active keyboard transaction is cancelled and restored to its start value; it does not commit. |
 | Initial no-op and boundary after prior updates | An unchanged initial candidate produces no transaction, capture, or publication. After an earlier update, a boundary repeat produces no `Update`; release still commits the current value. |
-| Initial/repeat errors and delayed release | Initial `StepFailed`/`FormatFailed` emits nothing and takes no capture. A repeat failure restores atomically and returns the typed failure without a failed `Edit`; a release after that cancellation is orphaned. Separately, a successful sequence with a delayed matching release still commits at the release timestamp, with no timeout implied by the delay. |
+| Initial/repeat errors and delayed release | Initial failure returns typed `StepFailed`/`FormatFailed` with `attempt: Initial` and `cancelled: false`, with no transaction, capture, `Edit`, or `Cancel`. For `Begin(7,t1)`, `Update(8,t1)`, a failing matching repeat at `t2` suppresses its candidate `Update`, then publishes exactly one terminal `Edit`: `Cancel(7,t2)` with the same transaction identity and `InteractionProvenance::Keyboard { timestamp: t2 }`; only after that publishes typed `StepFailed` or `FormatFailed` with `attempt: Repeat`, `direction: Increase`, `step: Base`, the same keyboard provenance/timestamp, and `cancelled: true`. No failed `Update` is published, capture ends, and a later matching release is orphaned. Separately, a successful sequence with a delayed matching release still commits at the release timestamp; no timeout is implied by the delay. |
 | Metadata and synthetic defaults | `Begin`/first `Update` preserve the initial press timestamp, repeat updates preserve their own timestamps, and `Commit` preserves release metadata through keyboard provenance. No keyboard sequence range is fabricated; synthetic press/release defaults have no modifiers and no timestamp, with `repeat: false` on the press. |
 
 ### Numeric adjustment contract

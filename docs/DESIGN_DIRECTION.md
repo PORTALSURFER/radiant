@@ -1987,12 +1987,21 @@ matching release commits the current value only when that sequence already has
 an effective update. Domain adjustment owns clamp, wrap, and quantization; the
 keyboard consumer does not impose a second domain policy.
 
-Initial and repeat adjustment errors return the typed `StepFailed` context
-above; candidate formatting errors return the typed `FormatFailed` context.
-Initial failures carry `cancelled: false`, emit no events, and take no capture.
-Repeat failures carry `cancelled: true`, restore the transaction atomically, and
-publish no failed or partial `Edit`; a later release is orphaned. Errors never
-panic and are never converted into successful no-ops.
+Initial step or formatting failures return the typed `StepFailed` or
+`FormatFailed` context with `attempt: Initial` and `cancelled: false`; they
+produce no transaction, capture, `Edit`, or `Cancel`. For an accepted matching
+repeat after `Begin` and at least one effective `Update`, suppress the failed
+candidate `Update`, restore the transaction start, and publish exactly one
+terminal `Edit` containing `Cancel(start)` with the existing transaction
+identity and `InteractionProvenance::Keyboard { timestamp: failing_timestamp }`.
+Only after that terminal `Edit(Cancel(start))`, publish the corresponding typed
+`StepFailed` or `FormatFailed` with `attempt: Repeat`, the attempted
+`NumericStepDirection`, modifier-selected `NumericStep`, the same failing-repeat
+keyboard provenance/timestamp, and `cancelled: true`. The timestamp may be
+absent when the failing repeat has no timestamp. This cancel ends capture; a
+later matching release is orphaned. The rollback `Edit` is mandatory; no
+failed or partial candidate `Edit` or `Update` is published. Errors never panic
+and never become successful no-ops.
 
 While an active numeric text or keyboard transaction receives Escape, the
 numeric consumer handles it before host Escape routing, including held

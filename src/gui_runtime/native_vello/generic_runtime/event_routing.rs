@@ -374,17 +374,55 @@ where
         self.route_outcome(routed)
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_metadata_key_press_with_timestamp(
+        &mut self,
+        press: Option<KeyPress>,
+        widget_key: Option<WidgetKey>,
+        widget_modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+        repeat: bool,
+    ) -> Option<GenericRouteOutcome> {
+        let route = self.runtime.dispatch_metadata_focused_key_press(
+            press,
+            widget_key,
+            widget_modifiers,
+            timestamp,
+            repeat,
+            FocusSurface::None,
+        )?;
+        Some(self.route_outcome(route.routed))
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_key_release_with_metadata(
         &mut self,
         key: WidgetKey,
         modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> GenericRouteOutcome {
+        if let Some(outcome) =
+            self.route_metadata_key_release_with_metadata(Some(key), modifiers, timestamp)
+        {
+            return outcome;
+        }
         let routed = self
             .runtime
-            .dispatch_event(Event::key_release_with_metadata(key, modifiers, timestamp))
+            .dispatch_focused_input(WidgetInput::key_release_with_metadata(
+                key, modifiers, timestamp,
+            ))
             .is_some();
         self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_metadata_key_release_with_metadata(
+        &mut self,
+        key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<GenericRouteOutcome> {
+        let route = self
+            .runtime
+            .dispatch_metadata_focused_key_release(key, modifiers, timestamp)?;
+        Some(self.route_outcome(route.routed))
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_focus_lost(&mut self) -> GenericRouteOutcome {

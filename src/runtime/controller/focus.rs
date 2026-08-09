@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::interaction_state::RuntimeFocusedKeyCapture;
 use super::{FocusTraversal, SurfaceRuntime};
 use crate::widgets::{FocusLossDecision, KeyboardModifiers};
 use crate::{
@@ -15,6 +16,30 @@ pub(super) enum FocusTransition {
     Vetoed,
     Unchanged,
     Changed,
+}
+
+/// Result of one metadata-aware focused-key decision.
+///
+/// The type stays crate-private so the public API exposes only the existing
+/// `Event`, `WidgetInput`, and `WidgetKey` vocabulary. `None` from the routing
+/// helper means the focused widget did not opt in and the caller should retain
+/// its legacy compatibility path.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct FocusedKeyDispatch {
+    pub(crate) widget_id: Option<WidgetId>,
+    pub(crate) routed: bool,
+}
+
+#[derive(Clone, Copy)]
+enum FocusedKeySample {
+    Press { repeat: bool },
+    Release,
+}
+
+impl FocusedKeySample {
+    fn is_initial_press(self) -> bool {
+        matches!(self, Self::Press { repeat: false })
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -48,6 +73,7 @@ where
             self.repaint_requested = true;
             return FocusTransition::Vetoed;
         }
+        self.mark_focused_key_capture_stale(previous);
         self.interaction.focus.focused_widget = None;
         if previous_is_live {
             self.route_focus_changed(previous, false);
@@ -72,6 +98,7 @@ where
 
             // Install the controller-owned target before FocusChanged(false)
             // can emit a message and synchronously reproject the surface.
+            self.mark_focused_key_capture_stale(previous);
             self.interaction.focus.focused_widget = Some(widget_id);
             let application_projection_before = self.refresh_counters().application_projection;
             if previous_is_live {
@@ -162,6 +189,275 @@ where
         self.dispatch_input(widget_id, input).then_some(widget_id)
     }
 
+    /// Route one metadata-aware focused key press through the generic runtime.
+    ///
+    /// `Some` means the focused widget opted into the metadata-aware contract,
+    /// or a prior capture/stale record claimed the sample. `None` deliberately
+    /// leaves the caller on the existing key-only compatibility path.
+    pub(crate) fn dispatch_metadata_focused_key_press(
+        &mut self,
+        host_press: Option<KeyPress>,
+        widget_key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+        repeat: bool,
+        focus: FocusSurface,
+    ) -> Option<FocusedKeyDispatch> {
+        self.dispatch_metadata_focused_key_sample(
+            host_press,
+            widget_key,
+            modifiers,
+            timestamp,
+            FocusedKeySample::Press { repeat },
+            focus,
+        )
+    }
+
+    /// Route one metadata-aware focused key release through the generic runtime.
+    pub(crate) fn dispatch_metadata_focused_key_release(
+        &mut self,
+        widget_key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<FocusedKeyDispatch> {
+        self.dispatch_metadata_focused_key_sample(
+            None,
+            widget_key,
+            modifiers,
+            timestamp,
+            FocusedKeySample::Release,
+            FocusSurface::None,
+        )
+    }
+
+    fn dispatch_metadata_focused_key_sample(
+        &mut self,
+        host_press: Option<KeyPress>,
+        widget_key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+        sample: FocusedKeySample,
+        focus: FocusSurface,
+    ) -> Option<FocusedKeyDispatch> {
+        if let Some(capture) = self.interaction.focus.focused_key_capture {
+            if capture.stale {
+                // The first sample after authority loss is itself ambiguous:
+                // without a generation/token contract it may be a stale
+                // continuation or a new press for a successor. Consume it as
+                // stale evidence and let the following boundary establish a
+                // new initial sequence.
+                self.interaction.focus.focused_key_capture = None;
+                return Some(FocusedKeyDispatch::default());
+            } else {
+                return Some(self.dispatch_captured_focused_key(
+                    capture, widget_key, modifiers, timestamp, sample,
+                ));
+            }
+        }
+
+        let widget_id = self.interaction.focus.focused_widget?;
+        if !self.is_authoritative_focus_target(widget_id)
+            || !self.focused_key_widget_has_authority(widget_id)
+        {
+            return self
+                .surface_widget(widget_id)
+                .filter(|widget| widget.widget_object().participates_in_focused_key_routing())
+                .map(|_| FocusedKeyDispatch::default());
+        }
+        let key = widget_key?;
+        if !self.focused_key_participates(widget_id) {
+            return None;
+        }
+        if !sample.is_initial_press() {
+            return Some(FocusedKeyDispatch::default());
+        }
+
+        let press = host_press.unwrap_or(KeyPress {
+            key: key.to_key_code(),
+            command: modifiers.command,
+            control: modifiers.control,
+            shift: modifiers.shift,
+            alt: modifiers.alt,
+        });
+        let resolution =
+            self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
+        self.interaction.focus.pending_key_chord = resolution.pending_chord;
+        if let Some(message) = resolution.action {
+            let outcome = self.dispatch_message(message);
+            self.pending_input_command_outcome.merge(outcome);
+            return Some(FocusedKeyDispatch {
+                widget_id: None,
+                routed: true,
+            });
+        }
+        if resolution.handled {
+            return Some(FocusedKeyDispatch {
+                widget_id: None,
+                routed: true,
+            });
+        }
+
+        // Host resolution is allowed to observe and mutate host-owned state,
+        // so validate the same focus identity and authority before delivery.
+        if self.interaction.focus.focused_widget != Some(widget_id)
+            || !self.is_authoritative_focus_target(widget_id)
+            || !self.focused_key_participates(widget_id)
+        {
+            return Some(FocusedKeyDispatch::default());
+        }
+        let widget_id = self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
+            key, modifiers, false, timestamp,
+        ));
+        if let Some(widget_id) = widget_id {
+            self.establish_focused_key_capture(widget_id, key);
+            return Some(FocusedKeyDispatch {
+                widget_id: Some(widget_id),
+                routed: true,
+            });
+        }
+        Some(FocusedKeyDispatch::default())
+    }
+
+    fn dispatch_captured_focused_key(
+        &mut self,
+        capture: RuntimeFocusedKeyCapture,
+        widget_key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+        sample: FocusedKeySample,
+    ) -> FocusedKeyDispatch {
+        if !self.focused_key_capture_is_current(capture) {
+            self.mark_focused_key_capture_stale(capture.widget_id);
+            return FocusedKeyDispatch::default();
+        }
+        let Some(key) = widget_key else {
+            return FocusedKeyDispatch::default();
+        };
+        let matching_key = key == capture.key;
+        let owner_cancellation = self.focused_widget_preempts_host_shortcut_key(key);
+        let deliver = match sample {
+            FocusedKeySample::Press { repeat } => (repeat && matching_key) || owner_cancellation,
+            FocusedKeySample::Release => matching_key || owner_cancellation,
+        };
+        if !deliver {
+            return FocusedKeyDispatch::default();
+        }
+
+        let input = match sample {
+            FocusedKeySample::Press { repeat } => {
+                WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp)
+            }
+            FocusedKeySample::Release => {
+                WidgetInput::key_release_with_metadata(key, modifiers, timestamp)
+            }
+        };
+        let Some(widget_id) = self.dispatch_focused_input(input) else {
+            self.mark_focused_key_capture_stale(capture.widget_id);
+            return FocusedKeyDispatch::default();
+        };
+        self.reconcile_focused_key_capture_after_delivery(widget_id, capture.key);
+        FocusedKeyDispatch {
+            widget_id: Some(widget_id),
+            routed: true,
+        }
+    }
+
+    fn focused_key_participates(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id).is_some_and(|widget| {
+            widget.widget_object().participates_in_focused_key_routing()
+                && self.focused_key_widget_has_authority(widget_id)
+        })
+    }
+
+    fn focused_key_widget_has_authority(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id).is_some_and(|widget| {
+            widget.is_focusable() && !widget.widget_object().common().state.read_only
+        })
+    }
+
+    fn focused_key_capture_is_current(&self, capture: RuntimeFocusedKeyCapture) -> bool {
+        self.interaction.focus.focused_widget == Some(capture.widget_id)
+            && self.is_authoritative_focus_target(capture.widget_id)
+            && self.focused_key_widget_has_authority(capture.widget_id)
+            && self
+                .surface_widget(capture.widget_id)
+                .is_some_and(|widget| {
+                    let object = widget.widget_object();
+                    object.participates_in_focused_key_routing()
+                        && object.captured_focused_key() == Some(capture.key)
+                })
+    }
+
+    fn establish_focused_key_capture(&mut self, widget_id: WidgetId, key: WidgetKey) {
+        if self.interaction.focus.focused_key_capture.is_some() {
+            return;
+        }
+        if self.interaction.focus.focused_widget == Some(widget_id)
+            && self.is_authoritative_focus_target(widget_id)
+            && self.focused_key_widget_has_authority(widget_id)
+            && self.surface_widget(widget_id).is_some_and(|widget| {
+                let object = widget.widget_object();
+                object.participates_in_focused_key_routing()
+                    && object.captured_focused_key() == Some(key)
+            })
+        {
+            self.interaction.focus.focused_key_capture = Some(RuntimeFocusedKeyCapture {
+                widget_id,
+                key,
+                stale: false,
+            });
+        }
+    }
+
+    fn reconcile_focused_key_capture_after_delivery(
+        &mut self,
+        widget_id: WidgetId,
+        captured_key: WidgetKey,
+    ) {
+        let Some(capture) = self.interaction.focus.focused_key_capture else {
+            return;
+        };
+        if capture.stale || capture.widget_id != widget_id {
+            return;
+        }
+        let Some((participates, reported_key)) = self.surface_widget(widget_id).map(|widget| {
+            let object = widget.widget_object();
+            (
+                object.participates_in_focused_key_routing(),
+                object.captured_focused_key(),
+            )
+        }) else {
+            self.mark_focused_key_capture_stale(widget_id);
+            return;
+        };
+        if !self.is_authoritative_focus_target(widget_id) || !participates {
+            self.mark_focused_key_capture_stale(widget_id);
+            return;
+        }
+        match reported_key {
+            Some(key) if key == captured_key => {}
+            None => self.interaction.focus.focused_key_capture = None,
+            Some(_) => self.mark_focused_key_capture_stale(widget_id),
+        }
+    }
+
+    pub(super) fn mark_focused_key_capture_stale(&mut self, widget_id: WidgetId) {
+        if let Some(capture) = &mut self.interaction.focus.focused_key_capture
+            && capture.widget_id == widget_id
+        {
+            capture.stale = true;
+        }
+    }
+
+    pub(super) fn validate_focused_key_capture_authority(&mut self) {
+        let Some(capture) = self.interaction.focus.focused_key_capture else {
+            return;
+        };
+        if capture.stale || !self.focused_key_capture_is_current(capture) {
+            self.mark_focused_key_capture_stale(capture.widget_id);
+        }
+    }
+
     /// Return whether the current focus target is a text input.
     pub fn focused_text_input_id(&self) -> Option<WidgetId> {
         let widget_id = self.interaction.focus.focused_widget?;
@@ -226,6 +522,16 @@ where
         timestamp: Option<InputTimestamp>,
         repeat: bool,
     ) -> bool {
+        if let Some(route) = self.dispatch_metadata_focused_key_press(
+            Some(press),
+            widget_key,
+            widget_modifiers,
+            timestamp,
+            repeat,
+            focus,
+        ) {
+            return route.routed;
+        }
         let resolution =
             self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;

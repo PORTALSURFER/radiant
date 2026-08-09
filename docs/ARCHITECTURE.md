@@ -152,6 +152,15 @@ new focused export leaf or a module split, not a formatting workaround.
   adds native Wayland and Windows host adapters behind the same Radiant-owned
   WGPU, Vello, font loading, scene caching, input, window-policy, and popup
   boundaries.
+- Focused-key routing has an explicit three-part ownership boundary: the
+  `Widget` contract opts a widget into metadata-aware participation and reports
+  its current normalized captured key; `src/runtime/controller` owns the
+  fixed-size capture record, host precedence, owner cancellation, stale/ignore
+  decisions, and exact refresh reconciliation; and
+  `src/gui_runtime/native_vello/generic_runtime` only translates native key
+  evidence before delegating to the generic controller. The kernel is generic
+  and numeric-policy-free, while widgets retain the existing key-only fallback
+  unless they opt in.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,

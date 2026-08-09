@@ -2,6 +2,7 @@ use super::super::SurfaceRuntime;
 use super::{Event, PointerClickOutcome};
 use crate::{
     gui::types::Point,
+    gui::{focus::FocusSurface, input::KeyPress},
     runtime::RuntimeBridge,
     widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput},
 };
@@ -72,16 +73,44 @@ where
                 modifiers,
                 repeat,
                 timestamp,
-            } => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
-                key, modifiers, repeat, timestamp,
-            )),
+            } => {
+                let host_press = KeyPress {
+                    key: key.to_key_code(),
+                    command: if std::env::consts::OS == "macos" {
+                        modifiers.command
+                    } else {
+                        modifiers.command || modifiers.control
+                    },
+                    control: std::env::consts::OS == "macos" && modifiers.control,
+                    shift: modifiers.shift,
+                    alt: modifiers.alt,
+                };
+                match self.dispatch_metadata_focused_key_press(
+                    Some(host_press),
+                    Some(key),
+                    modifiers,
+                    timestamp,
+                    repeat,
+                    FocusSurface::None,
+                ) {
+                    Some(route) => route.widget_id,
+                    None => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
+                        key, modifiers, repeat, timestamp,
+                    )),
+                }
+            }
             Event::KeyRelease {
                 key,
                 modifiers,
                 timestamp,
-            } => self.dispatch_focused_input(WidgetInput::key_release_with_metadata(
-                key, modifiers, timestamp,
-            )),
+            } => {
+                match self.dispatch_metadata_focused_key_release(Some(key), modifiers, timestamp) {
+                    Some(route) => route.widget_id,
+                    None => self.dispatch_focused_input(WidgetInput::key_release_with_metadata(
+                        key, modifiers, timestamp,
+                    )),
+                }
+            }
             Event::Character {
                 character,
                 timestamp,

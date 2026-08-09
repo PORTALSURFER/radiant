@@ -71,7 +71,7 @@ mod tests {
             SlotParams,
         },
         runtime::{
-            Command, RuntimeBridge, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceChild,
+            Command, Event, RuntimeBridge, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceChild,
             SurfaceNode, TaskPriority, UiSurface, WidgetMessageMapper,
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
@@ -79,8 +79,8 @@ mod tests {
             ButtonWidget, EditPhase, InteractionProvenance, NumericAdjustment, NumericCodec,
             NumericInputEditBatch, NumericInputInteraction, NumericInputInteractionBatch,
             NumericInputWidget, NumericParseResult, NumericStep, NumericStepDirection,
-            ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget, WidgetInput, WidgetKey,
-            WidgetSizing,
+            ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget, Widget, WidgetCommon,
+            WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
         },
     };
     use std::{
@@ -2341,6 +2341,200 @@ mod tests {
         assert_eq!(surface.requested_scope, RepaintScope::Surface);
         assert_eq!(surface.effective_scope, RepaintScope::Surface);
     }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum FocusedRefreshMode {
+        Compatible,
+        Removed,
+        Incompatible,
+        Disabled,
+        ReadOnly,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum FocusedRefreshMessage {
+        Press { key: WidgetKey, repeat: bool },
+    }
+
+    #[derive(Clone)]
+    struct FocusedRefreshWidget {
+        common: WidgetCommon,
+        captured: Option<WidgetKey>,
+    }
+
+    impl FocusedRefreshWidget {
+        fn new(mode: FocusedRefreshMode) -> Self {
+            let mut common = WidgetCommon::fixed(160, 120.0, 32.0).with_keyboard_focus();
+            common.state.disabled = mode == FocusedRefreshMode::Disabled;
+            common.state.read_only = mode == FocusedRefreshMode::ReadOnly;
+            Self {
+                common,
+                captured: None,
+            }
+        }
+    }
+
+    impl Widget for FocusedRefreshWidget {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+            match input {
+                WidgetInput::KeyPress { key, repeat, .. } => {
+                    if !repeat && key == WidgetKey::ArrowUp {
+                        self.captured = Some(key);
+                    }
+                    Some(WidgetOutput::typed(FocusedRefreshMessage::Press {
+                        key,
+                        repeat,
+                    }))
+                }
+                _ => None,
+            }
+        }
+
+        fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+            if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+                self.captured = previous.captured;
+            }
+        }
+
+        fn participates_in_focused_key_routing(&self) -> bool {
+            true
+        }
+
+        fn captured_focused_key(&self) -> Option<WidgetKey> {
+            self.captured
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    struct FocusedRefreshBridge {
+        mode: FocusedRefreshMode,
+        messages: Vec<FocusedRefreshMessage>,
+    }
+
+    impl RuntimeBridge<FocusedRefreshMessage> for FocusedRefreshBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<FocusedRefreshMessage>> {
+            let node = match self.mode {
+                FocusedRefreshMode::Compatible
+                | FocusedRefreshMode::Disabled
+                | FocusedRefreshMode::ReadOnly => SurfaceNode::widget(
+                    FocusedRefreshWidget::new(self.mode),
+                    WidgetMessageMapper::typed(|message: FocusedRefreshMessage| message),
+                ),
+                FocusedRefreshMode::Removed => {
+                    SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
+                }
+                FocusedRefreshMode::Incompatible => SurfaceNode::text(
+                    160,
+                    "replacement",
+                    WidgetSizing::fixed(Vector2::new(120.0, 32.0)),
+                ),
+            };
+            crate::runtime::test_arc_surface(UiSurface::new(node))
+        }
+
+        fn reduce_message(&mut self, message: FocusedRefreshMessage) {
+            self.messages.push(message);
+        }
+    }
+
+    fn focused_refresh_runtime() -> SurfaceRuntime<FocusedRefreshBridge, FocusedRefreshMessage> {
+        SurfaceRuntime::new(
+            FocusedRefreshBridge {
+                mode: FocusedRefreshMode::Compatible,
+                messages: Vec::new(),
+            },
+            Vector2::new(120.0, 32.0),
+        )
+    }
+
+    fn capture_focused_refresh_key(
+        runtime: &mut SurfaceRuntime<FocusedRefreshBridge, FocusedRefreshMessage>,
+    ) {
+        assert!(runtime.focus_widget(160));
+        assert_eq!(
+            runtime.dispatch_event(Event::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: Default::default(),
+                repeat: false,
+                timestamp: None,
+            }),
+            Some(160)
+        );
+    }
+
+    #[test]
+    fn focused_key_capture_survives_only_exact_compatible_reprojection() {
+        let mut runtime = focused_refresh_runtime();
+        capture_focused_refresh_key(&mut runtime);
+        runtime.refresh();
+
+        assert_eq!(
+            runtime.dispatch_event(Event::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: Default::default(),
+                repeat: true,
+                timestamp: None,
+            }),
+            Some(160)
+        );
+        assert_eq!(
+            runtime.bridge().messages,
+            vec![
+                FocusedRefreshMessage::Press {
+                    key: WidgetKey::ArrowUp,
+                    repeat: false,
+                },
+                FocusedRefreshMessage::Press {
+                    key: WidgetKey::ArrowUp,
+                    repeat: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn focused_key_capture_stales_on_removal_incompatible_replacement_and_authority_loss() {
+        for mode in [
+            FocusedRefreshMode::Removed,
+            FocusedRefreshMode::Incompatible,
+            FocusedRefreshMode::Disabled,
+            FocusedRefreshMode::ReadOnly,
+        ] {
+            let mut runtime = focused_refresh_runtime();
+            capture_focused_refresh_key(&mut runtime);
+            runtime.bridge_mut().mode = mode;
+            runtime.refresh();
+            let message_count = runtime.bridge().messages.len();
+
+            assert_eq!(
+                runtime.dispatch_event(Event::KeyPress {
+                    key: WidgetKey::ArrowUp,
+                    modifiers: Default::default(),
+                    repeat: true,
+                    timestamp: None,
+                }),
+                None,
+                "stale focused-key sample must be ignored for {mode:?}"
+            );
+            assert_eq!(runtime.bridge().messages.len(), message_count);
+        }
+    }
 }
 
 impl SurfaceIdentityPath {
@@ -2949,6 +3143,16 @@ where
         let widget_state_sync = widget_state_sync_started.elapsed();
         self.refresh_counters.widget_state_sync =
             self.refresh_counters.widget_state_sync.saturating_add(1);
+        self.reconcile_focused_key_capture_after_refresh(
+            &next_surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &previous_stateful_widget_order,
+            &traversal.stateful_widget_order,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+        );
         if let Some(previous_paths) = previous_paths.take() {
             self.traversal.widgets.paths.previous = previous_paths;
         }
@@ -2972,6 +3176,7 @@ where
         if let Some(widget_id) = self.interaction.focus.focused_widget {
             self.restore_focused_widget_state(widget_id);
         }
+        self.validate_focused_key_capture_authority();
 
         // Only the source buffer produced by the final accepted projection is
         // allowed to replace the controller-owned declarative owner evidence.
@@ -3151,7 +3356,80 @@ where
         diagnostics
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn reconcile_focused_key_capture_after_refresh(
+        &mut self,
+        next_surface: &crate::runtime::UiSurface<Message>,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_stateful_widget_order: &[WidgetId],
+        current_stateful_widget_order: &[WidgetId],
+        previous_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        current_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        retired_widget_ids: &[WidgetId],
+    ) {
+        let Some(capture) = self.interaction.focus.focused_key_capture else {
+            return;
+        };
+        if capture.stale {
+            return;
+        }
+
+        let widget_id = capture.widget_id;
+        let exact_compatible_sync = self.interaction.focus.focused_widget == Some(widget_id)
+            && has_unique_widget_id(previous_widget_order, widget_id)
+            && has_unique_widget_id(current_widget_order, widget_id)
+            && has_unique_widget_id(previous_stateful_widget_order, widget_id)
+            && has_unique_widget_id(current_stateful_widget_order, widget_id)
+            && !retired_widget_ids.contains(&widget_id)
+            && previous_paths
+                .get(&widget_id)
+                .zip(current_paths.get(&widget_id))
+                .is_some_and(|(previous_path, current_path)| {
+                    let Some(previous_widget) =
+                        self.surface.find_widget_at_path(widget_id, previous_path)
+                    else {
+                        return false;
+                    };
+                    let Some(current_widget) =
+                        next_surface.find_widget_at_path(widget_id, current_path)
+                    else {
+                        return false;
+                    };
+                    let Some((previous_kind, previous_valid)) = self
+                        .surface
+                        .widget_compatibility_at_path(previous_path.as_slice())
+                    else {
+                        return false;
+                    };
+                    let Some((current_kind, current_valid)) =
+                        next_surface.widget_compatibility_at_path(current_path.as_slice())
+                    else {
+                        return false;
+                    };
+                    previous_valid
+                        && current_valid
+                        && previous_kind == current_kind
+                        && previous_widget
+                            .widget_object()
+                            .participates_in_focused_key_routing()
+                        && previous_widget.widget_object().captured_focused_key()
+                            == Some(capture.key)
+                        && current_widget.is_focusable()
+                        && !current_widget.widget_object().common().state.read_only
+                        && current_widget
+                            .widget_object()
+                            .participates_in_focused_key_routing()
+                        && current_widget.widget_object().captured_focused_key()
+                            == Some(capture.key)
+                });
+        if !exact_compatible_sync {
+            self.mark_focused_key_capture_stale(widget_id);
+        }
+    }
+
     fn discard_widget_ownership(&mut self, widget_id: WidgetId) -> SurfaceIdentityOwnership {
+        self.mark_focused_key_capture_stale(widget_id);
         let focus = self.interaction.focus.focused_widget == Some(widget_id);
         let pointer_capture = self.interaction.pointer.capture == Some(widget_id)
             || self
@@ -3180,6 +3458,20 @@ where
             widget_state: true,
         }
     }
+}
+
+fn has_unique_widget_id(widget_order: &[WidgetId], widget_id: WidgetId) -> bool {
+    let mut found = false;
+    for candidate in widget_order {
+        if *candidate != widget_id {
+            continue;
+        }
+        if found {
+            return false;
+        }
+        found = true;
+    }
+    found
 }
 
 fn append_identity_path(message: &mut String, path: SurfaceIdentityPath) {

@@ -2135,20 +2135,23 @@ numeric_input(
     .on_edit(Message::CutoffEdit);
 ```
 
-### Target metadata-aware focused-key ownership and preemption (not yet shipped)
+### Metadata-aware focused-key ownership and preemption (generic kernel shipped; semantic keyboard not yet shipped)
 
-This is one target-only, backend-neutral contract for metadata-aware focused-key
-routing across generic `SurfaceRuntime` dispatch and native adapters. It is
-normative for a future implementation but is not shipped; in particular, it
-does not claim or implement semantic `KeyboardAdjustment`. The existing key-only
-`preempts_host_shortcut_key` compatibility surface and normalized key/release
-plumbing remain shipped until a later additive metadata-aware implementation.
-This contract does not prescribe a concrete public hook signature.
+This additive, backend-neutral kernel now routes metadata-aware focused keys
+across generic `SurfaceRuntime` dispatch and native adapters. It does not claim
+or implement semantic `KeyboardAdjustment`. `Widget` exposes two defaulted,
+object-safe opt-in queries, `participates_in_focused_key_routing()` and
+`captured_focused_key() -> Option<WidgetKey>`; existing widgets retain the
+key-only compatibility path. The controller owns one private fixed-size capture
+record, host ordering, owner cancellation, stale/orphan decisions, and refresh
+reconciliation. Native Vello only normalizes evidence and delegates to that
+authority. No public focused-key phase/route enum, event field, generation, or
+token is added.
 
-The conceptual outcomes are illustrative and unshipped names:
+The conceptual outcomes remain illustrative internal decision names:
 `FocusedKeyPhase::{InitialPress, RepeatPress, Release}` and
 `FocusedKeyRoute::{HostFirst, FocusedOwner, Ignore}`. They describe routing
-decisions, not public Rust types or output messages. The contract defines
+decisions, not public Rust types or output messages. The shipped kernel defines
 routing using existing focus, interaction, and authority state; it does not
 decide which widget owns a key.
 
@@ -2180,8 +2183,8 @@ The route order is:
 Generic, native, and synthetic paths use the same routing matrix. A native
 adapter may translate physical keys and modifier representations into this
 lossless evidence, but it may not add precedence rules. Synthetic and
-backend-neutral samples exercise the same decisions; these fixtures are target
-acceptance criteria and do not describe passing current runtime behavior.
+backend-neutral samples exercise the same decisions; the allowlisted
+controller, native, and public-API fixtures cover these shipped outcomes.
 
 #### Target focused-key routing acceptance fixtures
 
@@ -2196,16 +2199,17 @@ acceptance criteria and do not describe passing current runtime behavior.
 | Stale identity or authority | A sample whose pinned identity or authority is no longer current is `Ignore`; it is not rebased, sent to a fallback host path, or delivered to a successor/new focus. |
 | Native, backend-neutral, and synthetic equivalence | Equivalent evidence produces the same route, host-call count, and owner-delivery count on all three paths; native translation adds no precedence. |
 
-### Numeric interaction output mapping foundation (TextEdit shipped; semantic keyboard production not yet shipped)
+### Numeric interaction output mapping foundation (TextEdit and generic routing shipped; semantic keyboard production not yet shipped)
 
 This is the shipped, backend-neutral TextEdit output-mapping foundation plus the
 target-only contract for future semantic keyboard production. It defines one
 selected public mapper and one host dispatch per input or teardown boundary. The
 current implementation ships `on_interaction`, crate-private output-mode
-storage, mode-specific encoders, TextEdit terminal validation, and complete
-TextEdit mapping; it does not implement metadata-aware routing, capture,
-stepping, repeats, release, rollback production, or semantic
-`KeyboardAdjustment`. Native adapters and focused-key routing remain target-only.
+storage, mode-specific encoders, TextEdit terminal validation, complete
+TextEdit mapping, and the generic metadata-aware focused-key routing kernel; it
+does not implement numeric capture, stepping, repeats, release, rollback
+production, or semantic `KeyboardAdjustment`. The kernel is a prerequisite only;
+it produces no numeric step, transaction, or output.
 
 The complete binding on `NumericInputBuilder<T, C, A>` is:
 
@@ -2268,8 +2272,9 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping and mapper exclusivity are shipped. Semantic keyboard production,
-typed-failure production, metadata-aware routing, and the remaining keyboard
-fixtures below remain target-only.
+typed-failure production, numeric stepping, and the remaining keyboard fixtures
+below remain target-only; the generic metadata-aware routing kernel is shipped
+in the preceding section.
 
 #### Numeric interaction output mapping acceptance fixtures (shipped TextEdit; target keyboard)
 
@@ -2287,7 +2292,7 @@ fixtures below remain target-only.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, terminal validation, and both binding modes are shipped. Semantic `KeyboardAdjustment`, metadata-aware focused-key routing, and keyboard production remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, terminal validation, both binding modes, and the generic metadata-aware focused-key routing kernel are shipped. Semantic `KeyboardAdjustment` and keyboard numeric production remain unshipped. |
 
 ### Target numeric keyboard adjustment contract (semantic behavior not yet shipped)
 

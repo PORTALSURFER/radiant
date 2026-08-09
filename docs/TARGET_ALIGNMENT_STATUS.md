@@ -36,6 +36,6 @@ same-ID reprojection. Qualified exports remain outside the common prelude.
 Semantic keyboard adjustment is contract-defined but unimplemented. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
 current source has no composition event or state. Pointer scrubbing is
-contract-defined but unimplemented. Wheel, accessibility, Slider/Knob,
-platform, scheduler, renderer, and product policy remain out of scope for this
-slice.
+contract-defined but unimplemented. Wheel adjustment is now contract-defined but
+unimplemented. Accessibility, Slider/Knob, platform, scheduler, renderer, and
+product policy remain out of scope for this slice.

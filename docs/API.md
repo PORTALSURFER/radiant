@@ -1649,6 +1649,207 @@ Deterministic target fixtures:
 | 10. Provenance and synthetic defaults | Press modifiers/timestamp are copied to `Begin`; each move copies its own modifiers/timestamp/sequence range to `Update`; release modifiers/timestamp are copied to `Commit`. No sequence range is fabricated. Synthetic pointer inputs retain `Pointer` source with absent native metadata, and cancellation uses exact boundary metadata when available or pointer source with absent metadata otherwise. |
 | 11. Wheel fallthrough | Wheel input over the numeric input follows existing fallback routing. The target scrub does not consume wheel input and does not add a burst timeout or wheel edit transaction. |
 
+### Target numeric wheel adjustment and continuity (not yet shipped)
+
+This is illustrative target-only, backend-neutral API vocabulary for numeric
+wheel adjustment and explicit wheel continuity. It is not a shipped public API,
+and this documentation does not change Rust source, `Event`, `WidgetInput`,
+`NumericInputBuilder`, native adapters, or any source struct. The current
+numeric consumer does not perform wheel adjustment. In particular, current
+native routing turns line and pixel wheel variants into the same logical
+`Vector2` before constructing current input values and ignores native wheel
+phase. That line/pixel collapse and discarded phase are gaps to close, not
+evidence that these target fields or state exist today. The current adapter's
+nonfinite-value sanitization is likewise not the target's positive-finite
+validation rule.
+
+The target-equivalent shapes are:
+
+```rust
+// Illustrative target-only shapes; not shipped public Rust types or fields.
+enum NumericWheelDelta {
+    Lines(Vector2),
+    Pixels(Vector2),
+}
+
+enum NumericWheelPhase {
+    Started,
+    Changed,
+    Ended,
+    Cancelled,
+    Discrete,
+}
+
+struct NumericWheelPolicy {
+    // Fixed target equivalence: 40.0 logical pixels per line.
+}
+
+struct NumericWheelSample {
+    delta: NumericWheelDelta,
+    phase: Option<NumericWheelPhase>, // None is the phase-less case.
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
+}
+
+enum NumericWheelResult<T, AdjustmentError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    InitialAdjustmentFailed {
+        error: AdjustmentError,
+        cancelled: bool,
+    },
+    UpdateAdjustmentFailed {
+        error: AdjustmentError,
+        cancelled: bool,
+    },
+    InitialFormatFailed {
+        error: FormatError,
+        cancelled: bool,
+    },
+    UpdateFormatFailed {
+        error: FormatError,
+        cancelled: bool,
+    },
+}
+```
+
+`NumericWheelPolicy` is responsible for admission, unit conversion, and
+continuity only. A future target builder could attach it as follows, but the
+method is not present on the current `NumericInputBuilder`:
+
+```rust
+// Illustrative target-only attachment; not a current builder method.
+numeric_input(value, codec, adjustment)
+    .wheel_policy(NumericWheelPolicy::default());
+```
+
+#### Target unit conversion and direction
+
+The target retains the `Lines(Vector2)` or `Pixels(Vector2)` unit until the
+wheel policy invokes `NumericAdjustment::wheel`. The existing Radiant target
+line-equivalence is exactly `40.0` logical pixels per line. That conversion
+constant must be finite and strictly positive. A line delta uses its finite
+vertical component as the signed line-equivalent value; a pixel delta uses its
+finite vertical component divided by `40.0`. Precision is preserved until that
+policy conversion: the target does not collapse units early, round samples, or
+replace a malformed sample with a guessed value. Positive vertical movement
+increases the numeric value and negative vertical movement decreases it.
+
+Zero movement, horizontal-only movement, any nonfinite component, malformed
+unit/phase/metadata, or an otherwise unusable sample creates no numeric
+candidate. Such a sample remains unhandled when it is phase-less or `Discrete`,
+so the existing widget/scroll-container fallback remains available. A native
+line/pixel conversion that has already collapsed the unit or sanitized a
+nonfinite component cannot be treated as proof of target eligibility.
+
+#### Target admission and continuity
+
+Admission requires a focused numeric input that is the wheel target under the
+pointer, has compatible stable identity and current external authority, is
+enabled and non-read-only, and has no active text edit, keyboard adjustment,
+pointer scrub, IME/composition, accessibility edit, or other edit owner. An
+ineligible sample stays unhandled for the existing widget and scroll-container
+fallback. An eligible `Started` sample may retain pending ownership without
+emitting `Begin`; if its sequence never becomes effective, `Ended` clears the
+pending ownership without an edit event.
+
+An explicit `Started` -> `Changed`* -> `Ended` sequence is one transaction.
+`Started` captures the exact starting typed value, canonical draft, caret,
+selection, stable identity, and routing ownership. The first effective changed
+candidate that adjustment and codec formatting accept and that changes the
+value emits `Begin(start)` followed by `Update(candidate)`. Each later
+effective sample emits at most one `Update`; an unchanged sample emits no
+`Update` but retains ownership. `Ended` emits `Commit(current)` when the edit
+began. A pending sequence that has no effective update emits no `Begin`,
+`Commit`, or `Cancel` at its end.
+
+A phase-less sample and a `Discrete` sample are conservatively one atomic
+gesture. One effective sample emits `Begin(start)`, `Update(candidate)`, and
+`Commit(candidate)` in that bounded order. An ineligible or ineffective
+phase-less/`Discrete` sample is unhandled. `Changed` or `Ended` without a
+matching admitted `Started` sequence uses the conservative discrete/orphan
+fallback and never joins guessed history; it can process only that one sample
+as an atomic gesture when eligibility and effectiveness pass.
+
+Step selection is recomputed for each effective sample: Base is unmodified,
+Fine is Shift, and Coarse is Command on macOS or Control on Windows/Linux.
+Fine wins when both selectors are present. Per-sample modifier changes affect
+the next effective sample without starting a second transaction or authorizing
+guessed continuity. Coalescing may combine a delta only when unit, phase
+ownership, target identity, and routing ownership are compatible. It preserves
+phase boundaries and per-sample step decisions; it never uses sequence metadata
+as an execution decision.
+
+#### Target adjustment, formatting, and failure ordering
+
+The numeric consumer invokes the supplied policy only as a signed wheel
+operation, conceptually:
+
+```rust
+let candidate = adjustment.wheel(&current_value, signed_vertical_delta, step)?;
+```
+
+`NumericAdjustment<T>` exclusively owns domain mapping, clamp, wrap,
+quantization, and wheel sensitivity. The consumer adds no second domain policy.
+The supplied `NumericCodec<T>::format_editable` accepts each changed candidate
+into the canonical draft before the candidate is published. An unchanged
+initial `Discrete` candidate publishes nothing and remains available to scroll
+fallback. An unchanged sample inside an admitted explicit sequence emits no
+`Update` and retains ownership through `Ended`.
+
+The typed result variants distinguish initial and update adjustment/format
+failures. An initial adjustment or format failure returns the corresponding
+`InitialAdjustmentFailed` or `InitialFormatFailed` result with
+`cancelled: false`, without a transaction or edit event. After an effective
+update, a failed adjustment or format operation suppresses its candidate,
+restores the exact starting typed value, canonical draft, caret, and selection,
+emits exactly one same-transaction `Cancel(start)`, and only then returns
+`UpdateAdjustmentFailed` or `UpdateFormatFailed` with `cancelled: true`.
+Rollback-before-diagnostic is mandatory; no failed `Update` is published.
+
+`Cancelled`, Escape, focus loss, identity loss, incompatible reprojection,
+changed external authority, disablement, read-only transition, and explicit
+cancel restore the exact starting typed value, canonical draft, caret, and
+selection. If the edit began, exactly one same-transaction `Cancel(start)` is
+emitted before cleanup. A pending admitted sequence clears without an edit
+event. Compatible same-identity reprojection with an unchanged external value
+preserves pending or active ownership and its start/continuity state. Changed
+authority or identity cancels the old interaction before applying the new
+authority; it never rebases an active sequence.
+
+#### Target provenance and execution boundaries
+
+Every edit phase uses pointer provenance. Effective samples preserve their exact
+modifiers, optional timestamp, and complete supplied sequence range. A terminal
+phase with native pointer metadata preserves that exact metadata. A cleanup
+boundary that is not an input sample uses pointer provenance with absent
+timestamp, modifiers, and sequence range; it never fabricates sample metadata.
+
+There is no idle timeout or timer-based grouping. Timestamps are opaque
+provenance, not continuity clocks or deadlines. Sequence ranges are
+observational only and never define continuity, sample count, ordering,
+density, accumulation, scheduling, cache admission, reuse, renderer resources,
+render selection, or execution authority. Observational metadata can never
+authorize a schedule, timer, cache, reuse, renderer, resource, or execution
+decision.
+
+Deterministic target fixtures:
+
+| Fixture | Expected target behavior |
+| --- | --- |
+| 1. Focused/hovered admission versus scroll fallback | A focused, enabled, editable numeric input under the pointer and selected as the wheel target may admit an eligible sample. A focused input outside the pointer, an unfocused input, an ineligible target, or a sample over only a scroll container remains unhandled so existing widget/scroll-container fallback can consume it. |
+| 2. Unit-preserving line/pixel normalization | `Lines(Vector2::new(0.0, 1.0))` reaches policy conversion as `+1.0`; `Pixels(Vector2::new(0.0, 40.0))` reaches it as `+1.0`; a smaller pixel delta remains precise until conversion. The validated line-equivalence is exactly `40.0` logical pixels per line. |
+| 3. Direction and unusable samples | Positive finite vertical movement increases, negative finite vertical movement decreases. Zero, horizontal-only, nonfinite, malformed, and unusable samples create no candidate; phase-less/`Discrete` cases remain unhandled for fallback. |
+| 4. Explicit continuity | `Started` -> `Changed`* -> `Ended` is one transaction: the first effective changed candidate emits `Begin(start)` then `Update(candidate)`, later effective samples emit at most one `Update`, and `Ended` commits current. An ineffective pending sequence ends without an edit event. |
+| 5. Explicit and non-phase cancellation | `Cancelled`, Escape, focus/identity loss, incompatible reprojection, changed authority, disable/read-only, and explicit cancel restore the exact start snapshot. An active edit emits exactly one same-transaction `Cancel(start)` before cleanup; a pending edit emits none. |
+| 6. Atomic discrete and malformed/orphan phases | One effective phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit` in order. An ineligible/ineffective sample remains unhandled. A `Changed`/`Ended` without a matching admitted start follows one-sample discrete/orphan fallback and never joins guessed history; malformed phase/unit evidence creates no candidate. |
+| 7. Base/Fine/Coarse and modifier changes | Unmodified selects Base, Shift selects Fine, Command on macOS or Control on Windows/Linux selects Coarse, and Fine wins when both match. A per-sample modifier change selects the new step for the next effective sample without a jump, second transaction, or guessed continuity break. |
+| 8. Unchanged candidates | An unchanged initial discrete candidate publishes no transaction or edit event and remains available to scroll fallback. An unchanged sample in an admitted explicit sequence emits no `Update` and retains ownership through its terminal phase. |
+| 9. Typed failures and rollback ordering | An initial adjustment/format failure returns the typed initial failure with `cancelled: false` and no transaction. After an effective update, a failed adjustment/format candidate is suppressed, the exact start is restored, one `Cancel(start)` is emitted first, and the typed update failure with `cancelled: true` follows; no failed `Update` is published. |
+| 10. Reprojection and authority | Same-identity compatible reprojection with unchanged external value preserves pending/active state and continuity. Changed authority or identity cancels before the new authority applies and never rebases the old sequence. |
+| 11. Exact metadata and cleanup | Every edit phase uses pointer provenance. Effective samples copy exact modifiers, timestamp, and complete sequence range; a native-metadata terminal copies its metadata. Escape/focus/identity/authority/disable/read-only cleanup with no input sample uses absent metadata and fabricates nothing. |
+| 12. Observational metadata proof | Delayed samples still follow explicit ownership without an idle timeout; timestamps and sequence ranges do not define continuity, deadlines, scheduling, accumulation, cache admission, reuse, renderer resources, render selection, or execution. Different observational metadata cannot authorize any of those decisions. |
+
 ### Numeric adjustment contract
 
 Radiant also ships the qualified generic `NumericAdjustment<T>` policy boundary

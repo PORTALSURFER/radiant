@@ -92,3 +92,13 @@ repeat, and release. Host handling remains first, and handled shortcuts do not
 reach widgets. This prerequisite correction has zero impact on the estimates
 and does not ship numeric stepping, capture, transactions, or a numeric
 consumer.
+The target-only metadata-aware focused-key ownership and preemption contract is
+now defined in the design and API documents as an unimplemented, backend-neutral
+prerequisite for semantic `KeyboardAdjustment`. It specifies host ordering,
+focused-owner continuation, stale/orphan/competing-sample ignore behavior,
+lossless key metadata, and equivalent native/backend-neutral/synthetic
+decisions, but no metadata-aware routing, capture ownership, or native-adapter
+behavior is shipped. The existing key-only `preempts_host_shortcut_key`
+compatibility surface and normalized key/release plumbing remain unchanged; the
+target acceptance fixtures do not describe passing current runtime behavior.
+This documentation-only prerequisite has zero impact on the estimates.

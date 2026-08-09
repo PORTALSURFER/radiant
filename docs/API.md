@@ -1420,6 +1420,67 @@ Unicode-scalar convention above.
 | 9. Malformed native range | Invalid scalar or UTF-16 mapping conservatively cancels and retains committed text/selection; no clamp, guess, append, or mutation occurs. |
 | 10. Metadata | Native timestamps remain exact, missing timestamps remain absent, synthetic constructors omit them, and no sequence range is fabricated. |
 
+### Target metadata-aware focused-key ownership and preemption (not yet shipped)
+
+This is one target-only, backend-neutral contract for metadata-aware focused-key
+routing across generic `SurfaceRuntime` dispatch and native adapters. It is
+normative for a future implementation but is not shipped; in particular, it
+does not claim or implement semantic `KeyboardAdjustment`. The existing key-only
+`preempts_host_shortcut_key` compatibility surface and normalized key/release
+plumbing remain shipped until a later additive metadata-aware implementation.
+This contract does not prescribe a concrete public hook signature.
+
+The conceptual outcomes are illustrative and unshipped names:
+`FocusedKeyPhase::{InitialPress, RepeatPress, Release}` and
+`FocusedKeyRoute::{HostFirst, FocusedOwner, Ignore}`. They describe routing
+decisions, not public Rust types or output messages. The contract defines
+routing using existing focus, interaction, and authority state; it does not
+decide which widget owns a key.
+
+Routing evidence carries the exact key, an explicit phase (press, repeat, or
+release), lossless `KeyboardModifiers`, and an optional timestamp. Release is a
+distinct phase and is never treated as another press. Capture comes only from
+current interaction state: timestamp, repeat, modifiers, diagnostics, and
+history cannot create authority. Capture pins the stable focused widget
+identity. Replacement, focus change or loss, and authority loss make a
+continuation stale or unavailable; they never rebase it to a successor, a new
+focus, or the host.
+
+The route order is:
+
+- `HostFirst` is available only for an uncaptured initial press. Host
+  resolution runs once. A handled input never reaches the widget. An
+  unhandled input may be delivered once only after current focus and authority
+  are revalidated; it is not retried through the host.
+- `FocusedOwner` requires the exact current focused identity together with
+  interaction-specific pending or active ownership, or an owner-defined
+  cancellation key for that current owner. It bypasses host resolution and
+  delivers the evidence once to the owner. Owner-first routing has no host
+  fallback even when the owner emits no output. Modified repeats and
+  cancellation keys remain eligible when the owner contract permits them.
+- `Ignore` applies to orphan repeats or releases, stale capture, an
+  owner-defined competing sample, and an unavailable continuation. Ignored
+  input is delivered neither to a rebased focus nor to the host.
+
+Generic, native, and synthetic paths use the same routing matrix. A native
+adapter may translate physical keys and modifier representations into this
+lossless evidence, but it may not add precedence rules. Synthetic and
+backend-neutral samples exercise the same decisions; these fixtures are target
+acceptance criteria and do not describe passing current runtime behavior.
+
+#### Target focused-key routing acceptance fixtures
+
+| Fixture | Expected target decision |
+| --- | --- |
+| Handled uncaptured initial press | `HostFirst` resolves the host once; the handled input reaches the widget zero times. |
+| Unhandled uncaptured initial press | `HostFirst` resolves the host once; after focus/authority revalidation, the input reaches the current focused owner once. |
+| Captured matching repeat and release | `FocusedOwner` delivers each matching sample to the pinned owner once; the host is never resolved. Release remains a release. |
+| Modifier change preserved | An owner-eligible repeat or cancellation sample preserves its exact changed `KeyboardModifiers` and remains owner-first; modifiers do not silently create or remove authority. |
+| Active contract-defined Escape | An active owner-defined Escape cancellation sample is `FocusedOwner`, delivered once to the owner, and never resolved by the host. |
+| Competing or orphan sample | An owner-defined competing key, orphan repeat, or orphan release is `Ignore`; it reaches neither widget nor host and does not alter capture. |
+| Stale identity or authority | A sample whose pinned identity or authority is no longer current is `Ignore`; it is not rebased, sent to a fallback host path, or delivered to a successor/new focus. |
+| Native, backend-neutral, and synthetic equivalence | Equivalent evidence produces the same route, host-call count, and owner-delivery count on all three paths; native translation adds no precedence. |
+
 ### Target numeric keyboard adjustment (semantic behavior not yet shipped)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric step

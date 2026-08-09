@@ -73,25 +73,32 @@ where
                 modifiers,
                 repeat,
                 timestamp,
-            } => match self.dispatch_metadata_focused_key_press(
-                Some(KeyPress {
+            } => {
+                let host_press = KeyPress {
                     key: key.to_key_code(),
-                    command: modifiers.command,
-                    control: modifiers.control,
+                    command: if std::env::consts::OS == "macos" {
+                        modifiers.command
+                    } else {
+                        modifiers.command || modifiers.control
+                    },
+                    control: std::env::consts::OS == "macos" && modifiers.control,
                     shift: modifiers.shift,
                     alt: modifiers.alt,
-                }),
-                Some(key),
-                modifiers,
-                timestamp,
-                repeat,
-                FocusSurface::None,
-            ) {
-                Some(route) => route.widget_id,
-                None => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
-                    key, modifiers, repeat, timestamp,
-                )),
-            },
+                };
+                match self.dispatch_metadata_focused_key_press(
+                    Some(host_press),
+                    Some(key),
+                    modifiers,
+                    timestamp,
+                    repeat,
+                    FocusSurface::None,
+                ) {
+                    Some(route) => route.widget_id,
+                    None => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
+                        key, modifiers, repeat, timestamp,
+                    )),
+                }
+            }
             Event::KeyRelease {
                 key,
                 modifiers,

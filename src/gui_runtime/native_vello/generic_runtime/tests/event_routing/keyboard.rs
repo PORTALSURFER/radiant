@@ -272,6 +272,7 @@ struct FocusedKeyRoutingBridge {
     messages: Vec<FocusedKeyRouteMessage>,
     host_presses: Vec<KeyPress>,
     host_handled: bool,
+    host_binding: Option<KeyPress>,
     cancel_escape: bool,
 }
 
@@ -281,6 +282,18 @@ impl FocusedKeyRoutingBridge {
             messages: Vec::new(),
             host_presses: Vec::new(),
             host_handled,
+            host_binding: None,
+            cancel_escape,
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn with_host_binding(host_binding: KeyPress, cancel_escape: bool) -> Self {
+        Self {
+            messages: Vec::new(),
+            host_presses: Vec::new(),
+            host_handled: false,
+            host_binding: Some(host_binding),
             cancel_escape,
         }
     }
@@ -311,7 +324,7 @@ impl RuntimeInputHost<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
         _focus: FocusSurface,
     ) -> ShortcutResolution<FocusedKeyRouteMessage> {
         self.host_presses.push(press);
-        if self.host_handled {
+        if self.host_handled || self.host_binding == Some(press) {
             ShortcutResolution::handled()
         } else {
             ShortcutResolution::unhandled()
@@ -722,13 +735,13 @@ fn run_focused_key_path(
         2 => {
             assert!(
                 core.route_key_press_with_timestamp(
-                    KeyPress {
-                        key: KeyCode::ArrowUp,
-                        command: true,
-                        control: true,
-                        shift: true,
-                        alt: true,
-                    },
+                    keypress_from_input(
+                        KeyCode::ArrowUp,
+                        ModifiersState::SUPER
+                            | ModifiersState::CONTROL
+                            | ModifiersState::SHIFT
+                            | ModifiersState::ALT,
+                    ),
                     Some(WidgetKey::ArrowUp),
                     modifiers,
                     initial_timestamp,
@@ -781,6 +794,131 @@ fn native_direct_and_synthetic_focused_key_paths_are_equivalent() {
     let native = run_focused_key_path(2, timestamps.0, timestamps.1, timestamps.2);
     assert_eq!(direct, synthetic);
     assert_eq!(direct, native);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn run_control_only_key_path(path: u8) -> (Vec<FocusedKeyRouteMessage>, Vec<KeyPress>) {
+    let native_modifiers = ModifiersState::CONTROL;
+    let widget_modifiers = keyboard_modifiers_from_winit(native_modifiers);
+    let keys = [WidgetKey::ArrowUp, WidgetKey::ArrowRight];
+
+    match path {
+        0 => {
+            let mut runner = GenericNativeVelloRunner::new(
+                NativeRunOptions::default(),
+                FocusedKeyRoutingBridge::with_host_binding(
+                    KeyPress::with_command(KeyCode::ArrowUp),
+                    false,
+                ),
+                Vector2::new(160.0, 28.0),
+            );
+            runner.input.modifiers = native_modifiers;
+            assert!(runner.core.runtime.focus_widget(91));
+            for key in keys {
+                assert!(
+                    runner
+                        .core
+                        .route_key_press_with_timestamp(
+                            keypress_from_input(key.to_key_code(), native_modifiers),
+                            Some(key),
+                            widget_modifiers,
+                            None,
+                            false,
+                        )
+                        .routed
+                );
+            }
+            (
+                runner.core.runtime.bridge().messages.clone(),
+                runner.core.runtime.bridge().host_presses.clone(),
+            )
+        }
+        1 => {
+            let mut core = GenericNativeRuntimeCore::new(
+                FocusedKeyRoutingBridge::with_host_binding(
+                    KeyPress::with_command(KeyCode::ArrowUp),
+                    false,
+                ),
+                Vector2::new(160.0, 28.0),
+            );
+            assert!(core.runtime.focus_widget(91));
+            assert_eq!(
+                core.runtime.dispatch_event(Event::key_press_with_metadata(
+                    WidgetKey::ArrowUp,
+                    widget_modifiers,
+                    false,
+                    None,
+                )),
+                None
+            );
+            assert_eq!(
+                core.runtime.dispatch_event(Event::key_press_with_metadata(
+                    WidgetKey::ArrowRight,
+                    widget_modifiers,
+                    false,
+                    None,
+                )),
+                Some(91)
+            );
+            (
+                core.runtime.bridge().messages.clone(),
+                core.runtime.bridge().host_presses.clone(),
+            )
+        }
+        2 => {
+            let mut core = GenericNativeRuntimeCore::new(
+                FocusedKeyRoutingBridge::with_host_binding(
+                    KeyPress::with_command(KeyCode::ArrowUp),
+                    false,
+                ),
+                Vector2::new(160.0, 28.0),
+            );
+            assert!(core.runtime.focus_widget(91));
+            for key in keys {
+                assert!(
+                    core.route_widget_key_with_metadata(key, widget_modifiers, false, None)
+                        .routed
+                );
+            }
+            (
+                core.runtime.bridge().messages.clone(),
+                core.runtime.bridge().host_presses.clone(),
+            )
+        }
+        _ => panic!("unsupported control-only key test path"),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn native_direct_and_synthetic_control_only_paths_match_host_and_widget_observations() {
+    let native = run_control_only_key_path(0);
+    let direct = run_control_only_key_path(1);
+    let synthetic = run_control_only_key_path(2);
+
+    assert_eq!(native, direct);
+    assert_eq!(native, synthetic);
+    assert_eq!(
+        native.0,
+        vec![FocusedKeyRouteMessage::Press {
+            key: WidgetKey::ArrowRight,
+            modifiers: KeyboardModifiers {
+                command: false,
+                control: true,
+                shift: false,
+                alt: false,
+            },
+            repeat: false,
+            timestamp: None,
+        }]
+    );
+    assert_eq!(
+        native.1,
+        vec![
+            KeyPress::with_command(KeyCode::ArrowUp),
+            KeyPress::with_command(KeyCode::ArrowRight),
+        ]
+    );
 }
 
 #[test]

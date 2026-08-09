@@ -1152,6 +1152,136 @@ product-specific locale codecs remain application-supplied. The current
 consumer exercises generic construction and the `u32` text lifecycle; the
 other adjustment-consuming behavior remains outside this slice.
 
+### Target IME/composition lifecycle (not yet shipped)
+
+This subsection defines a future-only backend-neutral contract. It does not
+describe a shipped API or provide runtime/native evidence: the current source
+has no composition event or composition state. The normalized lifecycle
+samples are `Start`, `Update { preedit, selection }`, `Commit { text }`, and
+`Cancel`. Each sample retains an optional native timestamp when the native
+sample provided one. The target vocabulary is illustrative rather than a
+public Rust type in this PR.
+
+All generic ranges in this contract are Unicode-scalar ranges. The native
+adapter owns platform IME APIs, candidate-window placement, native offsets, and
+translation from those offsets into backend-neutral scalar evidence. The
+generic contract does not prescribe UTF-16, byte, grapheme, or any other
+backend-specific offset convention.
+
+Every composition replacement range and every `Update.selection` is a bounded
+half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in
+`0..=scalar_len` and `start <= end`. For a replacement range, `scalar_len` is
+the captured committed text scalar length; for `Update.selection`, it is that
+update's preedit scalar length. `start == end` means a collapsed caret.
+Malformed, inverted (`start > end`), or out-of-bounds endpoints are invalid
+evidence and follow the conservative cancel/retain/no-committed-mutation
+outcome below.
+
+Ownership is explicit:
+
+- The application owns committed text and its durable `TextInputRevision` and
+  value.
+- The widget owns transient pre-edit text, the captured scalar replacement
+  range, scalar selection/caret, and the composition lifecycle.
+- The runtime pins composition to one focused widget with a stable identity.
+- The native adapter owns platform IME behavior and translates only validated
+  native range evidence into the generic contract.
+
+Composition is text-input metadata, not numeric edit provenance. It adds no
+new `InteractionSource`, `InteractionProvenance`, `NumericEditSession`, or
+`EditEvent` phase.
+
+#### Start, update, commit, and cancel
+
+`Start` is accepted only for the currently focused stable widget. It captures
+the focused widget identity, authoritative document revision, committed text,
+scalar replacement range, and scalar selection at the beginning of the
+composition. Later samples are bound to that identity and captured revision.
+
+`Update` replaces the preedit verbatim; it never appends to the previous
+preedit. Its `selection` is explicit and scalar-indexed inside the preedit,
+including a collapsed caret. Empty preedit is valid and remains visible.
+`Update` never mutates committed text, emits ordinary `Changed`, invokes a
+`NumericCodec`, or creates a `NumericEditSession`, `EditEvent`, or numeric edit
+output.
+
+`Commit` atomically replaces exactly the captured scalar replacement range with
+its `text` and then clears composition. The target post-commit selection is a
+collapsed scalar caret immediately after the inserted text, or at the captured
+replacement start when `text` is empty. An accepted `Commit` emits exactly one
+ordinary committed text change after the atomic replacement; a stale,
+malformed, or otherwise rejected `Commit` emits none. A `Start` followed
+directly by `Commit` is valid; no `Update` is required. A separate numeric
+consumer may parse or convert only after this committed replacement, never
+while preedit is active.
+
+`Cancel` clears preedit and restores the original committed text, captured
+replacement range, and scalar selection from `Start`. It emits no committed
+text change.
+
+Native IME delivery has first refusal before matching key-text delivery is
+routed as ordinary text. After a native `Commit`, matching normalized
+`KeyPress`/character text for the same focused identity and delivery boundary
+is consumed/suppressed, including the commit-then-matching-key case, so it
+cannot insert duplicate text. A nonmatching ordinary key remains on normal
+routing; the generic contract intentionally does not prescribe platform
+specific key matching details.
+
+#### Authority, identity, and malformed evidence
+
+A compatible same-ID reprojection with an equal or older external
+`TextInputRevision` preserves composition, preedit, and scalar selection. A
+newer external authority cancels the old composition before replacing committed
+state and applying the newer revision/value. Identity loss or change,
+incompatible value or capability, disablement, and read-only state cancel
+composition. Uncommitted focus loss cancels rather than commits; this contract
+adds no implicit ordinary-text terminal, so only explicit composition `Commit`
+commits. If explicit `Commit` and focus loss are observed at the same boundary,
+`Commit` is ordered first and wins. If focus loss wins an earlier boundary,
+the old composition is cancelled and its later terminal sample is stale.
+
+Every `Start`, `Update`, `Commit`, and `Cancel` from an old widget identity or
+captured revision is stale and ignored. Such a sample cannot mutate the new
+widget's committed text, selection, or revision.
+
+Malformed native ranges and interval endpoints are unknown evidence, not a
+reason to guess. Malformed or inverted (`start > end`) intervals, out-of-bounds
+endpoints, invalid scalar ranges, invalid UTF-16-to-scalar mappings, and other
+malformed native range evidence must not be clamped, appended, silently
+accepted, or converted by an invented convention. The conservative target
+outcome for an invalid `Start`, `Update`, or `Commit` is to cancel composition,
+retain committed text and current scalar selection, and make no committed
+mutation. A typed diagnostic may record the rejection, but that diagnostic is
+not a shipped public API.
+
+#### Timestamp and synthetic-input rules
+
+The exact native sample timestamp is preserved through each lifecycle sample;
+an event with no native timestamp retains no timestamp. Synthetic and
+backend-neutral constructors omit timestamps. Composition does not create a
+new interaction source or numeric provenance, and no keyboard sequence range
+is fabricated.
+
+#### Acceptance fixtures
+
+The target contract is accepted only when these fixtures hold:
+
+Every interval in these fixtures uses the contract-wide bounded half-open
+Unicode-scalar convention above.
+
+| Fixture | Expected result |
+| --- | --- |
+| 1. Start on committed `"a"` with captured replacement range `0..1` and captured scalar selection `0..1`; `Update { preedit: "あ", selection: 1..1 }`; then `Update { preedit: "あい", selection: 1..2 }` | Committed text remains exactly `"a"`; final preedit is exactly `"あい"` with final selection exactly `1..2`; the second update replaces rather than appends; no ordinary `Changed`, `NumericCodec` call, or numeric edit output occurs. |
+| 2. Empty preedit | Empty preedit is a valid visible state, not an implicit cancel. |
+| 3. Commit `"あい"` | Exactly one atomic captured-range replacement and one committed text change; parsing/value conversion is permitted only after commit. |
+| 4. Cancel | Original committed text, captured range, and selection are restored with no committed text change. |
+| 5. Direct commit with no update | `Start` followed directly by `Commit` is valid and produces one committed change. |
+| 6. Native commit followed by matching key text | Matching `KeyPress`/character text is consumed/suppressed with no duplicate insertion; a nonmatching ordinary key follows normal routing. |
+| 7. Reprojection and stale samples | Same-ID compatible equal/older revision preserves composition/preedit/selection; newer authority cancels/replaces; stale old `Start`/`Update`/`Commit`/`Cancel` is ignored. |
+| 8. Identity and focus boundaries | Identity change, disable/read-only, and uncommitted focus loss cancel/restore; explicit commit wins before focus loss when both share a boundary. |
+| 9. Malformed native range | Invalid scalar or UTF-16 mapping conservatively cancels and retains committed text/selection; no clamp, guess, append, or mutation occurs. |
+| 10. Metadata | Native timestamps remain exact, missing timestamps remain absent, synthetic constructors omit them, and no sequence range is fabricated. |
+
 ### Target numeric keyboard adjustment (not yet shipped)
 
 The preceding `numeric_input` section documents the shipped text-first

@@ -1776,6 +1776,107 @@ column([
 .gap(8)
 ```
 
+### Target IME/composition lifecycle (not yet shipped)
+
+This is a target-only, backend-neutral contract. It claims no current runtime
+or native-platform evidence: the current source has no composition event or
+composition state. The normalized lifecycle vocabulary is `Start`,
+`Update { preedit, selection }`, `Commit { text }`, and `Cancel`; every sample
+carries optional native timestamp metadata when the native sample supplied it.
+All ranges exposed by this generic contract are Unicode-scalar ranges. A native
+adapter may use UTF-16 or another platform offset internally, but it owns the
+translation into scalar evidence; the generic contract does not choose a
+backend-specific offset convention.
+
+Every composition replacement range and every `Update.selection` is a bounded
+half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in
+`0..=scalar_len` and `start <= end`. For a replacement range, `scalar_len` is
+the captured committed text scalar length; for `Update.selection`, it is that
+update's preedit scalar length. `start == end` means a collapsed caret.
+Malformed, inverted (`start > end`), or out-of-bounds endpoints are invalid
+evidence and follow the conservative cancel/retain/no-committed-mutation
+outcome below.
+
+Ownership is split deliberately. The application owns committed text and its
+durable `TextInputRevision`/value. The widget owns transient pre-edit text,
+the captured scalar replacement range, scalar selection/caret, and the
+composition lifecycle. The runtime pins a composition to one focused stable
+widget identity. The native adapter owns platform IME APIs, candidate-window
+placement, native offsets, and range translation. Composition is not a new
+`InteractionSource` or numeric edit provenance; it is text-input metadata.
+
+`Start` is accepted only for the focused stable widget and captures that widget
+identity, the authoritative document revision, the committed text, the scalar
+replacement range, and the scalar selection at composition start. `Update`
+replaces the preedit verbatim—never appends it—and carries an explicit scalar
+selection inside that preedit. An empty preedit is valid and visible. An update
+does not mutate committed text, emit ordinary `Changed`, invoke a
+`NumericCodec`, or create a `NumericEditSession`, `EditEvent`, or other numeric
+edit output.
+
+`Commit` atomically replaces exactly the captured scalar range with its
+committed text and clears the composition. The target selection rule places a
+collapsed scalar caret immediately after the inserted text (at the replacement
+start when the committed text is empty). An accepted `Commit` emits exactly one
+ordinary committed text change after the atomic replacement; a stale,
+malformed, or otherwise rejected `Commit` emits none. A `Start` followed
+directly by `Commit` is valid; no `Update` is required. Numeric parsing or value
+conversion may occur only after this committed replacement, never from preedit
+text.
+`Cancel` clears the preedit, restores the original committed text, captured
+replacement range, and scalar selection, and emits no committed text change.
+
+Native IME delivery has first refusal at the adapter/runtime boundary. When a
+native `Commit` is followed by matching normalized `KeyPress`/character text
+for the same focused identity and delivery boundary, that key text is
+consumed/suppressed before ordinary text routing so it cannot insert a second
+copy. A nonmatching ordinary key remains on normal routing; the generic
+contract does not prescribe platform-specific key matching beyond the
+adapter's matching evidence.
+
+Reprojection is authority- and identity-fenced. A compatible same-ID
+reprojection with an equal or older external `TextInputRevision` preserves the
+active composition, preedit, and scalar selection. A newer authority first
+cancels the old composition, then replaces the committed state and applies the
+new revision/value. Identity loss or change, an incompatible value or
+capability, disablement, and read-only state cancel composition. Uncommitted
+focus loss cancels; this contract adds no implicit ordinary-text terminal, so
+only an explicit composition `Commit` commits. If an explicit `Commit` and
+focus loss share one delivery boundary, `Commit` is processed first and wins;
+if focus loss was processed first, a later old commit is stale. `Start`,
+`Update`, `Commit`, and `Cancel` carrying an old identity or captured revision
+are ignored and cannot mutate the new widget text.
+
+Malformed native ranges and interval endpoints are unknown evidence, not a
+reason to guess. Malformed or inverted (`start > end`) intervals, out-of-bounds
+endpoints, invalid scalar ranges, invalid UTF-16-to-scalar mappings, and other
+malformed native range evidence must not be clamped, appended, silently
+accepted, or converted by an invented convention. The conservative target
+outcome for an invalid `Start`, `Update`, or `Commit` is to cancel composition,
+retain committed text and current scalar selection, and make no committed
+mutation. A typed diagnostic may record the rejection, but that diagnostic is
+not a shipped public API. Native timestamps are preserved exactly through the
+lifecycle; absent timestamps remain absent. Synthetic or backend-neutral
+constructors omit timestamps, and no sequence range is fabricated.
+
+The compact target fixtures are:
+
+Every interval in these fixtures uses the contract-wide bounded half-open
+Unicode-scalar convention above.
+
+| Fixture | Required rule |
+| --- | --- |
+| Start on `"a"` with captured replacement range `0..1` and captured scalar selection `0..1`; `Update { preedit: "あ", selection: 1..1 }`; then `Update { preedit: "あい", selection: 1..2 }` | Committed text remains exactly `"a"`; final preedit is exactly `"あい"` with final selection exactly `1..2`; the second update replaces rather than appends; no ordinary `Changed`, `NumericCodec` call, or numeric edit output occurs. |
+| Empty preedit | An empty `preedit` is a valid visible composition state. |
+| Commit `"あい"` | One atomic captured-range replacement and one committed change; numeric parsing starts only afterward. |
+| Cancel | Original committed text, replacement range, and selection are restored; no committed change is emitted. |
+| Direct commit | `Start` followed directly by `Commit` is valid and produces one atomic committed change. |
+| Native commit plus matching key text | Matching `KeyPress`/character text is consumed/suppressed; a nonmatching ordinary key keeps normal routing. |
+| Reprojection and stale delivery | Same-ID equal/older revision preserves; newer revision cancels/replaces; stale old lifecycle samples are ignored. |
+| Boundary cancellation | Identity change, disable/read-only, and uncommitted focus loss cancel/restore; an explicit commit wins when ordered at the same boundary. |
+| Malformed range | Invalid scalar/UTF-16 evidence conservatively cancels and retains committed text/selection; there is no clamp, guess, or mutation. |
+| Metadata | Native timestamps remain exact, synthetic samples omit them, and no sequence range is fabricated. |
+
 ### Numeric controls
 
 `Slider` is a shipped control. The target API for sliders and other range

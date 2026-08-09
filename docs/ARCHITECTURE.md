@@ -228,6 +228,18 @@ capacity, budgets, fairness, priority, wake ordering, and stage ordering.
 Overlay/keyed-node cancellation is an implementation-sequencing dependency for
 completing this seam, not permission to define scheduler policy later.
 
+Widget-local interaction retirement follows the same ownership boundary without
+adding another runtime queue. During surface reconciliation, the installed
+stateful widgets are visited in prior traversal order and receive an exact
+compatible successor only when the identity/path/revision evidence is unique.
+The retiring widget owns local teardown and can return a UI-local terminal
+`WidgetOutput`; the old `SurfaceWidget` mapper translates it before the old
+surface is discarded. The bounded mapped batch is delivered through deferred
+controller dispatch after installation, while compatible unchanged widgets use
+the existing state synchronization hook. Missing or ambiguous evidence is
+conservative and never transfers authority, and successor objects are not
+retained.
+
 ## Rendering Boundary
 
 Radiant uses Vello for normal UI primitives and direct WGPU paths for retained

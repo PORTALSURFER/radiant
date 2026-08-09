@@ -71,12 +71,17 @@ mod tests {
             SlotParams,
         },
         runtime::{
-            RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+            Command, RuntimeBridge, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceChild,
+            SurfaceNode, TaskPriority, UiSurface, WidgetMessageMapper,
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
         widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextWidget, WidgetSizing},
     };
-    use std::{cell::Cell, rc::Rc, sync::Arc};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        sync::Arc,
+    };
 
     #[derive(Clone)]
     struct FenceSemanticWidget {
@@ -234,6 +239,656 @@ mod tests {
             };
             crate::runtime::test_arc_surface(UiSurface::new(node))
         }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum TeardownEvent {
+        Prepare {
+            id: u64,
+            successor_authority: Option<bool>,
+            projection_depth: usize,
+        },
+        Map {
+            id: u64,
+            marker: u8,
+        },
+        Synchronize {
+            id: u64,
+        },
+        Reduce {
+            id: u64,
+            marker: u8,
+        },
+        Project,
+        ExternalWork,
+    }
+
+    #[derive(Default)]
+    struct TeardownLog {
+        events: Vec<TeardownEvent>,
+    }
+
+    #[derive(Clone, Copy)]
+    struct TeardownProbeConfig {
+        active: bool,
+        authority: bool,
+        disabled: bool,
+        read_only: bool,
+        marker: u8,
+        maps_output: bool,
+    }
+
+    #[derive(Clone, Copy)]
+    struct TeardownPayload {
+        id: u64,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct TeardownMessage {
+        id: u64,
+        marker: u8,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum TeardownDispatchMode {
+        None,
+        Exit,
+        Focus,
+        Nested,
+        External,
+    }
+
+    #[derive(Clone)]
+    struct TeardownProbeWidget {
+        common: crate::widgets::WidgetCommon,
+        active: bool,
+        authority: bool,
+        log: Rc<RefCell<TeardownLog>>,
+        projection_depth: Rc<Cell<usize>>,
+    }
+
+    impl TeardownProbeWidget {
+        fn new(
+            id: u64,
+            config: TeardownProbeConfig,
+            log: Rc<RefCell<TeardownLog>>,
+            projection_depth: Rc<Cell<usize>>,
+        ) -> Self {
+            let mut common = crate::widgets::WidgetCommon::fixed(id, 80.0, 28.0);
+            common.focus = crate::widgets::FocusBehavior::Keyboard;
+            common.state.disabled = config.disabled;
+            common.state.read_only = config.read_only;
+            Self {
+                common,
+                active: config.active,
+                authority: config.authority,
+                log,
+                projection_depth,
+            }
+        }
+
+        fn has_authority(&self) -> bool {
+            self.authority && !self.common.state.disabled && !self.common.state.read_only
+        }
+    }
+
+    impl crate::widgets::Widget for TeardownProbeWidget {
+        fn revision(&self) -> crate::widgets::WidgetRevision {
+            crate::widgets::WidgetRevision::exact((), (), (), ())
+        }
+
+        fn common(&self) -> &crate::widgets::WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: crate::widgets::WidgetInput,
+        ) -> Option<crate::widgets::WidgetOutput> {
+            None
+        }
+
+        fn synchronize_from_previous(&mut self, previous: &dyn crate::widgets::Widget) {
+            let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+                return;
+            };
+            self.active = previous.active;
+            self.log
+                .borrow_mut()
+                .events
+                .push(TeardownEvent::Synchronize { id: self.common.id });
+        }
+
+        fn prepare_replacement(
+            &mut self,
+            successor: Option<&dyn crate::widgets::Widget>,
+        ) -> Option<crate::widgets::WidgetOutput> {
+            let successor_authority = successor.and_then(|successor| {
+                successor
+                    .as_any()
+                    .downcast_ref::<Self>()
+                    .map(Self::has_authority)
+            });
+            self.log.borrow_mut().events.push(TeardownEvent::Prepare {
+                id: self.common.id,
+                successor_authority,
+                projection_depth: self.projection_depth.get(),
+            });
+            if self.active && successor_authority != Some(true) {
+                self.active = false;
+                return Some(crate::widgets::WidgetOutput::typed(TeardownPayload {
+                    id: self.common.id,
+                }));
+            }
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum TeardownMode {
+        Single(TeardownProbeConfig),
+        Removed,
+        Incompatible,
+        Multiple([TeardownProbeConfig; 2]),
+    }
+
+    struct TeardownBridge {
+        mode: TeardownMode,
+        dispatch_mode: TeardownDispatchMode,
+        record_projections: bool,
+        log: Rc<RefCell<TeardownLog>>,
+        projection_depth: Rc<Cell<usize>>,
+        reduced: Vec<TeardownMessage>,
+    }
+
+    impl TeardownBridge {
+        fn new(mode: TeardownMode) -> (Self, Rc<RefCell<TeardownLog>>) {
+            let log = Rc::new(RefCell::new(TeardownLog::default()));
+            let projection_depth = Rc::new(Cell::new(0));
+            (
+                Self {
+                    mode,
+                    dispatch_mode: TeardownDispatchMode::None,
+                    record_projections: false,
+                    log: Rc::clone(&log),
+                    projection_depth,
+                    reduced: Vec::new(),
+                },
+                log,
+            )
+        }
+
+        fn probe_widget(
+            &self,
+            id: u64,
+            config: TeardownProbeConfig,
+        ) -> SurfaceNode<TeardownMessage> {
+            let widget = TeardownProbeWidget::new(
+                id,
+                config,
+                Rc::clone(&self.log),
+                Rc::clone(&self.projection_depth),
+            );
+            let marker = config.marker;
+            let log = Rc::clone(&self.log);
+            let mapper = if config.maps_output {
+                WidgetMessageMapper::dynamic(move |output| {
+                    output.typed_cloned::<TeardownPayload>().map(|payload| {
+                        log.borrow_mut().events.push(TeardownEvent::Map {
+                            id: payload.id,
+                            marker,
+                        });
+                        TeardownMessage {
+                            id: payload.id,
+                            marker,
+                        }
+                    })
+                })
+            } else {
+                WidgetMessageMapper::none()
+            };
+            SurfaceNode::widget(widget, mapper)
+        }
+
+        fn surface(&self) -> UiSurface<TeardownMessage> {
+            match self.mode {
+                TeardownMode::Single(config) => UiSurface::new(self.probe_widget(20, config)),
+                TeardownMode::Removed => UiSurface::new(SurfaceNode::container(
+                    1,
+                    ContainerPolicy::default(),
+                    Vec::new(),
+                )),
+                TeardownMode::Incompatible => UiSurface::new(SurfaceNode::widget(
+                    ButtonWidget::new(
+                        20,
+                        "replacement",
+                        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )),
+                TeardownMode::Multiple(configs) => UiSurface::new(SurfaceNode::column(
+                    1,
+                    0.0,
+                    configs
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, config)| {
+                            SurfaceChild::fill(self.probe_widget(index as u64 + 20, config))
+                        })
+                        .collect(),
+                )),
+            }
+        }
+    }
+
+    impl RuntimeBridge<TeardownMessage> for TeardownBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<TeardownMessage>> {
+            assert_eq!(self.projection_depth.get(), 0);
+            if self.record_projections {
+                self.log.borrow_mut().events.push(TeardownEvent::Project);
+            }
+            self.projection_depth.set(1);
+            let surface = self.surface();
+            self.projection_depth.set(0);
+            crate::runtime::test_arc_surface(surface)
+        }
+
+        fn update(&mut self, message: TeardownMessage) -> Command<TeardownMessage> {
+            self.reduce_message(message);
+            if message.id != 20 {
+                return Command::none();
+            }
+            match self.dispatch_mode {
+                TeardownDispatchMode::None => Command::none(),
+                TeardownDispatchMode::Exit => Command::exit(),
+                TeardownDispatchMode::Focus => Command::focus(20),
+                TeardownDispatchMode::Nested => Command::message(TeardownMessage {
+                    id: 99,
+                    marker: message.marker,
+                }),
+                TeardownDispatchMode::External => Command::perform_worker_effect_with_priority(
+                    "teardown-external-work",
+                    TaskPriority::Background,
+                    None,
+                    0,
+                    || (),
+                    |_| TeardownMessage { id: 98, marker: 0 },
+                ),
+            }
+        }
+
+        fn reduce_message(&mut self, message: TeardownMessage) {
+            self.log.borrow_mut().events.push(TeardownEvent::Reduce {
+                id: message.id,
+                marker: message.marker,
+            });
+            self.reduced.push(message);
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, TeardownMessage> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<TeardownMessage> for TeardownBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            self.log
+                .borrow_mut()
+                .events
+                .push(TeardownEvent::ExternalWork);
+            drop(work);
+            true
+        }
+    }
+
+    fn active_probe(marker: u8) -> TeardownProbeConfig {
+        TeardownProbeConfig {
+            active: true,
+            authority: true,
+            disabled: false,
+            read_only: false,
+            marker,
+            maps_output: true,
+        }
+    }
+
+    fn terminal_batch_fixture(
+        dispatch_mode: TeardownDispatchMode,
+        record_projections: bool,
+    ) -> (Vec<TeardownMessage>, Vec<TeardownEvent>) {
+        let (bridge, log) =
+            TeardownBridge::new(TeardownMode::Multiple([active_probe(1), active_probe(2)]));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        log.borrow_mut().events.clear();
+        let bridge = runtime.bridge_mut();
+        bridge.mode = TeardownMode::Multiple([
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+        ]);
+        bridge.dispatch_mode = dispatch_mode;
+        bridge.record_projections = record_projections;
+
+        runtime.refresh();
+
+        let reduced = runtime.bridge().reduced.clone();
+        let events = log.borrow().events.clone();
+        (reduced, events)
+    }
+
+    fn reduced_ids(events: &[TeardownEvent]) -> Vec<u64> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                TeardownEvent::Reduce { id, .. } => Some(*id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn terminal_messages_reduce_before_exit_focus_nested_or_external_work() {
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Exit, false);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        assert_eq!(reduced_ids(&events), [20, 21]);
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Focus, true);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        assert_eq!(reduced_ids(&events), [20, 21]);
+        let project_positions = events
+            .iter()
+            .enumerate()
+            .filter_map(|(index, event)| matches!(event, TeardownEvent::Project).then_some(index))
+            .collect::<Vec<_>>();
+        let second_project = *project_positions
+            .get(1)
+            .expect("focus should open a fresh surface after reduction");
+        let second_terminal_reduce = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::Reduce { id: 21, .. }))
+            .expect("second terminal should reduce");
+        assert!(
+            second_terminal_reduce < second_project,
+            "fresh-surface focus must not project between terminal reducers"
+        );
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::Nested, false);
+        assert_eq!(reduced_ids(&events), [20, 21, 99]);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+                TeardownMessage { id: 99, marker: 1 },
+            ]
+        );
+
+        let (reduced, events) = terminal_batch_fixture(TeardownDispatchMode::External, false);
+        assert_eq!(reduced_ids(&events), [20, 21]);
+        assert_eq!(
+            reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        let second_terminal_reduce = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::Reduce { id: 21, .. }))
+            .expect("second terminal should reduce");
+        let external_work = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::ExternalWork))
+            .expect("external-work command should be admitted");
+        assert!(
+            second_terminal_reduce < external_work,
+            "external work must not interleave terminal reduction"
+        );
+    }
+
+    #[test]
+    fn replacement_teardown_cancels_removed_and_incompatible_widgets_once() {
+        for mode in [TeardownMode::Removed, TeardownMode::Incompatible] {
+            let (bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(7)));
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+            runtime.interaction.focus.focused_widget = Some(20);
+            runtime.interaction.pointer.capture = Some(20);
+            runtime.interaction.pointer.capture_state = Some((20, Default::default()));
+            runtime.interaction.hover.widget = Some(20);
+            log.borrow_mut().events.clear();
+            runtime.bridge_mut().mode = mode;
+
+            runtime.refresh();
+
+            assert_eq!(
+                runtime.bridge().reduced,
+                [TeardownMessage { id: 20, marker: 7 }]
+            );
+            assert_eq!(runtime.focused_widget(), None);
+            assert_eq!(runtime.pointer_capture(), None);
+            assert_eq!(runtime.hovered_widget(), None);
+            assert_eq!(
+                log.borrow().events,
+                [
+                    TeardownEvent::Prepare {
+                        id: 20,
+                        successor_authority: None,
+                        projection_depth: 0,
+                    },
+                    TeardownEvent::Map { id: 20, marker: 7 },
+                    TeardownEvent::Reduce { id: 20, marker: 7 },
+                ]
+            );
+
+            runtime.refresh();
+            assert_eq!(
+                runtime.bridge().reduced,
+                [TeardownMessage { id: 20, marker: 7 }]
+            );
+        }
+    }
+
+    #[test]
+    fn compatible_reprojection_preserves_state_without_terminal_output() {
+        let (bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(1)));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+        log.borrow_mut().events.clear();
+        runtime.bridge_mut().mode = TeardownMode::Single(TeardownProbeConfig {
+            active: false,
+            marker: 9,
+            ..active_probe(9)
+        });
+
+        runtime.refresh();
+
+        assert!(runtime.bridge().reduced.is_empty());
+        let active = runtime
+            .surface
+            .find_widget(20)
+            .and_then(|widget| {
+                widget
+                    .widget()
+                    .as_any()
+                    .downcast_ref::<TeardownProbeWidget>()
+            })
+            .map(|widget| widget.active);
+        assert_eq!(active, Some(true));
+        assert!(matches!(
+            log.borrow().events.as_slice(),
+            [
+                TeardownEvent::Prepare {
+                    successor_authority: Some(true),
+                    projection_depth: 0,
+                    ..
+                },
+                TeardownEvent::Synchronize { id: 20 }
+            ]
+        ));
+    }
+
+    #[test]
+    fn successor_authority_loss_cancels_for_authority_disabled_and_read_only_changes() {
+        for (authority, disabled, read_only) in [
+            (false, false, false),
+            (true, true, false),
+            (true, false, true),
+        ] {
+            let (bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(3)));
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+            log.borrow_mut().events.clear();
+            runtime.bridge_mut().mode = TeardownMode::Single(TeardownProbeConfig {
+                active: false,
+                authority,
+                disabled,
+                read_only,
+                marker: 8,
+                maps_output: true,
+            });
+
+            runtime.refresh();
+
+            assert_eq!(
+                runtime.bridge().reduced,
+                [TeardownMessage { id: 20, marker: 3 }]
+            );
+            assert!(log.borrow().events.iter().any(|event| {
+                matches!(
+                    event,
+                    TeardownEvent::Prepare {
+                        successor_authority: Some(false),
+                        ..
+                    }
+                )
+            }));
+            let events = log.borrow().events.clone();
+            let first_reduce = events
+                .iter()
+                .position(|event| matches!(event, TeardownEvent::Reduce { .. }))
+                .expect("terminal output should be reduced");
+            assert!(
+                events[..first_reduce]
+                    .iter()
+                    .all(|event| !matches!(event, TeardownEvent::Synchronize { .. }))
+            );
+        }
+    }
+
+    #[test]
+    fn teardown_messages_use_old_mapper_in_previous_order_and_unmapped_teardown_still_cleans() {
+        let (bridge, log) =
+            TeardownBridge::new(TeardownMode::Multiple([active_probe(1), active_probe(2)]));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        log.borrow_mut().events.clear();
+        runtime.bridge_mut().mode = TeardownMode::Multiple([
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+            TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            },
+        ]);
+
+        runtime.refresh();
+
+        assert_eq!(
+            runtime.bridge().reduced,
+            [
+                TeardownMessage { id: 20, marker: 1 },
+                TeardownMessage { id: 21, marker: 2 },
+            ]
+        );
+        let events = log.borrow().events.clone();
+        let first_reduce = events
+            .iter()
+            .position(|event| matches!(event, TeardownEvent::Reduce { .. }))
+            .expect("terminal output should be reduced");
+        assert!(events[..first_reduce].iter().all(|event| {
+            matches!(
+                event,
+                TeardownEvent::Prepare { .. }
+                    | TeardownEvent::Map { .. }
+                    | TeardownEvent::Synchronize { .. }
+            )
+        }));
+        assert_eq!(
+            &events[first_reduce..first_reduce + 2],
+            &[
+                TeardownEvent::Reduce { id: 20, marker: 1 },
+                TeardownEvent::Reduce { id: 21, marker: 2 },
+            ]
+        );
+        assert!(
+            !events[first_reduce + 2..]
+                .iter()
+                .any(|event| matches!(event, TeardownEvent::Reduce { .. }))
+        );
+
+        let (bridge, log) = TeardownBridge::new(TeardownMode::Single(TeardownProbeConfig {
+            maps_output: false,
+            ..active_probe(4)
+        }));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+        log.borrow_mut().events.clear();
+        runtime.bridge_mut().mode = TeardownMode::Removed;
+
+        runtime.refresh();
+
+        assert!(runtime.bridge().reduced.is_empty());
+        assert!(matches!(
+            log.borrow().events.as_slice(),
+            [TeardownEvent::Prepare {
+                successor_authority: None,
+                projection_depth: 0,
+                ..
+            }]
+        ));
     }
 
     #[derive(Clone, Copy)]
@@ -1737,6 +2392,11 @@ where
     /// context still match. Startup, resize, identity changes, and unknown
     /// custom-host changes remain conservative.
     pub fn refresh_with_scope(&mut self, scope: RepaintScope) {
+        let terminal_messages = self.refresh_with_scope_inner(scope);
+        self.dispatch_deferred_surface_messages(terminal_messages);
+    }
+
+    fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
@@ -1757,8 +2417,11 @@ where
                 view_delta,
                 RepaintScope::PaintOnly,
             );
-            return;
+            return Vec::new();
         }
+
+        let previous_widget_order = self.traversal.widgets.hit_order.clone();
+        let previous_stateful_widget_order = self.traversal.widgets.stateful_order.clone();
 
         let application_projection_started = Instant::now();
         let mut next_surface = self.bridge.pull_surface();
@@ -1958,19 +2621,33 @@ where
             Some(std::mem::take(&mut self.traversal.widgets.paths.previous))
         };
         let previous_paths_for_refresh = previous_paths.as_ref().unwrap_or(&traversal.widget_paths);
+        let (terminal_messages, retired_widget_ids) = self.surface.prepare_widget_replacements(
+            &next_surface,
+            &previous_stateful_widget_order,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &traversal.widget_paths,
+            previous_paths_for_refresh,
+        );
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
             &traversal.widget_paths,
             previous_paths_for_refresh,
         );
+        for widget_id in &retired_widget_ids {
+            self.discard_widget_ownership(*widget_id);
+        }
         let widget_state_sync_started = Instant::now();
         let sync_policy = self.widget_state_sync_policy();
-        next_surface.synchronize_widget_state_from_paths(
+        next_surface.synchronize_widget_state_from_paths_with_evidence(
             &self.surface,
             &traversal.stateful_widget_order,
             &traversal.widget_paths,
             previous_paths_for_refresh,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &retired_widget_ids,
             sync_policy,
         );
         let widget_state_sync = widget_state_sync_started.elapsed();
@@ -2024,6 +2701,7 @@ where
             effective_scope,
         );
         self.enforce_identity_audit(identity);
+        terminal_messages
     }
 
     /// Return diagnostics for the most recent typed invalidation stage.

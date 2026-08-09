@@ -1,6 +1,7 @@
 //! Public API coverage for `radiant::widgets`.
 
 use radiant::{
+    application::IntoView,
     gui::{svg::SvgIcon, types::ImageRgba},
     layout::{
         ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
@@ -15,11 +16,12 @@ use radiant::{
         InteractiveRowWidget, InteractiveRowWidgetParts, KeyboardModifiers, KnobEditBatch,
         KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
         ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
-        NumericParseResult, NumericStep, NumericStepDirection, ScrollbarAxis, ScrollbarWidget,
-        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
-        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
-        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        NumericInputConstructionError, NumericInputEditBatch, NumericParseResult, NumericStep,
+        NumericStepDirection, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
+        SelectableWidget, SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState,
+        SliderWidget, SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget,
+        TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -174,6 +176,153 @@ impl NumericAdjustment<NonCloneNumericValue> for NonCloneNumericAdjustment {
         _step: NumericStep,
     ) -> Result<NonCloneNumericValue, Self::Error> {
         Ok(NonCloneNumericValue(value.0 + delta as i32))
+    }
+}
+
+struct UiLocalNumericCodec(Rc<RefCell<usize>>);
+
+impl NumericCodec<GenericNumericValue> for UiLocalNumericCodec {
+    type Error = NumericCodecError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<GenericNumericValue> {
+        match text {
+            "7" => NumericParseResult::Valid(GenericNumericValue(7)),
+            "8" => NumericParseResult::Valid(GenericNumericValue(8)),
+            "" => NumericParseResult::Incomplete,
+            _ => NumericParseResult::Invalid,
+        }
+    }
+
+    fn format_editable(
+        &self,
+        value: &GenericNumericValue,
+        output: &mut dyn fmt::Write,
+    ) -> Result<(), Self::Error> {
+        *self.0.borrow_mut() += 1;
+        write!(output, "{}", value.0).map_err(|_| NumericCodecError::WriteFailed)
+    }
+}
+
+struct UiLocalNumericAdjustment(Rc<RefCell<usize>>);
+
+impl NumericAdjustment<GenericNumericValue> for UiLocalNumericAdjustment {
+    type Error = NumericAdjustmentTestError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<GenericNumericValue, Self::Error> {
+        Ok(GenericNumericValue(normalized as u32))
+    }
+
+    fn value_to_normalized(&self, value: &GenericNumericValue) -> Result<f32, Self::Error> {
+        *self.0.borrow_mut() += 1;
+        Ok(value.0 as f32)
+    }
+
+    fn step(
+        &self,
+        value: &GenericNumericValue,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn scrub(
+        &self,
+        value: &GenericNumericValue,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn wheel(
+        &self,
+        value: &GenericNumericValue,
+        _delta: f32,
+        _step: NumericStep,
+    ) -> Result<GenericNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+}
+
+#[test]
+fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified() {
+    let codec = UiLocalNumericCodec(Rc::new(RefCell::new(0)));
+    let adjustment = UiLocalNumericAdjustment(Rc::new(RefCell::new(0)));
+    let result: Result<
+        radiant::application::NumericInputBuilder<
+            GenericNumericValue,
+            UiLocalNumericCodec,
+            UiLocalNumericAdjustment,
+        >,
+        NumericInputConstructionError<NumericCodecError, NumericAdjustmentTestError>,
+    > = radiant::application::numeric_input(GenericNumericValue(7), codec, adjustment);
+    let builder = result.expect("generic public numeric input should construct");
+    let _: fn(
+        NumericInputEditBatch<GenericNumericValue>,
+    ) -> NumericInputEditBatch<GenericNumericValue> = |batch| batch;
+    let mut surface: radiant::runtime::UiSurface<NumericInputEditBatch<GenericNumericValue>> =
+        builder.on_edit(|batch| batch).id(77).into_surface();
+    let bounds = radiant::gui::types::Rect::from_min_size(
+        radiant::gui::types::Point::default(),
+        radiant::gui::types::Vector2::new(120.0, 28.0),
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(77, bounds, WidgetInput::FocusChanged(true))
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                77,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::SelectAll),
+            )
+            .is_none()
+    );
+    assert!(
+        surface
+            .dispatch_widget_input(
+                77,
+                bounds,
+                WidgetInput::text_edit(radiant::widgets::TextEditCommand::InsertText(
+                    String::from("8"),
+                )),
+            )
+            .is_none()
+    );
+    let output = surface
+        .dispatch_widget_input(77, bounds, WidgetInput::key_press(WidgetKey::Enter))
+        .and_then(|output| output.typed_cloned::<NumericInputEditBatch<GenericNumericValue>>())
+        .expect("valid generic numeric edit should emit a typed terminal batch");
+    assert_eq!(
+        output
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Commit]
+    );
+}
+
+#[test]
+fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
+    let prelude_controls = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/application/controls.rs"
+    ));
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    for source in [prelude_controls, prelude_widgets] {
+        assert!(!source.contains("numeric_input"));
+        assert!(!source.contains("NumericInputBuilder"));
+        assert!(!source.contains("NumericInputEditBatch"));
+        assert!(!source.contains("NumericInputConstructionError"));
+        assert!(!source.contains("NumericCodec"));
+        assert!(!source.contains("NumericAdjustment"));
     }
 }
 

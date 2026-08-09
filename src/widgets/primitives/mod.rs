@@ -14,6 +14,7 @@ mod interactive_row;
 mod knob;
 mod list_item;
 mod marker_run;
+mod numeric_input;
 mod pointer_shield;
 mod progress_bar;
 mod scrollbar;
@@ -51,6 +52,7 @@ pub use marker_run::{
     ColorMarkerRunProps, ColorMarkerRunWidget, ColorMarkerRunWidgetParts, MarkerRunAlign,
     MarkerRunProps, MarkerRunWidget, MarkerRunWidgetParts,
 };
+pub(crate) use numeric_input::NumericInputWidget;
 pub use pointer_shield::{PointerShieldProps, PointerShieldWidget, PointerShieldWidgetParts};
 pub use progress_bar::{
     ProgressBarMessage, ProgressBarMode, ProgressBarProps, ProgressBarWidget,

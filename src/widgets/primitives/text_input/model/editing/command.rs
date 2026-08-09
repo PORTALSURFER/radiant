@@ -107,6 +107,7 @@ impl TextInputState {
             WidgetKey::Backspace => self.backspace(),
             WidgetKey::Delete => self.delete_forward(),
             WidgetKey::Enter
+            | WidgetKey::Escape
             | WidgetKey::Tab
             | WidgetKey::Space
             | WidgetKey::ArrowUp

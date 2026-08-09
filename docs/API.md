@@ -1086,17 +1086,59 @@ borrows `&T`, writes canonical editable text into caller-owned `fmt::Write`
 storage, and returns the codec's associated error type. Codecs never consult
 ambient locale, and display-only `ValueFormat` is never used for parsing.
 
-`numeric_input` and text/keyboard/pointer/wheel/accessibility lifecycle
-integration remain future work. Non-valid drafts and the surrounding numeric
-edit lifecycle therefore remain outside this codec contract.
+The codec remains a policy boundary: it does not own edit sessions, focus,
+dispatch, or typed output. The bounded public text consumer that composes this
+contract is documented below. Non-valid drafts remain inside that consumer
+until an application supplies a valid terminal value.
 
-The target public numeric control is generic and will require both an
-application-supplied `NumericCodec<T>` and `NumericAdjustment<T>` at
-construction: `numeric_input(value, codec, adjustment)`. The adjustment will
-provide a finite monotonic mapping, explicit steps, pointer scrubbing, wheel
-changes, and arrow-key behavior. The target will use one transaction lifecycle
-for text, keyboard, pointer, wheel, and accessibility actions, with semantic
-Fine/Coarse modifiers and no implicit locale or clamping.
+### Numeric text input consumer
+
+Radiant ships a bounded public, text-first numeric consumer through the explicit
+`radiant::application::{numeric_input, NumericInputBuilder}` exports. The
+qualified `NumericInputConstructionError<CodecError, AdjustmentError>`,
+`NumericInputEditBatch<T>`, and the codec/adjustment contracts are available
+from `radiant::widgets` (and their qualified `interaction` module), but none of
+these numeric-input-specific types are exported through the common prelude.
+
+Construction requires both application policies:
+
+```rust
+let input = radiant::application::numeric_input(value, codec, adjustment)
+    .expect("codec formatting and adjustment validation should succeed")
+    .on_edit(|batch| Message::NumericEdit(batch));
+```
+
+The constructor writes the initial value with `NumericCodec::format_editable`
+and validates `NumericAdjustment::value_to_normalized`. A formatting or inverse
+mapping failure returns the corresponding typed construction error; the
+consumer does not invent fallback text or a fallback range.
+
+The current consumer begins a `NumericEditSession<T>` on the first actual text
+mutation after focus. Draft text remains verbatim. Each changed draft is parsed
+once and its `Incomplete`, `Invalid`, `OutOfRange`, or `Valid(T)` classification
+is retained for the active session. Invalid, incomplete, or out-of-range drafts
+remain visible without typed output. The synchronous
+`Widget::prepare_focus_loss` seam reads that retained classification without
+calling the arbitrary codec, so it is
+allocation-free: invalid focus loss vetoes and keeps focus, while valid focus
+loss commits one typed `NumericInputEditBatch<T>` containing exactly `Begin`
+then `Commit`. Enter has the same two-event commit boundary. Escape cancels an
+active edit with exactly `Begin` then `Cancel` and restores the starting value,
+draft, caret, and selection.
+
+Retained text, caret, selection, and session state cross a same-ID
+reprojection only when the previous widget has an active edit and the fresh
+value remains compatible. With no active session, the current projection's
+canonical codec-formatted text and caret remain authoritative; stale
+noncanonical committed text is not retained.
+
+This first consumer intentionally stops at generic text editing and keyboard
+terminal boundaries. Semantic arrow-key adjustment, pointer scrubbing, wheel
+changes, IME/composition, accessibility actions, Slider/Knob adoption,
+platform adapters, scheduler/renderer integration, and product numeric policy
+remain separate follow-up slices. The supplied `NumericAdjustment<T>` is
+validated at construction here but its step, scrub, and wheel methods are not
+consumed by this text-only slice.
 
 The first acceptance fixtures are exact and intentionally small: a `u32` count
 over `0..=100` with ASCII-digit text and base/fine/coarse steps `1/1/10`; a
@@ -1106,9 +1148,9 @@ over `20..=20_000` with invariant decimal text plus exactly one ASCII-space
 `Hz` suffix and normalized steps `0.01/0.001/0.1`. Canonical output is
 shortest round-tripping text; adjustment clamps only at declared boundaries,
 while typed text never silently clamps. Decibel, tempo, arbitrary-unit, and
-product-specific locale codecs remain application-supplied. This generic
-numeric control is a target contract and is not yet shipped by the current
-source.
+product-specific locale codecs remain application-supplied. The current
+consumer exercises generic construction and the `u32` text lifecycle; the
+other adjustment-consuming behavior remains outside this slice.
 
 ### Numeric adjustment contract
 
@@ -1172,9 +1214,9 @@ impl NumericAdjustment<DomainValue> for DomainAdjustment {
 Adjustment policies own their finite domain, total monotonic mapping, checked
 inverse, explicit steps, and bounded pure sensitivities. Finite adjustment
 inputs clamp only at declared boundaries; nonfinite inputs and policy failures
-are returned through the associated error. This is a policy contract only:
-`numeric_input`, text/keyboard/pointer event routing, the shared transaction
-lifecycle, accessibility, and platform behavior remain separate future slices.
+are returned through the associated error. The public `numeric_input` builder
+requires an adjustment and validates its checked inverse during construction,
+but this text-only consumer does not yet route step, scrub, or wheel methods.
 Radiant does not expose a concrete public `f32` adjustment in this boundary.
 
 ### Value mappings
@@ -1230,12 +1272,13 @@ the typed `ValueFormatError::WriteFailed` variant.
 
 This slice ships the policy foundation and the decimal, percent, and frequency
 forms. The official application Slider and Knob builders consume the policy
-only for display/automation value text; direct low-level/public primitive
-attachment, `numeric_input`, domain mapping, and input/runtime behavior remain
-future. Grouping, decibel, tempo, and arbitrary custom formatting are also
-future. These types are qualified exports from `radiant::widgets::interaction`
-and `radiant::widgets`; they are intentionally not exported through the common
-prelude.
+only for display/automation value text; the numeric text consumer uses its
+application `NumericCodec` for editable text and does not use display-only
+`ValueFormat`. Direct low-level/public primitive attachment, domain mapping,
+and broader input/runtime behavior remain separate. Grouping, decibel, tempo,
+and arbitrary custom formatting are also future. These types are qualified
+exports from `radiant::widgets::interaction` and `radiant::widgets`; they are
+intentionally not exported through the common prelude.
 
 `ActivationInputResult::Activated { provenance }` preserves the accepted input
 source and native evidence while `.activated()` remains the compatibility

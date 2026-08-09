@@ -35,6 +35,7 @@ and retains draft/caret/session state only for an actually active edit during
 same-ID reprojection. Qualified exports remain outside the common prelude.
 Semantic keyboard adjustment is contract-defined but unimplemented. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
-current source has no composition event or state. Pointer/wheel scrubbing,
-accessibility, Slider/Knob, platform, scheduler, renderer, and product policy
-remain out of scope for this slice.
+current source has no composition event or state. Pointer scrubbing is
+contract-defined but unimplemented. Wheel, accessibility, Slider/Knob,
+platform, scheduler, renderer, and product policy remain out of scope for this
+slice.

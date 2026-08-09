@@ -2118,9 +2118,181 @@ sequence range. Synthetic press/release inputs use normalized default
 modifiers, `repeat: false` for a synthetic press, and no timestamp. Native
 repeat cadence, delay, and rate are outside this contract.
 
-Under this numeric-control contract, pointer scrubbing and wheel changes use
-the same mapping, `InteractionProvenance` vocabulary, and `EditTransaction`
-lifecycle; the target keyboard rules above are not current runtime behavior.
+### Target numeric pointer-scrub contract (not yet shipped)
+
+The following is a target-only, backend-neutral contract for the missing
+primary-pointer numeric scrub lifecycle. The current shipped `NumericInput`
+consumer does not perform this behavior, and this subsection claims no current
+runtime or native-adapter implementation. Every name introduced below is
+illustrative target vocabulary, not a shipped public Rust type. The contract
+composes the existing `NumericAdjustment::scrub` policy boundary, normalized
+pointer metadata and runtime capture, numeric text editing, target keyboard
+adjustment, and target IME/composition ownership.
+
+The illustrative target policy attaches to `NumericInputBuilder`:
+
+```rust
+enum NumericScrubActivation {
+    PrimaryButtonHorizontalDrag {
+        modifier: KeyboardModifier,
+    },
+}
+
+struct NumericScrubPolicy {
+    activation: NumericScrubActivation,
+}
+
+impl NumericScrubPolicy {
+    fn default() -> Self {
+        Self {
+            activation: NumericScrubActivation::PrimaryButtonHorizontalDrag {
+                modifier: KeyboardModifier::Alt, // Option on macOS
+            },
+        }
+    }
+}
+
+numeric_input(value, codec, adjustment)
+    .scrub_policy(NumericScrubPolicy::default());
+```
+
+The complete backend-neutral default is Alt/Option plus a primary-button
+horizontal drag. An unmodified primary press remains ordinary text
+caret/selection behavior. A configured activation chord is not a second text
+editing mode: it only admits the target scrub when all of the lifecycle fences
+below pass.
+
+Admission requires an enabled, non-read-only numeric input with no active text
+mutation, keyboard adjustment, IME composition, accessibility edit, or other
+edit transaction. A blocked scrub is not admitted and does not parse, commit,
+or cancel an active interaction; existing ordinary routing remains responsible
+for the blocked input. An admitted primary press focuses the input, latches its
+stable identity, starting typed value, canonical draft, caret, selection,
+press position, finite scrub bounds, press modifiers, press timestamp, and
+runtime pointer capture. The activation chord is latched for the whole
+captured sequence through release or cancellation, even if Alt/Option changes
+after the press.
+
+The target snapshot's logical geometry is evidence, not a value to repair. Its
+coordinates must be finite, its width must be finite and strictly positive,
+and the pointer positions used for normalization must be finite and within the
+declared bounds. Horizontal displacement is normalized by that positive width:
+positive normalized displacement increases the value and negative displacement
+decreases it. Vertical displacement has no effect. Invalid, nonfinite, or
+out-of-bounds geometry or positions are unknown evidence; the target does not
+guess a clamp or manufacture a replacement coordinate. Such a sample produces
+no candidate and does not advance the anchor.
+
+Each captured move uses an anchor position and anchor value. It invokes the
+supplied policy as
+`NumericAdjustment::scrub(anchor_value, normalized_delta, selected_step)`.
+An unchanged candidate publishes nothing and retains the anchor, so sub-
+quantum motion accumulates across samples. A successfully adjusted,
+successfully formatted, changed candidate advances the anchor to that move's
+position and candidate value. Delivery is incremental and bounded: the first
+effective move can add `Begin` and one `Update`, while each later accepted move
+adds at most one `Update`; no unbounded event accumulator is implied.
+
+Step selection is made for every move after removing the latched activation
+chord from the sample modifiers. With the target defaults, no Fine/Coarse
+modifier selects `NumericStep::Base`, Shift selects `Fine`, and the platform
+command selects `Coarse` (Command on macOS, Control on Windows and Linux).
+Fine wins when both selectors are present. A change in the selected step
+reanchors at the current pointer position and current value before any new
+displacement is applied, so changing modifiers cannot create a jump. The
+latched Alt/Option activation chord is never reconsidered as a step selector.
+
+The first candidate that is successfully adjusted, formatted by the supplied
+`NumericCodec<T>`, and changed opens the edit transaction. It emits
+`Begin(start)` with the exact press pointer provenance, followed by
+`Update(candidate)` with the exact effective move provenance. A pending or
+unchanged move creates no transaction and publishes no edit event. A matching
+captured primary release commits only when an effective update opened a
+transaction; a pending or no-op capture simply clears with no `Begin`,
+`Commit`, or value/draft change. The matching release is identified by the
+captured stable identity, button, and capture, not by a possibly changed
+activation modifier.
+
+The active draft is formatted through the supplied `NumericCodec<T>` for every
+accepted candidate. Its caret collapses at the end of the current canonical
+draft and its selection is collapsed there. A successful commit retains that
+canonical draft. Cancellation restores the exact starting typed value,
+starting canonical draft, caret, and selection rather than reconstructing them
+from a value or silently reformatting them.
+
+Escape, capture loss, focus loss, identity loss, incompatible reprojection, a
+newer external authority, disablement, a read-only transition, and explicit
+cancellation restore the scrub start. If an active transaction exists, it
+emits exactly one `Cancel(start)` with the existing transaction identity before
+cleanup. A pending or no-op capture clears without an edit event. Escape is
+consumed by the numeric consumer while a scrub is active, including when
+modifiers are held, so it does not fall through to a host Escape action.
+
+Reprojection is authority- and identity-fenced. A compatible same-ID
+reprojection with an unchanged external value preserves pending or active
+scrubbing, including its start snapshot, capture, anchor, and selected-step
+state. A changed external value or an incompatible identity or capability
+cancels the old scrub before the new authority is applied; it never rebases an
+active scrub onto the new value. The cancellation and cleanup rules above also
+apply to a capability, enabled, or read-only transition.
+
+The target-only diagnostic vocabulary distinguishes adjustment from formatting
+failure and records the attempt boundary:
+
+```rust
+enum NumericScrubAttempt {
+    Initial,
+    Update,
+}
+
+enum NumericScrubInteraction<T, ScrubError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    ScrubFailed {
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: ScrubError,
+        cancelled: bool,
+    },
+    FormatFailed {
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    },
+}
+```
+
+An initial adjustment or formatting failure returns its typed target-only
+`ScrubFailed` or `FormatFailed` context with `attempt: Initial` and
+`cancelled: false`. It emits no transaction, `Begin`, `Update`, or `Cancel`,
+restores the pre-scrub UI snapshot, and ends the failed capture. After an
+effective update, an adjustment or formatting failure suppresses its failed
+candidate, restores the transaction start, and emits exactly one existing-
+identity `Cancel(start)`. Only after that terminal edit does it emit the typed
+failure with `attempt: Update` and `cancelled: true`. The terminal edit always
+precedes the diagnostic; capture ends and a later matching release is
+orphaned. No failed candidate update is published.
+
+Pointer provenance is preserved sample by sample. `Begin` uses the exact press
+modifiers and timestamp; each `Update` uses the exact effective move modifiers
+and timestamp; `Commit` uses the exact release modifiers and timestamp. A move
+preserves its supplied opaque `InputSequenceRange`; no sequence range is
+fabricated or inferred for a press, release, synthetic input, or cancellation.
+Cancellation uses the exact metadata of its cancelling boundary when that
+boundary supplies pointer metadata. When it does not, the cancel still uses
+the pointer source with timestamp, modifiers, and sequence metadata absent.
+Sequence ranges are observational only: they do not order samples, select
+steps, accumulate displacement, or change transaction behavior.
+
+Under this numeric-control contract, target pointer scrubbing uses the same
+mapping, `InteractionProvenance` vocabulary, and `EditTransaction` lifecycle
+as the target pointer-scrub contract above. Wheel remains existing fallback
+routing; this slice adds no wheel consumption or contiguous-wheel burst
+timeout. The target keyboard rules above are not current runtime behavior.
 `Slider` is a shipped production shared-edit consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and

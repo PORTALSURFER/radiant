@@ -1961,11 +1961,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   `Fine` and `Coarse` modifiers map to Shift everywhere, Command on macOS, and
   Control on Linux and Windows, with application override allowed.
 - Text, keyboard, pointer, wheel, and accessibility actions use one lifecycle.
-  A pointer press/release, contiguous wheel burst, or target keyboard sequence
-  is one transaction. Valid Enter, valid focus loss, pointer release, and
-  gesture completion commit; Escape, capture loss, and explicit cancellation
-  restore the transaction start. Invalid or incomplete drafts remain visible,
-  retain focus on rejected commit, and never silently clamp typed text.
+  Explicit `Started`/`Changed`/`Ended` wheel phase evidence owns one
+  multi-sample transaction; a phase-less or `Discrete` wheel sample is one
+  atomic gesture. A `Changed` or `Ended` sample without a matching admitted
+  `Started` never joins guessed history. Timestamps and sequence ranges are
+  observational only and cannot group samples. A pointer press/release or
+  target keyboard sequence is one transaction. Valid Enter, valid focus loss,
+  pointer release, and gesture completion commit; Escape, capture loss, and
+  explicit cancellation restore the transaction start. Invalid or incomplete
+  drafts remain visible, retain focus on rejected commit, and never silently
+  clamp typed text.
 - The first acceptance fixtures are exact and intentionally small: a `u32`
   count over `0..=100` accepts ASCII digits without sign, grouping, or units;
   its base/fine/coarse steps are `1/1/10`. A `Percent` newtype over linear
@@ -2296,11 +2301,227 @@ the pointer source with timestamp, modifiers, and sequence metadata absent.
 Sequence ranges are observational only: they do not order samples, select
 steps, accumulate displacement, or change transaction behavior.
 
+### Target numeric wheel-adjustment and continuity contract (not yet shipped)
+
+The following is a target-only, backend-neutral contract for numeric wheel
+adjustment and explicit wheel continuity. It is not shipped behavior. The
+current `NumericInput` consumer does not perform this behavior, and no current
+`Event`, `WidgetInput`, `NumericInputBuilder`, native adapter, or source struct
+exposes the target unit, phase, policy, or continuity state described here. The
+names below are illustrative target vocabulary only, not shipped public Rust
+types or fields.
+
+The current native path converts native line and pixel wheel variants into the
+same logical `Vector2` before current routing and does not retain the native
+wheel phase. That line/pixel collapse and discarded phase are implementation
+gaps, not evidence that this target contract or its fields are currently
+available. The target contract preserves the unit-bearing delta until policy
+conversion and treats the current fallback path as the conservative behavior
+until a later runtime implementation supplies the missing evidence.
+
+The illustrative target vocabulary is:
+
+```rust
+// Illustrative target-only shapes; not shipped public Rust types or fields.
+enum NumericWheelDelta {
+    Lines(Vector2),
+    Pixels(Vector2),
+}
+
+enum NumericWheelPhase {
+    Started,
+    Changed,
+    Ended,
+    Cancelled,
+    Discrete,
+}
+
+struct NumericWheelPolicy {
+    // Fixed target equivalence: 40.0 logical pixels per line.
+}
+
+enum NumericWheelAttempt {
+    Initial,
+    Update,
+}
+
+enum NumericWheelInteraction<T, AdjustmentError, FormatError> {
+    Edit(BoundedEditEvents<T>),
+    InitialAdjustmentFailed {
+        error: AdjustmentError,
+        cancelled: bool,
+    },
+    UpdateAdjustmentFailed {
+        error: AdjustmentError,
+        cancelled: bool,
+    },
+    InitialFormatFailed {
+        error: FormatError,
+        cancelled: bool,
+    },
+    UpdateFormatFailed {
+        error: FormatError,
+        cancelled: bool,
+    },
+}
+```
+
+`NumericWheelPolicy` is an input-admission, unit-conversion, and continuity
+policy. It does not add a second numeric domain policy. `NumericAdjustment<T>`
+remains the exclusive owner of mapping, clamp, wrap, quantization, and wheel
+sensitivity; the consumer invokes its existing `wheel` operation with a signed
+vertical delta and the selected `NumericStep`. The supplied `NumericCodec<T>`
+formats every accepted candidate into the canonical editable draft. The
+illustrative builder attachment below describes a future target integration,
+not a current `NumericInputBuilder` method:
+
+```rust
+// Illustrative target-only shape; not a shipped builder attachment.
+numeric_input(value, codec, adjustment)
+    .wheel_policy(NumericWheelPolicy::default());
+```
+
+The target retains `Lines(Vector2)` or `Pixels(Vector2)` through routing and
+validates the positive, finite line-equivalence constant before converting for
+the adjustment policy. The existing Radiant target equivalence is exactly
+`40.0` logical pixels per line; it must remain finite and strictly positive.
+`Lines(delta).y` is already the signed line-equivalent value, while
+`Pixels(delta).y` is converted to `delta.y / 40.0` only at policy conversion.
+No early unit collapse, rounding, or replacement of the original sample is
+allowed. Positive vertical movement increases the numeric value and negative
+vertical movement decreases it. Zero, horizontal-only, nonfinite, malformed,
+or otherwise unusable samples create no numeric candidate. The target rejects
+such samples; the current adapter's sanitization of nonfinite native
+components is not target validation and is not implementation evidence for
+this contract.
+
+Admission requires all of the following: the numeric input is focused, the
+pointer is over its wheel target, the input is enabled and non-read-only, its
+identity and current authority are compatible, and no text edit, keyboard
+adjustment, pointer scrub, IME/composition, accessibility edit, or other edit
+owner is active. An ineligible input remains unhandled for existing widget and
+scroll-container fallback. A phase-less or `Discrete` sample rejected before
+policy invocation also remains unhandled. An explicitly `Started` eligible
+sequence may retain pending ownership without emitting `Begin`; if its samples
+produce no accepted changed candidate and no policy or formatting failure is
+reported, `Ended` clears that pending sequence without an edit event.
+
+#### Target numeric wheel ownership matrix
+
+The following routing matrix is normative. A usable sample has passed admission
+and validation and is eligible to invoke `NumericAdjustment::wheel`; a changed
+candidate differs from the current value.
+
+| Condition | Numeric outcome | Routing and ownership |
+| --- | --- | --- |
+| Ineligible target or conflicting edit owner | No numeric attempt and no typed failure | Unhandled; existing widget/scroll-container fallback remains available. |
+| Sample rejected as unusable before `NumericAdjustment::wheel` invocation (zero, horizontal-only, nonfinite, malformed, or unsupported) | No numeric candidate | Unhandled; existing widget/scroll-container fallback remains available. |
+| Adjustment succeeds with a candidate equal to the current value | Formatter is not invoked; no candidate or edit | A phase-less/`Discrete` sample remains unhandled for scroll fallback. An admitted explicit sequence emits no `Update` and retains ownership. |
+| Eligible, usable sample whose adjustment returns an error | Numeric-owned handled `InitialAdjustmentFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Eligible, usable sample whose changed candidate formatting returns an error | Numeric-owned handled `InitialFormatFailed { cancelled: false }` | Exact UI is unchanged, no transaction is emitted, and scroll fallback is never available. |
+| Successful changed, formatted candidate | Bounded edit lifecycle | A phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit`; the first effective candidate in an admitted explicit sequence emits `Begin`, `Update`, and `Ended` emits `Commit`. |
+
+Policy and formatting failures are handled numeric outcomes under the rows
+above. They are not classified as ineffective, unchanged, no-candidate,
+unhandled, or fallback.
+
+An explicit `Started` -> zero or more `Changed` -> `Ended` sequence is one
+transaction. `Started` admits and records the exact starting typed value,
+canonical draft, caret, selection, stable identity, and routing ownership but
+does not itself emit an edit event. The first effective changed candidate that
+is successfully adjusted, formatted, and different from the start emits
+`Begin(start)` followed by `Update(candidate)`. Each later effective sample
+emits at most one `Update`; an unchanged sample emits no `Update` but retains
+ownership. `Ended` commits the current value when an edit began. A pending
+sequence with no accepted changed candidate and no initial failure ends without
+`Begin`, `Commit`, or `Cancel`.
+
+The first policy attempt in an admitted explicit sequence follows the initial
+failure rows above. An adjustment or changed-candidate formatting failure is a
+numeric-owned handled `InitialAdjustmentFailed` or `InitialFormatFailed` result
+with `cancelled: false`; it leaves the exact UI unchanged, emits no transaction,
+clears pending ownership, and makes later `Changed`/`Ended` samples orphaned.
+Those later phases never join guessed history or become scroll fallback.
+
+A phase-less sample, or a sample marked `Discrete`, is conservatively one
+atomic gesture. One effective sample emits `Begin(start)`, `Update(candidate)`,
+and `Commit(candidate)` in that bounded order. `Changed` or `Ended` without a
+matching admitted `Started` sequence follows the conservative discrete/orphan
+fallback: it never joins guessed history and may only process that one sample
+as an atomic gesture when the ordinary eligibility and changed-candidate checks
+pass. Otherwise it remains available to existing fallback routing.
+
+Step selection is recomputed for every effective sample. Unmodified selects
+`NumericStep::Base`, Shift selects `Fine`, and Command on macOS or Control on
+Windows/Linux selects `Coarse`; `Fine` wins when both configured selectors are
+present. A modifier change therefore affects the next effective sample without
+creating a new transaction or authorizing a guessed continuity boundary.
+Coalescing may combine a delta only when its unit, phase ownership, target
+identity, and routing ownership are compatible. It preserves `Started`,
+`Ended`, and `Cancelled` boundaries and retains the per-sample information
+needed to recompute step selection; it never uses sequence metadata as an
+execution decision. A coalesced delivery cannot silently apply one modifier's
+step to another effective sample.
+
+The consumer invokes only the existing adjustment policy, conceptually as
+`NumericAdjustment::wheel(current_value, signed_vertical_delta, selected_step)`.
+It adds no clamp, wrap, quantization, sensitivity, mapping, or formatting
+policy of its own. A successful changed candidate is formatted through the
+supplied `NumericCodec<T>`, and the canonical draft, caret, and selection are
+updated only after formatting succeeds. An unchanged initial discrete
+candidate publishes nothing and remains available to widget/scroll-container
+fallback. An unchanged sample in an admitted explicit sequence emits no
+`Update` and retains ownership through its terminal phase.
+
+The typed result vocabulary distinguishes initial from in-sequence failures.
+An initial adjustment or format failure returns the corresponding typed
+`InitialAdjustmentFailed` or `InitialFormatFailed` result with `cancelled:
+false`; it emits no transaction and no edit event. After an effective update,
+an adjustment or format failure suppresses the failed candidate, restores the
+exact starting typed value, canonical draft, caret, and selection, emits
+exactly one same-transaction `Cancel(start)`, and only then returns the typed
+`UpdateAdjustmentFailed` or `UpdateFormatFailed` result with `cancelled: true`.
+Rollback therefore precedes the diagnostic, and no failed `Update` is
+published.
+
+`Cancelled`, Escape, focus loss, identity loss, incompatible reprojection,
+changed external authority, disablement, read-only transition, and explicit
+cancellation restore the exact starting typed value, canonical draft, caret,
+and selection. If an edit began, exactly one same-transaction `Cancel(start)`
+precedes cleanup. A pending admitted sequence clears without an edit event.
+An Escape boundary is consumed by the active numeric wheel owner before host
+Escape routing; no non-input edit owner is cancelled by an ineligible sample.
+Compatible same-identity reprojection with an unchanged external value
+preserves pending or active ownership, its start snapshot, and its continuity
+state. Changed authority or identity cancels the old interaction before the
+new authority is applied and never rebases it.
+
+Every edit phase uses `InteractionProvenance::Pointer`. Effective samples
+preserve their exact modifiers, optional timestamp, and complete supplied
+sequence range. `Begin` retains the admitted starting boundary's pointer
+metadata, `Update` retains the effective sample's metadata, and a terminal
+phase with native pointer metadata preserves that exact metadata. A cleanup
+boundary that is not an input sample uses pointer provenance with absent
+timestamp, modifiers, and sequence range; it never fabricates a sample.
+
+There is no idle timeout or timer-based grouping. Timestamps are opaque
+provenance, not grouping clocks or deadlines. Sequence ranges are
+observational only: they never define continuity, sample count, ordering,
+density, accumulation, scheduling, cache admission, reuse, renderer resources,
+render selection, or any other execution authority. Observational metadata
+cannot authorize a schedule, timer, cache, reuse, renderer, resource, or
+execution decision.
+
+The deterministic fixture matrix for this target-only contract is recorded in
+`docs/API.md`; it is part of the contract and does not claim that any fixture
+currently passes through a shipped runtime.
+
 Under this numeric-control contract, target pointer scrubbing uses the same
 mapping, `InteractionProvenance` vocabulary, and `EditTransaction` lifecycle
-as the target pointer-scrub contract above. Wheel remains existing fallback
-routing; this slice adds no wheel consumption or contiguous-wheel burst
-timeout. The target keyboard rules above are not current runtime behavior.
+as the target pointer-scrub contract above. Existing runtime wheel routing
+remains fallback until the target wheel contract above is implemented; this
+documentation contract adds no shipped wheel consumption or idle timeout. The
+target keyboard rules above are not current runtime behavior.
 `Slider` is a shipped production shared-edit consumer: its fixed-capacity
 `SliderEditBatch` preserves one ordered transaction's lifecycle boundaries for
 typed hosts, while the existing concise `SliderMessage::ValueChanged` and

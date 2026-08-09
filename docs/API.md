@@ -1914,7 +1914,19 @@ enum NumericAccessibilityEditOwner {
     Other,
 }
 
-enum NumericAccessibilityParseFailure {
+enum NumericAccessibilityUnavailableReason {
+    UnknownTarget,
+    StaleTarget,
+    RemovedTarget,
+    UnmaterializedTarget,
+}
+
+enum NumericAccessibilityRejectedReason {
+    UnsupportedAction,
+    Disabled,
+    ReadOnly,
+    FocusDenied,
+    NotFocusable,
     Incomplete,
     Invalid,
     OutOfRange,
@@ -1937,9 +1949,6 @@ enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
     AdjustmentFailed {
         action: NumericAccessibilityAction,
         error: AdjustmentError,
-    },
-    ParseFailed {
-        outcome: NumericAccessibilityParseFailure,
     },
     FormatFailed {
         action: NumericAccessibilityAction,
@@ -1968,12 +1977,43 @@ they do not own dispatch or mutation.
 
 Before each request, current authority is revalidated. The target must still
 map to the same stable numeric widget identity, the action must still be
-supported, and the widget must be enabled and non-read-only. Unknown, stale,
-removed, unsupported, or unmaterialized targets produce an explicit
-`Unavailable` or `Rejected` result and no edit. Snapshot revision, advertised
-actions, bounds, labels, and values are veto/evidence only; they never
-independently authorize execution. An identity/reprojection replacement is
-stale even if an older snapshot still contains the target.
+supported, and the widget must be enabled and non-read-only. Admission is
+exhaustive and deterministic:
+
+| Current authority/admission state | Exactly one outcome and reason |
+| --- | --- |
+| Target cannot be resolved, including a missing or unknown target | `Unavailable { reason: UnknownTarget }` |
+| Target identity or captured authority is no longer current | `Unavailable { reason: StaleTarget }` |
+| Target was removed from the current projection | `Unavailable { reason: RemovedTarget }` |
+| Target is virtual and not currently materialized | `Unavailable { reason: UnmaterializedTarget }` |
+| Requested action is not currently supported | `Rejected { reason: UnsupportedAction }` |
+| Widget is disabled | `Rejected { reason: Disabled }` |
+| Widget is read-only | `Rejected { reason: ReadOnly }` |
+| Ordinary focus transfer is vetoed | `Rejected { reason: FocusDenied }` |
+| Target cannot receive focus | `Rejected { reason: NotFocusable }` |
+| Complete text parses as `Incomplete`, `Invalid`, or `OutOfRange` | `Rejected { reason: Incomplete }`, `Rejected { reason: Invalid }`, or `Rejected { reason: OutOfRange }` respectively |
+| An active edit owner is present before or after focus transfer | `Blocked { owner }` |
+| Current identity/capabilities are valid, the widget is enabled and editable, focus transfer succeeds, the action is supported, and no owner is active | `Accepted` |
+
+Every authority/admission state maps to exactly one listed outcome and reason;
+the dispatch contract never returns an `Unavailable`-or-`Rejected` choice.
+`Accepted` is the admission classification for the policy path, not an
+additional final result variant; that path returns `Edit`, `NoChange`,
+`AdjustmentFailed`, or `FormatFailed`. These are post-`Accepted` results, not
+admission alternatives. Snapshot revision, advertised actions,
+bounds, labels, and values are veto/evidence only; they never independently
+authorize execution. An identity/reprojection replacement is stale even if an
+older snapshot still contains the target.
+
+The first applicable boundary owns the classification: resolve current
+identity and materialization (`Unavailable`); perform the non-mutating
+pre-focus owner check (`Blocked`); check action support and enabled/editable
+capability (`Rejected`); perform ordinary focus transfer (`Rejected` on veto
+or inability); revalidate identity, capability, and owner after transfer
+(`Unavailable`, `Rejected`, or `Blocked`); then parse complete set text
+(`Rejected`) and invoke the accepted policy/formatting path. This ordered
+classification makes combined states deterministic; an adapter cannot choose
+another category.
 
 Offscreen or unmaterialized virtual targets are unavailable. This action
 contract cannot authorize materialization, scrolling, scheduling, cache
@@ -1983,19 +2023,31 @@ runtime, virtualization, scheduler, cache, and renderer contracts.
 
 #### Target focus and edit-owner rules
 
-An eligible request performs the ordinary focus transition before any numeric
-mutation. The current focused control receives its normal focus-loss veto. A
-focus-transfer veto, inability to focus the target, or focus loss before the
-final authority check returns a typed `Rejected` result without changing
-either control. The request never commits, cancels, or replaces an existing
-draft to obtain focus.
+Before any focus transfer, the runtime performs a non-mutating check for any
+active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME
+composition, accessibility edit, or other edit owner in the current
+interaction scope. If one is present, the request returns `Blocked { owner }`
+without changing focus. This check does not call focus-loss handling, commit,
+cancel, parse, or mutate the existing owner. In particular, a request for
+target B cannot cause focused target A's valid active draft to commit during
+this check.
 
-An action is `Blocked` when it would interrupt an active text edit, keyboard
-adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit,
-or other edit owner. A blocked request does not commit, cancel, parse, format,
-or otherwise alter the existing interaction. After focus succeeds, identity,
-action support, enabled/read-only state, and the absence of a conflicting
-owner are checked again immediately before policy invocation.
+If no owner is active, the request performs the ordinary focus transition to
+the target. A focus-transfer veto returns `Rejected { reason: FocusDenied }`,
+and an inability to focus a non-focusable target returns `Rejected { reason:
+NotFocusable }`; neither changes either control. After transfer, the runtime
+revalidates the target identity, authority, capabilities, materialization,
+supported action, enabled/read-only state, and active-owner state before any
+numeric mutation. If authority changed, the deterministic unavailable or
+rejected reason above is returned; if an owner appeared, the result is
+`Blocked { owner }`. Neither outcome mutates the target.
+
+An action is `Blocked` at either owner check when it would interrupt an active
+interaction. At the pre-focus check, `Blocked` leaves focus and the existing
+owner's UI and authority untouched. If an owner appears after an otherwise
+allowed transfer, the post-transfer check returns `Blocked` before target
+mutation and performs no further focus or interaction mutation. A blocked
+request does not commit, cancel, parse, or format the existing interaction.
 
 #### Target action semantics and atomic edit result
 
@@ -2008,9 +2060,9 @@ the exact UI unchanged.
 
 `SetValueText(String)` sends the complete text once through
 `NumericCodec::parse`. Only `Valid(T)` proceeds. `Incomplete`, `Invalid`, and
-`OutOfRange` are distinct typed `ParseFailed` outcomes with no formatting,
-mutation, commit, cancel, or edit. The payload is not appended to a draft and
-is never silently clamped.
+`OutOfRange` each return the corresponding typed `Rejected` reason with no
+formatting, mutation, commit, cancel, or edit. The payload is not appended to
+a draft and is never silently clamped.
 
 When the policy result is known equal to the current value, the result is
 `NoChange`: there is no edit event and `NumericCodec::format_editable` is not
@@ -2042,10 +2094,10 @@ Deterministic target fixtures:
 | 2. Valid SetValueText | A complete text whose parse result is `Valid(T)` is formatted once through `NumericCodec::format_editable`, and canonical editable text is published only with the accepted changed transaction. |
 | 3. Atomic lifecycle and provenance | A changed action emits one transaction identity with `Begin(start)`, `Update(candidate)`, `Commit(candidate)` in order; every phase is `InteractionProvenance::Accessibility`. |
 | 4. Unchanged boundary | An adjustment boundary no-op, or valid text equal to the current value, returns `NoChange`, emits no edit event, and does not invoke the formatter when equality is known. |
-| 5. Typed failures without partial lifecycle | Adjustment failure, `Incomplete`, `Invalid`, `OutOfRange`, and formatting failure each produce a typed failure with exact UI unchanged and no `Begin`, `Update`, `Commit`, or `Cancel`. |
-| 6. Target eligibility | Disabled, read-only, unsupported, missing, unknown, stale, removed, or unavailable targets produce explicit unavailable/rejected results and no edit. |
-| 7. Focus transfer and focus-loss veto | Ordinary focus transfer precedes mutation. A current-control focus-loss veto or inability to focus the target rejects without changing either control; focus loss before final dispatch revalidation also rejects without an edit. |
-| 8. Every active edit owner blocks | Active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit, or other owner returns `Blocked`; no commit, cancel, parse, or alteration occurs. |
+| 5. Typed failures without partial lifecycle | Adjustment failure, `Incomplete`, `Invalid`, `OutOfRange`, and formatting failure each produce their typed failure/rejected reason with exact UI unchanged and no `Begin`, `Update`, `Commit`, or `Cancel`. |
+| 6. Exhaustive admission mapping | Disabled -> `Rejected { reason: Disabled }`; read-only -> `Rejected { reason: ReadOnly }`; unsupported -> `Rejected { reason: UnsupportedAction }`; missing/unknown -> `Unavailable { reason: UnknownTarget }`; stale -> `Unavailable { reason: StaleTarget }`; removed -> `Unavailable { reason: RemovedTarget }`; unmaterialized -> `Unavailable { reason: UnmaterializedTarget }`; focus denial -> `Rejected { reason: FocusDenied }`; non-focusable -> `Rejected { reason: NotFocusable }`; an active owner -> `Blocked { owner }`. Every state has exactly one outcome/reason, no Unavailable-or-Rejected choice, and every unavailable/rejected case performs no edit. |
+| 7. Pre-focus owner check and focus-loss veto | With focused target A holding a valid active draft and a request for target B, the non-mutating pre-focus owner check returns `Blocked { TextEdit }` before ordinary focus transfer; A stays focused with its draft/session unchanged, A's focus-loss path never runs, and no commit/cancel/parse occurs. With no owner, ordinary focus transfer runs; a veto maps to `Rejected { FocusDenied }`, a non-focusable target to `Rejected { NotFocusable }`, and post-transfer authority/owner changes reject or block without target mutation. |
+| 8. Every active edit owner blocks | Active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit, or other edit owner returns `Blocked` before focus transfer with focus and interaction state unchanged; if an owner appears after an otherwise allowed transfer, the post-transfer check returns `Blocked` before target mutation and performs no further focus or interaction mutation. |
 | 9. Identity/reprojection replacement | A request captured before replacement or incompatible reprojection is stale/unavailable at dispatch and is never rebased; no policy, codec, formatter, or edit lifecycle runs. |
 | 10. Missing native metadata | Accepted phases use Accessibility provenance with timestamp, modifiers, and sequence range absent; no native metadata or timing is fabricated. |
 | 11. Unmaterialized virtual target | An offscreen/unmaterialized virtual target is unavailable even when advertised by a semantic snapshot; the action cannot authorize materialization or scrolling. |

@@ -1776,7 +1776,110 @@ column([
 .gap(8)
 ```
 
+### Target numeric interaction ownership and admission (not yet shipped)
+
+This is one shared, target-only, backend-neutral contract for the numeric
+interaction set. It is illustrative design vocabulary, not a shipped runtime,
+public Rust API, native adapter, storage shape, or implementation claim. The
+contract applies to each stable numeric-input identity and is the common
+arbitration boundary for text edit, IME composition, keyboard adjustment,
+pointer scrub, wheel sequence, and accessibility edit.
+
+The owner vocabulary is conceptual and consists exactly of TextEdit,
+ImeComposition, KeyboardAdjustment, PointerScrub, WheelSequence,
+AccessibilityEdit, and None. These names do not prescribe public Rust variants,
+handles, fields, or storage.
+
+#### Target incumbent-owner gate
+
+At every admission boundary, each stable numeric-input identity has exactly one
+incumbent owner: one of the six interaction owners above or None. A pending
+owner counts as an owner even before it has emitted Begin; this includes a
+pending wheel sequence or pointer capture. None means that no interaction is
+pending or active.
+
+An interaction may acquire ownership only when the current incumbent is None.
+Once an interaction is admitted, its owner is established before its first
+numeric operation or lifecycle publication. For every ordered pair of distinct
+owners, the incumbent owner wins: the new interaction is denied and cannot
+preempt, queue behind, or transfer ownership from the incumbent. A matching
+sample for the incumbent may continue only through that interaction's own
+identity, authority, capture, and continuity rules; it is not a new admission
+and cannot join guessed history.
+
+The shared gate is checked before a denied interaction parses, formats, steps,
+scrubs, wheel-adjusts, commits, cancels, transfers focus, or mutates any
+interaction state. Denial produces no partial lifecycle. The incumbent retains
+its exact draft/value, caret/selection, capture/continuity, transaction
+identity, authority, and interaction-specific routing. A gate denial never
+turns an input into a cancellation or terminal boundary for the incumbent.
+
+Ownership ends only when the owning interaction reaches its own defined
+terminal, cancel, authority, identity, focus, disable, or read-only boundary.
+That interaction's required rollback or terminal result is published before
+its cleanup completes; the shared owner becomes None only after cleanup is
+complete. No later input is admitted during cleanup, and no input joins the
+prior transaction or infers continuity from history. This gate does not choose
+native cancellation semantics and never invents a preemption boundary.
+
+Stable identity and current authority are required admission evidence. Missing,
+stale, malformed, ambiguous, or otherwise observational evidence cannot create,
+transfer, or terminate shared ownership. If an already admitted interaction's
+own contract defines a malformed sample as a conservative cancellation
+boundary, that remains its interaction-specific rule; the shared gate itself
+does not invent that boundary or use the sample to preempt another owner.
+Timestamps, sequence ranges, pointer geometry, diagnostics, snapshots, and
+other metadata remain observational and cannot authorize scheduling, cache
+admission, reuse, renderer resources, materialization, scrolling, execution,
+or any other authority.
+
+The gate preserves each interaction's existing fallback and ordering rules:
+
+- An ineligible or conflicting wheel sample remains unhandled for widget or
+  scroll-container fallback wherever the wheel contract permits that fallback.
+- An unmodified primary pointer remains ordinary text caret/selection input;
+  a blocked scrub attempt creates no scrub lifecycle.
+- Keyboard host-shortcut first refusal occurs only at an uncaptured initial
+  boundary. Captured matching repeats and release stay with their owner, and a
+  gate denial does not broaden host routing.
+- Accessibility admission reports Blocked { owner } with the incumbent owner
+  at its pre-focus or post-focus check; it does not cancel or mutate that owner.
+- Matching IME commit/key suppression remains ahead of ordinary text routing.
+  IME preedit is never sent to numeric parsing; numeric parsing may begin only
+  after an accepted committed replacement.
+
+Keyboard adjustment and IME composition therefore use the same gate as every
+other numeric interaction. Neither KeyboardAdjustment nor ImeComposition may
+start while any different owner is pending or active. An IME Start must pass
+the gate before it captures composition identity/ranges, and an IME preedit
+remains composition text rather than numeric input until Commit. These rules do
+not select platform cancellation behavior or allow either interaction to
+interrupt an incumbent.
+
+#### Target shared-owner acceptance fixtures
+
+The target contract is accepted only when this matrix holds; it does not claim
+that any fixture currently passes through a shipped runtime:
+
+| Fixture | Expected target behavior |
+| --- | --- |
+| 1. Keyboard press during PointerScrub, WheelSequence, ImeComposition, or AccessibilityEdit | The uncaptured keyboard attempt follows only the existing initial host-shortcut refusal; if it reaches numeric admission, the shared gate denies KeyboardAdjustment. No numeric step, parse, format, lifecycle, focus transfer, or incumbent mutation occurs. |
+| 2. IME Start during TextEdit, KeyboardAdjustment, PointerScrub, WheelSequence, or AccessibilityEdit | The shared gate denies ImeComposition before composition capture. No preedit, numeric parse, focus/identity transfer, cancellation, or incumbent mutation occurs. |
+| 3. Wheel and pointer attempts during every other owner | A wheel attempt during TextEdit, ImeComposition, KeyboardAdjustment, PointerScrub, or AccessibilityEdit, and a scrub attempt during TextEdit, ImeComposition, KeyboardAdjustment, WheelSequence, or AccessibilityEdit, are denied by the incumbent-owner gate. Ineligible wheel input retains permitted scroll fallback; unmodified pointer input remains text selection; no partial lifecycle is emitted. |
+| 4. Accessibility pre-focus and post-focus checks | With an incumbent before focus transfer, accessibility returns Blocked { owner } without transferring focus. If an owner appears after an otherwise allowed transfer, the post-focus check returns Blocked { owner } before numeric mutation and performs no further focus or interaction mutation. |
+| 5. Terminal cleanup then independent admission | After an owner reaches its own terminal/cancel/authority boundary and cleanup completes, the owner is None; a later eligible interaction is admitted with a fresh transaction identity and does not join prior capture, continuity, or history. |
+| 6. Same-boundary IME commit and matching key suppression | An accepted IME Commit wins at the shared delivery boundary, then matching key/character text is consumed or suppressed before ordinary text routing; exactly one committed replacement occurs and no duplicate text is inserted. |
+| 7. Stale or observational evidence | Missing, stale, malformed, ambiguous, timestamp, sequence, geometry, snapshot, or diagnostic evidence cannot create, transfer, or terminate ownership and cannot authorize execution or fallback changes. |
+| 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
+| 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
+
 ### Target IME/composition lifecycle (not yet shipped)
+
+For a numeric input, the shared owner gate is checked after the focused stable
+identity is resolved and before Start captures composition state. Start may
+acquire ImeComposition only when the incumbent is None; a different pending or
+active owner denies Start without preedit, parsing, cancellation, focus
+transfer, or incumbent mutation.
 
 This is a target-only, backend-neutral contract. It claims no current runtime
 or native-platform evidence: the current source has no composition event or
@@ -1944,6 +2047,11 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   canonical editable formatting. `NumericAdjustment<T>` owns the finite
   monotonic mapping, pointer scrubbing, wheel changes, and the discrete
   keyboard steps defined in the target keyboard contract below.
+- The target numeric interaction set admits the first actual text mutation as
+  TextEdit only when the shared incumbent owner is None. A different pending or
+  active owner denies the text admission before parsing, formatting, or edit
+  lifecycle mutation; the shipped text consumer does not claim this target
+  arbitration is implemented.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -2002,6 +2110,13 @@ numeric_input(
 ```
 
 ### Target numeric keyboard adjustment contract (not yet shipped)
+
+Keyboard admission uses the shared incumbent-owner gate before any numeric
+step or keyboard transaction. KeyboardAdjustment may start only when the stable
+numeric identity has owner None; a different pending or active owner wins and
+the keyboard attempt does not parse, format, step, commit, cancel, transfer
+focus, or mutate that incumbent. The existing host-shortcut first refusal
+remains limited to an uncaptured initial boundary.
 
 The following keyboard behavior is target-only. The shipped text-first
 `numeric_input` consumer does not consume it, and this subsection claims no
@@ -2125,6 +2240,12 @@ repeat cadence, delay, and rate are outside this contract.
 
 ### Target numeric pointer-scrub contract (not yet shipped)
 
+Pointer scrub admission uses the shared incumbent-owner gate before focus,
+capture, or any scrub operation. PointerScrub may start only when the stable
+numeric identity has owner None; a different pending or active owner blocks the
+scrub without changing the incumbent. The existing unmodified-primary
+text-selection fallback remains unchanged.
+
 The following is a target-only, backend-neutral contract for the missing
 primary-pointer numeric scrub lifecycle. The current shipped `NumericInput`
 consumer does not perform this behavior, and this subsection claims no current
@@ -2167,11 +2288,11 @@ caret/selection behavior. A configured activation chord is not a second text
 editing mode: it only admits the target scrub when all of the lifecycle fences
 below pass.
 
-Admission requires an enabled, non-read-only numeric input with no active text
-mutation, keyboard adjustment, IME composition, accessibility edit, or other
-edit transaction. A blocked scrub is not admitted and does not parse, commit,
-or cancel an active interaction; existing ordinary routing remains responsible
-for the blocked input. An admitted primary press focuses the input, latches its
+Admission requires an enabled, non-read-only numeric input and a shared
+incumbent owner of None. A different pending or active owner blocks the scrub.
+A blocked scrub is not admitted and does not parse, commit, or cancel an active
+interaction; existing ordinary routing remains responsible for the blocked
+input. An admitted primary press focuses the input, latches its
 stable identity, starting typed value, canonical draft, caret, selection,
 press position, finite scrub bounds, press modifiers, press timestamp, and
 runtime pointer capture. The activation chord is latched for the whole
@@ -2303,6 +2424,12 @@ steps, accumulate displacement, or change transaction behavior.
 
 ### Target numeric wheel-adjustment and continuity contract (not yet shipped)
 
+Wheel admission uses the shared incumbent-owner gate before unit conversion,
+wheel adjustment, or pending-sequence ownership. WheelSequence may start only
+when the stable numeric identity has owner None; a different pending or active
+owner leaves the sample to the wheel contract's existing unhandled fallback
+and never changes the incumbent.
+
 The following is a target-only, backend-neutral contract for numeric wheel
 adjustment and explicit wheel continuity. It is not shipped behavior. The
 current `NumericInput` consumer does not perform this behavior, and no current
@@ -2397,9 +2524,9 @@ this contract.
 
 Admission requires all of the following: the numeric input is focused, the
 pointer is over its wheel target, the input is enabled and non-read-only, its
-identity and current authority are compatible, and no text edit, keyboard
-adjustment, pointer scrub, IME/composition, accessibility edit, or other edit
-owner is active. An ineligible input remains unhandled for existing widget and
+identity and current authority are compatible, and the shared incumbent owner
+is None. A different pending or active owner blocks this admission. An
+ineligible input remains unhandled for existing widget and
 scroll-container fallback. A phase-less or `Discrete` sample rejected before
 policy invocation also remains unhandled. An explicitly `Started` eligible
 sequence may retain pending ownership without emitting `Begin`; if its samples
@@ -2518,6 +2645,12 @@ currently passes through a shipped runtime.
 
 ### Target numeric accessibility action lifecycle (not yet shipped)
 
+Accessibility admission uses the shared incumbent-owner gate at both its
+pre-focus and post-focus checks. AccessibilityEdit may start only when the
+stable numeric identity has owner None; a different pending or active owner is
+returned as Blocked { owner } without cancelling or mutating the incumbent.
+The existing post-focus race check still blocks before numeric mutation.
+
 The following is an illustrative, target-only, backend-neutral contract for
 accessibility actions on the shipped generic `numeric_input` consumer. It is
 not shipped behavior. The current automation snapshot, action-name export,
@@ -2538,16 +2671,6 @@ enum NumericAccessibilityAction {
 struct NumericAccessibilityRequest {
     target: AutomationTarget,
     action: NumericAccessibilityAction,
-}
-
-enum NumericAccessibilityEditOwner {
-    TextEdit,
-    KeyboardAdjustment,
-    PointerScrub,
-    WheelSequence,
-    ImeComposition,
-    AccessibilityEdit,
-    Other,
 }
 
 enum NumericAccessibilityUnavailableReason {
@@ -2580,7 +2703,7 @@ enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
         reason: NumericAccessibilityRejectedReason,
     },
     Blocked {
-        owner: NumericAccessibilityEditOwner,
+        owner: NumericInteractionOwner,
     },
     AdjustmentFailed {
         action: NumericAccessibilityAction,
@@ -2662,7 +2785,7 @@ virtualization, scheduler, cache, and renderer authority.
 
 Before any focus transfer, the runtime performs a non-mutating check for any
 active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME
-composition, accessibility edit, or other edit owner in the current
+composition, accessibility edit, or a different shared owner in the current
 interaction scope. If one is present, the request returns `Blocked { owner }`
 without changing focus. This check does not call focus-loss handling, commit,
 cancel, parse, or mutate the existing owner. In particular, a request for
@@ -2751,7 +2874,7 @@ Deterministic target fixtures:
 | 5. Typed failures without partial lifecycle | Adjustment failure, `Incomplete`, `Invalid`, or `OutOfRange` parse result, and formatting failure each return their typed failure/rejected reason with exact UI unchanged and no `Begin`, `Update`, `Commit`, or `Cancel`. |
 | 6. Exhaustive admission mapping | Disabled -> `Rejected { reason: Disabled }`; read-only -> `Rejected { reason: ReadOnly }`; unsupported -> `Rejected { reason: UnsupportedAction }`; missing/unknown -> `Unavailable { reason: UnknownTarget }`; stale -> `Unavailable { reason: StaleTarget }`; removed -> `Unavailable { reason: RemovedTarget }`; unmaterialized -> `Unavailable { reason: UnmaterializedTarget }`; focus denial -> `Rejected { reason: FocusDenied }`; non-focusable -> `Rejected { reason: NotFocusable }`; an active owner -> `Blocked { owner }`. Every state has exactly one outcome/reason, no Unavailable-or-Rejected choice, and every unavailable/rejected case performs no edit. |
 | 7. Pre-focus owner check and focus-loss veto | With focused target A holding a valid active draft and a request for target B, the non-mutating pre-focus owner check returns `Blocked { TextEdit }` before ordinary focus transfer; A stays focused with its draft/session unchanged, A's focus-loss path never runs, and no commit/cancel/parse occurs. With no owner, ordinary focus transfer runs; a veto maps to `Rejected { FocusDenied }`, a non-focusable target to `Rejected { NotFocusable }`, and post-transfer authority/owner changes reject or block without target mutation. |
-| 8. Every active edit owner blocks | Active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME composition, accessibility edit, or other edit owner returns `Blocked` before focus transfer with focus and interaction state unchanged; if an owner appears after an otherwise allowed transfer, the post-transfer check returns `Blocked` before target mutation and performs no further focus or interaction mutation. |
+| 8. Every active edit owner blocks | Active text edit, keyboard adjustment, pointer scrub, wheel sequence, IME composition, or accessibility edit returns `Blocked` before focus transfer with focus and interaction state unchanged; if an owner appears after an otherwise allowed transfer, the post-transfer check returns `Blocked` before target mutation and performs no further focus or interaction mutation. |
 | 9. Identity/reprojection replacement | A request captured before a target replacement or incompatible reprojection is stale/unavailable at dispatch; it is never rebased onto the replacement and invokes no adjustment, parser, formatter, or edit lifecycle. |
 | 10. Missing native metadata | An accepted action has Accessibility provenance with timestamp, modifiers, and sequence range absent; no native metadata is fabricated and no platform timing supplies repetition or continuity. |
 | 11. Unmaterialized virtual target | An offscreen or unmaterialized virtual target is unavailable even when a semantic snapshot advertises it; the action cannot authorize materialization or scrolling. |

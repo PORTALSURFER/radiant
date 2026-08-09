@@ -75,6 +75,13 @@ where
             } => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
                 key, modifiers, repeat, timestamp,
             )),
+            Event::KeyRelease {
+                key,
+                modifiers,
+                timestamp,
+            } => self.dispatch_focused_input(WidgetInput::key_release_with_metadata(
+                key, modifiers, timestamp,
+            )),
             Event::Character {
                 character,
                 timestamp,

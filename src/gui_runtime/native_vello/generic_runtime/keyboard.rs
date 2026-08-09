@@ -3,6 +3,7 @@ use super::{
     GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
 use crate::gui::input::{InputTimestamp, KeyCode, KeyPress};
+use crate::widgets::KeyboardModifiers;
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
@@ -41,6 +42,12 @@ where
         mut adapter: Option<&mut GenericNativeAdapterOwner>,
         mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
+        if event.state == ElementState::Released {
+            if let Some(outcome) = self.route_native_key_release(event.physical_key) {
+                self.route_keyboard_outcome(event_loop, outcome, adapter, observation);
+            }
+            return;
+        }
         if event.state != ElementState::Pressed {
             return;
         }
@@ -181,6 +188,23 @@ where
             route_outcome.merge(outcome);
         }
         self.route_keyboard_outcome(event_loop, route_outcome, adapter, observation);
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_native_key_release(
+        &mut self,
+        physical_key: PhysicalKey,
+    ) -> Option<GenericRouteOutcome> {
+        let PhysicalKey::Code(code) = physical_key else {
+            return None;
+        };
+        let key = key_code_from_winit(code)?;
+        let widget_key = WidgetKey::from_key_code(key)?;
+        let modifiers = KeyboardModifiers::from(keypress_from_input(key, self.input.modifiers));
+        Some(self.core.route_key_release_with_metadata(
+            widget_key,
+            modifiers,
+            Some(InputTimestamp::capture()),
+        ))
     }
 
     fn route_keyboard_outcome(

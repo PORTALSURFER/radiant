@@ -100,6 +100,15 @@ pub enum WidgetInput {
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
     },
+    /// One non-text navigation or activation key was released.
+    KeyRelease {
+        /// Normalized key identity.
+        key: WidgetKey,
+        /// Keyboard modifiers captured with this key sample.
+        modifiers: KeyboardModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// One printable character should be inserted into the widget value.
     Character {
         /// Character produced by the active keyboard layout.
@@ -325,6 +334,19 @@ impl WidgetInput {
         }
     }
 
+    /// Build a key-release input with native modifier and timestamp metadata.
+    pub(crate) fn key_release_with_metadata(
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::KeyRelease {
+            key,
+            modifiers,
+            timestamp,
+        }
+    }
+
     /// Build a character input with an optional native input timestamp.
     pub(crate) fn character_with_timestamp(
         character: char,
@@ -347,6 +369,11 @@ impl WidgetInput {
     /// Build a synthetic key-press input without sample metadata.
     pub fn key_press(key: WidgetKey) -> Self {
         Self::key_press_with_timestamp(key, None)
+    }
+
+    /// Build a synthetic key-release input without sample metadata.
+    pub fn key_release(key: WidgetKey) -> Self {
+        Self::key_release_with_metadata(key, KeyboardModifiers::default(), None)
     }
 
     /// Build a synthetic character input without sample metadata.
@@ -376,6 +403,7 @@ impl WidgetInput {
             Self::PointerModifiersChanged { .. }
             | Self::FocusChanged(_)
             | Self::KeyPress { .. }
+            | Self::KeyRelease { .. }
             | Self::Character { .. }
             | Self::TextEdit { .. } => None,
         }
@@ -515,6 +543,14 @@ mod tests {
             }
         );
         assert_eq!(
+            WidgetInput::key_release(WidgetKey::Escape),
+            WidgetInput::KeyRelease {
+                key: WidgetKey::Escape,
+                modifiers: KeyboardModifiers::default(),
+                timestamp: None,
+            }
+        );
+        assert_eq!(
             WidgetInput::character('x'),
             WidgetInput::Character {
                 character: 'x',
@@ -526,6 +562,26 @@ mod tests {
             WidgetInput::TextEdit {
                 command: TextEditCommand::SelectAll,
                 timestamp: None,
+            }
+        );
+    }
+
+    #[test]
+    fn key_release_metadata_constructor_preserves_payload() {
+        let modifiers = KeyboardModifiers {
+            command: true,
+            control: true,
+            shift: false,
+            alt: true,
+        };
+        let timestamp = Some(InputTimestamp::capture());
+
+        assert_eq!(
+            WidgetInput::key_release_with_metadata(WidgetKey::ArrowDown, modifiers, timestamp,),
+            WidgetInput::KeyRelease {
+                key: WidgetKey::ArrowDown,
+                modifiers,
+                timestamp,
             }
         );
     }
@@ -557,6 +613,10 @@ mod tests {
         );
         assert_eq!(
             WidgetInput::key_press(WidgetKey::Enter).pointer_position(),
+            None
+        );
+        assert_eq!(
+            WidgetInput::key_release(WidgetKey::Enter).pointer_position(),
             None
         );
     }

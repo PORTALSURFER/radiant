@@ -35,12 +35,14 @@ and retains draft/caret/session state only for an actually active edit during
 same-ID reprojection. Qualified exports remain outside the common prelude.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
 admission, no-op cleanup, terminal cleanup, and compatible active reprojection.
-Semantic keyboard adjustment is contract-defined but unimplemented. The
+Normalized `KeyRelease` plumbing is now shipped across native input, runtime
+events, and focused widget dispatch; semantic keyboard adjustment remains
+contract-defined but unimplemented. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
 current source has no composition event or state. Pointer scrubbing is
 contract-defined but unimplemented. Wheel adjustment is now contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The five other shared-gate consumers—IME/composition, keyboard, pointer, wheel,
-and accessibility—remain target-only and unimplemented.
+The five other shared-gate consumers—IME/composition, keyboard adjustment,
+pointer, wheel, and accessibility—remain target-only and unimplemented.

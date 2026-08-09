@@ -150,6 +150,26 @@ fn backend_neutral_event_constructors_preserve_payloads() {
 }
 
 #[test]
+fn normalized_key_release_constructors_are_public() {
+    assert_eq!(
+        Event::key_release(WidgetKey::ArrowDown),
+        Event::KeyRelease {
+            key: WidgetKey::ArrowDown,
+            modifiers: Default::default(),
+            timestamp: None,
+        }
+    );
+    assert_eq!(
+        WidgetInput::key_release(WidgetKey::ArrowDown),
+        WidgetInput::KeyRelease {
+            key: WidgetKey::ArrowDown,
+            modifiers: Default::default(),
+            timestamp: None,
+        }
+    );
+}
+
+#[test]
 fn surface_runtime_routes_pointer_click_convenience_through_press_and_release_events() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),

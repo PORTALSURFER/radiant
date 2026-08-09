@@ -2111,7 +2111,7 @@ numeric_input(
     .on_edit(Message::CutoffEdit);
 ```
 
-### Target numeric keyboard adjustment contract (not yet shipped)
+### Target numeric keyboard adjustment contract (semantic behavior not yet shipped)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric
 step or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -2120,12 +2120,12 @@ the keyboard attempt does not parse, format, step, commit, cancel, transfer
 focus, or mutate that incumbent. The existing host-shortcut first refusal
 remains limited to an uncaptured initial boundary.
 
-The following keyboard behavior is target-only. The shipped text-first
-`numeric_input` consumer does not consume it, and this subsection claims no
-runtime or native-platform evidence. It later adds normalized
+The following semantic keyboard-adjustment behavior is target-only. The shipped
+text-first `numeric_input` consumer does not consume it. Normalized
 `Event::KeyRelease { key, modifiers, timestamp }` and
-`WidgetInput::KeyRelease { key, modifiers, timestamp }` boundaries; the current
-source still lacks both. It preserves the shipped normalized
+`WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is shipped as
+its prerequisite; semantic arrow stepping remains unimplemented. It preserves
+the shipped normalized
 `Event::KeyPress { key, modifiers, repeat, timestamp }` and
 `WidgetInput::KeyPress { key, modifiers, repeat, timestamp }` boundaries. A
 release is a distinct input sample, never another press.

@@ -250,6 +250,7 @@ impl Widget for PointerShieldWidget {
             WidgetInput::PointerModifiersChanged { .. }
             | WidgetInput::FocusChanged(_)
             | WidgetInput::KeyPress { .. }
+            | WidgetInput::KeyRelease { .. }
             | WidgetInput::Character { .. }
             | WidgetInput::TextEdit { .. } => true,
         }

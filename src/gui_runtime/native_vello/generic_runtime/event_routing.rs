@@ -366,6 +366,19 @@ where
         self.route_outcome(routed)
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_key_release_with_metadata(
+        &mut self,
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .dispatch_event(Event::key_release_with_metadata(key, modifiers, timestamp))
+            .is_some();
+        self.route_outcome(routed)
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_focus_lost(&mut self) -> GenericRouteOutcome {
         self.runtime.clear_focus();
         self.runtime.cancel_pointer_capture();

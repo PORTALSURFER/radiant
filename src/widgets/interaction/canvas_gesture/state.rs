@@ -171,6 +171,7 @@ impl CanvasGestureState {
             }
             WidgetInput::PointerModifiersChanged { .. }
             | WidgetInput::KeyPress { .. }
+            | WidgetInput::KeyRelease { .. }
             | WidgetInput::Character { .. }
             | WidgetInput::TextEdit { .. } => None,
         }

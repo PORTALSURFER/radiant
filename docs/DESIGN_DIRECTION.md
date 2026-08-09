@@ -1961,11 +1961,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   `Fine` and `Coarse` modifiers map to Shift everywhere, Command on macOS, and
   Control on Linux and Windows, with application override allowed.
 - Text, keyboard, pointer, wheel, and accessibility actions use one lifecycle.
-  A pointer press/release, contiguous wheel burst, or target keyboard sequence
-  is one transaction. Valid Enter, valid focus loss, pointer release, and
-  gesture completion commit; Escape, capture loss, and explicit cancellation
-  restore the transaction start. Invalid or incomplete drafts remain visible,
-  retain focus on rejected commit, and never silently clamp typed text.
+  Explicit `Started`/`Changed`/`Ended` wheel phase evidence owns one
+  multi-sample transaction; a phase-less or `Discrete` wheel sample is one
+  atomic gesture. A `Changed` or `Ended` sample without a matching admitted
+  `Started` never joins guessed history. Timestamps and sequence ranges are
+  observational only and cannot group samples. A pointer press/release or
+  target keyboard sequence is one transaction. Valid Enter, valid focus loss,
+  pointer release, and gesture completion commit; Escape, capture loss, and
+  explicit cancellation restore the transaction start. Invalid or incomplete
+  drafts remain visible, retain focus on rejected commit, and never silently
+  clamp typed text.
 - The first acceptance fixtures are exact and intentionally small: a `u32`
   count over `0..=100` accepts ASCII digits without sign, grouping, or units;
   its base/fine/coarse steps are `1/1/10`. A `Percent` newtype over linear

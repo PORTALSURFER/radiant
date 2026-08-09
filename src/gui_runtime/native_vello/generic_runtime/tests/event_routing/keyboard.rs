@@ -234,6 +234,35 @@ fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
     );
 }
 
+#[test]
+fn logical_deletion_fallback_preserves_modifier_and_repeat_metadata() {
+    let timestamp = Some(InputTimestamp::capture());
+    let modifiers = KeyboardModifiers {
+        command: true,
+        control: true,
+        shift: true,
+        alt: true,
+    };
+    let mut core = GenericNativeRuntimeCore::new(
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+
+    assert!(core.runtime.focus_widget(90));
+    assert!(
+        core.route_widget_key_with_metadata(WidgetKey::Backspace, modifiers, true, timestamp)
+            .routed
+    );
+    assert_eq!(
+        core.runtime.bridge().messages,
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers,
+            repeat: true,
+            timestamp,
+        }]
+    );
+}
+
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn unhandled_native_control_keeps_host_and_widget_modifier_views_distinct() {

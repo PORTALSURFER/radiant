@@ -181,15 +181,21 @@ where
             );
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
-            let outcome = self
-                .core
-                .route_widget_key_with_timestamp(WidgetKey::Backspace, timestamp);
+            let outcome = self.core.route_widget_key_with_metadata(
+                WidgetKey::Backspace,
+                widget_modifiers,
+                repeat,
+                timestamp,
+            );
             route_outcome.merge(outcome);
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
-            let outcome = self
-                .core
-                .route_widget_key_with_timestamp(WidgetKey::Delete, timestamp);
+            let outcome = self.core.route_widget_key_with_metadata(
+                WidgetKey::Delete,
+                widget_modifiers,
+                repeat,
+                timestamp,
+            );
             route_outcome.merge(outcome);
         }
         self.route_keyboard_outcome(event_loop, route_outcome, adapter, observation);

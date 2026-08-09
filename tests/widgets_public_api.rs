@@ -372,6 +372,9 @@ fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
     assert_rejected(&[begin.clone(), other_update.clone()]);
     assert_rejected(&[begin.clone(), other_commit.clone()]);
     assert_rejected(&[begin.clone(), other_cancel.clone()]);
+    assert_rejected(&[update.clone(), begin.clone()]);
+    assert_rejected(&[commit.clone(), begin.clone()]);
+    assert_rejected(&[cancel.clone(), begin.clone()]);
     assert_rejected(&[update.clone(), update.clone()]);
     assert_rejected(&[update.clone(), commit.clone()]);
     assert_rejected(&[update.clone(), cancel.clone()]);

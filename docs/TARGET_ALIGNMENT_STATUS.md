@@ -49,5 +49,5 @@ contract-defined but unimplemented. Wheel adjustment is now contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The other four shared-gate consumers—IME/composition, pointer, wheel, and
-accessibility—remain target-only and unimplemented.
+The five other shared-gate consumers—IME/composition, keyboard adjustment,
+pointer, wheel, and accessibility—remain target-only and unimplemented.

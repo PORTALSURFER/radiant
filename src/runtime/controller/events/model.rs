@@ -76,6 +76,15 @@ pub enum Event {
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
     },
+    /// One non-text key release should route to the focused widget.
+    KeyRelease {
+        /// Normalized key identity.
+        key: WidgetKey,
+        /// Keyboard modifiers captured with this key sample.
+        modifiers: KeyboardModifiers,
+        /// Optional timestamp captured at the native input boundary.
+        timestamp: Option<InputTimestamp>,
+    },
     /// One printable character should route to the focused widget.
     Character {
         /// Character produced by the active keyboard layout.
@@ -289,6 +298,24 @@ impl Event {
         }
     }
 
+    /// Build a key-release event with native modifier and timestamp metadata.
+    pub(crate) fn key_release_with_metadata(
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Self {
+        Self::KeyRelease {
+            key,
+            modifiers,
+            timestamp,
+        }
+    }
+
+    /// Build a focused key-release event without sample metadata.
+    pub fn key_release(key: WidgetKey) -> Self {
+        Self::key_release_with_metadata(key, KeyboardModifiers::default(), None)
+    }
+
     /// Build a focused character-input event.
     pub fn character(character: char) -> Self {
         Self::character_with_timestamp(character, None)
@@ -386,10 +413,38 @@ mod tests {
             }
         );
         assert_eq!(
+            Event::key_release(WidgetKey::Escape),
+            Event::KeyRelease {
+                key: WidgetKey::Escape,
+                modifiers: KeyboardModifiers::default(),
+                timestamp: None,
+            }
+        );
+        assert_eq!(
             Event::character('a'),
             Event::Character {
                 character: 'a',
                 timestamp: None,
+            }
+        );
+    }
+
+    #[test]
+    fn key_release_metadata_constructor_preserves_payload() {
+        let modifiers = KeyboardModifiers {
+            command: true,
+            control: true,
+            shift: false,
+            alt: true,
+        };
+        let timestamp = Some(InputTimestamp::capture());
+
+        assert_eq!(
+            Event::key_release_with_metadata(WidgetKey::ArrowDown, modifiers, timestamp,),
+            Event::KeyRelease {
+                key: WidgetKey::ArrowDown,
+                modifiers,
+                timestamp,
             }
         );
     }

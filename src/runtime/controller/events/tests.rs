@@ -17,6 +17,11 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum KeyboardTimestampMessage {
     KeyPress(Option<InputTimestamp>),
+    KeyRelease {
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
     Character {
         character: char,
         timestamp: Option<InputTimestamp>,
@@ -55,6 +60,15 @@ impl Widget for KeyboardTimestampWidget {
             WidgetInput::KeyPress { timestamp, .. } => Some(WidgetOutput::typed(
                 KeyboardTimestampMessage::KeyPress(timestamp),
             )),
+            WidgetInput::KeyRelease {
+                key,
+                modifiers,
+                timestamp,
+            } => Some(WidgetOutput::typed(KeyboardTimestampMessage::KeyRelease {
+                key,
+                modifiers,
+                timestamp,
+            })),
             WidgetInput::Character {
                 character,
                 timestamp,
@@ -122,6 +136,20 @@ fn injected_keyboard_event_timestamp_survives_event_to_widget_dispatch() {
         }),
         Some(40)
     );
+    let release_modifiers = KeyboardModifiers {
+        command: true,
+        control: true,
+        shift: false,
+        alt: true,
+    };
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyRelease {
+            key: WidgetKey::ArrowDown,
+            modifiers: release_modifiers,
+            timestamp,
+        }),
+        Some(40)
+    );
     assert_eq!(
         runtime.bridge().messages,
         vec![
@@ -130,8 +158,27 @@ fn injected_keyboard_event_timestamp_survives_event_to_widget_dispatch() {
                 character: 'x',
                 timestamp,
             },
+            KeyboardTimestampMessage::KeyRelease {
+                key: WidgetKey::ArrowDown,
+                modifiers: release_modifiers,
+                timestamp,
+            },
         ]
     );
+}
+
+#[test]
+fn key_release_event_without_focus_is_not_routed() {
+    let mut runtime = SurfaceRuntime::new(
+        KeyboardTimestampBridge::default(),
+        crate::gui::types::Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::key_release(WidgetKey::ArrowDown)),
+        None
+    );
+    assert!(runtime.bridge().messages.is_empty());
 }
 
 #[test]

@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use std::sync::Arc;
-use winit::keyboard::ModifiersState;
+use winit::keyboard::{KeyCode as WinitKeyCode, ModifiersState, PhysicalKey};
 
 #[derive(Clone)]
 struct FocusedKeyboardMetadataWidget {
@@ -63,6 +63,11 @@ enum KeyboardTimestampMessage {
         repeat: bool,
         timestamp: Option<InputTimestamp>,
     },
+    KeyRelease {
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
     Character {
         character: char,
         timestamp: Option<InputTimestamp>,
@@ -92,6 +97,18 @@ impl RuntimeBridge<KeyboardTimestampMessage> for KeyboardTimestampBridge {
                 } => KeyboardTimestampMessage::KeyPress {
                     modifiers,
                     repeat,
+                    timestamp,
+                },
+                CanvasMessage::Input {
+                    input:
+                        WidgetInput::KeyRelease {
+                            key,
+                            modifiers,
+                            timestamp,
+                        },
+                } => KeyboardTimestampMessage::KeyRelease {
+                    key,
+                    modifiers,
                     timestamp,
                 },
                 CanvasMessage::Input {
@@ -184,6 +201,66 @@ fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
             timestamp,
         }]
     );
+}
+
+#[test]
+fn native_physical_key_release_routes_once_with_metadata() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+    runner.input.modifiers = ModifiersState::SHIFT;
+    let expected_modifiers = KeyboardModifiers {
+        command: false,
+        control: false,
+        shift: true,
+        alt: false,
+    };
+
+    assert!(runner.core.runtime.focus_widget(90));
+    assert!(
+        runner
+            .route_native_key_release(PhysicalKey::Code(WinitKeyCode::ArrowDown))
+            .expect("supported physical release should produce a route outcome")
+            .routed
+    );
+    let messages = &runner.core.runtime.bridge().messages;
+    let Some(KeyboardTimestampMessage::KeyRelease {
+        key,
+        modifiers,
+        timestamp,
+    }) = messages.first()
+    else {
+        panic!("native release should deliver one key-release message");
+    };
+    assert_eq!(*key, WidgetKey::ArrowDown);
+    assert_eq!(*modifiers, expected_modifiers);
+    assert!(timestamp.is_some());
+    assert_eq!(messages.len(), 1);
+}
+
+#[test]
+fn unsupported_or_unfocused_key_release_is_not_routed() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+
+    assert_eq!(
+        runner.route_native_key_release(PhysicalKey::Code(WinitKeyCode::Numpad1)),
+        None
+    );
+    assert!(runner.core.runtime.bridge().messages.is_empty());
+
+    assert!(
+        !runner
+            .route_native_key_release(PhysicalKey::Code(WinitKeyCode::ArrowDown))
+            .expect("supported physical release should produce a route outcome")
+            .routed
+    );
+    assert!(runner.core.runtime.bridge().messages.is_empty());
 }
 
 #[test]

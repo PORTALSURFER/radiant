@@ -534,6 +534,18 @@ fn keyboard_modifier_payload_is_qualified_and_not_in_prelude() {
 }
 
 #[test]
+fn key_release_widget_input_constructor_is_public() {
+    assert_eq!(
+        WidgetInput::key_release(WidgetKey::ArrowDown),
+        WidgetInput::KeyRelease {
+            key: WidgetKey::ArrowDown,
+            modifiers: KeyboardModifiers::default(),
+            timestamp: None,
+        }
+    );
+}
+
+#[test]
 fn widget_output_exposes_typed_and_custom_value_helpers() {
     let copied = WidgetOutput::typed(42_u8);
     assert_eq!(copied.typed_ref::<u8>(), Some(&42));

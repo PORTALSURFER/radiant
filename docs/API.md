@@ -1140,8 +1140,10 @@ canonical codec-formatted text and caret remain authoritative; stale
 noncanonical committed text is not retained.
 
 This first consumer intentionally stops at generic text editing and keyboard
-terminal boundaries. Semantic arrow-key adjustment, pointer scrubbing, wheel
-changes, IME/composition, accessibility actions, Slider/Knob adoption,
+terminal boundaries. Normalized `KeyRelease` plumbing is shipped as a distinct
+runtime/native prerequisite; semantic arrow-key adjustment remains
+unimplemented. Pointer scrubbing, wheel changes, IME/composition,
+accessibility actions, Slider/Knob adoption,
 platform adapters, scheduler/renderer integration, and product numeric policy
 remain separate follow-up slices. The supplied `NumericAdjustment<T>` is
 validated at construction here but its step, scrub, and wheel methods are not
@@ -1394,7 +1396,7 @@ Unicode-scalar convention above.
 | 9. Malformed native range | Invalid scalar or UTF-16 mapping conservatively cancels and retains committed text/selection; no clamp, guess, append, or mutation occurs. |
 | 10. Metadata | Native timestamps remain exact, missing timestamps remain absent, synthetic constructors omit them, and no sequence range is fabricated. |
 
-### Target numeric keyboard adjustment (not yet shipped)
+### Target numeric keyboard adjustment (semantic behavior not yet shipped)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric step
 or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -1404,9 +1406,11 @@ focus, or mutate that incumbent. The existing host-shortcut first refusal
 remains limited to an uncaptured initial boundary.
 
 The preceding `numeric_input` section documents the shipped text-first
-consumer. The following is a target-only, backend-neutral keyboard contract;
-the current source does not provide normalized `KeyRelease` or semantic arrow
-stepping. This section does not add public Rust types in this PR.
+consumer. Normalized `Event::KeyRelease { key, modifiers, timestamp }` and
+`WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is shipped;
+semantic arrow stepping remains unimplemented. The following is a target-only,
+backend-neutral keyboard-adjustment contract and does not add numeric stepping,
+capture, or edit-lifecycle behavior.
 
 The target policy and result vocabulary is equivalent to:
 
@@ -1501,10 +1505,10 @@ later matching release is orphaned. The rollback `Edit` is mandatory; no
 failed or partial candidate `Edit` or `Update` is published. Errors never panic
 and never become successful no-ops.
 
-The later additive release boundary is carried through both normalized
+The shipped normalized release boundary is carried through both
 `Event::KeyRelease { key, modifiers, timestamp }` and
-`WidgetInput::KeyRelease { key, modifiers, timestamp }`; the current source
-still lacks both. It preserves shipped normalized
+`WidgetInput::KeyRelease { key, modifiers, timestamp }`; semantic keyboard
+adjustment remains unimplemented. It preserves shipped normalized
 `Event::KeyPress { key, modifiers, repeat, timestamp }` and
 `WidgetInput::KeyPress { key, modifiers, repeat, timestamp }`; a release is not
 another press.

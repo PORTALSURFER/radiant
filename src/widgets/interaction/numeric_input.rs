@@ -277,6 +277,16 @@ impl<T: Clone, StepError, FormatError> NumericInputInteractionBatch<T, StepError
     /// Maximum number of ordered interaction parts carried by one envelope.
     pub const MAX_INTERACTIONS: usize = 2;
 
+    /// Wrap one already-validated edit batch in the complete interaction
+    /// envelope without changing its events.
+    pub(crate) fn from_edit(edit: NumericInputEditBatch<T>) -> Self {
+        let part = NumericInputInteraction::edit(edit);
+        Self {
+            parts: [part.clone(), part],
+            len: 1,
+        }
+    }
+
     /// Build an envelope from exactly one legal output shape.
     pub fn from_interactions(
         interactions: &[NumericInputInteraction<T, StepError, FormatError>],
@@ -334,7 +344,7 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
     interactions: &[NumericInputInteraction<T, StepError, FormatError>],
 ) -> bool {
     match interactions {
-        [NumericInputInteraction::Edit(edit)] => valid_keyboard_edit(edit),
+        [NumericInputInteraction::Edit(edit)] => valid_keyboard_edit(edit) || valid_text_edit(edit),
         [
             NumericInputInteraction::StepFailed {
                 attempt: NumericStepAttempt::Initial,
@@ -392,6 +402,18 @@ fn valid_keyboard_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
         }
         [begin, update] if begin.phase == EditPhase::Begin && update.phase == EditPhase::Update => {
             is_keyboard_provenance(begin.provenance) && is_keyboard_provenance(update.provenance)
+        }
+        _ => false,
+    }
+}
+
+fn valid_text_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
+    match edit.events() {
+        [begin, terminal]
+            if begin.phase == EditPhase::Begin
+                && matches!(terminal.phase, EditPhase::Commit | EditPhase::Cancel) =>
+        {
+            is_keyboard_provenance(begin.provenance) && is_keyboard_provenance(terminal.provenance)
         }
         _ => false,
     }

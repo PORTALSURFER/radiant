@@ -13,12 +13,41 @@ use crate::{
     widgets::{
         EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
         NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-        NumericParseResult, NumericStepModifiers, TextAlign, TextBackgroundRole, TextColorRole,
-        TextInputChrome, TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput,
-        WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
+        NumericInputInteractionBatch, NumericParseResult, NumericStepModifiers, TextAlign,
+        TextBackgroundRole, TextColorRole, TextInputChrome, TextInputWidget, TextWrap, Widget,
+        WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
+
+type NumericInputOutputEncoder<T> = Rc<dyn Fn(NumericInputEditBatch<T>) -> WidgetOutput>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NumericInputOutputMode {
+    Compatibility,
+    Complete,
+}
+
+fn encode_compatibility_output<T: Clone + 'static>(
+    batch: NumericInputEditBatch<T>,
+) -> WidgetOutput {
+    WidgetOutput::typed(batch)
+}
+
+fn encode_complete_output<T, StepError, FormatError>(
+    batch: NumericInputEditBatch<T>,
+) -> WidgetOutput
+where
+    T: Clone + 'static,
+    StepError: 'static,
+    FormatError: 'static,
+{
+    WidgetOutput::typed(NumericInputInteractionBatch::<T, StepError, FormatError>::from_edit(batch))
+}
+
+fn compatibility_output_encoder<T: Clone + 'static>() -> NumericInputOutputEncoder<T> {
+    Rc::new(encode_compatibility_output::<T>)
+}
 
 struct ActiveNumericEdit<T, C> {
     session: NumericEditSession<T>,
@@ -51,6 +80,8 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     active: Option<ActiveNumericEdit<T, C>>,
     interaction_gate: NumericInteractionGate,
     step_modifiers: Option<NumericStepModifiers>,
+    output_mode: NumericInputOutputMode,
+    output_encoder: NumericInputOutputEncoder<T>,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -68,6 +99,8 @@ where
             active: self.active.clone(),
             interaction_gate: self.interaction_gate,
             step_modifiers: self.step_modifiers,
+            output_mode: self.output_mode,
+            output_encoder: Rc::clone(&self.output_encoder),
         }
     }
 }
@@ -85,6 +118,7 @@ where
                 "active",
                 &self.active.as_ref().map(|active| active.session.draft()),
             )
+            .field("output_mode", &self.output_mode)
             .finish_non_exhaustive()
     }
 }
@@ -120,6 +154,8 @@ where
             active: None,
             interaction_gate: NumericInteractionGate::new(),
             step_modifiers: None,
+            output_mode: NumericInputOutputMode::Compatibility,
+            output_encoder: compatibility_output_encoder(),
         })
     }
 
@@ -143,6 +179,24 @@ where
 
     pub(crate) fn set_step_modifiers(&mut self, policy: NumericStepModifiers) {
         self.step_modifiers = Some(policy);
+    }
+
+    pub(crate) fn set_compatibility_output_mode(&mut self) {
+        self.output_mode = NumericInputOutputMode::Compatibility;
+        self.output_encoder = compatibility_output_encoder();
+    }
+
+    pub(crate) fn set_complete_output_mode(&mut self)
+    where
+        A::Error: 'static,
+        C::Error: 'static,
+    {
+        self.output_mode = NumericInputOutputMode::Complete;
+        self.output_encoder = Rc::new(encode_complete_output::<T, A::Error, C::Error>);
+    }
+
+    fn encode_output(&self, batch: NumericInputEditBatch<T>) -> WidgetOutput {
+        (self.output_encoder)(batch)
     }
 
     fn is_editable(&self) -> bool {
@@ -366,7 +420,7 @@ where
                     .handle_input(bounds, WidgetInput::FocusChanged(false));
                 None
             };
-            return output.map(WidgetOutput::typed);
+            return output.map(|batch| self.encode_output(batch));
         }
 
         match &input {
@@ -375,14 +429,18 @@ where
                 timestamp,
                 ..
             } if self.active.is_some() => {
-                return self.cancel_active(*timestamp).map(WidgetOutput::typed);
+                return self
+                    .cancel_active(*timestamp)
+                    .map(|batch| self.encode_output(batch));
             }
             WidgetInput::KeyPress {
                 key: WidgetKey::Enter,
                 timestamp,
                 ..
             } => {
-                return self.commit_active(*timestamp).map(WidgetOutput::typed);
+                return self
+                    .commit_active(*timestamp)
+                    .map(|batch| self.encode_output(batch));
             }
             _ => {}
         }
@@ -426,6 +484,7 @@ where
         }
 
         let reset = self.value != previous.value
+            || self.output_mode != previous.output_mode
             || self.text_input.common.state.disabled
             || previous.text_input.common.state.disabled
             || self.text_input.common.state.read_only
@@ -453,6 +512,7 @@ where
             .is_some_and(|successor| {
                 self.text_input.common.id == successor.text_input.common.id
                     && self.value == successor.value
+                    && self.output_mode == successor.output_mode
                     && !successor.text_input.common.state.disabled
                     && !successor.text_input.common.state.read_only
             });
@@ -460,7 +520,8 @@ where
             return None;
         }
 
-        self.cancel_active(None).map(WidgetOutput::typed)
+        self.cancel_active(None)
+            .map(|batch| self.encode_output(batch))
     }
 
     fn accepts_text_input(&self) -> bool {

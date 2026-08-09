@@ -3,16 +3,16 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~77.18% (849 / 11) |
+| Broad end-to-end target coverage | ~77.45% (852 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
-| Public API and module boundaries | 82% |
+| Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 87% |
+| Input, provenance, and edit lifecycle | 88% |
 | Layout, composition, virtualization | 96% |
 | Text, focus, and selection | 66% |
-| Numeric controls | 62% |
+| Numeric controls | 63% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
 | Platform, windowing, and host boundaries | 70% |
@@ -20,7 +20,7 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(82 + 70 + 87 + 96 + 66 + 62 + 96 + 78 + 70 + 66 + 76) / 11 = 77.18%`.
+`(83 + 70 + 88 + 96 + 66 + 63 + 96 + 78 + 70 + 66 + 76) / 11 = 77.45%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -49,21 +49,22 @@ draft/caret/session state only for an actually active edit during same-ID
 reprojection. Qualified exports remain outside the common prelude.
 The qualified `NumericStepAttempt`, `NumericInputInteraction<T, StepError,
 FormatError>`, and `NumericInputInteractionBatch<T, StepError, FormatError>`
-are now shipped as a fixed-capacity keyboard output-envelope foundation. The
-batch validates successful keyboard edit fragments and typed initial or
-rollback-before-repeat failures, but it is behaviorally unconsumed: no current
-widget or runtime produces or consumes these parts, and semantic keyboard
-adjustment remains unimplemented. This public storage/validation foundation has
-zero impact on the estimates.
+are now shipped as a fixed-capacity keyboard envelope and complete TextEdit
+output foundation. The batch validates successful keyboard edit fragments,
+TextEdit terminal fragments, and typed initial or rollback-before-repeat
+failures. Complete mode wraps each accepted TextEdit terminal batch in one
+outer `Edit` and maps it through the selected complete mapper; semantic
+keyboard adjustment and typed-failure production remain unimplemented.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
 admission, no-op cleanup, terminal cleanup, replacement teardown, and compatible
 active reprojection. `NumericInputWidget` consumes the generic
 `Widget::prepare_replacement` seam: an exact same-ID, same-value, enabled,
 non-read-only successor preserves the active session for normal synchronization;
 every other replacement boundary publishes one rollback through the retiring
-mapper, restores the value/draft/caret/selection snapshot, and releases TextEdit
-ownership. Invalid, incomplete, and out-of-range drafts use the existing cancel
-path without consulting codec or adjustment policy.
+widget's selected mapper mode, restores the value/draft/caret/selection
+snapshot, and releases TextEdit ownership. A mode change cannot inherit the
+active session. Invalid, incomplete, and out-of-range drafts use the existing
+cancel path without consulting codec or adjustment policy.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; semantic keyboard adjustment remains
 contract-defined but unimplemented. The
@@ -81,8 +82,9 @@ pure configuration foundation. The selector evaluates lossless
 `KeyboardModifiers` samples without allocation or retained state; the widget
 stores `None` when unconfigured or exactly `Some(policy)` when attached, but no
 current producer or consumer reads it. Semantic stepping, adjustment calls,
-capture, transactions, and numeric output remain unimplemented. This storage
-foundation has zero impact on the estimates.
+capture, and keyboard numeric output remain unimplemented; TextEdit output
+mapping is covered by the separate complete-mode foundation above. This
+configuration foundation has zero impact on the estimates.
 The native keyboard boundary now also ships a lossless widget-modifier
 projection alongside the unchanged host-shortcut `KeyPress` projection:
 Linux/Windows Control remains host `command` for shortcut resolution but reaches
@@ -102,13 +104,13 @@ behavior is shipped. The existing key-only `preempts_host_shortcut_key`
 compatibility surface and normalized key/release plumbing remain unchanged; the
 target acceptance fixtures do not describe passing current runtime behavior.
 This documentation-only prerequisite has zero impact on the estimates.
-The target-only numeric interaction output mapping and dispatch contract is now
-defined as the second contract-definition prerequisite for the future complete
-numeric binding. It fixes the exact `on_interaction` mapper type and associated
-error order, one interaction batch/mapper/host dispatch per input or teardown
-boundary, nested TextEdit terminal shapes, compatibility-only `on_edit`,
-mapper exclusivity, typed-failure ordering, and retiring-mapper selection. The
-complete binding, TextEdit acceptance in `from_interactions(...)`, and all
-fixtures remain unshipped; current `from_interactions(...)` remains
-keyboard-only truth. This documentation-only contract has zero impact on the
-estimates: `849 / 11 = 77.18%` remains unchanged.
+The numeric interaction output mapping foundation is now shipped for the
+existing TextEdit lifecycle. It fixes the exact `on_interaction` mapper type and
+associated error order, one interaction batch/mapper/host dispatch per input or
+teardown boundary, nested TextEdit terminal shapes, compatibility-only
+`on_edit`, mapper exclusivity, validator acceptance, and retiring-mapper mode
+selection. Semantic keyboard production, metadata-aware focused-key routing,
+typed-failure production, and the remaining keyboard fixtures remain
+unshipped. This behavior/API/test slice updates the estimates to `852 / 11 =
+77.45%`; the generic estimate remains about 97% and all other category rows are
+unchanged.

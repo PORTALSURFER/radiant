@@ -102,3 +102,13 @@ behavior is shipped. The existing key-only `preempts_host_shortcut_key`
 compatibility surface and normalized key/release plumbing remain unchanged; the
 target acceptance fixtures do not describe passing current runtime behavior.
 This documentation-only prerequisite has zero impact on the estimates.
+The target-only numeric interaction output mapping and dispatch contract is now
+defined as the second contract-definition prerequisite for the future complete
+numeric binding. It fixes the exact `on_interaction` mapper type and associated
+error order, one interaction batch/mapper/host dispatch per input or teardown
+boundary, nested TextEdit terminal shapes, compatibility-only `on_edit`,
+mapper exclusivity, typed-failure ordering, and retiring-mapper selection. The
+complete binding, TextEdit acceptance in `from_interactions(...)`, and all
+fixtures remain unshipped; current `from_interactions(...)` remains
+keyboard-only truth. This documentation-only contract has zero impact on the
+estimates: `849 / 11 = 77.18%` remains unchanged.

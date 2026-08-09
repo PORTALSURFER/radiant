@@ -55,9 +55,28 @@ where
         let mut repeat_accepted = !repeat;
         let mut route_outcome = GenericRouteOutcome::default();
         let logical_text = keyboard_event_text(&event);
-        let physical_key = if let PhysicalKey::Code(code) = event.physical_key
-            && let Some(key) = key_code_from_winit(code)
-        {
+        let physical_key = match event.physical_key {
+            PhysicalKey::Code(code) => key_code_from_winit(code),
+            PhysicalKey::Unidentified(_) => None,
+        };
+        let timestamp = Some(InputTimestamp::capture());
+        let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
+        if let Some(outcome) = self.core.route_metadata_key_press_with_timestamp(
+            physical_key.map(|key| keypress_from_input(key, self.input.modifiers)),
+            physical_key.and_then(WidgetKey::from_key_code),
+            widget_modifiers,
+            timestamp,
+            repeat,
+        ) {
+            self.route_keyboard_outcome(
+                event_loop,
+                outcome,
+                adapter.as_deref_mut(),
+                observation.as_deref_mut(),
+            );
+            return;
+        }
+        if let Some(key) = physical_key {
             let allow_text_deletion_repeat = repeat
                 && self.core.has_focused_text_input()
                 && !self.input.modifiers.alt_key()
@@ -79,8 +98,6 @@ where
         if !repeat_accepted {
             return;
         }
-        let timestamp = Some(InputTimestamp::capture());
-        let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         if let Some(key) = physical_key {
             if self.route_text_input_shortcut(key, timestamp, &mut route_outcome) {
                 self.route_keyboard_outcome(
@@ -208,14 +225,19 @@ where
         let PhysicalKey::Code(code) = physical_key else {
             return None;
         };
-        let key = key_code_from_winit(code)?;
-        let widget_key = WidgetKey::from_key_code(key)?;
         let modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
-        Some(self.core.route_key_release_with_metadata(
-            widget_key,
-            modifiers,
-            Some(InputTimestamp::capture()),
-        ))
+        let key = key_code_from_winit(code);
+        let widget_key = key.and_then(WidgetKey::from_key_code);
+        let timestamp = Some(InputTimestamp::capture());
+        match widget_key {
+            Some(widget_key) => Some(
+                self.core
+                    .route_key_release_with_metadata(widget_key, modifiers, timestamp),
+            ),
+            None => self
+                .core
+                .route_metadata_key_release_with_metadata(None, modifiers, timestamp),
+        }
     }
 
     fn route_keyboard_outcome(

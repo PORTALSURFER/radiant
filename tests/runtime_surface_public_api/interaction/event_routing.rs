@@ -215,3 +215,142 @@ fn surface_runtime_routes_secondary_click_convenience() {
     assert_eq!(outcome.completed_widget(), Some(11));
     assert_eq!(runtime.pointer_capture(), None);
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PublicFocusedKeyMessage {
+    Press { key: WidgetKey, repeat: bool },
+    Release { key: WidgetKey },
+}
+
+#[derive(Clone)]
+struct PublicFocusedKeyWidget {
+    common: WidgetCommon,
+    captured: Option<WidgetKey>,
+}
+
+impl PublicFocusedKeyWidget {
+    fn new() -> Self {
+        Self {
+            common: WidgetCommon::new(140, WidgetSizing::fixed(Vector2::new(120.0, 32.0)))
+                .with_keyboard_focus(),
+            captured: None,
+        }
+    }
+}
+
+impl Widget for PublicFocusedKeyWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::KeyPress { key, repeat, .. } => {
+                if !repeat && key == WidgetKey::ArrowUp {
+                    self.captured = Some(key);
+                }
+                Some(WidgetOutput::typed(PublicFocusedKeyMessage::Press {
+                    key,
+                    repeat,
+                }))
+            }
+            WidgetInput::KeyRelease { key, .. } => {
+                if self.captured == Some(key) {
+                    self.captured = None;
+                }
+                Some(WidgetOutput::typed(PublicFocusedKeyMessage::Release {
+                    key,
+                }))
+            }
+            _ => None,
+        }
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            self.captured = previous.captured;
+        }
+    }
+
+    fn participates_in_focused_key_routing(&self) -> bool {
+        true
+    }
+
+    fn captured_focused_key(&self) -> Option<WidgetKey> {
+        self.captured
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Default)]
+struct PublicFocusedKeyBridge {
+    messages: Vec<PublicFocusedKeyMessage>,
+}
+
+impl RuntimeBridge<PublicFocusedKeyMessage> for PublicFocusedKeyBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<PublicFocusedKeyMessage>> {
+        arc_surface(UiSurface::new(SurfaceNode::custom_widget(
+            PublicFocusedKeyWidget::new(),
+            WidgetMessageMapper::typed(|message: PublicFocusedKeyMessage| message),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: PublicFocusedKeyMessage) {
+        self.messages.push(message);
+    }
+}
+
+#[test]
+fn public_widget_focused_key_opt_in_is_object_safe_and_captures_continuations() {
+    let widget: Box<dyn Widget> = Box::new(PublicFocusedKeyWidget::new());
+    assert!(widget.participates_in_focused_key_routing());
+    assert_eq!(widget.captured_focused_key(), None);
+    assert_eq!(WidgetKey::ArrowUp.to_key_code(), KeyCode::ArrowUp);
+
+    let mut runtime =
+        SurfaceRuntime::new(PublicFocusedKeyBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(140));
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: Default::default(),
+            repeat: false,
+            timestamp: None,
+        }),
+        Some(140)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: Default::default(),
+            repeat: true,
+            timestamp: None,
+        }),
+        Some(140)
+    );
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![
+            PublicFocusedKeyMessage::Press {
+                key: WidgetKey::ArrowUp,
+                repeat: false,
+            },
+            PublicFocusedKeyMessage::Press {
+                key: WidgetKey::ArrowUp,
+                repeat: true,
+            },
+        ]
+    );
+}

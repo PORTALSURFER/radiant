@@ -8,8 +8,8 @@ use crate::{
     },
     layout::LayoutOutput,
     runtime::{
-        PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost, SurfaceNode,
-        UiSurface, WidgetMessageMapper,
+        Event, PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost,
+        SurfaceNode, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{
@@ -153,6 +153,165 @@ impl RuntimeInputHost<KeyboardTimestampMessage> for KeyboardTimestampBridge {
         _focus: FocusSurface,
     ) -> ShortcutResolution<KeyboardTimestampMessage> {
         if press.key == KeyCode::ArrowUp {
+            ShortcutResolution::handled()
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum FocusedKeyRouteMessage {
+    Press {
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<InputTimestamp>,
+    },
+    Release {
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    },
+}
+
+#[derive(Clone)]
+struct FocusedKeyRoutingWidget {
+    common: WidgetCommon,
+    captured: Option<WidgetKey>,
+    cancel_escape: bool,
+}
+
+impl FocusedKeyRoutingWidget {
+    fn new(id: WidgetId, cancel_escape: bool) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+                .with_keyboard_focus(),
+            captured: None,
+            cancel_escape,
+        }
+    }
+}
+
+impl Widget for FocusedKeyRoutingWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::KeyPress {
+                key,
+                modifiers,
+                repeat,
+                timestamp,
+            } => {
+                if !repeat && key == WidgetKey::ArrowUp {
+                    self.captured = Some(key);
+                } else if !repeat && key == WidgetKey::Escape && self.cancel_escape {
+                    self.captured = None;
+                }
+                Some(WidgetOutput::typed(FocusedKeyRouteMessage::Press {
+                    key,
+                    modifiers,
+                    repeat,
+                    timestamp,
+                }))
+            }
+            WidgetInput::KeyRelease {
+                key,
+                modifiers,
+                timestamp,
+            } => {
+                if self.captured == Some(key) {
+                    self.captured = None;
+                }
+                Some(WidgetOutput::typed(FocusedKeyRouteMessage::Release {
+                    key,
+                    modifiers,
+                    timestamp,
+                }))
+            }
+            _ => None,
+        }
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            self.captured = previous.captured;
+        }
+    }
+
+    fn participates_in_focused_key_routing(&self) -> bool {
+        true
+    }
+
+    fn captured_focused_key(&self) -> Option<WidgetKey> {
+        self.captured
+    }
+
+    fn preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
+        self.cancel_escape && key == WidgetKey::Escape
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+struct FocusedKeyRoutingBridge {
+    messages: Vec<FocusedKeyRouteMessage>,
+    host_presses: Vec<KeyPress>,
+    host_handled: bool,
+    cancel_escape: bool,
+}
+
+impl FocusedKeyRoutingBridge {
+    fn new(host_handled: bool, cancel_escape: bool) -> Self {
+        Self {
+            messages: Vec::new(),
+            host_presses: Vec::new(),
+            host_handled,
+            cancel_escape,
+        }
+    }
+}
+
+impl RuntimeBridge<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<FocusedKeyRouteMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            FocusedKeyRoutingWidget::new(91, self.cancel_escape),
+            WidgetMessageMapper::typed(|message: FocusedKeyRouteMessage| message),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: FocusedKeyRouteMessage) {
+        self.messages.push(message);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, FocusedKeyRouteMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<FocusedKeyRouteMessage> {
+        self.host_presses.push(press);
+        if self.host_handled {
             ShortcutResolution::handled()
         } else {
             ShortcutResolution::unhandled()
@@ -329,6 +488,299 @@ fn handled_native_host_shortcut_does_not_reach_focused_widget() {
         .routed
     );
     assert!(core.runtime.bridge().messages.is_empty());
+}
+
+#[test]
+fn focused_native_capture_preserves_metadata_bypasses_host_and_owner_cancels() {
+    let initial_timestamp = Some(InputTimestamp::capture());
+    let repeat_timestamp = Some(InputTimestamp::capture());
+    let cancel_timestamp = Some(InputTimestamp::capture());
+    let initial_modifiers = KeyboardModifiers {
+        command: true,
+        control: true,
+        shift: false,
+        alt: false,
+    };
+    let repeat_modifiers = KeyboardModifiers {
+        command: false,
+        control: true,
+        shift: true,
+        alt: true,
+    };
+    let cancel_modifiers = KeyboardModifiers {
+        command: true,
+        control: false,
+        shift: true,
+        alt: true,
+    };
+    let mut core = GenericNativeRuntimeCore::new(
+        FocusedKeyRoutingBridge::new(false, true),
+        Vector2::new(160.0, 28.0),
+    );
+    assert!(core.runtime.focus_widget(91));
+
+    assert!(
+        core.route_key_press_with_timestamp(
+            KeyPress {
+                key: KeyCode::ArrowUp,
+                command: initial_modifiers.command,
+                control: initial_modifiers.control,
+                shift: initial_modifiers.shift,
+                alt: initial_modifiers.alt,
+            },
+            Some(WidgetKey::ArrowUp),
+            initial_modifiers,
+            initial_timestamp,
+            false,
+        )
+        .routed
+    );
+    assert!(
+        core.route_key_press_with_timestamp(
+            KeyPress {
+                key: KeyCode::ArrowUp,
+                command: false,
+                control: false,
+                shift: true,
+                alt: true,
+            },
+            Some(WidgetKey::ArrowUp),
+            repeat_modifiers,
+            repeat_timestamp,
+            true,
+        )
+        .routed
+    );
+    assert!(
+        core.route_key_press_with_timestamp(
+            KeyPress {
+                key: KeyCode::Escape,
+                command: cancel_modifiers.command,
+                control: cancel_modifiers.control,
+                shift: cancel_modifiers.shift,
+                alt: cancel_modifiers.alt,
+            },
+            Some(WidgetKey::Escape),
+            cancel_modifiers,
+            cancel_timestamp,
+            false,
+        )
+        .routed
+    );
+
+    let bridge = core.runtime.bridge();
+    assert_eq!(bridge.host_presses.len(), 1);
+    assert_eq!(
+        bridge.messages,
+        vec![
+            FocusedKeyRouteMessage::Press {
+                key: WidgetKey::ArrowUp,
+                modifiers: initial_modifiers,
+                repeat: false,
+                timestamp: initial_timestamp,
+            },
+            FocusedKeyRouteMessage::Press {
+                key: WidgetKey::ArrowUp,
+                modifiers: repeat_modifiers,
+                repeat: true,
+                timestamp: repeat_timestamp,
+            },
+            FocusedKeyRouteMessage::Press {
+                key: WidgetKey::Escape,
+                modifiers: cancel_modifiers,
+                repeat: false,
+                timestamp: cancel_timestamp,
+            },
+        ]
+    );
+}
+
+#[test]
+fn native_captured_release_uses_generic_owner_and_preserves_native_modifiers() {
+    let initial_modifiers = KeyboardModifiers::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        FocusedKeyRoutingBridge::new(false, false),
+        Vector2::new(160.0, 28.0),
+    );
+    assert!(runner.core.runtime.focus_widget(91));
+    assert!(
+        runner
+            .core
+            .route_key_press_with_timestamp(
+                KeyPress::new(KeyCode::ArrowUp),
+                Some(WidgetKey::ArrowUp),
+                initial_modifiers,
+                Some(InputTimestamp::capture()),
+                false,
+            )
+            .routed
+    );
+
+    runner.input.modifiers = ModifiersState::CONTROL | ModifiersState::SHIFT;
+    let outcome = runner
+        .route_native_key_release(PhysicalKey::Code(WinitKeyCode::ArrowUp))
+        .expect("captured physical release should produce a route outcome");
+    assert!(outcome.routed);
+    assert_eq!(runner.core.runtime.bridge().host_presses.len(), 1);
+    let Some(FocusedKeyRouteMessage::Release {
+        key,
+        modifiers,
+        timestamp,
+    }) = runner.core.runtime.bridge().messages.last()
+    else {
+        panic!("native captured release should deliver a release message");
+    };
+    assert_eq!(*key, WidgetKey::ArrowUp);
+    assert_eq!(
+        *modifiers,
+        KeyboardModifiers {
+            command: false,
+            control: true,
+            shift: true,
+            alt: false,
+        }
+    );
+    assert!(timestamp.is_some());
+}
+
+fn run_focused_key_path(
+    path: u8,
+    initial_timestamp: Option<InputTimestamp>,
+    repeat_timestamp: Option<InputTimestamp>,
+    release_timestamp: Option<InputTimestamp>,
+) -> (Vec<FocusedKeyRouteMessage>, Vec<KeyPress>) {
+    let modifiers = KeyboardModifiers {
+        command: true,
+        control: true,
+        shift: true,
+        alt: true,
+    };
+    let mut core = GenericNativeRuntimeCore::new(
+        FocusedKeyRoutingBridge::new(false, false),
+        Vector2::new(160.0, 28.0),
+    );
+    assert!(core.runtime.focus_widget(91));
+    match path {
+        0 => {
+            assert_eq!(
+                core.runtime.dispatch_event(Event::key_press_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    false,
+                    initial_timestamp,
+                )),
+                Some(91)
+            );
+            assert_eq!(
+                core.runtime.dispatch_event(Event::key_press_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    true,
+                    repeat_timestamp,
+                )),
+                Some(91)
+            );
+            assert_eq!(
+                core.runtime
+                    .dispatch_event(Event::key_release_with_metadata(
+                        WidgetKey::ArrowUp,
+                        modifiers,
+                        release_timestamp,
+                    )),
+                Some(91)
+            );
+        }
+        1 => {
+            assert!(
+                core.route_widget_key_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    false,
+                    initial_timestamp,
+                )
+                .routed
+            );
+            assert!(
+                core.route_widget_key_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    true,
+                    repeat_timestamp,
+                )
+                .routed
+            );
+            assert!(
+                core.route_key_release_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    release_timestamp,
+                )
+                .routed
+            );
+        }
+        2 => {
+            assert!(
+                core.route_key_press_with_timestamp(
+                    KeyPress {
+                        key: KeyCode::ArrowUp,
+                        command: true,
+                        control: true,
+                        shift: true,
+                        alt: true,
+                    },
+                    Some(WidgetKey::ArrowUp),
+                    modifiers,
+                    initial_timestamp,
+                    false,
+                )
+                .routed
+            );
+            assert!(
+                core.route_key_press_with_timestamp(
+                    KeyPress {
+                        key: KeyCode::ArrowUp,
+                        command: false,
+                        control: false,
+                        shift: true,
+                        alt: true,
+                    },
+                    Some(WidgetKey::ArrowUp),
+                    modifiers,
+                    repeat_timestamp,
+                    true,
+                )
+                .routed
+            );
+            assert!(
+                core.route_key_release_with_metadata(
+                    WidgetKey::ArrowUp,
+                    modifiers,
+                    release_timestamp,
+                )
+                .routed
+            );
+        }
+        _ => panic!("unsupported focused-key test path"),
+    }
+    (
+        core.runtime.bridge().messages.clone(),
+        core.runtime.bridge().host_presses.clone(),
+    )
+}
+
+#[test]
+fn native_direct_and_synthetic_focused_key_paths_are_equivalent() {
+    let timestamps = (
+        Some(InputTimestamp::capture()),
+        Some(InputTimestamp::capture()),
+        Some(InputTimestamp::capture()),
+    );
+    let direct = run_focused_key_path(0, timestamps.0, timestamps.1, timestamps.2);
+    let synthetic = run_focused_key_path(1, timestamps.0, timestamps.1, timestamps.2);
+    let native = run_focused_key_path(2, timestamps.0, timestamps.1, timestamps.2);
+    assert_eq!(direct, synthetic);
+    assert_eq!(direct, native);
 }
 
 #[test]

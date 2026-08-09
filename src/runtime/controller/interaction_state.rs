@@ -11,7 +11,7 @@ use crate::{
         ContainerStateId, LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity,
         NodeId,
     },
-    widgets::{PointerModifiers, WidgetId, WidgetState},
+    widgets::{PointerModifiers, WidgetId, WidgetKey, WidgetState},
 };
 use std::rc::Rc;
 use std::time::Instant;
@@ -72,6 +72,19 @@ impl<Message> Clone for RuntimeLayoutPointerCapture<Message> {
 pub(super) struct RuntimeFocusState {
     pub(super) focused_widget: Option<WidgetId>,
     pub(super) pending_key_chord: Option<KeyPress>,
+    pub(super) focused_key_capture: Option<RuntimeFocusedKeyCapture>,
+}
+
+/// Runtime-owned authority for one metadata-aware focused-key sequence.
+///
+/// The record is deliberately fixed-size and pins the stable focused widget
+/// identity. `stale` is retained until the next routing boundary so a stale
+/// sample can be ignored and cleaned up without being rebased to a successor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RuntimeFocusedKeyCapture {
+    pub(super) widget_id: WidgetId,
+    pub(super) key: WidgetKey,
+    pub(super) stale: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

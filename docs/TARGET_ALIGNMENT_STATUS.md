@@ -3,15 +3,15 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~77.45% (852 / 11) |
+| Broad end-to-end target coverage | ~77.64% (854 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 88% |
+| Input, provenance, and edit lifecycle | 89% |
 | Layout, composition, virtualization | 96% |
-| Text, focus, and selection | 66% |
+| Text, focus, and selection | 67% |
 | Numeric controls | 63% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
@@ -20,7 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 88 + 96 + 66 + 63 + 96 + 78 + 70 + 66 + 76) / 11 = 77.45%`.
+`(83 + 70 + 89 + 96 + 67 + 63 + 96 + 78 + 70 + 66 + 76) / 11 = 77.636...%`,
+reported as approximately `77.64%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -94,23 +95,26 @@ repeat, and release. Host handling remains first, and handled shortcuts do not
 reach widgets. This prerequisite correction has zero impact on the estimates
 and does not ship numeric stepping, capture, transactions, or a numeric
 consumer.
-The target-only metadata-aware focused-key ownership and preemption contract is
-now defined in the design and API documents as an unimplemented, backend-neutral
-prerequisite for semantic `KeyboardAdjustment`. It specifies host ordering,
-focused-owner continuation, stale/orphan/competing-sample ignore behavior,
-lossless key metadata, and equivalent native/backend-neutral/synthetic
-decisions, but no metadata-aware routing, capture ownership, or native-adapter
-behavior is shipped. The existing key-only `preempts_host_shortcut_key`
-compatibility surface and normalized key/release plumbing remain unchanged; the
-target acceptance fixtures do not describe passing current runtime behavior.
-This documentation-only prerequisite has zero impact on the estimates.
+The generic metadata-aware focused-key routing kernel is now shipped as a
+backend-neutral prerequisite for semantic `KeyboardAdjustment`. It adds
+defaulted object-safe widget opt-in/captured-key queries, one private fixed-size
+controller capture record, host-first uncaptured-initial routing, owner-first
+continuations and cancellation, stale/orphan/competing ignore behavior, exact
+metadata preservation, and conservative refresh reconciliation. Native Vello
+normalizes evidence and delegates to the same controller authority; synthetic,
+backend-neutral, and native/direct fixtures cover equivalent decisions. Existing
+widgets retain the key-only `preempts_host_shortcut_key` compatibility path.
+The kernel produces no numeric step, transaction, or output, and semantic
+`KeyboardAdjustment` remains unshipped.
 The numeric interaction output mapping foundation is now shipped for the
 existing TextEdit lifecycle. It fixes the exact `on_interaction` mapper type and
 associated error order, one interaction batch/mapper/host dispatch per input or
 teardown boundary, nested TextEdit terminal shapes, compatibility-only
 `on_edit`, mapper exclusivity, validator acceptance, and retiring-mapper mode
-selection. Semantic keyboard production, metadata-aware focused-key routing,
-typed-failure production, and the remaining keyboard fixtures remain
-unshipped. This behavior/API/test slice updates the estimates to `852 / 11 =
-77.45%`; the generic estimate remains about 97% and all other category rows are
-unchanged.
+selection. Semantic keyboard production, typed-failure production, numeric
+stepping, and the remaining numeric keyboard fixtures remain unshipped. This
+generic routing behavior/API/test slice updates the estimates by one point in
+Input/provenance/edit lifecycle and one point in Text/focus/selection:
+`852 + 1 + 1 = 854`, `854 / 11 = 77.636...%`, reported as approximately
+`77.64%`; the generic estimate remains about 97% and all other category rows
+are unchanged.

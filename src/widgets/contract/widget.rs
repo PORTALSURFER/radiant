@@ -183,6 +183,27 @@ pub trait Widget: WidgetClone + Any {
         false
     }
 
+    /// Return whether this focused widget opts into metadata-aware focused-key
+    /// routing.
+    ///
+    /// Opted-in widgets participate in the generic host-first initial-press
+    /// decision and may establish one runtime-owned key capture after they
+    /// explicitly report it through [`Self::captured_focused_key`]. The
+    /// default preserves the existing key-only compatibility behavior.
+    fn participates_in_focused_key_routing(&self) -> bool {
+        false
+    }
+
+    /// Return the normalized key currently captured by this widget, if any.
+    ///
+    /// This query is evidence from the widget's current interaction state; it
+    /// is not a request to capture a key and cannot create runtime authority by
+    /// itself. The default leaves existing widgets without metadata-aware
+    /// capture.
+    fn captured_focused_key(&self) -> Option<WidgetKey> {
+        None
+    }
+
     /// Return whether this focused widget explicitly owns a key before host shortcuts.
     ///
     /// Use this sparingly for widgets whose focused editing contract depends on

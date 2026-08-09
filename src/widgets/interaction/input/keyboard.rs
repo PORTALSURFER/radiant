@@ -77,6 +77,30 @@ impl WidgetKey {
             _ => return None,
         })
     }
+
+    /// Convert a normalized widget key back to the host shortcut key code.
+    pub const fn to_key_code(self) -> KeyCode {
+        match self {
+            Self::Enter => KeyCode::Enter,
+            Self::Escape => KeyCode::Escape,
+            Self::Tab => KeyCode::Tab,
+            Self::Space => KeyCode::Space,
+            Self::ArrowLeft => KeyCode::ArrowLeft,
+            Self::ArrowRight => KeyCode::ArrowRight,
+            Self::ArrowUp => KeyCode::ArrowUp,
+            Self::ArrowDown => KeyCode::ArrowDown,
+            Self::Home => KeyCode::Home,
+            Self::End => KeyCode::End,
+            Self::Backspace => KeyCode::Backspace,
+            Self::Delete => KeyCode::Delete,
+        }
+    }
+}
+
+impl From<WidgetKey> for KeyCode {
+    fn from(key: WidgetKey) -> Self {
+        key.to_key_code()
+    }
 }
 
 #[cfg(test)]
@@ -128,5 +152,26 @@ mod tests {
     #[test]
     fn widget_key_ignores_non_widget_key_codes() {
         assert_eq!(WidgetKey::from_key_code(KeyCode::Num0), None);
+    }
+
+    #[test]
+    fn widget_key_round_trips_supported_key_codes() {
+        for key in [
+            WidgetKey::Enter,
+            WidgetKey::Escape,
+            WidgetKey::Tab,
+            WidgetKey::Space,
+            WidgetKey::ArrowLeft,
+            WidgetKey::ArrowRight,
+            WidgetKey::ArrowUp,
+            WidgetKey::ArrowDown,
+            WidgetKey::Home,
+            WidgetKey::End,
+            WidgetKey::Backspace,
+            WidgetKey::Delete,
+        ] {
+            assert_eq!(WidgetKey::from_key_code(key.to_key_code()), Some(key));
+            assert_eq!(KeyCode::from(key), key.to_key_code());
+        }
     }
 }

@@ -1808,10 +1808,12 @@ edit output.
 `Commit` atomically replaces exactly the captured scalar range with its
 committed text and clears the composition. The target selection rule places a
 collapsed scalar caret immediately after the inserted text (at the replacement
-start when the committed text is empty). It emits at most one ordinary text
-change after the committed replacement. A `Start` followed directly by
-`Commit` is valid; no `Update` is required. Numeric parsing or value conversion
-may occur only after this committed replacement, never from preedit text.
+start when the committed text is empty). An accepted `Commit` emits exactly one
+ordinary committed text change after the atomic replacement; a stale,
+malformed, or otherwise rejected `Commit` emits none. A `Start` followed
+directly by `Commit` is valid; no `Update` is required. Numeric parsing or value
+conversion may occur only after this committed replacement, never from preedit
+text.
 `Cancel` clears the preedit, restores the original committed text, captured
 replacement range, and scalar selection, and emits no committed text change.
 
@@ -1848,9 +1850,11 @@ constructors omit timestamps, and no sequence range is fabricated.
 
 The compact target fixtures are:
 
+The ranges in fixture 1 are Unicode-scalar half-open ranges.
+
 | Fixture | Required rule |
 | --- | --- |
-| Start on `"a"` with a captured replacement range, then `Update` `"あ"` and `"あい"` with preedit selection | Committed text stays `"a"`; neither update emits `Changed` or invokes numeric parsing. |
+| Start on `"a"` with captured Unicode-scalar half-open replacement range `0..1` and captured scalar selection `0..1`; `Update { preedit: "あ", selection: 1..1 }`; then `Update { preedit: "あい", selection: 1..2 }` | Committed text remains exactly `"a"`; final preedit is exactly `"あい"` with final selection exactly `1..2`; the second update replaces rather than appends; no ordinary `Changed`, `NumericCodec` call, or numeric edit output occurs. |
 | Empty preedit | An empty `preedit` is a valid visible composition state. |
 | Commit `"あい"` | One atomic captured-range replacement and one committed change; numeric parsing starts only afterward. |
 | Cancel | Original committed text, replacement range, and selection are restored; no committed change is emitted. |

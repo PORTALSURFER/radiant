@@ -7,7 +7,7 @@ use crate::{
     gui::input::{KeyCode, KeyPress},
     layout::Point,
     theme::DpiScale,
-    widgets::{PointerButton, PointerModifiers},
+    widgets::{KeyboardModifiers, PointerButton, PointerModifiers},
 };
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
@@ -100,6 +100,17 @@ pub(super) fn keypress_from_input(
     }
 }
 
+pub(super) fn keyboard_modifiers_from_winit(
+    modifiers: winit::keyboard::ModifiersState,
+) -> KeyboardModifiers {
+    KeyboardModifiers {
+        command: modifiers.super_key(),
+        control: modifiers.control_key(),
+        shift: modifiers.shift_key(),
+        alt: modifiers.alt_key(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +171,163 @@ mod tests {
         assert!(projected.command);
         assert!(projected.shift);
         assert!(!projected.alt);
+    }
+
+    #[test]
+    fn keyboard_modifiers_projection_preserves_all_physical_combinations() {
+        let cases = [
+            (
+                ModifiersState::default(),
+                KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: false,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::CONTROL,
+                KeyboardModifiers {
+                    command: false,
+                    control: true,
+                    shift: false,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::SUPER,
+                KeyboardModifiers {
+                    command: true,
+                    control: false,
+                    shift: false,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::SUPER,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: false,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::SHIFT,
+                KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: true,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::SHIFT,
+                KeyboardModifiers {
+                    command: false,
+                    control: true,
+                    shift: true,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::SUPER | ModifiersState::SHIFT,
+                KeyboardModifiers {
+                    command: true,
+                    control: false,
+                    shift: true,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::SUPER | ModifiersState::SHIFT,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: true,
+                    alt: false,
+                },
+            ),
+            (
+                ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: false,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: false,
+                    control: true,
+                    shift: false,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::SUPER | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: true,
+                    control: false,
+                    shift: false,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::SUPER | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: false,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::SHIFT | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: false,
+                    control: false,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::CONTROL | ModifiersState::SHIFT | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: false,
+                    control: true,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::SUPER | ModifiersState::SHIFT | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: true,
+                    control: false,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+            (
+                ModifiersState::CONTROL
+                    | ModifiersState::SUPER
+                    | ModifiersState::SHIFT
+                    | ModifiersState::ALT,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+        ];
+
+        for (native, expected) in cases {
+            assert_eq!(keyboard_modifiers_from_winit(native), expected);
+        }
     }
 
     #[test]

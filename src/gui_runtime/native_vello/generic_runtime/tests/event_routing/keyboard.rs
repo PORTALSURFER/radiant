@@ -1,11 +1,16 @@
 use super::super::*;
 use crate::{
     gui::{
+        focus::FocusSurface,
         input::{InputTimestamp, KeyCode, KeyPress},
+        shortcuts::ShortcutResolution,
         types::Rect,
     },
     layout::LayoutOutput,
-    runtime::{PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{
+        PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost, SurfaceNode,
+        UiSurface, WidgetMessageMapper,
+    },
     theme::ThemeTokens,
     widgets::{
         CanvasMessage, CanvasWidget, KeyboardModifiers, TextEditCommand, Widget, WidgetCommon,
@@ -134,6 +139,25 @@ impl RuntimeBridge<KeyboardTimestampMessage> for KeyboardTimestampBridge {
             self.messages.push(message);
         }
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, KeyboardTimestampMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<KeyboardTimestampMessage> for KeyboardTimestampBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<KeyboardTimestampMessage> {
+        if press.key == KeyCode::ArrowUp {
+            ShortcutResolution::handled()
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    }
 }
 
 #[test]
@@ -149,6 +173,7 @@ fn direct_physical_key_route_preserves_one_timestamp() {
         core.route_key_press_with_timestamp(
             KeyPress::new(KeyCode::Enter),
             Some(WidgetKey::Enter),
+            KeyboardModifiers::default(),
             timestamp,
             false,
         )
@@ -183,6 +208,12 @@ fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
                 alt: true,
             },
             Some(WidgetKey::ArrowRight),
+            KeyboardModifiers {
+                command: true,
+                control: true,
+                shift: true,
+                alt: true,
+            },
             timestamp,
             true,
         )
@@ -203,6 +234,74 @@ fn direct_physical_key_route_preserves_modifier_and_repeat_metadata() {
     );
 }
 
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn unhandled_native_control_keeps_host_and_widget_modifier_views_distinct() {
+    let native_modifiers = ModifiersState::CONTROL;
+    let host_press = keypress_from_input(KeyCode::ArrowRight, native_modifiers);
+    assert!(host_press.command);
+    assert!(!host_press.control);
+    let widget_modifiers = keyboard_modifiers_from_winit(native_modifiers);
+    assert_eq!(
+        widget_modifiers,
+        KeyboardModifiers {
+            command: false,
+            control: true,
+            shift: false,
+            alt: false,
+        }
+    );
+
+    let timestamp = Some(InputTimestamp::capture());
+    let mut core = GenericNativeRuntimeCore::new(
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+    assert!(core.runtime.focus_widget(90));
+    assert!(
+        core.route_key_press_with_timestamp(
+            host_press,
+            Some(WidgetKey::ArrowRight),
+            widget_modifiers,
+            timestamp,
+            true,
+        )
+        .routed
+    );
+    assert_eq!(
+        core.runtime.bridge().messages,
+        vec![KeyboardTimestampMessage::KeyPress {
+            modifiers: widget_modifiers,
+            repeat: true,
+            timestamp,
+        }]
+    );
+}
+
+#[test]
+fn handled_native_host_shortcut_does_not_reach_focused_widget() {
+    let native_modifiers = ModifiersState::CONTROL;
+    let host_press = keypress_from_input(KeyCode::ArrowUp, native_modifiers);
+    let widget_modifiers = keyboard_modifiers_from_winit(native_modifiers);
+    let mut core = GenericNativeRuntimeCore::new(
+        KeyboardTimestampBridge::default(),
+        Vector2::new(160.0, 28.0),
+    );
+    assert!(core.runtime.focus_widget(90));
+
+    assert!(
+        core.route_key_press_with_timestamp(
+            host_press,
+            Some(WidgetKey::ArrowUp),
+            widget_modifiers,
+            Some(InputTimestamp::capture()),
+            false,
+        )
+        .routed
+    );
+    assert!(core.runtime.bridge().messages.is_empty());
+}
+
 #[test]
 fn native_physical_key_release_routes_once_with_metadata() {
     let mut runner = GenericNativeVelloRunner::new(
@@ -210,12 +309,15 @@ fn native_physical_key_release_routes_once_with_metadata() {
         KeyboardTimestampBridge::default(),
         Vector2::new(160.0, 28.0),
     );
-    runner.input.modifiers = ModifiersState::SHIFT;
+    runner.input.modifiers = ModifiersState::CONTROL
+        | ModifiersState::SUPER
+        | ModifiersState::SHIFT
+        | ModifiersState::ALT;
     let expected_modifiers = KeyboardModifiers {
-        command: false,
-        control: false,
+        command: true,
+        control: true,
         shift: true,
-        alt: false,
+        alt: true,
     };
 
     assert!(runner.core.runtime.focus_widget(90));

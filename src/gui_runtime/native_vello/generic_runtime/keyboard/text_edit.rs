@@ -1,9 +1,8 @@
-use super::keypress_from_input;
+use super::keyboard_modifiers_from_winit;
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::InputTimestamp;
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
-use crate::widgets::KeyboardModifiers;
 use crate::widgets::TextEditCommand;
 use crate::widgets::WidgetKey;
 
@@ -122,10 +121,9 @@ where
         {
             return false;
         }
-        let press = keypress_from_input(key, self.input.modifiers);
         let outcome = self.core.route_widget_key_with_metadata(
             widget_key,
-            KeyboardModifiers::from(press),
+            keyboard_modifiers_from_winit(self.input.modifiers),
             repeat,
             timestamp,
         );
@@ -170,10 +168,9 @@ where
                     KeyCode::Tab => WidgetKey::Tab,
                     _ => unreachable!("focused text input key must be Enter or Tab"),
                 };
-                let press = keypress_from_input(key, self.input.modifiers);
                 let outcome = self.core.route_widget_key_with_metadata(
                     widget_key,
-                    KeyboardModifiers::from(press),
+                    keyboard_modifiers_from_winit(self.input.modifiers),
                     repeat,
                     timestamp,
                 );

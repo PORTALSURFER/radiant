@@ -1,9 +1,8 @@
 use super::{
     CpuFrameObservationOwner, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, key_code_from_winit, keypress_from_input,
+    GenericRouteOutcome, key_code_from_winit, keyboard_modifiers_from_winit, keypress_from_input,
 };
 use crate::gui::input::{InputTimestamp, KeyCode, KeyPress};
-use crate::widgets::KeyboardModifiers;
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
@@ -81,6 +80,7 @@ where
             return;
         }
         let timestamp = Some(InputTimestamp::capture());
+        let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         if let Some(key) = physical_key {
             if self.route_text_input_shortcut(key, timestamp, &mut route_outcome) {
                 self.route_keyboard_outcome(
@@ -141,6 +141,7 @@ where
             let outcome = self.core.route_key_press_with_timestamp(
                 keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
+                widget_modifiers,
                 timestamp,
                 repeat,
             );
@@ -150,9 +151,13 @@ where
             && !self.core.has_focused_text_input()
             && let Some(press) = logical_shortcut_keypress_from_text(logical_text)
         {
-            let outcome = self
-                .core
-                .route_key_press_with_timestamp(press, None, timestamp, false);
+            let outcome = self.core.route_key_press_with_timestamp(
+                press,
+                None,
+                widget_modifiers,
+                timestamp,
+                false,
+            );
             route_outcome.merge(outcome);
             if route_outcome.routed {
                 self.route_keyboard_outcome(
@@ -199,7 +204,7 @@ where
         };
         let key = key_code_from_winit(code)?;
         let widget_key = WidgetKey::from_key_code(key)?;
-        let modifiers = KeyboardModifiers::from(keypress_from_input(key, self.input.modifiers));
+        let modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         Some(self.core.route_key_release_with_metadata(
             widget_key,
             modifiers,

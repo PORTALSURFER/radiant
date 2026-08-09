@@ -401,6 +401,7 @@ where
         self.route_widget_key_with_timestamp(key, None)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_widget_key_with_timestamp(
         &mut self,
         key: WidgetKey,

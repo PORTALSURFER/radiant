@@ -1790,11 +1790,12 @@ column([
 .gap(8)
 ```
 
-### Numeric interaction ownership and admission (TextEdit foundation shipped)
+### Numeric interaction ownership and admission (TextEdit admission and teardown shipped)
 
 This is one shared, target-only, backend-neutral contract for the numeric
-interaction set. The crate-private gate is shipped for TextEdit admission in
-the generic text consumer; IME composition, keyboard adjustment, pointer scrub,
+interaction set. The crate-private gate is shipped for TextEdit admission,
+terminal cleanup, replacement teardown, and compatible reprojection in the
+generic text consumer; IME composition, keyboard adjustment, pointer scrub,
 wheel sequence, and accessibility edit remain target-only consumers. The gate
 is not a public Rust API, native adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
@@ -1874,8 +1875,9 @@ interrupt an incumbent.
 #### Target shared-owner acceptance fixtures
 
 The target contract is accepted only when this matrix holds. The shipped text
-consumer covers the TextEdit admission and cleanup foundation; rows for the
-five other consumers remain target-only:
+consumer covers the TextEdit admission, cleanup, replacement teardown, and
+compatible reprojection foundation; rows for the five other consumers remain
+target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2067,7 +2069,15 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   TextEdit only when the shared incumbent owner is None. A different pending or
   active owner denies the text admission before parsing, formatting, or edit
   lifecycle mutation; the shipped text consumer implements this TextEdit
-  admission foundation, while the five other consumers remain unimplemented.
+  admission, terminal cleanup, and replacement-teardown foundation, while the
+  five other consumers remain unimplemented.
+- During reconciliation, the shipped text consumer preserves an active edit only
+  for an exact same-ID, same-value, enabled, non-read-only numeric successor.
+  Every other replacement boundary publishes one ordered `Begin`/`Cancel`
+  rollback through the retiring mapper, restores the edit snapshot, and prevents
+  the successor from inheriting the retired session. The five other numeric
+  owner consumers—IME/composition, keyboard adjustment, pointer, wheel, and
+  accessibility—remain unimplemented.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only

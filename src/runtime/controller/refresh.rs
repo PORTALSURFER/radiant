@@ -75,7 +75,12 @@ mod tests {
             SurfaceNode, TaskPriority, UiSurface, WidgetMessageMapper,
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
-        widgets::{ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextWidget, WidgetSizing},
+        widgets::{
+            ButtonWidget, EditPhase, InteractionProvenance, NumericAdjustment, NumericCodec,
+            NumericInputEditBatch, NumericInputWidget, NumericParseResult, NumericStep,
+            NumericStepDirection, ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget,
+            WidgetInput, WidgetKey, WidgetSizing,
+        },
     };
     use std::{
         cell::{Cell, RefCell},
@@ -889,6 +894,141 @@ mod tests {
                 ..
             }]
         ));
+    }
+
+    struct RefreshNumericCodec;
+
+    impl NumericCodec<u32> for RefreshNumericCodec {
+        type Error = ();
+
+        fn parse(&self, text: &str) -> NumericParseResult<u32> {
+            text.parse()
+                .map_or(NumericParseResult::Invalid, NumericParseResult::Valid)
+        }
+
+        fn format_editable(
+            &self,
+            value: &u32,
+            output: &mut dyn std::fmt::Write,
+        ) -> Result<(), Self::Error> {
+            write!(output, "{value}").map_err(|_| ())
+        }
+    }
+
+    struct RefreshNumericAdjustment;
+
+    impl NumericAdjustment<u32> for RefreshNumericAdjustment {
+        type Error = ();
+
+        fn normalized_to_value(&self, normalized: f32) -> Result<u32, Self::Error> {
+            Ok((normalized * 100.0).round() as u32)
+        }
+
+        fn value_to_normalized(&self, value: &u32) -> Result<f32, Self::Error> {
+            Ok(*value as f32 / 100.0)
+        }
+
+        fn step(
+            &self,
+            value: &u32,
+            _direction: NumericStepDirection,
+            _step: NumericStep,
+        ) -> Result<u32, Self::Error> {
+            Ok(*value)
+        }
+
+        fn scrub(
+            &self,
+            value: &u32,
+            _normalized_delta: f32,
+            _step: NumericStep,
+        ) -> Result<u32, Self::Error> {
+            Ok(*value)
+        }
+
+        fn wheel(&self, value: &u32, _delta: f32, _step: NumericStep) -> Result<u32, Self::Error> {
+            Ok(*value)
+        }
+    }
+
+    struct NumericRefreshBridge {
+        value: u32,
+        reduced: Vec<NumericInputEditBatch<u32>>,
+    }
+
+    impl NumericRefreshBridge {
+        fn surface(&self) -> UiSurface<NumericInputEditBatch<u32>> {
+            let input = NumericInputWidget::try_new(
+                self.value,
+                RefreshNumericCodec,
+                RefreshNumericAdjustment,
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            )
+            .expect("numeric refresh fixture should construct");
+            let node = SurfaceNode::widget(
+                input,
+                WidgetMessageMapper::typed(|batch: NumericInputEditBatch<u32>| batch),
+            )
+            .with_id(20);
+            UiSurface::new(node)
+        }
+    }
+
+    impl RuntimeBridge<NumericInputEditBatch<u32>> for NumericRefreshBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<NumericInputEditBatch<u32>>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn reduce_message(&mut self, message: NumericInputEditBatch<u32>) {
+            self.reduced.push(message);
+        }
+    }
+
+    #[test]
+    fn numeric_refresh_maps_retiring_cancel_and_does_not_sync_successor_state() {
+        let bridge = NumericRefreshBridge {
+            value: 7,
+            reduced: Vec::new(),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+        runtime.refresh();
+        assert!(runtime.focus_widget(20));
+        let _ = runtime.dispatch_focused_input(WidgetInput::text_edit(TextEditCommand::SelectAll));
+        let _ = runtime.dispatch_focused_input(WidgetInput::text_edit(
+            TextEditCommand::InsertText("8".to_owned()),
+        ));
+
+        runtime.bridge_mut().value = 9;
+        runtime.refresh();
+
+        assert_eq!(runtime.bridge().reduced.len(), 1);
+        let batch = &runtime.bridge().reduced[0];
+        assert_eq!(
+            batch
+                .events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            [EditPhase::Begin, EditPhase::Cancel]
+        );
+        assert_eq!(batch.events()[0].transaction, batch.events()[1].transaction);
+        assert_eq!(batch.events()[0].start_value, 7);
+        assert_eq!(batch.events()[1].value, 7);
+        assert_eq!(
+            batch.events()[1].provenance,
+            InteractionProvenance::Keyboard { timestamp: None }
+        );
+        let successor = runtime
+            .surface
+            .find_widget(20)
+            .expect("numeric successor should remain installed")
+            .widget();
+        assert_eq!(
+            successor.automation_semantics().value_text,
+            Some("9".to_owned())
+        );
+        assert!(!successor.preempts_host_shortcut_key(WidgetKey::Escape));
+        assert_eq!(runtime.focused_widget(), None);
     }
 
     #[derive(Clone, Copy)]

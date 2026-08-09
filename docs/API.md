@@ -1111,9 +1111,10 @@ these numeric-input-specific types are exported through the common prelude.
 foundation. Its private inline storage has capacity two and accepts exactly the
 non-empty fragments `[Update]`, `[Commit]`, `[Cancel]`, `[Begin, Update]`,
 `[Begin, Commit]`, and `[Begin, Cancel]`; a two-event fragment must preserve one
-transaction. The shipped text-first widget still emits only `[Begin, Commit]`
-and `[Begin, Cancel]`. The carrier provides storage and shape validation only;
-it does not implement semantic keyboard stepping.
+transaction. The shipped text-first widget still emits only `[Begin, Commit]` and
+`[Begin, Cancel]`; replacement teardown of an active TextEdit is one of the
+`[Begin, Cancel]` boundaries. The carrier provides storage and shape validation
+only; it does not implement semantic keyboard stepping.
 
 Construction requires both application policies:
 
@@ -1141,16 +1142,29 @@ then `Commit`. Enter has the same two-event commit boundary. Escape cancels an
 active edit with exactly `Begin` then `Cancel` and restores the starting value,
 draft, caret, and selection.
 
+During refresh reconciliation, the numeric consumer also consumes
+`Widget::prepare_replacement(...)`. It preserves an active TextEdit only for an
+exact `NumericInputWidget` successor with the same stable ID and external value
+that remains enabled and non-read-only. Removal, incompatible type, changed ID or
+value, disabled successor, and read-only successor conservatively publish one
+`NumericInputEditBatch<T>` rollback with ordered `Begin` then `Cancel` through the
+retiring widget's mapper, restore the starting value/draft/caret/selection, and
+release TextEdit ownership. The transaction identity is retained and the
+teardown cancellation uses keyboard provenance without fabricated timestamp
+metadata. Repeated teardown after cleanup is silent; invalid, incomplete, and
+out-of-range drafts cancel from their retained snapshot without a new parse,
+format, step, or adjustment-policy call.
+
 Retained text, caret, selection, and session state cross a same-ID
 reprojection only when the previous widget has an active edit and the fresh
 value remains compatible. With no active session, the current projection's
 canonical codec-formatted text and caret remain authoritative; stale
 noncanonical committed text is not retained.
 
-This first consumer intentionally stops at generic text editing and keyboard
-terminal boundaries. Normalized `KeyRelease` plumbing is shipped as a distinct
-runtime/native prerequisite; semantic arrow-key adjustment remains
-unimplemented. Pointer scrubbing, wheel changes, IME/composition,
+This first consumer intentionally stops at generic text editing, replacement
+teardown, and keyboard terminal boundaries. Normalized `KeyRelease` plumbing is
+shipped as a distinct runtime/native prerequisite; semantic arrow-key adjustment
+remains unimplemented. Pointer scrubbing, wheel changes, IME/composition,
 accessibility actions, Slider/Knob adoption,
 platform adapters, scheduler/renderer integration, and product numeric policy
 remain separate follow-up slices. The supplied `NumericAdjustment<T>` is
@@ -1169,11 +1183,12 @@ product-specific locale codecs remain application-supplied. The current
 consumer exercises generic construction and the `u32` text lifecycle; the
 other adjustment-consuming behavior remains outside this slice.
 
-### Numeric interaction ownership and admission (TextEdit foundation shipped)
+### Numeric interaction ownership and admission (TextEdit admission and teardown shipped)
 
 This is one shared, target-only, backend-neutral contract for the numeric
-interaction set. The crate-private gate is shipped for TextEdit admission in
-the generic text consumer; IME composition, keyboard adjustment, pointer scrub,
+interaction set. The crate-private gate is shipped for TextEdit admission,
+terminal cleanup, replacement teardown, and compatible reprojection in the
+generic text consumer; IME composition, keyboard adjustment, pointer scrub,
 wheel sequence, and accessibility edit remain target-only consumers. The gate
 is not a public Rust API, native adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
@@ -1253,8 +1268,9 @@ interrupt an incumbent.
 #### Target shared-owner acceptance fixtures
 
 The target contract is accepted only when this matrix holds. The shipped text
-consumer covers the TextEdit admission and cleanup foundation; rows for the
-five other consumers remain target-only:
+consumer covers the TextEdit admission, cleanup, replacement teardown, and
+compatible reprojection foundation; rows for the five other consumers remain
+target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |

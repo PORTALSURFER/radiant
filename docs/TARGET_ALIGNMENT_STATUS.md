@@ -3,16 +3,16 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~77.00% (847 / 11) |
+| Broad end-to-end target coverage | ~77.18% (849 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 82% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 86% |
+| Input, provenance, and edit lifecycle | 87% |
 | Layout, composition, virtualization | 96% |
 | Text, focus, and selection | 66% |
-| Numeric controls | 61% |
+| Numeric controls | 62% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
 | Platform, windowing, and host boundaries | 70% |
@@ -20,7 +20,7 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(82 + 70 + 86 + 96 + 66 + 61 + 96 + 78 + 70 + 66 + 76) / 11 = 77.00%`.
+`(82 + 70 + 87 + 96 + 66 + 62 + 96 + 78 + 70 + 66 + 76) / 11 = 77.18%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -38,9 +38,10 @@ adjustment)` builder with typed construction failures and the shipped
 fixed-capacity `NumericInputEditBatch<T>` bounded incremental carrier. The
 carrier accepts exactly `[Update]`, `[Commit]`, `[Cancel]`, `[Begin, Update]`,
 `[Begin, Commit]`, and `[Begin, Cancel]` in private inline capacity-two
-storage. The shipped text-first widget still emits only `[Begin, Commit]` and
-`[Begin, Cancel]`; this carrier is storage and shape validation foundation
-only. The consumer formats the initial value through the application codec,
+storage. The shipped text-first widget emits only `[Begin, Commit]` and
+`[Begin, Cancel]`, including `[Begin, Cancel]` when replacement teardown retires
+an active edit; this carrier is storage and shape validation foundation only. The
+consumer formats the initial value through the application codec,
 validates the adjustment inverse, preserves verbatim drafts, caches draft
 classification for the synchronous allocation-free focus-loss veto seam,
 commits valid Enter/focus-loss edits, cancels active Escape edits, and retains
@@ -55,7 +56,14 @@ widget or runtime produces or consumes these parts, and semantic keyboard
 adjustment remains unimplemented. This public storage/validation foundation has
 zero impact on the estimates.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
-admission, no-op cleanup, terminal cleanup, and compatible active reprojection.
+admission, no-op cleanup, terminal cleanup, replacement teardown, and compatible
+active reprojection. `NumericInputWidget` consumes the generic
+`Widget::prepare_replacement` seam: an exact same-ID, same-value, enabled,
+non-read-only successor preserves the active session for normal synchronization;
+every other replacement boundary publishes one rollback through the retiring
+mapper, restores the value/draft/caret/selection snapshot, and releases TextEdit
+ownership. Invalid, incomplete, and out-of-range drafts use the existing cancel
+path without consulting codec or adjustment policy.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; semantic keyboard adjustment remains
 contract-defined but unimplemented. The

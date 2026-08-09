@@ -6,7 +6,8 @@ use crate::{
     runtime::WidgetMessageMapper,
     widgets::{
         NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputWidget, TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
+        NumericInputWidget, NumericStepModifiers, TextInputChrome, WidgetProminence, WidgetSizing,
+        WidgetStyle,
     },
 };
 
@@ -63,6 +64,12 @@ where
     /// Select the full canonical editable value.
     pub fn select_all(mut self) -> Self {
         self.input.select_all();
+        self
+    }
+
+    /// Configure the future numeric step-selection consumer.
+    pub fn step_modifiers(mut self, policy: NumericStepModifiers) -> Self {
+        self.input.set_step_modifiers(policy);
         self
     }
 

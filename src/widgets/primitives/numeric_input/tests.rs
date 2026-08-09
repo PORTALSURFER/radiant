@@ -6,8 +6,8 @@ use crate::{
         types::{Point, Vector2},
     },
     widgets::{
-        EditPhase, InteractionSource, NumericStep, NumericStepDirection, PointerModifiers,
-        TextEditCommand,
+        EditPhase, InteractionSource, KeyboardModifier, KeyboardModifiers, NumericStep,
+        NumericStepDirection, NumericStepModifiers, PointerModifiers, TextEditCommand,
     },
 };
 use std::{cell::Cell, fmt, rc::Rc};
@@ -56,6 +56,7 @@ impl NumericCodec<u32> for U32Codec {
 
 struct U32Adjustment {
     inverse_calls: Rc<Cell<usize>>,
+    step_calls: Rc<Cell<usize>>,
     fail_inverse: bool,
 }
 
@@ -80,6 +81,7 @@ impl NumericAdjustment<u32> for U32Adjustment {
         direction: NumericStepDirection,
         step: NumericStep,
     ) -> Result<u32, Self::Error> {
+        self.step_calls.set(self.step_calls.get() + 1);
         let amount = match step {
             NumericStep::Base => 1,
             NumericStep::Fine => 1,
@@ -261,12 +263,36 @@ fn u32_input_with_parse_calls() -> (
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
     .map(|input| (input, parse_calls))
     .expect("u32 fixture should construct")
+}
+
+fn u32_input_with_step_calls() -> (
+    NumericInputWidget<u32, U32Codec, U32Adjustment>,
+    Rc<Cell<usize>>,
+) {
+    let step_calls = Rc::new(Cell::new(0));
+    let input = NumericInputWidget::try_new(
+        7,
+        U32Codec {
+            format_calls: Rc::new(Cell::new(0)),
+            parse_calls: Rc::new(Cell::new(0)),
+            fail_format: false,
+        },
+        U32Adjustment {
+            inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::clone(&step_calls),
+            fail_inverse: false,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("u32 fixture should construct");
+    (input, step_calls)
 }
 
 fn focus<T, C, A>(input: &mut NumericInputWidget<T, C, A>)
@@ -328,6 +354,100 @@ fn construction_formats_generic_private_fixtures_and_validates_inverse() {
 }
 
 #[test]
+fn step_modifier_configuration_is_stored_and_cloned_without_consumption() {
+    let mut input = u32_input();
+    assert_eq!(input.step_modifiers, None);
+
+    let policy = NumericStepModifiers::new(KeyboardModifier::Alt, KeyboardModifier::Control);
+    input.set_step_modifiers(policy);
+    assert_eq!(input.step_modifiers, Some(policy));
+    assert_eq!(input.clone().step_modifiers, Some(policy));
+}
+
+#[test]
+fn arrow_key_samples_remain_no_ops_with_default_and_override_policies() {
+    let policies = [
+        None,
+        Some(NumericStepModifiers::MACOS_DEFAULT),
+        Some(NumericStepModifiers::WINDOWS_LINUX_DEFAULT),
+        Some(NumericStepModifiers::new(
+            KeyboardModifier::Alt,
+            KeyboardModifier::Control,
+        )),
+    ];
+
+    for policy in policies {
+        let (mut input, step_calls) = u32_input_with_step_calls();
+        if let Some(policy) = policy {
+            input.set_step_modifiers(policy);
+        }
+        assert_eq!(input.step_modifiers, policy);
+        focus(&mut input);
+        let before_text = input.text_input.state.clone();
+        let before_focus = input.text_input.common.state;
+
+        for (key, modifiers) in [
+            (WidgetKey::ArrowUp, KeyboardModifiers::default()),
+            (
+                WidgetKey::ArrowDown,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+        ] {
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyPress {
+                        key,
+                        modifiers,
+                        repeat: false,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyPress {
+                        key,
+                        modifiers,
+                        repeat: true,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyRelease {
+                        key,
+                        modifiers,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+        }
+
+        assert_eq!(step_calls.get(), 0);
+        assert_eq!(input.value, 7);
+        assert_eq!(input.text_input.state, before_text);
+        assert_eq!(input.text_input.common.state, before_focus);
+        assert!(input.active.is_none());
+        assert_eq!(input.interaction_gate.incumbent(), None);
+    }
+}
+
+#[test]
 fn construction_reports_codec_and_adjustment_failures_without_fallbacks() {
     let format_calls = Rc::new(Cell::new(0));
     let format_error = NumericInputWidget::try_new(
@@ -339,6 +459,7 @@ fn construction_reports_codec_and_adjustment_failures_without_fallbacks() {
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
@@ -360,6 +481,7 @@ fn construction_reports_codec_and_adjustment_failures_without_fallbacks() {
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: true,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
@@ -387,6 +509,7 @@ fn draft_mutation_is_verbatim_has_no_typed_output_and_does_not_reformat_or_adjus
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
@@ -430,6 +553,7 @@ fn denied_text_admission_precedes_policy_calls_and_preserves_widget_state() {
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
@@ -716,6 +840,7 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),

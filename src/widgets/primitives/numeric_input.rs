@@ -13,9 +13,9 @@ use crate::{
     widgets::{
         EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
         NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-        NumericParseResult, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
-        TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSemantics, WidgetSizing,
+        NumericParseResult, NumericStepModifiers, TextAlign, TextBackgroundRole, TextColorRole,
+        TextInputChrome, TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -50,6 +50,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     adjustment: Rc<A>,
     active: Option<ActiveNumericEdit<T, C>>,
     interaction_gate: NumericInteractionGate,
+    step_modifiers: Option<NumericStepModifiers>,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -66,6 +67,7 @@ where
             adjustment: Rc::clone(&self.adjustment),
             active: self.active.clone(),
             interaction_gate: self.interaction_gate,
+            step_modifiers: self.step_modifiers,
         }
     }
 }
@@ -117,6 +119,7 @@ where
             adjustment,
             active: None,
             interaction_gate: NumericInteractionGate::new(),
+            step_modifiers: None,
         })
     }
 
@@ -136,6 +139,10 @@ where
 
     pub(crate) fn set_sizing(&mut self, sizing: WidgetSizing) {
         self.text_input.common.sizing = sizing;
+    }
+
+    pub(crate) fn set_step_modifiers(&mut self, policy: NumericStepModifiers) {
+        self.step_modifiers = Some(policy);
     }
 
     fn is_editable(&self) -> bool {

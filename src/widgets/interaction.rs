@@ -10,6 +10,7 @@ mod messages;
 mod numeric_adjustment;
 mod numeric_edit;
 mod numeric_input;
+mod numeric_ownership;
 mod numeric_policy;
 mod output;
 mod provenance;
@@ -38,6 +39,7 @@ pub use messages::{
 pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirection};
 pub use numeric_edit::NumericEditSession;
 pub use numeric_input::{NumericInputConstructionError, NumericInputEditBatch};
+pub(crate) use numeric_ownership::{NumericInteractionGate, NumericInteractionOwner};
 pub use numeric_policy::{NumericCodec, NumericParseResult};
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};

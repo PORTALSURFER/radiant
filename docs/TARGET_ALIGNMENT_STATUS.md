@@ -33,6 +33,8 @@ caches draft classification for the synchronous allocation-free focus-loss
 veto seam, commits valid Enter/focus-loss edits, cancels active Escape edits,
 and retains draft/caret/session state only for an actually active edit during
 same-ID reprojection. Qualified exports remain outside the common prelude.
+The crate-private shared numeric interaction gate is now shipped for TextEdit
+admission, no-op cleanup, terminal cleanup, and compatible active reprojection.
 Semantic keyboard adjustment is contract-defined but unimplemented. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
 current source has no composition event or state. Pointer scrubbing is
@@ -40,7 +42,5 @@ contract-defined but unimplemented. Wheel adjustment is now contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-Shared numeric interaction ownership and admission arbitration are
-contract-defined but unimplemented; the IME/composition, keyboard, pointer,
-wheel, and accessibility interaction contracts remain target-only and
-unimplemented.
+The five other shared-gate consumers—IME/composition, keyboard, pointer, wheel,
+and accessibility—remain target-only and unimplemented.

@@ -16,6 +16,7 @@ use crate::{
         NumericParseResult, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
         TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
         WidgetOutput, WidgetSemantics, WidgetSizing,
+        interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
 
@@ -48,6 +49,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     codec: Rc<C>,
     adjustment: Rc<A>,
     active: Option<ActiveNumericEdit<T, C>>,
+    interaction_gate: NumericInteractionGate,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -63,6 +65,7 @@ where
             codec: Rc::clone(&self.codec),
             adjustment: Rc::clone(&self.adjustment),
             active: self.active.clone(),
+            interaction_gate: self.interaction_gate,
         }
     }
 }
@@ -113,6 +116,7 @@ where
             codec,
             adjustment,
             active: None,
+            interaction_gate: NumericInteractionGate::new(),
         })
     }
 
@@ -140,11 +144,7 @@ where
             && !self.text_input.common.state.read_only
     }
 
-    fn begin_keyboard_session(&mut self, timestamp: Option<crate::gui::input::InputTimestamp>) {
-        if self.active.is_some() || !self.is_editable() {
-            return;
-        }
-
+    fn begin_text_edit_session(&mut self, timestamp: Option<crate::gui::input::InputTimestamp>) {
         let start_text = self.text_input.state.value.clone();
         self.active = Some(ActiveNumericEdit {
             session: NumericEditSession::begin(
@@ -208,8 +208,13 @@ where
                 return None;
             }
         };
-        self.value = accepted;
-        Self::terminal_batch(begin, commit)
+        let batch = Self::terminal_batch(begin, commit);
+        if batch.is_some() {
+            self.value = accepted;
+            self.interaction_gate
+                .release(NumericInteractionOwner::TextEdit);
+        }
+        batch
     }
 
     fn cancel_active(
@@ -239,7 +244,12 @@ where
         self.text_input.state.value = active.start_text;
         self.text_input.state.caret = active.start_caret;
         self.text_input.state.selection_anchor = active.start_selection_anchor;
-        Self::terminal_batch(begin, cancel)
+        let batch = Self::terminal_batch(begin, cancel);
+        if batch.is_some() {
+            self.interaction_gate
+                .release(NumericInteractionOwner::TextEdit);
+        }
+        batch
     }
 
     fn handles_value_mutation(input: &WidgetInput) -> bool {
@@ -373,7 +383,13 @@ where
         let started_session =
             self.active.is_none() && self.is_editable() && Self::handles_value_mutation(&input);
         if started_session {
-            self.begin_keyboard_session(Self::keyboard_timestamp(&input));
+            if !self
+                .interaction_gate
+                .try_admit(NumericInteractionOwner::TextEdit)
+            {
+                return None;
+            }
+            self.begin_text_edit_session(Self::keyboard_timestamp(&input));
         }
         let _ = self.text_input.handle_input(bounds, input);
         let value_changed = self
@@ -384,6 +400,8 @@ where
             self.update_active_draft();
         } else if started_session {
             self.active = None;
+            self.interaction_gate
+                .release(NumericInteractionOwner::TextEdit);
         }
         None
     }
@@ -391,10 +409,12 @@ where
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             self.active = None;
+            self.interaction_gate = NumericInteractionGate::new();
             return;
         };
         if self.text_input.common.id != previous.text_input.common.id {
             self.active = None;
+            self.interaction_gate = NumericInteractionGate::new();
             return;
         }
 
@@ -405,6 +425,7 @@ where
             || previous.text_input.common.state.read_only;
         if reset {
             self.active = None;
+            self.interaction_gate = NumericInteractionGate::new();
             return;
         }
 
@@ -412,8 +433,10 @@ where
         if previous.active.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = previous.active.clone();
+            self.interaction_gate = previous.interaction_gate;
         } else {
             self.active = None;
+            self.interaction_gate = NumericInteractionGate::new();
         }
     }
 

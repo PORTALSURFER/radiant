@@ -1776,14 +1776,15 @@ column([
 .gap(8)
 ```
 
-### Target numeric interaction ownership and admission (not yet shipped)
+### Numeric interaction ownership and admission (TextEdit foundation shipped)
 
 This is one shared, target-only, backend-neutral contract for the numeric
-interaction set. It is illustrative design vocabulary, not a shipped runtime,
-public Rust API, native adapter, storage shape, or implementation claim. The
-contract applies to each stable numeric-input identity and is the common
-arbitration boundary for text edit, IME composition, keyboard adjustment,
-pointer scrub, wheel sequence, and accessibility edit.
+interaction set. The crate-private gate is shipped for TextEdit admission in
+the generic text consumer; IME composition, keyboard adjustment, pointer scrub,
+wheel sequence, and accessibility edit remain target-only consumers. The gate
+is not a public Rust API, native adapter, storage shape, or product policy.
+The contract applies to each stable numeric-input identity and is the common
+arbitration boundary for all six interaction kinds.
 
 The owner vocabulary is conceptual and consists exactly of TextEdit,
 ImeComposition, KeyboardAdjustment, PointerScrub, WheelSequence,
@@ -1858,8 +1859,9 @@ interrupt an incumbent.
 
 #### Target shared-owner acceptance fixtures
 
-The target contract is accepted only when this matrix holds; it does not claim
-that any fixture currently passes through a shipped runtime:
+The target contract is accepted only when this matrix holds. The shipped text
+consumer covers the TextEdit admission and cleanup foundation; rows for the
+five other consumers remain target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2050,8 +2052,8 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
 - The target numeric interaction set admits the first actual text mutation as
   TextEdit only when the shared incumbent owner is None. A different pending or
   active owner denies the text admission before parsing, formatting, or edit
-  lifecycle mutation; the shipped text consumer does not claim this target
-  arbitration is implemented.
+  lifecycle mutation; the shipped text consumer implements this TextEdit
+  admission foundation, while the five other consumers remain unimplemented.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only

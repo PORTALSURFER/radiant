@@ -3,16 +3,16 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~78.18% (860 / 11) |
+| Broad end-to-end target coverage | ~78.82% (867 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 90% |
+| Input, provenance, and edit lifecycle | 91% |
 | Layout, composition, virtualization | 96% |
-| Text, focus, and selection | 68% |
-| Numeric controls | 67% |
+| Text, focus, and selection | 69% |
+| Numeric controls | 72% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
 | Platform, windowing, and host boundaries | 70% |
@@ -20,8 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 90 + 96 + 68 + 67 + 96 + 78 + 70 + 66 + 76) / 11 = 78.1818...%`,
-reported as approximately `78.18%`.
+`(83 + 70 + 91 + 96 + 69 + 72 + 96 + 78 + 70 + 66 + 76) / 11 = 78.8181...%`,
+reported as approximately `78.82%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -71,12 +71,14 @@ Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; complete-mode semantic keyboard
 adjustment is now shipped for explicitly configured numeric step policies. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
-current source has no composition event or state. Pointer scrubbing is
-contract-defined but unimplemented. Wheel adjustment is now contract-defined but
-unimplemented. Numeric accessibility actions are contract-defined but
+current source has no composition event or state. Complete-mode NumericInput
+PointerScrub consumption is now shipped for the explicitly configured
+primary-plus-Alt/Option path, including managed capture, bounded output, typed
+failures, and exact rollback/teardown. Wheel adjustment is now contract-defined
+but unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The four other shared-gate consumers—IME/composition, pointer, wheel, and
+The three other shared-gate consumers—IME/composition, wheel, and
 accessibility—remain target-only and unimplemented.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
@@ -115,18 +117,27 @@ and Blocked admission; the controller validates focus and continuation authority
 at dispatch, cancellation, and refresh boundaries and keeps bounded
 button-specific orphan-release suppression. Scrollbar/layout precedence,
 legacy capture and mapper ownership, pointer metadata, and all existing widget
-contracts remain unchanged. This slice earns no PointerScrub credit: NumericInput
-scrub policy, consumer, builder attachment, output, failure, normalization, and
-geometry remain target-only and require a later consumer PR.
+contracts remain unchanged. This foundation earned no PointerScrub credit by
+itself; the later NumericInput consumer below now supplies the bounded
+PointerScrub behavior.
+The exact-head accepted NumericInput PointerScrub consumer now uses that kernel
+for explicitly configured complete-mode widgets. Its 11 deterministic fixtures,
+public API and runtime managed-capture coverage, source guardrails, full
+all-target/all-feature validation, and pointer-motion performance evidence cover
+policy selection, finite in-bounds normalization without clamping, anchor and
+step-change reprojection, no-op accumulation, lifecycle rollback, typed initial
+and update failures, exact metadata, fixed-capacity output, and wheel fall-through.
+This slice updates the estimates by one point in Input/provenance/edit lifecycle,
+one point in Text/focus/selection, and five points in Numeric controls:
+`860 + 1 + 1 + 5 = 867`, `867 / 11 = 78.8181...%`, reported as approximately
+`78.82%`; the generic estimate remains about 97% and the other target gaps
+remain unchanged.
 The numeric interaction output mapping is now shipped for the TextEdit and
 complete-mode keyboard lifecycles. It fixes the exact `on_interaction` mapper
 type and associated error order, one interaction batch/mapper/host dispatch per
 input or teardown boundary, nested TextEdit terminal shapes, bounded keyboard
 edit and failure shapes, compatibility-only `on_edit`, mapper exclusivity,
 validator acceptance, retiring-mapper mode selection, and generic
-host-first/owner-first focused-key routing. This bounded consumer slice updates
-the estimates by one point in Input/provenance/edit lifecycle, one point in
-Text/focus/selection, and four points in Numeric controls:
-`854 + 1 + 1 + 4 = 860`, `860 / 11 = 78.1818...%`, reported as approximately
-`78.18%`; the generic estimate remains about 97% and the other target gaps
-remain unchanged.
+host-first/owner-first focused-key routing. The earlier bounded keyboard
+consumer slice moved the estimates from 854 to 860; the PointerScrub consumer
+above records the current 867 total.

@@ -169,8 +169,10 @@ new focused export leaf or a module split, not a formatting workaround.
   reconciliation; native adapters continue to delegate normalized pointer
   events through the existing controller seam. Legacy widgets retain the old
   path and Blocked presses stop before focus, capture, widget dispatch, mapping,
-  or host output. NumericInput PointerScrub policy and consumers remain a later
-  target-only layer.
+  or host output. Complete-mode NumericInput owns its qualified
+  `NumericScrubPolicy`, retained scrub consumer, typed output/failure mapping,
+  and geometry/anchor lifecycle in the widget allowlist; it uses this kernel
+  without changing generic controller or native production paths.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,

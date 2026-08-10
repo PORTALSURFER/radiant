@@ -3,6 +3,8 @@ use std::rc::Rc;
 use super::{
     EditEvent, EditPhase, EditTransaction, InteractionProvenance, InteractionSource, NumericStep,
     NumericStepDirection,
+    input::{PointerButton, PointerModifiers},
+    numeric_step_modifiers::KeyboardModifier,
 };
 
 /// A typed construction failure for the generic text-first numeric input.
@@ -118,15 +120,99 @@ pub enum NumericStepAttempt {
     Repeat,
 }
 
-/// One typed result part for the complete-mode numeric keyboard interaction.
+/// The attempt boundary for one complete-mode pointer scrub sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericScrubAttempt {
+    /// The first effective candidate in an admitted pointer scrub.
+    Initial,
+    /// A later effective candidate in an active pointer scrub.
+    Update,
+}
+
+/// The explicit activation gesture for complete-mode numeric pointer scrubbing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericScrubActivation {
+    /// A primary-button pointer press carrying one semantic modifier.
+    PrimaryButtonHorizontalDrag {
+        /// The normalized modifier latched when the press is admitted.
+        modifier: KeyboardModifier,
+    },
+}
+
+impl Default for NumericScrubActivation {
+    fn default() -> Self {
+        Self::PrimaryButtonHorizontalDrag {
+            modifier: KeyboardModifier::Alt,
+        }
+    }
+}
+
+/// Backend-neutral, explicit policy for complete-mode numeric pointer scrubbing.
 ///
-/// The complete numeric text widget produces successful keyboard edits and
-/// typed step or format failures when an explicit step policy is attached.
+/// The policy enables no behavior until attached with
+/// [`NumericInputBuilder::scrub_policy`](crate::application::NumericInputBuilder::scrub_policy).
+/// Once attached, each move selects Base, Fine, or Coarse from its own
+/// normalized pointer modifiers; Shift selects Fine and the normalized
+/// platform-command modifier selects Coarse, with Fine taking precedence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct NumericScrubPolicy {
+    activation: NumericScrubActivation,
+}
+
+impl NumericScrubPolicy {
+    /// Construct a policy with an explicit activation gesture.
+    pub const fn new(activation: NumericScrubActivation) -> Self {
+        Self { activation }
+    }
+
+    /// Return the activation gesture carried by this policy.
+    pub const fn activation(&self) -> NumericScrubActivation {
+        self.activation
+    }
+
+    pub(crate) const fn activation_modifier(self) -> KeyboardModifier {
+        match self.activation {
+            NumericScrubActivation::PrimaryButtonHorizontalDrag { modifier } => modifier,
+        }
+    }
+
+    pub(crate) fn admits(self, button: PointerButton, modifiers: PointerModifiers) -> bool {
+        if button != PointerButton::Primary {
+            return false;
+        }
+
+        match self.activation {
+            NumericScrubActivation::PrimaryButtonHorizontalDrag { modifier } => {
+                modifier_is_held(modifier, modifiers)
+            }
+        }
+    }
+}
+
+impl Default for NumericScrubPolicy {
+    fn default() -> Self {
+        Self::new(NumericScrubActivation::default())
+    }
+}
+
+const fn modifier_is_held(modifier: KeyboardModifier, modifiers: PointerModifiers) -> bool {
+    match modifier {
+        KeyboardModifier::Shift => modifiers.shift,
+        KeyboardModifier::Command | KeyboardModifier::Control => modifiers.command,
+        KeyboardModifier::Alt => modifiers.alt,
+    }
+}
+
+/// One typed result part for complete-mode numeric text, keyboard, or pointer
+/// interaction.
+///
+/// The complete numeric widget produces successful edits and typed keyboard or
+/// pointer failures when the corresponding explicit policy is attached.
 /// Failure errors are reference-counted so the envelope can be cloned without
 /// requiring either error type to implement `Clone`.
 #[derive(Debug, PartialEq)]
 pub enum NumericInputInteraction<T, StepError, FormatError> {
-    /// A successful, ordered keyboard edit fragment.
+    /// A successful, ordered edit fragment.
     Edit(NumericInputEditBatch<T>),
     /// A typed step-policy failure.
     StepFailed {
@@ -156,6 +242,36 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
         /// UI-local typed failure storage.
         error: Rc<FormatError>,
         /// Whether a prior repeat was rolled back before this failure.
+        cancelled: bool,
+    },
+    /// A typed pointer-scrub adjustment failure.
+    ScrubFailed {
+        /// Whether the failed attempt was initial or already active.
+        attempt: NumericScrubAttempt,
+        /// The normalized horizontal delta supplied to the adjustment policy.
+        normalized_delta: f32,
+        /// Step selected for the attempted pointer sample.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted sample.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<StepError>,
+        /// Whether an active scrub was rolled back before this failure.
+        cancelled: bool,
+    },
+    /// A typed pointer-scrub formatting failure.
+    PointerFormatFailed {
+        /// Whether the failed attempt was initial or already active.
+        attempt: NumericScrubAttempt,
+        /// The normalized horizontal delta for the candidate being formatted.
+        normalized_delta: f32,
+        /// Step selected for the attempted pointer sample.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted sample.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<FormatError>,
+        /// Whether an active scrub was rolled back before this failure.
         cancelled: bool,
     },
 }
@@ -204,19 +320,121 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
         }
     }
 
+    /// Build a typed pointer-scrub adjustment failure.
+    pub fn scrub_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    ) -> Self {
+        Self::ScrubFailed {
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
+    /// Alias for [`Self::scrub_failed`] that names the pointer boundary.
+    pub fn pointer_scrub_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    ) -> Self {
+        Self::scrub_failed(
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error,
+            cancelled,
+        )
+    }
+
+    /// Build a typed pointer-scrub formatting failure.
+    pub fn pointer_format_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    ) -> Self {
+        Self::PointerFormatFailed {
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
+    /// Alias for [`Self::pointer_format_failed`] using scrub terminology.
+    pub fn scrub_format_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    ) -> Self {
+        Self::pointer_format_failed(
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error,
+            cancelled,
+        )
+    }
+
     /// Return the typed step error by reference when this is `StepFailed`.
     pub fn step_error(&self) -> Option<&StepError> {
         match self {
-            Self::StepFailed { error, .. } => Some(error.as_ref()),
-            Self::Edit(_) | Self::FormatFailed { .. } => None,
+            Self::StepFailed { error, .. } | Self::ScrubFailed { error, .. } => {
+                Some(error.as_ref())
+            }
+            Self::Edit(_) | Self::FormatFailed { .. } | Self::PointerFormatFailed { .. } => None,
+        }
+    }
+
+    /// Return the typed pointer-scrub adjustment error by reference.
+    pub fn scrub_error(&self) -> Option<&StepError> {
+        match self {
+            Self::ScrubFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::StepFailed { .. }
+            | Self::FormatFailed { .. }
+            | Self::PointerFormatFailed { .. } => None,
         }
     }
 
     /// Return the typed format error by reference when this is `FormatFailed`.
     pub fn format_error(&self) -> Option<&FormatError> {
         match self {
-            Self::FormatFailed { error, .. } => Some(error.as_ref()),
-            Self::Edit(_) | Self::StepFailed { .. } => None,
+            Self::FormatFailed { error, .. } | Self::PointerFormatFailed { error, .. } => {
+                Some(error.as_ref())
+            }
+            Self::Edit(_) | Self::StepFailed { .. } | Self::ScrubFailed { .. } => None,
+        }
+    }
+
+    /// Return the typed pointer-scrub formatting error by reference.
+    pub fn pointer_format_error(&self) -> Option<&FormatError> {
+        match self {
+            Self::PointerFormatFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::StepFailed { .. }
+            | Self::FormatFailed { .. }
+            | Self::ScrubFailed { .. } => None,
         }
     }
 }
@@ -257,16 +475,45 @@ impl<T: Clone, StepError, FormatError> Clone
                 error: Rc::clone(error),
                 cancelled: *cancelled,
             },
+            Self::ScrubFailed {
+                attempt,
+                normalized_delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::ScrubFailed {
+                attempt: *attempt,
+                normalized_delta: *normalized_delta,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
+            Self::PointerFormatFailed {
+                attempt,
+                normalized_delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::PointerFormatFailed {
+                attempt: *attempt,
+                normalized_delta: *normalized_delta,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
         }
     }
 }
 
-/// One bounded, ordered envelope of numeric keyboard interaction parts.
+/// One bounded, ordered envelope of complete numeric interaction parts.
 ///
 /// The private inline storage carries at most one successful edit or failure,
-/// or a keyboard cancel rollback followed by its repeat failure. It validates
-/// output shape and provenance for the complete-mode numeric keyboard
-/// consumer.
+/// or a cancellation rollback followed by its update failure. It validates
+/// output shape and provenance for the complete-mode numeric consumers.
 #[derive(Debug, PartialEq)]
 pub struct NumericInputInteractionBatch<T, StepError, FormatError> {
     parts: [NumericInputInteraction<T, StepError, FormatError>; 2],
@@ -344,7 +591,9 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
     interactions: &[NumericInputInteraction<T, StepError, FormatError>],
 ) -> bool {
     match interactions {
-        [NumericInputInteraction::Edit(edit)] => valid_keyboard_edit(edit) || valid_text_edit(edit),
+        [NumericInputInteraction::Edit(edit)] => {
+            valid_keyboard_edit(edit) || valid_pointer_edit(edit) || valid_text_edit(edit)
+        }
         [
             NumericInputInteraction::StepFailed {
                 attempt: NumericStepAttempt::Initial,
@@ -361,11 +610,27 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                 ..
             },
         ] => is_keyboard_provenance(*provenance),
+        [
+            NumericInputInteraction::ScrubFailed {
+                attempt: NumericScrubAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            },
+        ]
+        | [
+            NumericInputInteraction::PointerFormatFailed {
+                attempt: NumericScrubAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            },
+        ] => is_pointer_provenance(*provenance),
         [NumericInputInteraction::Edit(edit), failure] => {
             let [cancel] = edit.events() else {
                 return false;
             };
-            if cancel.phase != EditPhase::Cancel || !is_keyboard_provenance(cancel.provenance) {
+            if cancel.phase != EditPhase::Cancel {
                 return false;
             }
             match failure {
@@ -380,10 +645,32 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                     provenance,
                     cancelled: true,
                     ..
-                } => is_keyboard_provenance(*provenance) && *provenance == cancel.provenance,
+                } => {
+                    is_keyboard_provenance(cancel.provenance)
+                        && is_keyboard_provenance(*provenance)
+                        && *provenance == cancel.provenance
+                }
+                NumericInputInteraction::ScrubFailed {
+                    attempt: NumericScrubAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                }
+                | NumericInputInteraction::PointerFormatFailed {
+                    attempt: NumericScrubAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                } => {
+                    is_pointer_provenance(cancel.provenance)
+                        && is_pointer_provenance(*provenance)
+                        && *provenance == cancel.provenance
+                }
                 NumericInputInteraction::Edit(_)
                 | NumericInputInteraction::StepFailed { .. }
-                | NumericInputInteraction::FormatFailed { .. } => false,
+                | NumericInputInteraction::FormatFailed { .. }
+                | NumericInputInteraction::ScrubFailed { .. }
+                | NumericInputInteraction::PointerFormatFailed { .. } => false,
             }
         }
         _ => false,
@@ -407,6 +694,23 @@ fn valid_keyboard_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
     }
 }
 
+fn valid_pointer_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
+    match edit.events() {
+        [event]
+            if matches!(
+                event.phase,
+                EditPhase::Update | EditPhase::Commit | EditPhase::Cancel
+            ) =>
+        {
+            is_pointer_provenance(event.provenance)
+        }
+        [begin, update] if begin.phase == EditPhase::Begin && update.phase == EditPhase::Update => {
+            is_pointer_provenance(begin.provenance) && is_pointer_provenance(update.provenance)
+        }
+        _ => false,
+    }
+}
+
 fn valid_text_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
     match edit.events() {
         [begin, terminal]
@@ -421,4 +725,8 @@ fn valid_text_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
 
 fn is_keyboard_provenance(provenance: InteractionProvenance) -> bool {
     provenance.source() == InteractionSource::Keyboard
+}
+
+fn is_pointer_provenance(provenance: InteractionProvenance) -> bool {
+    provenance.source() == InteractionSource::Pointer
 }

@@ -92,6 +92,26 @@ fn pointer_press_admission_is_qualified_defaulted_and_object_safe() {
     assert!(!include_str!("../../src/prelude/widgets.rs").contains("PointerPressAdmission"));
 }
 
+#[test]
+fn wheel_hooks_are_defaulted_object_safe_and_keep_phase_less_widgets_compatible() {
+    let mut widget: Box<dyn Widget> = Box::new(LocalWidget::new(
+        30,
+        Rc::new(RefCell::new(LocalState { activations: 0 })),
+    ));
+    let sample = radiant::widgets::WheelSample::started(
+        radiant::widgets::WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite wheel delta"),
+        Default::default(),
+    )
+    .expect("finite wheel sample");
+
+    assert_eq!(
+        widget.handle_wheel_sample(Rect::from_size(120.0, 28.0), Point::new(12.0, 12.0), sample),
+        None
+    );
+    assert!(!widget.retains_managed_wheel_sequence());
+    assert!(!include_str!("../../src/prelude/widgets.rs").contains("WheelSample"));
+}
+
 impl Widget for LocalWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common

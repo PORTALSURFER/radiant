@@ -70,6 +70,64 @@ fn value_mapping_is_available_through_qualified_interaction_module() {
 }
 
 #[test]
+fn exact_wheel_sample_types_are_qualified_and_preserve_units_and_phases() {
+    let line_delta = radiant::widgets::interaction::WheelDelta::lines(Vector2::new(0.0, 1.0))
+        .expect("finite line delta");
+    let pixel_delta = radiant::widgets::interaction::WheelDelta::pixels(Vector2::new(0.0, 40.0))
+        .expect("finite pixel delta");
+
+    assert_eq!(
+        line_delta,
+        radiant::widgets::interaction::WheelDelta::Lines(Vector2::new(0.0, 1.0))
+    );
+    assert_eq!(
+        pixel_delta,
+        radiant::widgets::interaction::WheelDelta::Pixels(Vector2::new(0.0, 40.0))
+    );
+    assert_eq!(
+        line_delta.to_logical_pixels(),
+        Some(Vector2::new(
+            0.0,
+            radiant::widgets::WHEEL_LINE_EQUIVALENCE_PIXELS
+        ))
+    );
+
+    for phase in [
+        radiant::widgets::interaction::WheelPhase::Started,
+        radiant::widgets::interaction::WheelPhase::Changed,
+        radiant::widgets::interaction::WheelPhase::Ended,
+        radiant::widgets::interaction::WheelPhase::Cancelled,
+        radiant::widgets::interaction::WheelPhase::Discrete,
+    ] {
+        let sample = radiant::widgets::interaction::WheelSample::new(
+            pixel_delta,
+            Some(phase),
+            PointerModifiers::default(),
+        )
+        .expect("finite wheel sample");
+        assert_eq!(sample.delta(), pixel_delta);
+        assert_eq!(sample.phase(), Some(phase));
+    }
+    assert_eq!(
+        radiant::widgets::interaction::WheelSample::phase_less(
+            pixel_delta,
+            PointerModifiers::default(),
+        )
+        .expect("phase-less wheel sample")
+        .phase(),
+        None
+    );
+    assert!(
+        radiant::widgets::interaction::WheelSample::new(
+            radiant::widgets::interaction::WheelDelta::Lines(Vector2::new(f32::NAN, 0.0)),
+            Some(radiant::widgets::interaction::WheelPhase::Started),
+            PointerModifiers::default(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn value_format_is_available_through_qualified_and_widgets_root_exports() {
     let qualified = radiant::widgets::interaction::ValueFormat::frequency();
     let root: radiant::widgets::ValueFormat =

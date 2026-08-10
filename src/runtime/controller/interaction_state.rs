@@ -21,6 +21,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) hover: RuntimeHoverState,
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
+    pub(super) wheel: RuntimeWheelState,
     pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
     pub(super) layout_state: RuntimeLayoutContainerStateStore,
     pub(super) drag: RuntimeDragState<Message>,
@@ -33,6 +34,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             hover: RuntimeHoverState::default(),
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
+            wheel: RuntimeWheelState::default(),
             layout_capture: None,
             layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),
@@ -85,6 +87,26 @@ pub(super) struct RuntimeFocusedKeyCapture {
     pub(super) widget_id: WidgetId,
     pub(super) key: WidgetKey,
     pub(super) stale: bool,
+}
+
+/// Runtime-owned lifecycle slot for one exact explicit wheel sequence.
+///
+/// The slot deliberately stores no history or orphan metadata. `Blocked` is a
+/// current identityless state that prevents stale continuations from being
+/// rebound to the widget currently under the pointer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct RuntimeWheelState {
+    pub(super) managed_sequence: RuntimeManagedWheelSequenceState,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum RuntimeManagedWheelSequenceState {
+    #[default]
+    Idle,
+    Active {
+        widget_id: WidgetId,
+    },
+    Blocked,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

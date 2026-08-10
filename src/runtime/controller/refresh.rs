@@ -1,7 +1,8 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
 use super::{
-    SurfaceRuntime, interaction_state::RuntimeManagedPointerCaptureState,
+    SurfaceRuntime,
+    interaction_state::{RuntimeManagedPointerCaptureState, RuntimeManagedWheelSequenceState},
     layout_state::SurfaceLayoutStateDiagnostics,
     virtual_layout::RuntimeVirtualLayoutProjectionProbe,
 };
@@ -2889,6 +2890,7 @@ where
 
     fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {
         self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
@@ -3121,6 +3123,7 @@ where
             &traversal.widget_paths,
             previous_paths_for_refresh,
         );
+        let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
@@ -3155,6 +3158,15 @@ where
             &traversal.widget_paths,
             &retired_widget_ids,
         );
+        self.reconcile_managed_wheel_sequence_after_refresh(
+            &next_surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            wheel_focus_before_refresh,
+        );
         self.reconcile_managed_pointer_capture_after_refresh(
             &next_surface,
             &previous_widget_order,
@@ -3186,6 +3198,7 @@ where
             Duration::ZERO
         };
         self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
         if let Some(capture) = self.interaction.pointer.managed_capture
             && capture.state == RuntimeManagedPointerCaptureState::Active
         {
@@ -3445,6 +3458,123 @@ where
         if !exact_compatible_sync {
             self.mark_focused_key_capture_stale(widget_id);
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn reconcile_managed_wheel_sequence_after_refresh(
+        &mut self,
+        next_surface: &crate::runtime::UiSurface<Message>,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        current_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        retired_widget_ids: &[WidgetId],
+        focused_widget_before_refresh: Option<WidgetId>,
+    ) {
+        let RuntimeManagedWheelSequenceState::Active { widget_id } =
+            self.interaction.wheel.managed_sequence
+        else {
+            return;
+        };
+
+        // Classify the wheel owner before generic identity cleanup can clear
+        // focus or other controller domains. Blocked has no identity and must
+        // survive this refresh unless a later lifecycle boundary closes it.
+        let hard_stale = retired_widget_ids.contains(&widget_id)
+            || !has_unique_widget_id(previous_widget_order, widget_id)
+            || !has_unique_widget_id(current_widget_order, widget_id);
+        let Some(previous_path) = previous_paths.get(&widget_id) else {
+            self.block_managed_wheel_sequence();
+            return;
+        };
+        let Some(current_path) = current_paths.get(&widget_id) else {
+            self.block_managed_wheel_sequence();
+            return;
+        };
+        let Some((previous_kind, previous_valid)) = self
+            .surface
+            .widget_compatibility_at_path(previous_path.as_slice())
+        else {
+            self.block_managed_wheel_sequence();
+            return;
+        };
+        let Some((current_kind, current_valid)) =
+            next_surface.widget_compatibility_at_path(current_path.as_slice())
+        else {
+            self.block_managed_wheel_sequence();
+            return;
+        };
+        let previous_widget = self.surface.find_widget_at_path(widget_id, previous_path);
+        let current_widget = next_surface.find_widget_at_path(widget_id, current_path);
+        let previous_live = previous_widget.is_some_and(|widget| {
+            self.managed_refresh_wheel_widget_is_live(
+                widget,
+                widget_id,
+                focused_widget_before_refresh,
+            )
+        });
+        let current_live = current_widget.is_some_and(|widget| {
+            self.managed_refresh_wheel_widget_is_live(
+                widget,
+                widget_id,
+                focused_widget_before_refresh,
+            )
+        });
+        let exact_compatible = !hard_stale
+            && previous_path == current_path
+            && previous_valid
+            && current_valid
+            && previous_kind == current_kind;
+
+        if exact_compatible && previous_live && current_live {
+            return;
+        }
+
+        // A live owner may be softly retired only for a positively identified
+        // same-path incompatible successor that can accept ordinary wheel
+        // input. Retention is intentionally not required: this transition
+        // releases managed ownership and lets a later sample use hit testing.
+        let soft_incompatible_replacement = !hard_stale
+            && previous_path == current_path
+            && previous_valid
+            && current_valid
+            && previous_kind != current_kind
+            && previous_live
+            && current_widget.is_some_and(|widget| {
+                self.managed_refresh_wheel_widget_is_admitting(widget, widget_id)
+            });
+        if soft_incompatible_replacement {
+            self.clear_managed_wheel_sequence_for_widget(widget_id);
+        } else {
+            self.block_managed_wheel_sequence();
+        }
+    }
+
+    fn managed_refresh_wheel_widget_is_admitting(
+        &self,
+        widget: &crate::runtime::SurfaceWidget<Message>,
+        widget_id: WidgetId,
+    ) -> bool {
+        let common = widget.widget_object().common();
+        widget.id() == widget_id
+            && !common.state.disabled
+            && !common.state.read_only
+            && widget.receives_wheel_input()
+    }
+
+    fn managed_refresh_wheel_widget_is_live(
+        &self,
+        widget: &crate::runtime::SurfaceWidget<Message>,
+        widget_id: WidgetId,
+        focused_widget: Option<WidgetId>,
+    ) -> bool {
+        let common = widget.widget_object().common();
+        widget.id() == widget_id
+            && !common.state.disabled
+            && !common.state.read_only
+            && (!widget.is_focusable() || focused_widget == Some(widget_id))
+            && widget.receives_wheel_input()
+            && widget.retains_managed_wheel_sequence()
     }
 
     fn discard_widget_ownership(&mut self, widget_id: WidgetId) -> SurfaceIdentityOwnership {

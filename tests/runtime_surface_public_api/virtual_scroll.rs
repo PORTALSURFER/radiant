@@ -6,7 +6,9 @@ use radiant::{
         declarative_runtime_bridge,
     },
     theme::ThemeTokens,
-    widgets::{TextWidget, Widget, WidgetCommon, WidgetInput, WidgetSizing},
+    widgets::{
+        TextWidget, WheelDelta, WheelSample, Widget, WidgetCommon, WidgetInput, WidgetSizing,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -82,6 +84,33 @@ fn wheel_routing_honors_custom_pointer_hit_policy() {
     assert!(runtime.wheel_or_scroll_at(Point::new(30.0, 20.0), Vector2::new(0.0, -40.0)));
     assert_eq!(*runtime.bridge().state(), 1);
     assert!(!runtime.wheel_or_scroll_at(Point::new(90.0, 20.0), Vector2::new(0.0, -40.0)));
+    assert_eq!(*runtime.bridge().state(), 1);
+}
+
+#[test]
+fn phase_less_exact_wheel_samples_use_the_legacy_widget_hook() {
+    let bridge = declarative_runtime_bridge(
+        0_usize,
+        |_state: &mut usize| {
+            crate::arc_surface(UiSurface::new(SurfaceNode::custom_widget(
+                CustomWheelHitWidget::new(1),
+                WidgetMessageMapper::typed(|message: DemoMessage| message),
+            )))
+        },
+        |count: &mut usize, message| {
+            if message == DemoMessage::Increment {
+                *count += 1;
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+    let sample = WheelSample::phase_less(
+        WheelDelta::pixels(Vector2::new(0.0, -40.0)).expect("finite wheel delta"),
+        Default::default(),
+    )
+    .expect("finite phase-less sample");
+
+    assert!(runtime.wheel_or_scroll_at_with_sample(Point::new(30.0, 20.0), sample));
     assert_eq!(*runtime.bridge().state(), 1);
 }
 

@@ -7,7 +7,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         WidgetRevision,
-        interaction::{WidgetCursor, WidgetInput, WidgetKey, WidgetOutput},
+        interaction::{WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput},
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
 };
@@ -158,6 +158,33 @@ pub trait Widget: WidgetClone + Any {
 
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
+
+    /// Route one exact wheel sample into this widget.
+    ///
+    /// The default projects the sample into the existing logical-pixel
+    /// [`WidgetInput::Wheel`] contract, preserving source compatibility for
+    /// existing custom widgets. Widgets that need line/pixel or phase evidence
+    /// can override this object-safe hook without changing `WidgetInput`.
+    fn handle_wheel_sample(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+    ) -> Option<WidgetOutput> {
+        sample
+            .to_widget_input(position)
+            .and_then(|input| self.handle_input(bounds, input))
+    }
+
+    /// Report whether this widget still owns an admitted explicit wheel
+    /// sequence after its most recent exact sample.
+    ///
+    /// The controller only uses this evidence to pin routing to the exact
+    /// widget that handled an explicit `Started` sample. The default retains
+    /// legacy wheel behavior and never installs managed wheel authority.
+    fn retains_managed_wheel_sequence(&self) -> bool {
+        false
+    }
 
     /// Cancel widget-local pointer-capture state without delivering a legacy
     /// focus-loss output to the host.

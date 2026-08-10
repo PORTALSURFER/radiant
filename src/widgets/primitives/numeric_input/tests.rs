@@ -1,3 +1,6 @@
+#[path = "tests/composition.rs"]
+mod composition;
+
 use super::*;
 use crate::widgets::interaction::{NumericInputInteraction, NumericInteractionOwner};
 use crate::{

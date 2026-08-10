@@ -31,12 +31,13 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
-        NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt, NumericScrubPolicy,
-        NumericStepAttempt, NumericStepModifiers, NumericWheelAttempt, NumericWheelPolicy,
-        PointerButton, PointerModifiers, PointerPressAdmission, TextAlign, TextBackgroundRole,
-        TextColorRole, TextInputChrome, TextInputWidget, TextWrap, WheelPhase, WheelSample, Widget,
+        CompositionRange, CompositionSample, EditEvent, FocusLossDecision, InteractionProvenance,
+        NumericAdjustment, NumericCodec, NumericEditSession, NumericInputConstructionError,
+        NumericInputEditBatch, NumericInputInteractionBatch, NumericParseResult,
+        NumericScrubAttempt, NumericScrubPolicy, NumericStepAttempt, NumericStepModifiers,
+        NumericWheelAttempt, NumericWheelPolicy, PointerButton, PointerModifiers,
+        PointerPressAdmission, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
+        TextInputState, TextInputWidget, TextWrap, WheelPhase, WheelSample, Widget,
         WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
@@ -80,6 +81,63 @@ struct ActiveNumericEdit<T, C> {
     start_selection_anchor: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NumericInputComposition {
+    original_value: String,
+    replacement_range: CompositionRange,
+    original_selection: CompositionRange,
+    preedit: String,
+    preedit_selection: CompositionRange,
+}
+
+fn byte_index_for_char(value: &str, char_index: usize) -> usize {
+    value
+        .char_indices()
+        .nth(char_index)
+        .map_or(value.len(), |(byte_index, _)| byte_index)
+}
+
+fn composition_display_value(
+    original_value: &str,
+    replacement_range: CompositionRange,
+    replacement: &str,
+) -> String {
+    let start = byte_index_for_char(original_value, replacement_range.start());
+    let end = byte_index_for_char(original_value, replacement_range.end());
+    let mut value = String::with_capacity(
+        original_value
+            .len()
+            .saturating_sub(end.saturating_sub(start))
+            + replacement.len(),
+    );
+    value.push_str(&original_value[..start]);
+    value.push_str(replacement);
+    value.push_str(&original_value[end..]);
+    value
+}
+
+fn set_composition_selection(state: &mut TextInputState, selection: CompositionRange) {
+    state.selection_anchor = selection.start();
+    state.caret = if selection.is_collapsed() {
+        selection.start()
+    } else {
+        selection.end().saturating_sub(1)
+    };
+}
+
+fn composition_display_selection(
+    replacement_range: CompositionRange,
+    selection: CompositionRange,
+) -> Option<CompositionRange> {
+    let start = replacement_range.start() + selection.start();
+    let end = replacement_range.start() + selection.end();
+    let scalar_len = replacement_range
+        .scalar_len()
+        .saturating_sub(replacement_range.len())
+        .saturating_add(selection.scalar_len());
+    CompositionRange::new(start, end, scalar_len).ok()
+}
+
 impl<T: Clone, C> Clone for ActiveNumericEdit<T, C> {
     fn clone(&self) -> Self {
         Self {
@@ -100,6 +158,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     codec: Rc<C>,
     adjustment: Rc<A>,
     active: Option<ActiveNumericEdit<T, C>>,
+    composition: Option<NumericInputComposition>,
     keyboard: Option<KeyboardAdjustmentState<T>>,
     pointer: Option<PointerScrubState<T>>,
     wheel: Option<WheelSequenceState<T>>,
@@ -127,6 +186,7 @@ where
             codec: Rc::clone(&self.codec),
             adjustment: Rc::clone(&self.adjustment),
             active: self.active.clone(),
+            composition: self.composition.clone(),
             keyboard: self.keyboard.clone(),
             pointer: self.pointer.clone(),
             wheel: self.wheel.clone(),
@@ -156,6 +216,7 @@ where
                 "active",
                 &self.active.as_ref().map(|active| active.session.draft()),
             )
+            .field("composition", &self.composition)
             .field(
                 "keyboard",
                 &self.keyboard.as_ref().map(|keyboard| keyboard.key),
@@ -199,6 +260,7 @@ where
             codec,
             adjustment,
             active: None,
+            composition: None,
             keyboard: None,
             pointer: None,
             wheel: None,
@@ -879,6 +941,14 @@ where
         &mut self,
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<NumericInputEditBatch<T>> {
+        self.commit_active_for_owner(timestamp, NumericInteractionOwner::TextEdit)
+    }
+
+    fn commit_active_for_owner(
+        &mut self,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+        owner: NumericInteractionOwner,
+    ) -> Option<NumericInputEditBatch<T>> {
         let active = self.active.take()?;
         let accepted = match active.draft_result.as_ref() {
             Some(NumericParseResult::Valid(value)) => value.clone(),
@@ -911,8 +981,7 @@ where
         let batch = Self::terminal_batch(begin, commit);
         if batch.is_some() {
             self.value = accepted;
-            self.interaction_gate
-                .release(NumericInteractionOwner::TextEdit);
+            self.interaction_gate.release(owner);
         }
         batch
     }
@@ -920,6 +989,14 @@ where
     fn cancel_active(
         &mut self,
         timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<NumericInputEditBatch<T>> {
+        self.cancel_active_for_owner(timestamp, NumericInteractionOwner::TextEdit)
+    }
+
+    fn cancel_active_for_owner(
+        &mut self,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+        owner: NumericInteractionOwner,
     ) -> Option<NumericInputEditBatch<T>> {
         let active = self.active.take()?;
         let begin = active.session.begin_event().clone();
@@ -946,10 +1023,159 @@ where
         self.text_input.state.selection_anchor = active.start_selection_anchor;
         let batch = Self::terminal_batch(begin, cancel);
         if batch.is_some() {
-            self.interaction_gate
-                .release(NumericInteractionOwner::TextEdit);
+            self.interaction_gate.release(owner);
         }
         batch
+    }
+
+    fn start_composition(
+        &mut self,
+        replacement_range: CompositionRange,
+        selection: CompositionRange,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) {
+        if self.composition.is_some()
+            || self.active.is_some()
+            || self.keyboard.is_some()
+            || self.pointer.is_some()
+            || self.wheel.is_some()
+            || self.interaction_gate.incumbent().is_some()
+        {
+            return;
+        }
+        let scalar_len = self.text_input.state.char_len();
+        if !replacement_range.is_valid_for(scalar_len) || !selection.is_valid_for(scalar_len) {
+            return;
+        }
+        if !self
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::ImeComposition)
+        {
+            return;
+        }
+
+        let original_value = self.text_input.state.value.clone();
+        let Ok(preedit_selection) = CompositionRange::new(0, 0, 0) else {
+            self.interaction_gate
+                .release(NumericInteractionOwner::ImeComposition);
+            return;
+        };
+        set_composition_selection(&mut self.text_input.state, selection);
+        self.begin_text_edit_session(timestamp);
+        self.composition = Some(NumericInputComposition {
+            original_value,
+            replacement_range,
+            original_selection: selection,
+            preedit: String::new(),
+            preedit_selection,
+        });
+    }
+
+    fn update_composition(&mut self, preedit: String, selection: CompositionRange) {
+        let Some(mut composition) = self.composition.take() else {
+            return;
+        };
+        if !selection.is_valid_for(preedit.chars().count()) {
+            self.composition = Some(composition);
+            return;
+        }
+        let Some(display_selection) =
+            composition_display_selection(composition.replacement_range, selection)
+        else {
+            self.composition = Some(composition);
+            return;
+        };
+
+        composition.preedit = preedit;
+        composition.preedit_selection = selection;
+        self.text_input.state.value = composition_display_value(
+            &composition.original_value,
+            composition.replacement_range,
+            &composition.preedit,
+        );
+        set_composition_selection(&mut self.text_input.state, display_selection);
+        self.composition = Some(composition);
+    }
+
+    fn commit_composition(
+        &mut self,
+        text: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<NumericInputEditBatch<T>> {
+        let composition = self.composition.take()?;
+        let mut committed_state = TextInputState::from_value(composition_display_value(
+            &composition.original_value,
+            composition.replacement_range,
+            "",
+        ));
+        committed_state.set_caret(composition.replacement_range.start(), false);
+        committed_state.insert_text(&text, self.text_input.props.character_limit);
+        self.text_input.state = committed_state;
+        self.update_active_draft();
+
+        let batch =
+            self.commit_active_for_owner(timestamp, NumericInteractionOwner::ImeComposition);
+        if batch.is_none() {
+            self.interaction_gate
+                .release(NumericInteractionOwner::ImeComposition);
+            if self.active.is_some() {
+                let _ = self
+                    .interaction_gate
+                    .try_admit(NumericInteractionOwner::TextEdit);
+            }
+        }
+        batch
+    }
+
+    fn cancel_composition(
+        &mut self,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<NumericInputEditBatch<T>> {
+        self.composition.take()?;
+        let batch =
+            self.cancel_active_for_owner(timestamp, NumericInteractionOwner::ImeComposition);
+        if batch.is_none() {
+            self.interaction_gate
+                .release(NumericInteractionOwner::ImeComposition);
+            if self.active.is_some() {
+                let _ = self
+                    .interaction_gate
+                    .try_admit(NumericInteractionOwner::TextEdit);
+            }
+        }
+        batch
+    }
+
+    fn dispatch_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
+        if !sample.is_valid() {
+            return None;
+        }
+        let batch = match sample {
+            CompositionSample::Start {
+                replacement_range,
+                selection,
+                timestamp,
+            } if self.is_editable() => {
+                self.start_composition(replacement_range, selection, timestamp);
+                None
+            }
+            CompositionSample::Update {
+                preedit, selection, ..
+            } if self.is_editable() && self.composition.is_some() => {
+                self.update_composition(preedit, selection);
+                None
+            }
+            CompositionSample::Commit { text, timestamp }
+                if self.is_editable() && self.composition.is_some() =>
+            {
+                self.commit_composition(text, timestamp)
+            }
+            CompositionSample::Cancel { timestamp } if self.composition.is_some() => {
+                self.cancel_composition(timestamp)
+            }
+            _ => None,
+        }?;
+        Some(self.encode_output(batch))
     }
 
     fn handle_keyboard_initial(
@@ -1210,6 +1436,13 @@ where
     }
 
     fn handle_focus_loss(&mut self, bounds: Rect) -> Option<NumericInputEditBatch<T>> {
+        if self.composition.is_some() {
+            let output = self.cancel_composition(None);
+            let _ = self
+                .text_input
+                .handle_input(bounds, WidgetInput::FocusChanged(false));
+            return output;
+        }
         if self.active.is_some() {
             let output = self.commit_active(None);
             if output.is_some() {
@@ -1262,6 +1495,9 @@ where
 
     fn prepare_focus_loss(&mut self) -> FocusLossDecision {
         if self.pointer.is_some() {
+            return FocusLossDecision::Allow;
+        }
+        if self.composition.is_some() {
             return FocusLossDecision::Allow;
         }
         let Some(active) = self.active.as_ref() else {
@@ -1368,6 +1604,18 @@ where
             return None;
         }
 
+        if self.composition.is_some()
+            && matches!(
+                &input,
+                WidgetInput::KeyPress {
+                    key: WidgetKey::Escape | WidgetKey::Enter,
+                    ..
+                }
+            )
+        {
+            return None;
+        }
+
         if self.keyboard.is_some() {
             match &input {
                 WidgetInput::KeyPress {
@@ -1424,7 +1672,7 @@ where
                 key: WidgetKey::Escape,
                 timestamp,
                 ..
-            } if self.active.is_some() => {
+            } if self.active.is_some() && self.composition.is_none() => {
                 return self
                     .cancel_active(*timestamp)
                     .map(|batch| self.encode_output(batch));
@@ -1433,7 +1681,7 @@ where
                 key: WidgetKey::Enter,
                 timestamp,
                 ..
-            } => {
+            } if self.composition.is_none() => {
                 return self
                     .commit_active(*timestamp)
                     .map(|batch| self.encode_output(batch));
@@ -1457,7 +1705,7 @@ where
             .active
             .as_ref()
             .is_some_and(|active| active.session.draft() != self.text_input.state.value);
-        if value_changed {
+        if value_changed && self.composition.is_none() {
             self.update_active_draft();
         } else if started_session {
             self.active = None;
@@ -1479,6 +1727,7 @@ where
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = None;
             self.wheel = None;
@@ -1487,6 +1736,7 @@ where
         };
         if self.text_input.common.id != previous.text_input.common.id {
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = None;
             self.wheel = None;
@@ -1505,6 +1755,7 @@ where
             || previous.text_input.common.state.read_only;
         if reset {
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = None;
             self.wheel = None;
@@ -1516,6 +1767,7 @@ where
         if previous.pointer.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = previous.pointer.clone();
             self.wheel = None;
@@ -1523,6 +1775,7 @@ where
         } else if previous.wheel.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = None;
             self.wheel = previous.wheel.clone();
@@ -1530,6 +1783,7 @@ where
         } else if previous.active.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = previous.active.clone();
+            self.composition = previous.composition.clone();
             self.keyboard = None;
             self.pointer = None;
             self.wheel = None;
@@ -1537,12 +1791,14 @@ where
         } else if previous.keyboard.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
+            self.composition = None;
             self.keyboard = previous.keyboard.clone();
             self.pointer = None;
             self.wheel = None;
             self.interaction_gate = previous.interaction_gate;
         } else {
             self.active = None;
+            self.composition = None;
             self.keyboard = None;
             self.pointer = None;
             self.wheel = None;
@@ -1569,7 +1825,10 @@ where
             return None;
         }
 
-        if self.keyboard.is_some() {
+        if self.composition.is_some() {
+            self.cancel_composition(None)
+                .map(|batch| self.encode_output(batch))
+        } else if self.keyboard.is_some() {
             self.cancel_keyboard(None)
         } else if self.pointer.is_some() {
             self.cancel_pointer_scrub(Self::default_pointer_provenance())
@@ -1579,6 +1838,21 @@ where
             self.cancel_active(None)
                 .map(|batch| self.encode_output(batch))
         }
+    }
+
+    fn accepts_composition_input(&self) -> bool {
+        // Runtime focus authority is checked separately. Keep this capability
+        // true during refresh reconciliation, before focused widget state is
+        // restored on the replacement surface.
+        !self.text_input.common.state.disabled && !self.text_input.common.state.read_only
+    }
+
+    fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
+        self.dispatch_composition_sample(sample)
+    }
+
+    fn retains_managed_composition(&self) -> bool {
+        self.composition.is_some()
     }
 
     fn accepts_text_input(&self) -> bool {

@@ -1,7 +1,7 @@
 use crate::gui::types::{Rect, Vector2};
 use crate::widgets::contract::{Widget, WidgetSizing};
 use crate::widgets::interaction::{
-    CompositionRange, CompositionSample, TextInputMessage, WidgetInput,
+    CompositionRange, CompositionSample, TextInputMessage, WidgetInput, WidgetKey,
 };
 
 use super::super::TextInputWidget;
@@ -121,6 +121,74 @@ fn text_input_composition_allows_direct_commit_and_focus_loss_cancels() {
         dispatch(&mut focused, CompositionSample::commit("late")),
         None
     );
+}
+
+#[test]
+fn text_input_composition_commits_empty_text_by_replacing_the_captured_range() {
+    let mut input = text_input("abc");
+    focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((1, 2), (1, 2), 3)), None);
+
+    assert_eq!(
+        dispatch(&mut input, CompositionSample::commit("")),
+        Some(TextInputMessage::Changed {
+            value: String::from("ac"),
+        })
+    );
+    assert_eq!(input.state.value, "ac");
+    assert_eq!(input.state.selection_range(), (1, 1));
+}
+
+#[test]
+fn text_input_composition_commit_honors_scalar_limit_and_single_line_sanitization() {
+    let mut limited = text_input("ab");
+    limited.props.character_limit = Some(3);
+    focus(&mut limited);
+    assert_eq!(dispatch(&mut limited, start((0, 1), (0, 1), 2)), None);
+
+    assert_eq!(
+        dispatch(&mut limited, CompositionSample::commit("界文語")),
+        Some(TextInputMessage::Changed {
+            value: String::from("界文b"),
+        })
+    );
+    assert_eq!(limited.state.value, "界文b");
+    assert_eq!(limited.state.selection_range(), (2, 2));
+
+    let mut sanitized = text_input("ab");
+    focus(&mut sanitized);
+    assert_eq!(dispatch(&mut sanitized, start((0, 1), (0, 1), 2)), None);
+
+    assert_eq!(
+        dispatch(
+            &mut sanitized,
+            CompositionSample::commit("x\r\ny\t\u{0000}z"),
+        ),
+        Some(TextInputMessage::Changed {
+            value: String::from("xy zb"),
+        })
+    );
+    assert_eq!(sanitized.state.value, "xy zb");
+    assert_eq!(sanitized.state.selection_range(), (4, 4));
+}
+
+#[test]
+fn text_input_composition_routes_nonmatching_keys_while_active() {
+    let mut input = text_input("ab");
+    focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((0, 1), (0, 1), 2)), None);
+    assert_eq!(dispatch(&mut input, update("あ", (1, 1))), None);
+
+    assert_eq!(
+        input.handle_input(
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowLeft),
+        ),
+        None
+    );
+    assert_eq!(input.state.value, "あb");
+    assert_eq!(input.state.selection_range(), (0, 0));
+    assert!(input.retains_managed_composition());
 }
 
 #[test]

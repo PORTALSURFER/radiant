@@ -96,15 +96,15 @@ impl TextInputWidget {
 
     pub(super) fn commit_composition(&mut self, text: String) -> Option<TextInputMessage> {
         let composition = self.composition.take()?;
-        let value = display_value(
+        let mut committed_state = TextInputState::from_value(display_value(
             &composition.original_value,
             composition.replacement_range,
-            &text,
-        );
-        let caret = composition.replacement_range.start() + text.chars().count();
-        self.state.value = value.clone();
-        self.state.caret = caret;
-        self.state.selection_anchor = caret;
+            "",
+        ));
+        committed_state.set_caret(composition.replacement_range.start(), false);
+        committed_state.insert_text(&text, self.props.character_limit);
+        let value = committed_state.value.clone();
+        self.state = committed_state;
         Some(TextInputMessage::Changed { value })
     }
 

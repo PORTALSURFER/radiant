@@ -1,5 +1,7 @@
 use std::{marker::PhantomData, rc::Rc};
 
+use super::numeric_ownership::NumericInteractionOwner;
+
 use super::{
     EditEvent, EditPhase, EditTransaction, InteractionProvenance, InteractionSource, NumericStep,
     NumericStepDirection,
@@ -349,6 +351,115 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
         error: Rc<FormatError>,
         /// Whether an active wheel edit was rolled back before this failure.
         cancelled: bool,
+    },
+}
+
+/// A discrete, backend-neutral action for the generic numeric input.
+///
+/// This is the widget-local policy vocabulary. Runtime target resolution,
+/// focus admission, stale-target classification, and native action mapping
+/// remain separate contracts at the runtime and platform boundaries.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum NumericAccessibilityAction {
+    /// Apply one ordinary increase step.
+    Increment,
+    /// Apply one ordinary decrease step.
+    Decrement,
+    /// Replace the value with one complete editable text payload.
+    SetValueText(String),
+}
+
+/// Deterministic rejection reason produced by the widget-local accessibility
+/// consumer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericAccessibilityRejectedReason {
+    /// The complete interaction policy is not installed for this widget.
+    UnsupportedAction,
+    /// The widget is disabled.
+    Disabled,
+    /// The widget is read-only.
+    ReadOnly,
+    /// The runtime has not admitted the target as focused and editable.
+    NotFocusable,
+    /// The complete text payload is an accepted prefix but not a value.
+    Incomplete,
+    /// The complete text payload does not match the codec grammar.
+    Invalid,
+    /// The complete text payload is outside the codec domain.
+    OutOfRange,
+}
+
+/// Public owner vocabulary for an accessibility action that must not interrupt
+/// an incumbent numeric interaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericAccessibilityBlockOwner {
+    /// A normal text edit owns the numeric input.
+    TextEdit,
+    /// An IME composition owns the numeric input.
+    ImeComposition,
+    /// A keyboard adjustment owns the numeric input.
+    KeyboardAdjustment,
+    /// A pointer scrub owns the numeric input.
+    PointerScrub,
+    /// A wheel sequence owns the numeric input.
+    WheelSequence,
+    /// Another accessibility action owns the numeric input.
+    AccessibilityEdit,
+}
+
+impl From<NumericInteractionOwner> for NumericAccessibilityBlockOwner {
+    fn from(owner: NumericInteractionOwner) -> Self {
+        match owner {
+            NumericInteractionOwner::TextEdit => Self::TextEdit,
+            NumericInteractionOwner::ImeComposition => Self::ImeComposition,
+            NumericInteractionOwner::KeyboardAdjustment => Self::KeyboardAdjustment,
+            NumericInteractionOwner::PointerScrub => Self::PointerScrub,
+            NumericInteractionOwner::WheelSequence => Self::WheelSequence,
+            NumericInteractionOwner::AccessibilityEdit => Self::AccessibilityEdit,
+        }
+    }
+}
+
+/// Result of the generic numeric widget's local accessibility policy.
+///
+/// `Unavailable` and stale/removed/unmaterialized target outcomes are owned by
+/// the future runtime dispatch boundary and therefore do not appear here. A
+/// successful changed action is one bounded `Begin`/`Update`/`Commit` batch;
+/// all other outcomes leave the exact widget state unchanged.
+#[derive(Clone, Debug, PartialEq)]
+pub enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
+    /// One accepted changed action with its complete atomic edit lifecycle.
+    Edit(NumericInputEditBatch<T>),
+    /// An accepted policy action produced the current value exactly.
+    NoChange {
+        /// The action that was evaluated.
+        action: NumericAccessibilityAction,
+    },
+    /// The local consumer rejected the action without editing.
+    Rejected {
+        /// The action that was rejected.
+        action: NumericAccessibilityAction,
+        /// Why the local consumer rejected it.
+        reason: NumericAccessibilityRejectedReason,
+    },
+    /// An incumbent interaction owns the input and remains untouched.
+    Blocked {
+        /// The incumbent owner that prevented admission.
+        owner: NumericAccessibilityBlockOwner,
+    },
+    /// The adjustment policy could not produce a candidate value.
+    AdjustmentFailed {
+        /// The action whose adjustment failed.
+        action: NumericAccessibilityAction,
+        /// The policy-provided failure.
+        error: Rc<AdjustmentError>,
+    },
+    /// The codec could not format a changed candidate.
+    FormatFailed {
+        /// The action whose formatting failed.
+        action: NumericAccessibilityAction,
+        /// The codec-provided failure.
+        error: Rc<FormatError>,
     },
 }
 

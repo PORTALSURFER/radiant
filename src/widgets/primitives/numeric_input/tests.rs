@@ -4051,6 +4051,249 @@ fn complete_wheel_escape_focus_loss_and_compatible_reprojection_restore_or_prese
 }
 
 #[test]
+fn accessibility_increment_and_decrement_are_base_atomic_edits() {
+    let (mut input, step_calls, format_calls) = u32_input_with_step_calls();
+    input.set_complete_output_mode();
+    focus(&mut input);
+    let initial_format_calls = format_calls.get();
+
+    let increment = input
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("increment should produce an accessibility outcome");
+    let NumericAccessibilityOutcome::Edit(edit) = increment else {
+        panic!("increment should emit one complete edit");
+    };
+    assert_eq!(edit.events().len(), 3);
+    assert_eq!(edit.events()[0].phase, EditPhase::Begin);
+    assert_eq!(edit.events()[1].phase, EditPhase::Update);
+    assert_eq!(edit.events()[2].phase, EditPhase::Commit);
+    assert_eq!(edit.events()[0].value, 7);
+    assert_eq!(edit.events()[1].value, 8);
+    assert_eq!(edit.events()[2].value, 8);
+    assert!(
+        edit.events()
+            .iter()
+            .all(|event| event.provenance == InteractionProvenance::Accessibility)
+    );
+    assert_eq!(input.value, 8);
+    assert_eq!(input.text_input.state.value, "8");
+    assert_eq!(step_calls.get(), 1);
+    assert_eq!(format_calls.get(), initial_format_calls + 1);
+    assert_eq!(input.interaction_gate.incumbent(), None);
+
+    let decrement = input
+        .handle_accessibility_action(NumericAccessibilityAction::Decrement)
+        .expect("decrement should produce an accessibility outcome");
+    let NumericAccessibilityOutcome::Edit(edit) = decrement else {
+        panic!("decrement should emit one complete edit");
+    };
+    assert_eq!(edit.events()[2].value, 7);
+    assert_eq!(
+        edit.events()[2].provenance,
+        InteractionProvenance::Accessibility
+    );
+    assert_eq!(input.value, 7);
+    assert_eq!(step_calls.get(), 2);
+    assert_eq!(input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn accessibility_set_value_text_parses_once_and_publishes_canonical_text() {
+    let mut fixture = u32_input_with_policy_calls();
+    fixture.input.set_complete_output_mode();
+    focus(&mut fixture.input);
+    let initial_format_calls = fixture.format_calls.get();
+
+    let outcome = fixture
+        .input
+        .handle_accessibility_action(NumericAccessibilityAction::SetValueText("12".into()))
+        .expect("set-value action should produce an outcome");
+    let NumericAccessibilityOutcome::Edit(edit) = outcome else {
+        panic!("valid set-value text should emit one complete edit");
+    };
+    assert_eq!(edit.events().len(), 3);
+    assert_eq!(edit.events()[2].value, 12);
+    assert_eq!(
+        edit.events()[2].provenance,
+        InteractionProvenance::Accessibility
+    );
+    assert_eq!(fixture.input.value, 12);
+    assert_eq!(fixture.input.text_input.state.value, "12");
+    assert_eq!(fixture.parse_calls.get(), 1);
+    assert_eq!(fixture.format_calls.get(), initial_format_calls + 1);
+    assert_eq!(fixture.input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn accessibility_no_change_suppresses_formatting_and_releases_owner() {
+    let mut fixture = u32_input_with_policy_calls();
+    fixture.input.set_complete_output_mode();
+    focus(&mut fixture.input);
+    let initial_format_calls = fixture.format_calls.get();
+
+    let outcome = fixture
+        .input
+        .handle_accessibility_action(NumericAccessibilityAction::SetValueText("7".into()))
+        .expect("unchanged set-value action should produce an outcome");
+    assert_eq!(
+        outcome,
+        NumericAccessibilityOutcome::NoChange {
+            action: NumericAccessibilityAction::SetValueText("7".into()),
+        }
+    );
+    assert_eq!(fixture.input.value, 7);
+    assert_eq!(fixture.input.text_input.state.value, "7");
+    assert_eq!(fixture.format_calls.get(), initial_format_calls);
+    assert_eq!(fixture.input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn accessibility_failures_are_typed_and_leave_exact_state_unchanged() {
+    let mut step_failure = scheduled_keyboard_u32_input(Some(1), None);
+    step_failure.set_complete_output_mode();
+    focus(&mut step_failure);
+    step_failure.set_selection(1, 0);
+    let before_step_state = step_failure.text_input.state.clone();
+    let step_outcome = step_failure
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("step failure should produce an outcome");
+    assert!(matches!(
+        step_outcome,
+        NumericAccessibilityOutcome::AdjustmentFailed {
+            action: NumericAccessibilityAction::Increment,
+            error,
+        } if error.as_ref() == &AdjustmentError
+    ));
+    assert_eq!(step_failure.value, 7);
+    assert_eq!(step_failure.text_input.state, before_step_state);
+    assert_eq!(step_failure.interaction_gate.incumbent(), None);
+
+    let mut format_failure = scheduled_keyboard_u32_input(None, Some(2));
+    format_failure.set_complete_output_mode();
+    focus(&mut format_failure);
+    format_failure.set_selection(1, 0);
+    let before_format_state = format_failure.text_input.state.clone();
+    let format_outcome = format_failure
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("format failure should produce an outcome");
+    assert!(matches!(
+        format_outcome,
+        NumericAccessibilityOutcome::FormatFailed {
+            action: NumericAccessibilityAction::Increment,
+            error,
+        } if error.as_ref() == &CodecError
+    ));
+    assert_eq!(format_failure.value, 7);
+    assert_eq!(format_failure.text_input.state, before_format_state);
+    assert_eq!(format_failure.interaction_gate.incumbent(), None);
+
+    let mut parse_failures = complete_u32_input();
+    focus(&mut parse_failures);
+    for (text, reason) in [
+        ("-", NumericAccessibilityRejectedReason::Incomplete),
+        ("invalid", NumericAccessibilityRejectedReason::Invalid),
+        ("101", NumericAccessibilityRejectedReason::OutOfRange),
+    ] {
+        let outcome = parse_failures
+            .handle_accessibility_action(NumericAccessibilityAction::SetValueText(text.to_owned()))
+            .expect("parse failure should produce an outcome");
+        assert!(matches!(
+            outcome,
+            NumericAccessibilityOutcome::Rejected {
+                reason: actual,
+                ..
+            } if actual == reason
+        ));
+        assert_eq!(parse_failures.value, 7);
+        assert_eq!(parse_failures.text_input.state.value, "7");
+        assert_eq!(parse_failures.interaction_gate.incumbent(), None);
+    }
+}
+
+#[test]
+fn accessibility_owner_admission_is_non_mutating_and_conservative() {
+    let owners = [
+        NumericInteractionOwner::TextEdit,
+        NumericInteractionOwner::ImeComposition,
+        NumericInteractionOwner::KeyboardAdjustment,
+        NumericInteractionOwner::PointerScrub,
+        NumericInteractionOwner::WheelSequence,
+        NumericInteractionOwner::AccessibilityEdit,
+    ];
+    for owner in owners {
+        let mut input = complete_u32_input();
+        focus(&mut input);
+        assert!(input.interaction_gate.try_admit(owner));
+        let before_value = input.value;
+        let before_state = input.text_input.state.clone();
+        let before_focus = input.text_input.common.state.focused;
+        let outcome = input
+            .handle_accessibility_action(NumericAccessibilityAction::Increment)
+            .expect("owner conflict should produce an outcome");
+        assert_eq!(
+            outcome,
+            NumericAccessibilityOutcome::Blocked {
+                owner: owner.into(),
+            }
+        );
+        assert_eq!(input.value, before_value);
+        assert_eq!(input.text_input.state, before_state);
+        assert_eq!(input.text_input.common.state.focused, before_focus);
+        assert_eq!(input.interaction_gate.incumbent(), Some(owner));
+    }
+
+    let mut compatibility = u32_input();
+    let outcome = compatibility
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("unsupported compatibility action should produce an outcome");
+    assert!(matches!(
+        outcome,
+        NumericAccessibilityOutcome::Rejected {
+            reason: NumericAccessibilityRejectedReason::UnsupportedAction,
+            ..
+        }
+    ));
+
+    let mut disabled = complete_u32_input();
+    disabled.text_input.common.state.disabled = true;
+    let outcome = disabled
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("disabled action should produce an outcome");
+    assert!(matches!(
+        outcome,
+        NumericAccessibilityOutcome::Rejected {
+            reason: NumericAccessibilityRejectedReason::Disabled,
+            ..
+        }
+    ));
+
+    let mut read_only = complete_u32_input();
+    read_only.text_input.common.state.read_only = true;
+    let outcome = read_only
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("read-only action should produce an outcome");
+    assert!(matches!(
+        outcome,
+        NumericAccessibilityOutcome::Rejected {
+            reason: NumericAccessibilityRejectedReason::ReadOnly,
+            ..
+        }
+    ));
+
+    let mut unfocused = complete_u32_input();
+    let outcome = unfocused
+        .handle_accessibility_action(NumericAccessibilityAction::Increment)
+        .expect("unfocused action should produce an outcome");
+    assert!(matches!(
+        outcome,
+        NumericAccessibilityOutcome::Rejected {
+            reason: NumericAccessibilityRejectedReason::NotFocusable,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn ui_local_non_clone_policies_are_accepted_by_the_consumer() {
     struct LocalCodec(Rc<Cell<usize>>);
     impl NumericCodec<u32> for LocalCodec {

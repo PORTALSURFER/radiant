@@ -32,13 +32,15 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         CompositionRange, CompositionSample, EditEvent, FocusLossDecision, InteractionProvenance,
-        NumericAdjustment, NumericCodec, NumericEditSession, NumericInputConstructionError,
-        NumericInputEditBatch, NumericInputInteractionBatch, NumericParseResult,
-        NumericScrubAttempt, NumericScrubPolicy, NumericStepAttempt, NumericStepModifiers,
-        NumericWheelAttempt, NumericWheelPolicy, PointerButton, PointerModifiers,
-        PointerPressAdmission, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
-        TextInputState, TextInputWidget, TextWrap, WheelPhase, WheelSample, Widget,
-        WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
+        NumericAccessibilityAction, NumericAccessibilityOutcome,
+        NumericAccessibilityRejectedReason, NumericAdjustment, NumericCodec, NumericEditSession,
+        NumericInputConstructionError, NumericInputEditBatch, NumericInputInteractionBatch,
+        NumericParseResult, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
+        NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
+        NumericWheelPolicy, PointerButton, PointerModifiers, PointerPressAdmission, TextAlign,
+        TextBackgroundRole, TextColorRole, TextInputChrome, TextInputState, TextInputWidget,
+        TextWrap, WheelPhase, WheelSample, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -337,6 +339,145 @@ where
 
     fn encode_output(&self, batch: NumericInputEditBatch<T>) -> WidgetOutput {
         (self.output_encoder)(batch)
+    }
+
+    /// Consume one discrete backend-neutral accessibility action locally.
+    ///
+    /// The runtime must resolve the current target, perform focus/authority
+    /// admission, and reject stale, removed, or unmaterialized targets before
+    /// calling this widget-local policy. This method never transfers focus,
+    /// materializes a target, schedules work, or translates native action
+    /// payloads. It is intentionally available only in complete interaction
+    /// mode so typed adjustment and formatting outcomes remain aligned with
+    /// the existing complete-mode policy; runtime output mapping remains a
+    /// separate dispatch-boundary contract.
+    #[allow(dead_code)]
+    pub(crate) fn handle_accessibility_action(
+        &mut self,
+        action: NumericAccessibilityAction,
+    ) -> Option<NumericAccessibilityOutcome<T, A::Error, C::Error>> {
+        let rejected = |reason| NumericAccessibilityOutcome::Rejected {
+            action: action.clone(),
+            reason,
+        };
+
+        if self.output_mode != NumericInputOutputMode::Complete {
+            return Some(rejected(
+                NumericAccessibilityRejectedReason::UnsupportedAction,
+            ));
+        }
+        if self.text_input.common.state.disabled {
+            return Some(rejected(NumericAccessibilityRejectedReason::Disabled));
+        }
+        if self.text_input.common.state.read_only {
+            return Some(rejected(NumericAccessibilityRejectedReason::ReadOnly));
+        }
+        if !self.text_input.common.state.focused {
+            return Some(rejected(NumericAccessibilityRejectedReason::NotFocusable));
+        }
+        if let Some(owner) = self.interaction_gate.incumbent() {
+            return Some(NumericAccessibilityOutcome::Blocked {
+                owner: owner.into(),
+            });
+        }
+        if !self
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::AccessibilityEdit)
+        {
+            return self.interaction_gate.incumbent().map(|owner| {
+                NumericAccessibilityOutcome::Blocked {
+                    owner: owner.into(),
+                }
+            });
+        }
+        let owner = NumericInteractionOwner::AccessibilityEdit;
+
+        let candidate = match &action {
+            NumericAccessibilityAction::Increment => self.adjustment.step(
+                &self.value,
+                NumericStepDirection::Increase,
+                NumericStep::Base,
+            ),
+            NumericAccessibilityAction::Decrement => self.adjustment.step(
+                &self.value,
+                NumericStepDirection::Decrease,
+                NumericStep::Base,
+            ),
+            NumericAccessibilityAction::SetValueText(text) => match self.codec.parse(text) {
+                NumericParseResult::Valid(value) => Ok(value),
+                NumericParseResult::Incomplete => {
+                    self.interaction_gate.release(owner);
+                    return Some(rejected(NumericAccessibilityRejectedReason::Incomplete));
+                }
+                NumericParseResult::Invalid => {
+                    self.interaction_gate.release(owner);
+                    return Some(rejected(NumericAccessibilityRejectedReason::Invalid));
+                }
+                NumericParseResult::OutOfRange => {
+                    self.interaction_gate.release(owner);
+                    return Some(rejected(NumericAccessibilityRejectedReason::OutOfRange));
+                }
+            },
+        };
+
+        let candidate = match candidate {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                self.interaction_gate.release(owner);
+                return Some(NumericAccessibilityOutcome::AdjustmentFailed {
+                    action,
+                    error: Rc::new(error),
+                });
+            }
+        };
+
+        if candidate == self.value {
+            self.interaction_gate.release(owner);
+            return Some(NumericAccessibilityOutcome::NoChange { action });
+        }
+
+        let mut draft = String::new();
+        if let Err(error) = self.codec.format_editable(&candidate, &mut draft) {
+            self.interaction_gate.release(owner);
+            return Some(NumericAccessibilityOutcome::FormatFailed {
+                action,
+                error: Rc::new(error),
+            });
+        }
+
+        let start_text = self.text_input.state.value.clone();
+        let session = NumericEditSession::begin(
+            self.value.clone(),
+            start_text,
+            InteractionProvenance::Accessibility,
+        );
+        let begin = session.begin_event().clone();
+        let Some(update) = begin
+            .clone()
+            .update(candidate.clone(), InteractionProvenance::Accessibility)
+        else {
+            self.interaction_gate.release(owner);
+            return None;
+        };
+        let Some(commit) = update
+            .clone()
+            .commit(candidate.clone(), InteractionProvenance::Accessibility)
+        else {
+            self.interaction_gate.release(owner);
+            return None;
+        };
+        let Some(edit) = NumericInputEditBatch::from_events(&[begin, update, commit]) else {
+            self.interaction_gate.release(owner);
+            return None;
+        };
+
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        self.interaction_gate.release(owner);
+        Some(NumericAccessibilityOutcome::Edit(edit))
     }
 
     fn is_editable(&self) -> bool {

@@ -839,10 +839,8 @@ where
                 ));
                 None
             }
-            Some(WheelPhase::Cancelled) => None,
-            Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Discrete) | None => {
-                self.handle_wheel_atomic(bounds, position, sample)
-            }
+            Some(WheelPhase::Discrete) | None => self.handle_wheel_atomic(bounds, position, sample),
+            Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Cancelled) => None,
         }
     }
 

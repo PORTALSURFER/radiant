@@ -868,6 +868,55 @@ fn public_numeric_wheel_consumes_exact_samples_and_legacy_scroll_stays_on_fallba
     assert_eq!(runtime.bridge().mapped_phases, mapped_before_legacy);
 }
 
+#[test]
+fn public_numeric_wheel_superseding_start_cancels_owner_before_retargeting() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+    let active_point = Point::new(40.0, 16.0);
+    let outside_point = Point::new(200.0, 16.0);
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 40.0)).expect("finite wheel delta");
+
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        active_point,
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        active_point,
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        outside_point,
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(7));
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Cancel],
+        ]
+    );
+    assert_eq!(runtime.bridge().wheel_calls.get(), 1);
+
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        active_point,
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        active_point,
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
+    assert_eq!(runtime.bridge().wheel_calls.get(), 2);
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct RuntimeWheelObservation {
     widget_id: u64,
@@ -1523,6 +1572,12 @@ fn public_wheel_started_supersedes_active_and_blocked_slots() {
         active.bridge().observations.borrow().as_slice(),
         [
             runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(
+                401,
+                WheelDelta::Pixels(Vector2::new(0.0, 0.0)),
+                WheelPhase::Cancelled,
+                false,
+            ),
             runtime_wheel_observation(402, delta, WheelPhase::Started, false),
             runtime_wheel_observation(402, delta, WheelPhase::Changed, false),
         ]

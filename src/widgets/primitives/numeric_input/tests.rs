@@ -3495,6 +3495,45 @@ fn complete_wheel_consumes_exact_units_atomically_and_keeps_legacy_vectors_unhan
 }
 
 #[test]
+fn complete_wheel_ignores_orphan_phaseful_samples_without_policy_or_state_changes() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let mut fixture = wheel_u32_input(None, None, false);
+    focus(&mut fixture.input);
+    let original_text = fixture.input.text_input.state.clone();
+
+    for phase in [
+        WheelPhase::Changed,
+        WheelPhase::Ended,
+        WheelPhase::Cancelled,
+    ] {
+        assert!(
+            Widget::handle_wheel_sample(
+                &mut fixture.input,
+                bounds,
+                position,
+                exact_wheel_sample(
+                    WheelDelta::pixels(Vector2::new(0.0, 40.0)).unwrap(),
+                    Some(phase),
+                    PointerModifiers::default(),
+                    None,
+                    None,
+                ),
+            )
+            .is_none(),
+            "orphan {phase:?} must remain unhandled"
+        );
+    }
+
+    assert_eq!(fixture.wheel_calls.get(), 0);
+    assert_eq!(fixture.format_calls.get(), 1);
+    assert_eq!(fixture.input.value, 7);
+    assert_eq!(fixture.input.text_input.state, original_text);
+    assert!(fixture.input.wheel.is_none());
+    assert_eq!(fixture.input.interaction_gate.incumbent(), None);
+}
+
+#[test]
 fn complete_wheel_explicit_sequence_preserves_transaction_metadata_and_pending_end() {
     let bounds = wheel_bounds();
     let position = Point::new(40.0, 14.0);

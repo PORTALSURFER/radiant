@@ -191,6 +191,9 @@ where
     ) -> WheelOrScrollRoute {
         let phase = sample.phase();
         if phase == Some(WheelPhase::Started) {
+            if exact_sample {
+                self.cancel_live_managed_wheel_sequence_for_start(point, refresh_after_message);
+            }
             // Every explicit start is a fresh boundary, including a malformed
             // start that cannot be admitted below.
             self.clear_managed_wheel_sequence();
@@ -379,6 +382,41 @@ where
         } else {
             WheelOrScrollRoute::NotRouted
         }
+    }
+
+    fn cancel_live_managed_wheel_sequence_for_start(
+        &mut self,
+        point: Point,
+        refresh_after_message: bool,
+    ) {
+        let RuntimeManagedWheelSequenceState::Active { widget_id } =
+            self.interaction.wheel.managed_sequence
+        else {
+            return;
+        };
+        if !self.managed_wheel_sequence_is_live(widget_id) {
+            return;
+        }
+
+        // The superseding start must not observe the old authority while its
+        // owner processes teardown. The synthetic terminal is owner-only:
+        // unlike ordinary routing, it must never fall through to scrolling.
+        self.clear_managed_wheel_sequence();
+        let cancellation = WheelSample::from_parts(
+            WheelDelta::Pixels(Vector2::new(0.0, 0.0)),
+            Some(WheelPhase::Cancelled),
+            PointerModifiers::default(),
+            None,
+            None,
+        );
+        debug_assert!(cancellation.is_valid());
+        let _ = self.dispatch_wheel_to_widget_with_refresh(
+            widget_id,
+            point,
+            cancellation,
+            refresh_after_message,
+            true,
+        );
     }
 
     fn dispatch_wheel_to_widget_with_refresh(

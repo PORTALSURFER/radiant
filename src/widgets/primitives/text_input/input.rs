@@ -11,6 +11,19 @@ pub(super) fn handle_text_input(
     bounds: Rect,
     input: WidgetInput,
 ) -> Option<TextInputMessage> {
+    if text_input.composition.is_some() {
+        match input {
+            WidgetInput::FocusChanged(false) => {
+                text_input.common.state.focused = false;
+                text_input.cancel_composition();
+            }
+            WidgetInput::FocusChanged(true) => {
+                text_input.common.state.focused = true;
+            }
+            _ => {}
+        }
+        return None;
+    }
     match input {
         WidgetInput::PointerMove { position, .. } => {
             text_input.common.state.hovered = bounds.contains(position);

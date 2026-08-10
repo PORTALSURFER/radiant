@@ -304,9 +304,13 @@ caller-supplied revision applies the projected value and selection, while an
 equal or older revision cannot overwrite retained value, caret, or selection;
 switching revisioned and unrevisioned modes is an explicit reset boundary.
 The target text contract includes explicit composition start, pre-edit update,
-commit, and cancellation events. Platform adapters own candidate-window and
-host-specific IME behavior; the backend-neutral text model owns the logical
-composition range. A numeric codec never emits typed values from pre-edit text.
+commit, and cancellation events. The single-line `TextInputWidget` consumes
+these backend-neutral samples while keeping pre-edit state local and emitting
+one ordinary text change only on commit. Platform adapters own
+candidate-window and host-specific IME behavior; the backend-neutral text
+model owns the logical composition range. Native adapters, matching-key
+suppression, and a numeric codec consumer remain separate boundaries; a
+numeric codec never emits typed values from pre-edit text.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
 tasks, platform operations, timers, asset preparation, and other asynchronous

@@ -9,9 +9,10 @@ use super::WidgetCommon;
 use crate::widgets::contract::{
     FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
-use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{CompositionSample, TextInputMessage, WidgetInput, WidgetOutput};
 
 mod builders;
+mod composition;
 mod editing;
 mod editing_ops;
 mod input;
@@ -32,6 +33,8 @@ pub struct TextInputWidget {
     pub props: TextInputProps,
     /// Mutable input state owned by the widget.
     pub state: TextInputState,
+    /// Transient IME composition state owned by this widget.
+    pub(crate) composition: Option<composition::TextInputComposition>,
 }
 
 /// Named construction fields for [`TextInputWidget`].
@@ -61,6 +64,7 @@ impl TextInputWidget {
                 revision: None,
             },
             state: TextInputState::from_value(parts.value),
+            composition: None,
         }
     }
 
@@ -113,6 +117,21 @@ impl Widget for TextInputWidget {
         TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn accepts_composition_input(&self) -> bool {
+        // Runtime focus authority is checked separately. Keep this capability
+        // true during refresh reconciliation, before focused widget state is
+        // restored on the replacement surface.
+        !self.common.state.disabled && !self.common.state.read_only
+    }
+
+    fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
+        composition::handle_sample(self, sample).map(WidgetOutput::typed)
+    }
+
+    fn retains_managed_composition(&self) -> bool {
+        self.composition.is_some()
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous_widget) = previous.as_any().downcast_ref::<TextInputWidget>() else {
             return;
@@ -126,13 +145,22 @@ impl Widget for TextInputWidget {
                 if current_revision <= previous_revision =>
             {
                 self.state = previous_widget.state.clone();
+                self.composition = previous_widget.composition.clone();
             }
             (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => {}
-            (None, None) if self.state.value == previous_widget.state.value => {
+            (None, None) if self.state.value == previous_widget.committed_value_for_sync() => {
                 self.state = previous_widget.state.clone();
+                self.composition = previous_widget.composition.clone();
             }
             (None, None) => {}
         }
+    }
+
+    fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+        if self.composition.is_some() && !self.can_preserve_composition_with(successor) {
+            self.cancel_composition();
+        }
+        None
     }
 
     fn accepts_text_input(&self) -> bool {

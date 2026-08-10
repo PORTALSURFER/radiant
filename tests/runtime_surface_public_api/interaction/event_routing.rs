@@ -2,10 +2,11 @@ use super::*;
 use radiant::{
     application::numeric_input,
     widgets::{
-        EditPhase, InteractionProvenance, KeyboardModifier, KeyboardModifiers, NumericAdjustment,
-        NumericCodec, NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
-        NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers,
-        NumericWheelPolicy, PointerModifiers, WheelDelta, WheelPhase, WheelSample,
+        CompositionRange, CompositionSample, EditPhase, InteractionProvenance, KeyboardModifier,
+        KeyboardModifiers, NumericAdjustment, NumericCodec, NumericInputInteraction,
+        NumericInputInteractionBatch, NumericParseResult, NumericScrubPolicy, NumericStep,
+        NumericStepDirection, NumericStepModifiers, NumericWheelPolicy, PointerModifiers,
+        WheelDelta, WheelPhase, WheelSample,
     },
 };
 use std::{
@@ -578,6 +579,47 @@ impl RuntimeInputHost<RuntimeNumericMessage> for RuntimeNumericBridge {
             ShortcutResolution::unhandled()
         }
     }
+}
+
+#[test]
+fn public_numeric_composition_keeps_preedit_local_until_one_valid_commit() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+
+    let replacement = CompositionRange::new(0, 1, 1).expect("one-scalar replacement range");
+    let selection = CompositionRange::new(1, 1, 1).expect("collapsed numeric selection");
+    assert_eq!(
+        runtime.dispatch_composition_sample(
+            CompositionSample::start(replacement, selection).expect("valid numeric start"),
+        ),
+        Some(150)
+    );
+    assert_eq!(
+        runtime.dispatch_composition_sample(
+            CompositionSample::update(
+                "12",
+                CompositionRange::new(1, 1, 2).expect("collapsed preedit selection"),
+            )
+            .expect("valid numeric preedit"),
+        ),
+        Some(150)
+    );
+    assert!(runtime.bridge().mapped_phases.is_empty());
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(7));
+    assert_eq!(runtime.bridge().parse_calls.get(), 0);
+
+    runtime.refresh();
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::commit("8")),
+        Some(150)
+    );
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Commit]]
+    );
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
+    assert_eq!(runtime.bridge().parse_calls.get(), 1);
 }
 
 #[test]

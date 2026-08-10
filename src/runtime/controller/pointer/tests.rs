@@ -17,9 +17,9 @@ use crate::{
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
         InteractionSource, InteractiveRowWidget, KeyboardModifiers, PointerButton,
-        PointerModifiers, PointerPressPreflight, PointerShieldMessage, PointerShieldWidget,
-        SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSizing,
+        PointerCapturePolicy, PointerModifiers, PointerPressPreflight, PointerShieldMessage,
+        PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -173,6 +173,191 @@ impl RuntimeBridge<()> for PreflightBridge {
                             Rc::clone(&self.decision),
                             Rc::clone(&self.preflight_calls),
                             Rc::clone(&self.press_calls),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerLifecycleEvent {
+    Press,
+    Move,
+    SecondaryRelease,
+    PrimaryRelease,
+    Drop,
+}
+
+#[derive(Clone)]
+struct PointerLifecycleWidget {
+    common: WidgetCommon,
+    events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+    numeric_preflight: bool,
+    exclusive: bool,
+    active: bool,
+}
+
+impl PointerLifecycleWidget {
+    fn new(
+        id: u64,
+        events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+        numeric_preflight: bool,
+        exclusive: bool,
+    ) -> Self {
+        let mut common = WidgetCommon::fixed(id, 100.0, 40.0)
+            .with_focus(FocusBehavior::Keyboard)
+            .without_default_chrome();
+        common.tooltip = Some(format!("widget-{id}"));
+        Self {
+            common,
+            events,
+            numeric_preflight,
+            exclusive,
+            active: false,
+        }
+    }
+}
+
+impl Widget for PointerLifecycleWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn preflight_pointer_press(&self, input: &WidgetInput) -> PointerPressPreflight {
+        if self.numeric_preflight
+            && self.active
+            && matches!(
+                input,
+                WidgetInput::PointerPress {
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers { alt: true, .. },
+                    ..
+                }
+            )
+        {
+            PointerPressPreflight::Consume
+        } else {
+            PointerPressPreflight::Allow
+        }
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                button: PointerButton::Primary,
+                modifiers,
+                ..
+            } if !self.numeric_preflight || modifiers.alt => {
+                self.active = true;
+                self.common.state.pressed = true;
+                self.events.borrow_mut().push(PointerLifecycleEvent::Press);
+            }
+            WidgetInput::PointerMove { .. } if self.active => {
+                self.events.borrow_mut().push(PointerLifecycleEvent::Move);
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Secondary,
+                ..
+            } if self.active => {
+                self.events
+                    .borrow_mut()
+                    .push(PointerLifecycleEvent::SecondaryRelease);
+                if !self.numeric_preflight {
+                    self.active = false;
+                    self.common.state.pressed = false;
+                }
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } if self.active => {
+                self.active = false;
+                self.common.state.pressed = false;
+                self.events
+                    .borrow_mut()
+                    .push(PointerLifecycleEvent::PrimaryRelease);
+            }
+            WidgetInput::PointerDrop { .. } => {
+                self.events.borrow_mut().push(PointerLifecycleEvent::Drop);
+            }
+            _ => {}
+        }
+        None
+    }
+
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        if self.exclusive {
+            PointerCapturePolicy::Exclusive
+        } else {
+            PointerCapturePolicy::PassThrough
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+struct PointerLifecycleBridge {
+    captured_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+    target_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+    captured_numeric_preflight: bool,
+}
+
+impl PointerLifecycleBridge {
+    fn new(
+        captured_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+        target_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+        captured_numeric_preflight: bool,
+    ) -> Self {
+        Self {
+            captured_events,
+            target_events,
+            captured_numeric_preflight,
+        }
+    }
+}
+
+impl RuntimeBridge<()> for PointerLifecycleBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+            1,
+            0.0,
+            vec![
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::widget(
+                        PointerLifecycleWidget::new(
+                            10,
+                            Rc::clone(&self.captured_events),
+                            self.captured_numeric_preflight,
+                            true,
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::widget(
+                        PointerLifecycleWidget::new(
+                            20,
+                            Rc::clone(&self.target_events),
+                            false,
+                            false,
                         ),
                         WidgetMessageMapper::none(),
                     ),
@@ -2261,6 +2446,170 @@ fn consumed_pointer_press_preflight_preserves_focus_capture_and_skips_widget_dis
     assert_eq!(runtime.pointer_capture(), Some(10));
     assert_eq!(preflight_calls.get(), 2);
     assert_eq!(press_calls.get(), 0);
+}
+
+#[test]
+fn non_primary_numeric_scrub_release_retains_capture_state_until_primary_teardown() {
+    let captured_events = Rc::new(RefCell::new(Vec::new()));
+    let target_events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        PointerLifecycleBridge::new(Rc::clone(&captured_events), Rc::clone(&target_events), true),
+        Vector2::new(200.0, 40.0),
+    );
+    let captured_point = Point::new(20.0, 20.0);
+    let outside_point = Point::new(150.0, 20.0);
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(captured_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert!(runtime.interaction.tooltip.target.is_some());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: captured_point,
+            button: PointerButton::Primary,
+            modifiers: alt,
+            timestamp: None,
+        }),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    let capture_state = runtime.interaction.pointer.capture_state;
+    assert!(capture_state.is_some());
+    assert_eq!(runtime.interaction.tooltip, Default::default());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(outside_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(runtime.interaction.tooltip, Default::default());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside_point,
+            button: PointerButton::Secondary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(runtime.interaction.pointer.capture_state, capture_state);
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(runtime.interaction.tooltip, Default::default());
+    assert_eq!(target_events.borrow().as_slice(), &[]);
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerLifecycleEvent::Press,
+            PointerLifecycleEvent::Move,
+            PointerLifecycleEvent::SecondaryRelease,
+        ]
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(Point::new(170.0, 20.0))),
+        Some(10)
+    );
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerLifecycleEvent::Press,
+            PointerLifecycleEvent::Move,
+            PointerLifecycleEvent::SecondaryRelease,
+            PointerLifecycleEvent::Move,
+        ]
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside_point,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.interaction.pointer.capture_state, None);
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(
+        runtime.interaction.tooltip.target,
+        Some(20),
+        "ordinary primary teardown should rearm the target tooltip"
+    );
+    assert_eq!(
+        target_events.borrow().as_slice(),
+        &[PointerLifecycleEvent::Drop]
+    );
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerLifecycleEvent::Press,
+            PointerLifecycleEvent::Move,
+            PointerLifecycleEvent::SecondaryRelease,
+            PointerLifecycleEvent::Move,
+            PointerLifecycleEvent::PrimaryRelease,
+        ]
+    );
+}
+
+#[test]
+fn exclusive_non_numeric_secondary_release_uses_ordinary_teardown() {
+    let captured_events = Rc::new(RefCell::new(Vec::new()));
+    let target_events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        PointerLifecycleBridge::new(
+            Rc::clone(&captured_events),
+            Rc::clone(&target_events),
+            false,
+        ),
+        Vector2::new(200.0, 40.0),
+    );
+    let captured_point = Point::new(20.0, 20.0);
+    let outside_point = Point::new(150.0, 20.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(captured_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(captured_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside_point,
+            button: PointerButton::Secondary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.interaction.pointer.capture_state, None);
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(
+        target_events.borrow().as_slice(),
+        &[PointerLifecycleEvent::Drop]
+    );
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerLifecycleEvent::Press,
+            PointerLifecycleEvent::SecondaryRelease,
+        ]
+    );
 }
 
 #[test]

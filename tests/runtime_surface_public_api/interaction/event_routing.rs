@@ -2,8 +2,8 @@ use super::*;
 use radiant::{
     application::numeric_input,
     widgets::{
-        EditPhase, KeyboardModifier, KeyboardModifiers, NumericAdjustment, NumericCodec,
-        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
+        EditPhase, InteractionSource, KeyboardModifier, KeyboardModifiers, NumericAdjustment,
+        NumericCodec, NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
         NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers, PointerButton,
     },
 };
@@ -437,10 +437,15 @@ impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
     fn scrub(
         &self,
         value: &RuntimeNumericValue,
-        _normalized_delta: f32,
+        normalized_delta: f32,
         _step: NumericStep,
     ) -> Result<RuntimeNumericValue, Self::Error> {
-        Ok(value.clone())
+        let value = if normalized_delta < 0.0 {
+            value.0.saturating_sub(1)
+        } else {
+            value.0.saturating_add(1)
+        };
+        Ok(RuntimeNumericValue(value))
     }
 
     fn wheel(
@@ -472,6 +477,7 @@ struct RuntimeNumericBridge {
     parse_calls: Rc<Cell<usize>>,
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    transactions: Vec<radiant::widgets::EditTransaction>,
 }
 
 impl Default for RuntimeNumericBridge {
@@ -485,6 +491,7 @@ impl Default for RuntimeNumericBridge {
             parse_calls: Rc::new(Cell::new(0)),
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
+            transactions: Vec::new(),
         }
     }
 }
@@ -532,6 +539,7 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
         for interaction in batch.parts() {
             if let NumericInputInteraction::Edit(edit) = interaction {
                 phases.extend(edit.events().iter().map(|event| event.phase));
+                self.transactions.push(edit.transaction());
                 if let Some(event) = edit.events().last() {
                     self.value = event.value.clone();
                 }
@@ -701,6 +709,124 @@ fn public_numeric_pending_pointer_release_clears_capture_without_mapping_an_edit
     );
     assert_eq!(runtime.pointer_capture(), None);
     assert!(runtime.bridge().mapped_phases.is_empty());
+}
+
+#[test]
+fn public_numeric_pointer_secondary_release_retains_scrub_until_primary_commit() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+
+    let point = Point::new(60.0, 16.0);
+    let outside = Point::new(150.0, 16.0);
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    runtime.dispatch_event(Event::pointer_move(point));
+    assert_eq!(runtime.hovered_widget(), Some(150));
+
+    let before_value = runtime.bridge().value.clone();
+    let before_policy_calls = runtime.bridge().numeric_policy_calls();
+    let before_mapped_phases = runtime.bridge().mapped_phases.clone();
+    let before_draft = runtime
+        .surface()
+        .find_widget(150)
+        .expect("numeric input exists")
+        .widget()
+        .automation_semantics()
+        .value_text;
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: alt,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(150));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside,
+            button: PointerButton::Secondary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(150));
+    assert_eq!(runtime.hovered_widget(), Some(150));
+    assert_eq!(runtime.focused_widget(), Some(150));
+    assert_eq!(runtime.bridge().value, before_value);
+    assert_eq!(runtime.bridge().numeric_policy_calls(), before_policy_calls);
+    assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+    assert!(runtime.bridge().transactions.is_empty());
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(150)
+            .expect("numeric input exists")
+            .widget()
+            .automation_semantics()
+            .value_text,
+        before_draft
+    );
+
+    runtime.refresh();
+    assert_eq!(runtime.pointer_capture(), Some(150));
+    assert_eq!(runtime.focused_widget(), Some(150));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(Point::new(84.0, 16.0))),
+        Some(150)
+    );
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+    assert_eq!(runtime.bridge().transactions.len(), 1);
+    assert_eq!(
+        runtime.bridge().transactions[0].source(),
+        InteractionSource::Pointer
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.hovered_widget(), None);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Commit],
+        ]
+    );
+    assert_eq!(runtime.bridge().transactions.len(), 2);
+    assert_eq!(
+        runtime.bridge().transactions[0],
+        runtime.bridge().transactions[1]
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .mapped_phases
+            .iter()
+            .flatten()
+            .filter(|phase| **phase == EditPhase::Commit)
+            .count(),
+        1
+    );
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
 }
 
 #[test]

@@ -6,6 +6,7 @@ use crate::{
     gui::types::Point,
     layout::LayoutInput,
     runtime::RuntimeBridge,
+    widgets::PointerCapturePolicy,
     widgets::{PointerButton, PointerModifiers, PointerPressPreflight, WidgetId, WidgetInput},
 };
 
@@ -235,6 +236,28 @@ where
         {
             self.rearm_tooltip_hover_intent();
             return None;
+        }
+        if matches!(button, PointerButton::Secondary | PointerButton::Auxiliary)
+            && let Some(captured_id) = self.interaction.pointer.capture
+            && self.widget_pointer_capture_policy(captured_id) == PointerCapturePolicy::Exclusive
+            && self.preflight_pointer_press_for_widget(
+                captured_id,
+                &WidgetInput::pointer_press_with_timestamp(
+                    position,
+                    PointerButton::Primary,
+                    PointerModifiers {
+                        alt: true,
+                        ..PointerModifiers::default()
+                    },
+                    None,
+                ),
+            ) == PointerPressPreflight::Consume
+        {
+            let routed = self.dispatch_input(
+                captured_id,
+                WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
+            );
+            return routed.then_some(captured_id);
         }
         let captured = self.interaction.pointer.capture.take();
         let drop_target = captured.and_then(|captured_id| {

@@ -3,7 +3,7 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~79.45% (874 / 11) |
+| Broad end-to-end target coverage | ~79.55% (875 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
@@ -15,13 +15,13 @@
 | Numeric controls | 77% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
-| Platform, windowing, and host boundaries | 70% |
+| Platform, windowing, and host boundaries | 71% |
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 92 + 96 + 70 + 77 + 96 + 78 + 70 + 66 + 76) / 11 = 79.4545...%`,
-reported as approximately `79.45%`.
+`(83 + 70 + 92 + 96 + 70 + 77 + 96 + 78 + 71 + 66 + 76) / 11 = 79.5454...%`,
+reported as approximately `79.55%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -164,3 +164,17 @@ validator acceptance, retiring-mapper mode selection, and generic
 host-first/owner-first focused-key routing. The earlier bounded keyboard
 consumer slice moved the estimates from 854 to 860; the PointerScrub consumer
 above records 867, and the accepted NumericInput wheel consumer records 874.
+The accepted native wheel adapter slice now maps winit line and pixel deltas to
+validated backend-neutral `WheelSample` values, preserves DPI-adjusted sign,
+TouchPhase lifecycle, modifiers, timestamps, and sequence ranges, and routes
+phaseful events through the exact wheel seam. Explicit lifecycle boundaries
+flush pending phase-less compatibility input; phaseful samples bypass the
+vector-only GPU/scroll queues so units and phase cannot be erased, while exact
+hit testing remains metadata-neutral. Native Vello and auxiliary-window paths
+share the adapter, and focused conversion, routing, full-library, integration,
+guardrail, cross-target, and remote CI evidence are shipped. Phase-less callers
+retain the existing compatibility/coalescing path, and malformed exact input
+retains the sanitized fallback without constructing an invalid exact sample.
+This platform slice moves the evidence-backed total from 874 to 875:
+`874 + 1 = 875`, `875 / 11 = 79.5454...%`, reported as approximately
+`79.55%`; the generic estimate remains about 97%.

@@ -6,7 +6,6 @@ use crate::{
     gui::types::Point,
     layout::LayoutInput,
     runtime::RuntimeBridge,
-    widgets::PointerCapturePolicy,
     widgets::{PointerButton, PointerModifiers, PointerPressPreflight, WidgetId, WidgetInput},
 };
 
@@ -237,26 +236,15 @@ where
             self.rearm_tooltip_hover_intent();
             return None;
         }
+        let release =
+            WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp);
         if matches!(button, PointerButton::Secondary | PointerButton::Auxiliary)
             && let Some(captured_id) = self.interaction.pointer.capture
-            && self.widget_pointer_capture_policy(captured_id) == PointerCapturePolicy::Exclusive
-            && self.preflight_pointer_press_for_widget(
-                captured_id,
-                &WidgetInput::pointer_press_with_timestamp(
-                    position,
-                    PointerButton::Primary,
-                    PointerModifiers {
-                        alt: true,
-                        ..PointerModifiers::default()
-                    },
-                    None,
-                ),
-            ) == PointerPressPreflight::Consume
+            && self
+                .surface_widget(captured_id)
+                .is_some_and(|widget| widget.continues_pointer_capture_after_release(&release))
         {
-            let routed = self.dispatch_input(
-                captured_id,
-                WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
-            );
+            let routed = self.dispatch_input(captured_id, release);
             return routed.then_some(captured_id);
         }
         let captured = self.interaction.pointer.capture.take();
@@ -272,10 +260,7 @@ where
         }
         let widget_id = captured.or_else(|| self.widget_at(position))?;
         self.interaction.pointer.capture_state = None;
-        let routed = self.dispatch_input(
-            widget_id,
-            WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
-        );
+        let routed = self.dispatch_input(widget_id, release);
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);
         }

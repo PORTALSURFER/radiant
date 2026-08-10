@@ -1,15 +1,43 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, default_text_input_sizing, primary_style, view_node_from_widget,
+        MappedWidget, ViewNode, WidgetView, WidgetViewContext, default_text_input_sizing,
+        primary_style, view_node_from_widget,
     },
     layout::Vector2,
-    runtime::WidgetMessageMapper,
+    runtime::{SurfaceNode, SurfaceWidget, WidgetMessageMapper},
     widgets::{
         NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
         NumericInputInteractionBatch, NumericInputWidget, NumericScrubPolicy, NumericStepModifiers,
-        TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
+        TextInputChrome, Widget, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
+
+struct CompleteNumericInputView<T, C, A, Message> {
+    input: NumericInputWidget<T, C, A>,
+    messages: WidgetMessageMapper<Message>,
+}
+
+impl<T, C, A, Message> WidgetView<Message> for CompleteNumericInputView<T, C, A, Message>
+where
+    T: Clone + PartialEq + 'static,
+    C: NumericCodec<T> + 'static,
+    A: NumericAdjustment<T> + 'static,
+    A::Error: 'static,
+    C::Error: 'static,
+    Message: 'static,
+{
+    fn default_sizing(&self) -> WidgetSizing {
+        self.input.common().sizing
+    }
+
+    fn into_surface_node(mut self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<Message> {
+        context.apply_to(&mut self.input);
+        SurfaceNode::Widget(SurfaceWidget::with_runtime_pointer_capture_contract(
+            self.input,
+            self.messages,
+        ))
+    }
+}
 
 /// Builder for a generic numeric input with retained text editing.
 pub struct NumericInputBuilder<T, C, A> {
@@ -104,8 +132,10 @@ where
     {
         let mut input = self.input;
         input.set_complete_output_mode();
-        let mut node =
-            view_node_from_widget(MappedWidget::new(input, WidgetMessageMapper::typed(map)));
+        let mut node = view_node_from_widget(CompleteNumericInputView {
+            input,
+            messages: WidgetMessageMapper::typed(map),
+        });
         node.style = self.style;
         node
     }

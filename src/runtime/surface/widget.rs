@@ -3,8 +3,9 @@ use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
-        FocusBehavior, PointerCapturePolicy, PointerPressPreflight, Widget, WidgetCursor, WidgetId,
-        WidgetInput, WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
+        FocusBehavior, PointerCapturePolicy, PointerPressPreflight, RuntimePointerCaptureContract,
+        Widget, WidgetCursor, WidgetId, WidgetInput, WidgetOutput, WidgetRevision,
+        WidgetSemanticsRevision,
     },
 };
 use std::rc::Rc;
@@ -17,11 +18,47 @@ pub use mapper::{
 };
 pub(crate) use mapper::{MapperDescriptor, MapperRelation};
 
+#[derive(Clone, Copy)]
+struct RuntimePointerCaptureContractHooks {
+    take_pointer_capture_termination_request: fn(&mut dyn Widget) -> bool,
+    continues_pointer_capture_after_release: fn(&dyn Widget, &WidgetInput) -> bool,
+}
+
+fn take_pointer_capture_termination_request<T>(widget: &mut dyn Widget) -> bool
+where
+    T: Widget + RuntimePointerCaptureContract + 'static,
+{
+    widget
+        .as_any_mut()
+        .downcast_mut::<T>()
+        .is_some_and(RuntimePointerCaptureContract::take_pointer_capture_termination_request)
+}
+
+fn continues_pointer_capture_after_release<T>(widget: &dyn Widget, release: &WidgetInput) -> bool
+where
+    T: Widget + RuntimePointerCaptureContract + 'static,
+{
+    widget.as_any().downcast_ref::<T>().is_some_and(|widget| {
+        RuntimePointerCaptureContract::continues_pointer_capture_after_release(widget, release)
+    })
+}
+
+fn runtime_pointer_capture_contract_hooks<T>() -> RuntimePointerCaptureContractHooks
+where
+    T: Widget + RuntimePointerCaptureContract + 'static,
+{
+    RuntimePointerCaptureContractHooks {
+        take_pointer_capture_termination_request: take_pointer_capture_termination_request::<T>,
+        continues_pointer_capture_after_release: continues_pointer_capture_after_release::<T>,
+    }
+}
+
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
 pub struct SurfaceWidget<Message> {
     widget: Box<dyn Widget>,
     messages: WidgetMessageMapper<Message>,
     accepts_native_file_drop: bool,
+    runtime_pointer_capture_contract: Option<RuntimePointerCaptureContractHooks>,
     revision_evidence: SurfaceWidgetRevisionEvidence,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
@@ -79,6 +116,7 @@ impl<Message> Clone for SurfaceWidget<Message> {
             widget: self.widget.clone(),
             messages: self.messages.clone(),
             accepts_native_file_drop: self.accepts_native_file_drop,
+            runtime_pointer_capture_contract: self.runtime_pointer_capture_contract,
             revision_evidence: self.revision_evidence.clone(),
             source: self.source.clone(),
         }
@@ -108,11 +146,34 @@ impl<Message> SurfaceWidget<Message> {
     }
 
     fn from_boxed(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
+        Self::from_boxed_with_runtime_pointer_capture_contract(widget, messages, None)
+    }
+
+    pub(crate) fn with_runtime_pointer_capture_contract<T>(
+        widget: T,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self
+    where
+        T: Widget + RuntimePointerCaptureContract + Clone + 'static,
+    {
+        Self::from_boxed_with_runtime_pointer_capture_contract(
+            Box::new(widget),
+            messages,
+            Some(runtime_pointer_capture_contract_hooks::<T>()),
+        )
+    }
+
+    fn from_boxed_with_runtime_pointer_capture_contract(
+        widget: Box<dyn Widget>,
+        messages: WidgetMessageMapper<Message>,
+        runtime_pointer_capture_contract: Option<RuntimePointerCaptureContractHooks>,
+    ) -> Self {
         let revision_evidence = SurfaceWidgetRevisionEvidence::capture(widget.as_ref());
         Self {
             widget,
             messages,
             accepts_native_file_drop: false,
+            runtime_pointer_capture_contract,
             revision_evidence,
             source: None,
         }
@@ -241,6 +302,23 @@ impl<Message> SurfaceWidget<Message> {
         input: &WidgetInput,
     ) -> PointerPressPreflight {
         self.widget.preflight_pointer_press(input)
+    }
+
+    pub(in crate::runtime) fn take_pointer_capture_termination_request(&mut self) -> bool {
+        self.runtime_pointer_capture_contract
+            .map(|hooks| (hooks.take_pointer_capture_termination_request)(self.widget.as_mut()))
+            .unwrap_or(false)
+    }
+
+    pub(in crate::runtime) fn continues_pointer_capture_after_release(
+        &self,
+        release: &WidgetInput,
+    ) -> bool {
+        self.runtime_pointer_capture_contract
+            .map(|hooks| {
+                (hooks.continues_pointer_capture_after_release)(self.widget.as_ref(), release)
+            })
+            .unwrap_or(false)
     }
 
     pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {

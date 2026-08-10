@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    application::{IntoView, numeric_input},
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::{Point, Rect, Vector2},
     layout::{
@@ -11,15 +12,17 @@ use crate::{
     },
     runtime::{
         Command, CommandOutcome, Event, PaintPrimitive, RepaintScope, SurfaceChild, SurfaceNode,
-        UiSurface, WidgetMessageMapper,
+        SurfaceWidget, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
-        InteractionSource, InteractiveRowWidget, KeyboardModifiers, PointerButton,
-        PointerCapturePolicy, PointerModifiers, PointerPressPreflight, PointerShieldMessage,
-        PointerShieldWidget, SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        InteractionSource, InteractiveRowWidget, KeyboardModifiers, NumericAdjustment,
+        NumericCodec, NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
+        NumericScrubPolicy, NumericStep, NumericStepDirection, PointerButton, PointerCapturePolicy,
+        PointerModifiers, PointerPressPreflight, PointerShieldMessage, PointerShieldWidget,
+        RuntimePointerCaptureContract, SliderEditBatch, TextInputWidget, TextWidget, Widget,
+        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -271,10 +274,8 @@ impl Widget for PointerLifecycleWidget {
                 self.events
                     .borrow_mut()
                     .push(PointerLifecycleEvent::SecondaryRelease);
-                if !self.numeric_preflight {
-                    self.active = false;
-                    self.common.state.pressed = false;
-                }
+                self.active = false;
+                self.common.state.pressed = false;
             }
             WidgetInput::PointerRelease {
                 button: PointerButton::Primary,
@@ -309,6 +310,146 @@ impl Widget for PointerLifecycleWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ControllerNumericValue(u32);
+
+#[derive(Debug, PartialEq, Eq)]
+struct ControllerNumericStepError;
+
+#[derive(Debug, PartialEq, Eq)]
+struct ControllerNumericFormatError;
+
+struct ControllerNumericCodec;
+
+impl NumericCodec<ControllerNumericValue> for ControllerNumericCodec {
+    type Error = ControllerNumericFormatError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<ControllerNumericValue> {
+        text.parse::<u32>()
+            .map(ControllerNumericValue)
+            .map_or(NumericParseResult::Invalid, NumericParseResult::Valid)
+    }
+
+    fn format_editable(
+        &self,
+        value: &ControllerNumericValue,
+        output: &mut dyn std::fmt::Write,
+    ) -> Result<(), Self::Error> {
+        write!(output, "{}", value.0).map_err(|_| ControllerNumericFormatError)
+    }
+}
+
+struct ControllerNumericAdjustment;
+
+impl NumericAdjustment<ControllerNumericValue> for ControllerNumericAdjustment {
+    type Error = ControllerNumericStepError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<ControllerNumericValue, Self::Error> {
+        Ok(ControllerNumericValue(normalized as u32))
+    }
+
+    fn value_to_normalized(&self, value: &ControllerNumericValue) -> Result<f32, Self::Error> {
+        Ok(value.0 as f32)
+    }
+
+    fn step(
+        &self,
+        value: &ControllerNumericValue,
+        direction: NumericStepDirection,
+        step: NumericStep,
+    ) -> Result<ControllerNumericValue, Self::Error> {
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        Ok(ControllerNumericValue(match direction {
+            NumericStepDirection::Decrease => value.0.saturating_sub(amount),
+            NumericStepDirection::Increase => value.0.saturating_add(amount),
+        }))
+    }
+
+    fn scrub(
+        &self,
+        value: &ControllerNumericValue,
+        normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<ControllerNumericValue, Self::Error> {
+        Ok(ControllerNumericValue(if normalized_delta < 0.0 {
+            value.0.saturating_sub(1)
+        } else {
+            value.0.saturating_add(1)
+        }))
+    }
+
+    fn wheel(
+        &self,
+        value: &ControllerNumericValue,
+        _delta: f32,
+        _step: NumericStep,
+    ) -> Result<ControllerNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+}
+
+type ControllerNumericBatch = NumericInputInteractionBatch<
+    ControllerNumericValue,
+    ControllerNumericStepError,
+    ControllerNumericFormatError,
+>;
+
+enum ControllerNumericMessage {
+    Interaction(ControllerNumericBatch),
+}
+
+struct ControllerNumericBridge {
+    value: ControllerNumericValue,
+    mapped_phases: Vec<Vec<EditPhase>>,
+    transactions: Vec<crate::widgets::EditTransaction>,
+}
+
+impl Default for ControllerNumericBridge {
+    fn default() -> Self {
+        Self {
+            value: ControllerNumericValue(7),
+            mapped_phases: Vec::new(),
+            transactions: Vec::new(),
+        }
+    }
+}
+
+impl RuntimeBridge<ControllerNumericMessage> for ControllerNumericBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<ControllerNumericMessage>> {
+        crate::runtime::test_arc_surface(
+            numeric_input(
+                self.value.clone(),
+                ControllerNumericCodec,
+                ControllerNumericAdjustment,
+            )
+            .expect("controller numeric fixture should construct")
+            .scrub_policy(NumericScrubPolicy::MACOS_DEFAULT)
+            .on_interaction(ControllerNumericMessage::Interaction)
+            .id(10)
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, message: ControllerNumericMessage) {
+        let ControllerNumericMessage::Interaction(batch) = message;
+        let mut phases = Vec::new();
+        for interaction in batch.parts() {
+            if let NumericInputInteraction::Edit(edit) = interaction {
+                phases.extend(edit.events().iter().map(|event| event.phase));
+                self.transactions.push(edit.transaction());
+                if let Some(event) = edit.events().last() {
+                    self.value = event.value.clone();
+                }
+            }
+        }
+        self.mapped_phases.push(phases);
     }
 }
 
@@ -367,6 +508,276 @@ impl RuntimeBridge<()> for PointerLifecycleBridge {
     }
 
     fn reduce_message(&mut self, _message: ()) {}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerTerminationEvent {
+    Press,
+    Move,
+    Cancel,
+    PrimaryRelease,
+}
+
+struct PointerTerminationWidget {
+    common: WidgetCommon,
+    events: Rc<RefCell<Vec<PointerTerminationEvent>>>,
+    termination_requested: bool,
+}
+
+impl Clone for PointerTerminationWidget {
+    fn clone(&self) -> Self {
+        Self {
+            common: self.common.clone(),
+            events: Rc::clone(&self.events),
+            termination_requested: false,
+        }
+    }
+}
+
+impl PointerTerminationWidget {
+    fn new(id: u64, events: Rc<RefCell<Vec<PointerTerminationEvent>>>) -> Self {
+        let mut common = WidgetCommon::fixed(id, 100.0, 40.0)
+            .with_focus(FocusBehavior::Keyboard)
+            .without_default_chrome();
+        common.tooltip = Some(format!("widget-{id}"));
+        Self {
+            common,
+            events,
+            termination_requested: false,
+        }
+    }
+}
+
+impl Widget for PointerTerminationWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                button: PointerButton::Primary,
+                ..
+            } => {
+                self.common.state.pressed = true;
+                self.events
+                    .borrow_mut()
+                    .push(PointerTerminationEvent::Press);
+                None
+            }
+            WidgetInput::PointerMove { .. } if self.common.state.pressed => {
+                self.events.borrow_mut().push(PointerTerminationEvent::Move);
+                self.termination_requested = true;
+                Some(WidgetOutput::typed(1usize))
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } if self.common.state.pressed => {
+                self.common.state.pressed = false;
+                self.events
+                    .borrow_mut()
+                    .push(PointerTerminationEvent::PrimaryRelease);
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        self.events
+            .borrow_mut()
+            .push(PointerTerminationEvent::Cancel);
+        None
+    }
+
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        PointerCapturePolicy::Exclusive
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl RuntimePointerCaptureContract for PointerTerminationWidget {
+    fn take_pointer_capture_termination_request(&mut self) -> bool {
+        std::mem::take(&mut self.termination_requested)
+    }
+
+    fn continues_pointer_capture_after_release(&self, _release: &WidgetInput) -> bool {
+        false
+    }
+}
+
+struct PointerTerminationBridge {
+    captured_events: Rc<RefCell<Vec<PointerTerminationEvent>>>,
+    target_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+    messages: Vec<usize>,
+}
+
+impl PointerTerminationBridge {
+    fn new(
+        captured_events: Rc<RefCell<Vec<PointerTerminationEvent>>>,
+        target_events: Rc<RefCell<Vec<PointerLifecycleEvent>>>,
+    ) -> Self {
+        Self {
+            captured_events,
+            target_events,
+            messages: Vec::new(),
+        }
+    }
+}
+
+impl RuntimeBridge<usize> for PointerTerminationBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+            1,
+            0.0,
+            vec![
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::Widget(SurfaceWidget::with_runtime_pointer_capture_contract(
+                        PointerTerminationWidget::new(10, Rc::clone(&self.captured_events)),
+                        WidgetMessageMapper::typed(|message: usize| message),
+                    )),
+                ),
+                fixed_width_child(
+                    100.0,
+                    SurfaceNode::widget(
+                        PointerLifecycleWidget::new(
+                            20,
+                            Rc::clone(&self.target_events),
+                            false,
+                            false,
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.messages.push(message);
+    }
+}
+
+#[test]
+fn pointer_capture_termination_clears_controller_authority_before_host_reprojection() {
+    let captured_events = Rc::new(RefCell::new(Vec::new()));
+    let target_events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        PointerTerminationBridge::new(Rc::clone(&captured_events), Rc::clone(&target_events)),
+        Vector2::new(200.0, 40.0),
+    );
+    let captured_point = Point::new(20.0, 20.0);
+    let outside_point = Point::new(150.0, 20.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(captured_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(runtime.interaction.tooltip.target, Some(10));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(captured_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert!(runtime.interaction.pointer.capture_state.is_some());
+    assert_eq!(runtime.interaction.tooltip.target, None);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(outside_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.interaction.pointer.capture_state, None);
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(runtime.interaction.tooltip.target, Some(20));
+    assert!(runtime.interaction.tooltip.deadline.is_some());
+    assert_eq!(runtime.bridge().messages, vec![1]);
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerTerminationEvent::Press,
+            PointerTerminationEvent::Move
+        ]
+    );
+    assert!(target_events.borrow().is_empty());
+
+    let messages_after_termination = runtime.bridge().messages.clone();
+    let events_after_termination = captured_events.borrow().clone();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(outside_point)),
+        Some(20)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.interaction.pointer.capture_state, None);
+    assert_eq!(runtime.bridge().messages, messages_after_termination);
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        events_after_termination
+    );
+    assert!(target_events.borrow().is_empty());
+}
+
+#[test]
+fn direct_pointer_dispatch_consumes_same_termination_request() {
+    let captured_events = Rc::new(RefCell::new(Vec::new()));
+    let target_events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        PointerTerminationBridge::new(Rc::clone(&captured_events), Rc::clone(&target_events)),
+        Vector2::new(200.0, 40.0),
+    );
+    let point = Point::new(20.0, 20.0);
+
+    assert_eq!(runtime.dispatch_event(Event::pointer_move(point)), Some(10));
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(point)),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert!(runtime.interaction.pointer.capture_state.is_some());
+
+    assert!(runtime.dispatch_input(10, WidgetInput::pointer_move(Point::new(80.0, 20.0))));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.interaction.pointer.capture_state, None);
+    assert_eq!(runtime.hovered_widget(), Some(10));
+    assert_eq!(runtime.interaction.tooltip.target, Some(10));
+    assert!(runtime.interaction.tooltip.deadline.is_some());
+    assert_eq!(runtime.bridge().messages, vec![1]);
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        &[
+            PointerTerminationEvent::Press,
+            PointerTerminationEvent::Move
+        ]
+    );
+    assert!(target_events.borrow().is_empty());
+
+    let events_after_termination = captured_events.borrow().clone();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(point)),
+        Some(10)
+    );
+    assert_eq!(
+        captured_events.borrow().as_slice(),
+        events_after_termination
+    );
+    assert!(target_events.borrow().is_empty());
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2450,14 +2861,12 @@ fn consumed_pointer_press_preflight_preserves_focus_capture_and_skips_widget_dis
 
 #[test]
 fn non_primary_numeric_scrub_release_retains_capture_state_until_primary_teardown() {
-    let captured_events = Rc::new(RefCell::new(Vec::new()));
-    let target_events = Rc::new(RefCell::new(Vec::new()));
     let mut runtime = SurfaceRuntime::new(
-        PointerLifecycleBridge::new(Rc::clone(&captured_events), Rc::clone(&target_events), true),
+        ControllerNumericBridge::default(),
         Vector2::new(200.0, 40.0),
     );
-    let captured_point = Point::new(20.0, 20.0);
-    let outside_point = Point::new(150.0, 20.0);
+    let captured_point = Point::new(60.0, 16.0);
+    let outside_point = Point::new(190.0, 16.0);
     let alt = PointerModifiers {
         alt: true,
         ..PointerModifiers::default()
@@ -2468,7 +2877,6 @@ fn non_primary_numeric_scrub_release_retains_capture_state_until_primary_teardow
         Some(10)
     );
     assert_eq!(runtime.hovered_widget(), Some(10));
-    assert!(runtime.interaction.tooltip.target.is_some());
 
     assert_eq!(
         runtime.dispatch_event(Event::PointerPress {
@@ -2482,83 +2890,82 @@ fn non_primary_numeric_scrub_release_retains_capture_state_until_primary_teardow
     assert_eq!(runtime.pointer_capture(), Some(10));
     let capture_state = runtime.interaction.pointer.capture_state;
     assert!(capture_state.is_some());
-    assert_eq!(runtime.interaction.tooltip, Default::default());
+    assert!(runtime.bridge().mapped_phases.is_empty());
 
-    assert_eq!(
-        runtime.dispatch_event(Event::pointer_move(outside_point)),
-        Some(10)
-    );
-    assert_eq!(runtime.hovered_widget(), Some(10));
-    assert_eq!(runtime.interaction.tooltip, Default::default());
-
+    let secondary_timestamp = Some(InputTimestamp::capture());
     assert_eq!(
         runtime.dispatch_event(Event::PointerRelease {
             position: outside_point,
             button: PointerButton::Secondary,
-            modifiers: PointerModifiers::default(),
-            timestamp: None,
+            modifiers: PointerModifiers {
+                alt: true,
+                command: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: secondary_timestamp,
         }),
         Some(10)
     );
     assert_eq!(runtime.pointer_capture(), Some(10));
     assert_eq!(runtime.interaction.pointer.capture_state, capture_state);
     assert_eq!(runtime.hovered_widget(), Some(10));
-    assert_eq!(runtime.interaction.tooltip, Default::default());
-    assert_eq!(target_events.borrow().as_slice(), &[]);
-    assert_eq!(
-        captured_events.borrow().as_slice(),
-        &[
-            PointerLifecycleEvent::Press,
-            PointerLifecycleEvent::Move,
-            PointerLifecycleEvent::SecondaryRelease,
-        ]
-    );
-
-    assert_eq!(
-        runtime.dispatch_event(Event::pointer_move(Point::new(170.0, 20.0))),
-        Some(10)
-    );
-    assert_eq!(
-        captured_events.borrow().as_slice(),
-        &[
-            PointerLifecycleEvent::Press,
-            PointerLifecycleEvent::Move,
-            PointerLifecycleEvent::SecondaryRelease,
-            PointerLifecycleEvent::Move,
-        ]
-    );
+    assert!(runtime.bridge().mapped_phases.is_empty());
 
     assert_eq!(
         runtime.dispatch_event(Event::PointerRelease {
             position: outside_point,
+            button: PointerButton::Auxiliary,
+            modifiers: PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: Some(InputTimestamp::capture()),
+        }),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(runtime.interaction.pointer.capture_state, capture_state);
+    assert_eq!(runtime.bridge().mapped_phases, Vec::<Vec<EditPhase>>::new());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(Point::new(84.0, 16.0))),
+        Some(10)
+    );
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+
+    let primary_timestamp = Some(InputTimestamp::capture());
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside_point,
             button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-            timestamp: None,
+            modifiers: PointerModifiers {
+                alt: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: primary_timestamp,
         }),
         Some(10)
     );
     assert_eq!(runtime.pointer_capture(), None);
     assert_eq!(runtime.interaction.pointer.capture_state, None);
-    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(runtime.hovered_widget(), Some(10));
     assert_eq!(
-        runtime.interaction.tooltip.target,
-        Some(20),
-        "ordinary primary teardown should rearm the target tooltip"
-    );
-    assert_eq!(
-        target_events.borrow().as_slice(),
-        &[PointerLifecycleEvent::Drop]
-    );
-    assert_eq!(
-        captured_events.borrow().as_slice(),
-        &[
-            PointerLifecycleEvent::Press,
-            PointerLifecycleEvent::Move,
-            PointerLifecycleEvent::SecondaryRelease,
-            PointerLifecycleEvent::Move,
-            PointerLifecycleEvent::PrimaryRelease,
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Commit],
         ]
     );
+    assert_eq!(runtime.bridge().transactions.len(), 2);
+    assert_eq!(
+        runtime.bridge().transactions[0],
+        runtime.bridge().transactions[1]
+    );
+    assert_eq!(runtime.bridge().value, ControllerNumericValue(8));
 }
 
 #[test]
@@ -2566,11 +2973,7 @@ fn exclusive_non_numeric_secondary_release_uses_ordinary_teardown() {
     let captured_events = Rc::new(RefCell::new(Vec::new()));
     let target_events = Rc::new(RefCell::new(Vec::new()));
     let mut runtime = SurfaceRuntime::new(
-        PointerLifecycleBridge::new(
-            Rc::clone(&captured_events),
-            Rc::clone(&target_events),
-            false,
-        ),
+        PointerLifecycleBridge::new(Rc::clone(&captured_events), Rc::clone(&target_events), true),
         Vector2::new(200.0, 40.0),
     );
     let captured_point = Point::new(20.0, 20.0);
@@ -2582,7 +2985,15 @@ fn exclusive_non_numeric_secondary_release_uses_ordinary_teardown() {
     );
     assert_eq!(runtime.hovered_widget(), Some(10));
     assert_eq!(
-        runtime.dispatch_event(Event::primary_press(captured_point)),
+        runtime.dispatch_event(Event::PointerPress {
+            position: captured_point,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers {
+                alt: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: None,
+        }),
         Some(10)
     );
     assert_eq!(runtime.pointer_capture(), Some(10));

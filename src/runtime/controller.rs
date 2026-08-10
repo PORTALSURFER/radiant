@@ -258,7 +258,9 @@ where
         }
         let bounds = self.layout.rects.get(&widget_id).copied()?;
         let result = self.dispatch_surface_input(widget_id, bounds, input)?;
-        self.capture_pointer_capture_state(widget_id);
+        if !self.consume_pointer_capture_termination_request(widget_id) {
+            self.capture_pointer_capture_state(widget_id);
+        }
         let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
         match result {
             WidgetDispatchResult::Message(message) => {
@@ -275,6 +277,23 @@ where
             WidgetDispatchResult::NoOutput => {}
         }
         Some(emitted_output)
+    }
+
+    fn consume_pointer_capture_termination_request(&mut self, widget_id: WidgetId) -> bool {
+        let requested = self
+            .surface_widget_mut(widget_id)
+            .is_some_and(|widget| widget.take_pointer_capture_termination_request());
+        if !requested || self.interaction.pointer.capture != Some(widget_id) {
+            return false;
+        }
+
+        self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_state = None;
+        if let Some(position) = self.current_pointer_position() {
+            self.reconcile_pointer_hover_after_capture_release(position);
+        }
+        self.rearm_tooltip_hover_intent();
+        true
     }
 }
 

@@ -61,7 +61,6 @@ pub mod interaction;
 mod primitives;
 mod theme;
 
-pub(crate) use contract::WidgetRevisionComponents;
 pub use contract::{
     FocusBehavior, FocusLossDecision, PaintBounds, PaintContract, PointerCapturePolicy,
     PointerPressPreflight, WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities,
@@ -69,6 +68,7 @@ pub use contract::{
     WidgetSemanticsRevision, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
     stable_widget_id, stable_widget_id_u64,
 };
+pub(crate) use contract::{RuntimePointerCaptureContract, WidgetRevisionComponents};
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,
     CanvasGestureMetadata, CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput,

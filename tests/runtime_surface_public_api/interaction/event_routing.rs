@@ -376,6 +376,8 @@ struct RuntimeNumericFormatError;
 struct RuntimeNumericCodec {
     format_calls: Rc<Cell<usize>>,
     parse_calls: Rc<Cell<usize>>,
+    format_failure_on_call: Option<usize>,
+    format_failure_requested: Rc<Cell<bool>>,
 }
 
 impl NumericCodec<RuntimeNumericValue> for RuntimeNumericCodec {
@@ -394,6 +396,11 @@ impl NumericCodec<RuntimeNumericValue> for RuntimeNumericCodec {
         output: &mut dyn std::fmt::Write,
     ) -> Result<(), Self::Error> {
         self.format_calls.set(self.format_calls.get() + 1);
+        if self.format_failure_requested.replace(false)
+            || self.format_failure_on_call == Some(self.format_calls.get())
+        {
+            return Err(RuntimeNumericFormatError);
+        }
         write!(output, "{}", value.0).map_err(|_| RuntimeNumericFormatError)
     }
 }
@@ -401,6 +408,9 @@ impl NumericCodec<RuntimeNumericValue> for RuntimeNumericCodec {
 struct RuntimeNumericAdjustment {
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    scrub_calls: Rc<Cell<usize>>,
+    scrub_failure_on_call: Option<usize>,
+    scrub_failure_requested: Rc<Cell<bool>>,
 }
 
 impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
@@ -440,6 +450,12 @@ impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
         normalized_delta: f32,
         _step: NumericStep,
     ) -> Result<RuntimeNumericValue, Self::Error> {
+        self.scrub_calls.set(self.scrub_calls.get() + 1);
+        if self.scrub_failure_requested.replace(false)
+            || self.scrub_failure_on_call == Some(self.scrub_calls.get())
+        {
+            return Err(RuntimeNumericStepError);
+        }
         let value = if normalized_delta < 0.0 {
             value.0.saturating_sub(1)
         } else {
@@ -464,6 +480,13 @@ type RuntimeNumericBatch = NumericInputInteractionBatch<
     RuntimeNumericFormatError,
 >;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RuntimeNumericPart {
+    Edit(Vec<EditPhase>),
+    PointerScrubFailed,
+    PointerFormatFailed,
+}
+
 enum RuntimeNumericMessage {
     Interaction(RuntimeNumericBatch),
 }
@@ -477,7 +500,13 @@ struct RuntimeNumericBridge {
     parse_calls: Rc<Cell<usize>>,
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    scrub_calls: Rc<Cell<usize>>,
+    scrub_failure_on_call: Option<usize>,
+    format_failure_on_call: Option<usize>,
+    scrub_failure_requested: Rc<Cell<bool>>,
+    format_failure_requested: Rc<Cell<bool>>,
     transactions: Vec<radiant::widgets::EditTransaction>,
+    mapped_shapes: Vec<Vec<RuntimeNumericPart>>,
 }
 
 impl Default for RuntimeNumericBridge {
@@ -491,7 +520,13 @@ impl Default for RuntimeNumericBridge {
             parse_calls: Rc::new(Cell::new(0)),
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
+            scrub_calls: Rc::new(Cell::new(0)),
+            scrub_failure_on_call: None,
+            format_failure_on_call: None,
+            scrub_failure_requested: Rc::new(Cell::new(false)),
+            format_failure_requested: Rc::new(Cell::new(false)),
             transactions: Vec::new(),
+            mapped_shapes: Vec::new(),
         }
     }
 }
@@ -515,10 +550,15 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
                 RuntimeNumericCodec {
                     format_calls: Rc::clone(&self.format_calls),
                     parse_calls: Rc::clone(&self.parse_calls),
+                    format_failure_on_call: self.format_failure_on_call,
+                    format_failure_requested: Rc::clone(&self.format_failure_requested),
                 },
                 RuntimeNumericAdjustment {
                     inverse_calls: Rc::clone(&self.inverse_calls),
                     step_calls: Rc::clone(&self.step_calls),
+                    scrub_calls: Rc::clone(&self.scrub_calls),
+                    scrub_failure_on_call: self.scrub_failure_on_call,
+                    scrub_failure_requested: Rc::clone(&self.scrub_failure_requested),
                 },
             )
             .expect("runtime numeric fixture should construct")
@@ -536,16 +576,30 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
     fn reduce_message(&mut self, message: RuntimeNumericMessage) {
         let RuntimeNumericMessage::Interaction(batch) = message;
         let mut phases = Vec::new();
+        let mut shapes = Vec::new();
         for interaction in batch.parts() {
-            if let NumericInputInteraction::Edit(edit) = interaction {
-                phases.extend(edit.events().iter().map(|event| event.phase));
-                self.transactions.push(edit.transaction());
-                if let Some(event) = edit.events().last() {
-                    self.value = event.value.clone();
+            match interaction {
+                NumericInputInteraction::Edit(edit) => {
+                    let edit_phases = edit.events().iter().map(|event| event.phase).collect();
+                    phases.extend(edit.events().iter().map(|event| event.phase));
+                    self.transactions.push(edit.transaction());
+                    if let Some(event) = edit.events().last() {
+                        self.value = event.value.clone();
+                    }
+                    shapes.push(RuntimeNumericPart::Edit(edit_phases));
                 }
+                NumericInputInteraction::PointerScrubFailed { .. } => {
+                    shapes.push(RuntimeNumericPart::PointerScrubFailed);
+                }
+                NumericInputInteraction::PointerFormatFailed { .. } => {
+                    shapes.push(RuntimeNumericPart::PointerFormatFailed);
+                }
+                NumericInputInteraction::StepFailed { .. }
+                | NumericInputInteraction::FormatFailed { .. } => {}
             }
         }
         self.mapped_phases.push(phases);
+        self.mapped_shapes.push(shapes);
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, RuntimeNumericMessage> {
@@ -709,6 +763,156 @@ fn public_numeric_pending_pointer_release_clears_capture_without_mapping_an_edit
     );
     assert_eq!(runtime.pointer_capture(), None);
     assert!(runtime.bridge().mapped_phases.is_empty());
+}
+
+#[test]
+fn public_numeric_pointer_failures_terminate_capture_before_later_release() {
+    let run = |scrub_failure_on_call: Option<usize>,
+               format_failure_on_call: Option<usize>,
+               active: bool,
+               direct_dispatch: bool,
+               expected_shapes: Vec<Vec<RuntimeNumericPart>>| {
+        let mut runtime =
+            SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+        let point = Point::new(60.0, 16.0);
+        let first_move = Point::new(72.0, 16.0);
+        let failure_move = Point::new(84.0, 16.0);
+        let alt = PointerModifiers {
+            alt: true,
+            ..PointerModifiers::default()
+        };
+        let before_draft = runtime
+            .surface()
+            .find_widget(150)
+            .expect("numeric input exists")
+            .widget()
+            .automation_semantics()
+            .value_text;
+
+        assert_eq!(
+            runtime.dispatch_event(Event::PointerPress {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            }),
+            Some(150)
+        );
+        assert_eq!(runtime.pointer_capture(), Some(150));
+
+        if active {
+            assert_eq!(
+                runtime.dispatch_event(Event::PointerMove {
+                    position: first_move,
+                    modifiers: alt,
+                    timestamp: None,
+                    sequence_range: None,
+                }),
+                Some(150)
+            );
+        }
+
+        if scrub_failure_on_call.is_some() {
+            runtime.bridge().scrub_failure_requested.set(true);
+        }
+        if format_failure_on_call.is_some() {
+            runtime.bridge().format_failure_requested.set(true);
+        }
+
+        let failure_input = WidgetInput::PointerMove {
+            position: failure_move,
+            modifiers: alt,
+            timestamp: None,
+            sequence_range: None,
+        };
+        if direct_dispatch {
+            assert!(runtime.dispatch_input(150, failure_input));
+        } else {
+            assert_eq!(
+                runtime.dispatch_event(Event::PointerMove {
+                    position: failure_move,
+                    modifiers: alt,
+                    timestamp: None,
+                    sequence_range: None,
+                }),
+                Some(150)
+            );
+        }
+
+        assert_eq!(
+            runtime.pointer_capture(),
+            None,
+            "scrub={scrub_failure_on_call:?} format={format_failure_on_call:?} active={active} direct={direct_dispatch}"
+        );
+        assert_eq!(runtime.bridge().mapped_shapes, expected_shapes);
+        assert_eq!(runtime.bridge().value, RuntimeNumericValue(7));
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(150)
+                .expect("numeric input exists after failure")
+                .widget()
+                .automation_semantics()
+                .value_text,
+            before_draft,
+            "pointer failure should restore the semantic draft snapshot"
+        );
+
+        let shapes_after_failure = runtime.bridge().mapped_shapes.clone();
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_release(point)),
+            Some(150)
+        );
+        assert_eq!(runtime.pointer_capture(), None);
+        assert_eq!(runtime.bridge().mapped_shapes, shapes_after_failure);
+    };
+
+    run(
+        Some(1),
+        None,
+        false,
+        false,
+        vec![vec![RuntimeNumericPart::PointerScrubFailed]],
+    );
+    run(
+        Some(2),
+        None,
+        true,
+        false,
+        vec![
+            vec![RuntimeNumericPart::Edit(vec![
+                EditPhase::Begin,
+                EditPhase::Update,
+            ])],
+            vec![
+                RuntimeNumericPart::Edit(vec![EditPhase::Cancel]),
+                RuntimeNumericPart::PointerScrubFailed,
+            ],
+        ],
+    );
+    run(
+        None,
+        Some(1),
+        false,
+        false,
+        vec![vec![RuntimeNumericPart::PointerFormatFailed]],
+    );
+    run(
+        None,
+        Some(3),
+        true,
+        true,
+        vec![
+            vec![RuntimeNumericPart::Edit(vec![
+                EditPhase::Begin,
+                EditPhase::Update,
+            ])],
+            vec![
+                RuntimeNumericPart::Edit(vec![EditPhase::Cancel]),
+                RuntimeNumericPart::PointerFormatFailed,
+            ],
+        ],
+    );
 }
 
 #[test]

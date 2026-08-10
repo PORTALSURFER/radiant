@@ -1874,7 +1874,7 @@ remains composition text rather than numeric input until Commit. These rules do
 not select platform cancellation behavior or allow either interaction to
 interrupt an incumbent.
 
-#### Shared-owner acceptance fixtures
+#### Target shared-owner acceptance fixtures
 
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and

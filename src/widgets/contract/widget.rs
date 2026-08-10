@@ -60,6 +60,19 @@ pub enum PointerPressPreflight {
     Consume,
 }
 
+/// Crate-private runtime pointer-capture continuation and termination contract.
+///
+/// This stays separate from [`Widget`] so custom widget implementations retain
+/// the public widget surface while built-in consumers can provide narrowly
+/// typed capture evidence at the runtime surface boundary.
+pub(crate) trait RuntimePointerCaptureContract {
+    /// Consume one widget-local request to terminate the current pointer capture.
+    fn take_pointer_capture_termination_request(&mut self) -> bool;
+
+    /// Return whether this real release should continue the current capture.
+    fn continues_pointer_capture_after_release(&self, release: &WidgetInput) -> bool;
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.

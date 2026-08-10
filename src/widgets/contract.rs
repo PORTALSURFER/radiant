@@ -25,4 +25,5 @@ pub use semantics::{
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};
 pub use style::{WidgetProminence, WidgetStyle, WidgetTone};
+pub(crate) use widget::RuntimePointerCaptureContract;
 pub use widget::{FocusLossDecision, PointerCapturePolicy, PointerPressPreflight, Widget};

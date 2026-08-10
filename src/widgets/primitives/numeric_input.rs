@@ -24,9 +24,9 @@ use crate::{
         NumericCodec, NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
         NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt, NumericScrubPolicy,
         NumericStepAttempt, NumericStepModifiers, PointerButton, PointerCapturePolicy,
-        PointerModifiers, PointerPressPreflight, TextAlign, TextBackgroundRole, TextColorRole,
-        TextInputChrome, TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput,
-        WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
+        PointerModifiers, PointerPressPreflight, RuntimePointerCaptureContract, TextAlign,
+        TextBackgroundRole, TextColorRole, TextInputChrome, TextInputWidget, TextWrap, Widget,
+        WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -91,6 +91,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     active: Option<ActiveNumericEdit<T, C>>,
     keyboard: Option<KeyboardAdjustmentState<T>>,
     pointer: Option<pointer::PointerScrubState<T>>,
+    pointer_capture_termination_requested: bool,
     interaction_gate: NumericInteractionGate,
     step_modifiers: Option<NumericStepModifiers>,
     scrub_policy: Option<NumericScrubPolicy>,
@@ -115,6 +116,7 @@ where
             active: self.active.clone(),
             keyboard: self.keyboard.clone(),
             pointer: self.pointer.clone(),
+            pointer_capture_termination_requested: false,
             interaction_gate: self.interaction_gate,
             step_modifiers: self.step_modifiers,
             scrub_policy: self.scrub_policy,
@@ -180,6 +182,7 @@ where
             active: None,
             keyboard: None,
             pointer: None,
+            pointer_capture_termination_requested: false,
             interaction_gate: NumericInteractionGate::new(),
             step_modifiers: None,
             scrub_policy: None,
@@ -652,6 +655,7 @@ where
         self.interaction_gate
             .release(NumericInteractionOwner::PointerScrub);
         self.pointer = None;
+        self.pointer_capture_termination_requested = true;
         failure
     }
 
@@ -866,6 +870,28 @@ where
                 .handle_input(bounds, WidgetInput::FocusChanged(false));
             None
         }
+    }
+}
+
+impl<T, C, A> RuntimePointerCaptureContract for NumericInputWidget<T, C, A>
+where
+    T: Clone + PartialEq + 'static,
+    C: NumericCodec<T> + 'static,
+    A: NumericAdjustment<T> + 'static,
+{
+    fn take_pointer_capture_termination_request(&mut self) -> bool {
+        std::mem::take(&mut self.pointer_capture_termination_requested)
+    }
+
+    fn continues_pointer_capture_after_release(&self, release: &WidgetInput) -> bool {
+        self.pointer.is_some()
+            && matches!(
+                release,
+                WidgetInput::PointerRelease {
+                    button: PointerButton::Secondary | PointerButton::Auxiliary,
+                    ..
+                }
+            )
     }
 }
 

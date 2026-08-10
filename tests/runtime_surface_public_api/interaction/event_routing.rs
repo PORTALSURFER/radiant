@@ -5,7 +5,7 @@ use radiant::{
         EditPhase, InteractionProvenance, KeyboardModifier, KeyboardModifiers, NumericAdjustment,
         NumericCodec, NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
         NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers,
-        PointerModifiers, WheelDelta, WheelPhase, WheelSample,
+        NumericWheelPolicy, PointerModifiers, WheelDelta, WheelPhase, WheelSample,
     },
 };
 use std::{
@@ -405,6 +405,7 @@ impl NumericCodec<RuntimeNumericValue> for RuntimeNumericCodec {
 struct RuntimeNumericAdjustment {
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    wheel_calls: Rc<Cell<usize>>,
 }
 
 impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
@@ -452,10 +453,13 @@ impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
     fn wheel(
         &self,
         value: &RuntimeNumericValue,
-        _delta: f32,
+        delta: f32,
         _step: NumericStep,
     ) -> Result<RuntimeNumericValue, Self::Error> {
-        Ok(value.clone())
+        self.wheel_calls.set(self.wheel_calls.get() + 1);
+        Ok(RuntimeNumericValue(
+            value.0.saturating_add(delta.round().max(0.0) as u32),
+        ))
     }
 }
 
@@ -478,6 +482,7 @@ struct RuntimeNumericBridge {
     parse_calls: Rc<Cell<usize>>,
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    wheel_calls: Rc<Cell<usize>>,
     mapped_provenance: Vec<Vec<InteractionProvenance>>,
 }
 
@@ -492,6 +497,7 @@ impl Default for RuntimeNumericBridge {
             parse_calls: Rc::new(Cell::new(0)),
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
+            wheel_calls: Rc::new(Cell::new(0)),
             mapped_provenance: Vec::new(),
         }
     }
@@ -520,6 +526,7 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
                 RuntimeNumericAdjustment {
                     inverse_calls: Rc::clone(&self.inverse_calls),
                     step_calls: Rc::clone(&self.step_calls),
+                    wheel_calls: Rc::clone(&self.wheel_calls),
                 },
             )
             .expect("runtime numeric fixture should construct")
@@ -528,6 +535,7 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
                 KeyboardModifier::Control,
             ))
             .scrub_policy(NumericScrubPolicy::default())
+            .wheel_policy(NumericWheelPolicy::default())
             .on_interaction(RuntimeNumericMessage::Interaction)
             .id(150)
             .into_surface(),
@@ -783,6 +791,83 @@ fn public_numeric_pointer_scrub_reaches_generic_managed_capture_with_synthetic_p
     );
 }
 
+#[test]
+fn public_numeric_wheel_consumes_exact_samples_and_legacy_scroll_stays_on_fallback() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+    let point = Point::new(40.0, 16.0);
+    let modifiers = PointerModifiers::default();
+    let timestamp = None;
+    let sequence_range = None;
+    let started = WheelSample::new_with_metadata(
+        WheelDelta::lines(Vector2::new(0.0, 1.0)).expect("finite wheel line"),
+        Some(WheelPhase::Started),
+        modifiers,
+        timestamp,
+        sequence_range,
+    )
+    .expect("finite started sample");
+    assert!(runtime.wheel_or_scroll_at_with_sample(point, started));
+    assert_eq!(runtime.bridge().wheel_calls.get(), 0);
+    assert!(runtime.bridge().mapped_phases.is_empty());
+
+    let changed = WheelSample::new_with_metadata(
+        WheelDelta::pixels(Vector2::new(0.0, 40.0)).expect("finite wheel pixels"),
+        Some(WheelPhase::Changed),
+        modifiers,
+        timestamp,
+        sequence_range,
+    )
+    .expect("finite changed sample");
+    assert!(runtime.wheel_or_scroll_at_with_sample(point, changed));
+    assert_eq!(runtime.bridge().wheel_calls.get(), 1);
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+    assert_eq!(
+        runtime.bridge().mapped_provenance,
+        vec![vec![
+            InteractionProvenance::Pointer {
+                modifiers,
+                timestamp,
+                sequence_range,
+            },
+            InteractionProvenance::Pointer {
+                modifiers,
+                timestamp,
+                sequence_range,
+            },
+        ]]
+    );
+
+    let ended = WheelSample::new_with_metadata(
+        WheelDelta::pixels(Vector2::new(0.0, 0.0)).expect("finite terminal pixels"),
+        Some(WheelPhase::Ended),
+        modifiers,
+        None,
+        None,
+    )
+    .expect("finite ended sample");
+    assert!(runtime.wheel_or_scroll_at_with_sample(point, ended));
+    assert_eq!(runtime.bridge().wheel_calls.get(), 1);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Commit],
+        ]
+    );
+
+    let mapped_before_legacy = runtime.bridge().mapped_phases.clone();
+    let calls_before_legacy = runtime.bridge().wheel_calls.get();
+    assert!(!runtime.wheel_or_scroll_at(point, Vector2::new(0.0, 40.0)));
+    assert_eq!(runtime.bridge().wheel_calls.get(), calls_before_legacy);
+    assert_eq!(runtime.bridge().mapped_phases, mapped_before_legacy);
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct RuntimeWheelObservation {
     widget_id: u64,
@@ -860,7 +945,17 @@ impl Widget for RuntimeWheelWidget {
         &mut self.common
     }
 
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::Wheel { delta, .. } = input {
+            self.observations
+                .borrow_mut()
+                .push(RuntimeWheelObservation {
+                    widget_id: self.common.id,
+                    delta: WheelDelta::Pixels(delta),
+                    phase: None,
+                    replacement: self.replacement,
+                });
+        }
         None
     }
 
@@ -1013,6 +1108,41 @@ impl RuntimeWheelBridge {
         self.terminal_reprojects = true;
         self
     }
+}
+
+#[test]
+fn public_legacy_scroll_dispatches_legacy_wheel_input_not_the_exact_sample_hook() {
+    let mut runtime = SurfaceRuntime::new(RuntimeWheelBridge::default(), Vector2::new(160.0, 80.0));
+    let point = Point::new(20.0, 20.0);
+    let delta = Vector2::new(0.0, 40.0);
+
+    assert!(!runtime.wheel_or_scroll_at(point, delta));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [RuntimeWheelObservation {
+            widget_id: 401,
+            delta: WheelDelta::Pixels(delta),
+            phase: None,
+            replacement: false,
+        }]
+    );
+
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        point,
+        runtime_wheel_sample(WheelDelta::Pixels(delta), WheelPhase::Started,),
+    ));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [
+            RuntimeWheelObservation {
+                widget_id: 401,
+                delta: WheelDelta::Pixels(delta),
+                phase: None,
+                replacement: false,
+            },
+            runtime_wheel_observation(401, WheelDelta::Pixels(delta), WheelPhase::Started, false),
+        ]
+    );
 }
 
 impl RuntimeBridge<RuntimeWheelMessage> for RuntimeWheelBridge {

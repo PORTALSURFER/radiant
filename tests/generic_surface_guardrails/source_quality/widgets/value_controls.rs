@@ -1,13 +1,16 @@
 use super::*;
 
 #[test]
-fn numeric_pointer_scrub_stays_in_the_allowlisted_widget_and_fixed_batch_surface() {
+fn numeric_pointer_scrub_and_wheel_stay_in_the_allowlisted_widget_and_fixed_batch_surface() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/numeric_input.rs"))
         .expect("numeric input primitive should be readable");
     let pointer =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/numeric_input/pointer.rs"))
             .expect("numeric pointer consumer should be readable");
+    let wheel =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/numeric_input/wheel.rs"))
+            .expect("numeric wheel consumer should be readable");
     let interaction =
         fs::read_to_string(manifest_dir.join("src/widgets/interaction/numeric_input.rs"))
             .expect("numeric interaction surface should be readable");
@@ -22,24 +25,37 @@ fn numeric_pointer_scrub_stays_in_the_allowlisted_widget_and_fixed_batch_surface
 
     assert!(
         root.contains("mod pointer;")
+            && root.contains("mod wheel;")
             && root.contains("preflight_pointer_press")
             && root.contains("NumericInteractionOwner::PointerScrub")
             && pointer.contains("PointerScrubState")
             && pointer.contains("complete_pointer_scrub_output_policy")
+            && wheel.contains("WheelSequenceState")
+            && wheel.contains("complete_wheel_output_policy")
             && interaction.contains("NumericScrubAttempt")
             && interaction.contains("PointerFormatFailed")
+            && interaction.contains("NumericWheelAttempt")
+            && interaction.contains("WheelFormatFailed")
             && builder.contains("pub fn scrub_policy(")
+            && builder.contains("pub fn wheel_policy(")
     );
     assert!(
         !pointer.contains("Vec<")
             && !pointer.contains("HashMap")
             && !pointer.contains("Mutex")
             && !pointer.contains("channel")
+            && !wheel.contains("Vec<")
+            && !wheel.contains("HashMap")
+            && !wheel.contains("Mutex")
+            && !wheel.contains("channel")
+            && interaction.contains("events: [EditEvent<T>; 3]")
             && interaction
                 .contains("parts: [NumericInputInteraction<T, StepError, FormatError>; 2]")
     );
     assert!(!prelude_widgets.contains("NumericScrubPolicy"));
     assert!(!prelude_controls.contains("NumericScrubPolicy"));
+    assert!(!prelude_widgets.contains("NumericWheelPolicy"));
+    assert!(!prelude_controls.contains("NumericWheelPolicy"));
 }
 
 #[test]

@@ -260,6 +260,7 @@ where
                     point,
                     sample,
                     refresh_after_message,
+                    exact_sample,
                 ) else {
                     return WheelOrScrollRoute::NotRouted;
                 };
@@ -359,6 +360,7 @@ where
             point,
             sample,
             refresh_after_message,
+            true,
         );
         if !terminal
             && let RuntimeManagedWheelSequenceState::Active {
@@ -385,9 +387,18 @@ where
         point: Point,
         sample: WheelSample,
         refresh_after_message: bool,
+        exact_sample: bool,
     ) -> Option<WheelWidgetDispatch> {
         let bounds = self.layout.rects.get(&widget_id).copied()?;
-        let result = self.dispatch_surface_wheel_sample(widget_id, bounds, point, sample)?;
+        let result = if exact_sample {
+            self.dispatch_surface_wheel_sample(widget_id, bounds, point, sample)?
+        } else {
+            let input = self.wheel_input_for_hit_test(point, sample, false)?;
+            (
+                self.dispatch_surface_input(widget_id, bounds, input)?,
+                false,
+            )
+        };
         let retained = result.1;
         let dispatch = match result.0 {
             WidgetDispatchResult::Message(message) => {

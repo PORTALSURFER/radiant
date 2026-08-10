@@ -19,12 +19,12 @@ use radiant::{
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
         NumericInputInteractionBatch, NumericParseResult, NumericScrubActivation,
         NumericScrubAttempt, NumericScrubPolicy, NumericStep, NumericStepAttempt,
-        NumericStepDirection, NumericStepModifiers, PointerModifiers, ScrollbarAxis,
-        ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts,
-        SliderEditBatch, SliderMessage, SliderState, SliderWidget, SliderWidgetParts,
-        TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget,
-        ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
-        WidgetSizingParts,
+        NumericStepDirection, NumericStepModifiers, NumericWheelAttempt, NumericWheelPolicy,
+        PointerModifiers, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
+        SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
+        SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
+        ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput,
+        WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -403,6 +403,7 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
             KeyboardModifier::Control,
         ))
         .scrub_policy(radiant::widgets::NumericScrubPolicy::default());
+    let builder = builder.wheel_policy(radiant::widgets::NumericWheelPolicy::default());
     let _: fn(
         NumericInputEditBatch<GenericNumericValue>,
     ) -> NumericInputEditBatch<GenericNumericValue> = |batch| batch;
@@ -489,6 +490,7 @@ fn numeric_input_on_interaction_maps_one_complete_text_edit_envelope() {
         UiLocalNumericAdjustment(Rc::new(RefCell::new(0))),
     )
     .expect("generic numeric input should construct")
+    .wheel_policy(NumericWheelPolicy::default())
     .on_interaction(move |batch| {
         map_calls_for_mapper.set(map_calls_for_mapper.get() + 1);
         batch
@@ -816,8 +818,9 @@ fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
     assert_round_trip(&[begin.clone(), update.clone()]);
     assert_round_trip(&[begin.clone(), commit.clone()]);
     assert_round_trip(&[begin.clone(), cancel.clone()]);
+    assert_round_trip(&[begin.clone(), update.clone(), commit.clone()]);
 
-    assert_eq!(NumericInputEditBatch::<GenericNumericValue>::MAX_EVENTS, 2);
+    assert_eq!(NumericInputEditBatch::<GenericNumericValue>::MAX_EVENTS, 3);
     let terminal_batch = NumericInputEditBatch::terminal(begin.clone(), commit.clone())
         .expect("Begin followed by Commit should remain accepted by terminal");
     assert_eq!(terminal_batch.events(), &[begin.clone(), commit.clone()]);
@@ -862,7 +865,10 @@ fn numeric_input_edit_batch_accepts_only_legal_lifecycle_fragments() {
     assert_rejected(&[cancel.clone(), update.clone()]);
     assert_rejected(&[cancel.clone(), commit.clone()]);
     assert_rejected(&[cancel.clone(), cancel.clone()]);
-    assert_rejected(&[begin.clone(), update.clone(), commit.clone()]);
+    assert_rejected(&[begin.clone(), commit.clone(), update.clone()]);
+    assert_rejected(&[begin.clone(), update.clone(), cancel.clone()]);
+    assert_rejected(&[begin.clone(), other_update.clone(), commit.clone()]);
+    assert_rejected(&[begin.clone(), update.clone(), other_commit.clone()]);
 }
 
 #[test]
@@ -1198,6 +1204,96 @@ fn numeric_input_pointer_scrub_policy_and_failures_are_qualified_and_fixed_capac
 }
 
 #[test]
+fn numeric_input_wheel_policy_and_atomic_edit_are_qualified_and_fixed() {
+    type Interaction =
+        NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    fn assert_clone<T: Clone>() {}
+    fn assert_debug<T: std::fmt::Debug>() {}
+    fn assert_eq_hash<T: Eq + std::hash::Hash>() {}
+    assert_clone::<Interaction>();
+    assert_clone::<Batch>();
+
+    let qualified = radiant::widgets::interaction::NumericWheelPolicy::new();
+    let root: NumericWheelPolicy = qualified;
+    assert_eq!(root, NumericWheelPolicy::default());
+    assert_debug::<NumericWheelPolicy>();
+    assert_eq_hash::<NumericWheelPolicy>();
+
+    let pointer = InteractionProvenance::Pointer {
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
+        sequence_range: None,
+    };
+    let begin = EditEvent::begin(GenericNumericValue(7), pointer);
+    let update = begin
+        .clone()
+        .update(GenericNumericValue(8), pointer)
+        .expect("pointer source should update");
+    let commit = update
+        .clone()
+        .commit(GenericNumericValue(8), pointer)
+        .expect("pointer source should commit");
+    let cancel = begin
+        .clone()
+        .cancel(pointer)
+        .expect("pointer source should cancel");
+    let atomic = Interaction::edit(
+        NumericInputEditBatch::from_events(&[begin.clone(), update.clone(), commit])
+            .expect("wheel atomic edit should accept Begin Update Commit"),
+    );
+    let initial = Interaction::wheel_failed(
+        NumericWheelAttempt::Initial,
+        1.0,
+        NumericStep::Base,
+        pointer,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let initial_format = Interaction::wheel_format_failed(
+        NumericWheelAttempt::Initial,
+        0.25,
+        NumericStep::Fine,
+        pointer,
+        NumericCodecError::WriteFailed,
+        false,
+    );
+    let active = Interaction::wheel_failed(
+        NumericWheelAttempt::Update,
+        -1.0,
+        NumericStep::Coarse,
+        pointer,
+        NumericAdjustmentTestError,
+        true,
+    );
+    let cancel_edit = Interaction::edit(
+        NumericInputEditBatch::from_events(std::slice::from_ref(&cancel))
+            .expect("wheel rollback should be legal"),
+    );
+    assert_eq!(initial.wheel_error(), Some(&NumericAdjustmentTestError));
+    assert_eq!(
+        initial_format.wheel_format_error(),
+        Some(&NumericCodecError::WriteFailed)
+    );
+
+    for parts in [
+        vec![atomic.clone()],
+        vec![initial.clone()],
+        vec![initial_format.clone()],
+        vec![cancel_edit.clone(), active.clone()],
+    ] {
+        let batch = Batch::from_interactions(&parts).expect("wheel envelope should be legal");
+        assert_eq!(batch.parts(), parts.as_slice());
+    }
+    assert!(Batch::from_interactions(&[active]).is_none());
+}
+
+#[test]
 fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
     let prelude_controls = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1217,6 +1313,8 @@ fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
         assert!(!source.contains("NumericScrubPolicy"));
         assert!(!source.contains("NumericScrubAttempt"));
         assert!(!source.contains("NumericScrubActivation"));
+        assert!(!source.contains("NumericWheelPolicy"));
+        assert!(!source.contains("NumericWheelAttempt"));
         assert!(!source.contains("NumericCodec"));
         assert!(!source.contains("NumericAdjustment"));
         assert!(!source.contains("NumericStepAttempt"));

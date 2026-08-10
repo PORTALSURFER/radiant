@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{marker::PhantomData, rc::Rc};
 
 use super::{
     EditEvent, EditPhase, EditTransaction, InteractionProvenance, InteractionSource, NumericStep,
@@ -28,27 +28,30 @@ pub enum NumericInputConstructionError<CodecError, AdjustmentError> {
 
 /// One bounded, ordered lifecycle fragment for a generic numeric text edit.
 ///
-/// Accepted fragments are a singleton `Update`, `Commit`, or `Cancel`, or
-/// `Begin` followed by one of those phases in the same transaction. Storage is
+/// Accepted fragments are a singleton `Update`, `Commit`, or `Cancel`, a
+/// `Begin` followed by one of those phases in the same transaction, or the
+/// complete-mode wheel transaction `Begin`, `Update`, `Commit`. Storage is
 /// inline and private; the public event slice exposes only the populated
 /// prefix. The text-first widget emits terminal `Begin` plus a terminal event,
 /// while complete-mode keyboard adjustment also consumes incremental
 /// `Begin` plus `Update`, singleton `Update`, `Commit`, and `Cancel` shapes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NumericInputEditBatch<T> {
-    events: [EditEvent<T>; 2],
+    events: [EditEvent<T>; 3],
     len: u8,
 }
 
 impl<T: Clone> NumericInputEditBatch<T> {
     /// The maximum number of ordered events carried by one batch.
-    pub const MAX_EVENTS: usize = 2;
+    pub const MAX_EVENTS: usize = 3;
 
     /// Build a batch from one legal incremental lifecycle fragment.
     ///
     /// A singleton must be `Update`, `Commit`, or `Cancel`. A two-event
     /// fragment must begin with `Begin`, continue with one of those phases,
-    /// and share one transaction; any other shape returns `None`.
+    /// and share one transaction. The only three-event fragment is
+    /// same-transaction `Begin`, `Update`, `Commit`; any other shape returns
+    /// `None`.
     pub fn from_events(events: &[EditEvent<T>]) -> Option<Self> {
         match events {
             [event]
@@ -58,7 +61,7 @@ impl<T: Clone> NumericInputEditBatch<T> {
                 ) =>
             {
                 Some(Self {
-                    events: [event.clone(), event.clone()],
+                    events: [event.clone(), event.clone(), event.clone()],
                     len: 1,
                 })
             }
@@ -71,8 +74,20 @@ impl<T: Clone> NumericInputEditBatch<T> {
                     && begin.transaction == next.transaction =>
             {
                 Some(Self {
-                    events: [begin.clone(), next.clone()],
-                    len: Self::MAX_EVENTS as u8,
+                    events: [begin.clone(), next.clone(), next.clone()],
+                    len: 2,
+                })
+            }
+            [begin, update, commit]
+                if begin.phase == EditPhase::Begin
+                    && update.phase == EditPhase::Update
+                    && commit.phase == EditPhase::Commit
+                    && begin.transaction == update.transaction
+                    && begin.transaction == commit.transaction =>
+            {
+                Some(Self {
+                    events: [begin.clone(), update.clone(), commit.clone()],
+                    len: 3,
                 })
             }
             _ => None,
@@ -127,6 +142,36 @@ pub enum NumericScrubAttempt {
     Initial,
     /// A later effective candidate in an active pointer scrub.
     Update,
+}
+
+/// The attempt boundary for one complete-mode numeric wheel sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericWheelAttempt {
+    /// The first effective candidate in an admitted wheel sequence or atomic gesture.
+    Initial,
+    /// A later effective candidate in an active wheel sequence.
+    Update,
+}
+
+/// Backend-neutral, explicit policy for complete-mode numeric wheel adjustment.
+///
+/// The policy enables no behavior until attached with
+/// [`NumericInputBuilder::wheel_policy`](crate::application::NumericInputBuilder::wheel_policy).
+/// Wheel unit conversion and sequence ownership remain fixed by the generic
+/// NumericInput contract; [`NumericAdjustment::wheel`](crate::widgets::NumericAdjustment::wheel)
+/// owns domain-specific sensitivity and mapping.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct NumericWheelPolicy {
+    marker: PhantomData<()>,
+}
+
+impl NumericWheelPolicy {
+    /// Construct the fixed backend-neutral wheel policy.
+    pub const fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
 }
 
 /// The explicit activation gesture for complete-mode numeric pointer scrubbing.
@@ -206,8 +251,9 @@ const fn modifier_is_held(modifier: KeyboardModifier, modifiers: PointerModifier
 /// One typed result part for complete-mode numeric text, keyboard, or pointer
 /// interaction.
 ///
-/// The complete numeric widget produces successful edits and typed keyboard or
-/// pointer failures when the corresponding explicit policy is attached.
+/// The complete numeric widget produces successful edits and typed keyboard,
+/// pointer, or wheel failures when the corresponding explicit policy is
+/// attached.
 /// Failure errors are reference-counted so the envelope can be cloned without
 /// requiring either error type to implement `Clone`.
 #[derive(Debug, PartialEq)]
@@ -272,6 +318,36 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
         /// UI-local typed failure storage.
         error: Rc<FormatError>,
         /// Whether an active scrub was rolled back before this failure.
+        cancelled: bool,
+    },
+    /// A typed numeric wheel adjustment failure.
+    WheelFailed {
+        /// Whether the failed attempt was initial or already active.
+        attempt: NumericWheelAttempt,
+        /// Signed vertical delta passed to the adjustment policy.
+        delta: f32,
+        /// Step selected for the attempted wheel sample.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted sample.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<StepError>,
+        /// Whether an active wheel edit was rolled back before this failure.
+        cancelled: bool,
+    },
+    /// A typed numeric wheel formatting failure.
+    WheelFormatFailed {
+        /// Whether the failed attempt was initial or already active.
+        attempt: NumericWheelAttempt,
+        /// Signed vertical delta for the candidate being formatted.
+        delta: f32,
+        /// Step selected for the attempted wheel sample.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted sample.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<FormatError>,
+        /// Whether an active wheel edit was rolled back before this failure.
         cancelled: bool,
     },
 }
@@ -396,13 +472,54 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
         )
     }
 
+    /// Build a typed numeric wheel adjustment failure.
+    pub fn wheel_failed(
+        attempt: NumericWheelAttempt,
+        delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    ) -> Self {
+        Self::WheelFailed {
+            attempt,
+            delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
+    /// Build a typed numeric wheel formatting failure.
+    pub fn wheel_format_failed(
+        attempt: NumericWheelAttempt,
+        delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    ) -> Self {
+        Self::WheelFormatFailed {
+            attempt,
+            delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
     /// Return the typed step error by reference when this is `StepFailed`.
     pub fn step_error(&self) -> Option<&StepError> {
         match self {
-            Self::StepFailed { error, .. } | Self::ScrubFailed { error, .. } => {
-                Some(error.as_ref())
-            }
-            Self::Edit(_) | Self::FormatFailed { .. } | Self::PointerFormatFailed { .. } => None,
+            Self::StepFailed { error, .. }
+            | Self::ScrubFailed { error, .. }
+            | Self::WheelFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::FormatFailed { .. }
+            | Self::PointerFormatFailed { .. }
+            | Self::WheelFormatFailed { .. } => None,
         }
     }
 
@@ -413,17 +530,22 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
             Self::Edit(_)
             | Self::StepFailed { .. }
             | Self::FormatFailed { .. }
-            | Self::PointerFormatFailed { .. } => None,
+            | Self::PointerFormatFailed { .. }
+            | Self::WheelFailed { .. }
+            | Self::WheelFormatFailed { .. } => None,
         }
     }
 
     /// Return the typed format error by reference when this is `FormatFailed`.
     pub fn format_error(&self) -> Option<&FormatError> {
         match self {
-            Self::FormatFailed { error, .. } | Self::PointerFormatFailed { error, .. } => {
-                Some(error.as_ref())
-            }
-            Self::Edit(_) | Self::StepFailed { .. } | Self::ScrubFailed { .. } => None,
+            Self::FormatFailed { error, .. }
+            | Self::PointerFormatFailed { error, .. }
+            | Self::WheelFormatFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::StepFailed { .. }
+            | Self::ScrubFailed { .. }
+            | Self::WheelFailed { .. } => None,
         }
     }
 
@@ -434,7 +556,35 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
             Self::Edit(_)
             | Self::StepFailed { .. }
             | Self::FormatFailed { .. }
-            | Self::ScrubFailed { .. } => None,
+            | Self::ScrubFailed { .. }
+            | Self::WheelFailed { .. }
+            | Self::WheelFormatFailed { .. } => None,
+        }
+    }
+
+    /// Return the typed numeric wheel adjustment error.
+    pub fn wheel_error(&self) -> Option<&StepError> {
+        match self {
+            Self::WheelFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::StepFailed { .. }
+            | Self::FormatFailed { .. }
+            | Self::ScrubFailed { .. }
+            | Self::PointerFormatFailed { .. }
+            | Self::WheelFormatFailed { .. } => None,
+        }
+    }
+
+    /// Return the typed numeric wheel formatting error.
+    pub fn wheel_format_error(&self) -> Option<&FormatError> {
+        match self {
+            Self::WheelFormatFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_)
+            | Self::StepFailed { .. }
+            | Self::FormatFailed { .. }
+            | Self::ScrubFailed { .. }
+            | Self::PointerFormatFailed { .. }
+            | Self::WheelFailed { .. } => None,
         }
     }
 }
@@ -500,6 +650,36 @@ impl<T: Clone, StepError, FormatError> Clone
             } => Self::PointerFormatFailed {
                 attempt: *attempt,
                 normalized_delta: *normalized_delta,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
+            Self::WheelFailed {
+                attempt,
+                delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::WheelFailed {
+                attempt: *attempt,
+                delta: *delta,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
+            Self::WheelFormatFailed {
+                attempt,
+                delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::WheelFormatFailed {
+                attempt: *attempt,
+                delta: *delta,
                 step: *step,
                 provenance: *provenance,
                 error: Rc::clone(error),
@@ -626,6 +806,22 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                 ..
             },
         ] => is_pointer_provenance(*provenance),
+        [
+            NumericInputInteraction::WheelFailed {
+                attempt: NumericWheelAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            },
+        ]
+        | [
+            NumericInputInteraction::WheelFormatFailed {
+                attempt: NumericWheelAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            },
+        ] => is_pointer_provenance(*provenance),
         [NumericInputInteraction::Edit(edit), failure] => {
             let [cancel] = edit.events() else {
                 return false;
@@ -666,11 +862,29 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                         && is_pointer_provenance(*provenance)
                         && *provenance == cancel.provenance
                 }
+                NumericInputInteraction::WheelFailed {
+                    attempt: NumericWheelAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                }
+                | NumericInputInteraction::WheelFormatFailed {
+                    attempt: NumericWheelAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                } => {
+                    is_pointer_provenance(cancel.provenance)
+                        && is_pointer_provenance(*provenance)
+                        && *provenance == cancel.provenance
+                }
                 NumericInputInteraction::Edit(_)
                 | NumericInputInteraction::StepFailed { .. }
                 | NumericInputInteraction::FormatFailed { .. }
                 | NumericInputInteraction::ScrubFailed { .. }
-                | NumericInputInteraction::PointerFormatFailed { .. } => false,
+                | NumericInputInteraction::PointerFormatFailed { .. }
+                | NumericInputInteraction::WheelFailed { .. }
+                | NumericInputInteraction::WheelFormatFailed { .. } => false,
             }
         }
         _ => false,
@@ -706,6 +920,15 @@ fn valid_pointer_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
         }
         [begin, update] if begin.phase == EditPhase::Begin && update.phase == EditPhase::Update => {
             is_pointer_provenance(begin.provenance) && is_pointer_provenance(update.provenance)
+        }
+        [begin, update, commit]
+            if begin.phase == EditPhase::Begin
+                && update.phase == EditPhase::Update
+                && commit.phase == EditPhase::Commit =>
+        {
+            is_pointer_provenance(begin.provenance)
+                && is_pointer_provenance(update.provenance)
+                && is_pointer_provenance(commit.provenance)
         }
         _ => false,
     }

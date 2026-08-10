@@ -173,6 +173,14 @@ new focused export leaf or a module split, not a formatting workaround.
   `NumericScrubPolicy`, retained scrub consumer, typed output/failure mapping,
   and geometry/anchor lifecycle in the widget allowlist; it uses this kernel
   without changing generic controller or native production paths.
+- Complete-mode NumericInput wheel consumption uses the same ownership split:
+  `NumericWheelPolicy` is an explicit widget opt-in, exact line/pixel and phase
+  evidence reaches the widget through `WheelSample`, and the widget owns typed
+  adjustment/format output plus bounded continuity state. The scroll controller
+  owns managed Idle/Active/Blocked authority, owner-only synthetic cancellation
+  before a superseding start, and legacy metadata-preserving dispatch after
+  metadata-neutral hit testing. Native unit/phase translation remains an
+  adapter boundary and cannot be inferred from legacy vector input.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,

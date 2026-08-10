@@ -1106,9 +1106,9 @@ TextEdit admission boundary. The shipped consumer now uses the crate-private
 shared gate: it acquires TextEdit only when the incumbent is None, and a
 different pending or active owner denies text admission before parsing,
 formatting, focus transfer, or edit lifecycle mutation. Complete-mode
-explicit-policy KeyboardAdjustment and PointerScrub also use the gate; the
-generic wheel-sequence routing foundation is shipped, while IME composition, the
-NumericInput wheel consumer, and accessibility edit remain target-only.
+explicit-policy KeyboardAdjustment, PointerScrub, and NumericInput wheel
+consumption also use the gate; IME composition and accessibility edit remain
+target-only.
 
 Radiant ships a bounded public, text-first numeric consumer through the explicit
 `radiant::application::{numeric_input, NumericInputBuilder}` exports. The
@@ -1118,13 +1118,14 @@ from `radiant::widgets` (and their qualified `interaction` module), but none of
 these numeric-input-specific types are exported through the common prelude.
 
 `NumericInputEditBatch<T>` is the shipped bounded incremental carrier. Its
-private inline storage has capacity two and accepts exactly the non-empty
+private inline storage has capacity three and accepts exactly the non-empty
 fragments `[Update]`, `[Commit]`, `[Cancel]`, `[Begin, Update]`,
-`[Begin, Commit]`, and `[Begin, Cancel]`; a two-event fragment must preserve one
-transaction. The text-first widget emits `[Begin, Commit]` and `[Begin, Cancel]`
-for its terminal lifecycle; complete-mode keyboard adjustment also consumes
-`[Begin, Update]`, `[Update]`, `[Commit]`, and `[Cancel]`. Replacement teardown
-of an active TextEdit remains one of the `[Begin, Cancel]` boundaries.
+`[Begin, Commit]`, `[Begin, Cancel]`, and `[Begin, Update, Commit]`; a fragment
+must preserve one transaction. The text-first widget emits `[Begin, Commit]`
+and `[Begin, Cancel]` for its terminal lifecycle; complete-mode keyboard and
+wheel adjustment consume incremental and atomic shapes, including the
+three-event wheel fragment. Replacement teardown of an active TextEdit remains
+one of the `[Begin, Cancel]` boundaries.
 
 Construction requires both application policies:
 
@@ -1171,14 +1172,15 @@ value remains compatible. With no active session, the current projection's
 canonical codec-formatted text and caret remain authoritative; stale
 noncanonical committed text is not retained.
 
-This consumer intentionally stops at generic text editing, replacement teardown,
-and the explicit complete-mode keyboard adjustment contract. Normalized
-`KeyRelease` plumbing is shipped across the runtime/native boundary. Pointer
-scrubbing, wheel changes, IME/composition, accessibility actions, Slider/Knob adoption,
-platform adapters, scheduler/renderer integration, and product numeric policy
-remain separate follow-up slices. The supplied `NumericAdjustment<T>` step
-method is consumed only by complete mode with an explicit policy; scrub and
-wheel methods remain outside this slice.
+This text-first consumer intentionally stops at generic text editing,
+replacement teardown, and the explicit complete-mode keyboard adjustment
+contract. Normalized `KeyRelease` plumbing is shipped across the runtime/native
+boundary. Complete-mode PointerScrub and NumericInput wheel consumption are
+separate shipped consumers; IME/composition, accessibility actions, Slider/Knob
+adoption, native unit/phase adapters, scheduler/renderer integration, and
+product numeric policy remain follow-up slices. The supplied
+`NumericAdjustment<T>` step, scrub, and wheel methods are consumed only by
+complete mode with their explicit policies.
 
 The first acceptance fixtures are exact and intentionally small: a `u32` count
 over `0..=100` with ASCII-digit text and base/fine/coarse steps `1/1/10`; a
@@ -1194,12 +1196,12 @@ other adjustment-consuming behavior remains outside this slice.
 
 ### Numeric interaction ownership and admission (TextEdit admission and teardown shipped)
 
-This is one shared, target-only, backend-neutral contract for the numeric
+This is one shared, backend-neutral contract for the numeric
 interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
 generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
-shipped; the generic PointerScrub and wheel-sequence routing foundations are
-shipped, while IME composition, the NumericInput wheel consumer, and
+shipped; complete-mode PointerScrub and NumericInput wheel consumers plus their
+wheel-sequence routing foundation are shipped, while IME composition and
 accessibility edit remain target-only consumers. The gate is not a public Rust API, native
 adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
@@ -1281,8 +1283,8 @@ interrupt an incumbent.
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
 compatible reprojection foundation, and complete-mode explicit-policy
-KeyboardAdjustment and PointerScrub are shipped; rows for the three remaining
-numeric consumers remain target-only:
+KeyboardAdjustment, PointerScrub, and NumericInput wheel consumption are
+shipped; rows for the two remaining numeric consumers remain target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -1540,7 +1542,7 @@ replacement teardown, are represented in complete mode as exactly one outer
 retain their original transaction, value, phase, provenance, and timestamp
 without rewriting. The validator accepts these two TextEdit terminal shapes in
 addition to the existing keyboard shapes. The capacities remain
-`NumericInputEditBatch::MAX_EVENTS == 2` and
+`NumericInputEditBatch::MAX_EVENTS == 3` and
 `NumericInputInteractionBatch::MAX_INTERACTIONS == 2`.
 
 `on_edit` remains the exact TextEdit-only compatibility binding. It maps the
@@ -1567,8 +1569,8 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. The NumericInput wheel, IME/composition, accessibility, and
-product-policy consumers remain target-only; the generic PointerScrub consumer,
+shipped. The IME/composition, accessibility, and product-policy consumers remain
+target-only; the generic PointerScrub and NumericInput wheel consumers,
 wheel-sequence routing foundation, and metadata-aware routing kernel are shipped
 in the preceding sections.
 
@@ -1588,7 +1590,7 @@ in the preceding sections.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. The NumericInput wheel, IME/composition, accessibility, and product-policy consumers remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. IME/composition, accessibility, and product-policy consumers remain unshipped. |
 
 ### Complete-mode numeric keyboard adjustment (explicit policy shipped; other consumers remain target-only)
 
@@ -1603,10 +1605,10 @@ The preceding `numeric_input` section documents the shipped text-first and
 complete-mode consumer. Normalized `Event::KeyRelease { key, modifiers,
 timestamp }` and `WidgetInput::KeyRelease { key, modifiers, timestamp }`
 plumbing is shipped, and complete mode consumes the contract below only when an
-explicit `NumericStepModifiers` policy is attached. The NumericInput wheel
-consumer, IME/composition, accessibility, and
-platform/product policy remain separate target-only consumers; generic
-PointerScrub and wheel routing foundations are shipped.
+explicit `NumericStepModifiers` policy is attached. IME/composition,
+accessibility, and platform/product policy remain separate target-only
+consumers; generic PointerScrub, NumericInput wheel consumption, and wheel
+routing foundations are shipped.
 
 Radiant ships the pure, qualified `KeyboardModifier` and
 `NumericStepModifiers` selector foundation. Both are also re-exported from
@@ -1683,7 +1685,9 @@ It stores the policy on the numeric widget; an unconfigured builder retains
 `None`, and compatibility `on_edit` remains inert. Complete mode reads the
 explicit policy and recomputes the selected step for every sample. Fine wins
 when both configured selectors are held. The exact target storage for the
-shipped `NumericInputEditBatch<T>` is fixed at two events.
+shipped `NumericInputEditBatch<T>` is fixed at three events so a complete-mode
+wheel atomic gesture can carry `[Begin, Update, Commit]`; keyboard and TextEdit
+shapes retain their existing bounded forms.
 
 Only a focused, enabled, non-read-only input without an active text mutation
 may step. `ArrowUp` selects `Increase` and `ArrowDown` selects `Decrease`;
@@ -1993,9 +1997,9 @@ Deterministic pointer-scrub fixtures:
 | 8. Initial and active failures | Initial `scrub` or formatting failure returns typed `ScrubFailed`/`PointerFormatFailed` with `attempt: Initial`, `cancelled: false`, no edit event, and pre-scrub UI restored. After `Begin`/`Update`, a failing adjustment or formatter suppresses its candidate, emits `Cancel(start)` first with the existing identity, then typed `ScrubFailed`/`PointerFormatFailed` with `attempt: Update`, `cancelled: true`; capture ends and release is orphaned. |
 | 9. Malformed geometry | Nonfinite coordinates, zero/negative/nonfinite width, or out-of-bounds geometry/position produces unknown evidence with no guessed clamp, candidate, update, or anchor advance. |
 | 10. Provenance and synthetic defaults | Press modifiers/timestamp are copied to `Begin`; each move copies its own modifiers/timestamp/sequence range to `Update`; release modifiers/timestamp are copied to `Commit`. No sequence range is fabricated. Synthetic pointer inputs retain `Pointer` source with absent native metadata, and cancellation uses exact boundary metadata when available or pointer source with absent metadata otherwise. |
-| 11. Wheel fallthrough | Wheel input over the numeric input follows existing fallback routing. The target scrub does not consume wheel input and does not add a burst timeout or wheel edit transaction. |
+| 11. Wheel fallthrough | Wheel input over the numeric input is consumed only by an explicitly configured eligible wheel consumer; unconfigured, ineligible, conflicting-owner, or pre-policy unusable samples retain existing widget/scroll-container fallback. Pointer scrub does not consume wheel input. |
 
-### Target numeric wheel adjustment and continuity (consumer not yet shipped)
+### Numeric wheel adjustment and continuity (complete-mode consumer shipped)
 
 Wheel admission uses the shared incumbent-owner gate before unit conversion,
 wheel adjustment, or pending-sequence ownership. WheelSequence may start only
@@ -2003,22 +2007,23 @@ when the stable numeric identity has owner None; a different pending or active
 owner leaves the sample to the wheel contract's existing unhandled fallback
 and never changes the incumbent.
 
-The generic backend-neutral `WheelDelta`, `WheelPhase`, `WheelSample`, and
-managed routing foundation are shipped separately. This remains illustrative
-target-only API vocabulary for NumericInput wheel adjustment and explicit wheel
-continuity; it is not a shipped NumericInput public API, policy attachment, or
-consumer. The current numeric consumer does not perform wheel adjustment. In
-particular, current native routing turns line and pixel wheel variants into the
-same logical `Vector2` before constructing current input values and ignores
-native wheel phase. That native collapse and discarded phase are gaps to close,
-not evidence that the numeric target fields or policy state exist today. The current adapter's
-nonfinite-value sanitization is likewise not the target's positive-finite
-validation rule.
+The backend-neutral `WheelDelta`, `WheelPhase`, `WheelSample`, and managed
+routing foundation are shipped, and complete-mode NumericInput consumes them
+when an explicit `NumericWheelPolicy` is attached. The public policy is a
+zero-state opt-in; unit conversion, ownership, and lifecycle state remain
+inside the generic widget/runtime seam. Exact samples preserve line/pixel unit,
+phase, modifiers, timestamp, and sequence-range evidence through policy output.
+Legacy phase-less dispatch remains compatible: hit testing is metadata-neutral,
+but selected-widget dispatch preserves supplied metadata. Native adapters that
+still collapse line/pixel or phase evidence before this exact seam remain a
+separate platform alignment gap; that fallback is not used as evidence for
+exact-sample behavior.
 
 The target-equivalent shapes are:
 
 ```rust
-// Illustrative target-only shapes; not shipped public Rust types or fields.
+// Contract vocabulary; the public implementation uses WheelDelta, WheelPhase,
+// and WheelSample while retaining these semantics behind the widget seam.
 enum NumericWheelDelta {
     Lines(Vector2),
     Pixels(Vector2),
@@ -2066,16 +2071,14 @@ enum NumericWheelResult<T, AdjustmentError, FormatError> {
 ```
 
 `NumericWheelPolicy` is responsible for admission, unit conversion, and
-continuity only. A future target builder could attach it as follows, but the
-method is not present on the current `NumericInputBuilder`:
+continuity only. The explicit builder attachment is shipped:
 
 ```rust
-// Illustrative target-only attachment; not a current builder method.
 numeric_input(value, codec, adjustment)
     .wheel_policy(NumericWheelPolicy::default());
 ```
 
-#### Target unit conversion and direction
+#### Numeric wheel unit conversion and direction
 
 The target retains the `Lines(Vector2)` or `Pixels(Vector2)` unit until the
 wheel policy invokes `NumericAdjustment::wheel`. The existing Radiant target
@@ -2094,7 +2097,7 @@ so the existing widget/scroll-container fallback remains available. A native
 line/pixel conversion that has already collapsed the unit or sanitized a
 nonfinite component cannot be treated as proof of target eligibility.
 
-#### Target admission and continuity
+#### Numeric wheel admission and continuity
 
 Admission requires a focused numeric input that is the wheel target under the
 pointer, has compatible stable identity and current external authority, is
@@ -2107,7 +2110,7 @@ without emitting `Begin`; if its sequence produces no accepted changed
 candidate and no policy or formatting failure is reported, `Ended` clears the
 pending ownership without an edit event.
 
-#### Target numeric wheel ownership matrix
+#### Numeric wheel ownership matrix
 
 The following routing matrix is normative. A usable sample has passed admission
 and validation and is eligible to invoke `NumericAdjustment::wheel`; a changed
@@ -2146,12 +2149,11 @@ Those later phases never join guessed history or become scroll fallback.
 A phase-less sample and a `Discrete` sample are conservatively one atomic
 gesture. One effective sample emits `Begin(start)`, `Update(candidate)`, and
 `Commit(candidate)` in that bounded order. A phase-less/`Discrete` sample
-rejected before policy invocation, or whose
-successful adjustment candidate equals the current value, is unhandled.
-`Changed` or `Ended` without a
-matching admitted `Started` sequence uses the conservative discrete/orphan
-fallback and never joins guessed history; it can process only that one sample
-as an atomic gesture when eligibility and changed-candidate checks pass.
+rejected before policy invocation, or whose successful adjustment candidate
+equals the current value, is unhandled. A phaseful `Changed`, `Ended`, or
+`Cancelled` without a matching admitted `Started` sequence is an orphan: it
+does not perform an atomic adjustment, never joins guessed history, and remains
+available to existing fallback routing.
 
 Step selection is recomputed for each effective sample: Base is unmodified,
 Fine is Shift, and Coarse is Command on macOS or Control on Windows/Linux.
@@ -2162,7 +2164,7 @@ ownership, target identity, and routing ownership are compatible. It preserves
 phase boundaries and per-sample step decisions; it never uses sequence metadata
 as an execution decision.
 
-#### Target adjustment, formatting, and failure ordering
+#### Numeric wheel adjustment, formatting, and failure ordering
 
 The numeric consumer invokes the supplied policy only as a signed wheel
 operation, conceptually:
@@ -2199,7 +2201,7 @@ preserves pending or active ownership and its start/continuity state. Changed
 authority or identity cancels the old interaction before applying the new
 authority; it never rebases an active sequence.
 
-#### Target provenance and execution boundaries
+#### Numeric wheel provenance and execution boundaries
 
 Every edit phase uses pointer provenance. Effective samples preserve their exact
 modifiers, optional timestamp, and complete supplied sequence range. A terminal
@@ -2224,7 +2226,7 @@ Deterministic target fixtures:
 | 3. Direction and unusable samples | Positive finite vertical movement increases, negative finite vertical movement decreases. Zero, horizontal-only, nonfinite, malformed, and unusable samples create no candidate; phase-less/`Discrete` cases remain unhandled for fallback. |
 | 4. Explicit continuity | `Started` -> `Changed`* -> `Ended` is one transaction: the first effective changed candidate emits `Begin(start)` then `Update(candidate)`, later effective samples emit at most one `Update`, and `Ended` commits current. A pending sequence with no changed candidate ends without an edit event. |
 | 5. Explicit and non-phase cancellation | `Cancelled`, Escape, focus/identity loss, incompatible reprojection, changed authority, disable/read-only, and explicit cancel restore the exact start snapshot. An active edit emits exactly one same-transaction `Cancel(start)` before cleanup; a pending edit emits none. |
-| 6. Atomic discrete and malformed/orphan phases | One effective phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit` in order. An ineligible/conflicting-owner or pre-policy unusable sample (zero, horizontal-only, nonfinite, malformed, or unsupported) remains unhandled with scroll fallback; an eligible usable policy/format failure is numeric-owned handled as a typed initial failure with `cancelled: false` and never falls back. A `Changed`/`Ended` without a matching admitted start follows one-sample discrete/orphan fallback and never joins guessed history; a first policy failure in an admitted explicit sequence clears pending ownership and orphans later phases. |
+| 6. Atomic discrete and malformed/orphan phases | One effective phase-less/`Discrete` sample emits `Begin`, `Update`, `Commit` in order. An ineligible/conflicting-owner or pre-policy unusable sample (zero, horizontal-only, nonfinite, malformed, or unsupported) remains unhandled with scroll fallback; an eligible usable policy/format failure is numeric-owned handled as a typed initial failure with `cancelled: false` and never falls back. A phaseful `Changed`, `Ended`, or `Cancelled` without a matching admitted start is an orphan and remains unhandled; it never performs an atomic adjustment or joins guessed history. A first policy failure in an admitted explicit sequence clears pending ownership and orphans later phases. |
 | 7. Base/Fine/Coarse and modifier changes | Unmodified selects Base, Shift selects Fine, Command on macOS or Control on Windows/Linux selects Coarse, and Fine wins when both match. A per-sample modifier change selects the new step for the next effective sample without a jump, second transaction, or guessed continuity break. |
 | 8. Unchanged candidates | When adjustment succeeds with a candidate equal to the current value, the formatter is not invoked and no candidate or edit exists. An atomic phase-less/`Discrete` sample remains unhandled for scroll fallback; an unchanged sample in an admitted explicit sequence emits no `Update` and retains ownership through its terminal phase. This is distinct from a policy/formatting failure, which is handled numerically and never falls back. |
 | 9. Typed failures and rollback ordering | For an eligible usable sample, an adjustment/format failure is numeric-owned handled as the typed initial failure with `cancelled: false`; exact UI is unchanged, no transaction is emitted, and scroll fallback is unavailable. On the first policy attempt of an admitted explicit sequence, that failure clears pending ownership and orphans later phases. After an effective update, a failed adjustment/format candidate is suppressed, the exact start is restored, one `Cancel(start)` is emitted first, and the typed update failure with `cancelled: true` follows; no failed `Update` is published. |
@@ -2515,8 +2517,10 @@ inverse, explicit steps, and bounded pure sensitivities. Finite adjustment
 inputs clamp only at declared boundaries; nonfinite inputs and policy failures
 are returned through the associated error. The public `numeric_input` builder
 requires an adjustment and validates its checked inverse during construction,
-but this text-only consumer does not yet route step, scrub, or wheel methods.
-Radiant does not expose a concrete public `f32` adjustment in this boundary.
+but the compatibility text-only consumer does not route step, scrub, or wheel
+methods. Complete mode routes those methods only through their explicit policy
+attachments, including the shipped `NumericWheelPolicy`; Radiant does not
+expose a concrete public `f32` adjustment in this boundary.
 
 ### Value mappings
 
@@ -4602,9 +4606,10 @@ read-only state, incompatible replacement, and explicit cancellation clear the
 managed record conservatively, with bounded button-specific orphan suppression for
 a delayed matching release. Scrollbar and layout hit precedence remains ahead of
 widget preflight, and `Blocked` never reaches widget dispatch, focus transfer,
-capture, mapping, or host output. The NumericInput PointerScrub consumer is
-shipped separately; the NumericInput wheel policy, consumer, output, failure,
-and geometry remain target-only.
+capture, mapping, or host output. The NumericInput PointerScrub and wheel
+consumers are shipped separately; their policy, output, failure, geometry, and
+continuity contracts remain generic and backend-neutral. Native unit/phase
+translation remains a separate platform boundary.
 Tests, automation, and embedded hosts that need ordinary pointer activation can
 use `SurfaceRuntime::dispatch_pointer_click(...)` or
 `dispatch_primary_click(...)` / `dispatch_secondary_click(...)`; the returned

@@ -74,12 +74,15 @@ backend-neutral IME/composition lifecycle is now defined but unimplemented; the
 current source has no composition event or state. Complete-mode NumericInput
 PointerScrub consumption is now shipped for the explicitly configured
 primary-plus-Alt/Option path, including managed capture, bounded output, typed
-failures, and exact rollback/teardown. Wheel adjustment is now contract-defined
-but unimplemented. Numeric accessibility actions are contract-defined but
+failures, and exact rollback/teardown. Wheel adjustment remains unimplemented
+as a NumericInput consumer, but the backend-neutral wheel-sample and managed
+wheel-sequence routing kernel is now shipped. Numeric accessibility actions are
+contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The three other shared-gate consumers—IME/composition, wheel, and
-accessibility—remain target-only and unimplemented.
+The three remaining numeric consumers—IME/composition, NumericInput wheel, and
+accessibility—remain target-only and unimplemented; generic PointerScrub and
+wheel routing foundations are shipped.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless
@@ -132,6 +135,16 @@ one point in Text/focus/selection, and five points in Numeric controls:
 `860 + 1 + 1 + 5 = 867`, `867 / 11 = 78.8181...%`, reported as approximately
 `78.82%`; the generic estimate remains about 97% and the other target gaps
 remain unchanged.
+The accepted generic wheel-routing foundation adds qualified exact line/pixel
+samples, default-compatible widget hooks, owner-first managed continuity, and a
+bounded Idle/Active/Blocked lifecycle with conservative refresh, focus, removal,
+replacement, authority, disabled, and read-only handling. Legacy phase-less hit
+testing remains metadata-free while exact samples preserve metadata. Its focused
+runtime/custom-widget/public API and guardrail coverage, native compatibility
+regression coverage, full library validation, and current-head performance
+evidence are shipped. This foundation earns zero NumericInput wheel-consumer
+credit; the broad estimate remains `867 / 11 = 78.8181...%` (approximately
+`78.82%`) and the generic estimate remains about 97%.
 The numeric interaction output mapping is now shipped for the TextEdit and
 complete-mode keyboard lifecycles. It fixes the exact `on_interaction` mapper
 type and associated error order, one interaction batch/mapper/host dispatch per

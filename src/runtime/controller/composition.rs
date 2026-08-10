@@ -30,6 +30,25 @@ where
             return None;
         }
         if !sample.is_valid() {
+            let active_widget_id = match self.interaction.composition.managed_composition {
+                RuntimeManagedCompositionState::Active { widget_id }
+                    if self.managed_composition_is_live(widget_id) =>
+                {
+                    Some(widget_id)
+                }
+                _ => None,
+            };
+            if let Some(widget_id) = active_widget_id {
+                // Invalid evidence ends a live owner through the same
+                // terminal clear-before-dispatch path as an explicit cancel.
+                // Install the stale-continuation fence after that one
+                // owner-directed synthetic cancel has been delivered.
+                self.dispatch_managed_composition(
+                    widget_id,
+                    CompositionPhase::Cancel,
+                    CompositionSample::cancel(),
+                );
+            }
             self.block_managed_composition();
             return None;
         }

@@ -15,12 +15,14 @@ enum CompositionProjection {
 struct PublicCompositionWidget {
     common: WidgetCommon,
     samples: Rc<RefCell<Vec<(WidgetId, CompositionPhase)>>>,
+    composition_active: Rc<RefCell<bool>>,
 }
 
 impl PublicCompositionWidget {
     fn new(
         widget_id: WidgetId,
         samples: Rc<RefCell<Vec<(WidgetId, CompositionPhase)>>>,
+        composition_active: Rc<RefCell<bool>>,
         disabled: bool,
         read_only: bool,
     ) -> Self {
@@ -29,7 +31,11 @@ impl PublicCompositionWidget {
                 .with_keyboard_focus();
         common.state.disabled = disabled;
         common.state.read_only = read_only;
-        Self { common, samples }
+        Self {
+            common,
+            samples,
+            composition_active,
+        }
     }
 }
 
@@ -54,6 +60,10 @@ impl Widget for PublicCompositionWidget {
         self.samples
             .borrow_mut()
             .push((self.common.id, sample.phase()));
+        *self.composition_active.borrow_mut() = matches!(
+            sample.phase(),
+            CompositionPhase::Start | CompositionPhase::Update
+        );
         None
     }
 
@@ -75,6 +85,7 @@ impl Widget for PublicCompositionWidget {
 struct PublicCompositionBridge {
     projection: CompositionProjection,
     samples: Rc<RefCell<Vec<(WidgetId, CompositionPhase)>>>,
+    composition_active: Rc<RefCell<bool>>,
 }
 
 impl Default for PublicCompositionBridge {
@@ -82,6 +93,7 @@ impl Default for PublicCompositionBridge {
         Self {
             projection: CompositionProjection::Both,
             samples: Rc::new(RefCell::new(Vec::new())),
+            composition_active: Rc::new(RefCell::new(false)),
         }
     }
 }
@@ -89,18 +101,36 @@ impl Default for PublicCompositionBridge {
 impl RuntimeBridge<()> for PublicCompositionBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         let first = match self.projection {
-            CompositionProjection::DisabledOwner => {
-                PublicCompositionWidget::new(501, Rc::clone(&self.samples), true, false)
-            }
-            CompositionProjection::ReadOnlyOwner => {
-                PublicCompositionWidget::new(501, Rc::clone(&self.samples), false, true)
-            }
+            CompositionProjection::DisabledOwner => PublicCompositionWidget::new(
+                501,
+                Rc::clone(&self.samples),
+                Rc::clone(&self.composition_active),
+                true,
+                false,
+            ),
+            CompositionProjection::ReadOnlyOwner => PublicCompositionWidget::new(
+                501,
+                Rc::clone(&self.samples),
+                Rc::clone(&self.composition_active),
+                false,
+                true,
+            ),
             CompositionProjection::Both | CompositionProjection::OwnerOnly => {
-                PublicCompositionWidget::new(501, Rc::clone(&self.samples), false, false)
+                PublicCompositionWidget::new(
+                    501,
+                    Rc::clone(&self.samples),
+                    Rc::clone(&self.composition_active),
+                    false,
+                    false,
+                )
             }
-            CompositionProjection::SecondOnly => {
-                PublicCompositionWidget::new(502, Rc::clone(&self.samples), false, false)
-            }
+            CompositionProjection::SecondOnly => PublicCompositionWidget::new(
+                502,
+                Rc::clone(&self.samples),
+                Rc::clone(&self.composition_active),
+                false,
+                false,
+            ),
         };
         let children = match self.projection {
             CompositionProjection::OwnerOnly
@@ -115,7 +145,13 @@ impl RuntimeBridge<()> for PublicCompositionBridge {
                     WidgetMessageMapper::none(),
                 )),
                 SurfaceChild::fill(SurfaceNode::custom_widget(
-                    PublicCompositionWidget::new(502, Rc::clone(&self.samples), false, false),
+                    PublicCompositionWidget::new(
+                        502,
+                        Rc::clone(&self.samples),
+                        Rc::clone(&self.composition_active),
+                        false,
+                        false,
+                    ),
                     WidgetMessageMapper::none(),
                 )),
             ],
@@ -132,6 +168,14 @@ fn empty_start() -> CompositionSample {
 fn update_with_two_scalars() -> CompositionSample {
     let selection = CompositionRange::new(1, 1, 2).expect("two-scalar selection");
     CompositionSample::update("あい", selection).expect("valid composition update")
+}
+
+fn invalid_update() -> CompositionSample {
+    CompositionSample::Update {
+        preedit: String::from("あ"),
+        selection: CompositionRange::new(0, 0, 2).expect("mismatched scalar evidence"),
+        timestamp: None,
+    }
 }
 
 #[test]
@@ -155,6 +199,44 @@ fn composition_runtime_pins_owner_and_never_rebinds_continuations() {
     assert_eq!(
         runtime.bridge().samples.borrow().as_slice(),
         &[(501, CompositionPhase::Start)]
+    );
+}
+
+#[test]
+fn invalid_composition_cancels_live_owner_and_fences_continuation() {
+    let bridge = PublicCompositionBridge::default();
+    let composition_active = Rc::clone(&bridge.composition_active);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(260.0, 40.0));
+
+    assert!(runtime.focus_widget(501));
+    assert_eq!(
+        runtime.dispatch_composition_sample(empty_start()),
+        Some(501)
+    );
+    assert!(*composition_active.borrow());
+
+    assert_eq!(runtime.dispatch_composition_sample(invalid_update()), None);
+    assert!(!*composition_active.borrow());
+    assert_eq!(
+        runtime.bridge().samples.borrow().as_slice(),
+        &[
+            (501, CompositionPhase::Start),
+            (501, CompositionPhase::Cancel),
+        ]
+    );
+
+    assert!(runtime.focus_widget(502));
+    assert_eq!(
+        runtime.dispatch_composition_sample(update_with_two_scalars()),
+        None
+    );
+    assert!(!*composition_active.borrow());
+    assert_eq!(
+        runtime.bridge().samples.borrow().as_slice(),
+        &[
+            (501, CompositionPhase::Start),
+            (501, CompositionPhase::Cancel),
+        ]
     );
 }
 
@@ -234,6 +316,7 @@ fn composition_refresh_preserves_exact_owner_and_blocks_removed_or_disabled_owne
         PublicCompositionBridge {
             projection: CompositionProjection::Both,
             samples: Rc::new(RefCell::new(Vec::new())),
+            composition_active: Rc::new(RefCell::new(false)),
         },
         Vector2::new(260.0, 40.0),
     );
@@ -257,6 +340,7 @@ fn composition_refresh_preserves_exact_owner_and_blocks_removed_or_disabled_owne
         PublicCompositionBridge {
             projection: CompositionProjection::Both,
             samples: Rc::new(RefCell::new(Vec::new())),
+            composition_active: Rc::new(RefCell::new(false)),
         },
         Vector2::new(260.0, 40.0),
     );

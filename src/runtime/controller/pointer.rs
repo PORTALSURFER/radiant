@@ -1,14 +1,17 @@
 use super::focus::FocusTransition;
+use super::interaction_state::{RuntimeManagedPointerCapture, RuntimeManagedPointerCaptureState};
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::Point,
     runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
+    widgets::{PointerButton, PointerPressAdmission},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
 pub(super) enum PointInputDispatch {
     Miss,
+    Blocked,
     FocusVetoed,
     Routed(WidgetId, bool),
 }
@@ -127,7 +130,9 @@ where
     pub fn dispatch_input_at(&mut self, point: Point, input: WidgetInput) -> Option<WidgetId> {
         match self.dispatch_input_at_output(point, input) {
             PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
-            PointInputDispatch::Miss | PointInputDispatch::FocusVetoed => None,
+            PointInputDispatch::Miss
+            | PointInputDispatch::Blocked
+            | PointInputDispatch::FocusVetoed => None,
         }
     }
 
@@ -139,10 +144,68 @@ where
         let Some(widget_id) = self.widget_at_for_input(point, &input) else {
             return PointInputDispatch::Miss;
         };
-        if matches!(
-            input,
+        let managed_press_compatibility_kind =
+            self.pointer_press_target_compatibility_kind(widget_id);
+        let admission = match &input {
+            WidgetInput::PointerPress { .. } => {
+                self.preflight_pointer_press_for_widget(widget_id, &input)
+            }
+            _ => PointerPressAdmission::Legacy,
+        };
+        let focus_press = matches!(
+            &input,
             WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
-        ) {
+        );
+        self.dispatch_input_at_target_output(
+            widget_id,
+            input,
+            admission,
+            false,
+            focus_press,
+            managed_press_compatibility_kind,
+        )
+    }
+
+    pub(super) fn dispatch_input_at_target_output(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+        admission: PointerPressAdmission,
+        install_legacy_capture: bool,
+        focus_press: bool,
+        managed_press_compatibility_kind: Option<&'static str>,
+    ) -> PointInputDispatch {
+        let managed_press = match &input {
+            WidgetInput::PointerPress { button, .. }
+                if admission == PointerPressAdmission::ManagedCapture =>
+            {
+                Some(*button)
+            }
+            _ => None,
+        };
+        if admission == PointerPressAdmission::Blocked {
+            return PointInputDispatch::Blocked;
+        }
+        self.validate_managed_pointer_capture_authority();
+        if self.interaction.pointer.managed_capture.is_some()
+            && (matches!(&input, WidgetInput::PointerPress { .. })
+                || (focus_press && matches!(&input, WidgetInput::PointerDoubleClick { .. })))
+        {
+            return PointInputDispatch::Miss;
+        }
+        if matches!(input, WidgetInput::PointerPress { .. })
+            && install_legacy_capture
+            && admission == PointerPressAdmission::Legacy
+        {
+            self.interaction.pointer.capture = Some(widget_id);
+            self.reset_tooltip_hover_intent();
+        }
+        if focus_press
+            && matches!(
+                input,
+                WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
+            )
+        {
             let focus_transition = self.request_focus(widget_id);
             match focus_transition {
                 FocusTransition::Vetoed => return PointInputDispatch::FocusVetoed,
@@ -160,13 +223,400 @@ where
                 FocusTransition::Unchanged | FocusTransition::Changed => {}
             }
         }
-        match self.dispatch_input_output(widget_id, input) {
+        if let Some(button) = managed_press
+            && !self.reserve_managed_pointer_capture(
+                widget_id,
+                button,
+                managed_press_compatibility_kind,
+            )
+        {
+            return PointInputDispatch::Miss;
+        }
+        if let WidgetInput::PointerPress { button, .. } = &input {
+            self.clear_managed_pointer_release_tombstone_for_new_press(*button);
+        }
+        let routed = self.dispatch_input_output(widget_id, input);
+        if let Some(button) = managed_press {
+            self.finish_managed_pointer_press(widget_id, button, routed.is_some());
+        }
+        match routed {
             Some(emitted_output) => PointInputDispatch::Routed(widget_id, emitted_output),
             None => PointInputDispatch::Miss,
         }
     }
 
+    pub(super) fn preflight_pointer_press_for_widget(
+        &self,
+        widget_id: WidgetId,
+        input: &WidgetInput,
+    ) -> PointerPressAdmission {
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return PointerPressAdmission::Blocked;
+        };
+        self.surface_widget(widget_id)
+            .map(|widget| widget.preflight_pointer_press(bounds, input))
+            .unwrap_or(PointerPressAdmission::Blocked)
+    }
+
+    pub(super) fn pointer_press_target_compatibility_kind(
+        &self,
+        widget_id: WidgetId,
+    ) -> Option<&'static str> {
+        self.surface_widget(widget_id)
+            .map(|widget| widget.compatibility_kind())
+    }
+
+    pub(super) fn dispatch_direct_input_output(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+    ) -> Option<bool> {
+        let managed_press_compatibility_kind =
+            self.pointer_press_target_compatibility_kind(widget_id);
+        let admission = match &input {
+            WidgetInput::PointerPress { .. } => {
+                self.preflight_pointer_press_for_widget(widget_id, &input)
+            }
+            _ => PointerPressAdmission::Legacy,
+        };
+        let focus_press = admission == PointerPressAdmission::ManagedCapture
+            && matches!(&input, WidgetInput::PointerPress { .. });
+        match self.dispatch_input_at_target_output(
+            widget_id,
+            input,
+            admission,
+            false,
+            focus_press,
+            managed_press_compatibility_kind,
+        ) {
+            PointInputDispatch::Routed(_, emitted_output) => Some(emitted_output),
+            PointInputDispatch::Miss
+            | PointInputDispatch::Blocked
+            | PointInputDispatch::FocusVetoed => None,
+        }
+    }
+
+    fn managed_press_target_is_current(
+        &self,
+        widget_id: WidgetId,
+        compatibility_kind: Option<&'static str>,
+    ) -> bool {
+        let Some(widget) = self.surface_widget(widget_id) else {
+            return false;
+        };
+        let common = widget.widget_object().common();
+        widget.id() == widget_id
+            && compatibility_kind.is_none_or(|kind| widget.compatibility_kind() == kind)
+            && !common.state.disabled
+            && !common.state.read_only
+            && (!widget.is_focusable() || self.interaction.focus.focused_widget == Some(widget_id))
+            && self.layout.rects.contains_key(&widget_id)
+    }
+
+    fn reserve_managed_pointer_capture(
+        &mut self,
+        widget_id: WidgetId,
+        button: PointerButton,
+        compatibility_kind: Option<&'static str>,
+    ) -> bool {
+        if self.interaction.pointer.managed_capture.is_some()
+            || !self.managed_press_target_is_current(widget_id, compatibility_kind)
+        {
+            return false;
+        }
+        self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_state = None;
+        self.interaction
+            .pointer
+            .set_managed_release_tombstone(button, false);
+        self.interaction.pointer.managed_capture = Some(RuntimeManagedPointerCapture {
+            widget_id,
+            button,
+            state: RuntimeManagedPointerCaptureState::Pending,
+        });
+        true
+    }
+
+    fn finish_managed_pointer_press(
+        &mut self,
+        widget_id: WidgetId,
+        button: PointerButton,
+        dispatched: bool,
+    ) {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return;
+        };
+        if capture.widget_id != widget_id
+            || capture.button != button
+            || capture.state != RuntimeManagedPointerCaptureState::Pending
+        {
+            return;
+        }
+        if !dispatched || !self.managed_press_target_is_current(widget_id, None) {
+            self.terminate_managed_pointer_capture_without_cancel();
+            return;
+        }
+        if !self.managed_pointer_record_is_live(false) {
+            self.terminate_managed_pointer_capture_without_cancel();
+            return;
+        }
+        self.interaction.pointer.managed_capture = Some(RuntimeManagedPointerCapture {
+            widget_id,
+            button,
+            state: RuntimeManagedPointerCaptureState::Active,
+        });
+        self.interaction.pointer.capture = Some(widget_id);
+        self.reset_tooltip_hover_intent();
+        if self.validate_managed_pointer_capture_authority() {
+            self.capture_pointer_capture_state(widget_id);
+        }
+    }
+
+    pub(super) fn validate_managed_pointer_capture_authority(&mut self) -> bool {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return true;
+        };
+        if capture.state == RuntimeManagedPointerCaptureState::Cancelling {
+            return false;
+        }
+        let require_shared_capture = capture.state == RuntimeManagedPointerCaptureState::Active;
+        if self.managed_pointer_record_is_live(require_shared_capture) {
+            true
+        } else {
+            self.terminate_managed_pointer_capture_without_cancel();
+            false
+        }
+    }
+
+    fn managed_pointer_record_is_live(&self, require_shared_capture: bool) -> bool {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return false;
+        };
+        if require_shared_capture && self.interaction.pointer.capture != Some(capture.widget_id) {
+            return false;
+        }
+        let Some(widget) = self.surface_widget(capture.widget_id) else {
+            return false;
+        };
+        let common = widget.widget_object().common();
+        widget.id() == capture.widget_id
+            && !common.state.disabled
+            && !common.state.read_only
+            && (!widget.is_focusable()
+                || self.interaction.focus.focused_widget == Some(capture.widget_id))
+            && widget.retains_managed_pointer_capture()
+    }
+
+    pub(super) fn terminate_managed_pointer_capture_without_cancel(&mut self) {
+        let Some(capture) = self.interaction.pointer.managed_capture.take() else {
+            return;
+        };
+        if capture.state == RuntimeManagedPointerCaptureState::Cancelling {
+            self.interaction.pointer.managed_capture = Some(capture);
+            return;
+        }
+        if self.interaction.pointer.capture == Some(capture.widget_id) {
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+        }
+        self.interaction
+            .pointer
+            .set_managed_release_tombstone(capture.button, true);
+        self.reset_tooltip_hover_intent();
+    }
+
+    pub(super) fn terminate_managed_pointer_capture_for_widget(
+        &mut self,
+        widget_id: WidgetId,
+    ) -> bool {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return false;
+        };
+        if capture.widget_id != widget_id {
+            return false;
+        }
+        self.terminate_managed_pointer_capture_without_cancel();
+        true
+    }
+
+    fn clear_managed_pointer_release_tombstone_for_new_press(&mut self, button: PointerButton) {
+        self.interaction
+            .pointer
+            .set_managed_release_tombstone(button, false);
+    }
+
+    pub(super) fn consume_managed_pointer_release_tombstone(
+        &mut self,
+        button: PointerButton,
+    ) -> bool {
+        if !self.interaction.pointer.has_any_managed_release_tombstone()
+            || !self
+                .interaction
+                .pointer
+                .has_managed_release_tombstone(button)
+        {
+            return false;
+        }
+        self.interaction
+            .pointer
+            .set_managed_release_tombstone(button, false);
+        true
+    }
+
+    pub(super) fn managed_pointer_capture_for_button(
+        &self,
+        button: PointerButton,
+    ) -> Option<WidgetId> {
+        self.interaction
+            .pointer
+            .managed_capture
+            .filter(|capture| {
+                capture.state == RuntimeManagedPointerCaptureState::Active
+                    && capture.button == button
+            })
+            .map(|capture| capture.widget_id)
+    }
+
+    pub(super) fn begin_managed_pointer_capture_cancellation(&mut self) -> Option<WidgetId> {
+        let capture = self.interaction.pointer.managed_capture.as_mut()?;
+        if matches!(capture.state, RuntimeManagedPointerCaptureState::Cancelling) {
+            return None;
+        }
+        capture.state = RuntimeManagedPointerCaptureState::Cancelling;
+        Some(capture.widget_id)
+    }
+
+    pub(super) fn finish_managed_pointer_capture_cancellation(&mut self) {
+        let Some(capture) = self.interaction.pointer.managed_capture.take() else {
+            return;
+        };
+        if capture.state != RuntimeManagedPointerCaptureState::Cancelling {
+            self.interaction.pointer.managed_capture = Some(capture);
+            return;
+        }
+        if self.interaction.pointer.capture == Some(capture.widget_id) {
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+        }
+        self.interaction
+            .pointer
+            .set_managed_release_tombstone(capture.button, true);
+        self.reset_tooltip_hover_intent();
+    }
+
+    pub(super) fn finish_managed_pointer_release(
+        &mut self,
+        widget_id: WidgetId,
+        button: PointerButton,
+    ) -> bool {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return false;
+        };
+        if capture.state != RuntimeManagedPointerCaptureState::Active
+            || capture.widget_id != widget_id
+            || capture.button != button
+        {
+            return false;
+        }
+        self.interaction.pointer.managed_capture = None;
+        if self.interaction.pointer.capture == Some(widget_id) {
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+        }
+        true
+    }
+
+    pub(super) fn clear_managed_pointer_capture_for_widget(&mut self, widget_id: WidgetId) {
+        if self
+            .interaction
+            .pointer
+            .managed_capture
+            .is_some_and(|capture| capture.widget_id == widget_id)
+        {
+            self.terminate_managed_pointer_capture_without_cancel();
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn reconcile_managed_pointer_capture_after_refresh(
+        &mut self,
+        next_surface: &crate::runtime::UiSurface<Message>,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        current_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        retired_widget_ids: &[WidgetId],
+    ) {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return;
+        };
+        if capture.state == RuntimeManagedPointerCaptureState::Cancelling {
+            return;
+        }
+        if retired_widget_ids.contains(&capture.widget_id)
+            || !managed_capture_has_unique_widget_id(previous_widget_order, capture.widget_id)
+            || !managed_capture_has_unique_widget_id(current_widget_order, capture.widget_id)
+        {
+            self.terminate_managed_pointer_capture_without_cancel();
+            return;
+        }
+        let Some(previous_path) = previous_paths.get(&capture.widget_id) else {
+            self.terminate_managed_pointer_capture_without_cancel();
+            return;
+        };
+        let Some(current_path) = current_paths.get(&capture.widget_id) else {
+            self.terminate_managed_pointer_capture_without_cancel();
+            return;
+        };
+        let compatible = self
+            .surface
+            .widget_compatibility_at_path(previous_path.as_slice())
+            .zip(next_surface.widget_compatibility_at_path(current_path.as_slice()))
+            .is_some_and(
+                |((previous_kind, previous_valid), (current_kind, current_valid))| {
+                    previous_valid && current_valid && previous_kind == current_kind
+                },
+            );
+        let previous_live = self
+            .surface
+            .find_widget_at_path(capture.widget_id, previous_path)
+            .is_some_and(|widget| {
+                self.managed_refresh_widget_is_live(widget, capture.widget_id, false)
+            });
+        let current_live = next_surface
+            .find_widget_at_path(capture.widget_id, current_path)
+            .is_some_and(|widget| {
+                self.managed_refresh_widget_is_live(widget, capture.widget_id, false)
+            });
+        if !compatible || !previous_live || !current_live {
+            self.terminate_managed_pointer_capture_without_cancel();
+        }
+    }
+
+    fn managed_refresh_widget_is_live(
+        &self,
+        widget: &crate::runtime::SurfaceWidget<Message>,
+        widget_id: WidgetId,
+        require_shared_capture: bool,
+    ) -> bool {
+        let Some(capture) = self.interaction.pointer.managed_capture else {
+            return false;
+        };
+        if require_shared_capture && self.interaction.pointer.capture != Some(capture.widget_id) {
+            return false;
+        }
+        let common = widget.widget_object().common();
+        widget.id() == widget_id
+            && !common.state.disabled
+            && !common.state.read_only
+            && (!widget.is_focusable() || self.interaction.focus.focused_widget == Some(widget_id))
+            && widget.retains_managed_pointer_capture()
+    }
+
     pub(super) fn unwind_provisional_pointer_capture(&mut self) {
+        if self.interaction.pointer.managed_capture.is_some() {
+            return;
+        }
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
@@ -242,13 +692,23 @@ where
     /// continuation of the in-window press.
     pub(crate) fn cancel_pointer_capture(&mut self) {
         self.cancel_layout_pointer_capture();
+        let managed_record_present = self.interaction.pointer.managed_capture.is_some();
+        let managed_owner = self.begin_managed_pointer_capture_cancellation();
         let captured = self.interaction.pointer.capture.take();
-        if let Some(widget_id) = captured {
+        let cancellation_owner = if managed_record_present {
+            managed_owner
+        } else {
+            captured
+        };
+        if let Some(widget_id) = cancellation_owner {
             self.cancel_captured_widget_state(widget_id);
         }
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
+        if managed_record_present {
+            self.finish_managed_pointer_capture_cancellation();
+        }
         self.reset_tooltip_hover_intent();
     }
 
@@ -390,6 +850,20 @@ where
         self.repaint_requested = true;
         true
     }
+}
+
+fn managed_capture_has_unique_widget_id(widget_order: &[WidgetId], widget_id: WidgetId) -> bool {
+    let mut found = false;
+    for candidate in widget_order {
+        if *candidate != widget_id {
+            continue;
+        }
+        if found {
+            return false;
+        }
+        found = true;
+    }
+    found
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

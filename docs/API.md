@@ -444,6 +444,14 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint callback signature | `PaintPrimitive` |
 
+Advanced pointer admission is qualified through `radiant::widgets::PointerPressAdmission`;
+it is intentionally absent from `radiant::prelude`. `Widget::preflight_pointer_press`
+defaults to `PointerPressAdmission::Legacy`, so existing custom widgets keep their
+source-compatible press, focus, double-click, capture, and release behavior. A
+widget may return `ManagedCapture` or `Blocked` from the immutable preflight hook,
+and may report continued managed ownership through
+`Widget::retains_managed_pointer_capture`; both hooks are object-safe defaults.
+
 `KeyboardModifiers` is intentionally excluded from `radiant::prelude::*`; use
 `radiant::widgets::KeyboardModifiers` for the normalized keyboard modifier
 payload.
@@ -4585,6 +4593,18 @@ double-click on a non-focusable hit target preserves the pre-existing behavior
 of clearing current controller focus before routing target input. If the current
 owner vetoes that clear, Radiant suppresses target input and unwinds provisional
 pointer capture.
+The generic managed pointer path is controller-owned and pins the exact admitting
+widget and initiating button. It is installed only after target selection,
+preflight, focus validation, and press dispatch admission. Matching move,
+modifier, and release samples remain with that exact owner; a nonmatching button
+cannot terminate or rebase it. Authority loss, focus loss, removal, disabled or
+read-only state, incompatible replacement, and explicit cancellation clear the
+managed record conservatively, with bounded button-specific orphan suppression for
+a delayed matching release. Scrollbar and layout hit precedence remains ahead of
+widget preflight, and `Blocked` never reaches widget dispatch, focus transfer,
+capture, mapping, or host output. This is a generic kernel only: NumericInput
+pointer scrubbing, policy, consumer, output, failure, and geometry remain
+target-only.
 Tests, automation, and embedded hosts that need ordinary pointer activation can
 use `SurfaceRuntime::dispatch_pointer_click(...)` or
 `dispatch_primary_click(...)` / `dispatch_secondary_click(...)`; the returned

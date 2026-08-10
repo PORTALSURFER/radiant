@@ -73,6 +73,7 @@ where
             self.repaint_requested = true;
             return FocusTransition::Vetoed;
         }
+        self.terminate_managed_pointer_capture_for_widget(previous);
         self.mark_focused_key_capture_stale(previous);
         self.interaction.focus.focused_widget = None;
         if previous_is_live {
@@ -96,6 +97,7 @@ where
                 return FocusTransition::Vetoed;
             }
 
+            self.terminate_managed_pointer_capture_for_widget(previous);
             // Install the controller-owned target before FocusChanged(false)
             // can emit a message and synchronously reproject the surface.
             self.mark_focused_key_capture_stale(previous);

@@ -161,6 +161,16 @@ new focused export leaf or a module split, not a formatting workaround.
   evidence before delegating to the generic controller. The kernel is generic
   and numeric-policy-free, while widgets retain the existing key-only fallback
   unless they opt in.
+- Pointer-press admission has the same generic ownership split: the qualified
+  `radiant::widgets::PointerPressAdmission` hook selects Legacy, ManagedCapture,
+  or Blocked after scrollbar/layout target precedence; `src/runtime/controller`
+  owns one fixed-size exact-widget/exact-button managed record, continuation
+  validation, cancellation, orphan-release suppression, and refresh
+  reconciliation; native adapters continue to delegate normalized pointer
+  events through the existing controller seam. Legacy widgets retain the old
+  path and Blocked presses stop before focus, capture, widget dispatch, mapping,
+  or host output. NumericInput PointerScrub policy and consumers remain a later
+  target-only layer.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,

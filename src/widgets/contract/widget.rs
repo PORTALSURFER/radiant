@@ -49,6 +49,25 @@ pub enum FocusLossDecision {
     Veto,
 }
 
+/// Admission result for a pointer press before widget interaction begins.
+///
+/// The default [`Widget::preflight_pointer_press`] implementation returns
+/// [`Self::Legacy`], preserving the existing controller-owned press behavior.
+/// [`Self::ManagedCapture`] opts the widget into the bounded controller-managed
+/// capture authority, while [`Self::Blocked`] refuses the press without
+/// transferring focus, installing capture, dispatching input, or mapping
+/// output.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PointerPressAdmission {
+    /// Preserve the existing pointer press and capture behavior.
+    #[default]
+    Legacy,
+    /// Admit the press through the controller-managed capture authority.
+    ManagedCapture,
+    /// Refuse the press before widget or controller interaction mutation.
+    Blocked,
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.
@@ -106,6 +125,29 @@ pub trait Widget: WidgetClone + Any {
     /// preserves the existing focus-loss behavior for custom widgets.
     fn prepare_focus_loss(&mut self) -> FocusLossDecision {
         FocusLossDecision::Allow
+    }
+
+    /// Preflight one pointer press without mutating widget state.
+    ///
+    /// The hook is synchronous, object-safe, allocation-free, and immutable so
+    /// the controller can decide whether to proceed before preparing focus loss
+    /// or installing pointer capture. Existing widgets retain the legacy path
+    /// through the default.
+    fn preflight_pointer_press(
+        &self,
+        _bounds: Rect,
+        _input: &WidgetInput,
+    ) -> PointerPressAdmission {
+        PointerPressAdmission::Legacy
+    }
+
+    /// Report whether this widget still owns an admitted managed pointer press.
+    ///
+    /// The controller consults this only after creating a record from
+    /// [`PointerPressAdmission::ManagedCapture`]. The default keeps existing
+    /// widgets on the legacy capture path.
+    fn retains_managed_pointer_capture(&self) -> bool {
+        false
     }
 
     /// Return the shared identity, sizing, focus, state, and style contract.

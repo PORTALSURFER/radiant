@@ -431,7 +431,13 @@ where
         let result = if exact_sample {
             self.dispatch_surface_wheel_sample(widget_id, bounds, point, sample)?
         } else {
-            let input = self.wheel_input_for_hit_test(point, sample, false)?;
+            let input = WidgetInput::wheel_with_metadata(
+                point,
+                sample.delta().vector(),
+                sample.modifiers(),
+                sample.timestamp(),
+                sample.sequence_range(),
+            );
             (
                 self.dispatch_surface_input(widget_id, bounds, input)?,
                 false,

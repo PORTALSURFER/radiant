@@ -4,6 +4,8 @@ use super::{
     DragSession, ExternalDragCompletion, ExternalDragIdentity, ExternalDragSession,
     PendingExternalDragCompletion, layout_state::RuntimeLayoutContainerStateStore,
 };
+#[cfg(test)]
+use crate::widgets::CompositionPhase;
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp, KeyPress},
     gui::types::Point,
@@ -23,6 +25,9 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) pointer: RuntimePointerState,
     pub(super) wheel: RuntimeWheelState,
     pub(super) composition: RuntimeCompositionState,
+    #[cfg(test)]
+    pub(super) composition_dispatch_observations:
+        Vec<(CompositionPhase, RuntimeManagedCompositionState)>,
     pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
     pub(super) layout_state: RuntimeLayoutContainerStateStore,
     pub(super) drag: RuntimeDragState<Message>,
@@ -37,6 +42,8 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             pointer: RuntimePointerState::default(),
             wheel: RuntimeWheelState::default(),
             composition: RuntimeCompositionState::default(),
+            #[cfg(test)]
+            composition_dispatch_observations: Vec::new(),
             layout_capture: None,
             layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),

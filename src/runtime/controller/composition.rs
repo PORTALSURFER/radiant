@@ -5,6 +5,10 @@ use super::interaction_state::RuntimeManagedCompositionState;
 use crate::runtime::{RuntimeBridge, WidgetDispatchResult};
 use crate::widgets::{CompositionPhase, CompositionSample, WidgetId};
 
+#[cfg(test)]
+#[path = "composition/tests.rs"]
+mod tests;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CompositionWidgetDispatch {
     Handled { retained: bool },
@@ -154,6 +158,13 @@ where
         widget_id: WidgetId,
         sample: CompositionSample,
     ) -> Option<CompositionWidgetDispatch> {
+        #[cfg(test)]
+        {
+            let managed_composition = self.interaction.composition.managed_composition;
+            self.interaction
+                .composition_dispatch_observations
+                .push((sample.phase(), managed_composition));
+        }
         let result = self.dispatch_surface_composition_sample(widget_id, sample)?;
         let retained = result.1;
         let dispatch = match result.0 {

@@ -321,17 +321,14 @@ where
         sample: WheelSample,
         exact_sample: bool,
     ) -> Option<WidgetInput> {
-        sample.to_widget_input(point).or_else(|| {
-            (!exact_sample).then(|| {
-                WidgetInput::wheel_with_metadata(
-                    point,
-                    sample.delta().vector(),
-                    sample.modifiers(),
-                    sample.timestamp(),
-                    sample.sequence_range(),
-                )
-            })
-        })
+        if !exact_sample {
+            return Some(WidgetInput::wheel(
+                point,
+                sample.delta().vector(),
+                sample.modifiers(),
+            ));
+        }
+        sample.to_widget_input(point)
     }
 
     fn wheel_delta_for_scroll(&self, sample: WheelSample, exact_sample: bool) -> Option<Vector2> {

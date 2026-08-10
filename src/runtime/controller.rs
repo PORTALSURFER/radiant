@@ -225,7 +225,8 @@ where
     /// Returns `true` when the interaction targeted a projected widget, even if
     /// that interaction did not emit a host-defined message.
     pub fn dispatch_input(&mut self, widget_id: WidgetId, input: WidgetInput) -> bool {
-        self.dispatch_input_output(widget_id, input).is_some()
+        self.dispatch_direct_input_output(widget_id, input)
+            .is_some()
     }
 
     /// Configure whether incompatible same-ID replacements are observational

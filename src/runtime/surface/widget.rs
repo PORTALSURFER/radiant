@@ -3,8 +3,8 @@ use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
-        FocusBehavior, PointerCapturePolicy, Widget, WidgetCursor, WidgetId, WidgetInput,
-        WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
+        FocusBehavior, PointerCapturePolicy, PointerPressAdmission, Widget, WidgetCursor, WidgetId,
+        WidgetInput, WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
     },
 };
 use std::rc::Rc;
@@ -234,6 +234,18 @@ impl<Message> SurfaceWidget<Message> {
 
     pub(in crate::runtime) fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_input(input)
+    }
+
+    pub(in crate::runtime) fn preflight_pointer_press(
+        &self,
+        bounds: Rect,
+        input: &WidgetInput,
+    ) -> PointerPressAdmission {
+        self.widget.preflight_pointer_press(bounds, input)
+    }
+
+    pub(in crate::runtime) fn retains_managed_pointer_capture(&self) -> bool {
+        self.widget.retains_managed_pointer_capture()
     }
 
     pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {

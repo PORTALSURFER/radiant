@@ -6,6 +6,7 @@ use crate::{
     gui::types::Point,
     layout::LayoutInput,
     runtime::RuntimeBridge,
+    widgets::PointerPressAdmission,
     widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput},
 };
 
@@ -27,7 +28,9 @@ where
             self.unwind_provisional_pointer_capture();
             return None;
         }
-        if self.start_scrollbar_drag_at(position) {
+        if self.interaction.pointer.managed_capture.is_none()
+            && self.start_scrollbar_drag_at(position)
+        {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -71,6 +74,9 @@ where
             return None;
         }
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
+            if self.interaction.pointer.managed_capture.is_some() {
+                return None;
+            }
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.interaction.pointer.scroll_drag_capture = None;
@@ -78,15 +84,26 @@ where
             self.clear_focus();
             return None;
         };
-        self.interaction.pointer.capture = Some(widget_id);
-        self.reset_tooltip_hover_intent();
-        match self.dispatch_input_at_output(position, input) {
+        let managed_press_compatibility_kind =
+            self.pointer_press_target_compatibility_kind(widget_id);
+        let admission = self.preflight_pointer_press_for_widget(widget_id, &input);
+        if admission == PointerPressAdmission::Blocked {
+            return None;
+        }
+        match self.dispatch_input_at_target_output(
+            widget_id,
+            input,
+            admission,
+            true,
+            true,
+            managed_press_compatibility_kind,
+        ) {
             PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
             PointInputDispatch::FocusVetoed => {
                 self.unwind_provisional_pointer_capture();
                 None
             }
-            PointInputDispatch::Miss => None,
+            PointInputDispatch::Miss | PointInputDispatch::Blocked => None,
         }
     }
 
@@ -104,7 +121,9 @@ where
             self.unwind_provisional_pointer_capture();
             return None;
         }
-        if self.start_scrollbar_drag_at(position) {
+        if self.interaction.pointer.managed_capture.is_none()
+            && self.start_scrollbar_drag_at(position)
+        {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
@@ -148,7 +167,35 @@ where
         {
             return None;
         }
+        if self.interaction.pointer.managed_capture.is_some() {
+            return None;
+        }
+        let press_input =
+            WidgetInput::pointer_press_with_timestamp(position, button, modifiers, timestamp);
+        let Some(fallback_target) = self.widget_at_for_input(position, &press_input) else {
+            if self.interaction.pointer.managed_capture.is_some() {
+                return None;
+            }
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+            self.reset_tooltip_hover_intent();
+            self.clear_focus();
+            return None;
+        };
+        let fallback_compatibility_kind =
+            self.pointer_press_target_compatibility_kind(fallback_target);
+        let admission = self.preflight_pointer_press_for_widget(fallback_target, &press_input);
+        if admission == PointerPressAdmission::Blocked {
+            return None;
+        }
+        self.validate_managed_pointer_capture_authority();
+        if self.interaction.pointer.managed_capture.is_some() {
+            return None;
+        }
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
+            if self.interaction.pointer.managed_capture.is_some() {
+                return None;
+            }
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
@@ -157,22 +204,31 @@ where
         };
         self.interaction.pointer.capture = Some(widget_id);
         self.reset_tooltip_hover_intent();
-        let routed = self.dispatch_input_at_output(position, input);
+        let routed = self.dispatch_input_at_target_output(
+            widget_id,
+            input,
+            PointerPressAdmission::Legacy,
+            false,
+            true,
+            None,
+        );
         match routed {
             PointInputDispatch::Routed(widget_id, true) => Some(widget_id),
             PointInputDispatch::Routed(_, false) => {
-                match self.dispatch_input_at_output(
-                    position,
-                    WidgetInput::pointer_press_with_timestamp(
-                        position, button, modifiers, timestamp,
-                    ),
+                match self.dispatch_input_at_target_output(
+                    fallback_target,
+                    press_input,
+                    admission,
+                    false,
+                    true,
+                    fallback_compatibility_kind,
                 ) {
                     PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
                     PointInputDispatch::FocusVetoed => {
                         self.unwind_provisional_pointer_capture();
                         None
                     }
-                    PointInputDispatch::Miss => None,
+                    PointInputDispatch::Miss | PointInputDispatch::Blocked => None,
                 }
             }
             PointInputDispatch::FocusVetoed => {
@@ -180,20 +236,23 @@ where
                 None
             }
             PointInputDispatch::Miss => {
-                match self.dispatch_input_at_output(
-                    position,
-                    WidgetInput::pointer_press_with_timestamp(
-                        position, button, modifiers, timestamp,
-                    ),
+                match self.dispatch_input_at_target_output(
+                    fallback_target,
+                    press_input,
+                    admission,
+                    false,
+                    true,
+                    fallback_compatibility_kind,
                 ) {
                     PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
                     PointInputDispatch::FocusVetoed => {
                         self.unwind_provisional_pointer_capture();
                         None
                     }
-                    PointInputDispatch::Miss => None,
+                    PointInputDispatch::Miss | PointInputDispatch::Blocked => None,
                 }
             }
+            PointInputDispatch::Blocked => None,
         }
     }
 
@@ -204,6 +263,22 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        self.validate_managed_pointer_capture_authority();
+        if let Some(widget_id) = self.managed_pointer_capture_for_button(button) {
+            let _ = self.finish_managed_pointer_release(widget_id, button);
+            let routed = self.dispatch_input(
+                widget_id,
+                WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
+            );
+            self.rearm_tooltip_hover_intent();
+            return routed.then_some(widget_id);
+        }
+        if self.interaction.pointer.managed_capture.is_some()
+            || self.interaction.pointer.has_any_managed_release_tombstone()
+        {
+            let _ = self.consume_managed_pointer_release_tombstone(button);
+            return None;
+        }
         if self
             .interaction
             .pointer
@@ -274,6 +349,32 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        self.validate_managed_pointer_capture_authority();
+        if let Some(widget_id) = self
+            .interaction
+            .pointer
+            .managed_capture
+            .filter(|capture| {
+                capture.state
+                    == super::super::interaction_state::RuntimeManagedPointerCaptureState::Active
+            })
+            .map(|capture| capture.widget_id)
+        {
+            let routed = self.dispatch_input(
+                widget_id,
+                WidgetInput::pointer_modifiers_changed_with_timestamp(modifiers, timestamp),
+            );
+            if routed {
+                self.repaint_requested = true;
+                return Some(widget_id);
+            }
+            return None;
+        }
+        if self.interaction.pointer.managed_capture.is_some()
+            || self.interaction.pointer.has_any_managed_release_tombstone()
+        {
+            return None;
+        }
         if let Some(widget_id) = self.interaction.pointer.capture {
             let routed = self.dispatch_input(
                 widget_id,

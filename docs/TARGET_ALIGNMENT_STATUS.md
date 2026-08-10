@@ -107,6 +107,17 @@ backend-neutral, and native/direct fixtures cover equivalent decisions. Existing
 widgets retain the key-only `preempts_host_shortcut_key` compatibility path.
 The kernel itself remains generic: the numeric widget supplies the step,
 transaction, output, and typed-failure semantics.
+
+The generic pointer-press admission/capture kernel is now shipped as the next
+qualified controller foundation. `radiant::widgets::PointerPressAdmission`
+provides default-compatible Legacy, managed exact-widget/exact-button capture,
+and Blocked admission; the controller validates focus and continuation authority
+at dispatch, cancellation, and refresh boundaries and keeps bounded
+button-specific orphan-release suppression. Scrollbar/layout precedence,
+legacy capture and mapper ownership, pointer metadata, and all existing widget
+contracts remain unchanged. This slice earns no PointerScrub credit: NumericInput
+scrub policy, consumer, builder attachment, output, failure, normalization, and
+geometry remain target-only and require a later consumer PR.
 The numeric interaction output mapping is now shipped for the TextEdit and
 complete-mode keyboard lifecycles. It fixes the exact `on_interaction` mapper
 type and associated error order, one interaction batch/mapper/host dispatch per

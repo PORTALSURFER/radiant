@@ -3954,6 +3954,17 @@ canvas receive an editing click, a coordinate viewport claim a pan after motion,
 and an enclosing scroll container consume unhandled wheel input without
 ambiguous or duplicated actions.
 
+The current generic executable foundation adds qualified
+`radiant::widgets::PointerPressAdmission` with defaulted object-safe
+`Widget::preflight_pointer_press` and `Widget::retains_managed_pointer_capture`
+hooks. Controller-owned managed capture is bounded to one exact widget/button
+record plus button-specific orphan suppression, is validated at focus, dispatch,
+and refresh boundaries, and is never inferred from the Legacy default. Blocked
+presses stop before focus, capture, widget dispatch, mapping, or host mutation;
+scrollbar and layout precedence is unchanged. This kernel deliberately does not
+ship NumericInput PointerScrub policy, consumer, output, failure, or geometry;
+those remain target-only and are the dependency for the next consumer PR.
+
 Keyboard focus follows declarative tree order unless a container declares an
 explicit traversal policy. Focused text editing receives its required keys
 before command routing; otherwise shortcut resolution follows the documented

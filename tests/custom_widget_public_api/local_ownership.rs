@@ -6,8 +6,8 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         EmbeddedInteractiveRowWidget, InteractiveRowMessage, InteractiveRowWidget, PointerButton,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSemantics, WidgetSemanticsRevision,
-        WidgetSizing,
+        PointerPressAdmission, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSemantics,
+        WidgetSemanticsRevision, WidgetSizing,
     },
 };
 use std::{cell::RefCell, rc::Rc};
@@ -67,6 +67,29 @@ fn custom_semantic_revision_is_exposed_through_the_capability_descriptor() {
         capabilities.semantics_revision(),
         Some(WidgetSemanticsRevision::exact(0_usize))
     );
+}
+
+#[test]
+fn pointer_press_admission_is_qualified_defaulted_and_object_safe() {
+    let widget = LocalWidget::new(30, Rc::new(RefCell::new(LocalState { activations: 0 })));
+    let widget: Box<dyn Widget> = Box::new(widget);
+    let input = WidgetInput::PointerPress {
+        position: Point::new(12.0, 12.0),
+        button: PointerButton::Primary,
+        modifiers: Default::default(),
+        timestamp: None,
+    };
+
+    assert_eq!(
+        PointerPressAdmission::default(),
+        PointerPressAdmission::Legacy
+    );
+    assert_eq!(
+        widget.preflight_pointer_press(Rect::from_size(120.0, 28.0), &input),
+        PointerPressAdmission::Legacy
+    );
+    assert!(!widget.retains_managed_pointer_capture());
+    assert!(!include_str!("../../src/prelude/widgets.rs").contains("PointerPressAdmission"));
 }
 
 impl Widget for LocalWidget {

@@ -11,7 +11,7 @@ use crate::{
         ContainerStateId, LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity,
         NodeId,
     },
-    widgets::{PointerModifiers, WidgetId, WidgetKey, WidgetState},
+    widgets::{PointerButton, PointerModifiers, WidgetId, WidgetKey, WidgetState},
 };
 use std::rc::Rc;
 use std::time::Instant;
@@ -106,7 +106,56 @@ pub(super) struct RuntimePointerState {
     pub(super) current_position: Option<Point>,
     pub(super) capture: Option<WidgetId>,
     pub(super) capture_state: Option<(WidgetId, WidgetState)>,
+    pub(super) managed_capture: Option<RuntimeManagedPointerCapture>,
+    pub(super) managed_release_tombstones: [bool; POINTER_BUTTON_COUNT],
     pub(super) scroll_drag_capture: Option<ScrollDragCapture>,
+}
+
+const POINTER_BUTTON_COUNT: usize = 3;
+
+/// Fixed-size controller authority for one managed pointer press.
+///
+/// The record pins only the exact widget identity, initiating button, and the
+/// short-lived lifecycle state needed while a press is dispatched or cancelled.
+/// Orphaned releases live in the button-specific tombstone array on
+/// [`RuntimePointerState`], without timestamps, sequences, generations, or
+/// history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RuntimeManagedPointerCapture {
+    pub(super) widget_id: WidgetId,
+    pub(super) button: PointerButton,
+    pub(super) state: RuntimeManagedPointerCaptureState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RuntimeManagedPointerCaptureState {
+    Pending,
+    Active,
+    Cancelling,
+}
+
+impl RuntimePointerState {
+    pub(super) fn has_managed_release_tombstone(&self, button: PointerButton) -> bool {
+        self.managed_release_tombstones[pointer_button_index(button)]
+    }
+
+    pub(super) fn set_managed_release_tombstone(&mut self, button: PointerButton, value: bool) {
+        self.managed_release_tombstones[pointer_button_index(button)] = value;
+    }
+
+    pub(super) fn has_any_managed_release_tombstone(&self) -> bool {
+        self.managed_release_tombstones
+            .iter()
+            .any(|tombstone| *tombstone)
+    }
+}
+
+fn pointer_button_index(button: PointerButton) -> usize {
+    match button {
+        PointerButton::Primary => 0,
+        PointerButton::Secondary => 1,
+        PointerButton::Auxiliary => 2,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

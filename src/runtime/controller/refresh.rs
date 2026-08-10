@@ -1,7 +1,8 @@
 //! Revision-backed surface refresh stages and diagnostics.
 
 use super::{
-    SurfaceRuntime, layout_state::SurfaceLayoutStateDiagnostics,
+    SurfaceRuntime, interaction_state::RuntimeManagedPointerCaptureState,
+    layout_state::SurfaceLayoutStateDiagnostics,
     virtual_layout::RuntimeVirtualLayoutProjectionProbe,
 };
 use crate::gui::types::{Point, Rect, Vector2};
@@ -2887,6 +2888,7 @@ where
     }
 
     fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {
+        self.validate_managed_pointer_capture_authority();
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
@@ -3153,12 +3155,23 @@ where
             &traversal.widget_paths,
             &retired_widget_ids,
         );
+        self.reconcile_managed_pointer_capture_after_refresh(
+            &next_surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+        );
         if let Some(previous_paths) = previous_paths.take() {
             self.traversal.widgets.paths.previous = previous_paths;
         }
 
         self.surface = next_surface;
         self.layout_root = layout_root;
+        if self.interaction.pointer.managed_capture.is_some() {
+            self.interaction.pointer.capture_state = None;
+        }
         self.restore_pointer_capture_state();
         let layout_required = !reuse_completed_layout
             && (effective_scope.refreshes_layout()
@@ -3172,6 +3185,12 @@ where
             self.install_traversal_index(traversal);
             Duration::ZERO
         };
+        self.validate_managed_pointer_capture_authority();
+        if let Some(capture) = self.interaction.pointer.managed_capture
+            && capture.state == RuntimeManagedPointerCaptureState::Active
+        {
+            self.capture_pointer_capture_state(capture.widget_id);
+        }
         self.clear_stale_interaction_state();
         if let Some(widget_id) = self.interaction.focus.focused_widget {
             self.restore_focused_widget_state(widget_id);
@@ -3436,7 +3455,12 @@ where
                 .interaction
                 .pointer
                 .capture_state
-                .is_some_and(|(captured_id, _)| captured_id == widget_id);
+                .is_some_and(|(captured_id, _)| captured_id == widget_id)
+            || self
+                .interaction
+                .pointer
+                .managed_capture
+                .is_some_and(|capture| capture.widget_id == widget_id);
         let hover = self.interaction.hover.widget == Some(widget_id);
         if self.interaction.tooltip.target == Some(widget_id) {
             self.reset_tooltip_hover_intent();
@@ -3445,6 +3469,7 @@ where
             self.interaction.focus.focused_widget = None;
         }
         if pointer_capture {
+            self.clear_managed_pointer_capture_for_widget(widget_id);
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
         }

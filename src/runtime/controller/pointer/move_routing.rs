@@ -42,6 +42,7 @@ where
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveDispatch {
+        self.validate_managed_pointer_capture_authority();
         let metadata = PointerMoveMetadata {
             modifiers,
             timestamp,
@@ -207,6 +208,12 @@ where
     }
 
     fn non_passthrough_pointer_capture(&self) -> Option<WidgetId> {
+        if let Some(capture) = self.interaction.pointer.managed_capture
+            && capture.state
+                == super::super::interaction_state::RuntimeManagedPointerCaptureState::Active
+        {
+            return Some(capture.widget_id);
+        }
         self.interaction
             .pointer
             .capture

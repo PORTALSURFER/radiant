@@ -798,6 +798,7 @@ struct RuntimeWheelWidget {
     retained: bool,
     retention_enabled: bool,
     replacement: bool,
+    terminal_reprojects: bool,
 }
 
 impl RuntimeWheelWidget {
@@ -824,7 +825,13 @@ impl RuntimeWheelWidget {
             retained: false,
             retention_enabled,
             replacement,
+            terminal_reprojects: false,
         }
+    }
+
+    fn with_terminal_reprojection_if(mut self, enabled: bool) -> Self {
+        self.terminal_reprojects = enabled;
+        self
     }
 
     fn record_sample(&mut self, sample: WheelSample) {
@@ -857,6 +864,10 @@ impl Widget for RuntimeWheelWidget {
         None
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        !self.common.state.read_only
+    }
+
     fn handle_wheel_sample(
         &mut self,
         _bounds: Rect,
@@ -864,7 +875,12 @@ impl Widget for RuntimeWheelWidget {
         sample: WheelSample,
     ) -> Option<WidgetOutput> {
         self.record_sample(sample);
-        None
+        (self.terminal_reprojects
+            && matches!(
+                sample.phase(),
+                Some(WheelPhase::Ended | WheelPhase::Cancelled)
+            ))
+        .then_some(WidgetOutput::typed(RuntimeWheelMessage::RemoveOwner))
     }
 
     fn retains_managed_wheel_sequence(&self) -> bool {
@@ -926,6 +942,10 @@ impl Widget for RuntimeReplacementWheelWidget {
         self.inner.handle_input(bounds, input)
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        self.inner.accepts_wheel_input()
+    }
+
     fn handle_wheel_sample(
         &mut self,
         bounds: Rect,
@@ -957,7 +977,14 @@ struct RuntimeWheelBridge {
     retention_enabled: bool,
     remove_owner: bool,
     replace_owner: bool,
+    duplicate_owner: bool,
     target_focusable: bool,
+    terminal_reprojects: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeWheelMessage {
+    RemoveOwner,
 }
 
 impl Default for RuntimeWheelBridge {
@@ -969,7 +996,9 @@ impl Default for RuntimeWheelBridge {
             retention_enabled: true,
             remove_owner: false,
             replace_owner: false,
+            duplicate_owner: false,
             target_focusable: false,
+            terminal_reprojects: false,
         }
     }
 }
@@ -979,10 +1008,15 @@ impl RuntimeWheelBridge {
         self.target_focusable = true;
         self
     }
+
+    fn with_terminal_reprojection(mut self) -> Self {
+        self.terminal_reprojects = true;
+        self
+    }
 }
 
-impl RuntimeBridge<()> for RuntimeWheelBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+impl RuntimeBridge<RuntimeWheelMessage> for RuntimeWheelBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<RuntimeWheelMessage>> {
         let mut children = Vec::new();
         if !self.remove_owner {
             let owner = if self.replace_owner {
@@ -1005,11 +1039,26 @@ impl RuntimeBridge<()> for RuntimeWheelBridge {
                         self.read_only,
                         self.retention_enabled,
                         false,
-                    ),
-                    WidgetMessageMapper::none(),
+                    )
+                    .with_terminal_reprojection_if(self.terminal_reprojects),
+                    WidgetMessageMapper::typed(|message: RuntimeWheelMessage| message),
                 )
             };
             children.push(SurfaceChild::fill(owner));
+        }
+        if self.duplicate_owner {
+            children.push(SurfaceChild::fill(SurfaceNode::custom_widget(
+                RuntimeWheelWidget::new(
+                    401,
+                    Rc::clone(&self.observations),
+                    true,
+                    self.disabled,
+                    self.read_only,
+                    self.retention_enabled,
+                    false,
+                ),
+                WidgetMessageMapper::none(),
+            )));
         }
         children.push(SurfaceChild::fill(SurfaceNode::custom_widget(
             RuntimeWheelWidget::new(
@@ -1024,6 +1073,12 @@ impl RuntimeBridge<()> for RuntimeWheelBridge {
             WidgetMessageMapper::none(),
         )));
         arc_surface(UiSurface::new(SurfaceNode::column(1, 0.0, children)))
+    }
+
+    fn reduce_message(&mut self, message: RuntimeWheelMessage) {
+        match message {
+            RuntimeWheelMessage::RemoveOwner => self.remove_owner = true,
+        }
     }
 }
 
@@ -1044,6 +1099,20 @@ fn runtime_wheel_observation(
         phase: Some(phase),
         replacement,
     }
+}
+
+fn runtime_with_blocked_wheel(
+    delta: WheelDelta,
+) -> SurfaceRuntime<RuntimeWheelBridge, RuntimeWheelMessage> {
+    let mut runtime = SurfaceRuntime::new(RuntimeWheelBridge::default(), Vector2::new(160.0, 80.0));
+    assert!(runtime.focus_widget(401));
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    runtime.bridge_mut().retention_enabled = false;
+    runtime.refresh();
+    runtime
 }
 
 #[test]
@@ -1241,6 +1310,237 @@ fn public_wheel_sequence_refresh_preserves_compatible_owner_and_clears_replaceme
             delta,
             WheelPhase::Started,
             false
+        )]
+    );
+}
+
+#[test]
+fn public_blocked_wheel_ignores_multiple_changes_preserves_refresh_and_closes_on_terminal() {
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite pixel delta");
+    let mut runtime = runtime_with_blocked_wheel(delta);
+
+    for _ in 0..3 {
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
+            Point::new(20.0, 60.0),
+            runtime_wheel_sample(delta, WheelPhase::Changed),
+        ));
+    }
+    runtime.refresh();
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [runtime_wheel_observation(
+            401,
+            delta,
+            WheelPhase::Started,
+            false,
+        )]
+    );
+
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Ended),
+    ));
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [
+            runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Changed, false),
+        ]
+    );
+
+    let mut cancelled = runtime_with_blocked_wheel(delta);
+    assert!(!cancelled.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Cancelled),
+    ));
+    assert_eq!(
+        cancelled.bridge().observations.borrow().as_slice(),
+        [runtime_wheel_observation(
+            401,
+            delta,
+            WheelPhase::Started,
+            false,
+        )]
+    );
+}
+
+#[test]
+fn public_wheel_started_supersedes_active_and_blocked_slots() {
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite pixel delta");
+    let mut active = SurfaceRuntime::new(RuntimeWheelBridge::default(), Vector2::new(160.0, 80.0));
+    assert!(active.focus_widget(401));
+    assert!(active.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(active.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(active.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        active.bridge().observations.borrow().as_slice(),
+        [
+            runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Changed, false),
+        ]
+    );
+
+    let mut blocked = runtime_with_blocked_wheel(delta);
+    blocked.bridge_mut().retention_enabled = true;
+    blocked.refresh();
+    assert!(blocked.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(blocked.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        blocked.bridge().observations.borrow().as_slice(),
+        [
+            runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Changed, false),
+        ]
+    );
+}
+
+#[test]
+fn public_phase_less_and_discrete_wheel_samples_do_not_replace_blocked() {
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite pixel delta");
+    let mut runtime = runtime_with_blocked_wheel(delta);
+    let phase_less = WheelSample::phase_less(delta, PointerModifiers::default())
+        .expect("finite phase-less wheel sample");
+    let discrete = WheelSample::discrete(delta, PointerModifiers::default())
+        .expect("finite discrete wheel sample");
+
+    assert!(!runtime.wheel_or_scroll_at_with_sample(Point::new(20.0, 60.0), phase_less));
+    assert!(!runtime.wheel_or_scroll_at_with_sample(Point::new(20.0, 60.0), discrete));
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [
+            runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            RuntimeWheelObservation {
+                widget_id: 402,
+                delta,
+                phase: None,
+                replacement: false,
+            },
+            RuntimeWheelObservation {
+                widget_id: 402,
+                delta,
+                phase: Some(WheelPhase::Discrete),
+                replacement: false,
+            },
+        ]
+    );
+}
+
+#[test]
+fn public_terminal_clears_before_reprojection_and_does_not_leave_an_orphan() {
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite pixel delta");
+    let mut runtime = SurfaceRuntime::new(
+        RuntimeWheelBridge::default().with_terminal_reprojection(),
+        Vector2::new(160.0, 80.0),
+    );
+    assert!(runtime.focus_widget(401));
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    assert!(runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Ended),
+    ));
+    assert!(runtime.bridge().remove_owner);
+
+    assert!(!runtime.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        runtime.bridge().observations.borrow().as_slice(),
+        [
+            runtime_wheel_observation(401, delta, WheelPhase::Started, false),
+            runtime_wheel_observation(401, delta, WheelPhase::Ended, false),
+            runtime_wheel_observation(402, delta, WheelPhase::Changed, false),
+        ]
+    );
+}
+
+#[test]
+fn public_duplicate_or_hard_replacement_blocks_before_retargeting() {
+    let delta = WheelDelta::pixels(Vector2::new(0.0, 1.0)).expect("finite pixel delta");
+    let mut duplicate =
+        SurfaceRuntime::new(RuntimeWheelBridge::default(), Vector2::new(160.0, 80.0));
+    assert!(duplicate.focus_widget(401));
+    assert!(duplicate.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    duplicate.bridge_mut().duplicate_owner = true;
+    duplicate.refresh();
+    assert!(!duplicate.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert!(!duplicate.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        duplicate.bridge().observations.borrow().as_slice(),
+        [runtime_wheel_observation(
+            401,
+            delta,
+            WheelPhase::Started,
+            false,
+        )]
+    );
+
+    let mut disabled_replacement =
+        SurfaceRuntime::new(RuntimeWheelBridge::default(), Vector2::new(160.0, 80.0));
+    assert!(disabled_replacement.focus_widget(401));
+    assert!(disabled_replacement.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 20.0),
+        runtime_wheel_sample(delta, WheelPhase::Started),
+    ));
+    disabled_replacement.bridge_mut().replace_owner = true;
+    disabled_replacement.bridge_mut().disabled = true;
+    disabled_replacement.refresh();
+    assert!(!disabled_replacement.wheel_or_scroll_at_with_sample(
+        Point::new(20.0, 60.0),
+        runtime_wheel_sample(delta, WheelPhase::Changed),
+    ));
+    assert_eq!(
+        disabled_replacement
+            .bridge()
+            .observations
+            .borrow()
+            .as_slice(),
+        [runtime_wheel_observation(
+            401,
+            delta,
+            WheelPhase::Started,
+            false,
         )]
     );
 }

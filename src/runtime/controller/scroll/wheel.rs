@@ -9,9 +9,7 @@ use crate::{
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
-use super::super::interaction_state::{
-    RuntimeManagedWheelSequence, RuntimeManagedWheelSequenceState,
-};
+use super::super::interaction_state::RuntimeManagedWheelSequenceState;
 
 #[cfg(test)]
 #[path = "wheel/tests.rs"]
@@ -191,32 +189,64 @@ where
         refresh_after_message: bool,
         exact_sample: bool,
     ) -> WheelOrScrollRoute {
+        let phase = sample.phase();
+        if phase == Some(WheelPhase::Started) {
+            // Every explicit start is a fresh boundary, including a malformed
+            // start that cannot be admitted below.
+            self.clear_managed_wheel_sequence();
+        }
         if exact_sample && !sample.is_valid() {
             return WheelOrScrollRoute::NotRouted;
         }
 
-        let continuation = matches!(
-            sample.phase(),
-            Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Cancelled)
-        );
-        if continuation {
-            if let Some(capture) = self.interaction.wheel.managed_sequence {
-                if capture.state != RuntimeManagedWheelSequenceState::Active
-                    || !self.managed_wheel_sequence_is_live(capture.widget_id)
-                {
-                    // A known stale record is ignored and never rebound to the
-                    // widget currently under the pointer.
-                    self.clear_managed_wheel_sequence();
+        match (self.interaction.wheel.managed_sequence, phase) {
+            (RuntimeManagedWheelSequenceState::Blocked, Some(WheelPhase::Changed)) => {
+                // A known orphan cannot be rebound by a continuation that
+                // happens to land over another widget.
+                return WheelOrScrollRoute::NotRouted;
+            }
+            (
+                RuntimeManagedWheelSequenceState::Blocked,
+                Some(WheelPhase::Ended | WheelPhase::Cancelled),
+            ) => {
+                // The first terminal after an orphan closes the blocked slot,
+                // but is not delivered through the compatibility path.
+                self.clear_managed_wheel_sequence();
+                return WheelOrScrollRoute::NotRouted;
+            }
+            (RuntimeManagedWheelSequenceState::Active { widget_id }, Some(WheelPhase::Changed)) => {
+                if !self.managed_wheel_sequence_is_live(widget_id) {
+                    self.block_managed_wheel_sequence();
                     return WheelOrScrollRoute::NotRouted;
                 }
                 return self.dispatch_managed_wheel_sequence(
-                    capture.widget_id,
+                    widget_id,
                     point,
                     sample,
                     refresh_after_message,
                 );
             }
-        } else {
+            (
+                RuntimeManagedWheelSequenceState::Active { widget_id },
+                Some(WheelPhase::Ended | WheelPhase::Cancelled),
+            ) => {
+                if !self.managed_wheel_sequence_is_live(widget_id) {
+                    // A stale terminal closes the slot without guessing a
+                    // replacement target or delivering a fallback sample.
+                    self.clear_managed_wheel_sequence();
+                    return WheelOrScrollRoute::NotRouted;
+                }
+                return self.dispatch_managed_wheel_sequence(
+                    widget_id,
+                    point,
+                    sample,
+                    refresh_after_message,
+                );
+            }
+            _ => {}
+        }
+
+        if phase != Some(WheelPhase::Started) {
             self.validate_managed_wheel_sequence_authority();
         }
 
@@ -235,15 +265,14 @@ where
                 };
                 let may_install = exact_sample
                     && sample.phase() == Some(WheelPhase::Started)
-                    && self.interaction.wheel.managed_sequence.is_none()
+                    && self.interaction.wheel.managed_sequence
+                        == RuntimeManagedWheelSequenceState::Idle
                     && dispatch.retained()
                     && self.wheel_widget_is_unique(widget_id)
                     && self.managed_wheel_sequence_is_live(widget_id);
                 if may_install {
-                    self.interaction.wheel.managed_sequence = Some(RuntimeManagedWheelSequence {
-                        widget_id,
-                        state: RuntimeManagedWheelSequenceState::Active,
-                    });
+                    self.interaction.wheel.managed_sequence =
+                        RuntimeManagedWheelSequenceState::Active { widget_id };
                 }
                 match dispatch {
                     WheelWidgetDispatch::Handled { .. } | WheelWidgetDispatch::RetainedNoOutput => {
@@ -334,10 +363,19 @@ where
             sample,
             refresh_after_message,
         );
+        if !terminal
+            && let RuntimeManagedWheelSequenceState::Active {
+                widget_id: active_widget_id,
+            } = self.interaction.wheel.managed_sequence
+            && active_widget_id == widget_id
+            && !self.managed_wheel_sequence_is_live(widget_id)
+        {
+            // A synchronous refresh or widget callback may have removed
+            // capability or authority. Only an explicit soft transition
+            // to Idle is allowed to avoid this hard orphan boundary.
+            self.block_managed_wheel_sequence();
+        }
         if dispatched.is_some() {
-            if !terminal && !self.managed_wheel_sequence_is_live(widget_id) {
-                self.clear_managed_wheel_sequence();
-            }
             WheelOrScrollRoute::Widget
         } else {
             WheelOrScrollRoute::NotRouted
@@ -425,16 +463,18 @@ where
     pub(in crate::runtime::controller) fn validate_managed_wheel_sequence_authority(
         &mut self,
     ) -> bool {
-        let Some(capture) = self.interaction.wheel.managed_sequence else {
-            return true;
-        };
-        if capture.state == RuntimeManagedWheelSequenceState::Active
-            && self.managed_wheel_sequence_is_live(capture.widget_id)
-        {
-            true
-        } else {
-            self.clear_managed_wheel_sequence();
-            false
+        match self.interaction.wheel.managed_sequence {
+            RuntimeManagedWheelSequenceState::Idle => true,
+            RuntimeManagedWheelSequenceState::Blocked => false,
+            RuntimeManagedWheelSequenceState::Active { widget_id }
+                if self.managed_wheel_sequence_is_live(widget_id) =>
+            {
+                true
+            }
+            RuntimeManagedWheelSequenceState::Active { .. } => {
+                self.block_managed_wheel_sequence();
+                false
+            }
         }
     }
 
@@ -442,18 +482,22 @@ where
         &mut self,
         widget_id: WidgetId,
     ) {
-        if self
-            .interaction
-            .wheel
-            .managed_sequence
-            .is_some_and(|capture| capture.widget_id == widget_id)
-        {
+        if matches!(
+            self.interaction.wheel.managed_sequence,
+            RuntimeManagedWheelSequenceState::Active {
+                widget_id: active_widget_id
+            } if active_widget_id == widget_id
+        ) {
             self.clear_managed_wheel_sequence();
         }
     }
 
     fn clear_managed_wheel_sequence(&mut self) {
-        self.interaction.wheel.managed_sequence = None;
+        self.interaction.wheel.managed_sequence = RuntimeManagedWheelSequenceState::Idle;
+    }
+
+    pub(in crate::runtime::controller) fn block_managed_wheel_sequence(&mut self) {
+        self.interaction.wheel.managed_sequence = RuntimeManagedWheelSequenceState::Blocked;
     }
 
     #[cfg(test)]

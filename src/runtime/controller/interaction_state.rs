@@ -89,26 +89,24 @@ pub(super) struct RuntimeFocusedKeyCapture {
     pub(super) stale: bool,
 }
 
-/// Runtime-owned authority for one exact explicit wheel sequence.
+/// Runtime-owned lifecycle slot for one exact explicit wheel sequence.
 ///
-/// The record intentionally stores only the exact stable widget identity and
-/// bounded lifecycle state. Unit, phase, timestamps, sequence ranges, and
-/// continuity history remain with the delivered sample or the widget-local
-/// interaction state and never become controller authority.
+/// The slot deliberately stores no history or orphan metadata. `Blocked` is a
+/// current identityless state that prevents stale continuations from being
+/// rebound to the widget currently under the pointer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct RuntimeWheelState {
-    pub(super) managed_sequence: Option<RuntimeManagedWheelSequence>,
+    pub(super) managed_sequence: RuntimeManagedWheelSequenceState,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct RuntimeManagedWheelSequence {
-    pub(super) widget_id: WidgetId,
-    pub(super) state: RuntimeManagedWheelSequenceState,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum RuntimeManagedWheelSequenceState {
-    Active,
+    #[default]
+    Idle,
+    Active {
+        widget_id: WidgetId,
+    },
+    Blocked,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

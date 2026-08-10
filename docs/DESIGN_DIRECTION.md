@@ -1803,8 +1803,9 @@ terminal cleanup, replacement teardown, and compatible reprojection in the
 generic text consumer, and complete-mode explicit-policy KeyboardAdjustment and
 PointerScrub consumers are shipped; the generic wheel-sequence routing
 foundation and complete-mode NumericInput wheel consumer are shipped, and the
-NumericInput IME/composition consumer is shipped, while accessibility edit
-remains a target-only consumer. The gate is not a public Rust API, native
+NumericInput IME/composition consumer plus the widget-local accessibility
+policy are shipped, while runtime accessibility dispatch remains target-only.
+The gate is not a public Rust API, native
 adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
@@ -2091,13 +2092,15 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   complete-mode explicit-policy KeyboardAdjustment and PointerScrub consumers
   are also shipped; the generic wheel-sequence routing kernel and complete-mode
   NumericInput wheel consumer and NumericInput IME/composition consumer are
-  shipped, while accessibility remains target-only.
+  shipped, while the widget-local accessibility policy is shipped and runtime
+  accessibility dispatch remains target-only.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
-  the successor from inheriting the retired session. The remaining numeric
-  owner consumer—accessibility—is target-only; NumericInput IME/composition,
+  the successor from inheriting the retired session. The widget-local
+  accessibility policy is shipped; the remaining runtime numeric owner
+  consumer is target-only. NumericInput IME/composition,
   PointerScrub, and NumericInput wheel consumption are shipped, as is the
   generic wheel-routing foundation.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
@@ -2292,7 +2295,8 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. The accessibility and product-policy consumers remain target-only; the
+shipped. The widget-local accessibility policy is shipped, while runtime
+accessibility dispatch and product-policy consumers remain target-only; the
 generic PointerScrub, NumericInput wheel, and NumericInput IME/composition consumers,
 wheel-sequence routing foundation, and metadata-aware keyboard routing kernel
 are shipped.
@@ -2313,9 +2317,9 @@ are shipped.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, NumericInput IME/composition, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. Accessibility and product-policy consumers remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, NumericInput IME/composition, the widget-local NumericInput accessibility policy, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. Runtime accessibility dispatch and product-policy consumers remain unshipped. |
 
-### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; accessibility and product policy remain target-only)
+### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; runtime accessibility dispatch and product policy remain target-only)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric
 step or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -2447,8 +2451,9 @@ It preserves ordered parts, transaction identity, direction, selected step,
 exact keyboard, pointer, or wheel provenance, and typed errors. The complete-mode
 explicit-policy KeyboardAdjustment, PointerScrub, and NumericInput wheel
 consumers produce these interactions. The generic wheel-routing foundation is
-also shipped, while NumericInput IME composition is shipped and accessibility
-remains target-only. The
+also shipped, while NumericInput IME composition and the widget-local
+accessibility policy are shipped and runtime accessibility dispatch remains
+target-only. The
 wheel consumer is independently accepted and supplies the current numeric
 wheel evidence; the foundation itself remains generic and policy-free.
 
@@ -2900,25 +2905,36 @@ The deterministic fixture matrix for this shipped generic consumer is recorded
 in `docs/API.md`; it is part of the contract. Native unit/phase translation
 before the exact widget seam remains a separate platform boundary.
 
-### Target numeric accessibility action lifecycle (not yet shipped)
+### Target numeric accessibility action lifecycle (local policy shipped; runtime dispatch not yet shipped)
 
-Accessibility admission uses the shared incumbent-owner gate at both its
-pre-focus and post-focus checks. AccessibilityEdit may start only when the
-stable numeric identity has owner None; a different pending or active owner is
-returned as Blocked { owner } without cancelling or mutating the incumbent.
-The existing post-focus race check still blocks before numeric mutation.
+The target runtime lifecycle requires the shared incumbent-owner gate at both
+its pre-focus and post-focus checks. The shipped local consumer performs the
+widget-side gate: AccessibilityEdit may start only when the stable numeric
+identity has owner None; a different pending or active owner is returned as
+Blocked { owner } without cancelling or mutating the incumbent. Runtime focus
+transfer and the post-focus race check remain unshipped and must block before
+numeric mutation when that dispatch boundary is added.
 
-The following is an illustrative, target-only, backend-neutral contract for
-accessibility actions on the shipped generic `numeric_input` consumer. It is
-not shipped behavior. The current automation snapshot, action-name export,
-generic numeric consumer, and native adapters do not execute this contract.
-The names below are neutral target vocabulary only; they are not native action
-names, handles, APIs, or payload formats.
+The widget-local, backend-neutral action vocabulary and typed policy consumer
+are now shipped as a crate-private `NumericInputWidget` seam. The public
+`NumericAccessibilityAction`, `NumericAccessibilityRejectedReason`,
+`NumericAccessibilityBlockOwner`, and
+`NumericAccessibilityOutcome<T, AdjustmentError, FormatError>` types describe
+the local accepted, unchanged, rejected, blocked, adjustment-failure, and
+format-failure results, while the widget and its consumer entry point remain
+crate-private pending the runtime dispatch boundary. The current automation
+snapshot, action-name export, runtime target dispatch, and native adapters do
+not execute this policy yet.
+The full lifecycle below remains target-only at the runtime boundary: target
+resolution, focus transfer, authority revalidation, unavailable/stale/removed/
+unmaterialized classification, and adapter translation are not part of the
+widget-local consumer. The names below are neutral target vocabulary only;
+they are not native action names, handles, APIs, or payload formats.
 
 The target action vocabulary is intentionally small:
 
 ```rust
-// Illustrative target-only shapes; not shipped public Rust types.
+// Illustrative full-dispatch shapes; the local action/outcome types are shipped.
 enum NumericAccessibilityAction {
     Increment,
     Decrement,
@@ -2973,12 +2989,13 @@ enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
 }
 ```
 
-`NumericAccessibilityAction` is the complete illustrative request vocabulary:
+`NumericAccessibilityAction` is the shipped complete neutral vocabulary:
 `Increment`, `Decrement`, and `SetValueText(String)`. A future native or
 platform adapter may map its platform request into one of these values, but it
 does not choose a native action name, handle, API, or payload representation
 for this generic contract. A request is a discrete action; platform timing
-does not create repetition or continuity.
+does not create repetition or continuity. The local policy intentionally stops
+before runtime target classification and focus authority.
 
 #### Target ownership and authority
 

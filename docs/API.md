@@ -1298,7 +1298,7 @@ shipped; rows for the two remaining numeric consumers remain target-only:
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
 
-### Target IME/composition lifecycle (foundation shipped; consumers/adapters not shipped)
+### Target IME/composition lifecycle (foundation and TextInputWidget consumer shipped; adapters and numeric consumer not shipped)
 
 For a numeric input, the shared owner gate is checked after the focused stable
 identity is resolved and before Start captures composition state. Start may
@@ -1306,16 +1306,19 @@ acquire ImeComposition only when the incumbent is None; a different pending or
 active owner denies Start without preedit, parsing, cancellation, focus
 transfer, or incumbent mutation.
 
-This subsection now describes a shipped, qualified backend-neutral foundation,
-not a complete IME consumer. `radiant::widgets::interaction` provides the
-validated `CompositionRange`, `CompositionSample`, `CompositionPhase`, and
-typed validation-error vocabulary. `Widget` provides default-compatible,
-object-safe composition hooks, and `SurfaceRuntime` provides the private
-fixed-size focused ownership kernel. The normalized lifecycle samples are
-`Start`, `Update { preedit, selection }`, `Commit { text }`, and `Cancel`.
-Each sample retains an optional native timestamp when the native sample
-provided one. The text/numeric consumer, native adapter, candidate-window
-integration, and matching-key suppression remain unshipped.
+This subsection now describes a shipped, qualified backend-neutral foundation
+and the single-line `TextInputWidget` consumer, not a complete native IME
+integration. `radiant::widgets::interaction` provides the validated
+`CompositionRange`, `CompositionSample`, `CompositionPhase`, and typed
+validation-error vocabulary. `Widget` provides default-compatible,
+object-safe composition hooks, `SurfaceRuntime` provides the private
+fixed-size focused ownership kernel, and `TextInputWidget` owns the captured
+committed value/range, transient preedit, scalar selection, and lifecycle
+terminal behavior. The normalized lifecycle samples are `Start`,
+`Update { preedit, selection }`, `Commit { text }`, and `Cancel`. Each sample
+retains an optional native timestamp when the native sample provided one.
+Native adapters, candidate-window integration, matching-key suppression, and
+the numeric consumer remain unshipped.
 
 All generic ranges in this contract are Unicode-scalar ranges. The native
 adapter owns platform IME APIs, candidate-window placement, native offsets, and
@@ -1348,10 +1351,11 @@ new `InteractionSource`, `InteractionProvenance`, `NumericEditSession`, or
 
 #### Start, update, commit, and cancel
 
-`Start` is accepted only for the currently focused stable widget. It captures
-the focused widget identity, authoritative document revision, committed text,
-scalar replacement range, and scalar selection at the beginning of the
-composition. Later samples are bound to that identity and captured revision.
+`Start` is accepted only for the currently focused stable widget. The shipped
+`TextInputWidget` consumer captures the focused widget identity, committed
+text, scalar replacement range, and scalar selection at the beginning of the
+composition; runtime ownership and the widget's revision-aware refresh seam
+bind later samples to that identity and compatible authority.
 
 `Update` replaces the preedit verbatim; it never appends to the previous
 preedit. Its `selection` is explicit and scalar-indexed inside the preedit,

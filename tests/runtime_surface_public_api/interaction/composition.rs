@@ -1,5 +1,8 @@
 use super::*;
-use radiant::widgets::{CompositionPhase, CompositionRange, CompositionSample, WidgetId};
+use radiant::widgets::{
+    CompositionPhase, CompositionRange, CompositionSample, TextInputMessage, TextInputWidget,
+    WidgetId,
+};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -425,6 +428,160 @@ fn composition_refresh_preserves_exact_owner_and_blocks_removed_or_disabled_owne
     read_only_runtime.refresh();
     assert_eq!(
         read_only_runtime.dispatch_composition_sample(update_with_two_scalars()),
+        None
+    );
+}
+
+#[derive(Clone, Default)]
+struct TextInputCompositionBridge {
+    value: String,
+    messages: Rc<RefCell<Vec<TextInputMessage>>>,
+}
+
+impl RuntimeBridge<TextInputMessage> for TextInputCompositionBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<TextInputMessage>> {
+        arc_surface(UiSurface::new(SurfaceNode::text_input_mapped(
+            501,
+            self.value.clone(),
+            WidgetSizing::fixed(Vector2::new(180.0, 32.0)),
+            |message| message,
+        )))
+    }
+
+    fn update(&mut self, message: TextInputMessage) -> Command<TextInputMessage> {
+        self.value = message.value().to_owned();
+        self.messages.borrow_mut().push(message);
+        Command::repaint(RepaintScope::Projection)
+    }
+}
+
+fn text_input_start() -> CompositionSample {
+    let range = CompositionRange::new(0, 1, 1).expect("one-scalar replacement range");
+    CompositionSample::start(range, range).expect("valid text-input composition start")
+}
+
+#[test]
+fn text_input_composition_uses_runtime_owner_and_maps_only_commit() {
+    let bridge = TextInputCompositionBridge {
+        value: String::from("a"),
+        ..TextInputCompositionBridge::default()
+    };
+    let messages = Rc::clone(&bridge.messages);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 40.0));
+
+    assert!(runtime.focus_widget(501));
+    assert_eq!(
+        runtime.dispatch_composition_sample(text_input_start()),
+        Some(501)
+    );
+    assert_eq!(
+        runtime.dispatch_composition_sample(
+            CompositionSample::update(
+                "あ",
+                CompositionRange::new(1, 1, 1).expect("collapsed preedit caret"),
+            )
+            .expect("valid preedit update"),
+        ),
+        Some(501)
+    );
+    assert_eq!(
+        runtime.dispatch_composition_sample(
+            CompositionSample::update(
+                "あい",
+                CompositionRange::new(1, 2, 2).expect("selected preedit range"),
+            )
+            .expect("valid replacement update"),
+        ),
+        Some(501)
+    );
+    assert!(messages.borrow().is_empty());
+    runtime.refresh();
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(501)
+            .and_then(|widget| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<TextInputWidget>()
+            })
+            .map(|input| input.state.value.as_str()),
+        Some("あい")
+    );
+
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::commit("愛")),
+        Some(501)
+    );
+    assert_eq!(
+        messages.borrow().as_slice(),
+        &[TextInputMessage::Changed {
+            value: String::from("愛"),
+        }]
+    );
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(501)
+            .and_then(|widget| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<TextInputWidget>()
+            })
+            .map(|input| input.state.value.as_str()),
+        Some("愛")
+    );
+}
+
+#[test]
+fn text_input_composition_invalid_update_restores_without_host_change() {
+    let bridge = TextInputCompositionBridge {
+        value: String::from("a"),
+        ..TextInputCompositionBridge::default()
+    };
+    let messages = Rc::clone(&bridge.messages);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 40.0));
+
+    assert!(runtime.focus_widget(501));
+    assert_eq!(
+        runtime.dispatch_composition_sample(text_input_start()),
+        Some(501)
+    );
+    assert_eq!(
+        runtime.dispatch_composition_sample(
+            CompositionSample::update(
+                "あ",
+                CompositionRange::new(1, 1, 1).expect("collapsed preedit caret"),
+            )
+            .expect("valid preedit update"),
+        ),
+        Some(501)
+    );
+
+    let invalid = CompositionSample::Update {
+        preedit: String::from("あ"),
+        selection: CompositionRange::new(0, 0, 2).expect("stale scalar evidence"),
+        timestamp: None,
+    };
+    assert_eq!(runtime.dispatch_composition_sample(invalid), None);
+    assert!(messages.borrow().is_empty());
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(501)
+            .and_then(|widget| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<TextInputWidget>()
+            })
+            .map(|input| input.state.value.as_str()),
+        Some("a")
+    );
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::commit("late")),
         None
     );
 }

@@ -9,9 +9,9 @@
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 93% |
+| Input, provenance, and edit lifecycle | 94% |
 | Layout, composition, virtualization | 96% |
-| Text, focus, and selection | 71% |
+| Text, focus, and selection | 72% |
 | Numeric controls | 77% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
@@ -20,11 +20,12 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 93 + 96 + 71 + 77 + 96 + 78 + 71 + 66 + 76) / 11 = 79.7272...%`,
-reported as approximately `79.73%`.
+`(83 + 70 + 94 + 96 + 72 + 77 + 96 + 78 + 71 + 66 + 76) / 11 = 79.9090...%`,
+reported as approximately `79.91%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
-adds executable evidence without claiming completion of the remaining
-consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
+adds executable evidence without claiming completion of the remaining native
+adapter, numeric-consumer, scheduler-, renderer-, or product-policy
+boundaries.
 The generic widget interaction teardown seam is now executable: an additive
 defaulted `Widget` hook can terminate retiring local state, old-surface mappers
 collect ordered UI-local output before discard, and the existing deferred
@@ -70,14 +71,15 @@ cancel path without consulting codec or adjustment policy.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; complete-mode semantic keyboard
 adjustment is now shipped for explicitly configured numeric step policies. The
-qualified backend-neutral IME/composition foundation is now shipped:
-validated Unicode-scalar `CompositionRange`/`CompositionSample` values,
-default-compatible object-safe widget hooks, erased surface dispatch, and a
-private fixed-size focused `Idle`/`Active`/`Blocked` ownership kernel with
-conservative stale, focus, refresh, removal, replacement, disabled, read-only,
-duplicate, and no-rebinding handling. The source deliberately leaves native
-IME adapters, TextInput/NumericInput consumers, matching-key suppression,
-candidate windows, accessibility, and product behavior unshipped. Complete-mode
+qualified backend-neutral IME/composition foundation and the single-line
+`TextInputWidget` consumer are now shipped: validated Unicode-scalar
+`CompositionRange`/`CompositionSample` values, default-compatible object-safe
+widget hooks, erased surface dispatch, a private fixed-size focused
+`Idle`/`Active`/`Blocked` ownership kernel, and widget-local start/update/
+commit/cancel state with revision-aware reprojection. The source deliberately
+leaves native IME adapters, the NumericInput consumer, matching-key
+suppression, candidate windows, accessibility, and product behavior
+unshipped. Complete-mode
 NumericInput
 PointerScrub consumption is now shipped for the explicitly configured
 primary-plus-Alt/Option path, including managed capture, bounded output, typed
@@ -95,14 +97,15 @@ Legacy vector dispatch remains metadata-preserving after metadata-neutral hit
 testing. Numeric accessibility actions are contract-defined but unimplemented.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
-The Text/Input evidence moves from 92% to 93% and 70% to 71%; the other category
-rows, including Numeric and Platform, are unchanged. The evidence-backed total
-for this foundation moves from `875` to `877`:
-`875 + 1 + 1 = 877`, `877 / 11 = 79.7272...%`, reported as approximately
-`79.73%`. The remaining numeric consumers—IME/composition consumer behavior
-and accessibility—remain target-only; the generic composition foundation and
-the other previously shipped routing foundations remain distinct from those
-consumers.
+The Text/Input evidence moves from 93% to 94% and 71% to 72%; the other
+category rows, including Numeric and Platform, are unchanged. The
+evidence-backed total for this consumer moves from `877` to `879`:
+`877 + 1 + 1 = 879`, `879 / 11 = 79.9090...%`, reported as approximately
+`79.91%`. The remaining numeric consumers—IME/composition behavior and
+accessibility—remain target-only; native adapters and matching-key suppression
+also remain separate boundaries. The generic composition foundation, the
+single-line text consumer, and the other previously shipped routing foundations
+remain distinct from those remaining consumers.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless

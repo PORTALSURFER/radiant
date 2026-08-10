@@ -50,6 +50,9 @@ pub(super) fn handle_text_input(
         }
         WidgetInput::FocusChanged(focused) => {
             text_input.common.state.focused = focused;
+            if !focused {
+                text_input.cancel_composition();
+            }
             None
         }
         WidgetInput::Character { character: ch, .. }

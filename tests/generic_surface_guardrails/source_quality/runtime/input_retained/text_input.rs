@@ -37,6 +37,13 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     let widget_tests =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/widget.rs"))
             .expect("text input widget interaction tests should be readable");
+    let composition =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/composition.rs"))
+            .expect("text input composition consumer should be readable");
+    let composition_tests = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/tests/composition.rs"),
+    )
+    .expect("text input composition tests should be readable");
     let state_tests =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/state.rs"))
             .expect("text input state behavior tests should be readable");
@@ -153,9 +160,10 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     assert!(
         tests.contains("mod widget;")
             && tests.contains("mod state;")
+            && tests.contains("mod composition;")
             && !tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
             && !tests.contains("fn text_input_state_applies_backend_neutral_editing_commands"),
-        "text input behavior test root should index focused widget and state groups instead of owning all cases"
+        "text input behavior test root should index focused widget, state, and composition groups instead of owning all cases"
     );
     assert!(
         widget_tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
@@ -171,6 +179,27 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && state_tests.contains("fn text_input_state_selects_word_at_character_index")
             && widget_tests.contains("fn text_input_double_click_selects_word_under_pointer"),
         "text input behavior tests should stay grouped by widget interaction and state editing concerns"
+    );
+    assert!(
+        composition.contains("struct TextInputComposition")
+            && composition.contains("start_composition")
+            && composition.contains("update_composition")
+            && composition.contains("commit_composition")
+            && composition.contains("cancel_composition")
+            && composition.contains("committed_value_for_sync")
+            && composition.contains("can_preserve_composition_with"),
+        "text input composition should keep transient lifecycle and refresh continuity in its focused consumer module"
+    );
+    assert!(
+        composition_tests.contains("fn text_input_composition_replaces_preedit_and_commits_once")
+            && composition_tests
+                .contains("fn text_input_composition_supports_empty_preedit_and_cancel_restores_selection")
+            && composition_tests
+                .contains("fn text_input_composition_allows_direct_commit_and_focus_loss_cancels")
+            && composition_tests.contains(
+                "fn text_input_composition_preserves_compatible_reprojection_and_rejects_stale_start",
+            ),
+        "text input composition tests should cover replacement, empty preedit, cancellation, direct commit, focus loss, and continuity"
     );
 }
 

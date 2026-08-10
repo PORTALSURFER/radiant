@@ -94,6 +94,8 @@ struct FocusDecisionWidget {
     decision: Rc<Cell<FocusLossDecision>>,
     events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
     emit_focus_loss_output: bool,
+    pointer_press_admission: PointerPressAdmission,
+    retains_managed_pointer_capture: bool,
 }
 
 impl FocusDecisionWidget {
@@ -133,7 +135,19 @@ impl FocusDecisionWidget {
             decision,
             events,
             emit_focus_loss_output,
+            pointer_press_admission: PointerPressAdmission::Legacy,
+            retains_managed_pointer_capture: false,
         }
+    }
+
+    fn with_pointer_press_admission(
+        mut self,
+        admission: PointerPressAdmission,
+        retains_managed_pointer_capture: bool,
+    ) -> Self {
+        self.pointer_press_admission = admission;
+        self.retains_managed_pointer_capture = retains_managed_pointer_capture;
+        self
     }
 }
 
@@ -151,6 +165,18 @@ impl Widget for FocusDecisionWidget {
             .borrow_mut()
             .push(FocusDecisionEvent::Prepare(self.common.id as usize));
         self.decision.get()
+    }
+
+    fn preflight_pointer_press(
+        &self,
+        _bounds: Rect,
+        _input: &WidgetInput,
+    ) -> PointerPressAdmission {
+        self.pointer_press_admission
+    }
+
+    fn retains_managed_pointer_capture(&self) -> bool {
+        self.retains_managed_pointer_capture
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -201,6 +227,8 @@ struct FocusDecisionBridge {
     remove_old: bool,
     target_focusable: bool,
     scroll: bool,
+    old_pointer_press_admission: PointerPressAdmission,
+    old_retains_managed_pointer_capture: bool,
 }
 
 impl FocusDecisionBridge {
@@ -212,6 +240,8 @@ impl FocusDecisionBridge {
             remove_old: false,
             target_focusable: true,
             scroll: false,
+            old_pointer_press_admission: PointerPressAdmission::Legacy,
+            old_retains_managed_pointer_capture: false,
         }
     }
 
@@ -222,6 +252,12 @@ impl FocusDecisionBridge {
 
     fn with_scroll(mut self) -> Self {
         self.scroll = true;
+        self
+    }
+
+    fn with_managed_capture(mut self) -> Self {
+        self.old_pointer_press_admission = PointerPressAdmission::ManagedCapture;
+        self.old_retains_managed_pointer_capture = true;
         self
     }
 
@@ -237,6 +273,10 @@ impl FocusDecisionBridge {
                         Vector2::new(300.0, 200.0),
                         true,
                         true,
+                    )
+                    .with_pointer_press_admission(
+                        self.old_pointer_press_admission,
+                        self.old_retains_managed_pointer_capture,
                     ),
                     WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
                 ),
@@ -254,6 +294,10 @@ impl FocusDecisionBridge {
                         Rc::clone(&self.events),
                         true,
                         true,
+                    )
+                    .with_pointer_press_admission(
+                        self.old_pointer_press_admission,
+                        self.old_retains_managed_pointer_capture,
                     ),
                     WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
                 ),
@@ -2612,6 +2656,64 @@ fn scrollbar_double_click_focus_veto_prevents_capture_and_scroll() {
 }
 
 #[test]
+fn managed_capture_precedes_scrollbar_press_and_double_click() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionBridge::new()
+            .with_scroll()
+            .with_managed_capture(),
+        Vector2::new(100.0, 50.0),
+    );
+    let owner_point = Point::new(8.0, 8.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(owner_point)),
+        Some(10)
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+    let initial_offset = runtime.layout_state.scroll_offset(30);
+    let initial_scrollbar_drag = runtime.scrollbar_drag_active();
+    let initial_layout_capture = runtime.layout_pointer_capture();
+    let initial_hovered_scrollbar = runtime.hovered_scroll_affordance();
+    runtime.bridge().events.borrow_mut().clear();
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(runtime.scrollbar_drag_active(), initial_scrollbar_drag);
+    assert_eq!(runtime.layout_pointer_capture(), initial_layout_capture);
+    assert_eq!(
+        runtime.hovered_scroll_affordance(),
+        initial_hovered_scrollbar
+    );
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert!(runtime.bridge().events.borrow().is_empty());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(scrollbar_point)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(runtime.scrollbar_drag_active(), initial_scrollbar_drag);
+    assert_eq!(runtime.layout_pointer_capture(), initial_layout_capture);
+    assert_eq!(
+        runtime.hovered_scroll_affordance(),
+        initial_hovered_scrollbar
+    );
+    assert_eq!(runtime.layout_state.scroll_offset(30), initial_offset);
+    assert!(runtime.bridge().events.borrow().is_empty());
+}
+
+#[test]
 fn pointer_non_focusable_hit_with_veto_retains_focus_and_unwinds_capture() {
     let mut runtime = SurfaceRuntime::new(
         FocusDecisionBridge::new().with_target_focusable(false),
@@ -3585,6 +3687,130 @@ fn managed_pointer_authority_loss_orphans_release_without_freezing_future_motion
         Some(71)
     );
     assert_eq!(runtime.pointer_capture(), Some(71));
+}
+
+#[test]
+fn orphaned_primary_does_not_suppress_secondary_legacy_release() {
+    let owner = ManagedPointerFixture::managed(111);
+    let other = ManagedPointerFixture::legacy(112);
+    let owner_events = Rc::clone(&owner.events);
+    let other_events = Rc::clone(&other.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::pair(owner.clone(), other),
+        Vector2::new(180.0, 70.0),
+    );
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(12.0, 12.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+        timestamp: None,
+    });
+    owner.retains.set(false);
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(12.0, 40.0),
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+            sequence_range: None,
+        }),
+        Some(112)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(12.0, 40.0),
+            button: PointerButton::Secondary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(112)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(112));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(12.0, 40.0),
+            button: PointerButton::Secondary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(112)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        other_events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(
+                event,
+                ManagedPointerEvent::Release(PointerButton::Secondary)
+            ))
+            .count(),
+        1
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(12.0, 40.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        None
+    );
+    assert_eq!(
+        other_events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(event, ManagedPointerEvent::Release(PointerButton::Primary)))
+            .count(),
+        0
+    );
+    assert!(
+        !owner_events
+            .borrow()
+            .iter()
+            .any(|event| matches!(event, ManagedPointerEvent::Release(_)))
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(12.0, 40.0),
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+            sequence_range: None,
+        }),
+        Some(112)
+    );
+    assert!(other_events.borrow().contains(&ManagedPointerEvent::Move));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(12.0, 40.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(112)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(12.0, 40.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(112)
+    );
+    assert_eq!(
+        other_events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(event, ManagedPointerEvent::Release(PointerButton::Primary)))
+            .count(),
+        1
+    );
 }
 
 #[test]

@@ -21,6 +21,11 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.interaction.pointer.managed_capture.is_some()
+            && self.validate_managed_pointer_capture_authority()
+        {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -114,6 +119,11 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.interaction.pointer.managed_capture.is_some()
+            && self.validate_managed_pointer_capture_authority()
+        {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -273,10 +283,10 @@ where
             self.rearm_tooltip_hover_intent();
             return routed.then_some(widget_id);
         }
-        if self.interaction.pointer.managed_capture.is_some()
-            || self.interaction.pointer.has_any_managed_release_tombstone()
-        {
-            let _ = self.consume_managed_pointer_release_tombstone(button);
+        if self.interaction.pointer.managed_capture.is_some() {
+            return None;
+        }
+        if self.consume_managed_pointer_release_tombstone(button) {
             return None;
         }
         if self

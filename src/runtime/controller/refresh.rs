@@ -2889,6 +2889,7 @@ where
 
     fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {
         self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
@@ -3155,6 +3156,14 @@ where
             &traversal.widget_paths,
             &retired_widget_ids,
         );
+        self.reconcile_managed_wheel_sequence_after_refresh(
+            &next_surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+        );
         self.reconcile_managed_pointer_capture_after_refresh(
             &next_surface,
             &previous_widget_order,
@@ -3186,6 +3195,7 @@ where
             Duration::ZERO
         };
         self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
         if let Some(capture) = self.interaction.pointer.managed_capture
             && capture.state == RuntimeManagedPointerCaptureState::Active
         {
@@ -3447,8 +3457,66 @@ where
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn reconcile_managed_wheel_sequence_after_refresh(
+        &mut self,
+        next_surface: &crate::runtime::UiSurface<Message>,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        current_paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        retired_widget_ids: &[WidgetId],
+    ) {
+        let Some(capture) = self.interaction.wheel.managed_sequence else {
+            return;
+        };
+        let widget_id = capture.widget_id;
+        let exact_compatible = !retired_widget_ids.contains(&widget_id)
+            && has_unique_widget_id(previous_widget_order, widget_id)
+            && has_unique_widget_id(current_widget_order, widget_id)
+            && previous_paths
+                .get(&widget_id)
+                .zip(current_paths.get(&widget_id))
+                .is_some_and(|(previous_path, current_path)| {
+                    self.surface
+                        .widget_compatibility_at_path(previous_path.as_slice())
+                        .zip(next_surface.widget_compatibility_at_path(current_path.as_slice()))
+                        .is_some_and(
+                            |((previous_kind, previous_valid), (current_kind, current_valid))| {
+                                previous_valid && current_valid && previous_kind == current_kind
+                            },
+                        )
+                });
+        let previous_live = previous_paths
+            .get(&widget_id)
+            .and_then(|path| self.surface.find_widget_at_path(widget_id, path))
+            .is_some_and(|widget| self.managed_refresh_wheel_widget_is_live(widget, widget_id));
+        let current_live = current_paths
+            .get(&widget_id)
+            .and_then(|path| next_surface.find_widget_at_path(widget_id, path))
+            .is_some_and(|widget| self.managed_refresh_wheel_widget_is_live(widget, widget_id));
+        if !exact_compatible || !previous_live || !current_live {
+            self.clear_managed_wheel_sequence_for_widget(widget_id);
+        }
+    }
+
+    fn managed_refresh_wheel_widget_is_live(
+        &self,
+        widget: &crate::runtime::SurfaceWidget<Message>,
+        widget_id: WidgetId,
+    ) -> bool {
+        let common = widget.widget_object().common();
+        widget.id() == widget_id
+            && !common.state.disabled
+            && !common.state.read_only
+            && (!widget.is_focusable() || self.interaction.focus.focused_widget == Some(widget_id))
+            && widget.receives_wheel_input()
+            && widget.retains_managed_wheel_sequence()
+    }
+
     fn discard_widget_ownership(&mut self, widget_id: WidgetId) -> SurfaceIdentityOwnership {
         self.mark_focused_key_capture_stale(widget_id);
+        self.clear_managed_wheel_sequence_for_widget(widget_id);
         let focus = self.interaction.focus.focused_widget == Some(widget_id);
         let pointer_capture = self.interaction.pointer.capture == Some(widget_id)
             || self

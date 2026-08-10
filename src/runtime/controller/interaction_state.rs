@@ -21,6 +21,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) hover: RuntimeHoverState,
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
+    pub(super) wheel: RuntimeWheelState,
     pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
     pub(super) layout_state: RuntimeLayoutContainerStateStore,
     pub(super) drag: RuntimeDragState<Message>,
@@ -33,6 +34,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             hover: RuntimeHoverState::default(),
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
+            wheel: RuntimeWheelState::default(),
             layout_capture: None,
             layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),
@@ -85,6 +87,28 @@ pub(super) struct RuntimeFocusedKeyCapture {
     pub(super) widget_id: WidgetId,
     pub(super) key: WidgetKey,
     pub(super) stale: bool,
+}
+
+/// Runtime-owned authority for one exact explicit wheel sequence.
+///
+/// The record intentionally stores only the exact stable widget identity and
+/// bounded lifecycle state. Unit, phase, timestamps, sequence ranges, and
+/// continuity history remain with the delivered sample or the widget-local
+/// interaction state and never become controller authority.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct RuntimeWheelState {
+    pub(super) managed_sequence: Option<RuntimeManagedWheelSequence>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RuntimeManagedWheelSequence {
+    pub(super) widget_id: WidgetId,
+    pub(super) state: RuntimeManagedWheelSequenceState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RuntimeManagedWheelSequenceState {
+    Active,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -3,8 +3,8 @@ use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
-        FocusBehavior, PointerCapturePolicy, PointerPressAdmission, Widget, WidgetCursor, WidgetId,
-        WidgetInput, WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
+        FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample, Widget,
+        WidgetCursor, WidgetId, WidgetInput, WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
     },
 };
 use std::rc::Rc;
@@ -228,6 +228,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
     }
 
+    pub(in crate::runtime) fn retains_managed_wheel_sequence(&self) -> bool {
+        self.widget.retains_managed_wheel_sequence()
+    }
+
     pub(in crate::runtime) fn accepts_pointer_move(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
     }
@@ -334,6 +338,31 @@ impl<Message> SurfaceWidget<Message> {
             .map_output(output)
             .map(super::WidgetDispatchResult::Message)
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn dispatch_wheel_sample(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+    ) -> (super::WidgetDispatchResult<Message>, bool) {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_wheel_sample(bounds, position, sample))
+            .flatten()
+        else {
+            return (
+                super::WidgetDispatchResult::NoOutput,
+                self.id() == widget_id && self.widget.retains_managed_wheel_sequence(),
+            );
+        };
+        let retains = self.widget.retains_managed_wheel_sequence();
+        let result = self
+            .messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        (result, retains)
     }
 
     pub(super) fn dispatch_output(

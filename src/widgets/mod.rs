@@ -85,7 +85,8 @@ pub use interaction::{
     SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
     TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
     ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
-    WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
+    WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase, WheelSample,
+    WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{

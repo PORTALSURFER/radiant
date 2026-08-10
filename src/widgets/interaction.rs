@@ -26,7 +26,9 @@ pub use cursor::WidgetCursor;
 pub use edit::{EditEvent, EditPhase, EditTransaction};
 pub use format::{DecimalSeparator, ValueFormat, ValueFormatError, ValueFormatKind};
 pub use input::{
-    KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey,
+    KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand,
+    WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase, WheelSample,
+    WheelSampleError, WidgetInput, WidgetKey,
 };
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,

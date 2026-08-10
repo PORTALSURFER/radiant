@@ -29,8 +29,9 @@ pub enum NumericInputConstructionError<CodecError, AdjustmentError> {
 /// Accepted fragments are a singleton `Update`, `Commit`, or `Cancel`, or
 /// `Begin` followed by one of those phases in the same transaction. Storage is
 /// inline and private; the public event slice exposes only the populated
-/// prefix. The text-first widget currently emits only `Begin` plus a terminal
-/// event; this carrier does not implement semantic keyboard adjustment.
+/// prefix. The text-first widget emits terminal `Begin` plus a terminal event,
+/// while complete-mode keyboard adjustment also consumes incremental
+/// `Begin` plus `Update`, singleton `Update`, `Commit`, and `Cancel` shapes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NumericInputEditBatch<T> {
     events: [EditEvent<T>; 2],
@@ -117,13 +118,12 @@ pub enum NumericStepAttempt {
     Repeat,
 }
 
-/// One typed result part for the future semantic numeric keyboard interaction.
+/// One typed result part for the complete-mode numeric keyboard interaction.
 ///
-/// This envelope is a public, UI-local output foundation only. The shipped
-/// numeric text widget does not produce these parts, and semantic keyboard
-/// stepping remains unimplemented. Failure errors are reference-counted so the
-/// envelope can be cloned without requiring either error type to implement
-/// `Clone`.
+/// The complete numeric text widget produces successful keyboard edits and
+/// typed step or format failures when an explicit step policy is attached.
+/// Failure errors are reference-counted so the envelope can be cloned without
+/// requiring either error type to implement `Clone`.
 #[derive(Debug, PartialEq)]
 pub enum NumericInputInteraction<T, StepError, FormatError> {
     /// A successful, ordered keyboard edit fragment.
@@ -265,8 +265,8 @@ impl<T: Clone, StepError, FormatError> Clone
 ///
 /// The private inline storage carries at most one successful edit or failure,
 /// or a keyboard cancel rollback followed by its repeat failure. It validates
-/// output shape and provenance but does not produce, consume, or execute
-/// semantic keyboard stepping.
+/// output shape and provenance for the complete-mode numeric keyboard
+/// consumer.
 #[derive(Debug, PartialEq)]
 pub struct NumericInputInteractionBatch<T, StepError, FormatError> {
     parts: [NumericInputInteraction<T, StepError, FormatError>; 2],

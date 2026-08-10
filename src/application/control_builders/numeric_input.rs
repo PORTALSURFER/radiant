@@ -67,7 +67,7 @@ where
         self
     }
 
-    /// Configure the future numeric step-selection consumer.
+    /// Configure the explicit numeric step-selection policy used by complete mode.
     pub fn step_modifiers(mut self, policy: NumericStepModifiers) -> Self {
         self.input.set_step_modifiers(policy);
         self

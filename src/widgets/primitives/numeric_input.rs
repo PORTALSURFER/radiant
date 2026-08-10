@@ -1,9 +1,17 @@
 //! Text-first generic numeric input built on the retained text-input primitive.
 
+mod keyboard;
+
 #[cfg(test)]
 mod tests;
 
 use std::{fmt, rc::Rc};
+
+use self::keyboard::{
+    KeyboardAdjustmentPolicy, KeyboardAdjustmentRequest, KeyboardAdjustmentState,
+    complete_keyboard_adjustment_policy, direction_for_key, is_adjustment_key,
+    no_keyboard_adjustment_policy,
+};
 
 use crate::{
     gui::types::Rect,
@@ -13,9 +21,10 @@ use crate::{
     widgets::{
         EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
         NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputInteractionBatch, NumericParseResult, NumericStepModifiers, TextAlign,
-        TextBackgroundRole, TextColorRole, TextInputChrome, TextInputWidget, TextWrap, Widget,
-        WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
+        NumericInputInteractionBatch, NumericParseResult, NumericStepAttempt, NumericStepModifiers,
+        TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome, TextInputWidget, TextWrap,
+        Widget, WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics,
+        WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -78,10 +87,12 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     codec: Rc<C>,
     adjustment: Rc<A>,
     active: Option<ActiveNumericEdit<T, C>>,
+    keyboard: Option<KeyboardAdjustmentState<T>>,
     interaction_gate: NumericInteractionGate,
     step_modifiers: Option<NumericStepModifiers>,
     output_mode: NumericInputOutputMode,
     output_encoder: NumericInputOutputEncoder<T>,
+    keyboard_policy: Rc<dyn KeyboardAdjustmentPolicy<T>>,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -97,10 +108,12 @@ where
             codec: Rc::clone(&self.codec),
             adjustment: Rc::clone(&self.adjustment),
             active: self.active.clone(),
+            keyboard: self.keyboard.clone(),
             interaction_gate: self.interaction_gate,
             step_modifiers: self.step_modifiers,
             output_mode: self.output_mode,
             output_encoder: Rc::clone(&self.output_encoder),
+            keyboard_policy: Rc::clone(&self.keyboard_policy),
         }
     }
 }
@@ -117,6 +130,10 @@ where
             .field(
                 "active",
                 &self.active.as_ref().map(|active| active.session.draft()),
+            )
+            .field(
+                "keyboard",
+                &self.keyboard.as_ref().map(|keyboard| keyboard.key),
             )
             .field("output_mode", &self.output_mode)
             .finish_non_exhaustive()
@@ -152,10 +169,12 @@ where
             codec,
             adjustment,
             active: None,
+            keyboard: None,
             interaction_gate: NumericInteractionGate::new(),
             step_modifiers: None,
             output_mode: NumericInputOutputMode::Compatibility,
             output_encoder: compatibility_output_encoder(),
+            keyboard_policy: no_keyboard_adjustment_policy(),
         })
     }
 
@@ -184,6 +203,7 @@ where
     pub(crate) fn set_compatibility_output_mode(&mut self) {
         self.output_mode = NumericInputOutputMode::Compatibility;
         self.output_encoder = compatibility_output_encoder();
+        self.keyboard_policy = no_keyboard_adjustment_policy();
     }
 
     pub(crate) fn set_complete_output_mode(&mut self)
@@ -193,6 +213,10 @@ where
     {
         self.output_mode = NumericInputOutputMode::Complete;
         self.output_encoder = Rc::new(encode_complete_output::<T, A::Error, C::Error>);
+        self.keyboard_policy = complete_keyboard_adjustment_policy(
+            Rc::clone(&self.codec),
+            Rc::clone(&self.adjustment),
+        );
     }
 
     fn encode_output(&self, batch: NumericInputEditBatch<T>) -> WidgetOutput {
@@ -313,6 +337,235 @@ where
         batch
     }
 
+    fn handle_keyboard_initial(
+        &mut self,
+        key: WidgetKey,
+        modifiers: crate::widgets::KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        let direction = direction_for_key(key)?;
+        if repeat
+            || self.output_mode != NumericInputOutputMode::Complete
+            || self.step_modifiers.is_none()
+            || !self.is_editable()
+            || self.active.is_some()
+            || self.keyboard.is_some()
+            || self.interaction_gate.incumbent().is_some()
+        {
+            return None;
+        }
+
+        if !self
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::KeyboardAdjustment)
+        {
+            return None;
+        }
+
+        let Some(step_modifiers) = self.step_modifiers else {
+            self.interaction_gate
+                .release(NumericInteractionOwner::KeyboardAdjustment);
+            return None;
+        };
+        let step = step_modifiers.select_step(modifiers);
+
+        let provenance = InteractionProvenance::Keyboard { timestamp };
+        let candidate = match self.keyboard_policy.step(KeyboardAdjustmentRequest {
+            value: &self.value,
+            direction,
+            step,
+            attempt: NumericStepAttempt::Initial,
+            provenance,
+            rollback: None,
+        }) {
+            Ok(candidate) => candidate,
+            Err(output) => {
+                self.interaction_gate
+                    .release(NumericInteractionOwner::KeyboardAdjustment);
+                return output;
+            }
+        };
+        if candidate == self.value {
+            self.interaction_gate
+                .release(NumericInteractionOwner::KeyboardAdjustment);
+            return None;
+        }
+
+        let mut draft = String::new();
+        if let Err(output) = self.keyboard_policy.format(
+            KeyboardAdjustmentRequest {
+                value: &candidate,
+                direction,
+                step,
+                attempt: NumericStepAttempt::Initial,
+                provenance,
+                rollback: None,
+            },
+            &mut draft,
+        ) {
+            self.interaction_gate
+                .release(NumericInteractionOwner::KeyboardAdjustment);
+            return output;
+        }
+
+        let start_text = self.text_input.state.value.clone();
+        let keyboard = KeyboardAdjustmentState::new(
+            self.value.clone(),
+            start_text,
+            key,
+            timestamp,
+            self.text_input.state.caret,
+            self.text_input.state.selection_anchor,
+        );
+        let begin = keyboard.session.begin_event().clone();
+        let Some(update) = keyboard.begin_update(candidate.clone(), timestamp) else {
+            self.interaction_gate
+                .release(NumericInteractionOwner::KeyboardAdjustment);
+            return None;
+        };
+        let Some(edit) = NumericInputEditBatch::from_events(&[begin, update]) else {
+            self.interaction_gate
+                .release(NumericInteractionOwner::KeyboardAdjustment);
+            return None;
+        };
+        let output = self.encode_output(edit);
+
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        self.keyboard = Some(keyboard);
+        Some(output)
+    }
+
+    fn handle_keyboard_repeat(
+        &mut self,
+        key: WidgetKey,
+        modifiers: crate::widgets::KeyboardModifiers,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        let active = self.keyboard.as_ref().cloned()?;
+        if active.key != key {
+            return None;
+        }
+        if !self.is_editable()
+            || self.output_mode != NumericInputOutputMode::Complete
+            || self.step_modifiers.is_none()
+        {
+            return self.cancel_keyboard(timestamp);
+        }
+        let direction = direction_for_key(key)?;
+        let Some(step_modifiers) = self.step_modifiers else {
+            return self.cancel_keyboard(timestamp);
+        };
+        let step = step_modifiers.select_step(modifiers);
+        let provenance = InteractionProvenance::Keyboard { timestamp };
+        let rollback = active
+            .session
+            .clone()
+            .cancel(provenance)
+            .ok()
+            .and_then(|cancel| NumericInputEditBatch::from_events(&[cancel]));
+        let candidate = match self.keyboard_policy.step(KeyboardAdjustmentRequest {
+            value: &self.value,
+            direction,
+            step,
+            attempt: NumericStepAttempt::Repeat,
+            provenance,
+            rollback: rollback.clone(),
+        }) {
+            Ok(candidate) => candidate,
+            Err(output) => {
+                return self.rollback_keyboard_failure(output, timestamp);
+            }
+        };
+        if candidate == self.value {
+            return None;
+        }
+
+        let mut draft = String::new();
+        if let Err(output) = self.keyboard_policy.format(
+            KeyboardAdjustmentRequest {
+                value: &candidate,
+                direction,
+                step,
+                attempt: NumericStepAttempt::Repeat,
+                provenance,
+                rollback,
+            },
+            &mut draft,
+        ) {
+            return self.rollback_keyboard_failure(output, timestamp);
+        }
+
+        let Some(update) = active.begin_update(candidate.clone(), timestamp) else {
+            return self.cancel_keyboard(timestamp);
+        };
+        let Some(edit) = NumericInputEditBatch::from_events(&[update]) else {
+            return self.cancel_keyboard(timestamp);
+        };
+        let output = self.encode_output(edit);
+
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        Some(output)
+    }
+
+    fn cancel_keyboard(
+        &mut self,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        let active = self.keyboard.take()?;
+        let start_text = active.start_text.clone();
+        let start_caret = active.start_caret;
+        let start_selection_anchor = active.start_selection_anchor;
+        let cancel = match active.cancel(timestamp) {
+            Ok(cancel) => cancel,
+            Err(active) => {
+                self.keyboard = Some(*active);
+                return None;
+            }
+        };
+        self.value = cancel.value.clone();
+        self.text_input.state.value = start_text;
+        self.text_input.state.caret = start_caret;
+        self.text_input.state.selection_anchor = start_selection_anchor;
+        self.interaction_gate
+            .release(NumericInteractionOwner::KeyboardAdjustment);
+        let edit = NumericInputEditBatch::from_events(&[cancel])?;
+        Some(self.encode_output(edit))
+    }
+
+    fn rollback_keyboard_failure(
+        &mut self,
+        failure: Option<WidgetOutput>,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        let active = self.keyboard.take()?;
+        let start_text = active.start_text.clone();
+        let start_caret = active.start_caret;
+        let start_selection_anchor = active.start_selection_anchor;
+        let cancel = match active.cancel(timestamp) {
+            Ok(cancel) => cancel,
+            Err(active) => {
+                self.keyboard = Some(*active);
+                return None;
+            }
+        };
+        self.value = cancel.value.clone();
+        self.text_input.state.value = start_text;
+        self.text_input.state.caret = start_caret;
+        self.text_input.state.selection_anchor = start_selection_anchor;
+        self.interaction_gate
+            .release(NumericInteractionOwner::KeyboardAdjustment);
+        failure
+    }
+
     fn handles_value_mutation(input: &WidgetInput) -> bool {
         match input {
             WidgetInput::Character { character, .. } => !character.is_control(),
@@ -412,15 +665,73 @@ where
         input: WidgetInput,
     ) -> Option<crate::widgets::WidgetOutput> {
         if matches!(&input, WidgetInput::FocusChanged(false)) {
-            let output = if self.active.is_some() {
-                self.handle_focus_loss(bounds)
-            } else {
+            if self.active.is_some() {
+                return self
+                    .handle_focus_loss(bounds)
+                    .map(|batch| self.encode_output(batch));
+            }
+            if self.keyboard.is_some() {
+                let output = self.cancel_keyboard(None);
                 let _ = self
                     .text_input
                     .handle_input(bounds, WidgetInput::FocusChanged(false));
-                None
-            };
-            return output.map(|batch| self.encode_output(batch));
+                return output;
+            }
+            let _ = self
+                .text_input
+                .handle_input(bounds, WidgetInput::FocusChanged(false));
+            return None;
+        }
+
+        if self.keyboard.is_some() {
+            match &input {
+                WidgetInput::KeyPress {
+                    key,
+                    repeat: true,
+                    modifiers,
+                    timestamp,
+                } if is_adjustment_key(*key) => {
+                    return self.handle_keyboard_repeat(*key, *modifiers, *timestamp);
+                }
+                WidgetInput::KeyRelease { key, timestamp, .. }
+                    if self
+                        .keyboard
+                        .as_ref()
+                        .is_some_and(|active| active.key == *key) =>
+                {
+                    let active = self.keyboard.take()?;
+                    let commit = match active.commit(self.value.clone(), *timestamp) {
+                        Ok(commit) => commit,
+                        Err(active) => {
+                            self.keyboard = Some(*active);
+                            return None;
+                        }
+                    };
+                    self.interaction_gate
+                        .release(NumericInteractionOwner::KeyboardAdjustment);
+                    let edit = NumericInputEditBatch::from_events(&[commit])?;
+                    return Some(self.encode_output(edit));
+                }
+                WidgetInput::KeyPress {
+                    key: WidgetKey::Escape,
+                    timestamp,
+                    ..
+                } => {
+                    return self.cancel_keyboard(*timestamp);
+                }
+                _ => return None,
+            }
+        }
+
+        if let WidgetInput::KeyPress {
+            key,
+            modifiers,
+            repeat,
+            timestamp,
+        } = &input
+            && is_adjustment_key(*key)
+        {
+            return self.handle_keyboard_initial(*key, *modifiers, *repeat, *timestamp);
         }
 
         match &input {
@@ -474,23 +785,27 @@ where
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             self.active = None;
+            self.keyboard = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         };
         if self.text_input.common.id != previous.text_input.common.id {
             self.active = None;
+            self.keyboard = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
 
         let reset = self.value != previous.value
             || self.output_mode != previous.output_mode
+            || self.step_modifiers != previous.step_modifiers
             || self.text_input.common.state.disabled
             || previous.text_input.common.state.disabled
             || self.text_input.common.state.read_only
             || previous.text_input.common.state.read_only;
         if reset {
             self.active = None;
+            self.keyboard = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
@@ -499,9 +814,16 @@ where
         if previous.active.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = previous.active.clone();
+            self.keyboard = None;
+            self.interaction_gate = previous.interaction_gate;
+        } else if previous.keyboard.is_some() {
+            self.text_input.state = previous.text_input.state.clone();
+            self.active = None;
+            self.keyboard = previous.keyboard.clone();
             self.interaction_gate = previous.interaction_gate;
         } else {
             self.active = None;
+            self.keyboard = None;
             self.interaction_gate = NumericInteractionGate::new();
         }
     }
@@ -513,6 +835,9 @@ where
                 self.text_input.common.id == successor.text_input.common.id
                     && self.value == successor.value
                     && self.output_mode == successor.output_mode
+                    && self.step_modifiers == successor.step_modifiers
+                    && !self.text_input.common.state.disabled
+                    && !self.text_input.common.state.read_only
                     && !successor.text_input.common.state.disabled
                     && !successor.text_input.common.state.read_only
             });
@@ -520,8 +845,12 @@ where
             return None;
         }
 
-        self.cancel_active(None)
-            .map(|batch| self.encode_output(batch))
+        if self.keyboard.is_some() {
+            self.cancel_keyboard(None)
+        } else {
+            self.cancel_active(None)
+                .map(|batch| self.encode_output(batch))
+        }
     }
 
     fn accepts_text_input(&self) -> bool {
@@ -529,7 +858,19 @@ where
     }
 
     fn preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
-        key == WidgetKey::Escape && self.active.is_some() && self.is_editable()
+        key == WidgetKey::Escape
+            && (self.active.is_some() || self.keyboard.is_some())
+            && self.is_editable()
+    }
+
+    fn participates_in_focused_key_routing(&self) -> bool {
+        self.output_mode == NumericInputOutputMode::Complete
+            && self.step_modifiers.is_some()
+            && self.is_editable()
+    }
+
+    fn captured_focused_key(&self) -> Option<WidgetKey> {
+        self.keyboard.as_ref().map(|active| active.key)
     }
 
     fn accepts_pointer_move(&self) -> bool {

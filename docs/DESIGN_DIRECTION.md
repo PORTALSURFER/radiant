@@ -1795,9 +1795,10 @@ column([
 This is one shared, target-only, backend-neutral contract for the numeric
 interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
-generic text consumer; IME composition, keyboard adjustment, pointer scrub,
-wheel sequence, and accessibility edit remain target-only consumers. The gate
-is not a public Rust API, native adapter, storage shape, or product policy.
+generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
+shipped; IME composition, pointer scrub, wheel sequence, and accessibility edit
+remain target-only consumers. The gate is not a public Rust API, native
+adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
 
@@ -1876,7 +1877,8 @@ interrupt an incumbent.
 
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
-compatible reprojection foundation; rows for the five other consumers remain
+compatible reprojection foundation, and complete-mode explicit-policy
+KeyboardAdjustment is shipped; rows for the four other consumers remain
 target-only:
 
 | Fixture | Expected target behavior |
@@ -2069,15 +2071,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   TextEdit only when the shared incumbent owner is None. A different pending or
   active owner denies the text admission before parsing, formatting, or edit
   lifecycle mutation; the shipped text consumer implements this TextEdit
-  admission, terminal cleanup, and replacement-teardown foundation, while the
-  five other consumers remain unimplemented.
+  admission, terminal cleanup, and replacement-teardown foundation, and the
+  complete-mode explicit-policy KeyboardAdjustment consumer is also shipped;
+  IME composition, pointer scrub, wheel, and accessibility remain target-only.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
-  the successor from inheriting the retired session. The five other numeric
-  owner consumers—IME/composition, keyboard adjustment, pointer, wheel, and
-  accessibility—remain unimplemented.
+  the successor from inheriting the retired session. The four remaining numeric
+  owner consumers—IME/composition, pointer scrub, wheel, and accessibility—
+  remain target-only.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -2135,11 +2138,12 @@ numeric_input(
     .on_edit(Message::CutoffEdit);
 ```
 
-### Metadata-aware focused-key ownership and preemption (generic kernel shipped; semantic keyboard not yet shipped)
+### Metadata-aware focused-key ownership and preemption (generic kernel and complete numeric consumer shipped)
 
 This additive, backend-neutral kernel now routes metadata-aware focused keys
-across generic `SurfaceRuntime` dispatch and native adapters. It does not claim
-or implement semantic `KeyboardAdjustment`. `Widget` exposes two defaulted,
+across generic `SurfaceRuntime` dispatch and native adapters. Complete-mode
+numeric input consumes this kernel for explicit `KeyboardAdjustment` ownership.
+`Widget` exposes two defaulted,
 object-safe opt-in queries, `participates_in_focused_key_routing()` and
 `captured_focused_key() -> Option<WidgetKey>`; existing widgets retain the
 key-only compatibility path. The controller owns one private fixed-size capture
@@ -2199,17 +2203,14 @@ controller, native, and public-API fixtures cover these shipped outcomes.
 | Stale identity or authority | A sample whose pinned identity or authority is no longer current is `Ignore`; it is not rebased, sent to a fallback host path, or delivered to a successor/new focus. |
 | Native, backend-neutral, and synthetic equivalence | Equivalent evidence produces the same route, host-call count, and owner-delivery count on all three paths; native translation adds no precedence. |
 
-### Numeric interaction output mapping foundation (TextEdit and generic routing shipped; semantic keyboard production not yet shipped)
+### Numeric interaction output mapping (TextEdit, complete keyboard, and generic routing shipped)
 
-This is the shipped, backend-neutral TextEdit output-mapping foundation plus the
-target-only contract for future semantic keyboard production. It defines one
-selected public mapper and one host dispatch per input or teardown boundary. The
-current implementation ships `on_interaction`, crate-private output-mode
-storage, mode-specific encoders, TextEdit terminal validation, complete
-TextEdit mapping, and the generic metadata-aware focused-key routing kernel; it
-does not implement numeric capture, stepping, repeats, release, rollback
-production, or semantic `KeyboardAdjustment`. The kernel is a prerequisite only;
-it produces no numeric step, transaction, or output.
+This is the shipped, backend-neutral TextEdit and complete-mode keyboard output
+mapping. It defines one selected public mapper and one host dispatch per input or
+teardown boundary. The current implementation ships `on_interaction`,
+crate-private output-mode storage, mode-specific encoders, TextEdit terminal
+validation, explicit-policy keyboard stepping, typed failures and rollback,
+complete mapping, and the generic metadata-aware focused-key routing kernel.
 
 The complete binding on `NumericInputBuilder<T, C, A>` is:
 
@@ -2230,12 +2231,12 @@ constructor errors and are not delivered through this mapper.
 
 `on_interaction` is the sole complete mapping boundary. Complete mode emits
 exactly one `NumericInputInteractionBatch<T, A::Error, C::Error>` payload type
-for the shipped TextEdit lifecycle; it never alternates a bare
+for the shipped TextEdit and keyboard lifecycles; it never alternates a bare
 `NumericInputEditBatch<T>` with an interaction batch. One accepted TextEdit
 input or teardown boundary produces at most one interaction batch, invokes the
 selected mapper at most once, and dispatches at most one host message. The
-interaction parts are not separately reduced or dispatched. Future keyboard
-production will use the same one-batch boundary; in particular, a repeat
+interaction parts are not separately reduced or dispatched. Keyboard production
+uses the same one-batch boundary; in particular, a repeat
 rollback `[Edit([Cancel]), failure]` remains one ordered batch with rollback
 before the exact typed failure and no interleaving mapper or host dispatch.
 
@@ -2271,12 +2272,12 @@ containing `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial
 typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
-mapping and mapper exclusivity are shipped. Semantic keyboard production,
-typed-failure production, numeric stepping, and the remaining keyboard fixtures
-below remain target-only; the generic metadata-aware routing kernel is shipped
-in the preceding section.
+mapping, typed-failure production, numeric stepping, and mapper exclusivity are
+shipped. Pointer, wheel, IME/composition, accessibility, and product-policy
+consumers remain target-only; the generic metadata-aware routing kernel is
+shipped in the preceding section.
 
-#### Numeric interaction output mapping acceptance fixtures (shipped TextEdit; target keyboard)
+#### Numeric interaction output mapping acceptance fixtures (shipped TextEdit and complete keyboard)
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2285,16 +2286,16 @@ in the preceding section.
 | 3. `on_edit` plus arrows | Arrows perform no step, format call, capture, transaction, typed failure, mapper invocation, or mutation; `step_modifiers` remains inert. (Shipped.) |
 | 4. Complete-mode TextEdit commit | One `NumericInputInteractionBatch<T, A::Error, C::Error>` contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Commit]` inner events; the mapper and host are each used once. (Shipped.) |
 | 5. Complete-mode TextEdit cancel or teardown | One interaction batch contains exactly one outer `Edit(NumericInputEditBatch<T>)` with the unchanged `[Begin, Cancel]` inner events; the selected retiring mapper and host are each used once. (Shipped.) |
-| 6. Initial keyboard step | One interaction batch contains one keyboard `Edit` with `[Begin, Update]`, and one mapper invocation and host message occur for the accepted boundary. |
-| 7. Keyboard repeat and release | Each accepted repeat or release produces one interaction batch containing `Edit([Update])` or `Edit([Commit])`, respectively, with one mapper invocation and one host message. |
-| 8. Initial typed step or format failure | The one interaction batch contains the exact typed `StepFailed` or `FormatFailed` part only; no edit, transaction, capture, or fallback output occurs. |
-| 9. Repeat typed failure | One interaction batch is ordered `Edit([Cancel])` then the exact typed failure, and one mapper invocation and host message occur with no interleaving. |
-| 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. |
+| 6. Initial keyboard step | One interaction batch contains one keyboard `Edit` with `[Begin, Update]`, and one mapper invocation and host message occur for the accepted boundary. (Shipped.) |
+| 7. Keyboard repeat and release | Each accepted repeat or release produces one interaction batch containing `Edit([Update])` or `Edit([Commit])`, respectively, with one mapper invocation and one host message. (Shipped.) |
+| 8. Initial typed step or format failure | The one interaction batch contains the exact typed `StepFailed` or `FormatFailed` part only; no edit, transaction, capture, or fallback output occurs. (Shipped.) |
+| 9. Repeat typed failure | One interaction batch is ordered `Edit([Cancel])` then the exact typed failure, and one mapper invocation and host message occur with no interleaving. (Shipped.) |
+| 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, terminal validation, both binding modes, and the generic metadata-aware focused-key routing kernel are shipped. Semantic `KeyboardAdjustment` and keyboard numeric production remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, terminal validation, both binding modes, and the generic metadata-aware focused-key routing kernel are shipped. Pointer, wheel, IME/composition, accessibility, and product-policy consumers remain unshipped. |
 
-### Target numeric keyboard adjustment contract (semantic behavior not yet shipped)
+### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; other consumers remain target-only)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric
 step or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -2303,12 +2304,13 @@ the keyboard attempt does not parse, format, step, commit, cancel, transfer
 focus, or mutate that incumbent. The existing host-shortcut first refusal
 remains limited to an uncaptured initial boundary.
 
-The following semantic keyboard-adjustment behavior is target-only. The shipped
-text-first `numeric_input` consumer does not consume it. Normalized
-`Event::KeyRelease { key, modifiers, timestamp }` and
-`WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is shipped as
-its prerequisite; semantic arrow stepping remains unimplemented. It preserves
-the shipped normalized
+The shipped text-first `numeric_input` consumer now has a complete-mode
+semantic keyboard-adjustment consumer for explicit `NumericStepModifiers`.
+Normalized `Event::KeyRelease { key, modifiers, timestamp }` and
+`WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is consumed as
+its release boundary. Pointer, wheel, IME/composition, accessibility, and
+platform/product policy remain separate target-only consumers. It preserves the
+shipped normalized
 `Event::KeyPress { key, modifiers, repeat, timestamp }` and
 `WidgetInput::KeyPress { key, modifiers, repeat, timestamp }` boundaries. A
 release is a distinct input sample, never another press.
@@ -2320,9 +2322,9 @@ widget with lossless physical modifiers, mapping Super/Meta to `command` and
 Control to `control` while preserving Shift and Alt independently. Press,
 repeat, and release use the same current native projection, host handling stays
 first, and handled shortcuts do not reach the widget. Public and synthetic
-dispatch remain field-for-field compatible. This is a prerequisite correction
-only: no numeric step, capture, transaction, or semantic keyboard consumer is
-shipped by this slice.
+dispatch remain field-for-field compatible. The native boundary remains
+generic; complete-mode numeric input supplies the explicit step, capture,
+transaction, and output consumer.
 
 Only a focused, enabled, non-read-only numeric input may step, and it may do so
 only when no text mutation is active. `ArrowUp` means `Increase` and `ArrowDown`
@@ -2348,10 +2350,11 @@ a read-only transition cancels the keyboard transaction and restores its start
 value; none of those boundaries commits it.
 
 Step selection is recomputed from each sample's normalized modifiers. The
-defaults are `Fine = Shift` everywhere and `Coarse = Command` on macOS or
-`Control` on Windows and Linux. Fine takes precedence when both configured
-matches are present. Radiant now ships this pure selector/configuration
-foundation, while the semantic keyboard consumer remains unimplemented.
+provided explicit policies encode `Fine = Shift` everywhere and `Coarse =
+Command` on macOS or `Control` on Windows and Linux; complete mode never selects
+one of them automatically. Fine takes precedence when both configured matches
+are present. Radiant now ships this pure selector/configuration foundation and
+complete mode consumes an attached policy.
 `KeyboardModifier` is a semantic normalized selector, not a native key name:
 
 ```rust
@@ -2374,15 +2377,14 @@ module and `radiant::widgets`, not the common prelude. Its associated
 `MACOS_DEFAULT` and `WINDOWS_LINUX_DEFAULT` constants are explicit policies;
 widgets and application builders do not resolve a platform. A
 `NumericInputBuilder::step_modifiers(...)` attachment stores `Some(policy)` on
-the numeric widget, while an unconfigured builder retains `None` for the future
-consumer. No current numeric widget or runtime reads this option, invokes
-`NumericAdjustment::step`, captures a key, creates a transaction, or produces
-numeric output; semantic keyboard stepping remains unimplemented.
+the numeric widget, while an unconfigured builder retains `None`. Complete mode
+reads the explicit option, invokes `NumericAdjustment::step`, captures only an
+effective ArrowUp/ArrowDown transaction, and produces the bounded interaction
+output; compatibility mode remains inert.
 
-Radiant ships the qualified public output-envelope foundation for this target
-vocabulary. It carries typed context for every failed attempt, but no current
-numeric widget or runtime produces or consumes it; semantic keyboard stepping
-remains unimplemented.
+Radiant ships the qualified public output envelope for this vocabulary.
+Complete-mode numeric input produces its bounded successful edits and typed
+failure parts; the envelope does not select platform or product policy.
 
 ```rust
 use std::rc::Rc;
@@ -2421,9 +2423,11 @@ private inline capacity two and validates exactly one keyboard `Edit` fragment
 `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial typed
 failure, or a repeat failure only after a matching keyboard `[Cancel]` rollback.
 It preserves ordered parts, transaction identity, direction, selected step,
-exact keyboard provenance, and typed errors without adding a producer or
-consumer. This foundation has zero impact on the estimates or on semantic
-keyboard behavior.
+exact keyboard provenance, and typed errors. The complete-mode explicit-policy
+KeyboardAdjustment consumer now produces these keyboard interactions; IME
+composition, pointer scrub, wheel, and accessibility remain target-only. This
+foundation has zero impact on the estimates and is part of the shipped
+semantic keyboard behavior.
 
 A successful unchanged candidate is a no-op. An unchanged initial step opens no
 transaction, takes no capture, and publishes nothing. An unchanged repeat

@@ -22,6 +22,7 @@ struct U32Codec {
     format_calls: Rc<Cell<usize>>,
     parse_calls: Rc<Cell<usize>>,
     fail_format: bool,
+    fail_format_on_call: Option<usize>,
 }
 
 impl NumericCodec<u32> for U32Codec {
@@ -47,7 +48,7 @@ impl NumericCodec<u32> for U32Codec {
 
     fn format_editable(&self, value: &u32, output: &mut dyn fmt::Write) -> Result<(), Self::Error> {
         self.format_calls.set(self.format_calls.get() + 1);
-        if self.fail_format {
+        if self.fail_format || self.fail_format_on_call == Some(self.format_calls.get()) {
             return Err(CodecError);
         }
         write!(output, "{value}").map_err(|_| CodecError)
@@ -58,6 +59,7 @@ struct U32Adjustment {
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
     fail_inverse: bool,
+    fail_step_on_call: Option<usize>,
 }
 
 impl NumericAdjustment<u32> for U32Adjustment {
@@ -82,14 +84,17 @@ impl NumericAdjustment<u32> for U32Adjustment {
         step: NumericStep,
     ) -> Result<u32, Self::Error> {
         self.step_calls.set(self.step_calls.get() + 1);
+        if self.fail_step_on_call == Some(self.step_calls.get()) {
+            return Err(AdjustmentError);
+        }
         let amount = match step {
             NumericStep::Base => 1,
-            NumericStep::Fine => 1,
+            NumericStep::Fine => 2,
             NumericStep::Coarse => 10,
         };
         Ok(match direction {
             NumericStepDirection::Decrease => value.saturating_sub(amount),
-            NumericStepDirection::Increase => value.saturating_add(amount),
+            NumericStepDirection::Increase => value.saturating_add(amount).min(100),
         })
     }
 
@@ -256,11 +261,13 @@ fn u32_input_with_value(value: u32) -> NumericInputWidget<u32, U32Codec, U32Adju
             format_calls: Rc::new(Cell::new(0)),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -278,11 +285,13 @@ fn u32_input_with_parse_calls() -> (
             format_calls: Rc::new(Cell::new(0)),
             parse_calls: Rc::clone(&parse_calls),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -309,11 +318,13 @@ fn u32_input_with_policy_calls() -> U32PolicyCalls {
             format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::clone(&parse_calls),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
             step_calls: Rc::clone(&step_calls),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -342,11 +353,13 @@ fn u32_input_with_step_calls() -> U32StepCalls {
             format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::clone(&step_calls),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -383,12 +396,70 @@ fn complete_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
     input
 }
 
+fn complete_keyboard_u32_input(
+    policy: NumericStepModifiers,
+) -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = u32_input();
+    input.set_step_modifiers(policy);
+    input.set_complete_output_mode();
+    input
+}
+
+fn complete_keyboard_u32_input_with_value(
+    value: u32,
+    policy: NumericStepModifiers,
+) -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = u32_input_with_value(value);
+    input.set_step_modifiers(policy);
+    input.set_complete_output_mode();
+    input
+}
+
+fn scheduled_keyboard_u32_input(
+    fail_step_on_call: Option<usize>,
+    fail_format_on_call: Option<usize>,
+) -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    NumericInputWidget::try_new(
+        7,
+        U32Codec {
+            format_calls: Rc::new(Cell::new(0)),
+            parse_calls: Rc::new(Cell::new(0)),
+            fail_format: false,
+            fail_format_on_call,
+        },
+        U32Adjustment {
+            inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
+            fail_inverse: false,
+            fail_step_on_call,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("scheduled keyboard fixture should construct")
+}
+
 fn complete_edit(batch: &CompleteU32Batch) -> &NumericInputEditBatch<u32> {
     assert_eq!(batch.len(), 1);
     let [NumericInputInteraction::Edit(edit)] = batch.parts() else {
         panic!("complete TextEdit output should contain one outer Edit");
     };
     edit
+}
+
+fn active_keyboard_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
+    let mut input = complete_keyboard_u32_input(NumericStepModifiers::new(
+        KeyboardModifier::Shift,
+        KeyboardModifier::Control,
+    ));
+    focus(&mut input);
+    let initial = complete_output(Widget::handle_input(
+        &mut input,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::ArrowUp),
+    ))
+    .expect("keyboard fixture should start a transaction");
+    assert_eq!(complete_edit(&initial).events().len(), 2);
+    input
 }
 
 fn replace_u32(input: &mut NumericInputWidget<u32, U32Codec, U32Adjustment>, text: &str) {
@@ -464,93 +535,846 @@ fn step_modifier_configuration_is_stored_and_cloned_without_consumption() {
 }
 
 #[test]
-fn arrow_key_samples_remain_no_ops_with_default_and_override_policies() {
-    let policies = [
-        None,
-        Some(NumericStepModifiers::MACOS_DEFAULT),
-        Some(NumericStepModifiers::WINDOWS_LINUX_DEFAULT),
-        Some(NumericStepModifiers::new(
-            KeyboardModifier::Alt,
-            KeyboardModifier::Control,
-        )),
+fn arrow_key_samples_remain_no_ops_in_compatibility_and_without_policy() {
+    for complete in [false, true] {
+        let (mut input, step_calls, format_calls) = u32_input_with_step_calls();
+        if complete {
+            input.set_complete_output_mode();
+        }
+        focus(&mut input);
+        let before_text = input.text_input.state.clone();
+        let before_focus = input.text_input.common.state;
+        let format_calls_before_arrows = format_calls.get();
+
+        for (key, modifiers) in [
+            (WidgetKey::ArrowUp, KeyboardModifiers::default()),
+            (
+                WidgetKey::ArrowDown,
+                KeyboardModifiers {
+                    command: true,
+                    control: true,
+                    shift: true,
+                    alt: true,
+                },
+            ),
+        ] {
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyPress {
+                        key,
+                        modifiers,
+                        repeat: false,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyPress {
+                        key,
+                        modifiers,
+                        repeat: true,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+            assert!(
+                Widget::handle_input(
+                    &mut input,
+                    Rect::default(),
+                    WidgetInput::KeyRelease {
+                        key,
+                        modifiers,
+                        timestamp: None,
+                    },
+                )
+                .is_none()
+            );
+        }
+
+        assert_eq!(step_calls.get(), 0);
+        assert_eq!(format_calls.get(), format_calls_before_arrows);
+        assert_eq!(input.value, 7);
+        assert_eq!(input.text_input.state, before_text);
+        assert_eq!(input.text_input.common.state, before_focus);
+        assert!(input.active.is_none());
+        assert!(input.keyboard.is_none());
+        assert_eq!(input.interaction_gate.incumbent(), None);
+    }
+
+    let (mut input, step_calls, format_calls) = u32_input_with_step_calls();
+    input.set_complete_output_mode();
+    input.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut input);
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowUp),
+        )
+        .is_some()
+    );
+    assert_eq!(step_calls.get(), 1);
+    assert!(format_calls.get() > 1);
+}
+
+#[test]
+fn explicit_keyboard_policies_select_base_fine_and_coarse_per_sample() {
+    let cases = [
+        (
+            NumericStepModifiers::MACOS_DEFAULT,
+            KeyboardModifiers::default(),
+            8,
+        ),
+        (
+            NumericStepModifiers::MACOS_DEFAULT,
+            KeyboardModifiers {
+                shift: true,
+                ..KeyboardModifiers::default()
+            },
+            9,
+        ),
+        (
+            NumericStepModifiers::MACOS_DEFAULT,
+            KeyboardModifiers {
+                command: true,
+                ..KeyboardModifiers::default()
+            },
+            17,
+        ),
+        (
+            NumericStepModifiers::WINDOWS_LINUX_DEFAULT,
+            KeyboardModifiers {
+                control: true,
+                ..KeyboardModifiers::default()
+            },
+            17,
+        ),
+        (
+            NumericStepModifiers::new(KeyboardModifier::Alt, KeyboardModifier::Control),
+            KeyboardModifiers {
+                alt: true,
+                control: true,
+                ..KeyboardModifiers::default()
+            },
+            9,
+        ),
     ];
 
-    for complete in [false, true] {
-        for policy in policies {
-            let (mut input, step_calls, format_calls) = u32_input_with_step_calls();
-            if complete {
-                input.set_complete_output_mode();
-            }
-            if let Some(policy) = policy {
-                input.set_step_modifiers(policy);
-            }
-            assert_eq!(input.step_modifiers, policy);
-            focus(&mut input);
-            let before_text = input.text_input.state.clone();
-            let before_focus = input.text_input.common.state;
-            let format_calls_before_arrows = format_calls.get();
-
-            for (key, modifiers) in [
-                (WidgetKey::ArrowUp, KeyboardModifiers::default()),
-                (
-                    WidgetKey::ArrowDown,
-                    KeyboardModifiers {
-                        command: true,
-                        control: true,
-                        shift: true,
-                        alt: true,
-                    },
-                ),
-            ] {
-                assert!(
-                    Widget::handle_input(
-                        &mut input,
-                        Rect::default(),
-                        WidgetInput::KeyPress {
-                            key,
-                            modifiers,
-                            repeat: false,
-                            timestamp: None,
-                        },
-                    )
-                    .is_none()
-                );
-                assert!(
-                    Widget::handle_input(
-                        &mut input,
-                        Rect::default(),
-                        WidgetInput::KeyPress {
-                            key,
-                            modifiers,
-                            repeat: true,
-                            timestamp: None,
-                        },
-                    )
-                    .is_none()
-                );
-                assert!(
-                    Widget::handle_input(
-                        &mut input,
-                        Rect::default(),
-                        WidgetInput::KeyRelease {
-                            key,
-                            modifiers,
-                            timestamp: None,
-                        },
-                    )
-                    .is_none()
-                );
-            }
-
-            assert_eq!(step_calls.get(), 0);
-            assert_eq!(format_calls.get(), format_calls_before_arrows);
-            assert_eq!(input.value, 7);
-            assert_eq!(input.text_input.state, before_text);
-            assert_eq!(input.text_input.common.state, before_focus);
-            assert!(input.active.is_none());
-            assert_eq!(input.interaction_gate.incumbent(), None);
-        }
+    for (policy, modifiers, expected) in cases {
+        let mut input = complete_keyboard_u32_input(policy);
+        focus(&mut input);
+        assert!(
+            Widget::handle_input(
+                &mut input,
+                Rect::default(),
+                WidgetInput::KeyPress {
+                    key: WidgetKey::ArrowUp,
+                    modifiers,
+                    repeat: false,
+                    timestamp: None,
+                },
+            )
+            .is_some()
+        );
+        assert_eq!(input.value, expected);
     }
+}
+
+#[test]
+fn keyboard_transaction_preserves_changed_modifiers_timestamps_and_release() {
+    let policy = NumericStepModifiers::new(KeyboardModifier::Shift, KeyboardModifier::Control);
+    let mut input = complete_keyboard_u32_input(policy);
+    focus(&mut input);
+    let initial_timestamp = Some(InputTimestamp::capture());
+    let repeat_timestamp = Some(InputTimestamp::capture());
+    let release_timestamp = Some(InputTimestamp::capture());
+
+    let initial = complete_output(Widget::handle_input(
+        &mut input,
+        Rect::default(),
+        WidgetInput::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: initial_timestamp,
+        },
+    ))
+    .expect("effective initial step should emit Begin and Update");
+    let initial_edit = complete_edit(&initial);
+    assert_eq!(
+        initial_edit
+            .events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update]
+    );
+    assert_eq!(initial_edit.events()[0].value, 7);
+    assert_eq!(initial_edit.events()[1].value, 8);
+    assert_eq!(
+        initial_edit.events()[0].provenance,
+        InteractionProvenance::Keyboard {
+            timestamp: initial_timestamp
+        }
+    );
+    assert_eq!(
+        initial_edit.events()[1].provenance,
+        InteractionProvenance::Keyboard {
+            timestamp: initial_timestamp
+        }
+    );
+    let transaction = initial_edit.transaction();
+    assert_eq!(input.captured_focused_key(), Some(WidgetKey::ArrowUp));
+
+    let repeat = complete_output(Widget::handle_input(
+        &mut input,
+        Rect::default(),
+        WidgetInput::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers {
+                shift: true,
+                ..KeyboardModifiers::default()
+            },
+            repeat: true,
+            timestamp: repeat_timestamp,
+        },
+    ))
+    .expect("effective repeat should emit one Update");
+    let repeat_edit = complete_edit(&repeat);
+    assert_eq!(repeat_edit.events().len(), 1);
+    assert_eq!(repeat_edit.events()[0].phase, EditPhase::Update);
+    assert_eq!(repeat_edit.events()[0].transaction, transaction);
+    assert_eq!(repeat_edit.events()[0].value, 10);
+    assert_eq!(
+        repeat_edit.events()[0].provenance,
+        InteractionProvenance::Keyboard {
+            timestamp: repeat_timestamp
+        }
+    );
+
+    let release = complete_output(Widget::handle_input(
+        &mut input,
+        Rect::default(),
+        WidgetInput::KeyRelease {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers {
+                control: true,
+                ..KeyboardModifiers::default()
+            },
+            timestamp: release_timestamp,
+        },
+    ))
+    .expect("matching release should commit the current value");
+    let release_edit = complete_edit(&release);
+    assert_eq!(release_edit.events().len(), 1);
+    assert_eq!(release_edit.events()[0].phase, EditPhase::Commit);
+    assert_eq!(release_edit.events()[0].transaction, transaction);
+    assert_eq!(release_edit.events()[0].value, 10);
+    assert_eq!(
+        release_edit.events()[0].provenance,
+        InteractionProvenance::Keyboard {
+            timestamp: release_timestamp
+        }
+    );
+    assert_eq!(input.value, 10);
+    assert_eq!(input.captured_focused_key(), None);
+    assert_eq!(input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn unchanged_initial_and_repeat_steps_do_not_format_or_publish() {
+    let mut initial =
+        complete_keyboard_u32_input_with_value(100, NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut initial);
+    let format_calls = initial.codec.format_calls.get();
+    assert!(
+        Widget::handle_input(
+            &mut initial,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowUp),
+        )
+        .is_none()
+    );
+    assert_eq!(initial.codec.format_calls.get(), format_calls);
+    assert_eq!(initial.value, 100);
+    assert_eq!(initial.captured_focused_key(), None);
+    assert_eq!(initial.interaction_gate.incumbent(), None);
+
+    let mut boundary =
+        complete_keyboard_u32_input_with_value(99, NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut boundary);
+    assert!(
+        Widget::handle_input(
+            &mut boundary,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowUp),
+        )
+        .is_some()
+    );
+    let format_calls = boundary.codec.format_calls.get();
+    assert!(
+        Widget::handle_input(
+            &mut boundary,
+            Rect::default(),
+            WidgetInput::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: KeyboardModifiers::default(),
+                repeat: true,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(boundary.codec.format_calls.get(), format_calls);
+    assert_eq!(boundary.value, 100);
+    assert_eq!(boundary.captured_focused_key(), Some(WidgetKey::ArrowUp));
+    let commit = complete_output(Widget::handle_input(
+        &mut boundary,
+        Rect::default(),
+        WidgetInput::key_release(WidgetKey::ArrowUp),
+    ))
+    .expect("unchanged repeat should retain the transaction through release");
+    assert_eq!(complete_edit(&commit).events()[0].phase, EditPhase::Commit);
+}
+
+#[test]
+fn initial_keyboard_failures_are_typed_and_leave_no_transaction_or_capture() {
+    let mut step = scheduled_keyboard_u32_input(Some(1), None);
+    step.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    step.set_complete_output_mode();
+    focus(&mut step);
+    let step_output = complete_output(Widget::handle_input(
+        &mut step,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::ArrowUp),
+    ))
+    .expect("initial step failure should be emitted");
+    assert_eq!(step_output.len(), 1);
+    let NumericInputInteraction::StepFailed {
+        attempt,
+        direction,
+        step: selected_step,
+        provenance,
+        cancelled,
+        ..
+    } = &step_output.parts()[0]
+    else {
+        panic!("initial step failure should be the only part");
+    };
+    assert_eq!(*attempt, NumericStepAttempt::Initial);
+    assert_eq!(*direction, NumericStepDirection::Increase);
+    assert_eq!(*selected_step, NumericStep::Base);
+    assert_eq!(
+        *provenance,
+        InteractionProvenance::Keyboard { timestamp: None }
+    );
+    assert!(!cancelled);
+    assert_eq!(step_output.parts()[0].step_error(), Some(&AdjustmentError));
+    assert_eq!(step.value, 7);
+    assert_eq!(step.text_input.state.value, "7");
+    assert!(step.keyboard.is_none());
+    assert_eq!(step.interaction_gate.incumbent(), None);
+
+    let mut format = scheduled_keyboard_u32_input(None, Some(2));
+    format.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    format.set_complete_output_mode();
+    focus(&mut format);
+    let format_output = complete_output(Widget::handle_input(
+        &mut format,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::ArrowDown),
+    ))
+    .expect("initial format failure should be emitted");
+    assert_eq!(format_output.len(), 1);
+    let NumericInputInteraction::FormatFailed {
+        attempt,
+        direction,
+        step: selected_step,
+        provenance,
+        cancelled,
+        ..
+    } = &format_output.parts()[0]
+    else {
+        panic!("initial format failure should be the only part");
+    };
+    assert_eq!(*attempt, NumericStepAttempt::Initial);
+    assert_eq!(*direction, NumericStepDirection::Decrease);
+    assert_eq!(*selected_step, NumericStep::Base);
+    assert_eq!(
+        *provenance,
+        InteractionProvenance::Keyboard { timestamp: None }
+    );
+    assert!(!cancelled);
+    assert_eq!(format_output.parts()[0].format_error(), Some(&CodecError));
+    assert_eq!(format.value, 7);
+    assert_eq!(format.text_input.state.value, "7");
+    assert!(format.keyboard.is_none());
+    assert_eq!(format.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn repeat_failures_rollback_before_typed_failure_and_orphan_the_release() {
+    for (fail_step_on_call, fail_format_on_call) in [(Some(2), None), (None, Some(3))] {
+        let mut input = scheduled_keyboard_u32_input(fail_step_on_call, fail_format_on_call);
+        input.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+        input.set_complete_output_mode();
+        focus(&mut input);
+        let initial_timestamp = Some(InputTimestamp::capture());
+        let failure_timestamp = Some(InputTimestamp::capture());
+        let initial = complete_output(Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::key_press_with_timestamp(WidgetKey::ArrowUp, initial_timestamp),
+        ))
+        .expect("initial keyboard step should succeed");
+        let transaction = complete_edit(&initial).transaction();
+
+        let failed = complete_output(Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: KeyboardModifiers::default(),
+                repeat: true,
+                timestamp: failure_timestamp,
+            },
+        ))
+        .expect("repeat failure should include rollback and failure");
+        assert_eq!(failed.len(), 2);
+        let [NumericInputInteraction::Edit(cancel), failure] = failed.parts() else {
+            panic!("repeat failure should be ordered rollback then failure");
+        };
+        assert_eq!(cancel.events().len(), 1);
+        assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+        assert_eq!(cancel.events()[0].transaction, transaction);
+        assert_eq!(cancel.events()[0].value, 7);
+        assert_eq!(
+            cancel.events()[0].provenance,
+            InteractionProvenance::Keyboard {
+                timestamp: failure_timestamp
+            }
+        );
+        match failure {
+            NumericInputInteraction::StepFailed {
+                attempt,
+                cancelled,
+                provenance,
+                ..
+            }
+            | NumericInputInteraction::FormatFailed {
+                attempt,
+                cancelled,
+                provenance,
+                ..
+            } => {
+                assert_eq!(*attempt, NumericStepAttempt::Repeat);
+                assert!(*cancelled);
+                assert_eq!(
+                    *provenance,
+                    InteractionProvenance::Keyboard {
+                        timestamp: failure_timestamp
+                    }
+                );
+            }
+            NumericInputInteraction::Edit(_) => panic!("repeat failure must be typed"),
+        }
+        assert_eq!(input.value, 7);
+        assert_eq!(input.text_input.state.value, "7");
+        assert!(input.keyboard.is_none());
+        assert_eq!(input.captured_focused_key(), None);
+        assert_eq!(input.interaction_gate.incumbent(), None);
+        assert!(
+            Widget::handle_input(
+                &mut input,
+                Rect::default(),
+                WidgetInput::key_release(WidgetKey::ArrowUp),
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn competing_and_orphan_keyboard_samples_do_not_mutate_or_reenter_host_path() {
+    let mut input = active_keyboard_u32_input();
+    let before_value = input.value;
+    let before_text = input.text_input.state.clone();
+    let before_step_calls = input.adjustment.step_calls.get();
+    let before_format_calls = input.codec.format_calls.get();
+
+    for sample in [
+        WidgetInput::KeyPress {
+            key: WidgetKey::ArrowDown,
+            modifiers: KeyboardModifiers::default(),
+            repeat: true,
+            timestamp: None,
+        },
+        WidgetInput::KeyRelease {
+            key: WidgetKey::ArrowDown,
+            modifiers: KeyboardModifiers::default(),
+            timestamp: None,
+        },
+    ] {
+        assert!(Widget::handle_input(&mut input, Rect::default(), sample).is_none());
+    }
+
+    assert_eq!(input.value, before_value);
+    assert_eq!(input.text_input.state, before_text);
+    assert_eq!(input.adjustment.step_calls.get(), before_step_calls);
+    assert_eq!(input.codec.format_calls.get(), before_format_calls);
+    assert_eq!(input.captured_focused_key(), Some(WidgetKey::ArrowUp));
+
+    let commit = complete_output(Widget::handle_input(
+        &mut input,
+        Rect::default(),
+        WidgetInput::key_release(WidgetKey::ArrowUp),
+    ))
+    .expect("matching release should still commit after competing samples");
+    assert_eq!(complete_edit(&commit).events()[0].phase, EditPhase::Commit);
+    assert_eq!(input.captured_focused_key(), None);
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: KeyboardModifiers::default(),
+                repeat: true,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            Rect::default(),
+            WidgetInput::key_release(WidgetKey::ArrowUp),
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn keyboard_admission_denies_text_and_other_numeric_owners_before_policy_calls() {
+    let mut text = u32_input_with_policy_calls();
+    text.input
+        .set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    text.input.set_complete_output_mode();
+    replace_u32(&mut text.input, "8");
+    let text_before_value = text.input.value;
+    let text_before_state = text.input.text_input.state.clone();
+    let text_before_focus = text.input.text_input.common.state;
+    let text_before_active = text.input.active.is_some();
+    let text_before_keyboard = text.input.captured_focused_key();
+    let text_before_format_calls = text.format_calls.get();
+    let text_before_parse_calls = text.parse_calls.get();
+    let text_before_inverse_calls = text.inverse_calls.get();
+    let text_before_step_calls = text.step_calls.get();
+    let text_before_owner = text.input.interaction_gate.incumbent();
+    assert!(
+        Widget::handle_input(
+            &mut text.input,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowUp),
+        )
+        .is_none()
+    );
+    assert_eq!(text.input.value, text_before_value);
+    assert_eq!(text.input.text_input.state, text_before_state);
+    assert_eq!(text.input.text_input.common.state, text_before_focus);
+    assert_eq!(text.input.active.is_some(), text_before_active);
+    assert_eq!(text.input.captured_focused_key(), text_before_keyboard);
+    assert_eq!(text.format_calls.get(), text_before_format_calls);
+    assert_eq!(text.parse_calls.get(), text_before_parse_calls);
+    assert_eq!(text.inverse_calls.get(), text_before_inverse_calls);
+    assert_eq!(text.step_calls.get(), text_before_step_calls);
+    assert_eq!(text.input.interaction_gate.incumbent(), text_before_owner);
+
+    let mut other = u32_input_with_policy_calls();
+    other
+        .input
+        .set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    other.input.set_complete_output_mode();
+    focus(&mut other.input);
+    assert!(
+        other
+            .input
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::PointerScrub)
+    );
+    let other_before_value = other.input.value;
+    let other_before_state = other.input.text_input.state.clone();
+    let other_before_focus = other.input.text_input.common.state;
+    let other_before_active = other.input.active.is_some();
+    let other_before_keyboard = other.input.captured_focused_key();
+    let other_before_format_calls = other.format_calls.get();
+    let other_before_parse_calls = other.parse_calls.get();
+    let other_before_inverse_calls = other.inverse_calls.get();
+    let other_before_step_calls = other.step_calls.get();
+    let other_before_owner = other.input.interaction_gate.incumbent();
+    assert!(
+        Widget::handle_input(
+            &mut other.input,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::ArrowDown),
+        )
+        .is_none()
+    );
+    assert_eq!(other.input.value, other_before_value);
+    assert_eq!(other.input.text_input.state, other_before_state);
+    assert_eq!(other.input.text_input.common.state, other_before_focus);
+    assert_eq!(other.input.active.is_some(), other_before_active);
+    assert_eq!(other.input.captured_focused_key(), other_before_keyboard);
+    assert_eq!(other.format_calls.get(), other_before_format_calls);
+    assert_eq!(other.parse_calls.get(), other_before_parse_calls);
+    assert_eq!(other.inverse_calls.get(), other_before_inverse_calls);
+    assert_eq!(other.step_calls.get(), other_before_step_calls);
+    assert_eq!(other.input.interaction_gate.incumbent(), other_before_owner);
+}
+
+#[test]
+fn keyboard_escape_focus_loss_and_replacement_cancel_once_and_restore_snapshot() {
+    let mut escape = active_keyboard_u32_input();
+    escape.text_input.state.caret = 0;
+    escape.text_input.state.selection_anchor = 1;
+    let cancelled = complete_output(Widget::handle_input(
+        &mut escape,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::Escape),
+    ))
+    .expect("Escape should cancel keyboard adjustment");
+    assert_eq!(
+        complete_edit(&cancelled).events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert_eq!(escape.value, 7);
+    assert_eq!(escape.text_input.state.value, "7");
+    assert_eq!(escape.text_input.state.caret, 1);
+    assert_eq!(escape.text_input.state.selection_anchor, 1);
+    assert_eq!(escape.captured_focused_key(), None);
+    assert_eq!(escape.interaction_gate.incumbent(), None);
+    assert!(
+        Widget::handle_input(
+            &mut escape,
+            Rect::default(),
+            WidgetInput::key_press(WidgetKey::Escape),
+        )
+        .is_none()
+    );
+
+    let mut focus_loss = active_keyboard_u32_input();
+    let cancelled = complete_output(Widget::handle_input(
+        &mut focus_loss,
+        Rect::default(),
+        WidgetInput::FocusChanged(false),
+    ))
+    .expect("focus loss should cancel keyboard adjustment");
+    assert_eq!(
+        complete_edit(&cancelled).events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert!(!focus_loss.text_input.common.state.focused);
+    assert_eq!(focus_loss.value, 7);
+    assert!(
+        Widget::handle_input(
+            &mut focus_loss,
+            Rect::default(),
+            WidgetInput::FocusChanged(false),
+        )
+        .is_none()
+    );
+
+    let mut removed = active_keyboard_u32_input();
+    let cancelled = complete_output(Widget::prepare_replacement(&mut removed, None))
+        .expect("removal should cancel keyboard adjustment");
+    assert_eq!(
+        complete_edit(&cancelled).events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert!(Widget::prepare_replacement(&mut removed, None).is_none());
+    assert_eq!(removed.value, 7);
+    assert_eq!(removed.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn compatible_keyboard_reprojection_preserves_state_and_capture() {
+    let mut previous = active_keyboard_u32_input();
+    previous.text_input.state.caret = 0;
+    previous.text_input.state.selection_anchor = 1;
+    let successor = complete_keyboard_u32_input_with_value(
+        8,
+        NumericStepModifiers::new(KeyboardModifier::Shift, KeyboardModifier::Control),
+    );
+    assert!(Widget::prepare_replacement(&mut previous, Some(&successor as &dyn Widget),).is_none());
+
+    let mut synchronized = successor;
+    Widget::synchronize_from_previous(&mut synchronized, &previous);
+    assert_eq!(synchronized.value, 8);
+    assert_eq!(synchronized.text_input.state.value, "8");
+    assert_eq!(synchronized.text_input.state.caret, 0);
+    assert_eq!(synchronized.text_input.state.selection_anchor, 1);
+    assert_eq!(
+        synchronized.captured_focused_key(),
+        Some(WidgetKey::ArrowUp)
+    );
+    assert_eq!(
+        synchronized.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::KeyboardAdjustment)
+    );
+
+    let repeat = complete_output(Widget::handle_input(
+        &mut synchronized,
+        Rect::default(),
+        WidgetInput::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            repeat: true,
+            timestamp: None,
+        },
+    ))
+    .expect("compatible reprojection should retain keyboard continuation");
+    assert_eq!(complete_edit(&repeat).events()[0].phase, EditPhase::Update);
+}
+
+#[test]
+fn incompatible_keyboard_reprojection_cancels_for_authority_mode_and_accessibility_boundaries() {
+    let mut changed_value = active_keyboard_u32_input();
+    let changed_value_successor = complete_keyboard_u32_input_with_value(
+        9,
+        NumericStepModifiers::new(KeyboardModifier::Shift, KeyboardModifier::Control),
+    );
+    let cancelled = complete_output(Widget::prepare_replacement(
+        &mut changed_value,
+        Some(&changed_value_successor as &dyn Widget),
+    ))
+    .expect("changed external authority should cancel");
+    assert_eq!(
+        complete_edit(&cancelled).events()[0].phase,
+        EditPhase::Cancel
+    );
+
+    let mut changed_mode = active_keyboard_u32_input();
+    let compatibility_successor = u32_input();
+    let cancelled = complete_output(Widget::prepare_replacement(
+        &mut changed_mode,
+        Some(&compatibility_successor as &dyn Widget),
+    ))
+    .expect("mode replacement should use the retiring complete mapper");
+    assert_eq!(
+        complete_edit(&cancelled).events()[0].phase,
+        EditPhase::Cancel
+    );
+
+    for read_only in [false, true] {
+        let mut current = active_keyboard_u32_input();
+        let mut successor = complete_keyboard_u32_input(NumericStepModifiers::new(
+            KeyboardModifier::Shift,
+            KeyboardModifier::Control,
+        ));
+        successor.text_input.common.state.disabled = !read_only;
+        successor.text_input.common.state.read_only = read_only;
+        let cancelled = complete_output(Widget::prepare_replacement(
+            &mut current,
+            Some(&successor as &dyn Widget),
+        ))
+        .expect("disablement and read-only should cancel keyboard adjustment");
+        assert_eq!(
+            complete_edit(&cancelled).events()[0].phase,
+            EditPhase::Cancel
+        );
+        assert_eq!(current.value, 7);
+        assert_eq!(current.interaction_gate.incumbent(), None);
+    }
+}
+
+#[test]
+fn navigation_keys_remain_text_navigation_when_keyboard_adjustment_is_configured() {
+    let mut input = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut input);
+    input.text_input.state.caret = 1;
+    input.text_input.state.selection_anchor = 1;
+    for command in [
+        TextEditCommand::MoveHome {
+            extend_selection: false,
+        },
+        TextEditCommand::MoveEnd {
+            extend_selection: false,
+        },
+    ] {
+        assert!(
+            Widget::handle_input(&mut input, Rect::default(), WidgetInput::text_edit(command),)
+                .is_none()
+        );
+    }
+    assert!(input.keyboard.is_none());
+    assert!(input.active.is_none());
+    assert_eq!(input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn keyboard_disablement_and_read_only_state_deny_initial_admission() {
+    for read_only in [false, true] {
+        let mut input = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+        input.text_input.common.state.focused = true;
+        input.text_input.common.state.disabled = !read_only;
+        input.text_input.common.state.read_only = read_only;
+        assert!(
+            Widget::handle_input(
+                &mut input,
+                Rect::default(),
+                WidgetInput::key_press(WidgetKey::ArrowUp),
+            )
+            .is_none()
+        );
+        assert_eq!(input.value, 7);
+        assert!(input.keyboard.is_none());
+        assert_eq!(input.interaction_gate.incumbent(), None);
+    }
+}
+
+#[test]
+fn keyboard_widget_focus_routing_opt_in_tracks_only_active_complete_policy() {
+    let mut inactive = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    assert!(!Widget::participates_in_focused_key_routing(&inactive));
+    focus(&mut inactive);
+    assert!(Widget::participates_in_focused_key_routing(&inactive));
+
+    let mut text_edit = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    replace_u32(&mut text_edit, "8");
+    assert_eq!(
+        text_edit.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+    assert!(Widget::participates_in_focused_key_routing(&text_edit));
+
+    let mut pointer_scrub = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut pointer_scrub);
+    assert!(
+        pointer_scrub
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::PointerScrub)
+    );
+    assert!(Widget::participates_in_focused_key_routing(&pointer_scrub));
+
+    assert_eq!(Widget::captured_focused_key(&inactive), None);
+    let _ = Widget::handle_input(
+        &mut inactive,
+        Rect::default(),
+        WidgetInput::key_press(WidgetKey::ArrowUp),
+    );
+    assert_eq!(
+        Widget::captured_focused_key(&inactive),
+        Some(WidgetKey::ArrowUp)
+    );
+    assert!(Widget::participates_in_focused_key_routing(&inactive));
 }
 
 #[test]
@@ -562,11 +1386,13 @@ fn construction_reports_codec_and_adjustment_failures_without_fallbacks() {
             format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: true,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -584,11 +1410,13 @@ fn construction_reports_codec_and_adjustment_failures_without_fallbacks() {
             format_calls: Rc::new(Cell::new(0)),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: true,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -612,11 +1440,13 @@ fn draft_mutation_is_verbatim_has_no_typed_output_and_does_not_reformat_or_adjus
             format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -656,11 +1486,13 @@ fn denied_text_admission_precedes_policy_calls_and_preserves_widget_state() {
             format_calls: Rc::clone(&format_calls),
             parse_calls: Rc::clone(&parse_calls),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::clone(&inverse_calls),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )
@@ -1293,11 +2125,13 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
             format_calls: Rc::new(Cell::new(0)),
             parse_calls: Rc::new(Cell::new(0)),
             fail_format: false,
+            fail_format_on_call: None,
         },
         U32Adjustment {
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
             fail_inverse: false,
+            fail_step_on_call: None,
         },
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     )

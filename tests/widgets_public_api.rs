@@ -227,10 +227,19 @@ impl NumericAdjustment<GenericNumericValue> for UiLocalNumericAdjustment {
     fn step(
         &self,
         value: &GenericNumericValue,
-        _direction: NumericStepDirection,
-        _step: NumericStep,
+        direction: NumericStepDirection,
+        step: NumericStep,
     ) -> Result<GenericNumericValue, Self::Error> {
-        Ok(value.clone())
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        let value = match direction {
+            NumericStepDirection::Decrease => value.0.saturating_sub(amount),
+            NumericStepDirection::Increase => value.0.saturating_add(amount),
+        };
+        Ok(GenericNumericValue(value))
     }
 
     fn scrub(
@@ -482,6 +491,110 @@ fn numeric_input_on_interaction_maps_one_complete_text_edit_envelope() {
     assert_eq!(edit.events()[0].transaction, edit.events()[1].transaction);
     assert_eq!(edit.events()[0].start_value, GenericNumericValue(7));
     assert_eq!(edit.events()[1].value, GenericNumericValue(8));
+}
+
+#[test]
+fn numeric_input_on_interaction_maps_complete_keyboard_transaction_shapes() {
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    let map_calls = Rc::new(Cell::new(0));
+    let map_calls_for_mapper = Rc::clone(&map_calls);
+    let mut surface: radiant::runtime::UiSurface<Batch> = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        UiLocalNumericCodec(Rc::new(RefCell::new(0))),
+        UiLocalNumericAdjustment(Rc::new(RefCell::new(0))),
+    )
+    .expect("generic numeric input should construct")
+    .step_modifiers(NumericStepModifiers::new(
+        KeyboardModifier::Shift,
+        KeyboardModifier::Control,
+    ))
+    .on_interaction(move |batch| {
+        map_calls_for_mapper.set(map_calls_for_mapper.get() + 1);
+        batch
+    })
+    .id(82)
+    .into_surface();
+    let bounds = radiant::gui::types::Rect::from_min_size(
+        radiant::gui::types::Point::default(),
+        radiant::gui::types::Vector2::new(120.0, 28.0),
+    );
+
+    assert!(
+        surface
+            .dispatch_widget_input(82, bounds, WidgetInput::FocusChanged(true))
+            .is_none()
+    );
+
+    let initial = surface
+        .dispatch_widget_input(
+            82,
+            bounds,
+            WidgetInput::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: KeyboardModifiers::default(),
+                repeat: false,
+                timestamp: None,
+            },
+        )
+        .expect("complete keyboard initial should emit raw output");
+    let initial = surface
+        .dispatch_widget_output(82, initial)
+        .expect("complete keyboard initial should use the interaction mapper");
+    let [NumericInputInteraction::Edit(edit)] = initial.parts() else {
+        panic!("keyboard initial should map to one Edit part");
+    };
+    assert_eq!(
+        edit.events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Begin, EditPhase::Update]
+    );
+    assert_eq!(edit.events()[1].value, GenericNumericValue(8));
+
+    let repeat = surface
+        .dispatch_widget_input(
+            82,
+            bounds,
+            WidgetInput::KeyPress {
+                key: WidgetKey::ArrowUp,
+                modifiers: KeyboardModifiers {
+                    shift: true,
+                    ..KeyboardModifiers::default()
+                },
+                repeat: true,
+                timestamp: None,
+            },
+        )
+        .expect("complete keyboard repeat should emit raw output");
+    let repeat = surface
+        .dispatch_widget_output(82, repeat)
+        .expect("complete keyboard repeat should use the interaction mapper");
+    let [NumericInputInteraction::Edit(edit)] = repeat.parts() else {
+        panic!("keyboard repeat should map to one Edit part");
+    };
+    assert_eq!(edit.events().len(), 1);
+    assert_eq!(edit.events()[0].phase, EditPhase::Update);
+    assert_eq!(edit.events()[0].value, GenericNumericValue(10));
+
+    let release = surface
+        .dispatch_widget_input(82, bounds, WidgetInput::key_release(WidgetKey::ArrowUp))
+        .expect("matching keyboard release should emit raw output");
+    let release = surface
+        .dispatch_widget_output(82, release)
+        .expect("complete keyboard release should use the interaction mapper");
+    let [NumericInputInteraction::Edit(edit)] = release.parts() else {
+        panic!("keyboard release should map to one Edit part");
+    };
+    assert_eq!(edit.events().len(), 1);
+    assert_eq!(edit.events()[0].phase, EditPhase::Commit);
+    assert_eq!(edit.events()[0].value, GenericNumericValue(10));
+    assert_eq!(map_calls.get(), 3);
 }
 
 #[test]

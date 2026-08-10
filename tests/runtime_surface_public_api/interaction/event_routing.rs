@@ -1,4 +1,13 @@
 use super::*;
+use radiant::{
+    application::numeric_input,
+    widgets::{
+        EditPhase, KeyboardModifier, KeyboardModifiers, NumericAdjustment, NumericCodec,
+        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericStep,
+        NumericStepDirection, NumericStepModifiers,
+    },
+};
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn surface_runtime_resolves_host_shortcuts_before_widget_key_routing() {
@@ -351,6 +360,331 @@ fn public_widget_focused_key_opt_in_is_object_safe_and_captures_continuations() 
                 key: WidgetKey::ArrowUp,
                 repeat: true,
             },
+        ]
+    );
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RuntimeNumericValue(u32);
+
+#[derive(Debug, PartialEq, Eq)]
+struct RuntimeNumericStepError;
+
+#[derive(Debug, PartialEq, Eq)]
+struct RuntimeNumericFormatError;
+
+struct RuntimeNumericCodec {
+    format_calls: Rc<Cell<usize>>,
+    parse_calls: Rc<Cell<usize>>,
+}
+
+impl NumericCodec<RuntimeNumericValue> for RuntimeNumericCodec {
+    type Error = RuntimeNumericFormatError;
+
+    fn parse(&self, text: &str) -> NumericParseResult<RuntimeNumericValue> {
+        self.parse_calls.set(self.parse_calls.get() + 1);
+        text.parse::<u32>()
+            .map(RuntimeNumericValue)
+            .map_or(NumericParseResult::Invalid, NumericParseResult::Valid)
+    }
+
+    fn format_editable(
+        &self,
+        value: &RuntimeNumericValue,
+        output: &mut dyn std::fmt::Write,
+    ) -> Result<(), Self::Error> {
+        self.format_calls.set(self.format_calls.get() + 1);
+        write!(output, "{}", value.0).map_err(|_| RuntimeNumericFormatError)
+    }
+}
+
+struct RuntimeNumericAdjustment {
+    inverse_calls: Rc<Cell<usize>>,
+    step_calls: Rc<Cell<usize>>,
+}
+
+impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
+    type Error = RuntimeNumericStepError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<RuntimeNumericValue, Self::Error> {
+        Ok(RuntimeNumericValue(normalized as u32))
+    }
+
+    fn value_to_normalized(&self, value: &RuntimeNumericValue) -> Result<f32, Self::Error> {
+        self.inverse_calls.set(self.inverse_calls.get() + 1);
+        Ok(value.0 as f32)
+    }
+
+    fn step(
+        &self,
+        value: &RuntimeNumericValue,
+        direction: NumericStepDirection,
+        step: NumericStep,
+    ) -> Result<RuntimeNumericValue, Self::Error> {
+        self.step_calls.set(self.step_calls.get() + 1);
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        let value = match direction {
+            NumericStepDirection::Decrease => value.0.saturating_sub(amount),
+            NumericStepDirection::Increase => value.0.saturating_add(amount),
+        };
+        Ok(RuntimeNumericValue(value))
+    }
+
+    fn scrub(
+        &self,
+        value: &RuntimeNumericValue,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<RuntimeNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn wheel(
+        &self,
+        value: &RuntimeNumericValue,
+        _delta: f32,
+        _step: NumericStep,
+    ) -> Result<RuntimeNumericValue, Self::Error> {
+        Ok(value.clone())
+    }
+}
+
+type RuntimeNumericBatch = NumericInputInteractionBatch<
+    RuntimeNumericValue,
+    RuntimeNumericStepError,
+    RuntimeNumericFormatError,
+>;
+
+enum RuntimeNumericMessage {
+    Interaction(RuntimeNumericBatch),
+}
+
+struct RuntimeNumericBridge {
+    value: RuntimeNumericValue,
+    host_calls: usize,
+    host_handled: bool,
+    mapped_phases: Vec<Vec<EditPhase>>,
+    format_calls: Rc<Cell<usize>>,
+    parse_calls: Rc<Cell<usize>>,
+    inverse_calls: Rc<Cell<usize>>,
+    step_calls: Rc<Cell<usize>>,
+}
+
+impl Default for RuntimeNumericBridge {
+    fn default() -> Self {
+        Self {
+            value: RuntimeNumericValue(7),
+            host_calls: 0,
+            host_handled: true,
+            mapped_phases: Vec::new(),
+            format_calls: Rc::new(Cell::new(0)),
+            parse_calls: Rc::new(Cell::new(0)),
+            inverse_calls: Rc::new(Cell::new(0)),
+            step_calls: Rc::new(Cell::new(0)),
+        }
+    }
+}
+
+impl RuntimeNumericBridge {
+    fn numeric_policy_calls(&self) -> (usize, usize, usize, usize) {
+        (
+            self.format_calls.get(),
+            self.parse_calls.get(),
+            self.inverse_calls.get(),
+            self.step_calls.get(),
+        )
+    }
+}
+
+impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<RuntimeNumericMessage>> {
+        arc_surface(
+            numeric_input(
+                self.value.clone(),
+                RuntimeNumericCodec {
+                    format_calls: Rc::clone(&self.format_calls),
+                    parse_calls: Rc::clone(&self.parse_calls),
+                },
+                RuntimeNumericAdjustment {
+                    inverse_calls: Rc::clone(&self.inverse_calls),
+                    step_calls: Rc::clone(&self.step_calls),
+                },
+            )
+            .expect("runtime numeric fixture should construct")
+            .step_modifiers(NumericStepModifiers::new(
+                KeyboardModifier::Shift,
+                KeyboardModifier::Control,
+            ))
+            .on_interaction(RuntimeNumericMessage::Interaction)
+            .id(150)
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, message: RuntimeNumericMessage) {
+        let RuntimeNumericMessage::Interaction(batch) = message;
+        let mut phases = Vec::new();
+        for interaction in batch.parts() {
+            if let NumericInputInteraction::Edit(edit) = interaction {
+                phases.extend(edit.events().iter().map(|event| event.phase));
+                if let Some(event) = edit.events().last() {
+                    self.value = event.value.clone();
+                }
+            }
+        }
+        self.mapped_phases.push(phases);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, RuntimeNumericMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<RuntimeNumericMessage> for RuntimeNumericBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        _press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<RuntimeNumericMessage> {
+        self.host_calls += 1;
+        if self.host_handled {
+            ShortcutResolution::handled()
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    }
+}
+
+#[test]
+fn public_numeric_keyboard_owner_conflict_still_resolves_host_first() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::Character {
+            character: '8',
+            timestamp: None,
+        }),
+        Some(150),
+        "normal character dispatch should establish the active TextEdit owner"
+    );
+    assert!(runtime.bridge().mapped_phases.is_empty());
+
+    let before_value = runtime.bridge().value.clone();
+    let before_policy_calls = runtime.bridge().numeric_policy_calls();
+    let before_mapped_phases = runtime.bridge().mapped_phases.clone();
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: None,
+        }),
+        None,
+        "host-handled initial must not reach the active TextEdit widget"
+    );
+    assert_eq!(runtime.bridge().host_calls, 1);
+    assert_eq!(runtime.bridge().value, before_value);
+    assert_eq!(runtime.bridge().numeric_policy_calls(), before_policy_calls);
+    assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+
+    runtime.bridge_mut().host_handled = false;
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowDown,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: None,
+        }),
+        Some(150),
+        "host-unhandled initial should fall back to widget admission"
+    );
+    assert_eq!(runtime.bridge().host_calls, 2);
+    assert_eq!(runtime.bridge().value, before_value);
+    assert_eq!(runtime.bridge().numeric_policy_calls(), before_policy_calls);
+    assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+}
+
+#[test]
+fn public_numeric_keyboard_routes_host_first_then_captured_continuations() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: None,
+        }),
+        None,
+        "host-handled initial must not reach the widget"
+    );
+    assert_eq!(runtime.bridge().host_calls, 1);
+    assert!(runtime.bridge().mapped_phases.is_empty());
+
+    runtime.bridge_mut().host_handled = false;
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.bridge().host_calls, 2);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+
+    runtime.refresh();
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers {
+                shift: true,
+                ..KeyboardModifiers::default()
+            },
+            repeat: true,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.bridge().host_calls, 2);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Update],
+        ]
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyRelease {
+            key: WidgetKey::ArrowUp,
+            modifiers: KeyboardModifiers::default(),
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.bridge().host_calls, 2);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Update],
+            vec![EditPhase::Commit],
         ]
     );
 }

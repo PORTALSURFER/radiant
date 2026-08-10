@@ -4,7 +4,7 @@ use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
     gui::types::Point,
     runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
-    widgets::{PointerModifiers, WidgetId, WidgetInput},
+    widgets::{PointerModifiers, PointerPressPreflight, WidgetId, WidgetInput},
 };
 
 pub(super) enum PointInputDispatch {
@@ -125,6 +125,13 @@ where
     ///
     /// Returns the targeted widget id when a projected widget handled the point.
     pub fn dispatch_input_at(&mut self, point: Point, input: WidgetInput) -> Option<WidgetId> {
+        let widget_id = self.widget_at_for_input(point, &input)?;
+        if matches!(&input, WidgetInput::PointerPress { .. })
+            && self.preflight_pointer_press_for_widget(widget_id, &input)
+                == PointerPressPreflight::Consume
+        {
+            return Some(widget_id);
+        }
         match self.dispatch_input_at_output(point, input) {
             PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
             PointInputDispatch::Miss | PointInputDispatch::FocusVetoed => None,
@@ -164,6 +171,16 @@ where
             Some(emitted_output) => PointInputDispatch::Routed(widget_id, emitted_output),
             None => PointInputDispatch::Miss,
         }
+    }
+
+    pub(super) fn preflight_pointer_press_for_widget(
+        &self,
+        widget_id: WidgetId,
+        input: &WidgetInput,
+    ) -> PointerPressPreflight {
+        self.surface_widget(widget_id)
+            .map(|widget| widget.preflight_pointer_press(input))
+            .unwrap_or_default()
     }
 
     pub(super) fn unwind_provisional_pointer_capture(&mut self) {

@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use super::{
-    EditEvent, EditPhase, EditTransaction, InteractionProvenance, InteractionSource, NumericStep,
-    NumericStepDirection,
+    EditEvent, EditPhase, EditTransaction, InteractionProvenance, InteractionSource,
+    KeyboardModifiers, NumericStep, NumericStepDirection, NumericStepModifiers, PointerButton,
+    PointerModifiers,
 };
 
 /// A typed construction failure for the generic text-first numeric input.
@@ -118,6 +119,65 @@ pub enum NumericStepAttempt {
     Repeat,
 }
 
+/// Which phase of a semantic pointer scrub was attempted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NumericScrubAttempt {
+    /// The first effective scrub displacement.
+    Initial,
+    /// A later effective displacement in an active scrub transaction.
+    Update,
+}
+
+/// Explicit activation and step-selection policy for complete numeric scrubbing.
+///
+/// Pointer scrubbing is admitted only for a primary press with Alt/Option held.
+/// Alt is activation, not a retained step selector; each move selects Base,
+/// Fine, or Coarse from its own normalized modifier sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct NumericScrubPolicy {
+    step_modifiers: NumericStepModifiers,
+}
+
+impl NumericScrubPolicy {
+    /// The conventional policy: primary plus Alt activation, Shift Fine, and
+    /// the normalized platform command modifier Coarse.
+    pub const MACOS_DEFAULT: Self = Self::new(NumericStepModifiers::MACOS_DEFAULT);
+
+    /// Build an explicit scrub policy with the supplied Fine and Coarse selectors.
+    pub const fn new(step_modifiers: NumericStepModifiers) -> Self {
+        Self { step_modifiers }
+    }
+
+    /// Return the configured Fine and Coarse selector policy.
+    pub const fn step_modifiers(self) -> NumericStepModifiers {
+        self.step_modifiers
+    }
+
+    /// Return whether a pointer press qualifies for scrub admission.
+    pub const fn qualifies(self, button: PointerButton, modifiers: PointerModifiers) -> bool {
+        matches!(button, PointerButton::Primary) && modifiers.alt
+    }
+
+    /// Select the scrub step from one pointer modifier sample.
+    ///
+    /// The activation Alt modifier is removed before selection. Fine retains
+    /// precedence over Coarse when both are held.
+    pub const fn select_step(self, modifiers: PointerModifiers) -> NumericStep {
+        self.step_modifiers.select_step(KeyboardModifiers {
+            command: modifiers.command,
+            control: false,
+            shift: modifiers.shift,
+            alt: false,
+        })
+    }
+}
+
+impl Default for NumericScrubPolicy {
+    fn default() -> Self {
+        Self::MACOS_DEFAULT
+    }
+}
+
 /// One typed result part for the complete-mode numeric keyboard interaction.
 ///
 /// The complete numeric text widget produces successful keyboard edits and
@@ -156,6 +216,36 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
         /// UI-local typed failure storage.
         error: Rc<FormatError>,
         /// Whether a prior repeat was rolled back before this failure.
+        cancelled: bool,
+    },
+    /// A typed pointer-scrub adjustment failure.
+    PointerScrubFailed {
+        /// Whether the failed displacement was initial or active.
+        attempt: NumericScrubAttempt,
+        /// Normalized horizontal displacement from the current anchor.
+        normalized_delta: f32,
+        /// Step selected for the attempted displacement.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted input.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<StepError>,
+        /// Whether an active transaction was restored before this failure.
+        cancelled: bool,
+    },
+    /// A typed pointer-scrub formatting failure.
+    PointerFormatFailed {
+        /// Whether the failed displacement was initial or active.
+        attempt: NumericScrubAttempt,
+        /// Normalized horizontal displacement from the current anchor.
+        normalized_delta: f32,
+        /// Step selected for the attempted displacement.
+        step: NumericStep,
+        /// Exact pointer provenance for the attempted input.
+        provenance: InteractionProvenance,
+        /// UI-local typed failure storage.
+        error: Rc<FormatError>,
+        /// Whether an active transaction was restored before this failure.
         cancelled: bool,
     },
 }
@@ -204,11 +294,50 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
         }
     }
 
+    /// Build a typed pointer-scrub adjustment failure.
+    pub fn pointer_scrub_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: StepError,
+        cancelled: bool,
+    ) -> Self {
+        Self::PointerScrubFailed {
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
+    /// Build a typed pointer-scrub formatting failure.
+    pub fn pointer_format_failed(
+        attempt: NumericScrubAttempt,
+        normalized_delta: f32,
+        step: NumericStep,
+        provenance: InteractionProvenance,
+        error: FormatError,
+        cancelled: bool,
+    ) -> Self {
+        Self::PointerFormatFailed {
+            attempt,
+            normalized_delta,
+            step,
+            provenance,
+            error: Rc::new(error),
+            cancelled,
+        }
+    }
+
     /// Return the typed step error by reference when this is `StepFailed`.
     pub fn step_error(&self) -> Option<&StepError> {
         match self {
             Self::StepFailed { error, .. } => Some(error.as_ref()),
-            Self::Edit(_) | Self::FormatFailed { .. } => None,
+            Self::PointerScrubFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_) | Self::FormatFailed { .. } | Self::PointerFormatFailed { .. } => None,
         }
     }
 
@@ -216,7 +345,8 @@ impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatErro
     pub fn format_error(&self) -> Option<&FormatError> {
         match self {
             Self::FormatFailed { error, .. } => Some(error.as_ref()),
-            Self::Edit(_) | Self::StepFailed { .. } => None,
+            Self::PointerFormatFailed { error, .. } => Some(error.as_ref()),
+            Self::Edit(_) | Self::StepFailed { .. } | Self::PointerScrubFailed { .. } => None,
         }
     }
 }
@@ -252,6 +382,36 @@ impl<T: Clone, StepError, FormatError> Clone
             } => Self::FormatFailed {
                 attempt: *attempt,
                 direction: *direction,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
+            Self::PointerScrubFailed {
+                attempt,
+                normalized_delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::PointerScrubFailed {
+                attempt: *attempt,
+                normalized_delta: *normalized_delta,
+                step: *step,
+                provenance: *provenance,
+                error: Rc::clone(error),
+                cancelled: *cancelled,
+            },
+            Self::PointerFormatFailed {
+                attempt,
+                normalized_delta,
+                step,
+                provenance,
+                error,
+                cancelled,
+            } => Self::PointerFormatFailed {
+                attempt: *attempt,
+                normalized_delta: *normalized_delta,
                 step: *step,
                 provenance: *provenance,
                 error: Rc::clone(error),
@@ -344,7 +504,9 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
     interactions: &[NumericInputInteraction<T, StepError, FormatError>],
 ) -> bool {
     match interactions {
-        [NumericInputInteraction::Edit(edit)] => valid_keyboard_edit(edit) || valid_text_edit(edit),
+        [NumericInputInteraction::Edit(edit)] => {
+            valid_keyboard_edit(edit) || valid_text_edit(edit) || valid_pointer_edit(edit)
+        }
         [
             NumericInputInteraction::StepFailed {
                 attempt: NumericStepAttempt::Initial,
@@ -361,11 +523,25 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                 ..
             },
         ] => is_keyboard_provenance(*provenance),
+        [
+            NumericInputInteraction::PointerScrubFailed {
+                attempt: NumericScrubAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            }
+            | NumericInputInteraction::PointerFormatFailed {
+                attempt: NumericScrubAttempt::Initial,
+                provenance,
+                cancelled: false,
+                ..
+            },
+        ] => is_pointer_provenance(*provenance),
         [NumericInputInteraction::Edit(edit), failure] => {
             let [cancel] = edit.events() else {
                 return false;
             };
-            if cancel.phase != EditPhase::Cancel || !is_keyboard_provenance(cancel.provenance) {
+            if cancel.phase != EditPhase::Cancel {
                 return false;
             }
             match failure {
@@ -381,9 +557,27 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                     cancelled: true,
                     ..
                 } => is_keyboard_provenance(*provenance) && *provenance == cancel.provenance,
+                NumericInputInteraction::PointerScrubFailed {
+                    attempt: NumericScrubAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                }
+                | NumericInputInteraction::PointerFormatFailed {
+                    attempt: NumericScrubAttempt::Update,
+                    provenance,
+                    cancelled: true,
+                    ..
+                } => {
+                    is_pointer_provenance(cancel.provenance)
+                        && is_pointer_cleanup_provenance(cancel.provenance)
+                        && is_pointer_provenance(*provenance)
+                }
                 NumericInputInteraction::Edit(_)
                 | NumericInputInteraction::StepFailed { .. }
-                | NumericInputInteraction::FormatFailed { .. } => false,
+                | NumericInputInteraction::FormatFailed { .. }
+                | NumericInputInteraction::PointerScrubFailed { .. }
+                | NumericInputInteraction::PointerFormatFailed { .. } => false,
             }
         }
         _ => false,
@@ -419,6 +613,38 @@ fn valid_text_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
     }
 }
 
+fn valid_pointer_edit<T: Clone>(edit: &NumericInputEditBatch<T>) -> bool {
+    match edit.events() {
+        [event]
+            if matches!(
+                event.phase,
+                EditPhase::Update | EditPhase::Commit | EditPhase::Cancel
+            ) =>
+        {
+            is_pointer_provenance(event.provenance)
+        }
+        [begin, update] if begin.phase == EditPhase::Begin && update.phase == EditPhase::Update => {
+            is_pointer_provenance(begin.provenance) && is_pointer_provenance(update.provenance)
+        }
+        _ => false,
+    }
+}
+
 fn is_keyboard_provenance(provenance: InteractionProvenance) -> bool {
     provenance.source() == InteractionSource::Keyboard
+}
+
+fn is_pointer_provenance(provenance: InteractionProvenance) -> bool {
+    provenance.source() == InteractionSource::Pointer
+}
+
+fn is_pointer_cleanup_provenance(provenance: InteractionProvenance) -> bool {
+    matches!(
+        provenance,
+        InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: None,
+            sequence_range: None,
+        } if modifiers == PointerModifiers::default()
+    )
 }

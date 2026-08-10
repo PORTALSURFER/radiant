@@ -41,7 +41,7 @@ pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirectio
 pub use numeric_edit::NumericEditSession;
 pub use numeric_input::{
     NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
-    NumericInputInteractionBatch, NumericStepAttempt,
+    NumericInputInteractionBatch, NumericScrubAttempt, NumericScrubPolicy, NumericStepAttempt,
 };
 pub(crate) use numeric_ownership::{NumericInteractionGate, NumericInteractionOwner};
 pub use numeric_policy::{NumericCodec, NumericParseResult};

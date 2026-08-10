@@ -6,8 +6,8 @@ use crate::{
     runtime::WidgetMessageMapper,
     widgets::{
         NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputInteractionBatch, NumericInputWidget, NumericStepModifiers, TextInputChrome,
-        WidgetProminence, WidgetSizing, WidgetStyle,
+        NumericInputInteractionBatch, NumericInputWidget, NumericScrubPolicy, NumericStepModifiers,
+        TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -70,6 +70,12 @@ where
     /// Configure the explicit numeric step-selection policy used by complete mode.
     pub fn step_modifiers(mut self, policy: NumericStepModifiers) -> Self {
         self.input.set_step_modifiers(policy);
+        self
+    }
+
+    /// Configure explicit Alt-activated horizontal pointer scrubbing for complete mode.
+    pub fn scrub_policy(mut self, policy: NumericScrubPolicy) -> Self {
+        self.input.set_scrub_policy(policy);
         self
     }
 

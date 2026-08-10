@@ -1790,14 +1790,15 @@ column([
 .gap(8)
 ```
 
-### Numeric interaction ownership and admission (TextEdit admission and teardown shipped)
+### Numeric interaction ownership and admission (TextEdit, keyboard, and pointer admission shipped)
 
-This is one shared, target-only, backend-neutral contract for the numeric
+This is one shared, backend-neutral contract for the numeric
 interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
-generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
-shipped; IME composition, pointer scrub, wheel sequence, and accessibility edit
-remain target-only consumers. The gate is not a public Rust API, native
+generic text consumer, complete-mode explicit-policy KeyboardAdjustment, and
+complete-mode explicit-policy PointerScrub are shipped; IME composition, wheel
+sequence, and accessibility edit remain target-only consumers. The gate is not
+a public Rust API, native
 adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
@@ -1807,7 +1808,7 @@ ImeComposition, KeyboardAdjustment, PointerScrub, WheelSequence,
 AccessibilityEdit, and None. These names do not prescribe public Rust variants,
 handles, fields, or storage.
 
-#### Target incumbent-owner gate
+#### Incumbent-owner gate
 
 At every admission boundary, each stable numeric-input identity has exactly one
 incumbent owner: one of the six interaction owners above or None. A pending
@@ -1873,13 +1874,13 @@ remains composition text rather than numeric input until Commit. These rules do
 not select platform cancellation behavior or allow either interaction to
 interrupt an incumbent.
 
-#### Target shared-owner acceptance fixtures
+#### Shared-owner acceptance fixtures
 
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
-compatible reprojection foundation, and complete-mode explicit-policy
-KeyboardAdjustment is shipped; rows for the four other consumers remain
-target-only:
+compatible reprojection foundation, complete-mode explicit-policy
+KeyboardAdjustment, and complete-mode explicit-policy PointerScrub are shipped;
+rows for IME, wheel, and accessibility remain target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2072,15 +2073,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   active owner denies the text admission before parsing, formatting, or edit
   lifecycle mutation; the shipped text consumer implements this TextEdit
   admission, terminal cleanup, and replacement-teardown foundation, and the
-  complete-mode explicit-policy KeyboardAdjustment consumer is also shipped;
-  IME composition, pointer scrub, wheel, and accessibility remain target-only.
+  complete-mode explicit-policy KeyboardAdjustment and PointerScrub consumers
+  are also shipped; IME composition, wheel, and accessibility remain target-only.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
   the successor from inheriting the retired session. The four remaining numeric
-  owner consumers—IME/composition, pointer scrub, wheel, and accessibility—
-  remain target-only.
+  owner consumers—IME/composition, wheel, and accessibility—remain target-only;
+  complete-mode pointer scrubbing preserves the same gate and replacement
+  fences as TextEdit and KeyboardAdjustment.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -2203,14 +2205,15 @@ controller, native, and public-API fixtures cover these shipped outcomes.
 | Stale identity or authority | A sample whose pinned identity or authority is no longer current is `Ignore`; it is not rebased, sent to a fallback host path, or delivered to a successor/new focus. |
 | Native, backend-neutral, and synthetic equivalence | Equivalent evidence produces the same route, host-call count, and owner-delivery count on all three paths; native translation adds no precedence. |
 
-### Numeric interaction output mapping (TextEdit, complete keyboard, and generic routing shipped)
+### Numeric interaction output mapping (TextEdit, complete keyboard, complete pointer, and generic routing shipped)
 
-This is the shipped, backend-neutral TextEdit and complete-mode keyboard output
-mapping. It defines one selected public mapper and one host dispatch per input or
+This is the shipped, backend-neutral TextEdit, complete-mode keyboard, and
+complete-mode pointer output mapping. It defines one selected public mapper and one host dispatch per input or
 teardown boundary. The current implementation ships `on_interaction`,
 crate-private output-mode storage, mode-specific encoders, TextEdit terminal
-validation, explicit-policy keyboard stepping, typed failures and rollback,
-complete mapping, and the generic metadata-aware focused-key routing kernel.
+validation, explicit-policy keyboard and pointer stepping, typed failures and
+rollback, complete mapping, and the generic metadata-aware focused-key routing
+kernel.
 
 The complete binding on `NumericInputBuilder<T, C, A>` is:
 
@@ -2231,7 +2234,7 @@ constructor errors and are not delivered through this mapper.
 
 `on_interaction` is the sole complete mapping boundary. Complete mode emits
 exactly one `NumericInputInteractionBatch<T, A::Error, C::Error>` payload type
-for the shipped TextEdit and keyboard lifecycles; it never alternates a bare
+for the shipped TextEdit, keyboard, and pointer lifecycles; it never alternates a bare
 `NumericInputEditBatch<T>` with an interaction batch. One accepted TextEdit
 input or teardown boundary produces at most one interaction batch, invokes the
 selected mapper at most once, and dispatches at most one host message. The
@@ -2267,17 +2270,20 @@ batch, mapper call, or host message. An invalid text draft emits no interaction
 failure. Typed step and format errors remain their exact UI-local typed parts:
 they never panic, become a string, log, no-op, bare edit, or fallback output.
 
-The validator preserves the existing keyboard shapes: one keyboard `Edit`
+The validator preserves the existing keyboard and pointer shapes: one keyboard
+or pointer `Edit`
 containing `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial
 typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
-repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
+repeat rollback, pointer `[Begin, Update]`, `[Update]`, `[Commit]`, and
+`[Cancel]`, or typed pointer failures with rollback before an active failure.
+It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
-mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. Pointer, wheel, IME/composition, accessibility, and product-policy
-consumers remain target-only; the generic metadata-aware routing kernel is
-shipped in the preceding section.
+mapping, typed-failure production, numeric stepping, pointer scrubbing, and
+mapper exclusivity are shipped. Wheel, IME/composition, accessibility, and
+product-policy consumers remain target-only; the generic metadata-aware routing
+kernel is shipped in the preceding section.
 
-#### Numeric interaction output mapping acceptance fixtures (shipped TextEdit and complete keyboard)
+#### Numeric interaction output mapping acceptance fixtures (shipped TextEdit, complete keyboard, and complete pointer)
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2293,7 +2299,8 @@ shipped in the preceding section.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, terminal validation, both binding modes, and the generic metadata-aware focused-key routing kernel are shipped. Pointer, wheel, IME/composition, accessibility, and product-policy consumers remain unshipped. |
+| 13. Complete-mode pointer lifecycle | An explicitly attached `NumericScrubPolicy` admits primary-plus-Alt/Option scrubbing, preserves unmodified TextEdit fallback, and emits bounded pointer lifecycle or typed-failure shapes through the one complete mapper. (Shipped.) |
+| 14. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, complete-mode explicit-policy `PointerScrub`, terminal validation, both binding modes, and the generic metadata-aware focused-key routing kernel are shipped. Wheel, IME/composition, accessibility, and product-policy consumers remain unshipped. |
 
 ### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; other consumers remain target-only)
 
@@ -2308,8 +2315,9 @@ The shipped text-first `numeric_input` consumer now has a complete-mode
 semantic keyboard-adjustment consumer for explicit `NumericStepModifiers`.
 Normalized `Event::KeyRelease { key, modifiers, timestamp }` and
 `WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is consumed as
-its release boundary. Pointer, wheel, IME/composition, accessibility, and
-platform/product policy remain separate target-only consumers. It preserves the
+its release boundary. Complete-mode pointer scrubbing is shipped in the
+following section; wheel, IME/composition, accessibility, and platform/product
+policy remain separate target-only consumers. It preserves the
 shipped normalized
 `Event::KeyPress { key, modifiers, repeat, timestamp }` and
 `WidgetInput::KeyPress { key, modifiers, repeat, timestamp }` boundaries. A
@@ -2424,8 +2432,9 @@ private inline capacity two and validates exactly one keyboard `Edit` fragment
 failure, or a repeat failure only after a matching keyboard `[Cancel]` rollback.
 It preserves ordered parts, transaction identity, direction, selected step,
 exact keyboard provenance, and typed errors. The complete-mode explicit-policy
-KeyboardAdjustment consumer now produces these keyboard interactions; IME
-composition, pointer scrub, wheel, and accessibility remain target-only. This
+KeyboardAdjustment consumer now produces these keyboard interactions; complete-
+mode PointerScrub uses the same bounded envelope, while IME composition, wheel,
+and accessibility remain target-only. This
 foundation has zero impact on the estimates and is part of the shipped
 semantic keyboard behavior.
 
@@ -2466,7 +2475,7 @@ sequence range. Synthetic press/release inputs use normalized default
 modifiers, `repeat: false` for a synthetic press, and no timestamp. Native
 repeat cadence, delay, and rate are outside this contract.
 
-### Target numeric pointer-scrub contract (not yet shipped)
+### Complete-mode numeric pointer-scrub contract (shipped)
 
 Pointer scrub admission uses the shared incumbent-owner gate before focus,
 capture, or any scrub operation. PointerScrub may start only when the stable
@@ -2474,53 +2483,47 @@ numeric identity has owner None; a different pending or active owner blocks the
 scrub without changing the incumbent. The existing unmodified-primary
 text-selection fallback remains unchanged.
 
-The following is a target-only, backend-neutral contract for the missing
-primary-pointer numeric scrub lifecycle. The current shipped `NumericInput`
-consumer does not perform this behavior, and this subsection claims no current
-runtime or native-adapter implementation. Every name introduced below is
-illustrative target vocabulary, not a shipped public Rust type. The contract
-composes the existing `NumericAdjustment::scrub` policy boundary, normalized
-pointer metadata and runtime capture, numeric text editing, target keyboard
-adjustment, and target IME/composition ownership.
+The shipped backend-neutral primary-pointer numeric scrub lifecycle composes
+the existing `NumericAdjustment::scrub` policy boundary, normalized pointer
+metadata and controller capture, numeric text editing, and the shared numeric
+ownership gate. The public policy is intentionally narrow and complete-mode
+only. The additive object-safe `Widget::preflight_pointer_press` hook is
+mutation-free and default-compatible; the controller remains focus and capture
+authority.
 
-The illustrative target policy attaches to `NumericInputBuilder`:
+The public policy attaches to `NumericInputBuilder`:
 
 ```rust
-enum NumericScrubActivation {
-    PrimaryButtonHorizontalDrag {
-        modifier: KeyboardModifier,
-    },
-}
-
 struct NumericScrubPolicy {
-    activation: NumericScrubActivation,
+    step_modifiers: NumericStepModifiers,
 }
 
 impl NumericScrubPolicy {
-    fn default() -> Self {
-        Self {
-            activation: NumericScrubActivation::PrimaryButtonHorizontalDrag {
-                modifier: KeyboardModifier::Alt, // Option on macOS
-            },
-        }
-    }
+    pub const MACOS_DEFAULT: Self;
+    pub const fn new(step_modifiers: NumericStepModifiers) -> Self;
 }
 
 numeric_input(value, codec, adjustment)
-    .scrub_policy(NumericScrubPolicy::default());
+    .scrub_policy(NumericScrubPolicy::MACOS_DEFAULT);
 ```
 
 The complete backend-neutral default is Alt/Option plus a primary-button
 horizontal drag. An unmodified primary press remains ordinary text
 caret/selection behavior. A configured activation chord is not a second text
-editing mode: it only admits the target scrub when all of the lifecycle fences
-below pass.
+editing mode: it only admits the scrub when all of the lifecycle fences
+below pass. Alt/Option is activation and is removed before per-sample step
+selection; Shift selects Fine and the target-platform command selects Coarse.
 
 Admission requires an enabled, non-read-only numeric input and a shared
 incumbent owner of None. A different pending or active owner blocks the scrub.
 A blocked scrub is not admitted and does not parse, commit, or cancel an active
 interaction; existing ordinary routing remains responsible for the blocked
-input. An admitted primary press focuses the input, latches its
+input. Both controller event routing and public
+`SurfaceRuntime::dispatch_input_at` call the additive preflight before focus
+transfer or new capture. A consumed preflight preserves existing focus,
+capture, incumbent, transaction, draft, value, caret, and selection and does
+not dispatch the widget or unwind unrelated capture. An admitted primary press
+then focuses the input and latches its
 stable identity, starting typed value, canonical draft, caret, selection,
 press position, finite scrub bounds, press modifiers, press timestamp, and
 runtime pointer capture. The activation chord is latched for the whole
@@ -2532,7 +2535,7 @@ Before any move, admission initializes `NumericScrubAnchor` as
 therefore normalizes displacement from the captured press position and
 starting typed value; later moves use the current anchor.
 
-The target snapshot's logical geometry is evidence, not a value to repair. Its
+The logical geometry is evidence, not a value to repair. Its
 coordinates must be finite, its width must be finite and strictly positive,
 and the pointer positions used for normalization must be finite and within the
 declared bounds. Horizontal displacement is normalized by that positive width:
@@ -2541,7 +2544,7 @@ decreases it. A valid sample with zero horizontal displacement from the current
 anchor is a handler-level no-op before invoking `NumericAdjustment::scrub`: it
 creates no candidate, edit transaction, update, or value change and retains the
 current anchor. Vertical-only motion is such a sample. Invalid, nonfinite, or
-out-of-bounds geometry or positions are unknown evidence; the target does not
+out-of-bounds geometry or positions are unknown evidence; the handler does not
 guess a clamp or manufacture a replacement coordinate. Such a sample produces
 no candidate and does not advance the anchor.
 
@@ -2556,7 +2559,7 @@ effective move can add `Begin` and one `Update`, while each later accepted move
 adds at most one `Update`; no unbounded event accumulator is implied.
 
 Step selection is made for every move after removing the latched activation
-chord from the sample modifiers. With the target defaults, no Fine/Coarse
+chord from the sample modifiers. With the shipped defaults, no Fine/Coarse
 modifier selects `NumericStep::Base`, Shift selects `Fine`, and the platform
 command selects `Coarse` (Command on macOS, Control on Windows and Linux).
 Fine wins when both selectors are present. A change in the selected step
@@ -2598,38 +2601,40 @@ cancels the old scrub before the new authority is applied; it never rebases an
 active scrub onto the new value. The cancellation and cleanup rules above also
 apply to a capability, enabled, or read-only transition.
 
-The target-only diagnostic vocabulary distinguishes adjustment from formatting
+The shipped typed diagnostic vocabulary distinguishes adjustment from formatting
 failure and records the attempt boundary:
 
 ```rust
+use std::rc::Rc;
+
 enum NumericScrubAttempt {
     Initial,
     Update,
 }
 
-enum NumericScrubInteraction<T, ScrubError, FormatError> {
-    Edit(BoundedEditEvents<T>),
-    ScrubFailed {
+enum NumericInputInteraction<T, ScrubError, FormatError> {
+    Edit(NumericInputEditBatch<T>),
+    PointerScrubFailed {
         attempt: NumericScrubAttempt,
         normalized_delta: f32,
         step: NumericStep,
         provenance: InteractionProvenance,
-        error: ScrubError,
+        error: Rc<ScrubError>,
         cancelled: bool,
     },
-    FormatFailed {
+    PointerFormatFailed {
         attempt: NumericScrubAttempt,
         normalized_delta: f32,
         step: NumericStep,
         provenance: InteractionProvenance,
-        error: FormatError,
+        error: Rc<FormatError>,
         cancelled: bool,
     },
 }
 ```
 
-An initial adjustment or formatting failure returns its typed target-only
-`ScrubFailed` or `FormatFailed` context with `attempt: Initial` and
+An initial adjustment or formatting failure returns its typed
+`PointerScrubFailed` or `PointerFormatFailed` context with `attempt: Initial` and
 `cancelled: false`. It emits no transaction, `Begin`, `Update`, or `Cancel`,
 restores the pre-scrub UI snapshot, and ends the failed capture. After an
 effective update, an adjustment or formatting failure suppresses its failed
@@ -3091,9 +3096,9 @@ still look valid. The contract does not authorize a native adapter to
 materialize a virtual target or to ask a scheduler, cache, renderer, or
 resource owner to do so.
 
-Deterministic target fixtures:
+Shipped acceptance fixtures:
 
-| Fixture | Expected target behavior |
+| Fixture | Expected shipped behavior |
 | --- | --- |
 | 1. Increment and Decrement | On current value `7`, `Increment` invokes exactly one Base `NumericAdjustment::step` in the increase direction and `Decrement` invokes exactly one Base step in the decrease direction; no Fine/Coarse modifier or repeat is inferred. |
 | 2. Valid SetValueText | A complete text payload whose `NumericCodec::parse` result is `Valid(T)` is formatted once through `NumericCodec::format_editable`; the canonical editable text is published only with the accepted changed transaction. |
@@ -3108,9 +3113,9 @@ Deterministic target fixtures:
 | 11. Unmaterialized virtual target | An offscreen or unmaterialized virtual target is unavailable even when a semantic snapshot advertises it; the action cannot authorize materialization or scrolling. |
 | 12. Snapshot/action metadata proof | Snapshot revision, action advertisement, geometry, timing, or other observational metadata cannot authorize dispatch, execution, scheduling, cache admission, reuse, renderer resources, renderer work, or materialization without independent current authority. |
 
-Under this numeric-control contract, target pointer scrubbing uses the same
+Under this numeric-control contract, shipped complete-mode pointer scrubbing uses the same
 mapping, `InteractionProvenance` vocabulary, and `EditTransaction` lifecycle
-as the target pointer-scrub contract above. Existing runtime wheel routing
+as the shipped pointer-scrub contract above. Existing runtime wheel routing
 remains fallback until the target wheel contract above is implemented; this
 documentation contract adds no shipped wheel consumption or idle timeout. The
 target keyboard rules above are not current runtime behavior.

@@ -1,9 +1,12 @@
 use super::support::{CustomStatusWidget, CustomWidgetMessage, DemoMessage, DemoState};
 use radiant::{
     layout::{LayoutOutput, Point, Rect, Vector2, layout_tree},
-    runtime::{PaintPrimitive, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper},
+    runtime::{Event, PaintPrimitive, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper},
     theme::ThemeTokens,
-    widgets::{PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{
+        PointerButton, PointerPressPreflight, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing,
+    },
 };
 
 #[derive(Clone)]
@@ -95,6 +98,39 @@ fn runtime_lets_custom_widgets_reconcile_retained_state_after_refresh() {
         .expect("custom widget should remain projected");
 
     assert_eq!(custom.activation_count, 1);
+}
+
+#[test]
+fn custom_widget_default_pointer_preflight_is_object_safe_and_keeps_focus_capture_defaults() {
+    let widget: Box<dyn Widget> = Box::new(CustomStatusWidget::new(711));
+    assert_eq!(
+        widget.preflight_pointer_press(&WidgetInput::primary_press(Point::new(10.0, 10.0))),
+        PointerPressPreflight::Allow
+    );
+
+    let bridge = radiant::prelude::app(DemoState::default())
+        .view(|_| {
+            radiant::prelude::custom_widget_mapped(
+                CustomStatusWidget::new(711),
+                |message: CustomWidgetMessage| DemoMessage::Rename(format!("{message:?}")),
+            )
+            .id(711)
+        })
+        .update(|_, _| {})
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 28.0));
+    let point = Point::new(10.0, 10.0);
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(point)),
+        Some(711)
+    );
+    assert_eq!(runtime.focused_widget(), Some(711));
+    assert_eq!(runtime.pointer_capture(), Some(711));
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(point)),
+        Some(711)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
 }
 
 #[test]

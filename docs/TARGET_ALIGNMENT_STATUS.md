@@ -3,16 +3,16 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~78.18% (860 / 11) |
+| Broad end-to-end target coverage | ~78.73% (866 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 90% |
+| Input, provenance, and edit lifecycle | 91% |
 | Layout, composition, virtualization | 96% |
-| Text, focus, and selection | 68% |
-| Numeric controls | 67% |
+| Text, focus, and selection | 69% |
+| Numeric controls | 71% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
 | Platform, windowing, and host boundaries | 70% |
@@ -20,8 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 90 + 96 + 68 + 67 + 96 + 78 + 70 + 66 + 76) / 11 = 78.1818...%`,
-reported as approximately `78.18%`.
+`(83 + 70 + 91 + 96 + 69 + 71 + 96 + 78 + 70 + 66 + 76) / 11 = 78.7272...%`,
+reported as approximately `78.73%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining
 consumer-, platform-, scheduler-, renderer-, or product-policy boundaries.
@@ -48,15 +48,16 @@ classification for the synchronous allocation-free focus-loss veto seam,
 commits valid Enter/focus-loss edits, cancels active Escape edits, and retains
 draft/caret/session state only for an actually active edit during same-ID
 reprojection. Qualified exports remain outside the common prelude.
-The qualified `NumericStepAttempt`, `NumericInputInteraction<T, StepError,
-FormatError>`, and `NumericInputInteractionBatch<T, StepError, FormatError>`
-are now shipped as a fixed-capacity keyboard envelope and complete TextEdit
-output contract. The batch validates successful keyboard edit fragments,
-TextEdit terminal fragments, and typed initial or rollback-before-repeat
-failures. Complete mode consumes an explicitly attached step policy for
-effective ArrowUp/ArrowDown transactions, typed failures, rollback, capture,
-and teardown through the selected complete mapper; compatibility mode remains
-inert.
+The qualified `NumericStepAttempt`, `NumericScrubAttempt`,
+`NumericInputInteraction<T, StepError, FormatError>`, and
+`NumericInputInteractionBatch<T, StepError, FormatError>` are now shipped as a
+fixed-capacity keyboard/pointer envelope and complete TextEdit output contract.
+The batch validates successful keyboard and pointer edit fragments, TextEdit
+terminal fragments, typed initial failures, and rollback-before-failure
+boundaries. Complete mode consumes explicitly attached step and scrub policies
+for bounded ArrowUp/ArrowDown and primary-plus-Alt/Option horizontal pointer
+transactions, typed failures, rollback, capture, and teardown through the
+selected complete mapper; compatibility mode remains inert.
 The crate-private shared numeric interaction gate is now shipped for TextEdit
 admission, no-op cleanup, terminal cleanup, replacement teardown, and compatible
 active reprojection. `NumericInputWidget` consumes the generic
@@ -71,13 +72,15 @@ Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; complete-mode semantic keyboard
 adjustment is now shipped for explicitly configured numeric step policies. The
 backend-neutral IME/composition lifecycle is now defined but unimplemented; the
-current source has no composition event or state. Pointer scrubbing is
-contract-defined but unimplemented. Wheel adjustment is now contract-defined but
+current source has no composition event or state. Complete-mode numeric pointer
+scrubbing is shipped for an explicitly attached Alt/Option primary-horizontal
+policy, including bounded lifecycle output, preflight ownership blocking, and
+reconciliation/cancellation fences. Wheel adjustment remains contract-defined but
 unimplemented. Numeric accessibility actions are contract-defined but
 unimplemented. Slider/Knob, platform, scheduler, renderer, and product policy
 remain out of scope for this slice.
-The four other shared-gate consumers—IME/composition, pointer, wheel, and
-accessibility—remain target-only and unimplemented.
+The remaining shared-gate consumers—IME/composition, wheel, and accessibility—
+remain target-only and unimplemented.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless
@@ -107,8 +110,9 @@ backend-neutral, and native/direct fixtures cover equivalent decisions. Existing
 widgets retain the key-only `preempts_host_shortcut_key` compatibility path.
 The kernel itself remains generic: the numeric widget supplies the step,
 transaction, output, and typed-failure semantics.
-The numeric interaction output mapping is now shipped for the TextEdit and
-complete-mode keyboard lifecycles. It fixes the exact `on_interaction` mapper
+The numeric interaction output mapping is now shipped for the TextEdit,
+complete-mode keyboard, and complete-mode pointer lifecycles. It fixes the exact
+`on_interaction` mapper
 type and associated error order, one interaction batch/mapper/host dispatch per
 input or teardown boundary, nested TextEdit terminal shapes, bounded keyboard
 edit and failure shapes, compatibility-only `on_edit`, mapper exclusivity,
@@ -116,6 +120,6 @@ validator acceptance, retiring-mapper mode selection, and generic
 host-first/owner-first focused-key routing. This bounded consumer slice updates
 the estimates by one point in Input/provenance/edit lifecycle, one point in
 Text/focus/selection, and four points in Numeric controls:
-`854 + 1 + 1 + 4 = 860`, `860 / 11 = 78.1818...%`, reported as approximately
-`78.18%`; the generic estimate remains about 97% and the other target gaps
+`860 + 1 + 1 + 4 = 866`, `866 / 11 = 78.7272...%`, reported as approximately
+`78.73%`; the generic estimate remains about 97% and the other target gaps
 remain unchanged.

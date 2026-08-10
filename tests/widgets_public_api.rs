@@ -17,12 +17,13 @@ use radiant::{
         KnobEditBatch, KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
         ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
-        NumericInputInteractionBatch, NumericParseResult, NumericStep, NumericStepAttempt,
-        NumericStepDirection, NumericStepModifiers, ScrollbarAxis, ScrollbarWidget,
-        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
-        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
-        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt, NumericScrubPolicy,
+        NumericStep, NumericStepAttempt, NumericStepDirection, NumericStepModifiers, PointerButton,
+        PointerModifiers, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
+        SelectableWidgetParts, SliderEditBatch, SliderMessage, SliderState, SliderWidget,
+        SliderWidgetParts, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts,
+        ToggleWidget, ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput,
+        WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{
@@ -341,7 +342,8 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
         .step_modifiers(NumericStepModifiers::new(
             KeyboardModifier::Alt,
             KeyboardModifier::Control,
-        ));
+        ))
+        .scrub_policy(NumericScrubPolicy::MACOS_DEFAULT);
     let _: fn(
         NumericInputEditBatch<GenericNumericValue>,
     ) -> NumericInputEditBatch<GenericNumericValue> = |batch| batch;
@@ -388,6 +390,35 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
             .collect::<Vec<_>>(),
         [EditPhase::Begin, EditPhase::Commit]
     );
+}
+
+#[test]
+fn numeric_scrub_policy_is_explicit_public_and_keeps_alt_out_of_step_selection() {
+    let policy = NumericScrubPolicy::MACOS_DEFAULT;
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    assert!(policy.qualifies(PointerButton::Primary, alt));
+    assert!(!policy.qualifies(PointerButton::Secondary, alt));
+    assert_eq!(policy.select_step(alt), NumericStep::Base);
+    assert_eq!(
+        policy.select_step(PointerModifiers {
+            alt: true,
+            shift: true,
+            ..PointerModifiers::default()
+        }),
+        NumericStep::Fine
+    );
+    assert_eq!(
+        policy.select_step(PointerModifiers {
+            alt: true,
+            command: true,
+            ..PointerModifiers::default()
+        }),
+        NumericStep::Coarse
+    );
+    let _: NumericScrubAttempt = NumericScrubAttempt::Initial;
 }
 
 #[test]

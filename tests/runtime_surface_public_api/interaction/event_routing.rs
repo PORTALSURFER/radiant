@@ -3,8 +3,8 @@ use radiant::{
     application::numeric_input,
     widgets::{
         EditPhase, KeyboardModifier, KeyboardModifiers, NumericAdjustment, NumericCodec,
-        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericStep,
-        NumericStepDirection, NumericStepModifiers,
+        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
+        NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers, PointerButton,
     },
 };
 use std::{cell::Cell, rc::Rc};
@@ -519,6 +519,7 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
                 KeyboardModifier::Shift,
                 KeyboardModifier::Control,
             ))
+            .scrub_policy(NumericScrubPolicy::MACOS_DEFAULT)
             .on_interaction(RuntimeNumericMessage::Interaction)
             .id(150)
             .into_surface(),
@@ -609,6 +610,60 @@ fn public_numeric_keyboard_owner_conflict_still_resolves_host_first() {
     assert_eq!(runtime.bridge().host_calls, 2);
     assert_eq!(runtime.bridge().value, before_value);
     assert_eq!(runtime.bridge().numeric_policy_calls(), before_policy_calls);
+    assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+}
+
+#[test]
+fn public_numeric_pointer_preflight_blocks_event_and_direct_press_before_focus_or_capture() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+    assert_eq!(
+        runtime.dispatch_event(Event::Character {
+            character: '8',
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.focused_widget(), Some(150));
+    assert_eq!(runtime.pointer_capture(), None);
+
+    let point = Point::new(60.0, 16.0);
+    let before_value = runtime.bridge().value.clone();
+    let before_mapped_phases = runtime.bridge().mapped_phases.clone();
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: alt,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.focused_widget(), Some(150));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().value, before_value);
+    assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+
+    assert_eq!(
+        runtime.dispatch_input_at(
+            point,
+            WidgetInput::PointerPress {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        ),
+        Some(150)
+    );
+    assert_eq!(runtime.focused_widget(), Some(150));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().value, before_value);
     assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
 }
 

@@ -161,6 +161,14 @@ new focused export leaf or a module split, not a formatting workaround.
   evidence before delegating to the generic controller. The kernel is generic
   and numeric-policy-free, while widgets retain the existing key-only fallback
   unless they opt in.
+- Complete-mode numeric pointer scrubbing keeps retained transaction state in
+  the private numeric primitive pointer module. The widget owns policy admission,
+  anchor/draft rollback, typed pointer interaction output, and the shared numeric
+  owner gate; `Widget::preflight_pointer_press` is an additive mutation-free
+  admission query. `src/runtime/controller` remains the focus and pointer-capture
+  authority, and both event and direct point dispatch preflight before a new
+  focus or capture side effect. Wheel, IME/composition, and accessibility
+  consumers remain unimplemented.
 - `examples` owns maintained public-API sandboxes. Examples are validation
   surfaces as well as documentation.
 - `benches/perf_harness` owns opt-in performance scenarios for layout,

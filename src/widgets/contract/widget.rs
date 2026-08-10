@@ -49,6 +49,17 @@ pub enum FocusLossDecision {
     Veto,
 }
 
+/// Decision returned by the selected widget before a direct pointer press can
+/// transfer focus or install runtime pointer capture.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PointerPressPreflight {
+    /// Preserve the normal controller focus and pointer-capture path.
+    #[default]
+    Allow,
+    /// Consume the qualifying press without focus transfer or pointer capture.
+    Consume,
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.
@@ -116,6 +127,16 @@ pub trait Widget: WidgetClone + Any {
 
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
+
+    /// Decide whether a direct pointer press must be consumed before the
+    /// controller transfers focus or installs provisional pointer capture.
+    ///
+    /// The default preserves existing custom and built-in behavior. This hook
+    /// is an admission-only query: it must not emit output, mutate a reducer,
+    /// call an adjustment or codec, or establish widget-local ownership.
+    fn preflight_pointer_press(&self, _input: &WidgetInput) -> PointerPressPreflight {
+        PointerPressPreflight::Allow
+    }
 
     /// Cancel widget-local pointer-capture state without delivering a legacy
     /// focus-loss output to the host.

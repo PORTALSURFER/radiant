@@ -64,10 +64,10 @@ mod theme;
 pub(crate) use contract::WidgetRevisionComponents;
 pub use contract::{
     FocusBehavior, FocusLossDecision, PaintBounds, PaintContract, PointerCapturePolicy,
-    WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext,
-    WidgetProminence, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
-    WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,
-    stable_widget_id_u64,
+    PointerPressPreflight, WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities,
+    WidgetId, WidgetPaintContext, WidgetProminence, WidgetRevision, WidgetSemantics,
+    WidgetSemanticsRevision, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
+    stable_widget_id, stable_widget_id_u64,
 };
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,
@@ -78,13 +78,14 @@ pub use interaction::{
     KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage, NumericAdjustment,
     NumericCodec, NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-    NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericStep,
-    NumericStepAttempt, NumericStepDirection, NumericStepModifiers, PointerButton,
-    PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
-    SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
-    TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
-    ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
-    WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
+    NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt,
+    NumericScrubPolicy, NumericStep, NumericStepAttempt, NumericStepDirection,
+    NumericStepModifiers, PointerButton, PointerModifiers, PointerShieldMessage,
+    RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage,
+    TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
+    TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping,
+    ValueMappingError, ValueMappingKind, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+    handle_activation_input,
 };
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{

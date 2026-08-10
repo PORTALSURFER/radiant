@@ -6,7 +6,7 @@ use crate::{
     gui::types::Point,
     layout::LayoutInput,
     runtime::RuntimeBridge,
-    widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput},
+    widgets::{PointerButton, PointerModifiers, PointerPressPreflight, WidgetId, WidgetInput},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -78,6 +78,11 @@ where
             self.clear_focus();
             return None;
         };
+        if self.preflight_pointer_press_for_widget(widget_id, &input)
+            == PointerPressPreflight::Consume
+        {
+            return Some(widget_id);
+        }
         self.interaction.pointer.capture = Some(widget_id);
         self.reset_tooltip_hover_intent();
         match self.dispatch_input_at_output(position, input) {
@@ -160,40 +165,26 @@ where
         let routed = self.dispatch_input_at_output(position, input);
         match routed {
             PointInputDispatch::Routed(widget_id, true) => Some(widget_id),
-            PointInputDispatch::Routed(_, false) => {
-                match self.dispatch_input_at_output(
-                    position,
+            PointInputDispatch::Routed(_, false) => self
+                .dispatch_input_output(
+                    widget_id,
                     WidgetInput::pointer_press_with_timestamp(
                         position, button, modifiers, timestamp,
                     ),
-                ) {
-                    PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
-                    PointInputDispatch::FocusVetoed => {
-                        self.unwind_provisional_pointer_capture();
-                        None
-                    }
-                    PointInputDispatch::Miss => None,
-                }
-            }
+                )
+                .map(|_| widget_id),
             PointInputDispatch::FocusVetoed => {
                 self.unwind_provisional_pointer_capture();
                 None
             }
-            PointInputDispatch::Miss => {
-                match self.dispatch_input_at_output(
-                    position,
+            PointInputDispatch::Miss => self
+                .dispatch_input_output(
+                    widget_id,
                     WidgetInput::pointer_press_with_timestamp(
                         position, button, modifiers, timestamp,
                     ),
-                ) {
-                    PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
-                    PointInputDispatch::FocusVetoed => {
-                        self.unwind_provisional_pointer_capture();
-                        None
-                    }
-                    PointInputDispatch::Miss => None,
-                }
-            }
+                )
+                .map(|_| widget_id),
         }
     }
 

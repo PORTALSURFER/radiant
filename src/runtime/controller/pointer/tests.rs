@@ -17,9 +17,9 @@ use crate::{
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
         InteractionSource, InteractiveRowWidget, KeyboardModifiers, PointerButton,
-        PointerModifiers, PointerShieldMessage, PointerShieldWidget, SliderEditBatch,
-        TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
-        WidgetSizing,
+        PointerModifiers, PointerPressPreflight, PointerShieldMessage, PointerShieldWidget,
+        SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -77,6 +77,111 @@ impl RuntimeBridge<usize> for FocusLossOutputBridge {
     fn reduce_message(&mut self, message: usize) {
         self.dispatched.push(message);
     }
+}
+
+#[derive(Clone)]
+struct PreflightWidget {
+    common: WidgetCommon,
+    decision: Rc<Cell<PointerPressPreflight>>,
+    preflight_calls: Rc<Cell<usize>>,
+    press_calls: Rc<Cell<usize>>,
+}
+
+impl PreflightWidget {
+    fn new(
+        id: u64,
+        decision: Rc<Cell<PointerPressPreflight>>,
+        preflight_calls: Rc<Cell<usize>>,
+        press_calls: Rc<Cell<usize>>,
+    ) -> Self {
+        Self {
+            common: WidgetCommon::fixed(id, 160.0, 28.0)
+                .with_focus(FocusBehavior::Keyboard)
+                .without_default_chrome(),
+            decision,
+            preflight_calls,
+            press_calls,
+        }
+    }
+}
+
+impl Widget for PreflightWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn preflight_pointer_press(&self, input: &WidgetInput) -> PointerPressPreflight {
+        if matches!(input, WidgetInput::PointerPress { .. }) {
+            self.preflight_calls
+                .set(self.preflight_calls.get().saturating_add(1));
+            self.decision.get()
+        } else {
+            PointerPressPreflight::Allow
+        }
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if matches!(input, WidgetInput::PointerPress { .. }) {
+            self.press_calls
+                .set(self.press_calls.get().saturating_add(1));
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+struct PreflightBridge {
+    decision: Rc<Cell<PointerPressPreflight>>,
+    preflight_calls: Rc<Cell<usize>>,
+    press_calls: Rc<Cell<usize>>,
+}
+
+impl RuntimeBridge<()> for PreflightBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                fixed_child(
+                    28.0,
+                    SurfaceNode::widget(
+                        TextInputWidget::new(
+                            10,
+                            "incumbent",
+                            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+                fixed_child(
+                    28.0,
+                    SurfaceNode::widget(
+                        PreflightWidget::new(
+                            20,
+                            Rc::clone(&self.decision),
+                            Rc::clone(&self.preflight_calls),
+                            Rc::clone(&self.press_calls),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2106,6 +2211,56 @@ fn pointer_press_skips_stacked_widgets_that_reject_press_input() {
         Some(10)
     );
     assert_eq!(double_click_runtime.pointer_capture(), Some(10));
+}
+
+#[test]
+fn consumed_pointer_press_preflight_preserves_focus_capture_and_skips_widget_dispatch() {
+    let decision = Rc::new(Cell::new(PointerPressPreflight::Consume));
+    let preflight_calls = Rc::new(Cell::new(0));
+    let press_calls = Rc::new(Cell::new(0));
+    let mut runtime = SurfaceRuntime::new(
+        PreflightBridge {
+            decision,
+            preflight_calls: Rc::clone(&preflight_calls),
+            press_calls: Rc::clone(&press_calls),
+        },
+        Vector2::new(200.0, 80.0),
+    );
+
+    let incumbent = Point::new(40.0, 14.0);
+    let blocked = Point::new(40.0, 42.0);
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(incumbent)),
+        Some(10)
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(blocked)),
+        Some(20)
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(preflight_calls.get(), 1);
+    assert_eq!(press_calls.get(), 0);
+
+    assert_eq!(
+        runtime.dispatch_input_at(
+            blocked,
+            WidgetInput::PointerPress {
+                position: blocked,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            },
+        ),
+        Some(20)
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), Some(10));
+    assert_eq!(preflight_calls.get(), 2);
+    assert_eq!(press_calls.get(), 0);
 }
 
 #[test]

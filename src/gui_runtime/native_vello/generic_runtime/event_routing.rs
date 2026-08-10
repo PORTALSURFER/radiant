@@ -12,7 +12,8 @@ use crate::gui::{
 use crate::runtime::WheelOrScrollRoute;
 use crate::runtime::{Event, RepaintScope, RuntimeBridge};
 use crate::widgets::{
-    KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey,
+    KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WheelSample, WidgetInput,
+    WidgetKey,
 };
 use std::time::Instant;
 
@@ -284,6 +285,17 @@ where
                 timestamp,
                 sequence_range,
             );
+        self.complete_scroll_route(route)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh_with_sample(
+        &mut self,
+        position: Point,
+        sample: WheelSample,
+    ) -> GenericRouteOutcome {
+        let route = self
+            .runtime
+            .wheel_or_scroll_route_deferred_refresh_with_sample(position, sample);
         self.complete_scroll_route(route)
     }
 

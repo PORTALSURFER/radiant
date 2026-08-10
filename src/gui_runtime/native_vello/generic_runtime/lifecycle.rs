@@ -240,8 +240,8 @@ where
                 }
                 self.handle_route_outcome(event_loop, route.outcome);
             }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let route = self.route_native_mouse_wheel(delta);
+            WindowEvent::MouseWheel { delta, phase, .. } => {
+                let route = self.route_native_mouse_wheel_with_phase(delta, phase);
                 self.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::KeyboardInput { event, .. } => {

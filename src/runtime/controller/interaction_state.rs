@@ -22,6 +22,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
     pub(super) wheel: RuntimeWheelState,
+    pub(super) composition: RuntimeCompositionState,
     pub(super) layout_capture: Option<RuntimeLayoutPointerCapture<Message>>,
     pub(super) layout_state: RuntimeLayoutContainerStateStore,
     pub(super) drag: RuntimeDragState<Message>,
@@ -35,6 +36,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),
             wheel: RuntimeWheelState::default(),
+            composition: RuntimeCompositionState::default(),
             layout_capture: None,
             layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),
@@ -101,6 +103,26 @@ pub(super) struct RuntimeWheelState {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum RuntimeManagedWheelSequenceState {
+    #[default]
+    Idle,
+    Active {
+        widget_id: WidgetId,
+    },
+    Blocked,
+}
+
+/// Runtime-owned lifecycle slot for one exact managed composition.
+///
+/// Only the owner identity is retained.  `Blocked` is a fixed-size stale
+/// boundary that prevents a later continuation from rebinding to another
+/// focused widget; a fresh explicit `Start` is the only admission boundary.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct RuntimeCompositionState {
+    pub(super) managed_composition: RuntimeManagedCompositionState,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum RuntimeManagedCompositionState {
     #[default]
     Idle,
     Active {

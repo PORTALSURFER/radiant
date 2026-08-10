@@ -2894,6 +2894,7 @@ where
     fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {
         self.validate_managed_pointer_capture_authority();
         self.validate_managed_wheel_sequence_authority();
+        self.validate_managed_composition_authority();
         let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
@@ -3127,6 +3128,7 @@ where
             previous_paths_for_refresh,
         );
         let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
+        let composition_focus_before_refresh = self.interaction.focus.focused_widget;
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
@@ -3170,6 +3172,15 @@ where
             &retired_widget_ids,
             wheel_focus_before_refresh,
         );
+        self.reconcile_managed_composition_after_refresh(
+            &next_surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            composition_focus_before_refresh,
+        );
         self.reconcile_managed_pointer_capture_after_refresh(
             &next_surface,
             &previous_widget_order,
@@ -3202,6 +3213,7 @@ where
         };
         self.validate_managed_pointer_capture_authority();
         self.validate_managed_wheel_sequence_authority();
+        self.validate_managed_composition_authority();
         if let Some(capture) = self.interaction.pointer.managed_capture
             && capture.state == RuntimeManagedPointerCaptureState::Active
         {
@@ -3582,6 +3594,7 @@ where
 
     fn discard_widget_ownership(&mut self, widget_id: WidgetId) -> SurfaceIdentityOwnership {
         self.mark_focused_key_capture_stale(widget_id);
+        self.clear_managed_composition_for_widget(widget_id);
         let focus = self.interaction.focus.focused_widget == Some(widget_id);
         let pointer_capture = self.interaction.pointer.capture == Some(widget_id)
             || self

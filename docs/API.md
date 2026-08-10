@@ -1298,7 +1298,7 @@ shipped; rows for the two remaining numeric consumers remain target-only:
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
 
-### Target IME/composition lifecycle (not yet shipped)
+### Target IME/composition lifecycle (foundation shipped; consumers/adapters not shipped)
 
 For a numeric input, the shared owner gate is checked after the focused stable
 identity is resolved and before Start captures composition state. Start may
@@ -1306,13 +1306,16 @@ acquire ImeComposition only when the incumbent is None; a different pending or
 active owner denies Start without preedit, parsing, cancellation, focus
 transfer, or incumbent mutation.
 
-This subsection defines a future-only backend-neutral contract. It does not
-describe a shipped API or provide runtime/native evidence: the current source
-has no composition event or composition state. The normalized lifecycle
-samples are `Start`, `Update { preedit, selection }`, `Commit { text }`, and
-`Cancel`. Each sample retains an optional native timestamp when the native
-sample provided one. The target vocabulary is illustrative rather than a
-public Rust type in this PR.
+This subsection now describes a shipped, qualified backend-neutral foundation,
+not a complete IME consumer. `radiant::widgets::interaction` provides the
+validated `CompositionRange`, `CompositionSample`, `CompositionPhase`, and
+typed validation-error vocabulary. `Widget` provides default-compatible,
+object-safe composition hooks, and `SurfaceRuntime` provides the private
+fixed-size focused ownership kernel. The normalized lifecycle samples are
+`Start`, `Update { preedit, selection }`, `Commit { text }`, and `Cancel`.
+Each sample retains an optional native timestamp when the native sample
+provided one. The text/numeric consumer, native adapter, candidate-window
+integration, and matching-key suppression remain unshipped.
 
 All generic ranges in this contract are Unicode-scalar ranges. The native
 adapter owns platform IME APIs, candidate-window placement, native offsets, and

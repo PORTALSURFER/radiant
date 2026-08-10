@@ -1,5 +1,5 @@
 use super::{UiSurface, WidgetDispatchResult, WidgetPath};
-use crate::widgets::{WidgetId, WidgetInput, WidgetOutput};
+use crate::widgets::{CompositionSample, WidgetId, WidgetInput, WidgetOutput};
 
 impl<Message> UiSurface<Message> {
     /// Map one widget output back into a host-defined message.
@@ -40,6 +40,25 @@ impl<Message> UiSurface<Message> {
     ) -> Option<WidgetDispatchResult<Message>> {
         self.root
             .dispatch_input_at_path(widget_id, child_path.as_slice(), bounds, input)
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_composition_sample_message(
+        &mut self,
+        widget_id: WidgetId,
+        sample: CompositionSample,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_composition_sample(widget_id, sample))
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_composition_sample_message_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &WidgetPath,
+        sample: CompositionSample,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.root
+            .dispatch_composition_sample_at_path(widget_id, child_path.as_slice(), sample)
     }
 
     pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message(

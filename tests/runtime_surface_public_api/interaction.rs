@@ -3,6 +3,9 @@ use super::*;
 #[path = "interaction/event_routing.rs"]
 mod event_routing;
 
+#[path = "interaction/composition.rs"]
+mod composition;
+
 #[path = "interaction/hover.rs"]
 mod hover;
 

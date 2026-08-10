@@ -593,6 +593,8 @@ fn direct_state_callback_offense(relative: &str, source: &str) -> Option<String>
 
 #[path = "source_quality/api_models.rs"]
 mod api_models;
+#[path = "source_quality/composition.rs"]
+mod composition;
 #[path = "source_quality/error_handling.rs"]
 mod error_handling;
 #[path = "source_quality/feedback_and_platform.rs"]

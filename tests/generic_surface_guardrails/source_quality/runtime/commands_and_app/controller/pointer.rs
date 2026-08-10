@@ -70,7 +70,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
         input.contains("use super::SurfaceRuntime;")
             && input.contains("gui::types::Rect")
             && input.contains("runtime::{RuntimeBridge, SurfaceWidget, WidgetDispatchResult}")
-            && input.contains("widgets::{WidgetId, WidgetInput}")
+            && input.contains("widgets::{CompositionSample, WidgetId, WidgetInput}")
             && !input.starts_with("use super::*;")
             && input.contains("fn dispatch_surface_input")
             && input.contains("fn surface_widget_mut"),

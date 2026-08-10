@@ -3,8 +3,9 @@ use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
-        FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample, Widget,
-        WidgetCursor, WidgetId, WidgetInput, WidgetOutput, WidgetRevision, WidgetSemanticsRevision,
+        CompositionSample, FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample,
+        Widget, WidgetCursor, WidgetId, WidgetInput, WidgetOutput, WidgetRevision,
+        WidgetSemanticsRevision,
     },
 };
 use std::rc::Rc;
@@ -232,6 +233,14 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.retains_managed_wheel_sequence()
     }
 
+    pub(in crate::runtime) fn accepts_composition_input(&self) -> bool {
+        !self.widget.common().state.disabled && self.widget.accepts_composition_input()
+    }
+
+    pub(in crate::runtime) fn retains_managed_composition(&self) -> bool {
+        self.widget.retains_managed_composition()
+    }
+
     pub(in crate::runtime) fn accepts_pointer_move(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
     }
@@ -357,6 +366,29 @@ impl<Message> SurfaceWidget<Message> {
             );
         };
         let retains = self.widget.retains_managed_wheel_sequence();
+        let result = self
+            .messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        (result, retains)
+    }
+
+    pub(in crate::runtime) fn dispatch_composition_sample(
+        &mut self,
+        widget_id: WidgetId,
+        sample: CompositionSample,
+    ) -> (super::WidgetDispatchResult<Message>, bool) {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_composition_sample(sample))
+            .flatten()
+        else {
+            return (
+                super::WidgetDispatchResult::NoOutput,
+                self.id() == widget_id && self.widget.retains_managed_composition(),
+            );
+        };
+        let retains = self.widget.retains_managed_composition();
         let result = self
             .messages
             .map_output(output)

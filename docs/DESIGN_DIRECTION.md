@@ -1795,9 +1795,10 @@ column([
 This is one shared, target-only, backend-neutral contract for the numeric
 interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
-generic text consumer; IME composition, keyboard adjustment, pointer scrub,
-wheel sequence, and accessibility edit remain target-only consumers. The gate
-is not a public Rust API, native adapter, storage shape, or product policy.
+generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
+shipped; IME composition, pointer scrub, wheel sequence, and accessibility edit
+remain target-only consumers. The gate is not a public Rust API, native
+adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
 
@@ -1876,7 +1877,8 @@ interrupt an incumbent.
 
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
-compatible reprojection foundation; rows for the five other consumers remain
+compatible reprojection foundation, and complete-mode explicit-policy
+KeyboardAdjustment is shipped; rows for the four other consumers remain
 target-only:
 
 | Fixture | Expected target behavior |
@@ -2069,15 +2071,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   TextEdit only when the shared incumbent owner is None. A different pending or
   active owner denies the text admission before parsing, formatting, or edit
   lifecycle mutation; the shipped text consumer implements this TextEdit
-  admission, terminal cleanup, and replacement-teardown foundation, while the
-  five other consumers remain unimplemented.
+  admission, terminal cleanup, and replacement-teardown foundation, and the
+  complete-mode explicit-policy KeyboardAdjustment consumer is also shipped;
+  IME composition, pointer scrub, wheel, and accessibility remain target-only.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
-  the successor from inheriting the retired session. The five other numeric
-  owner consumers—IME/composition, keyboard adjustment, pointer, wheel, and
-  accessibility—remain unimplemented.
+  the successor from inheriting the retired session. The four remaining numeric
+  owner consumers—IME/composition, pointer scrub, wheel, and accessibility—
+  remain target-only.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -2420,9 +2423,11 @@ private inline capacity two and validates exactly one keyboard `Edit` fragment
 `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial typed
 failure, or a repeat failure only after a matching keyboard `[Cancel]` rollback.
 It preserves ordered parts, transaction identity, direction, selected step,
-exact keyboard provenance, and typed errors without adding a producer or
-consumer. This foundation has zero impact on the estimates or on semantic
-keyboard behavior.
+exact keyboard provenance, and typed errors. The complete-mode explicit-policy
+KeyboardAdjustment consumer now produces these keyboard interactions; IME
+composition, pointer scrub, wheel, and accessibility remain target-only. This
+foundation has zero impact on the estimates and is part of the shipped
+semantic keyboard behavior.
 
 A successful unchanged candidate is a no-op. An unchanged initial step opens no
 transaction, takes no capture, and publishes nothing. An unchanged repeat

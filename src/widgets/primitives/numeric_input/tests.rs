@@ -1064,50 +1064,80 @@ fn competing_and_orphan_keyboard_samples_do_not_mutate_or_reenter_host_path() {
 
 #[test]
 fn keyboard_admission_denies_text_and_other_numeric_owners_before_policy_calls() {
-    let (mut text, step_calls, format_calls) = u32_input_with_step_calls();
-    text.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
-    text.set_complete_output_mode();
-    replace_u32(&mut text, "8");
-    let text_before = text.text_input.state.clone();
+    let mut text = u32_input_with_policy_calls();
+    text.input
+        .set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    text.input.set_complete_output_mode();
+    replace_u32(&mut text.input, "8");
+    let text_before_value = text.input.value;
+    let text_before_state = text.input.text_input.state.clone();
+    let text_before_focus = text.input.text_input.common.state;
+    let text_before_active = text.input.active.is_some();
+    let text_before_keyboard = text.input.captured_focused_key();
+    let text_before_format_calls = text.format_calls.get();
+    let text_before_parse_calls = text.parse_calls.get();
+    let text_before_inverse_calls = text.inverse_calls.get();
+    let text_before_step_calls = text.step_calls.get();
+    let text_before_owner = text.input.interaction_gate.incumbent();
     assert!(
         Widget::handle_input(
-            &mut text,
+            &mut text.input,
             Rect::default(),
             WidgetInput::key_press(WidgetKey::ArrowUp),
         )
         .is_none()
     );
-    assert_eq!(step_calls.get(), 0);
-    assert_eq!(format_calls.get(), 1);
-    assert_eq!(text.text_input.state, text_before);
-    assert_eq!(
-        text.interaction_gate.incumbent(),
-        Some(NumericInteractionOwner::TextEdit)
-    );
+    assert_eq!(text.input.value, text_before_value);
+    assert_eq!(text.input.text_input.state, text_before_state);
+    assert_eq!(text.input.text_input.common.state, text_before_focus);
+    assert_eq!(text.input.active.is_some(), text_before_active);
+    assert_eq!(text.input.captured_focused_key(), text_before_keyboard);
+    assert_eq!(text.format_calls.get(), text_before_format_calls);
+    assert_eq!(text.parse_calls.get(), text_before_parse_calls);
+    assert_eq!(text.inverse_calls.get(), text_before_inverse_calls);
+    assert_eq!(text.step_calls.get(), text_before_step_calls);
+    assert_eq!(text.input.interaction_gate.incumbent(), text_before_owner);
 
-    let (mut other, step_calls, _) = u32_input_with_step_calls();
-    other.set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
-    other.set_complete_output_mode();
-    focus(&mut other);
+    let mut other = u32_input_with_policy_calls();
+    other
+        .input
+        .set_step_modifiers(NumericStepModifiers::MACOS_DEFAULT);
+    other.input.set_complete_output_mode();
+    focus(&mut other.input);
     assert!(
         other
+            .input
             .interaction_gate
             .try_admit(NumericInteractionOwner::PointerScrub)
     );
+    let other_before_value = other.input.value;
+    let other_before_state = other.input.text_input.state.clone();
+    let other_before_focus = other.input.text_input.common.state;
+    let other_before_active = other.input.active.is_some();
+    let other_before_keyboard = other.input.captured_focused_key();
+    let other_before_format_calls = other.format_calls.get();
+    let other_before_parse_calls = other.parse_calls.get();
+    let other_before_inverse_calls = other.inverse_calls.get();
+    let other_before_step_calls = other.step_calls.get();
+    let other_before_owner = other.input.interaction_gate.incumbent();
     assert!(
         Widget::handle_input(
-            &mut other,
+            &mut other.input,
             Rect::default(),
             WidgetInput::key_press(WidgetKey::ArrowDown),
         )
         .is_none()
     );
-    assert_eq!(step_calls.get(), 0);
-    assert_eq!(other.value, 7);
-    assert_eq!(
-        other.interaction_gate.incumbent(),
-        Some(NumericInteractionOwner::PointerScrub)
-    );
+    assert_eq!(other.input.value, other_before_value);
+    assert_eq!(other.input.text_input.state, other_before_state);
+    assert_eq!(other.input.text_input.common.state, other_before_focus);
+    assert_eq!(other.input.active.is_some(), other_before_active);
+    assert_eq!(other.input.captured_focused_key(), other_before_keyboard);
+    assert_eq!(other.format_calls.get(), other_before_format_calls);
+    assert_eq!(other.parse_calls.get(), other_before_parse_calls);
+    assert_eq!(other.inverse_calls.get(), other_before_inverse_calls);
+    assert_eq!(other.step_calls.get(), other_before_step_calls);
+    assert_eq!(other.input.interaction_gate.incumbent(), other_before_owner);
 }
 
 #[test]
@@ -1316,6 +1346,24 @@ fn keyboard_widget_focus_routing_opt_in_tracks_only_active_complete_policy() {
     assert!(!Widget::participates_in_focused_key_routing(&inactive));
     focus(&mut inactive);
     assert!(Widget::participates_in_focused_key_routing(&inactive));
+
+    let mut text_edit = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    replace_u32(&mut text_edit, "8");
+    assert_eq!(
+        text_edit.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+    assert!(Widget::participates_in_focused_key_routing(&text_edit));
+
+    let mut pointer_scrub = complete_keyboard_u32_input(NumericStepModifiers::MACOS_DEFAULT);
+    focus(&mut pointer_scrub);
+    assert!(
+        pointer_scrub
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::PointerScrub)
+    );
+    assert!(Widget::participates_in_focused_key_routing(&pointer_scrub));
+
     assert_eq!(Widget::captured_focused_key(&inactive), None);
     let _ = Widget::handle_input(
         &mut inactive,

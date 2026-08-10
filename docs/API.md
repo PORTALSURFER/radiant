@@ -1097,8 +1097,9 @@ For the target numeric interaction set, the first actual text mutation is the
 TextEdit admission boundary. The shipped consumer now uses the crate-private
 shared gate: it acquires TextEdit only when the incumbent is None, and a
 different pending or active owner denies text admission before parsing,
-formatting, focus transfer, or edit lifecycle mutation. The gate remains
-unadopted by the five other target consumers.
+formatting, focus transfer, or edit lifecycle mutation. Complete-mode
+explicit-policy KeyboardAdjustment also uses the gate; IME composition, pointer
+scrub, wheel sequence, and accessibility edit remain target-only consumers.
 
 Radiant ships a bounded public, text-first numeric consumer through the explicit
 `radiant::application::{numeric_input, NumericInputBuilder}` exports. The
@@ -1187,9 +1188,10 @@ other adjustment-consuming behavior remains outside this slice.
 This is one shared, target-only, backend-neutral contract for the numeric
 interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
-generic text consumer; IME composition, keyboard adjustment, pointer scrub,
-wheel sequence, and accessibility edit remain target-only consumers. The gate
-is not a public Rust API, native adapter, storage shape, or product policy.
+generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
+shipped; IME composition, pointer scrub, wheel sequence, and accessibility edit
+remain target-only consumers. The gate is not a public Rust API, native
+adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
 
@@ -1268,7 +1270,8 @@ interrupt an incumbent.
 
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
-compatible reprojection foundation; rows for the five other consumers remain
+compatible reprojection foundation, and complete-mode explicit-policy
+KeyboardAdjustment is shipped; rows for the four other consumers remain
 target-only:
 
 | Fixture | Expected target behavior |
@@ -4678,9 +4681,9 @@ use the same current native projection; host resolution remains first and a
 handled shortcut does not reach the widget. Generated logical shortcut fallback
 has no physical modifier sample and therefore retains only its timestamp.
 Public and synthetic dispatch still derives widget modifiers field-for-field
-from the supplied `KeyPress`. This metadata remains observational in this
-slice: it does not change current widget key mapping, shortcut precedence, or
-edit provenance; semantic numeric stepping remains unimplemented.
+from the supplied `KeyPress`. This metadata remains observational for ordinary
+widget key mapping, shortcut precedence, and edit provenance; complete-mode
+explicit-policy `KeyboardAdjustment` semantic numeric stepping is shipped.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

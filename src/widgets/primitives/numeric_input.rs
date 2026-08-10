@@ -867,7 +867,6 @@ where
         self.output_mode == NumericInputOutputMode::Complete
             && self.step_modifiers.is_some()
             && self.is_editable()
-            && (self.keyboard.is_some() || self.interaction_gate.incumbent().is_none())
     }
 
     fn captured_focused_key(&self) -> Option<WidgetKey> {

@@ -1,6 +1,7 @@
 //! Text-first generic numeric input built on the retained text-input primitive.
 
 mod keyboard;
+mod pointer;
 
 #[cfg(test)]
 mod tests;
@@ -12,19 +13,25 @@ use self::keyboard::{
     complete_keyboard_adjustment_policy, direction_for_key, is_adjustment_key,
     no_keyboard_adjustment_policy,
 };
+use self::pointer::{
+    PointerScrubOutputPolicy, PointerScrubRequest, PointerScrubState,
+    complete_pointer_scrub_output_policy, normalized_delta, pointer_provenance, select_step,
+    valid_geometry, without_activation_modifier,
+};
 
 use crate::{
-    gui::types::Rect,
+    gui::types::{Point, Rect},
     layout::LayoutOutput,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
         EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
         NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputInteractionBatch, NumericParseResult, NumericStepAttempt, NumericStepModifiers,
-        TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome, TextInputWidget, TextWrap,
-        Widget, WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics,
-        WidgetSizing,
+        NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt, NumericScrubPolicy,
+        NumericStepAttempt, NumericStepModifiers, PointerButton, PointerModifiers,
+        PointerPressAdmission, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
+        TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -88,11 +95,14 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     adjustment: Rc<A>,
     active: Option<ActiveNumericEdit<T, C>>,
     keyboard: Option<KeyboardAdjustmentState<T>>,
+    pointer: Option<PointerScrubState<T>>,
     interaction_gate: NumericInteractionGate,
     step_modifiers: Option<NumericStepModifiers>,
+    scrub_policy: Option<NumericScrubPolicy>,
     output_mode: NumericInputOutputMode,
     output_encoder: NumericInputOutputEncoder<T>,
     keyboard_policy: Rc<dyn KeyboardAdjustmentPolicy<T>>,
+    pointer_policy: Option<Rc<dyn PointerScrubOutputPolicy<T>>>,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -109,11 +119,14 @@ where
             adjustment: Rc::clone(&self.adjustment),
             active: self.active.clone(),
             keyboard: self.keyboard.clone(),
+            pointer: self.pointer.clone(),
             interaction_gate: self.interaction_gate,
             step_modifiers: self.step_modifiers,
+            scrub_policy: self.scrub_policy,
             output_mode: self.output_mode,
             output_encoder: Rc::clone(&self.output_encoder),
             keyboard_policy: Rc::clone(&self.keyboard_policy),
+            pointer_policy: self.pointer_policy.as_ref().map(Rc::clone),
         }
     }
 }
@@ -134,6 +147,10 @@ where
             .field(
                 "keyboard",
                 &self.keyboard.as_ref().map(|keyboard| keyboard.key),
+            )
+            .field(
+                "pointer",
+                &self.pointer.as_ref().map(|pointer| pointer.is_active()),
             )
             .field("output_mode", &self.output_mode)
             .finish_non_exhaustive()
@@ -170,11 +187,14 @@ where
             adjustment,
             active: None,
             keyboard: None,
+            pointer: None,
             interaction_gate: NumericInteractionGate::new(),
             step_modifiers: None,
+            scrub_policy: None,
             output_mode: NumericInputOutputMode::Compatibility,
             output_encoder: compatibility_output_encoder(),
             keyboard_policy: no_keyboard_adjustment_policy(),
+            pointer_policy: None,
         })
     }
 
@@ -200,10 +220,15 @@ where
         self.step_modifiers = Some(policy);
     }
 
+    pub(crate) fn set_scrub_policy(&mut self, policy: NumericScrubPolicy) {
+        self.scrub_policy = Some(policy);
+    }
+
     pub(crate) fn set_compatibility_output_mode(&mut self) {
         self.output_mode = NumericInputOutputMode::Compatibility;
         self.output_encoder = compatibility_output_encoder();
         self.keyboard_policy = no_keyboard_adjustment_policy();
+        self.pointer_policy = None;
     }
 
     pub(crate) fn set_complete_output_mode(&mut self)
@@ -217,6 +242,10 @@ where
             Rc::clone(&self.codec),
             Rc::clone(&self.adjustment),
         );
+        self.pointer_policy = Some(complete_pointer_scrub_output_policy(
+            Rc::clone(&self.codec),
+            Rc::clone(&self.adjustment),
+        ));
     }
 
     fn encode_output(&self, batch: NumericInputEditBatch<T>) -> WidgetOutput {
@@ -227,6 +256,250 @@ where
         self.text_input.common.state.focused
             && !self.text_input.common.state.disabled
             && !self.text_input.common.state.read_only
+    }
+
+    fn scrub_is_configured(&self) -> bool {
+        self.output_mode == NumericInputOutputMode::Complete
+            && self.scrub_policy.is_some()
+            && self.pointer_policy.is_some()
+            && !self.text_input.common.state.disabled
+            && !self.text_input.common.state.read_only
+    }
+
+    fn default_pointer_provenance() -> InteractionProvenance {
+        pointer_provenance(PointerModifiers::default(), None, None)
+    }
+
+    fn restore_pointer_start(&mut self, state: &PointerScrubState<T>) {
+        debug_assert!(state.press_position.is_finite());
+        self.value = state.start_value.clone();
+        self.text_input.state.value = state.start_text.clone();
+        self.text_input.state.caret = state.start_caret;
+        self.text_input.state.selection_anchor = state.start_selection_anchor;
+        self.text_input.common.state.pressed = false;
+    }
+
+    fn release_pointer_scrub(&mut self) {
+        self.interaction_gate
+            .release(NumericInteractionOwner::PointerScrub);
+    }
+
+    fn pointer_failure_rollback(
+        state: &PointerScrubState<T>,
+        provenance: InteractionProvenance,
+    ) -> Option<NumericInputEditBatch<T>> {
+        state
+            .session
+            .as_ref()?
+            .begin_event()
+            .clone()
+            .cancel(provenance)
+            .and_then(|cancel| NumericInputEditBatch::from_events(&[cancel]))
+    }
+
+    fn handle_pointer_press(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        let policy = self.scrub_policy?;
+        if !self.scrub_is_configured()
+            || !policy.admits(button, modifiers)
+            || !valid_geometry(bounds, position)
+            || self.interaction_gate.incumbent().is_some()
+        {
+            return None;
+        }
+        if !self
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::PointerScrub)
+        {
+            return None;
+        }
+
+        let state = PointerScrubState::new(
+            self.value.clone(),
+            self.text_input.state.value.clone(),
+            self.text_input.state.caret,
+            self.text_input.state.selection_anchor,
+            position,
+            bounds,
+            pointer_provenance(modifiers, timestamp, None),
+            policy,
+            modifiers,
+        );
+        self.text_input.common.state.focused = true;
+        self.text_input.common.state.hovered = true;
+        self.text_input.common.state.pressed = true;
+        self.pointer = Some(state);
+        None
+    }
+
+    fn handle_pointer_move(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+        sequence_range: Option<crate::gui::input::InputSequenceRange>,
+    ) -> Option<WidgetOutput> {
+        let policy = self.pointer_policy.as_ref()?.clone();
+        let mut state = self.pointer.take()?;
+        if !valid_geometry(state.bounds, position) {
+            self.pointer = Some(state);
+            return None;
+        }
+        let Some(normalized_delta) =
+            normalized_delta(state.bounds, state.anchor_position, position)
+        else {
+            self.pointer = Some(state);
+            return None;
+        };
+        let scrub_modifiers = without_activation_modifier(modifiers, state.activation_modifier);
+        let selected_step = select_step(scrub_modifiers);
+        if selected_step != state.step {
+            state.anchor_position = position;
+            state.step = selected_step;
+            self.pointer = Some(state);
+            return None;
+        }
+        if normalized_delta == 0.0 {
+            self.pointer = Some(state);
+            return None;
+        }
+
+        let attempt = if state.is_active() {
+            NumericScrubAttempt::Update
+        } else {
+            NumericScrubAttempt::Initial
+        };
+        let provenance = pointer_provenance(modifiers, timestamp, sequence_range);
+        let candidate = match policy.scrub(PointerScrubRequest {
+            value: &state.anchor_value,
+            normalized_delta,
+            step: state.step,
+            attempt,
+            provenance,
+        }) {
+            Ok(candidate) => candidate,
+            Err(failure) => {
+                let rollback = Self::pointer_failure_rollback(&state, provenance);
+                let output = failure.into_output(rollback);
+                self.restore_pointer_start(&state);
+                self.pointer = None;
+                self.release_pointer_scrub();
+                return output;
+            }
+        };
+        if candidate == state.anchor_value {
+            self.pointer = Some(state);
+            return None;
+        }
+
+        let mut draft = String::new();
+        if let Err(failure) = policy.format(
+            PointerScrubRequest {
+                value: &candidate,
+                normalized_delta,
+                step: state.step,
+                attempt,
+                provenance,
+            },
+            &mut draft,
+        ) {
+            let rollback = Self::pointer_failure_rollback(&state, provenance);
+            let output = failure.into_output(rollback);
+            self.restore_pointer_start(&state);
+            self.pointer = None;
+            self.release_pointer_scrub();
+            return output;
+        }
+
+        let edit = if state.session.is_none() {
+            let session = crate::widgets::NumericEditSession::begin(
+                state.start_value.clone(),
+                state.start_text.clone(),
+                state.press_provenance,
+            );
+            let begin = session.begin_event().clone();
+            let Some(update) = begin.clone().update(candidate.clone(), provenance) else {
+                self.pointer = Some(state);
+                return None;
+            };
+            state.session = Some(session);
+            NumericInputEditBatch::from_events(&[begin, update])
+        } else {
+            let Some(session) = state.session.as_ref() else {
+                self.pointer = Some(state);
+                return None;
+            };
+            let begin = session.begin_event().clone();
+            let Some(update) = begin.update(candidate.clone(), provenance) else {
+                self.pointer = Some(state);
+                return None;
+            };
+            NumericInputEditBatch::from_events(&[update])
+        };
+        let Some(edit) = edit else {
+            self.pointer = Some(state);
+            return None;
+        };
+
+        state.anchor_position = position;
+        state.anchor_value = candidate.clone();
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        self.pointer = Some(state);
+        Some(self.encode_output(edit))
+    }
+
+    fn handle_pointer_release(
+        &mut self,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        if button != PointerButton::Primary {
+            return None;
+        }
+        let mut state = self.pointer.take()?;
+        self.text_input.common.state.pressed = false;
+        let Some(session) = state.session.take() else {
+            self.release_pointer_scrub();
+            return None;
+        };
+        let provenance = pointer_provenance(modifiers, timestamp, None);
+        let commit = match session.commit(state.anchor_value.clone(), provenance) {
+            Ok(commit) => commit,
+            Err(session) => {
+                state.session = Some(session);
+                self.pointer = Some(state);
+                return None;
+            }
+        };
+        let Some(edit) = NumericInputEditBatch::from_events(&[commit]) else {
+            self.pointer = Some(state);
+            return None;
+        };
+        self.release_pointer_scrub();
+        Some(self.encode_output(edit))
+    }
+
+    fn cancel_pointer_scrub(&mut self, provenance: InteractionProvenance) -> Option<WidgetOutput> {
+        let mut state = self.pointer.take()?;
+        let cancel = state
+            .session
+            .take()
+            .and_then(|session| session.cancel(provenance).ok())
+            .and_then(|cancel| NumericInputEditBatch::from_events(&[cancel]));
+        self.restore_pointer_start(&state);
+        self.release_pointer_scrub();
+        cancel.map(|edit| self.encode_output(edit))
     }
 
     fn begin_text_edit_session(&mut self, timestamp: Option<crate::gui::input::InputTimestamp>) {
@@ -646,6 +919,9 @@ where
     }
 
     fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+        if self.pointer.is_some() {
+            return FocusLossDecision::Allow;
+        }
         let Some(active) = self.active.as_ref() else {
             return FocusLossDecision::Allow;
         };
@@ -664,6 +940,56 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<crate::widgets::WidgetOutput> {
+        if self.pointer.is_some() {
+            match input {
+                WidgetInput::PointerMove {
+                    position,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                } => {
+                    return self.handle_pointer_move(
+                        position,
+                        modifiers,
+                        timestamp,
+                        sequence_range,
+                    );
+                }
+                WidgetInput::PointerRelease {
+                    button,
+                    modifiers,
+                    timestamp,
+                    ..
+                } => return self.handle_pointer_release(button, modifiers, timestamp),
+                WidgetInput::KeyPress {
+                    key: WidgetKey::Escape,
+                    ..
+                } => return self.cancel_pointer_scrub(Self::default_pointer_provenance()),
+                WidgetInput::FocusChanged(false) => {
+                    let output = self.cancel_pointer_scrub(Self::default_pointer_provenance());
+                    let _ = self
+                        .text_input
+                        .handle_input(bounds, WidgetInput::FocusChanged(false));
+                    return output;
+                }
+                _ => return None,
+            }
+        }
+
+        if let WidgetInput::PointerPress {
+            position,
+            button,
+            modifiers,
+            timestamp,
+        } = &input
+            && self.scrub_policy.is_some_and(|policy| {
+                self.output_mode == NumericInputOutputMode::Complete
+                    && policy.admits(*button, *modifiers)
+            })
+        {
+            return self.handle_pointer_press(bounds, *position, *button, *modifiers, *timestamp);
+        }
+
         if matches!(&input, WidgetInput::FocusChanged(false)) {
             if self.active.is_some() {
                 return self
@@ -786,12 +1112,14 @@ where
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             self.active = None;
             self.keyboard = None;
+            self.pointer = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         };
         if self.text_input.common.id != previous.text_input.common.id {
             self.active = None;
             self.keyboard = None;
+            self.pointer = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
@@ -799,6 +1127,7 @@ where
         let reset = self.value != previous.value
             || self.output_mode != previous.output_mode
             || self.step_modifiers != previous.step_modifiers
+            || self.scrub_policy != previous.scrub_policy
             || self.text_input.common.state.disabled
             || previous.text_input.common.state.disabled
             || self.text_input.common.state.read_only
@@ -806,24 +1135,34 @@ where
         if reset {
             self.active = None;
             self.keyboard = None;
+            self.pointer = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
 
         self.text_input.common.state = previous.text_input.common.state;
-        if previous.active.is_some() {
+        if previous.pointer.is_some() {
+            self.text_input.state = previous.text_input.state.clone();
+            self.active = None;
+            self.keyboard = None;
+            self.pointer = previous.pointer.clone();
+            self.interaction_gate = previous.interaction_gate;
+        } else if previous.active.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = previous.active.clone();
             self.keyboard = None;
+            self.pointer = None;
             self.interaction_gate = previous.interaction_gate;
         } else if previous.keyboard.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
             self.keyboard = previous.keyboard.clone();
+            self.pointer = None;
             self.interaction_gate = previous.interaction_gate;
         } else {
             self.active = None;
             self.keyboard = None;
+            self.pointer = None;
             self.interaction_gate = NumericInteractionGate::new();
         }
     }
@@ -836,6 +1175,7 @@ where
                     && self.value == successor.value
                     && self.output_mode == successor.output_mode
                     && self.step_modifiers == successor.step_modifiers
+                    && self.scrub_policy == successor.scrub_policy
                     && !self.text_input.common.state.disabled
                     && !self.text_input.common.state.read_only
                     && !successor.text_input.common.state.disabled
@@ -847,6 +1187,8 @@ where
 
         if self.keyboard.is_some() {
             self.cancel_keyboard(None)
+        } else if self.pointer.is_some() {
+            self.cancel_pointer_scrub(Self::default_pointer_provenance())
         } else {
             self.cancel_active(None)
                 .map(|batch| self.encode_output(batch))
@@ -859,7 +1201,7 @@ where
 
     fn preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
         key == WidgetKey::Escape
-            && (self.active.is_some() || self.keyboard.is_some())
+            && (self.active.is_some() || self.keyboard.is_some() || self.pointer.is_some())
             && self.is_editable()
     }
 
@@ -871,6 +1213,49 @@ where
 
     fn captured_focused_key(&self) -> Option<WidgetKey> {
         self.keyboard.as_ref().map(|active| active.key)
+    }
+
+    fn preflight_pointer_press(&self, bounds: Rect, input: &WidgetInput) -> PointerPressAdmission {
+        let WidgetInput::PointerPress {
+            position,
+            button,
+            modifiers,
+            ..
+        } = input
+        else {
+            return PointerPressAdmission::Legacy;
+        };
+        if !valid_geometry(bounds, *position) {
+            return PointerPressAdmission::Legacy;
+        }
+        let Some(policy) = self.scrub_policy else {
+            return PointerPressAdmission::Legacy;
+        };
+        if self.output_mode != NumericInputOutputMode::Complete
+            || !policy.admits(*button, *modifiers)
+        {
+            return PointerPressAdmission::Legacy;
+        }
+        if self.interaction_gate.incumbent().is_some() {
+            return PointerPressAdmission::Blocked;
+        }
+        if self.text_input.common.state.disabled || self.text_input.common.state.read_only {
+            return PointerPressAdmission::Legacy;
+        }
+        PointerPressAdmission::ManagedCapture
+    }
+
+    fn retains_managed_pointer_capture(&self) -> bool {
+        self.pointer.is_some()
+    }
+
+    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+        if self.pointer.is_some() {
+            self.cancel_pointer_scrub(Self::default_pointer_provenance())
+        } else {
+            let _ = self.handle_input(bounds, WidgetInput::FocusChanged(false));
+            None
+        }
     }
 
     fn accepts_pointer_move(&self) -> bool {

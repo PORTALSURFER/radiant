@@ -17,12 +17,14 @@ use radiant::{
         KnobEditBatch, KnobMessage, KnobPointerMetadata, KnobState, KnobWidget, ListItemWidget,
         ListItemWidgetParts, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteraction,
-        NumericInputInteractionBatch, NumericParseResult, NumericStep, NumericStepAttempt,
-        NumericStepDirection, NumericStepModifiers, ScrollbarAxis, ScrollbarWidget,
-        ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts, SliderEditBatch,
-        SliderMessage, SliderState, SliderWidget, SliderWidgetParts, TextInputWidget,
-        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        NumericInputInteractionBatch, NumericParseResult, NumericScrubActivation,
+        NumericScrubAttempt, NumericScrubPolicy, NumericStep, NumericStepAttempt,
+        NumericStepDirection, NumericStepModifiers, PointerModifiers, ScrollbarAxis,
+        ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget, SelectableWidgetParts,
+        SliderEditBatch, SliderMessage, SliderState, SliderWidget, SliderWidgetParts,
+        TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget,
+        ToggleWidgetParts, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        WidgetSizingParts,
     },
 };
 use std::{
@@ -341,7 +343,8 @@ fn numeric_input_public_builder_is_generic_and_keeps_lifecycle_types_qualified()
         .step_modifiers(NumericStepModifiers::new(
             KeyboardModifier::Alt,
             KeyboardModifier::Control,
-        ));
+        ))
+        .scrub_policy(radiant::widgets::NumericScrubPolicy::default());
     let _: fn(
         NumericInputEditBatch<GenericNumericValue>,
     ) -> NumericInputEditBatch<GenericNumericValue> = |batch| batch;
@@ -1011,6 +1014,132 @@ fn numeric_input_interaction_batch_accepts_keyboard_and_text_edit_envelope_shape
 }
 
 #[test]
+fn numeric_input_pointer_scrub_policy_and_failures_are_qualified_and_fixed_capacity() {
+    type Interaction =
+        NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    fn assert_clone<T: Clone>() {}
+    fn assert_debug<T: std::fmt::Debug>() {}
+    fn assert_eq_hash<T: Eq + std::hash::Hash>() {}
+    assert_clone::<Interaction>();
+    assert_clone::<Batch>();
+
+    let qualified = radiant::widgets::interaction::NumericScrubPolicy::default();
+    let root: NumericScrubPolicy = qualified;
+    assert_eq!(
+        root.activation(),
+        NumericScrubActivation::PrimaryButtonHorizontalDrag {
+            modifier: KeyboardModifier::Alt,
+        }
+    );
+    let explicit = NumericScrubPolicy::new(NumericScrubActivation::PrimaryButtonHorizontalDrag {
+        modifier: KeyboardModifier::Command,
+    });
+    assert_eq!(
+        explicit.activation(),
+        NumericScrubActivation::PrimaryButtonHorizontalDrag {
+            modifier: KeyboardModifier::Command,
+        }
+    );
+    assert_debug::<NumericScrubPolicy>();
+    assert_eq_hash::<NumericScrubPolicy>();
+
+    let pointer = InteractionProvenance::Pointer {
+        modifiers: PointerModifiers {
+            alt: true,
+            ..PointerModifiers::default()
+        },
+        timestamp: None,
+        sequence_range: None,
+    };
+    let begin = EditEvent::begin(GenericNumericValue(7), pointer);
+    let update = begin
+        .clone()
+        .update(GenericNumericValue(8), pointer)
+        .expect("pointer source should update");
+    let cancel = begin
+        .clone()
+        .cancel(pointer)
+        .expect("pointer source should cancel");
+    let edit = |events: &[EditEvent<GenericNumericValue>]| -> Interaction {
+        Interaction::edit(
+            NumericInputEditBatch::from_events(events)
+                .expect("pointer edit fragment should be legal"),
+        )
+    };
+    let begin_update = edit(&[begin.clone(), update.clone()]);
+    let update_edit = edit(std::slice::from_ref(&update));
+    let cancel_edit = edit(std::slice::from_ref(&cancel));
+    let initial_scrub = Interaction::scrub_failed(
+        NumericScrubAttempt::Initial,
+        0.25,
+        NumericStep::Base,
+        pointer,
+        NumericAdjustmentTestError,
+        false,
+    );
+    let initial_format = Interaction::pointer_format_failed(
+        NumericScrubAttempt::Initial,
+        0.25,
+        NumericStep::Fine,
+        pointer,
+        NumericCodecError::WriteFailed,
+        false,
+    );
+    let active_scrub = Interaction::scrub_failed(
+        NumericScrubAttempt::Update,
+        -0.5,
+        NumericStep::Coarse,
+        pointer,
+        NumericAdjustmentTestError,
+        true,
+    );
+    assert_eq!(
+        initial_scrub.scrub_error(),
+        Some(&NumericAdjustmentTestError)
+    );
+    assert!(initial_scrub.format_error().is_none());
+    assert_eq!(
+        initial_format.pointer_format_error(),
+        Some(&NumericCodecError::WriteFailed)
+    );
+    assert!(active_scrub.format_error().is_none());
+
+    assert_eq!(Batch::MAX_INTERACTIONS, 2);
+    for parts in [
+        vec![begin_update.clone()],
+        vec![update_edit.clone()],
+        vec![cancel_edit.clone()],
+        vec![initial_scrub.clone()],
+        vec![initial_format.clone()],
+        vec![cancel_edit.clone(), active_scrub.clone()],
+    ] {
+        let batch = Batch::from_interactions(&parts).expect("pointer envelope should be legal");
+        assert_eq!(batch.parts(), parts.as_slice());
+    }
+    assert!(Batch::from_interactions(&[active_scrub]).is_none());
+
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    let prelude_controls = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/application/controls.rs"
+    ));
+    for source in [prelude_widgets, prelude_controls] {
+        assert!(!source.contains("NumericScrubPolicy"));
+        assert!(!source.contains("NumericScrubAttempt"));
+        assert!(!source.contains("NumericScrubActivation"));
+    }
+}
+
+#[test]
 fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
     let prelude_controls = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1027,6 +1156,9 @@ fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
         assert!(!source.contains("NumericInputInteraction"));
         assert!(!source.contains("NumericInputInteractionBatch"));
         assert!(!source.contains("NumericInputConstructionError"));
+        assert!(!source.contains("NumericScrubPolicy"));
+        assert!(!source.contains("NumericScrubAttempt"));
+        assert!(!source.contains("NumericScrubActivation"));
         assert!(!source.contains("NumericCodec"));
         assert!(!source.contains("NumericAdjustment"));
         assert!(!source.contains("NumericStepAttempt"));

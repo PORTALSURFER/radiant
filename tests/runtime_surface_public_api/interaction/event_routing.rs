@@ -2,9 +2,10 @@ use super::*;
 use radiant::{
     application::numeric_input,
     widgets::{
-        EditPhase, KeyboardModifier, KeyboardModifiers, NumericAdjustment, NumericCodec,
-        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult, NumericStep,
-        NumericStepDirection, NumericStepModifiers,
+        EditPhase, InteractionProvenance, KeyboardModifier, KeyboardModifiers, NumericAdjustment,
+        NumericCodec, NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
+        NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers,
+        PointerModifiers,
     },
 };
 use std::{cell::Cell, rc::Rc};
@@ -437,10 +438,12 @@ impl NumericAdjustment<RuntimeNumericValue> for RuntimeNumericAdjustment {
     fn scrub(
         &self,
         value: &RuntimeNumericValue,
-        _normalized_delta: f32,
+        normalized_delta: f32,
         _step: NumericStep,
     ) -> Result<RuntimeNumericValue, Self::Error> {
-        Ok(value.clone())
+        Ok(RuntimeNumericValue(value.0.saturating_add(
+            if normalized_delta > 0.0 { 1 } else { 0 },
+        )))
     }
 
     fn wheel(
@@ -472,6 +475,7 @@ struct RuntimeNumericBridge {
     parse_calls: Rc<Cell<usize>>,
     inverse_calls: Rc<Cell<usize>>,
     step_calls: Rc<Cell<usize>>,
+    mapped_provenance: Vec<Vec<InteractionProvenance>>,
 }
 
 impl Default for RuntimeNumericBridge {
@@ -485,6 +489,7 @@ impl Default for RuntimeNumericBridge {
             parse_calls: Rc::new(Cell::new(0)),
             inverse_calls: Rc::new(Cell::new(0)),
             step_calls: Rc::new(Cell::new(0)),
+            mapped_provenance: Vec::new(),
         }
     }
 }
@@ -519,6 +524,7 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
                 KeyboardModifier::Shift,
                 KeyboardModifier::Control,
             ))
+            .scrub_policy(NumericScrubPolicy::default())
             .on_interaction(RuntimeNumericMessage::Interaction)
             .id(150)
             .into_surface(),
@@ -528,15 +534,18 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
     fn reduce_message(&mut self, message: RuntimeNumericMessage) {
         let RuntimeNumericMessage::Interaction(batch) = message;
         let mut phases = Vec::new();
+        let mut provenance = Vec::new();
         for interaction in batch.parts() {
             if let NumericInputInteraction::Edit(edit) = interaction {
                 phases.extend(edit.events().iter().map(|event| event.phase));
+                provenance.extend(edit.events().iter().map(|event| event.provenance));
                 if let Some(event) = edit.events().last() {
                     self.value = event.value.clone();
                 }
             }
         }
         self.mapped_phases.push(phases);
+        self.mapped_provenance.push(provenance);
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, RuntimeNumericMessage> {
@@ -686,5 +695,87 @@ fn public_numeric_keyboard_routes_host_first_then_captured_continuations() {
             vec![EditPhase::Update],
             vec![EditPhase::Commit],
         ]
+    );
+}
+
+#[test]
+fn public_numeric_pointer_scrub_reaches_generic_managed_capture_with_synthetic_provenance() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+    let modifiers = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    let press_timestamp = None;
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(10.0, 16.0),
+            button: PointerButton::Primary,
+            modifiers,
+            timestamp: press_timestamp,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(150));
+    assert!(runtime.bridge().mapped_phases.is_empty());
+
+    let move_timestamp = None;
+    let sequence_range = None;
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(110.0, 16.0),
+            modifiers,
+            timestamp: move_timestamp,
+            sequence_range,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(8));
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![vec![EditPhase::Begin, EditPhase::Update]]
+    );
+    assert_eq!(
+        runtime.bridge().mapped_provenance,
+        vec![vec![
+            InteractionProvenance::Pointer {
+                modifiers,
+                timestamp: press_timestamp,
+                sequence_range: None,
+            },
+            InteractionProvenance::Pointer {
+                modifiers,
+                timestamp: move_timestamp,
+                sequence_range,
+            },
+        ]]
+    );
+
+    let release_timestamp = None;
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(110.0, 16.0),
+            button: PointerButton::Primary,
+            modifiers,
+            timestamp: release_timestamp,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.bridge().mapped_phases,
+        vec![
+            vec![EditPhase::Begin, EditPhase::Update],
+            vec![EditPhase::Commit]
+        ]
+    );
+    assert_eq!(
+        runtime.bridge().mapped_provenance[1],
+        vec![InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: release_timestamp,
+            sequence_range: None,
+        }]
     );
 }

@@ -2423,11 +2423,11 @@ private inline capacity two and validates exactly one keyboard `Edit` fragment
 `[Begin, Update]`, `[Update]`, `[Commit]`, or `[Cancel]`, one initial typed
 failure, or a repeat failure only after a matching keyboard `[Cancel]` rollback.
 It preserves ordered parts, transaction identity, direction, selected step,
-exact keyboard provenance, and typed errors. The complete-mode explicit-policy
-KeyboardAdjustment consumer now produces these keyboard interactions; IME
-composition, pointer scrub, wheel, and accessibility remain target-only. This
-foundation has zero impact on the estimates and is part of the shipped
-semantic keyboard behavior.
+exact keyboard or pointer provenance, and typed errors. The complete-mode
+explicit-policy KeyboardAdjustment and PointerScrub consumers produce these
+interactions; IME composition, wheel, and accessibility remain target-only.
+This foundation has zero impact on the estimates until the bounded pointer
+slice is independently accepted.
 
 A successful unchanged candidate is a no-op. An unchanged initial step opens no
 transaction, takes no capture, and publishes nothing. An unchanged repeat
@@ -2466,7 +2466,7 @@ sequence range. Synthetic press/release inputs use normalized default
 modifiers, `repeat: false` for a synthetic press, and no timestamp. Native
 repeat cadence, delay, and rate are outside this contract.
 
-### Target numeric pointer-scrub contract (not yet shipped)
+### Numeric pointer-scrub contract
 
 Pointer scrub admission uses the shared incumbent-owner gate before focus,
 capture, or any scrub operation. PointerScrub may start only when the stable
@@ -2474,16 +2474,15 @@ numeric identity has owner None; a different pending or active owner blocks the
 scrub without changing the incumbent. The existing unmodified-primary
 text-selection fallback remains unchanged.
 
-The following is a target-only, backend-neutral contract for the missing
-primary-pointer numeric scrub lifecycle. The current shipped `NumericInput`
-consumer does not perform this behavior, and this subsection claims no current
-runtime or native-adapter implementation. Every name introduced below is
-illustrative target vocabulary, not a shipped public Rust type. The contract
-composes the existing `NumericAdjustment::scrub` policy boundary, normalized
-pointer metadata and runtime capture, numeric text editing, target keyboard
-adjustment, and target IME/composition ownership.
+The complete-mode `NumericInput` consumer now implements this primary-pointer
+numeric scrub lifecycle through the merged managed-capture admission hook. The
+public policy, attempt, and typed failure vocabulary below is shipped through
+the qualified interaction module and builder. The contract composes the
+existing `NumericAdjustment::scrub` policy boundary, normalized pointer
+metadata and runtime capture, and numeric text editing; IME/composition,
+wheel continuity, and accessibility ownership remain outside this slice.
 
-The illustrative target policy attaches to `NumericInputBuilder`:
+The shipped policy attaches to `NumericInputBuilder`:
 
 ```rust
 enum NumericScrubActivation {
@@ -2513,8 +2512,8 @@ numeric_input(value, codec, adjustment)
 The complete backend-neutral default is Alt/Option plus a primary-button
 horizontal drag. An unmodified primary press remains ordinary text
 caret/selection behavior. A configured activation chord is not a second text
-editing mode: it only admits the target scrub when all of the lifecycle fences
-below pass.
+editing mode: it only admits the scrub when all of the lifecycle fences below
+pass.
 
 Admission requires an enabled, non-read-only numeric input and a shared
 incumbent owner of None. A different pending or active owner blocks the scrub.
@@ -2532,7 +2531,7 @@ Before any move, admission initializes `NumericScrubAnchor` as
 therefore normalizes displacement from the captured press position and
 starting typed value; later moves use the current anchor.
 
-The target snapshot's logical geometry is evidence, not a value to repair. Its
+The retained snapshot's logical geometry is evidence, not a value to repair. Its
 coordinates must be finite, its width must be finite and strictly positive,
 and the pointer positions used for normalization must be finite and within the
 declared bounds. Horizontal displacement is normalized by that positive width:
@@ -2541,9 +2540,9 @@ decreases it. A valid sample with zero horizontal displacement from the current
 anchor is a handler-level no-op before invoking `NumericAdjustment::scrub`: it
 creates no candidate, edit transaction, update, or value change and retains the
 current anchor. Vertical-only motion is such a sample. Invalid, nonfinite, or
-out-of-bounds geometry or positions are unknown evidence; the target does not
-guess a clamp or manufacture a replacement coordinate. Such a sample produces
-no candidate and does not advance the anchor.
+out-of-bounds geometry or positions are unknown evidence; the consumer does
+not guess a clamp or manufacture a replacement coordinate. Such a sample
+produces no candidate and does not advance the anchor.
 
 Each captured move with nonzero horizontal displacement uses an anchor position
 and anchor value. It invokes the supplied policy as
@@ -2556,7 +2555,7 @@ effective move can add `Begin` and one `Update`, while each later accepted move
 adds at most one `Update`; no unbounded event accumulator is implied.
 
 Step selection is made for every move after removing the latched activation
-chord from the sample modifiers. With the target defaults, no Fine/Coarse
+chord from the sample modifiers. With the defaults, no Fine/Coarse
 modifier selects `NumericStep::Base`, Shift selects `Fine`, and the platform
 command selects `Coarse` (Command on macOS, Control on Windows and Linux).
 Fine wins when both selectors are present. A change in the selected step
@@ -2598,7 +2597,7 @@ cancels the old scrub before the new authority is applied; it never rebases an
 active scrub onto the new value. The cancellation and cleanup rules above also
 apply to a capability, enabled, or read-only transition.
 
-The target-only diagnostic vocabulary distinguishes adjustment from formatting
+The shipped diagnostic vocabulary distinguishes adjustment from formatting
 failure and records the attempt boundary:
 
 ```rust
@@ -2607,8 +2606,8 @@ enum NumericScrubAttempt {
     Update,
 }
 
-enum NumericScrubInteraction<T, ScrubError, FormatError> {
-    Edit(BoundedEditEvents<T>),
+enum NumericInputInteraction<T, ScrubError, FormatError> {
+    Edit(NumericInputEditBatch<T>),
     ScrubFailed {
         attempt: NumericScrubAttempt,
         normalized_delta: f32,
@@ -2617,7 +2616,7 @@ enum NumericScrubInteraction<T, ScrubError, FormatError> {
         error: ScrubError,
         cancelled: bool,
     },
-    FormatFailed {
+    PointerFormatFailed {
         attempt: NumericScrubAttempt,
         normalized_delta: f32,
         step: NumericStep,
@@ -2628,8 +2627,8 @@ enum NumericScrubInteraction<T, ScrubError, FormatError> {
 }
 ```
 
-An initial adjustment or formatting failure returns its typed target-only
-`ScrubFailed` or `FormatFailed` context with `attempt: Initial` and
+An initial adjustment or formatting failure returns its typed
+`ScrubFailed` or `PointerFormatFailed` context with `attempt: Initial` and
 `cancelled: false`. It emits no transaction, `Begin`, `Update`, or `Cancel`,
 restores the pre-scrub UI snapshot, and ends the failed capture. After an
 effective update, an adjustment or formatting failure suppresses its failed
@@ -3961,9 +3960,10 @@ hooks. Controller-owned managed capture is bounded to one exact widget/button
 record plus button-specific orphan suppression, is validated at focus, dispatch,
 and refresh boundaries, and is never inferred from the Legacy default. Blocked
 presses stop before focus, capture, widget dispatch, mapping, or host mutation;
-scrollbar and layout precedence is unchanged. This kernel deliberately does not
-ship NumericInput PointerScrub policy, consumer, output, failure, or geometry;
-those remain target-only and are the dependency for the next consumer PR.
+scrollbar and layout precedence is unchanged. Complete-mode NumericInput now
+consumes this kernel through its qualified scrub policy, retained pointer
+consumer, bounded typed output/failure envelope, and latched geometry/anchor
+state; generic controller and native production paths remain unchanged.
 
 Keyboard focus follows declarative tree order unless a container declares an
 explicit traversal policy. Focused text editing receives its required keys

@@ -2916,13 +2916,15 @@ transfer and the post-focus race check remain unshipped and must block before
 numeric mutation when that dispatch boundary is added.
 
 The widget-local, backend-neutral action vocabulary and typed policy consumer
-are now shipped as a qualified `NumericInputWidget` contract. The public
+are now shipped as a crate-private `NumericInputWidget` seam. The public
 `NumericAccessibilityAction`, `NumericAccessibilityRejectedReason`,
 `NumericAccessibilityBlockOwner`, and
-`NumericAccessibilityOutcome<T, AdjustmentError, FormatError>` types cover the
-local accepted, unchanged, rejected, blocked, adjustment-failure, and
-format-failure results. The current automation snapshot, action-name export,
-runtime target dispatch, and native adapters do not execute this policy yet.
+`NumericAccessibilityOutcome<T, AdjustmentError, FormatError>` types describe
+the local accepted, unchanged, rejected, blocked, adjustment-failure, and
+format-failure results, while the widget and its consumer entry point remain
+crate-private pending the runtime dispatch boundary. The current automation
+snapshot, action-name export, runtime target dispatch, and native adapters do
+not execute this policy yet.
 The full lifecycle below remains target-only at the runtime boundary: target
 resolution, focus transfer, authority revalidation, unavailable/stale/removed/
 unmaterialized classification, and adapter translation are not part of the

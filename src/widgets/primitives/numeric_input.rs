@@ -628,7 +628,7 @@ where
         let cancel = match state.cancel() {
             Ok(cancel) => cancel,
             Err(state) => {
-                self.pointer = Some(state);
+                self.pointer = Some(*state);
                 return None;
             }
         };
@@ -662,9 +662,7 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<WidgetOutput> {
-        let Some(policy) = self.scrub_policy else {
-            return None;
-        };
+        let policy = self.scrub_policy?;
         if !self.pointer_scrub_is_editable()
             || !policy.qualifies(button, modifiers)
             || !self
@@ -674,13 +672,17 @@ where
             return None;
         }
         let step = policy.select_step(modifiers);
+        let provenance = InteractionProvenance::Pointer {
+            modifiers,
+            timestamp,
+            sequence_range: None,
+        };
         self.pointer = Some(pointer::PointerScrubState::new(
             self.value.clone(),
             self.text_input.state.value.clone(),
             position,
             step,
-            modifiers,
-            timestamp,
+            provenance,
             self.text_input.state.caret,
             self.text_input.state.selection_anchor,
         ));
@@ -695,9 +697,7 @@ where
         timestamp: Option<crate::gui::input::InputTimestamp>,
         sequence_range: Option<crate::gui::input::InputSequenceRange>,
     ) -> Option<WidgetOutput> {
-        let Some(mut state) = self.pointer.take() else {
-            return None;
-        };
+        let mut state = self.pointer.take()?;
         if !self.pointer_scrub_is_editable() {
             return self.cancel_pointer_state(state);
         }
@@ -732,7 +732,7 @@ where
         };
         let rollback = state
             .published_update
-            .then(|| state.rollback_batch())
+            .then(|| state.rollback_batch(provenance))
             .flatten();
         let candidate = match self.pointer_policy.scrub(
             &state.anchor_value,
@@ -780,17 +780,21 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<WidgetOutput> {
-        let Some(state) = self.pointer.take() else {
-            return None;
-        };
+        let state = self.pointer.take()?;
         if button != PointerButton::Primary {
             self.pointer = Some(state);
+            return None;
+        }
+        if !state.published_update {
+            self.restore_pointer_snapshot(&state);
+            self.interaction_gate
+                .release(NumericInteractionOwner::PointerScrub);
             return None;
         }
         let commit = match state.commit(self.value.clone(), modifiers, timestamp) {
             Ok(commit) => commit,
             Err(state) => {
-                self.pointer = Some(state);
+                self.pointer = Some(*state);
                 return None;
             }
         };

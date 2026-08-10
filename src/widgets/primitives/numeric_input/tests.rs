@@ -2589,6 +2589,145 @@ fn alt_pointer_scrub_emits_bounded_lifecycle_and_unmodified_primary_keeps_text_s
 }
 
 #[test]
+fn pending_pointer_release_is_silent_without_an_effective_update() {
+    let bounds = Rect::from_xy_size(0.0, 0.0, 100.0, 20.0);
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+
+    let (mut no_move, no_move_calls, _) = complete_pointer_u32_input(None, None);
+    focus(&mut no_move);
+    assert!(
+        Widget::handle_input(
+            &mut no_move,
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(50.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_input(
+            &mut no_move,
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(50.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(no_move_calls.get(), 0);
+    assert_eq!(no_move.value, 7);
+    assert_eq!(no_move.text_input.state.value, "7");
+    assert!(no_move.pointer.is_none());
+    assert_eq!(no_move.interaction_gate.incumbent(), None);
+
+    let (mut vertical, vertical_calls, _) = complete_pointer_u32_input(None, None);
+    focus(&mut vertical);
+    assert!(
+        Widget::handle_input(
+            &mut vertical,
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(50.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_input(
+            &mut vertical,
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(50.0, 19.0),
+                modifiers: alt,
+                timestamp: None,
+                sequence_range: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(vertical.pointer.is_some());
+    assert!(
+        Widget::handle_input(
+            &mut vertical,
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(50.0, 19.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(vertical_calls.get(), 0);
+    assert_eq!(vertical.value, 7);
+    assert_eq!(vertical.text_input.state.value, "7");
+    assert!(vertical.pointer.is_none());
+    assert_eq!(vertical.interaction_gate.incumbent(), None);
+
+    let (mut unchanged, unchanged_calls, _) = complete_pointer_u32_input(None, None);
+    focus(&mut unchanged);
+    assert!(
+        Widget::handle_input(
+            &mut unchanged,
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(50.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_input(
+            &mut unchanged,
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(51.0, 10.0),
+                modifiers: alt,
+                timestamp: None,
+                sequence_range: None,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(unchanged_calls.get(), 1);
+    assert!(unchanged.pointer.is_some());
+    assert!(
+        Widget::handle_input(
+            &mut unchanged,
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(51.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(unchanged.value, 7);
+    assert_eq!(unchanged.text_input.state.value, "7");
+    assert!(unchanged.pointer.is_none());
+    assert_eq!(unchanged.interaction_gate.incumbent(), None);
+}
+
+#[test]
 fn pointer_geometry_rejects_invalid_samples_and_retains_subquantum_anchor() {
     let (mut input, scrub_calls, _) = complete_pointer_u32_input(None, None);
     focus(&mut input);
@@ -2748,6 +2887,11 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
     assert!(initial.pointer.is_none());
     assert_eq!(initial.interaction_gate.incumbent(), None);
 
+    let failure_modifiers = PointerModifiers {
+        alt: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
     let (mut active, _, _) = complete_pointer_u32_input(Some(2), None);
     focus(&mut active);
     assert!(
@@ -2757,33 +2901,36 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
             WidgetInput::PointerPress {
                 position: Point::new(50.0, 10.0),
                 button: PointerButton::Primary,
-                modifiers: alt,
+                modifiers: failure_modifiers,
                 timestamp: None,
             },
         )
         .is_none()
     );
-    assert!(
-        complete_output(Widget::handle_input(
-            &mut active,
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(70.0, 10.0),
-                modifiers: alt,
-                timestamp: None,
-                sequence_range: None,
-            },
-        ))
-        .is_some()
-    );
+    let active_update = complete_output(Widget::handle_input(
+        &mut active,
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(70.0, 10.0),
+            modifiers: failure_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    ))
+    .expect("active scrub update should be retained for its transaction");
+    let active_transaction = complete_edit(&active_update).transaction();
+    let failure_timestamp = Some(InputTimestamp::capture());
+    let failure_sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(42),
+    ));
     let active_failure = complete_output(Widget::handle_input(
         &mut active,
         bounds,
         WidgetInput::PointerMove {
             position: Point::new(90.0, 10.0),
-            modifiers: alt,
-            timestamp: None,
-            sequence_range: None,
+            modifiers: failure_modifiers,
+            timestamp: failure_timestamp,
+            sequence_range: failure_sequence_range,
         },
     ))
     .expect("active scrub failure should roll back before reporting");
@@ -2792,6 +2939,7 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
         NumericInputInteraction::Edit(cancel),
         NumericInputInteraction::PointerScrubFailed {
             attempt,
+            provenance,
             cancelled,
             error,
             ..
@@ -2803,14 +2951,14 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
     assert_eq!(cancel.events().len(), 1);
     assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
     assert_eq!(cancel.events()[0].value, 7);
-    assert_eq!(
-        cancel.events()[0].provenance,
-        InteractionProvenance::Pointer {
-            modifiers: PointerModifiers::default(),
-            timestamp: None,
-            sequence_range: None,
-        }
-    );
+    let failure_provenance = InteractionProvenance::Pointer {
+        modifiers: failure_modifiers,
+        timestamp: failure_timestamp,
+        sequence_range: failure_sequence_range,
+    };
+    assert_eq!(cancel.events()[0].provenance, failure_provenance);
+    assert_eq!(*provenance, failure_provenance);
+    assert_eq!(cancel.events()[0].transaction, active_transaction);
     assert_eq!(*attempt, NumericScrubAttempt::Update);
     assert!(*cancelled);
     assert_eq!(error.as_ref(), &AdjustmentError);
@@ -2888,6 +3036,11 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
     assert!(initial_format.pointer.is_none());
     assert_eq!(initial_format.interaction_gate.incumbent(), None);
 
+    let format_failure_modifiers = PointerModifiers {
+        alt: true,
+        command: true,
+        ..PointerModifiers::default()
+    };
     let (mut active_format, _, _) = complete_pointer_u32_input(None, Some(3));
     focus(&mut active_format);
     assert!(
@@ -2897,33 +3050,36 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
             WidgetInput::PointerPress {
                 position: Point::new(50.0, 10.0),
                 button: PointerButton::Primary,
-                modifiers: alt,
+                modifiers: format_failure_modifiers,
                 timestamp: None,
             },
         )
         .is_none()
     );
-    assert!(
-        complete_output(Widget::handle_input(
-            &mut active_format,
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(70.0, 10.0),
-                modifiers: alt,
-                timestamp: None,
-                sequence_range: None,
-            },
-        ))
-        .is_some()
-    );
+    let active_format_update = complete_output(Widget::handle_input(
+        &mut active_format,
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(70.0, 10.0),
+            modifiers: format_failure_modifiers,
+            timestamp: None,
+            sequence_range: None,
+        },
+    ))
+    .expect("active format update should be retained for its transaction");
+    let active_format_transaction = complete_edit(&active_format_update).transaction();
+    let format_failure_timestamp = Some(InputTimestamp::capture());
+    let format_failure_sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(43),
+    ));
     let active_format_failure = complete_output(Widget::handle_input(
         &mut active_format,
         bounds,
         WidgetInput::PointerMove {
             position: Point::new(90.0, 10.0),
-            modifiers: alt,
-            timestamp: None,
-            sequence_range: None,
+            modifiers: format_failure_modifiers,
+            timestamp: format_failure_timestamp,
+            sequence_range: format_failure_sequence_range,
         },
     ))
     .expect("active format failure should roll back before reporting");
@@ -2932,6 +3088,7 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
         NumericInputInteraction::Edit(cancel),
         NumericInputInteraction::PointerFormatFailed {
             attempt,
+            provenance,
             cancelled,
             error,
             ..
@@ -2940,6 +3097,14 @@ fn pointer_failures_are_typed_and_restore_initial_or_active_snapshots() {
     else {
         panic!("expected cancel followed by typed active pointer format failure");
     };
+    let format_failure_provenance = InteractionProvenance::Pointer {
+        modifiers: format_failure_modifiers,
+        timestamp: format_failure_timestamp,
+        sequence_range: format_failure_sequence_range,
+    };
+    assert_eq!(cancel.events()[0].provenance, format_failure_provenance);
+    assert_eq!(*provenance, format_failure_provenance);
+    assert_eq!(cancel.events()[0].transaction, active_format_transaction);
     assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
     assert_eq!(cancel.events()[0].value, 7);
     assert_eq!(*attempt, NumericScrubAttempt::Update);
@@ -3013,36 +3178,52 @@ fn pointer_cancellation_paths_restore_once_and_preserve_compatibility_mode() {
         alt: true,
         ..PointerModifiers::default()
     };
-    for cancellation in [WidgetKey::Escape] {
-        let (mut input, _, _) = complete_pointer_u32_input(None, None);
-        focus(&mut input);
-        assert!(
-            Widget::handle_input(
-                &mut input,
-                bounds,
-                WidgetInput::PointerPress {
-                    position: Point::new(50.0, 10.0),
-                    button: PointerButton::Primary,
-                    modifiers: alt,
-                    timestamp: None,
-                },
-            )
-            .is_none()
-        );
-        assert!(
-            complete_output(Widget::handle_input(
-                &mut input,
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(70.0, 10.0),
-                    modifiers: alt,
-                    timestamp: None,
-                    sequence_range: None,
-                },
-            ))
-            .is_some()
-        );
-        let cancel = complete_output(Widget::handle_input(
+    let cancellation = WidgetKey::Escape;
+    let (mut input, _, _) = complete_pointer_u32_input(None, None);
+    focus(&mut input);
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(50.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: alt,
+                timestamp: None,
+            },
+        )
+        .is_none()
+    );
+    assert!(
+        complete_output(Widget::handle_input(
+            &mut input,
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(70.0, 10.0),
+                modifiers: alt,
+                timestamp: None,
+                sequence_range: None,
+            },
+        ))
+        .is_some()
+    );
+    let cancel = complete_output(Widget::handle_input(
+        &mut input,
+        bounds,
+        WidgetInput::KeyPress {
+            key: cancellation,
+            modifiers: KeyboardModifiers::default(),
+            repeat: false,
+            timestamp: None,
+        },
+    ))
+    .expect("Escape should cancel the pointer transaction");
+    assert_eq!(complete_edit(&cancel).events()[0].phase, EditPhase::Cancel);
+    assert_eq!(input.value, 7);
+    assert!(input.pointer.is_none());
+    assert_eq!(input.interaction_gate.incumbent(), None);
+    assert!(
+        Widget::handle_input(
             &mut input,
             bounds,
             WidgetInput::KeyPress {
@@ -3051,26 +3232,9 @@ fn pointer_cancellation_paths_restore_once_and_preserve_compatibility_mode() {
                 repeat: false,
                 timestamp: None,
             },
-        ))
-        .expect("Escape should cancel the pointer transaction");
-        assert_eq!(complete_edit(&cancel).events()[0].phase, EditPhase::Cancel);
-        assert_eq!(input.value, 7);
-        assert!(input.pointer.is_none());
-        assert_eq!(input.interaction_gate.incumbent(), None);
-        assert!(
-            Widget::handle_input(
-                &mut input,
-                bounds,
-                WidgetInput::KeyPress {
-                    key: cancellation,
-                    modifiers: KeyboardModifiers::default(),
-                    repeat: false,
-                    timestamp: None,
-                },
-            )
-            .is_none()
-        );
-    }
+        )
+        .is_none()
+    );
 
     let (mut captured, _, _) = complete_pointer_u32_input(None, None);
     focus(&mut captured);

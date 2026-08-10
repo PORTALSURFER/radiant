@@ -1042,6 +1042,95 @@ fn numeric_input_interaction_batch_accepts_keyboard_and_text_edit_envelope_shape
 }
 
 #[test]
+fn numeric_input_interaction_batch_requires_matching_pointer_failure_provenance() {
+    type Interaction =
+        NumericInputInteraction<GenericNumericValue, NumericAdjustmentTestError, NumericCodecError>;
+    type Batch = NumericInputInteractionBatch<
+        GenericNumericValue,
+        NumericAdjustmentTestError,
+        NumericCodecError,
+    >;
+
+    let modifiers = PointerModifiers {
+        alt: true,
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let provenance = InteractionProvenance::Pointer {
+        modifiers,
+        timestamp: None,
+        sequence_range: None,
+    };
+    let begin = EditEvent::begin(GenericNumericValue(7), provenance);
+    let cancel = begin
+        .cancel(provenance)
+        .expect("matching pointer provenance should cancel");
+    let cancel_edit = NumericInputEditBatch::from_events(std::slice::from_ref(&cancel))
+        .expect("pointer cancel should be a legal edit fragment");
+
+    let matching_adjustment = Interaction::pointer_scrub_failed(
+        NumericScrubAttempt::Update,
+        0.2,
+        NumericStep::Fine,
+        provenance,
+        NumericAdjustmentTestError,
+        true,
+    );
+    let matching_format = Interaction::pointer_format_failed(
+        NumericScrubAttempt::Update,
+        0.2,
+        NumericStep::Fine,
+        provenance,
+        NumericCodecError::WriteFailed,
+        true,
+    );
+    assert!(
+        Batch::from_interactions(&[Interaction::edit(cancel_edit.clone()), matching_adjustment,])
+            .is_some()
+    );
+    assert!(
+        Batch::from_interactions(&[Interaction::edit(cancel_edit.clone()), matching_format,])
+            .is_some()
+    );
+
+    let mismatched_provenance = InteractionProvenance::Pointer {
+        modifiers: PointerModifiers {
+            alt: true,
+            command: true,
+            ..PointerModifiers::default()
+        },
+        timestamp: None,
+        sequence_range: None,
+    };
+    let mismatched_adjustment = Interaction::pointer_scrub_failed(
+        NumericScrubAttempt::Update,
+        0.2,
+        NumericStep::Fine,
+        mismatched_provenance,
+        NumericAdjustmentTestError,
+        true,
+    );
+    let mismatched_format = Interaction::pointer_format_failed(
+        NumericScrubAttempt::Update,
+        0.2,
+        NumericStep::Fine,
+        mismatched_provenance,
+        NumericCodecError::WriteFailed,
+        true,
+    );
+    assert!(
+        Batch::from_interactions(&[
+            Interaction::edit(cancel_edit.clone()),
+            mismatched_adjustment,
+        ])
+        .is_none()
+    );
+    assert!(
+        Batch::from_interactions(&[Interaction::edit(cancel_edit), mismatched_format,]).is_none()
+    );
+}
+
+#[test]
 fn numeric_input_policy_and_batch_types_are_not_in_the_common_prelude() {
     let prelude_controls = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

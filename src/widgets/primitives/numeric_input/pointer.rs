@@ -212,17 +212,12 @@ impl<T: Clone> PointerScrubState<T> {
         draft: String,
         position: Point,
         step: NumericStep,
-        modifiers: PointerModifiers,
-        timestamp: Option<InputTimestamp>,
+        provenance: InteractionProvenance,
         start_caret: usize,
         start_selection_anchor: usize,
     ) -> Self {
         Self {
-            session: NumericEditSession::begin(
-                value.clone(),
-                draft.clone(),
-                pointer_provenance(modifiers, timestamp),
-            ),
+            session: NumericEditSession::begin(value.clone(), draft.clone(), provenance),
             anchor: position,
             anchor_value: value,
             step,
@@ -279,12 +274,11 @@ impl<T: Clone> PointerScrubState<T> {
         Some(edit)
     }
 
-    pub(super) fn rollback_batch(&self) -> Option<NumericInputEditBatch<T>> {
-        let cancel = self
-            .session
-            .clone()
-            .cancel(pointer_provenance(PointerModifiers::default(), None))
-            .ok()?;
+    pub(super) fn rollback_batch(
+        &self,
+        provenance: InteractionProvenance,
+    ) -> Option<NumericInputEditBatch<T>> {
+        let cancel = self.session.clone().cancel(provenance).ok()?;
         NumericInputEditBatch::from_events(&[cancel])
     }
 
@@ -293,7 +287,7 @@ impl<T: Clone> PointerScrubState<T> {
         value: T,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
-    ) -> Result<EditEvent<T>, Self> {
+    ) -> Result<EditEvent<T>, Box<Self>> {
         let Self {
             session,
             anchor,
@@ -307,7 +301,7 @@ impl<T: Clone> PointerScrubState<T> {
         let provenance = pointer_provenance(modifiers, timestamp);
         match session.commit(value, provenance) {
             Ok(event) => Ok(event),
-            Err(session) => Err(Self {
+            Err(session) => Err(Box::new(Self {
                 session,
                 anchor,
                 anchor_value,
@@ -316,11 +310,11 @@ impl<T: Clone> PointerScrubState<T> {
                 start_text,
                 start_caret,
                 start_selection_anchor,
-            }),
+            })),
         }
     }
 
-    pub(super) fn cancel(self) -> Result<EditEvent<T>, Self> {
+    pub(super) fn cancel(self) -> Result<EditEvent<T>, Box<Self>> {
         let Self {
             session,
             anchor,
@@ -334,7 +328,7 @@ impl<T: Clone> PointerScrubState<T> {
         let provenance = pointer_provenance(PointerModifiers::default(), None);
         match session.cancel(provenance) {
             Ok(event) => Ok(event),
-            Err(session) => Err(Self {
+            Err(session) => Err(Box::new(Self {
                 session,
                 anchor,
                 anchor_value,
@@ -343,7 +337,7 @@ impl<T: Clone> PointerScrubState<T> {
                 start_text,
                 start_caret,
                 start_selection_anchor,
-            }),
+            })),
         }
     }
 }

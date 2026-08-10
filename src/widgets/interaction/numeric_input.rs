@@ -568,11 +568,7 @@ fn valid_interactions<T: Clone, StepError, FormatError>(
                     provenance,
                     cancelled: true,
                     ..
-                } => {
-                    is_pointer_provenance(cancel.provenance)
-                        && is_pointer_cleanup_provenance(cancel.provenance)
-                        && is_pointer_provenance(*provenance)
-                }
+                } => is_pointer_provenance(*provenance) && *provenance == cancel.provenance,
                 NumericInputInteraction::Edit(_)
                 | NumericInputInteraction::StepFailed { .. }
                 | NumericInputInteraction::FormatFailed { .. }
@@ -636,15 +632,4 @@ fn is_keyboard_provenance(provenance: InteractionProvenance) -> bool {
 
 fn is_pointer_provenance(provenance: InteractionProvenance) -> bool {
     provenance.source() == InteractionSource::Pointer
-}
-
-fn is_pointer_cleanup_provenance(provenance: InteractionProvenance) -> bool {
-    matches!(
-        provenance,
-        InteractionProvenance::Pointer {
-            modifiers,
-            timestamp: None,
-            sequence_range: None,
-        } if modifiers == PointerModifiers::default()
-    )
 }

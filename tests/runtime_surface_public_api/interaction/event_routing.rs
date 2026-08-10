@@ -668,6 +668,42 @@ fn public_numeric_pointer_preflight_blocks_event_and_direct_press_before_focus_o
 }
 
 #[test]
+fn public_numeric_pending_pointer_release_clears_capture_without_mapping_an_edit() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+
+    let point = Point::new(60.0, 16.0);
+    let alt = PointerModifiers {
+        alt: true,
+        ..PointerModifiers::default()
+    };
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: alt,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(150));
+    assert!(runtime.bridge().mapped_phases.is_empty());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: alt,
+            timestamp: None,
+        }),
+        Some(150)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(runtime.bridge().mapped_phases.is_empty());
+}
+
+#[test]
 fn public_numeric_keyboard_routes_host_first_then_captured_continuations() {
     let mut runtime =
         SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));

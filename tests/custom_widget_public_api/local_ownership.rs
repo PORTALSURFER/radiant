@@ -112,6 +112,23 @@ fn wheel_hooks_are_defaulted_object_safe_and_keep_phase_less_widgets_compatible(
     assert!(!include_str!("../../src/prelude/widgets.rs").contains("WheelSample"));
 }
 
+#[test]
+fn composition_hooks_are_defaulted_object_safe_and_explicitly_qualified() {
+    let mut widget: Box<dyn Widget> = Box::new(LocalWidget::new(
+        30,
+        Rc::new(RefCell::new(LocalState { activations: 0 })),
+    ));
+    let range =
+        radiant::widgets::interaction::CompositionRange::new(0, 0, 0).expect("empty scalar range");
+    let sample = radiant::widgets::interaction::CompositionSample::start(range, range)
+        .expect("valid composition start");
+
+    assert!(!widget.accepts_composition_input());
+    assert_eq!(widget.handle_composition_sample(sample), None);
+    assert!(!widget.retains_managed_composition());
+    assert!(!include_str!("../../src/prelude/widgets.rs").contains("CompositionSample"));
+}
+
 impl Widget for LocalWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common

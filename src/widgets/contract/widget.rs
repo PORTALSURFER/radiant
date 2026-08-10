@@ -7,7 +7,9 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         WidgetRevision,
-        interaction::{WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput},
+        interaction::{
+            CompositionSample, WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+        },
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
 };
@@ -249,6 +251,26 @@ pub trait Widget: WidgetClone + Any {
 
     /// Return whether this widget accepts text-editing input while focused.
     fn accepts_text_input(&self) -> bool {
+        false
+    }
+
+    /// Return whether this focused widget accepts backend-neutral composition
+    /// samples.  The default keeps existing widgets off the composition path.
+    fn accepts_composition_input(&self) -> bool {
+        false
+    }
+
+    /// Route one validated backend-neutral composition sample into this widget.
+    ///
+    /// The hook is object-safe and intentionally separate from [`WidgetInput`]
+    /// so existing `Event` and `WidgetInput` compatibility remains unchanged.
+    fn handle_composition_sample(&mut self, _sample: CompositionSample) -> Option<WidgetOutput> {
+        None
+    }
+
+    /// Report whether this widget retains the runtime-managed composition
+    /// authority after its most recent sample.
+    fn retains_managed_composition(&self) -> bool {
         false
     }
 

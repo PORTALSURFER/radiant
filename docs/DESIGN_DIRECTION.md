@@ -1894,7 +1894,7 @@ shipped; rows for the two remaining numeric consumers remain target-only:
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
 
-### Target IME/composition lifecycle (not yet shipped)
+### Target IME/composition lifecycle (foundation shipped; consumers/adapters not shipped)
 
 For a numeric input, the shared owner gate is checked after the focused stable
 identity is resolved and before Start captures composition state. Start may
@@ -1902,15 +1902,19 @@ acquire ImeComposition only when the incumbent is None; a different pending or
 active owner denies Start without preedit, parsing, cancellation, focus
 transfer, or incumbent mutation.
 
-This is a target-only, backend-neutral contract. It claims no current runtime
-or native-platform evidence: the current source has no composition event or
-composition state. The normalized lifecycle vocabulary is `Start`,
-`Update { preedit, selection }`, `Commit { text }`, and `Cancel`; every sample
-carries optional native timestamp metadata when the native sample supplied it.
-All ranges exposed by this generic contract are Unicode-scalar ranges. A native
-adapter may use UTF-16 or another platform offset internally, but it owns the
-translation into scalar evidence; the generic contract does not choose a
-backend-specific offset convention.
+This is now a shipped, qualified backend-neutral foundation rather than a
+complete IME consumer. `radiant::widgets::interaction` exposes validated
+`CompositionRange`, `CompositionSample`, `CompositionPhase`, and typed
+validation errors; `Widget` exposes default-compatible object-safe hooks; and
+the generic `SurfaceRuntime` owns a private fixed-size focused routing kernel.
+The normalized lifecycle vocabulary is `Start`, `Update { preedit, selection }`,
+`Commit { text }`, and `Cancel`; every sample carries optional native timestamp
+metadata when the native sample supplied it. The text/numeric consumer, native
+adapter, candidate-window integration, and matching-key suppression remain
+unshipped. All ranges exposed by this generic contract are Unicode-scalar
+ranges. A native adapter may use UTF-16 or another platform offset internally,
+but it owns the translation into scalar evidence; the generic contract does
+not choose a backend-specific offset convention.
 
 Every composition replacement range and every `Update.selection` is a bounded
 half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in

@@ -1,11 +1,16 @@
 //! Backend-neutral widget input contracts.
 
+mod composition;
 mod event;
 mod keyboard;
 mod pointer;
 mod text_edit;
 mod wheel;
 
+pub use composition::{
+    CompositionPhase, CompositionRange, CompositionRangeError, CompositionSample,
+    CompositionSampleError,
+};
 pub use event::WidgetInput;
 pub use keyboard::{KeyboardModifiers, WidgetKey};
 pub use pointer::{PointerButton, PointerModifiers};

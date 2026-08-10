@@ -111,3 +111,56 @@ fn widget_sizing_supports_named_parts_construction() {
     assert_eq!(sizing.preferred, Vector2::new(120.0, 32.0));
     assert_eq!(sizing.baseline, Some(0.0));
 }
+
+#[test]
+fn composition_samples_are_qualified_validated_and_timestamp_free_when_synthetic() {
+    use radiant::widgets::interaction::{
+        CompositionPhase, CompositionRange, CompositionRangeError, CompositionSample,
+        CompositionSampleError,
+    };
+
+    let replacement = CompositionRange::from_range(0..1, 2).expect("valid scalar range");
+    let selection = CompositionRange::new(1, 1, 2).expect("valid scalar caret");
+    let start = CompositionSample::start(replacement, selection).expect("valid start");
+    assert_eq!(start.phase(), CompositionPhase::Start);
+    assert_eq!(start.replacement_range(), Some(replacement));
+    assert_eq!(start.selection(), Some(selection));
+    assert_eq!(start.timestamp(), None);
+
+    let update_selection = CompositionRange::new(1, 1, 2).expect("valid update caret");
+    let update = CompositionSample::update("あい", update_selection).expect("valid update");
+    assert_eq!(update.preedit(), Some("あい"));
+    assert_eq!(update.timestamp(), None);
+    assert_eq!(CompositionSample::commit("あい").text(), Some("あい"));
+    assert_eq!(CompositionSample::cancel().timestamp(), None);
+
+    assert_eq!(
+        CompositionRange::new(2, 1, 2),
+        Err(CompositionRangeError::Inverted { start: 2, end: 1 })
+    );
+    assert!(matches!(
+        CompositionSample::update(
+            "あ",
+            CompositionRange::new(0, 1, 2).expect("range evidence"),
+        ),
+        Err(CompositionSampleError::UpdateSelectionScalarLengthMismatch { .. })
+    ));
+
+    let mismatched_start = CompositionSample::Start {
+        replacement_range: CompositionRange::new(0, 0, 0).expect("empty range"),
+        selection: CompositionRange::new(0, 0, 1).expect("independent range"),
+        timestamp: None,
+    };
+    assert!(!mismatched_start.is_valid());
+}
+
+#[test]
+fn composition_types_stay_out_of_the_common_prelude_and_preserve_legacy_traits() {
+    fn assert_copy<T: Copy>() {}
+    fn assert_clone<T: Clone>() {}
+
+    assert_copy::<radiant::runtime::Event>();
+    assert_clone::<radiant::widgets::WidgetInput>();
+    assert_clone::<radiant::widgets::interaction::CompositionSample>();
+    assert!(!include_str!("../../src/prelude/widgets.rs").contains("CompositionSample"));
+}

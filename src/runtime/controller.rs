@@ -5,6 +5,7 @@
 //! depending on host-specific shell contracts.
 
 mod commands;
+mod composition;
 mod context;
 mod declarative_owner;
 mod effects;

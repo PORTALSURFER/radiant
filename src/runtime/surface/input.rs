@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     gui::types::Rect,
-    widgets::{WidgetId, WidgetInput, WidgetOutput},
+    widgets::{CompositionSample, WidgetId, WidgetInput, WidgetOutput},
 };
 use std::collections::HashMap;
 
@@ -162,6 +162,17 @@ impl<Message> SurfaceNode<Message> {
         self.find_widget_mut_at_path(child_path)
             .filter(|widget| widget.id() == widget_id)
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
+    }
+
+    pub(super) fn dispatch_composition_sample_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        sample: CompositionSample,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_composition_sample(widget_id, sample))
     }
 
     pub(super) fn dispatch_pointer_capture_cancelled_at_path(

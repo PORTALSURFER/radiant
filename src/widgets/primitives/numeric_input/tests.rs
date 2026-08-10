@@ -7,7 +7,8 @@ use crate::{
     },
     widgets::{
         ButtonWidget, EditPhase, InteractionSource, KeyboardModifier, KeyboardModifiers,
-        NumericStep, NumericStepDirection, NumericStepModifiers, PointerModifiers, TextEditCommand,
+        NumericStep, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
+        PointerModifiers, TextEditCommand, WheelDelta, WheelPhase, WheelSample,
     },
 };
 use std::{cell::Cell, fmt, rc::Rc};
@@ -118,6 +119,76 @@ struct PointerAdjustment {
     last_step: Rc<Cell<Option<NumericStep>>>,
     fail_scrub_on_call: Option<usize>,
     same_value: bool,
+}
+
+struct WheelAdjustment {
+    wheel_calls: Rc<Cell<usize>>,
+    last_delta: Rc<Cell<f32>>,
+    last_step: Rc<Cell<Option<NumericStep>>>,
+    fail_wheel_on_call: Option<usize>,
+    same_value: bool,
+}
+
+impl NumericAdjustment<u32> for WheelAdjustment {
+    type Error = AdjustmentError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<u32, Self::Error> {
+        Ok((normalized * 100.0).round() as u32)
+    }
+
+    fn value_to_normalized(&self, value: &u32) -> Result<f32, Self::Error> {
+        Ok(*value as f32 / 100.0)
+    }
+
+    fn step(
+        &self,
+        value: &u32,
+        direction: NumericStepDirection,
+        step: NumericStep,
+    ) -> Result<u32, Self::Error> {
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        Ok(match direction {
+            NumericStepDirection::Decrease => value.saturating_sub(amount),
+            NumericStepDirection::Increase => value.saturating_add(amount),
+        })
+    }
+
+    fn scrub(
+        &self,
+        value: &u32,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<u32, Self::Error> {
+        Ok(*value)
+    }
+
+    fn wheel(&self, value: &u32, delta: f32, step: NumericStep) -> Result<u32, Self::Error> {
+        let call = self.wheel_calls.get() + 1;
+        self.wheel_calls.set(call);
+        self.last_delta.set(delta);
+        self.last_step.set(Some(step));
+        if self.fail_wheel_on_call == Some(call) {
+            return Err(AdjustmentError);
+        }
+        if self.same_value {
+            return Ok(*value);
+        }
+        let multiplier = match step {
+            NumericStep::Base => 1.0,
+            NumericStep::Fine => 2.0,
+            NumericStep::Coarse => 10.0,
+        };
+        let amount = (delta * multiplier).round() as i64;
+        if amount >= 0 {
+            Ok(value.saturating_add(amount as u32))
+        } else {
+            Ok(value.saturating_sub(amount.unsigned_abs() as u32))
+        }
+    }
 }
 
 impl NumericAdjustment<u32> for PointerAdjustment {
@@ -502,8 +573,69 @@ fn pointer_u32_input(
     }
 }
 
+struct WheelU32Fixture {
+    input: NumericInputWidget<u32, U32Codec, WheelAdjustment>,
+    format_calls: Rc<Cell<usize>>,
+    wheel_calls: Rc<Cell<usize>>,
+    last_delta: Rc<Cell<f32>>,
+    last_step: Rc<Cell<Option<NumericStep>>>,
+}
+
+fn wheel_u32_input(
+    fail_wheel_on_call: Option<usize>,
+    fail_format_on_call: Option<usize>,
+    same_value: bool,
+) -> WheelU32Fixture {
+    let format_calls = Rc::new(Cell::new(0));
+    let wheel_calls = Rc::new(Cell::new(0));
+    let last_delta = Rc::new(Cell::new(0.0));
+    let last_step = Rc::new(Cell::new(None));
+    let mut input = NumericInputWidget::try_new(
+        7,
+        U32Codec {
+            format_calls: Rc::clone(&format_calls),
+            parse_calls: Rc::new(Cell::new(0)),
+            fail_format: false,
+            fail_format_on_call,
+        },
+        WheelAdjustment {
+            wheel_calls: Rc::clone(&wheel_calls),
+            last_delta: Rc::clone(&last_delta),
+            last_step: Rc::clone(&last_step),
+            fail_wheel_on_call,
+            same_value,
+        },
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    )
+    .expect("wheel fixture should construct");
+    input.set_wheel_policy(NumericWheelPolicy::default());
+    input.set_complete_output_mode();
+    WheelU32Fixture {
+        input,
+        format_calls,
+        wheel_calls,
+        last_delta,
+        last_step,
+    }
+}
+
 fn scrub_bounds() -> Rect {
     Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 20.0))
+}
+
+fn wheel_bounds() -> Rect {
+    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0))
+}
+
+fn exact_wheel_sample(
+    delta: WheelDelta,
+    phase: Option<WheelPhase>,
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
+) -> WheelSample {
+    WheelSample::new_with_metadata(delta, phase, modifiers, timestamp, sequence_range)
+        .expect("wheel fixture sample should be finite")
 }
 
 fn scrub_modifiers() -> PointerModifiers {
@@ -607,6 +739,10 @@ fn complete_edit(batch: &CompleteU32Batch) -> &NumericInputEditBatch<u32> {
         panic!("complete TextEdit output should contain one outer Edit");
     };
     edit
+}
+
+fn complete_wheel_edit(batch: &CompleteU32Batch) -> &NumericInputEditBatch<u32> {
+    complete_edit(batch)
 }
 
 fn active_keyboard_u32_input() -> NumericInputWidget<u32, U32Codec, U32Adjustment> {
@@ -1152,7 +1288,9 @@ fn repeat_failures_rollback_before_typed_failure_and_orphan_the_release() {
             }
             NumericInputInteraction::Edit(_)
             | NumericInputInteraction::ScrubFailed { .. }
-            | NumericInputInteraction::PointerFormatFailed { .. } => {
+            | NumericInputInteraction::PointerFormatFailed { .. }
+            | NumericInputInteraction::WheelFailed { .. }
+            | NumericInputInteraction::WheelFormatFailed { .. } => {
                 panic!("repeat failure must be keyboard typed")
             }
         }
@@ -3262,6 +3400,651 @@ fn pointer_scrub_wheel_and_non_pointer_inputs_remain_unhandled() {
     );
     assert!(fixture.input.pointer.is_none());
     assert_eq!(fixture.scrub_calls.get(), 0);
+}
+
+#[test]
+fn complete_wheel_consumes_exact_units_atomically_and_keeps_legacy_vectors_unhandled() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let timestamp = Some(InputTimestamp::capture());
+    let sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(17),
+    ));
+    let modifiers = PointerModifiers::default();
+    let mut fixture = wheel_u32_input(None, None, false);
+    focus(&mut fixture.input);
+    assert!(Widget::accepts_wheel_input(&fixture.input));
+
+    let atomic = complete_output(Widget::handle_wheel_sample(
+        &mut fixture.input,
+        bounds,
+        position,
+        exact_wheel_sample(
+            WheelDelta::pixels(Vector2::new(0.0, 40.0)).unwrap(),
+            None,
+            modifiers,
+            timestamp,
+            sequence_range,
+        ),
+    ))
+    .expect("an effective phase-less sample should be atomic");
+    let edit = complete_wheel_edit(&atomic);
+    assert_eq!(edit.events().len(), 3);
+    assert_eq!(
+        edit.events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        vec![EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+    );
+    assert!(
+        edit.events()
+            .iter()
+            .all(|event| event.transaction == edit.transaction())
+    );
+    assert!(edit.events().iter().all(|event| {
+        event.provenance
+            == InteractionProvenance::Pointer {
+                modifiers,
+                timestamp,
+                sequence_range,
+            }
+    }));
+    assert_eq!(fixture.last_delta.get(), 1.0);
+    assert_eq!(fixture.last_step.get(), Some(NumericStep::Base));
+    assert_eq!(fixture.wheel_calls.get(), 1);
+    assert_eq!(fixture.input.value, 8);
+
+    let legacy_before = fixture.input.value;
+    assert!(
+        Widget::handle_input(
+            &mut fixture.input,
+            bounds,
+            WidgetInput::Wheel {
+                position,
+                delta: Vector2::new(0.0, 40.0),
+                modifiers,
+                timestamp,
+                sequence_range,
+            },
+        )
+        .is_none()
+    );
+    assert_eq!(fixture.input.value, legacy_before);
+    assert_eq!(fixture.wheel_calls.get(), 1);
+
+    let fine = complete_output(Widget::handle_wheel_sample(
+        &mut fixture.input,
+        bounds,
+        position,
+        exact_wheel_sample(
+            WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+            Some(WheelPhase::Discrete),
+            PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+            None,
+            None,
+        ),
+    ))
+    .expect("a discrete line sample should remain an exact atomic edit");
+    assert_eq!(complete_wheel_edit(&fine).events().len(), 3);
+    assert_eq!(fixture.last_delta.get(), 1.0);
+    assert_eq!(fixture.last_step.get(), Some(NumericStep::Fine));
+}
+
+#[test]
+fn complete_wheel_ignores_orphan_phaseful_samples_without_policy_or_state_changes() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let mut fixture = wheel_u32_input(None, None, false);
+    focus(&mut fixture.input);
+    let original_text = fixture.input.text_input.state.clone();
+
+    for phase in [
+        WheelPhase::Changed,
+        WheelPhase::Ended,
+        WheelPhase::Cancelled,
+    ] {
+        assert!(
+            Widget::handle_wheel_sample(
+                &mut fixture.input,
+                bounds,
+                position,
+                exact_wheel_sample(
+                    WheelDelta::pixels(Vector2::new(0.0, 40.0)).unwrap(),
+                    Some(phase),
+                    PointerModifiers::default(),
+                    None,
+                    None,
+                ),
+            )
+            .is_none(),
+            "orphan {phase:?} must remain unhandled"
+        );
+    }
+
+    assert_eq!(fixture.wheel_calls.get(), 0);
+    assert_eq!(fixture.format_calls.get(), 1);
+    assert_eq!(fixture.input.value, 7);
+    assert_eq!(fixture.input.text_input.state, original_text);
+    assert!(fixture.input.wheel.is_none());
+    assert_eq!(fixture.input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn complete_wheel_explicit_sequence_preserves_transaction_metadata_and_pending_end() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let started_timestamp = Some(InputTimestamp::capture());
+    let changed_timestamp = Some(InputTimestamp::capture());
+    let started_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(20),
+    ));
+    let changed_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(21),
+    ));
+    let modifiers = PointerModifiers::default();
+    let mut fixture = wheel_u32_input(None, None, false);
+    focus(&mut fixture.input);
+
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut fixture.input,
+            bounds,
+            position,
+            exact_wheel_sample(
+                WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+                Some(WheelPhase::Started),
+                modifiers,
+                started_timestamp,
+                started_range,
+            ),
+        )
+        .is_none()
+    );
+    assert_eq!(
+        fixture.input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::WheelSequence)
+    );
+    assert_eq!(fixture.wheel_calls.get(), 0);
+
+    let first = complete_output(Widget::handle_wheel_sample(
+        &mut fixture.input,
+        bounds,
+        position,
+        exact_wheel_sample(
+            WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+            Some(WheelPhase::Changed),
+            modifiers,
+            changed_timestamp,
+            changed_range,
+        ),
+    ))
+    .expect("first changed sample should begin the retained edit");
+    let first_edit = complete_wheel_edit(&first);
+    assert_eq!(first_edit.events().len(), 2);
+    assert_eq!(first_edit.events()[0].phase, EditPhase::Begin);
+    assert_eq!(first_edit.events()[1].phase, EditPhase::Update);
+    assert_eq!(
+        first_edit.events()[0].provenance,
+        InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: started_timestamp,
+            sequence_range: started_range,
+        }
+    );
+    assert_eq!(
+        first_edit.events()[1].provenance,
+        InteractionProvenance::Pointer {
+            modifiers,
+            timestamp: changed_timestamp,
+            sequence_range: changed_range,
+        }
+    );
+
+    let second = complete_output(Widget::handle_wheel_sample(
+        &mut fixture.input,
+        bounds,
+        position,
+        exact_wheel_sample(
+            WheelDelta::lines(Vector2::new(0.0, -1.0)).unwrap(),
+            Some(WheelPhase::Changed),
+            PointerModifiers {
+                command: true,
+                ..PointerModifiers::default()
+            },
+            None,
+            None,
+        ),
+    ))
+    .expect("a changed candidate should emit one update");
+    let second_edit = complete_wheel_edit(&second);
+    assert_eq!(second_edit.events().len(), 1);
+    assert_eq!(second_edit.events()[0].phase, EditPhase::Update);
+    assert_eq!(fixture.input.value, 0);
+    assert_eq!(fixture.last_step.get(), Some(NumericStep::Coarse));
+
+    let ended = complete_output(Widget::handle_wheel_sample(
+        &mut fixture.input,
+        bounds,
+        position,
+        exact_wheel_sample(
+            WheelDelta::pixels(Vector2::new(0.0, 0.0)).unwrap(),
+            Some(WheelPhase::Ended),
+            modifiers,
+            None,
+            None,
+        ),
+    ))
+    .expect("Ended should commit the active edit");
+    let commit = complete_wheel_edit(&ended);
+    assert_eq!(commit.events().len(), 1);
+    assert_eq!(commit.events()[0].phase, EditPhase::Commit);
+    assert!(matches!(
+        commit.events()[0].provenance,
+        InteractionProvenance::Pointer {
+            timestamp: None,
+            sequence_range: None,
+            ..
+        }
+    ));
+    assert_eq!(fixture.input.interaction_gate.incumbent(), None);
+
+    let mut pending = wheel_u32_input(None, None, false);
+    focus(&mut pending.input);
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut pending.input,
+            bounds,
+            position,
+            exact_wheel_sample(
+                WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+                Some(WheelPhase::Started),
+                modifiers,
+                None,
+                None,
+            ),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut pending.input,
+            bounds,
+            position,
+            exact_wheel_sample(
+                WheelDelta::pixels(Vector2::new(0.0, 0.0)).unwrap(),
+                Some(WheelPhase::Ended),
+                modifiers,
+                None,
+                None,
+            ),
+        )
+        .is_none()
+    );
+    assert_eq!(pending.wheel_calls.get(), 0);
+    assert_eq!(pending.input.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn complete_wheel_rejects_unusable_or_conflicting_samples_and_unchanged_atomic_values() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let mut fixture = wheel_u32_input(None, None, true);
+    focus(&mut fixture.input);
+    for sample in [
+        exact_wheel_sample(
+            WheelDelta::pixels(Vector2::new(0.0, 0.0)).unwrap(),
+            None,
+            PointerModifiers::default(),
+            None,
+            None,
+        ),
+        exact_wheel_sample(
+            WheelDelta::pixels(Vector2::new(4.0, 0.0)).unwrap(),
+            Some(WheelPhase::Discrete),
+            PointerModifiers::default(),
+            None,
+            None,
+        ),
+        WheelSample::from_parts(
+            WheelDelta::Pixels(Vector2::new(f32::NAN, 1.0)),
+            None,
+            PointerModifiers::default(),
+            None,
+            None,
+        ),
+    ] {
+        assert!(
+            Widget::handle_wheel_sample(&mut fixture.input, bounds, position, sample).is_none()
+        );
+    }
+    assert_eq!(fixture.wheel_calls.get(), 0);
+    assert_eq!(fixture.format_calls.get(), 1);
+    assert_eq!(fixture.input.value, 7);
+
+    assert!(
+        fixture
+            .input
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::TextEdit)
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut fixture.input,
+            bounds,
+            position,
+            exact_wheel_sample(
+                WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+                None,
+                PointerModifiers::default(),
+                None,
+                None,
+            ),
+        )
+        .is_none()
+    );
+    assert_eq!(fixture.wheel_calls.get(), 0);
+    assert_eq!(
+        fixture.input.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::TextEdit)
+    );
+
+    let mut unconfigured = u32_input();
+    unconfigured.set_complete_output_mode();
+    focus(&mut unconfigured);
+    assert!(!Widget::accepts_wheel_input(&unconfigured));
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut unconfigured,
+            bounds,
+            position,
+            exact_wheel_sample(
+                WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+                None,
+                PointerModifiers::default(),
+                None,
+                None,
+            ),
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn complete_wheel_initial_and_active_failures_are_typed_with_ordered_rollback() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let sample = |phase| {
+        exact_wheel_sample(
+            WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+            phase,
+            PointerModifiers::default(),
+            None,
+            None,
+        )
+    };
+
+    let mut initial_adjustment = wheel_u32_input(Some(1), None, false);
+    focus(&mut initial_adjustment.input);
+    let failure = complete_output(Widget::handle_wheel_sample(
+        &mut initial_adjustment.input,
+        bounds,
+        position,
+        sample(None),
+    ))
+    .expect("initial wheel adjustment failure should be typed");
+    assert_eq!(failure.len(), 1);
+    let [
+        NumericInputInteraction::WheelFailed {
+            attempt,
+            delta,
+            step,
+            provenance,
+            cancelled,
+            ..
+        },
+    ] = failure.parts()
+    else {
+        panic!("expected typed initial wheel adjustment failure");
+    };
+    assert_eq!(*attempt, NumericWheelAttempt::Initial);
+    assert_eq!(*delta, 1.0);
+    assert_eq!(*step, NumericStep::Base);
+    assert_eq!(provenance.source(), InteractionSource::Pointer);
+    assert!(!cancelled);
+    assert_eq!(initial_adjustment.input.value, 7);
+    assert_eq!(initial_adjustment.input.interaction_gate.incumbent(), None);
+
+    let mut initial_format = wheel_u32_input(None, Some(2), false);
+    focus(&mut initial_format.input);
+    let failure = complete_output(Widget::handle_wheel_sample(
+        &mut initial_format.input,
+        bounds,
+        position,
+        sample(None),
+    ))
+    .expect("initial wheel format failure should be typed");
+    assert!(matches!(
+        failure.parts(),
+        [NumericInputInteraction::WheelFormatFailed {
+            attempt: NumericWheelAttempt::Initial,
+            cancelled: false,
+            ..
+        }]
+    ));
+    assert_eq!(initial_format.input.value, 7);
+    assert_eq!(initial_format.input.text_input.state.value, "7");
+
+    let mut active_adjustment = wheel_u32_input(Some(2), None, false);
+    focus(&mut active_adjustment.input);
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut active_adjustment.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Started)),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut active_adjustment.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Changed)),
+        )
+        .is_some()
+    );
+    let failure = complete_output(Widget::handle_wheel_sample(
+        &mut active_adjustment.input,
+        bounds,
+        position,
+        sample(Some(WheelPhase::Changed)),
+    ))
+    .expect("active wheel failure should include rollback");
+    assert_eq!(failure.len(), 2);
+    let [
+        NumericInputInteraction::Edit(cancel),
+        NumericInputInteraction::WheelFailed {
+            attempt, cancelled, ..
+        },
+    ] = failure.parts()
+    else {
+        panic!("expected cancel before active wheel failure");
+    };
+    assert_eq!(cancel.events().len(), 1);
+    assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
+    assert_eq!(cancel.events()[0].value, 7);
+    assert_eq!(*attempt, NumericWheelAttempt::Update);
+    assert!(*cancelled);
+    assert_eq!(active_adjustment.input.value, 7);
+    assert_eq!(active_adjustment.input.text_input.state.value, "7");
+    assert!(active_adjustment.input.wheel.is_none());
+    assert_eq!(active_adjustment.input.interaction_gate.incumbent(), None);
+
+    let mut active_format = wheel_u32_input(None, Some(3), false);
+    focus(&mut active_format.input);
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut active_format.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Started)),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut active_format.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Changed)),
+        )
+        .is_some()
+    );
+    let failure = complete_output(Widget::handle_wheel_sample(
+        &mut active_format.input,
+        bounds,
+        position,
+        sample(Some(WheelPhase::Changed)),
+    ))
+    .expect("active wheel format failure should include rollback");
+    assert!(matches!(
+        failure.parts(),
+        [
+            NumericInputInteraction::Edit(cancel),
+            NumericInputInteraction::WheelFormatFailed {
+                attempt: NumericWheelAttempt::Update,
+                cancelled: true,
+                ..
+            }
+        ] if cancel.events()[0].phase == EditPhase::Cancel
+    ));
+    assert_eq!(active_format.input.value, 7);
+    assert_eq!(active_format.input.text_input.state.value, "7");
+}
+
+#[test]
+fn complete_wheel_escape_focus_loss_and_compatible_reprojection_restore_or_preserve_state() {
+    let bounds = wheel_bounds();
+    let position = Point::new(40.0, 14.0);
+    let sample = |phase| {
+        exact_wheel_sample(
+            WheelDelta::lines(Vector2::new(0.0, 1.0)).unwrap(),
+            phase,
+            PointerModifiers::default(),
+            None,
+            None,
+        )
+    };
+
+    let mut escape = wheel_u32_input(None, None, false);
+    escape.input.set_selection(0, 1);
+    focus(&mut escape.input);
+    let original = escape.input.text_input.state.clone();
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut escape.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Started)),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut escape.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Changed)),
+        )
+        .is_some()
+    );
+    let cancel = complete_output(Widget::handle_input(
+        &mut escape.input,
+        bounds,
+        WidgetInput::key_press(WidgetKey::Escape),
+    ))
+    .expect("Escape should cancel an active wheel edit");
+    assert_eq!(
+        complete_wheel_edit(&cancel).events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert_eq!(escape.input.value, 7);
+    assert_eq!(escape.input.text_input.state, original);
+
+    let mut focus_loss = wheel_u32_input(None, None, false);
+    focus(&mut focus_loss.input);
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut focus_loss.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Started)),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut focus_loss.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Changed)),
+        )
+        .is_some()
+    );
+    let cancel = complete_output(Widget::handle_input(
+        &mut focus_loss.input,
+        bounds,
+        WidgetInput::FocusChanged(false),
+    ))
+    .expect("focus loss should cancel an active wheel edit");
+    assert_eq!(
+        complete_wheel_edit(&cancel).events()[0].phase,
+        EditPhase::Cancel
+    );
+    assert_eq!(focus_loss.input.value, 7);
+    assert_eq!(focus_loss.input.interaction_gate.incumbent(), None);
+    assert!(matches!(
+        complete_wheel_edit(&cancel).events()[0].provenance,
+        InteractionProvenance::Pointer {
+            timestamp: None,
+            sequence_range: None,
+            ..
+        }
+    ));
+
+    let mut reprojection = wheel_u32_input(None, None, false);
+    focus(&mut reprojection.input);
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut reprojection.input,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Started)),
+        )
+        .is_none()
+    );
+    let previous = reprojection.input.clone();
+    let mut successor = reprojection.input.clone();
+    Widget::synchronize_from_previous(&mut successor, &previous);
+    assert_eq!(
+        successor.interaction_gate.incumbent(),
+        Some(NumericInteractionOwner::WheelSequence)
+    );
+    assert!(
+        Widget::handle_wheel_sample(
+            &mut successor,
+            bounds,
+            position,
+            sample(Some(WheelPhase::Changed)),
+        )
+        .is_some()
+    );
+    assert!(successor.wheel.is_some());
 }
 
 #[test]

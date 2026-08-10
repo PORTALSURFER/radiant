@@ -7,7 +7,7 @@ use crate::{
     widgets::{
         NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
         NumericInputInteractionBatch, NumericInputWidget, NumericScrubPolicy, NumericStepModifiers,
-        TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
+        NumericWheelPolicy, TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -76,6 +76,12 @@ where
     /// Configure the explicit complete-mode numeric pointer-scrub policy.
     pub fn scrub_policy(mut self, policy: NumericScrubPolicy) -> Self {
         self.input.set_scrub_policy(policy);
+        self
+    }
+
+    /// Configure the explicit complete-mode numeric wheel policy.
+    pub fn wheel_policy(mut self, policy: NumericWheelPolicy) -> Self {
+        self.input.set_wheel_policy(policy);
         self
     }
 

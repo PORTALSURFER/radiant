@@ -2,6 +2,7 @@
 
 mod keyboard;
 mod pointer;
+mod wheel;
 
 #[cfg(test)]
 mod tests;
@@ -18,6 +19,11 @@ use self::pointer::{
     complete_pointer_scrub_output_policy, normalized_delta, pointer_provenance, select_step,
     valid_geometry, without_activation_modifier,
 };
+use self::wheel::{
+    WheelOutputPolicy, WheelRequest, WheelSequenceState, admits_position,
+    complete_wheel_output_policy, is_configured as wheel_policy_is_configured, selected_step,
+    wheel_delta, wheel_provenance,
+};
 
 use crate::{
     gui::types::{Point, Rect},
@@ -28,10 +34,10 @@ use crate::{
         EditEvent, FocusLossDecision, InteractionProvenance, NumericAdjustment, NumericCodec,
         NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
         NumericInputInteractionBatch, NumericParseResult, NumericScrubAttempt, NumericScrubPolicy,
-        NumericStepAttempt, NumericStepModifiers, PointerButton, PointerModifiers,
-        PointerPressAdmission, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
-        TextInputWidget, TextWrap, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSemantics, WidgetSizing,
+        NumericStepAttempt, NumericStepModifiers, NumericWheelAttempt, NumericWheelPolicy,
+        PointerButton, PointerModifiers, PointerPressAdmission, TextAlign, TextBackgroundRole,
+        TextColorRole, TextInputChrome, TextInputWidget, TextWrap, WheelPhase, WheelSample, Widget,
+        WidgetCapabilities, WidgetInput, WidgetKey, WidgetOutput, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -96,6 +102,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     active: Option<ActiveNumericEdit<T, C>>,
     keyboard: Option<KeyboardAdjustmentState<T>>,
     pointer: Option<PointerScrubState<T>>,
+    wheel: Option<WheelSequenceState<T>>,
     interaction_gate: NumericInteractionGate,
     step_modifiers: Option<NumericStepModifiers>,
     scrub_policy: Option<NumericScrubPolicy>,
@@ -103,6 +110,8 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     output_encoder: NumericInputOutputEncoder<T>,
     keyboard_policy: Rc<dyn KeyboardAdjustmentPolicy<T>>,
     pointer_policy: Option<Rc<dyn PointerScrubOutputPolicy<T>>>,
+    wheel_policy: Option<NumericWheelPolicy>,
+    wheel_output_policy: Option<Rc<dyn WheelOutputPolicy<T>>>,
 }
 
 impl<T, C, A> Clone for NumericInputWidget<T, C, A>
@@ -120,6 +129,7 @@ where
             active: self.active.clone(),
             keyboard: self.keyboard.clone(),
             pointer: self.pointer.clone(),
+            wheel: self.wheel.clone(),
             interaction_gate: self.interaction_gate,
             step_modifiers: self.step_modifiers,
             scrub_policy: self.scrub_policy,
@@ -127,6 +137,8 @@ where
             output_encoder: Rc::clone(&self.output_encoder),
             keyboard_policy: Rc::clone(&self.keyboard_policy),
             pointer_policy: self.pointer_policy.as_ref().map(Rc::clone),
+            wheel_policy: self.wheel_policy,
+            wheel_output_policy: self.wheel_output_policy.as_ref().map(Rc::clone),
         }
     }
 }
@@ -152,6 +164,7 @@ where
                 "pointer",
                 &self.pointer.as_ref().map(|pointer| pointer.is_active()),
             )
+            .field("wheel", &self.wheel.as_ref().map(|wheel| wheel.is_active()))
             .field("output_mode", &self.output_mode)
             .finish_non_exhaustive()
     }
@@ -188,6 +201,7 @@ where
             active: None,
             keyboard: None,
             pointer: None,
+            wheel: None,
             interaction_gate: NumericInteractionGate::new(),
             step_modifiers: None,
             scrub_policy: None,
@@ -195,6 +209,8 @@ where
             output_encoder: compatibility_output_encoder(),
             keyboard_policy: no_keyboard_adjustment_policy(),
             pointer_policy: None,
+            wheel_policy: None,
+            wheel_output_policy: None,
         })
     }
 
@@ -224,11 +240,16 @@ where
         self.scrub_policy = Some(policy);
     }
 
+    pub(crate) fn set_wheel_policy(&mut self, policy: NumericWheelPolicy) {
+        self.wheel_policy = Some(policy);
+    }
+
     pub(crate) fn set_compatibility_output_mode(&mut self) {
         self.output_mode = NumericInputOutputMode::Compatibility;
         self.output_encoder = compatibility_output_encoder();
         self.keyboard_policy = no_keyboard_adjustment_policy();
         self.pointer_policy = None;
+        self.wheel_output_policy = None;
     }
 
     pub(crate) fn set_complete_output_mode(&mut self)
@@ -243,6 +264,10 @@ where
             Rc::clone(&self.adjustment),
         );
         self.pointer_policy = Some(complete_pointer_scrub_output_policy(
+            Rc::clone(&self.codec),
+            Rc::clone(&self.adjustment),
+        ));
+        self.wheel_output_policy = Some(complete_wheel_output_policy(
             Rc::clone(&self.codec),
             Rc::clone(&self.adjustment),
         ));
@@ -266,6 +291,12 @@ where
             && !self.text_input.common.state.read_only
     }
 
+    fn wheel_is_configured(&self) -> bool {
+        self.output_mode == NumericInputOutputMode::Complete
+            && wheel_policy_is_configured(self.wheel_policy)
+            && self.wheel_output_policy.is_some()
+    }
+
     fn default_pointer_provenance() -> InteractionProvenance {
         pointer_provenance(PointerModifiers::default(), None, None)
     }
@@ -282,6 +313,11 @@ where
     fn release_pointer_scrub(&mut self) {
         self.interaction_gate
             .release(NumericInteractionOwner::PointerScrub);
+    }
+
+    fn release_wheel_sequence(&mut self) {
+        self.interaction_gate
+            .release(NumericInteractionOwner::WheelSequence);
     }
 
     fn pointer_failure_rollback(
@@ -500,6 +536,312 @@ where
         self.restore_pointer_start(&state);
         self.release_pointer_scrub();
         cancel.map(|edit| self.encode_output(edit))
+    }
+
+    fn default_wheel_provenance() -> InteractionProvenance {
+        InteractionProvenance::Pointer {
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+            sequence_range: None,
+        }
+    }
+
+    fn restore_wheel_start(&mut self, state: &WheelSequenceState<T>) {
+        self.value = state.start_value.clone();
+        self.text_input.state.value = state.start_text.clone();
+        self.text_input.state.caret = state.start_caret;
+        self.text_input.state.selection_anchor = state.start_selection_anchor;
+    }
+
+    fn wheel_failure_rollback(
+        state: &WheelSequenceState<T>,
+        provenance: InteractionProvenance,
+    ) -> Option<NumericInputEditBatch<T>> {
+        state
+            .session
+            .as_ref()?
+            .begin_event()
+            .clone()
+            .cancel(provenance)
+            .and_then(|cancel| NumericInputEditBatch::from_events(&[cancel]))
+    }
+
+    fn handle_wheel_changed(&mut self, sample: WheelSample) -> Option<WidgetOutput> {
+        let policy = self.wheel_output_policy.as_ref()?.clone();
+        let mut state = self.wheel.take()?;
+        let Some(delta) = wheel_delta(sample) else {
+            self.wheel = Some(state);
+            return None;
+        };
+        let step = selected_step(sample.modifiers());
+        let attempt = if state.is_active() {
+            NumericWheelAttempt::Update
+        } else {
+            NumericWheelAttempt::Initial
+        };
+        let provenance = wheel_provenance(sample);
+        let candidate = match policy.wheel(WheelRequest {
+            value: &self.value,
+            delta,
+            step,
+            attempt,
+            provenance,
+        }) {
+            Ok(candidate) => candidate,
+            Err(failure) => {
+                let rollback = Self::wheel_failure_rollback(&state, provenance);
+                let output = failure.into_output(rollback);
+                self.restore_wheel_start(&state);
+                self.wheel = None;
+                self.release_wheel_sequence();
+                return output;
+            }
+        };
+        if candidate == self.value {
+            self.wheel = Some(state);
+            return None;
+        }
+
+        let mut draft = String::new();
+        if let Err(failure) = policy.format(
+            WheelRequest {
+                value: &candidate,
+                delta,
+                step,
+                attempt,
+                provenance,
+            },
+            &mut draft,
+        ) {
+            let rollback = Self::wheel_failure_rollback(&state, provenance);
+            let output = failure.into_output(rollback);
+            self.restore_wheel_start(&state);
+            self.wheel = None;
+            self.release_wheel_sequence();
+            return output;
+        }
+
+        let Some(edit) = state.begin_update(candidate.clone(), provenance) else {
+            self.wheel = Some(state);
+            return None;
+        };
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        self.wheel = Some(state);
+        Some(self.encode_output(edit))
+    }
+
+    fn handle_wheel_atomic(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+    ) -> Option<WidgetOutput> {
+        if !self.wheel_is_configured()
+            || !self.is_editable()
+            || !admits_position(bounds, position)
+            || self.interaction_gate.incumbent().is_some()
+        {
+            return None;
+        }
+        let delta = wheel_delta(sample)?;
+        if !self
+            .interaction_gate
+            .try_admit(NumericInteractionOwner::WheelSequence)
+        {
+            return None;
+        }
+
+        let policy = match self.wheel_output_policy.as_ref().cloned() {
+            Some(policy) => policy,
+            None => {
+                self.release_wheel_sequence();
+                return None;
+            }
+        };
+        let step = selected_step(sample.modifiers());
+        let provenance = wheel_provenance(sample);
+        let attempt = NumericWheelAttempt::Initial;
+        let candidate = match policy.wheel(WheelRequest {
+            value: &self.value,
+            delta,
+            step,
+            attempt,
+            provenance,
+        }) {
+            Ok(candidate) => candidate,
+            Err(failure) => {
+                let output = failure.into_output(None);
+                self.release_wheel_sequence();
+                return output;
+            }
+        };
+        if candidate == self.value {
+            self.release_wheel_sequence();
+            return None;
+        }
+
+        let mut draft = String::new();
+        if let Err(failure) = policy.format(
+            WheelRequest {
+                value: &candidate,
+                delta,
+                step,
+                attempt,
+                provenance,
+            },
+            &mut draft,
+        ) {
+            let output = failure.into_output(None);
+            self.release_wheel_sequence();
+            return output;
+        }
+
+        let mut state = WheelSequenceState::new(
+            self.value.clone(),
+            self.text_input.state.value.clone(),
+            self.text_input.state.caret,
+            self.text_input.state.selection_anchor,
+            provenance,
+        );
+        let Some(begin_update) = state.begin_update(candidate.clone(), provenance) else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        let [begin, update] = begin_update.events() else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        let Some(session) = state.session.take() else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        let Ok(commit) = session.commit(candidate.clone(), provenance) else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        let Some(edit) =
+            NumericInputEditBatch::from_events(&[begin.clone(), update.clone(), commit])
+        else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        self.value = candidate;
+        self.text_input.state.value = draft;
+        let end = self.text_input.state.char_len();
+        self.text_input.state.caret = end;
+        self.text_input.state.selection_anchor = end;
+        self.release_wheel_sequence();
+        Some(self.encode_output(edit))
+    }
+
+    fn commit_wheel_sequence(&mut self, sample: WheelSample) -> Option<WidgetOutput> {
+        let mut state = self.wheel.take()?;
+        let Some(session) = state.session.take() else {
+            self.release_wheel_sequence();
+            return None;
+        };
+        let provenance = wheel_provenance(sample);
+        let commit = match session.commit(self.value.clone(), provenance) {
+            Ok(commit) => commit,
+            Err(session) => {
+                state.session = Some(session);
+                self.wheel = Some(state);
+                return None;
+            }
+        };
+        let Some(edit) = NumericInputEditBatch::from_events(&[commit]) else {
+            self.wheel = Some(state);
+            return None;
+        };
+        self.release_wheel_sequence();
+        Some(self.encode_output(edit))
+    }
+
+    fn cancel_wheel_sequence(&mut self, provenance: InteractionProvenance) -> Option<WidgetOutput> {
+        let state = self.wheel.take()?;
+        let cancel = state
+            .session
+            .as_ref()
+            .and_then(|session| session.begin_event().clone().cancel(provenance))
+            .and_then(|cancel| NumericInputEditBatch::from_events(&[cancel]));
+        self.restore_wheel_start(&state);
+        self.release_wheel_sequence();
+        cancel.map(|edit| self.encode_output(edit))
+    }
+
+    fn handle_exact_wheel_sample(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+    ) -> Option<WidgetOutput> {
+        if self.wheel.is_some() && sample.phase() == Some(WheelPhase::Started) {
+            let output = self.cancel_wheel_sequence(Self::default_wheel_provenance());
+            if self.wheel_is_configured()
+                && self.is_editable()
+                && sample.is_valid()
+                && admits_position(bounds, position)
+                && wheel_delta(sample).is_some()
+                && self.interaction_gate.incumbent().is_none()
+                && self
+                    .interaction_gate
+                    .try_admit(NumericInteractionOwner::WheelSequence)
+            {
+                self.wheel = Some(WheelSequenceState::new(
+                    self.value.clone(),
+                    self.text_input.state.value.clone(),
+                    self.text_input.state.caret,
+                    self.text_input.state.selection_anchor,
+                    wheel_provenance(sample),
+                ));
+            }
+            return output;
+        }
+        if self.wheel.is_some() && !self.is_editable() {
+            return self.cancel_wheel_sequence(Self::default_wheel_provenance());
+        }
+        if self.wheel.is_some() {
+            return match sample.phase() {
+                Some(WheelPhase::Changed) => self.handle_wheel_changed(sample),
+                Some(WheelPhase::Ended) => self.commit_wheel_sequence(sample),
+                Some(WheelPhase::Cancelled) => self.cancel_wheel_sequence(wheel_provenance(sample)),
+                Some(WheelPhase::Started) | Some(WheelPhase::Discrete) | None => None,
+            };
+        }
+
+        if !self.wheel_is_configured()
+            || !self.is_editable()
+            || !sample.is_valid()
+            || !admits_position(bounds, position)
+        {
+            return None;
+        }
+        match sample.phase() {
+            Some(WheelPhase::Started) => {
+                if wheel_delta(sample).is_none()
+                    || self.interaction_gate.incumbent().is_some()
+                    || !self
+                        .interaction_gate
+                        .try_admit(NumericInteractionOwner::WheelSequence)
+                {
+                    return None;
+                }
+                self.wheel = Some(WheelSequenceState::new(
+                    self.value.clone(),
+                    self.text_input.state.value.clone(),
+                    self.text_input.state.caret,
+                    self.text_input.state.selection_anchor,
+                    wheel_provenance(sample),
+                ));
+                None
+            }
+            Some(WheelPhase::Discrete) | None => self.handle_wheel_atomic(bounds, position, sample),
+            Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Cancelled) => None,
+        }
     }
 
     fn begin_text_edit_session(&mut self, timestamp: Option<crate::gui::input::InputTimestamp>) {
@@ -940,6 +1282,23 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<crate::widgets::WidgetOutput> {
+        if self.wheel.is_some() {
+            match input {
+                WidgetInput::KeyPress {
+                    key: WidgetKey::Escape,
+                    ..
+                } => return self.cancel_wheel_sequence(Self::default_wheel_provenance()),
+                WidgetInput::FocusChanged(false) => {
+                    let output = self.cancel_wheel_sequence(Self::default_wheel_provenance());
+                    let _ = self
+                        .text_input
+                        .handle_input(bounds, WidgetInput::FocusChanged(false));
+                    return output;
+                }
+                _ => return None,
+            }
+        }
+
         if self.pointer.is_some() {
             match input {
                 WidgetInput::PointerMove {
@@ -1108,11 +1467,21 @@ where
         None
     }
 
+    fn handle_wheel_sample(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        self.handle_exact_wheel_sample(bounds, position, sample)
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             self.active = None;
             self.keyboard = None;
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         };
@@ -1120,6 +1489,7 @@ where
             self.active = None;
             self.keyboard = None;
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
@@ -1128,6 +1498,7 @@ where
             || self.output_mode != previous.output_mode
             || self.step_modifiers != previous.step_modifiers
             || self.scrub_policy != previous.scrub_policy
+            || self.wheel_policy != previous.wheel_policy
             || self.text_input.common.state.disabled
             || previous.text_input.common.state.disabled
             || self.text_input.common.state.read_only
@@ -1136,6 +1507,7 @@ where
             self.active = None;
             self.keyboard = None;
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = NumericInteractionGate::new();
             return;
         }
@@ -1146,23 +1518,34 @@ where
             self.active = None;
             self.keyboard = None;
             self.pointer = previous.pointer.clone();
+            self.wheel = None;
+            self.interaction_gate = previous.interaction_gate;
+        } else if previous.wheel.is_some() {
+            self.text_input.state = previous.text_input.state.clone();
+            self.active = None;
+            self.keyboard = None;
+            self.pointer = None;
+            self.wheel = previous.wheel.clone();
             self.interaction_gate = previous.interaction_gate;
         } else if previous.active.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = previous.active.clone();
             self.keyboard = None;
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = previous.interaction_gate;
         } else if previous.keyboard.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
             self.keyboard = previous.keyboard.clone();
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = previous.interaction_gate;
         } else {
             self.active = None;
             self.keyboard = None;
             self.pointer = None;
+            self.wheel = None;
             self.interaction_gate = NumericInteractionGate::new();
         }
     }
@@ -1176,6 +1559,7 @@ where
                     && self.output_mode == successor.output_mode
                     && self.step_modifiers == successor.step_modifiers
                     && self.scrub_policy == successor.scrub_policy
+                    && self.wheel_policy == successor.wheel_policy
                     && !self.text_input.common.state.disabled
                     && !self.text_input.common.state.read_only
                     && !successor.text_input.common.state.disabled
@@ -1189,6 +1573,8 @@ where
             self.cancel_keyboard(None)
         } else if self.pointer.is_some() {
             self.cancel_pointer_scrub(Self::default_pointer_provenance())
+        } else if self.wheel.is_some() {
+            self.cancel_wheel_sequence(Self::default_wheel_provenance())
         } else {
             self.cancel_active(None)
                 .map(|batch| self.encode_output(batch))
@@ -1199,9 +1585,20 @@ where
         self.is_editable()
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        self.output_mode == NumericInputOutputMode::Complete && self.wheel_policy.is_some()
+    }
+
+    fn retains_managed_wheel_sequence(&self) -> bool {
+        self.wheel.is_some()
+    }
+
     fn preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
         key == WidgetKey::Escape
-            && (self.active.is_some() || self.keyboard.is_some() || self.pointer.is_some())
+            && (self.active.is_some()
+                || self.keyboard.is_some()
+                || self.pointer.is_some()
+                || self.wheel.is_some())
             && self.is_editable()
     }
 

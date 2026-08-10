@@ -80,13 +80,14 @@ pub use interaction::{
     NumericCodec, NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
     NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
     NumericScrubActivation, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
-    NumericStepAttempt, NumericStepDirection, NumericStepModifiers, PointerButton,
-    PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
-    SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
-    TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
-    ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
-    WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase, WheelSample,
-    WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
+    NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
+    NumericWheelPolicy, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
+    ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand,
+    TextInputMessage, TextInputMessageKind, TextInputMessageParts, TextInputRevision,
+    ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError,
+    ValueMappingKind, WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase,
+    WheelSample, WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+    handle_activation_input,
 };
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{

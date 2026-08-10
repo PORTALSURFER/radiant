@@ -1040,6 +1040,9 @@ mod tests {
         Complete,
     }
 
+    // This test-only mode fixture intentionally carries the complete-mode batch
+    // so refresh tests can inspect both output modes through one bridge.
+    #[allow(clippy::large_enum_variant)]
     enum NumericRefreshMessage {
         Compatibility(NumericInputEditBatch<u32>),
         Complete(NumericInputInteractionBatch<u32, (), ()>),

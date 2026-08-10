@@ -191,6 +191,9 @@ where
     ) -> WheelOrScrollRoute {
         let phase = sample.phase();
         if phase == Some(WheelPhase::Started) {
+            if exact_sample {
+                self.cancel_live_managed_wheel_sequence_for_start(point, refresh_after_message);
+            }
             // Every explicit start is a fresh boundary, including a malformed
             // start that cannot be admitted below.
             self.clear_managed_wheel_sequence();
@@ -260,6 +263,7 @@ where
                     point,
                     sample,
                     refresh_after_message,
+                    exact_sample,
                 ) else {
                     return WheelOrScrollRoute::NotRouted;
                 };
@@ -359,6 +363,7 @@ where
             point,
             sample,
             refresh_after_message,
+            true,
         );
         if !terminal
             && let RuntimeManagedWheelSequenceState::Active {
@@ -379,15 +384,65 @@ where
         }
     }
 
+    fn cancel_live_managed_wheel_sequence_for_start(
+        &mut self,
+        point: Point,
+        refresh_after_message: bool,
+    ) {
+        let RuntimeManagedWheelSequenceState::Active { widget_id } =
+            self.interaction.wheel.managed_sequence
+        else {
+            return;
+        };
+        if !self.managed_wheel_sequence_is_live(widget_id) {
+            return;
+        }
+
+        // The superseding start must not observe the old authority while its
+        // owner processes teardown. The synthetic terminal is owner-only:
+        // unlike ordinary routing, it must never fall through to scrolling.
+        self.clear_managed_wheel_sequence();
+        let cancellation = WheelSample::from_parts(
+            WheelDelta::Pixels(Vector2::new(0.0, 0.0)),
+            Some(WheelPhase::Cancelled),
+            PointerModifiers::default(),
+            None,
+            None,
+        );
+        debug_assert!(cancellation.is_valid());
+        let _ = self.dispatch_wheel_to_widget_with_refresh(
+            widget_id,
+            point,
+            cancellation,
+            refresh_after_message,
+            true,
+        );
+    }
+
     fn dispatch_wheel_to_widget_with_refresh(
         &mut self,
         widget_id: WidgetId,
         point: Point,
         sample: WheelSample,
         refresh_after_message: bool,
+        exact_sample: bool,
     ) -> Option<WheelWidgetDispatch> {
         let bounds = self.layout.rects.get(&widget_id).copied()?;
-        let result = self.dispatch_surface_wheel_sample(widget_id, bounds, point, sample)?;
+        let result = if exact_sample {
+            self.dispatch_surface_wheel_sample(widget_id, bounds, point, sample)?
+        } else {
+            let input = WidgetInput::wheel_with_metadata(
+                point,
+                sample.delta().vector(),
+                sample.modifiers(),
+                sample.timestamp(),
+                sample.sequence_range(),
+            );
+            (
+                self.dispatch_surface_input(widget_id, bounds, input)?,
+                false,
+            )
+        };
         let retained = result.1;
         let dispatch = match result.0 {
             WidgetDispatchResult::Message(message) => {

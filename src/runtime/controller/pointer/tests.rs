@@ -3181,6 +3181,7 @@ struct ManagedPointerFixture {
     id: u64,
     admission: Rc<Cell<PointerPressAdmission>>,
     retains: Rc<Cell<bool>>,
+    retains_on_press: Rc<Cell<bool>>,
     focus_decision: Rc<Cell<FocusLossDecision>>,
     events: Rc<RefCell<Vec<ManagedPointerEvent>>>,
     emit_press: Rc<Cell<bool>>,
@@ -3198,6 +3199,7 @@ impl ManagedPointerFixture {
             retains: Rc::new(Cell::new(
                 admission == PointerPressAdmission::ManagedCapture,
             )),
+            retains_on_press: Rc::new(Cell::new(false)),
             focus_decision: Rc::new(Cell::new(FocusLossDecision::Allow)),
             events: Rc::new(RefCell::new(Vec::new())),
             emit_press: Rc::new(Cell::new(false)),
@@ -3222,6 +3224,12 @@ impl ManagedPointerFixture {
 
     fn with_press_output(self, emits_output: bool) -> Self {
         self.emit_press.set(emits_output);
+        self
+    }
+
+    fn with_retention_on_press(self) -> Self {
+        self.retains.set(false);
+        self.retains_on_press.set(true);
         self
     }
 
@@ -3310,6 +3318,9 @@ impl Widget for ManagedPointerWidget {
                     .events
                     .borrow_mut()
                     .push(ManagedPointerEvent::Press(timestamp));
+                if self.fixture.retains_on_press.get() {
+                    self.fixture.retains.set(true);
+                }
                 self.fixture
                     .emit_press
                     .get()
@@ -3487,6 +3498,41 @@ fn managed_pointer_press_admission_captures_before_no_output_and_output_refresh(
     );
     assert!(projections.get() >= 2);
     assert_eq!(runtime.pointer_capture(), Some(42));
+}
+
+#[test]
+fn managed_pointer_capture_reserves_until_press_establishes_retention() {
+    let fixture = ManagedPointerFixture::managed(43).with_retention_on_press();
+    let events = Rc::clone(&fixture.events);
+    assert!(!fixture.retains.get());
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::single(fixture.clone()),
+        Vector2::new(180.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(43)
+    );
+    assert!(fixture.retains.get());
+    assert_eq!(runtime.pointer_capture(), Some(43));
+    assert!(events.borrow().contains(&ManagedPointerEvent::Press(None)));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(120.0, 12.0),
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+            sequence_range: None,
+        }),
+        Some(43)
+    );
+    assert!(events.borrow().contains(&ManagedPointerEvent::Move));
 }
 
 #[test]
@@ -3748,6 +3794,22 @@ fn orphaned_primary_does_not_suppress_secondary_legacy_release() {
             ))
             .count(),
         1
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerModifiersChanged {
+            modifiers: PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+            timestamp: None,
+        }),
+        Some(112)
+    );
+    assert!(
+        other_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Modifiers(None))
     );
 
     assert_eq!(

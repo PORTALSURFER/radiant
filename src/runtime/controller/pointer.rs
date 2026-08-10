@@ -224,8 +224,11 @@ where
             }
         }
         if let Some(button) = managed_press
-            && (!self.managed_press_target_is_current(widget_id, managed_press_compatibility_kind)
-                || !self.reserve_managed_pointer_capture(widget_id, button))
+            && !self.reserve_managed_pointer_capture(
+                widget_id,
+                button,
+                managed_press_compatibility_kind,
+            )
         {
             return PointInputDispatch::Miss;
         }
@@ -314,8 +317,11 @@ where
         &mut self,
         widget_id: WidgetId,
         button: PointerButton,
+        compatibility_kind: Option<&'static str>,
     ) -> bool {
-        if self.interaction.pointer.managed_capture.is_some() {
+        if self.interaction.pointer.managed_capture.is_some()
+            || !self.managed_press_target_is_current(widget_id, compatibility_kind)
+        {
             return false;
         }
         self.interaction.pointer.capture = None;
@@ -328,12 +334,7 @@ where
             button,
             state: RuntimeManagedPointerCaptureState::Pending,
         });
-        if self.managed_pointer_record_is_live(false) {
-            true
-        } else {
-            self.terminate_managed_pointer_capture_without_cancel();
-            false
-        }
+        true
     }
 
     fn finish_managed_pointer_press(
@@ -448,10 +449,11 @@ where
         &mut self,
         button: PointerButton,
     ) -> bool {
-        if !self
-            .interaction
-            .pointer
-            .has_managed_release_tombstone(button)
+        if !self.interaction.pointer.has_any_managed_release_tombstone()
+            || !self
+                .interaction
+                .pointer
+                .has_managed_release_tombstone(button)
         {
             return false;
         }

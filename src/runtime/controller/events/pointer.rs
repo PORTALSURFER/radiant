@@ -380,9 +380,7 @@ where
             }
             return None;
         }
-        if self.interaction.pointer.managed_capture.is_some()
-            || self.interaction.pointer.has_any_managed_release_tombstone()
-        {
+        if self.interaction.pointer.managed_capture.is_some() {
             return None;
         }
         if let Some(widget_id) = self.interaction.pointer.capture {

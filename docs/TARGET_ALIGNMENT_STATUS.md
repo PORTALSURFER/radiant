@@ -3,16 +3,16 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~79.91% (879 / 11) |
+| Broad end-to-end target coverage | ~80.55% (886 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
-| Input, provenance, and edit lifecycle | 94% |
+| Input, provenance, and edit lifecycle | 95% |
 | Layout, composition, virtualization | 96% |
-| Text, focus, and selection | 72% |
-| Numeric controls | 77% |
+| Text, focus, and selection | 73% |
+| Numeric controls | 82% |
 | Runtime, effects, and scheduling | 96% |
 | Rendering, invalidation, retained GPU surfaces | 78% |
 | Platform, windowing, and host boundaries | 71% |
@@ -20,11 +20,11 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 94 + 96 + 72 + 77 + 96 + 78 + 71 + 66 + 76) / 11 = 79.9090...%`,
-reported as approximately `79.91%`.
+`(83 + 70 + 95 + 96 + 73 + 82 + 96 + 78 + 71 + 66 + 76) / 11 = 80.5454...%`,
+reported as approximately `80.55%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining native
-adapter, numeric-consumer, scheduler-, renderer-, or product-policy
+adapter, accessibility-consumer, scheduler-, renderer-, or product-policy
 boundaries.
 The generic widget interaction teardown seam is now executable: an additive
 defaulted `Widget` hook can terminate retiring local state, old-surface mappers
@@ -71,15 +71,18 @@ cancel path without consulting codec or adjustment policy.
 Normalized `KeyRelease` plumbing is now shipped across native input, runtime
 events, and focused widget dispatch; complete-mode semantic keyboard
 adjustment is now shipped for explicitly configured numeric step policies. The
-qualified backend-neutral IME/composition foundation and the single-line
-`TextInputWidget` consumer are now shipped: validated Unicode-scalar
-`CompositionRange`/`CompositionSample` values, default-compatible object-safe
-widget hooks, erased surface dispatch, a private fixed-size focused
-`Idle`/`Active`/`Blocked` ownership kernel, and widget-local start/update/
-commit/cancel state with revision-aware reprojection. The source deliberately
-leaves native IME adapters, the NumericInput consumer, matching-key
-suppression, candidate windows, accessibility, and product behavior
-unshipped. Complete-mode
+qualified backend-neutral IME/composition foundation, the single-line
+`TextInputWidget` consumer, and the `NumericInputWidget` consumer are now
+shipped: validated Unicode-scalar `CompositionRange`/`CompositionSample`
+values, default-compatible object-safe widget hooks, erased surface dispatch,
+a private fixed-size focused `Idle`/`Active`/`Blocked` ownership kernel, and
+widget-local start/update/commit/cancel state with revision-aware
+reprojection. Numeric preedit remains visible local text without parse or
+publication; a valid commit reuses text sanitization and the numeric codec for
+one terminal `[Begin, Commit]` batch, while invalid commits remain correctable
+and cancel/focus-loss restores the captured edit. The source deliberately
+leaves native IME adapters, matching-key suppression, candidate windows,
+accessibility, and product behavior unshipped. Complete-mode
 NumericInput
 PointerScrub consumption is now shipped for the explicitly configured
 primary-plus-Alt/Option path, including managed capture, bounded output, typed
@@ -97,15 +100,15 @@ Legacy vector dispatch remains metadata-preserving after metadata-neutral hit
 testing. Numeric accessibility actions are contract-defined but unimplemented.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
-The Text/Input evidence moves from 93% to 94% and 71% to 72%; the other
-category rows, including Numeric and Platform, are unchanged. The
-evidence-backed total for this consumer moves from `877` to `879`:
-`877 + 1 + 1 = 879`, `879 / 11 = 79.9090...%`, reported as approximately
-`79.91%`. The remaining numeric consumers—IME/composition behavior and
-accessibility—remain target-only; native adapters and matching-key suppression
-also remain separate boundaries. The generic composition foundation, the
-single-line text consumer, and the other previously shipped routing foundations
-remain distinct from those remaining consumers.
+The Input evidence moves from 94% to 95%, Text from 72% to 73%, and Numeric
+controls from 77% to 82%. The evidence-backed total for this consumer moves
+from `879` to `886`: `879 + 1 + 1 + 5 = 886`, `886 / 11 = 80.5454...%`,
+reported as approximately `80.55%`. Accessibility actions remain the one
+numeric consumer that is target-only; native adapters and matching-key
+suppression also remain separate boundaries. The generic composition
+foundation, the single-line text consumer, the NumericInput consumer, and the
+other previously shipped routing foundations remain distinct from that
+remaining consumer.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless

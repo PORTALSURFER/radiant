@@ -308,9 +308,10 @@ commit, and cancellation events. The single-line `TextInputWidget` consumes
 these backend-neutral samples while keeping pre-edit state local and emitting
 one ordinary text change only on commit. Platform adapters own
 candidate-window and host-specific IME behavior; the backend-neutral text
-model owns the logical composition range. Native adapters, matching-key
-suppression, and a numeric codec consumer remain separate boundaries; a
-numeric codec never emits typed values from pre-edit text.
+model owns the logical composition range. Native adapters and matching-key
+suppression remain separate boundaries; `NumericInputWidget` now consumes the
+generic composition lifecycle, and a numeric codec never emits typed values
+from pre-edit text.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
 tasks, platform operations, timers, asset preparation, and other asynchronous
@@ -1801,8 +1802,9 @@ interaction set. The crate-private gate is shipped for TextEdit admission,
 terminal cleanup, replacement teardown, and compatible reprojection in the
 generic text consumer, and complete-mode explicit-policy KeyboardAdjustment and
 PointerScrub consumers are shipped; the generic wheel-sequence routing
-foundation and complete-mode NumericInput wheel consumer are shipped, while
-IME composition and accessibility edit remain target-only consumers. The gate is not a public Rust API, native
+foundation and complete-mode NumericInput wheel consumer are shipped, and the
+NumericInput IME/composition consumer is shipped, while accessibility edit
+remains a target-only consumer. The gate is not a public Rust API, native
 adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
@@ -1883,8 +1885,9 @@ interrupt an incumbent.
 The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
 compatible reprojection foundation, and complete-mode explicit-policy
-KeyboardAdjustment, PointerScrub, and NumericInput wheel consumption are
-shipped; rows for the two remaining numeric consumers remain target-only:
+KeyboardAdjustment, PointerScrub, NumericInput wheel, and NumericInput
+IME/composition consumption are shipped; the remaining accessibility consumer
+remains target-only:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -1898,7 +1901,7 @@ shipped; rows for the two remaining numeric consumers remain target-only:
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
 
-### Target IME/composition lifecycle (foundation shipped; consumers/adapters not shipped)
+### Target IME/composition lifecycle (foundation, TextInputWidget, and NumericInputWidget consumers shipped; adapters not shipped)
 
 For a numeric input, the shared owner gate is checked after the focused stable
 identity is resolved and before Start captures composition state. Start may
@@ -1913,9 +1916,13 @@ validation errors; `Widget` exposes default-compatible object-safe hooks; and
 the generic `SurfaceRuntime` owns a private fixed-size focused routing kernel.
 The normalized lifecycle vocabulary is `Start`, `Update { preedit, selection }`,
 `Commit { text }`, and `Cancel`; every sample carries optional native timestamp
-metadata when the native sample supplied it. The text/numeric consumer, native
-adapter, candidate-window integration, and matching-key suppression remain
-unshipped. All ranges exposed by this generic contract are Unicode-scalar
+metadata when the native sample supplied it. Native adapters, candidate-window
+integration, and matching-key suppression remain unshipped. `NumericInputWidget`
+consumes the same lifecycle through the shared owner gate: preedit updates stay
+local and do not parse or publish; valid committed text is sanitized and parsed
+once to emit one `[Begin, Commit]` batch; invalid or incomplete commits remain
+correctable as text editing, and Cancel or focus loss restores the captured edit
+state. All ranges exposed by this generic contract are Unicode-scalar
 ranges. A native adapter may use UTF-16 or another platform offset internally,
 but it owns the translation into scalar evidence; the generic contract does
 not choose a backend-specific offset convention.
@@ -2083,16 +2090,16 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   admission, terminal cleanup, and replacement-teardown foundation, and the
   complete-mode explicit-policy KeyboardAdjustment and PointerScrub consumers
   are also shipped; the generic wheel-sequence routing kernel and complete-mode
-  NumericInput wheel consumer are shipped, while IME composition and
-  accessibility remain target-only.
+  NumericInput wheel consumer and NumericInput IME/composition consumer are
+  shipped, while accessibility remains target-only.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
-  the successor from inheriting the retired session. The two remaining numeric
-  owner consumers—IME/composition and accessibility—remain target-only;
-  PointerScrub and NumericInput wheel consumption are shipped, as is the generic
-  wheel-routing foundation.
+  the successor from inheriting the retired session. The remaining numeric
+  owner consumer—accessibility—is target-only; NumericInput IME/composition,
+  PointerScrub, and NumericInput wheel consumption are shipped, as is the
+  generic wheel-routing foundation.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
   `Valid(T)`. These states are public implementation vocabulary so applications
   can implement codecs, but non-valid states remain inside the control. Only
@@ -2285,8 +2292,8 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. The IME/composition, accessibility, and product-policy consumers
-remain target-only; the generic PointerScrub and NumericInput wheel consumers,
+shipped. The accessibility and product-policy consumers remain target-only; the
+generic PointerScrub, NumericInput wheel, and NumericInput IME/composition consumers,
 wheel-sequence routing foundation, and metadata-aware keyboard routing kernel
 are shipped.
 
@@ -2306,9 +2313,9 @@ are shipped.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. IME/composition, accessibility, and product-policy consumers remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, NumericInput IME/composition, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. Accessibility and product-policy consumers remain unshipped. |
 
-### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; other consumers remain target-only)
+### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; accessibility and product policy remain target-only)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric
 step or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -2321,8 +2328,8 @@ The shipped text-first `numeric_input` consumer now has a complete-mode
 semantic keyboard-adjustment consumer for explicit `NumericStepModifiers`.
 Normalized `Event::KeyRelease { key, modifiers, timestamp }` and
 `WidgetInput::KeyRelease { key, modifiers, timestamp }` plumbing is consumed as
-its release boundary. IME/composition, accessibility, and platform/product
-policy remain separate target-only consumers; generic PointerScrub, NumericInput
+its release boundary. Accessibility and platform/product policy remain separate
+target-only consumers; NumericInput IME/composition, generic PointerScrub, NumericInput
 wheel consumption, and wheel routing foundations are shipped. It
 preserves the shipped normalized
 `Event::KeyPress { key, modifiers, repeat, timestamp }` and
@@ -2440,7 +2447,8 @@ It preserves ordered parts, transaction identity, direction, selected step,
 exact keyboard, pointer, or wheel provenance, and typed errors. The complete-mode
 explicit-policy KeyboardAdjustment, PointerScrub, and NumericInput wheel
 consumers produce these interactions. The generic wheel-routing foundation is
-also shipped, while IME composition and accessibility remain target-only. The
+also shipped, while NumericInput IME composition is shipped and accessibility
+remains target-only. The
 wheel consumer is independently accepted and supplies the current numeric
 wheel evidence; the foundation itself remains generic and policy-free.
 

@@ -133,6 +133,14 @@ where
             != WheelOrScrollRoute::NotRouted
     }
 
+    pub(crate) fn wheel_or_scroll_route_deferred_refresh_with_sample(
+        &mut self,
+        point: Point,
+        sample: WheelSample,
+    ) -> WheelOrScrollRoute {
+        self.wheel_or_scroll_route_with_sample(point, sample, false, true)
+    }
+
     pub(crate) fn wheel_or_scroll_at_deferred_refresh_with_metadata(
         &mut self,
         point: Point,
@@ -325,14 +333,12 @@ where
         sample: WheelSample,
         exact_sample: bool,
     ) -> Option<WidgetInput> {
-        if !exact_sample {
-            return Some(WidgetInput::wheel(
-                point,
-                sample.delta().vector(),
-                sample.modifiers(),
-            ));
-        }
-        sample.to_widget_input(point)
+        let delta = if exact_sample {
+            sample.delta().to_logical_pixels()?
+        } else {
+            sample.delta().vector()
+        };
+        Some(WidgetInput::wheel(point, delta, sample.modifiers()))
     }
 
     fn wheel_delta_for_scroll(&self, sample: WheelSample, exact_sample: bool) -> Option<Vector2> {

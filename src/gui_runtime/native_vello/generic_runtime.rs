@@ -140,7 +140,9 @@ use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunner
 pub(in crate::gui_runtime::native_vello) use runtime_helpers::{
     GpuSurfaceInteractionRegion, SurfaceOcclusionPlan, SurfaceOcclusionPolicy,
 };
-use runtime_helpers::{maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical};
+use runtime_helpers::{
+    maybe_log_route_profile, native_wheel_sample, render_profile_enabled, scroll_delta_to_logical,
+};
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{
     PaintSegmentEncodingObservation, RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,

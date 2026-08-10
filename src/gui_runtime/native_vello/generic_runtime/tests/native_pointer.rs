@@ -16,7 +16,7 @@ use crate::{
 use std::time::{Duration, Instant};
 use winit::{
     dpi::PhysicalPosition,
-    event::{MouseButton, MouseScrollDelta},
+    event::{MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::ModifiersState,
 };
 
@@ -916,6 +916,34 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
             .last_timestamp
             .is_some()
     );
+}
+
+#[test]
+fn native_phaseful_wheel_dispatches_exact_sample_without_coalescing() {
+    let mut harness =
+        NativePointerHarness::new(GpuWheelBridge::default(), Vector2::new(320.0, 80.0));
+    harness.cursor_moved_logical(Point::new(40.0, 20.0));
+
+    let route = harness.runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -2.0),
+        TouchPhase::Moved,
+    );
+
+    assert!(route.outcome.routed);
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(harness.runner.input.pending_gpu_surface_wheel.is_none());
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none()
+    );
+    let bridge = harness.runner.core.runtime.bridge();
+    assert_eq!(bridge.wheel_count, 1);
+    assert_eq!(bridge.last_delta, Vector2::new(0.0, 80.0));
+    assert!(bridge.last_timestamp.is_some());
+    assert!(bridge.last_sequence_range.is_some());
 }
 
 #[test]

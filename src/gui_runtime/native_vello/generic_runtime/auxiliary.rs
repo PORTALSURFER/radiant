@@ -679,8 +679,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     observation.as_deref_mut(),
                 );
             }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let route = self.runner.route_native_mouse_wheel(delta);
+            WindowEvent::MouseWheel { delta, phase, .. } => {
+                let route = self
+                    .runner
+                    .route_native_mouse_wheel_with_phase(delta, phase);
                 self.runner.handle_route_outcome_with_adapter(
                     event_loop,
                     route.outcome,

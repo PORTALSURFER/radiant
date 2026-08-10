@@ -3,8 +3,9 @@
 use super::input::NativePointerGestureLatch;
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, is_double_click, maybe_log_route_profile,
-    native_pointer_press_gesture, pointer_button_from_winit, pointer_modifiers_for_native_gesture,
-    pointer_modifiers_from_winit, render_profile_enabled, scroll_delta_to_logical,
+    native_pointer_press_gesture, native_wheel_sample, pointer_button_from_winit,
+    pointer_modifiers_for_native_gesture, pointer_modifiers_from_winit, render_profile_enabled,
+    scroll_delta_to_logical,
 };
 use crate::{
     gui::input::InputTimestamp,
@@ -15,7 +16,7 @@ use crate::{
 use std::time::Instant;
 use tracing::debug;
 use winit::{
-    event::{ElementState, MouseButton, MouseScrollDelta},
+    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::ModifiersState,
 };
 
@@ -223,17 +224,44 @@ where
         route
     }
 
+    #[cfg(test)]
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {
+        self.route_native_mouse_wheel_internal(delta, None)
+    }
+
+    pub(super) fn route_native_mouse_wheel_with_phase(
+        &mut self,
+        raw_delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) -> NativeWheelRoute {
+        self.route_native_mouse_wheel_internal(raw_delta, Some(phase))
+    }
+
+    fn route_native_mouse_wheel_internal(
+        &mut self,
+        raw_delta: MouseScrollDelta,
+        phase: Option<TouchPhase>,
+    ) -> NativeWheelRoute {
         let timestamp = Some(InputTimestamp::capture());
         let position = self.input.last_cursor;
-        let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
+        let delta = scroll_delta_to_logical(raw_delta, self.window.dpi_scale);
         let consume_control = self
             .input
             .effective_pointer_gesture
             .is_some_and(|latch| latch.gesture.consume_control);
         let modifiers = self.pointer_modifiers_for_gesture(consume_control);
         let now = Instant::now();
-        self.flush_stale_pending_wheel_input(now);
+        let lifecycle_boundary = phase.is_some_and(|phase| {
+            matches!(
+                phase,
+                TouchPhase::Started | TouchPhase::Ended | TouchPhase::Cancelled
+            )
+        });
+        if lifecycle_boundary {
+            self.flush_pending_wheel_input_now();
+        } else {
+            self.flush_stale_pending_wheel_input(now);
+        }
         let mut diagnostic = self.native_pointer_diagnostic(
             NativePointerEventKind::MouseWheel,
             position,
@@ -246,7 +274,17 @@ where
             return NativeWheelRoute::new(GenericRouteOutcome::default(), diagnostic);
         };
         let sequence_range = self.input.input_sequence_allocator.allocate();
-        if self.can_coalesce_gpu_surface_wheel(position, delta) {
+        let exact_sample = phase.map(|phase| {
+            native_wheel_sample(
+                raw_delta,
+                phase,
+                self.window.dpi_scale,
+                modifiers,
+                timestamp,
+                sequence_range,
+            )
+        });
+        if phase.is_none() && self.can_coalesce_gpu_surface_wheel(position, delta) {
             self.queue_gpu_surface_wheel_with_metadata(
                 position,
                 delta,
@@ -262,11 +300,12 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(outcome, diagnostic);
         }
-        let can_queue_scroll_container_wheel =
-            self.can_coalesce_scroll_container_wheel_with_timestamp(
+        let can_queue_scroll_container_wheel = phase.is_none()
+            && self.can_coalesce_scroll_container_wheel_with_timestamp(
                 position, delta, modifiers, timestamp,
-            ) && self.timing.redraw_requested
-                && !self.pending_interactive_scroll_flush_is_due(now);
+            )
+            && self.timing.redraw_requested
+            && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel_with_metadata(
                 position,
@@ -284,13 +323,18 @@ where
             return NativeWheelRoute::new(outcome, diagnostic);
         }
         let started = Instant::now();
-        let outcome = self.core.route_scroll_deferred_refresh_with_metadata(
-            position,
-            delta,
-            modifiers,
-            timestamp,
-            sequence_range,
-        );
+        let outcome = match exact_sample {
+            Some(Ok(sample)) => self
+                .core
+                .route_scroll_deferred_refresh_with_sample(position, sample),
+            _ => self.core.route_scroll_deferred_refresh_with_metadata(
+                position,
+                delta,
+                modifiers,
+                timestamp,
+                sequence_range,
+            ),
+        };
         maybe_log_route_profile("wheel", started.elapsed(), outcome);
         self.handle_gpu_surface_route_outcome(outcome, position, delta);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);

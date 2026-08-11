@@ -1197,6 +1197,20 @@ fn validate_semantic_classification_batch(
         };
         validate_matching_semantic_range_request(request, projection_range_request)?;
         validate_matching_semantic_item_request(request, projection.request())?;
+        let projection_key = projection.identity().key();
+        let item_request_key = projection.request().key();
+        if projection_key.stable_equals(projection_key) != Some(true)
+            || item_request_key.stable_equals(item_request_key) != Some(true)
+        {
+            return Err(VirtualLayoutSemanticClassificationError::UnstableKey);
+        }
+        match projection_key.stable_equals(item_request_key) {
+            Some(true) => {}
+            Some(false) => {
+                return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+            }
+            None => return Err(VirtualLayoutSemanticClassificationError::UnstableKey),
+        }
         match stable_coordinate_space_equals(
             projection.coordinate_space(),
             request.coordinate_space(),
@@ -1207,6 +1221,21 @@ fn validate_semantic_classification_batch(
             }
             None => {
                 return Err(VirtualLayoutSemanticClassificationError::UnstableCoordinateSpace);
+            }
+        }
+    }
+    for (left_index, left_projection) in batch.projections().iter().enumerate() {
+        for right_projection in batch.projections().iter().skip(left_index + 1) {
+            match left_projection
+                .identity()
+                .key()
+                .stable_equals(right_projection.identity().key())
+            {
+                Some(true) => {
+                    return Err(VirtualLayoutSemanticClassificationError::AmbiguousMaterialization);
+                }
+                Some(false) => {}
+                None => return Err(VirtualLayoutSemanticClassificationError::UnstableKey),
             }
         }
     }
@@ -2111,6 +2140,30 @@ mod tests {
             .collect()
     }
 
+    fn projection_batch_from_keys(
+        request: &VirtualLayoutSemanticRangeRequest,
+        keys: &[VirtualLayoutItemKey],
+    ) -> VirtualLayoutSemanticProjectionBatch {
+        let projections = keys
+            .iter()
+            .enumerate()
+            .map(|(logical_index, key)| {
+                let entry = semantic_range_entry_with_key(
+                    key.clone(),
+                    logical_index,
+                    AutomationNodeId::new(format!("test-key-{logical_index}")),
+                );
+                VirtualLayoutSemanticProjection::from_validated_semantic_range_entry(
+                    request,
+                    &entry,
+                    request.coordinate_space().clone(),
+                )
+                .expect("the test projection entry should be valid")
+            })
+            .collect();
+        VirtualLayoutSemanticProjectionBatch::new(request.clone(), projections)
+    }
+
     type MaterializedStateAndBatch = (
         RuntimeVirtualLayoutState<()>,
         VirtualLayoutSemanticProjectionBatch,
@@ -2492,6 +2545,129 @@ mod tests {
     }
 
     #[test]
+    fn semantic_range_classification_rejects_unstable_key_with_empty_authority() {
+        let unstable = Rc::new(Cell::new(false));
+        let comparisons = Rc::new(Cell::new(0));
+        let key = VirtualLayoutItemKey::new(FlakyKey {
+            unstable: Rc::clone(&unstable),
+            comparisons: Rc::clone(&comparisons),
+        });
+        let (state, batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+            Vec::new(),
+            vec![semantic_range_entry_with_key(
+                key,
+                0,
+                AutomationNodeId::new("flaky-empty-authority"),
+            )],
+        );
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
+        unstable.set(true);
+
+        let fence_before = state.records[0]
+            .materialization
+            .authoritative_fence()
+            .cloned();
+        let active_before = state.records[0]
+            .materialization
+            .active_slots()
+            .into_iter()
+            .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+            .collect::<Vec<_>>();
+        let last_query_before = query_parts_snapshot(state.records[0].last_query.as_ref());
+        let retired_before = state.records[0].retired;
+        assert!(fence_before.is_some());
+        assert!(active_before.is_empty());
+
+        assert_eq!(
+            state.classify_virtual_layout_semantic_range(&batch),
+            Err(VirtualLayoutSemanticClassificationError::UnstableKey)
+        );
+        assert!(comparisons.get() > 0);
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
+        assert_eq!(
+            state.records[0]
+                .materialization
+                .authoritative_fence()
+                .cloned(),
+            fence_before
+        );
+        assert_eq!(
+            state.records[0]
+                .materialization
+                .active_slots()
+                .into_iter()
+                .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+                .collect::<Vec<_>>(),
+            active_before
+        );
+        assert_eq!(
+            query_parts_snapshot(state.records[0].last_query.as_ref()),
+            last_query_before
+        );
+        assert_eq!(state.records[0].retired, retired_before);
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_pairwise_duplicate_or_unstable_keys_atomically() {
+        let (state, admitted_batch, semantic_calls, policy_calls) =
+            materialized_state_and_batch(Vec::new(), valid_semantic_range_entries(0, 2));
+        let duplicate_key = VirtualLayoutItemKey::new(100_u32);
+        let duplicate_batch = projection_batch_from_keys(
+            admitted_batch.request(),
+            &[duplicate_key.clone(), duplicate_key],
+        );
+        let comparisons = Rc::new(Cell::new(0));
+        let unstable_batch = projection_batch_from_keys(
+            admitted_batch.request(),
+            &[
+                VirtualLayoutItemKey::new(PairwiseUnstableKey {
+                    id: 0,
+                    comparisons: Rc::clone(&comparisons),
+                }),
+                VirtualLayoutItemKey::new(PairwiseUnstableKey {
+                    id: 1,
+                    comparisons: Rc::clone(&comparisons),
+                }),
+            ],
+        );
+        let cases = [
+            (
+                duplicate_batch,
+                VirtualLayoutSemanticClassificationError::AmbiguousMaterialization,
+            ),
+            (
+                unstable_batch,
+                VirtualLayoutSemanticClassificationError::UnstableKey,
+            ),
+        ];
+        let fence_before = state.records[0]
+            .materialization
+            .authoritative_fence()
+            .cloned();
+        let active_before = state.records[0].materialization.active_len();
+
+        for (batch, expected_error) in cases {
+            assert_eq!(
+                state.classify_virtual_layout_semantic_range(&batch),
+                Err(expected_error)
+            );
+            assert_eq!(semantic_calls.get(), 1);
+            assert_eq!(policy_calls.get(), 1);
+            assert_eq!(
+                state.records[0]
+                    .materialization
+                    .authoritative_fence()
+                    .cloned(),
+                fence_before
+            );
+            assert_eq!(state.records[0].materialization.active_len(), active_before);
+        }
+        assert!(comparisons.get() > 0);
+    }
+
+    #[test]
     fn semantic_range_classification_rejects_retired_and_authorityless_materialization() {
         let (mut retired_state, retired_batch, semantic_calls, policy_calls) =
             materialized_state_and_batch(
@@ -2540,6 +2716,24 @@ mod tests {
     }
 
     impl Eq for FlakyKey {}
+
+    struct PairwiseUnstableKey {
+        id: u8,
+        comparisons: Rc<Cell<u32>>,
+    }
+
+    impl PartialEq for PairwiseUnstableKey {
+        fn eq(&self, other: &Self) -> bool {
+            if self.id == other.id {
+                return true;
+            }
+            let comparison = self.comparisons.get();
+            self.comparisons.set(comparison.saturating_add(1));
+            comparison.is_multiple_of(2)
+        }
+    }
+
+    impl Eq for PairwiseUnstableKey {}
 
     #[test]
     fn semantic_range_success_is_ordered_fenced_and_coordinate_declared() {

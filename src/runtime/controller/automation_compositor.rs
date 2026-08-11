@@ -6,7 +6,8 @@
 //! cloned only after all structural and identity preflight has succeeded.
 
 use super::virtual_layout::{
-    VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationOrigin,
+    VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationInput,
+    VirtualLayoutSemanticClassificationOrigin,
 };
 use crate::{
     gui::{
@@ -123,6 +124,13 @@ struct NormalizedEntry {
     container_id: NodeId,
     projection: VirtualLayoutSemanticProjection,
     origin: VirtualLayoutSemanticClassificationOrigin,
+    request: NormalizedRequest,
+}
+
+#[derive(Clone)]
+enum NormalizedRequest {
+    Range(VirtualLayoutSemanticRangeRequest),
+    Pin(VirtualLayoutSemanticRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,14 +148,29 @@ pub(super) fn compose_virtual_layout_automation_snapshot(
     ordinary: &GuiAutomationSnapshot,
     batches: &[VirtualLayoutSemanticClassificationBatch],
 ) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
-    if batches.is_empty() {
+    let inputs = batches
+        .iter()
+        .cloned()
+        .map(VirtualLayoutSemanticClassificationInput::Range)
+        .collect::<Vec<_>>();
+    compose_virtual_layout_automation_snapshot_inputs(ordinary, &inputs)
+}
+
+/// Compose normalized range and first-class pin classifications together.
+/// This is the compositor half of the owner-mediated publication kernel; it
+/// remains a pure staged operation and never invokes a provider.
+pub(super) fn compose_virtual_layout_automation_snapshot_inputs(
+    ordinary: &GuiAutomationSnapshot,
+    inputs: &[VirtualLayoutSemanticClassificationInput],
+) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
+    if inputs.is_empty() {
         return Ok(VirtualLayoutAutomationComposition::new(
             ordinary.clone(),
             BTreeSet::new(),
         ));
     }
 
-    let entries = normalize_batches(batches)?;
+    let entries = normalize_inputs(inputs)?;
     let entries_by_container = group_entries(entries)?;
     let ordinary_locations = collect_ordinary_locations(&ordinary.root);
     let ordinary_ids: HashSet<_> = ordinary_locations.keys().cloned().collect();
@@ -200,44 +223,146 @@ pub(super) fn compose_virtual_layout_automation_snapshot(
     ))
 }
 
-fn normalize_batches(
-    batches: &[VirtualLayoutSemanticClassificationBatch],
+pub(super) fn ordinary_virtual_layout_automation_snapshot(
+    ordinary: &GuiAutomationSnapshot,
+) -> VirtualLayoutAutomationComposition {
+    VirtualLayoutAutomationComposition::new(ordinary.clone(), BTreeSet::new())
+}
+
+fn normalize_inputs(
+    inputs: &[VirtualLayoutSemanticClassificationInput],
 ) -> Result<Vec<NormalizedEntry>, VirtualLayoutAutomationCompositionError> {
     let mut entries = Vec::new();
     let mut container_fences = BTreeMap::<NodeId, VirtualLayoutSemanticRangeRequest>::new();
+    let mut pin_scopes =
+        BTreeMap::<NodeId, (VirtualLayoutSemanticRequest, VirtualLayoutCoordinateSpace)>::new();
+    let raw_input_cap = VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
+        .checked_add(64)
+        .ok_or(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded)?;
 
-    for batch in batches {
-        let request = batch.request();
-        let range = request.range();
-        if batch.classifications().len() != range.length()
-            || range.length() == 0
-            || range.length() > request.budget().max_entries()
-            || range.length() > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
-        {
-            return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
-        }
-        if !matches!(
-            request.coordinate_space(),
-            VirtualLayoutCoordinateSpace::Logical
-        ) {
-            return Err(VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable);
-        }
-        if let Some(previous_request) = container_fences.get(&request.container_id()) {
-            if !same_range_fence(previous_request, request)? {
-                return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    for input in inputs {
+        match input {
+            VirtualLayoutSemanticClassificationInput::Range(batch) => {
+                let request = batch.request();
+                let range = request.range();
+                if batch.classifications().len() != range.length()
+                    || range.length() == 0
+                    || range.length() > request.budget().max_entries()
+                    || range.length() > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+                }
+                if !matches!(
+                    request.coordinate_space(),
+                    VirtualLayoutCoordinateSpace::Logical
+                ) {
+                    return Err(
+                        VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                    );
+                }
+                if let Some(previous_request) = container_fences.get(&request.container_id())
+                    && !same_range_scope(previous_request, request)?
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+                }
+                if let Some((previous_request, previous_coordinate_space)) =
+                    pin_scopes.get(&request.container_id())
+                    && (!same_item_scope(request, previous_request)?
+                        || !same_coordinate_space(
+                            previous_coordinate_space,
+                            request.coordinate_space(),
+                        )?)
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+                }
+                container_fences
+                    .entry(request.container_id())
+                    .or_insert_with(|| request.clone());
+                if entries
+                    .len()
+                    .checked_add(batch.classifications().len())
+                    .is_none_or(|length| length > raw_input_cap)
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded);
+                }
+
+                for (offset, classification) in batch.classifications().iter().enumerate() {
+                    let projection = classification.projection();
+                    validate_classification(batch, projection, offset)?;
+                    entries.push(NormalizedEntry {
+                        container_id: request.container_id(),
+                        projection: projection.clone(),
+                        origin: classification.origin(),
+                        request: NormalizedRequest::Range(request.clone()),
+                    });
+                }
             }
-        } else {
-            container_fences.insert(request.container_id(), request.clone());
-        }
-
-        for (offset, classification) in batch.classifications().iter().enumerate() {
-            let projection = classification.projection();
-            validate_classification(batch, projection, offset)?;
-            entries.push(NormalizedEntry {
-                container_id: request.container_id(),
-                projection: projection.clone(),
-                origin: classification.origin(),
-            });
+            VirtualLayoutSemanticClassificationInput::Pin(pin) => {
+                let request = pin.request();
+                let classification = pin.classification();
+                let projection = classification.projection();
+                validate_pin_classification(request, projection)?;
+                if !matches!(
+                    projection.coordinate_space(),
+                    VirtualLayoutCoordinateSpace::Logical
+                ) {
+                    return Err(
+                        VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                    );
+                }
+                if let Some(range_request) = container_fences.get(&request.container_id())
+                    && (!same_item_scope(range_request, request)?
+                        || !same_coordinate_space(
+                            range_request.coordinate_space(),
+                            projection.coordinate_space(),
+                        )?)
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+                }
+                if let Some((previous_request, previous_coordinate_space)) =
+                    pin_scopes.get(&request.container_id())
+                {
+                    if !same_pin_scope(
+                        previous_request,
+                        previous_coordinate_space,
+                        request,
+                        projection.coordinate_space(),
+                    )? {
+                        return Err(
+                            VirtualLayoutAutomationCompositionError::MalformedClassification,
+                        );
+                    }
+                    match previous_request.key().stable_equals(request.key()) {
+                        Some(true) => {}
+                        Some(false) => {
+                            return Err(
+                                VirtualLayoutAutomationCompositionError::MalformedClassification,
+                            );
+                        }
+                        None => {
+                            return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
+                        }
+                    }
+                } else {
+                    pin_scopes.insert(
+                        request.container_id(),
+                        (request.clone(), projection.coordinate_space().clone()),
+                    );
+                }
+                if entries
+                    .len()
+                    .checked_add(1)
+                    .is_none_or(|length| length > raw_input_cap)
+                {
+                    return Err(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded);
+                }
+                entries.push(NormalizedEntry {
+                    container_id: request.container_id(),
+                    projection: projection.clone(),
+                    origin: classification.origin(),
+                    request: NormalizedRequest::Pin(request.clone()),
+                });
+            }
         }
     }
 
@@ -297,17 +422,21 @@ fn normalize_batches(
         unique.push(entry);
     }
 
-    let mut per_container_counts = BTreeMap::<NodeId, usize>::new();
+    let mut per_container_range_counts = BTreeMap::<NodeId, usize>::new();
     for entry in &unique {
-        let count = per_container_counts.entry(entry.container_id).or_default();
-        *count = count.saturating_add(1);
+        if matches!(&entry.request, NormalizedRequest::Range(_)) {
+            let count = per_container_range_counts
+                .entry(entry.container_id)
+                .or_default();
+            *count = count
+                .checked_add(1)
+                .ok_or(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded)?;
+        }
     }
-    for (container_id, count) in per_container_counts {
-        let budget = container_fences
-            .get(&container_id)
-            .map(|request| request.budget().max_entries())
-            .ok_or(VirtualLayoutAutomationCompositionError::MalformedClassification)?;
-        if count > budget {
+    for (container_id, count) in per_container_range_counts {
+        if let Some(request) = container_fences.get(&container_id)
+            && count > request.budget().max_entries()
+        {
             return Err(VirtualLayoutAutomationCompositionError::AggregateBudgetExceeded);
         }
     }
@@ -340,6 +469,7 @@ fn validate_classification(
     };
     if !same_range_request(request, projection_range_request)?
         || !same_item_request(request, projection.request())?
+        || !same_coordinate_space(request.coordinate_space(), projection.coordinate_space())?
     {
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
@@ -351,6 +481,38 @@ fn validate_classification(
         return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
     }
     if identity_key.stable_equals(request_key) != Some(true) {
+        return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    }
+    Ok(())
+}
+
+fn validate_pin_classification(
+    request: &VirtualLayoutSemanticRequest,
+    projection: &VirtualLayoutSemanticProjection,
+) -> Result<(), VirtualLayoutAutomationCompositionError> {
+    if projection.authority()
+        != crate::gui::layout_core::VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+        || projection.range_request().is_some()
+        || projection.identity().container_id() != request.container_id()
+        || !projection.bounds().is_finite()
+        || projection.bounds().min.x > projection.bounds().max.x
+        || projection.bounds().min.y > projection.bounds().max.y
+    {
+        return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    }
+    if !same_pin_request(request, projection.request())? {
+        return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    }
+    let identity_key = projection.identity().key();
+    let request_key = request.key();
+    if identity_key.stable_equals(identity_key) != Some(true)
+        || request_key.stable_equals(request_key) != Some(true)
+    {
+        return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
+    }
+    if identity_key.stable_equals(request_key) != Some(true)
+        || projection.request().key().stable_equals(request_key) != Some(true)
+    {
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
     Ok(())
@@ -385,6 +547,13 @@ fn same_item_request(
     range_request: &VirtualLayoutSemanticRangeRequest,
     item_request: &VirtualLayoutSemanticRequest,
 ) -> Result<bool, VirtualLayoutAutomationCompositionError> {
+    same_item_scope(range_request, item_request)
+}
+
+fn same_item_scope(
+    range_request: &VirtualLayoutSemanticRangeRequest,
+    item_request: &VirtualLayoutSemanticRequest,
+) -> Result<bool, VirtualLayoutAutomationCompositionError> {
     if range_request.container_id() != item_request.container_id()
         || range_request.mount_generation() != item_request.mount_generation()
         || range_request.data_revision() != item_request.data_revision()
@@ -402,6 +571,49 @@ fn same_item_request(
         return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
     }
     Ok(true)
+}
+
+fn same_pin_scope(
+    left: &VirtualLayoutSemanticRequest,
+    left_coordinate_space: &VirtualLayoutCoordinateSpace,
+    right: &VirtualLayoutSemanticRequest,
+    right_coordinate_space: &VirtualLayoutCoordinateSpace,
+) -> Result<bool, VirtualLayoutAutomationCompositionError> {
+    if left.container_id() != right.container_id()
+        || left.mount_generation() != right.mount_generation()
+        || left.data_revision() != right.data_revision()
+        || left.policy_revision() != right.policy_revision()
+        || left.measurement_revision() != right.measurement_revision()
+        || left.semantic_revision() != right.semantic_revision()
+    {
+        return Ok(false);
+    }
+    if left
+        .policy_identity()
+        .stable_equals(right.policy_identity())
+        != Some(true)
+    {
+        return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
+    }
+    same_coordinate_space(left_coordinate_space, right_coordinate_space)
+}
+
+fn same_pin_request(
+    left: &VirtualLayoutSemanticRequest,
+    right: &VirtualLayoutSemanticRequest,
+) -> Result<bool, VirtualLayoutAutomationCompositionError> {
+    if !same_pin_scope(
+        left,
+        &VirtualLayoutCoordinateSpace::Logical,
+        right,
+        &VirtualLayoutCoordinateSpace::Logical,
+    )? {
+        return Ok(false);
+    }
+    match left.key().stable_equals(right.key()) {
+        Some(value) => Ok(value),
+        None => Err(VirtualLayoutAutomationCompositionError::UnstableEquality),
+    }
 }
 
 fn same_coordinate_space(
@@ -442,24 +654,47 @@ fn same_entry_evidence(
     {
         return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
     }
-    let left_request = left
-        .projection
-        .range_request()
-        .ok_or(VirtualLayoutAutomationCompositionError::MalformedClassification)?;
-    let right_request = right
-        .projection
-        .range_request()
-        .ok_or(VirtualLayoutAutomationCompositionError::MalformedClassification)?;
-    if !same_range_fence(left_request, right_request)?
-        || !same_item_request(left_request, left.projection.request())?
-        || !same_item_request(right_request, right.projection.request())?
-    {
-        return Ok(false);
+    match (&left.request, &right.request) {
+        (NormalizedRequest::Range(left_request), NormalizedRequest::Range(right_request)) => {
+            if !same_range_scope(left_request, right_request)?
+                || !same_item_request(left_request, left.projection.request())?
+                || !same_item_request(right_request, right.projection.request())?
+            {
+                return Ok(false);
+            }
+        }
+        (NormalizedRequest::Pin(left_request), NormalizedRequest::Pin(right_request)) => {
+            if !same_pin_request(left_request, right_request)?
+                || !same_pin_scope(
+                    left_request,
+                    left.projection.coordinate_space(),
+                    right_request,
+                    right.projection.coordinate_space(),
+                )?
+            {
+                return Ok(false);
+            }
+        }
+        (NormalizedRequest::Range(range_request), NormalizedRequest::Pin(pin_request))
+        | (NormalizedRequest::Pin(pin_request), NormalizedRequest::Range(range_request)) => {
+            if !same_item_scope(range_request, pin_request)?
+                || !same_coordinate_space(
+                    range_request.coordinate_space(),
+                    left.projection.coordinate_space(),
+                )?
+                || !same_coordinate_space(
+                    range_request.coordinate_space(),
+                    right.projection.coordinate_space(),
+                )?
+            {
+                return Ok(false);
+            }
+        }
     }
     Ok(true)
 }
 
-fn same_range_fence(
+fn same_range_scope(
     left: &VirtualLayoutSemanticRangeRequest,
     right: &VirtualLayoutSemanticRangeRequest,
 ) -> Result<bool, VirtualLayoutAutomationCompositionError> {

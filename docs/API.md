@@ -606,10 +606,15 @@ common paint primitives without app-local exhaustive primitive matches.
 The future keyed virtualization/materialization contract is defined in
 [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
 `radiant::layout::VirtualLayoutPolicy` and `VirtualLayoutQueryExecutor` APIs are
-shipped without prelude or runtime registration. A crate-private coordinator
-now provides bounded accepted-window, key-continuity, fallback, and anchor
-evidence internally, but it has no public constructor or runtime connection. A
-separate crate-private materialization/recycling correctness kernel is shipped
+shipped without a public constructor, prelude entry, or runtime registration. A
+crate-private coordinator now provides bounded accepted-window, key-continuity,
+fallback, and anchor evidence internally. The crate-private runtime bridge
+inside `SurfaceRuntime` now contains private
+semantic-demand/provider-attempt/retention, semantic/materialization
+classification, and atomic whole-surface logical publication/composition
+evidence. It still does not select or expose a semantic snapshot, provide a
+public semantic consumer, or serve product collections. A separate crate-private
+materialization/recycling correctness kernel is shipped
 for accepted-commit evidence and explicit private projector/lifecycle tests; it
 does not expose a public constructor or prelude entry, register through
 `LayoutCapabilities`, project concrete surfaces, own focus/accessibility pins,

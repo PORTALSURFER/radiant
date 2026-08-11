@@ -13,7 +13,7 @@
 use std::{any::Any, fmt, rc::Rc};
 
 use crate::gui::{
-    automation::AutomationNodeSemantics,
+    automation::{AutomationNodeId, AutomationNodeSemantics},
     types::{Point, Rect, Vector2},
 };
 
@@ -211,6 +211,8 @@ pub(crate) enum VirtualLayoutSemanticRejectedReason {
     WrongLogicalIndex,
     RangeOutOfOrder,
     DuplicateKey,
+    DuplicateSemanticNodeId,
+    SemanticNodeIdDrift,
 }
 
 /// One exact logical-index interval `[start_index, start_index + length)`.
@@ -532,6 +534,7 @@ pub(crate) struct VirtualLayoutSemanticEntry {
     logical_index: usize,
     bounds: Rect,
     semantics: AutomationNodeSemantics,
+    automation_node_id: AutomationNodeId,
 }
 
 #[allow(dead_code)]
@@ -541,12 +544,14 @@ impl VirtualLayoutSemanticEntry {
         logical_index: usize,
         bounds: Rect,
         semantics: AutomationNodeSemantics,
+        automation_node_id: AutomationNodeId,
     ) -> Self {
         Self {
             requested_key,
             logical_index,
             bounds,
             semantics,
+            automation_node_id,
         }
     }
 
@@ -564,6 +569,11 @@ impl VirtualLayoutSemanticEntry {
 
     pub(crate) fn semantics(&self) -> &AutomationNodeSemantics {
         &self.semantics
+    }
+
+    /// Return the provider-supplied stable serializable automation identity.
+    pub(crate) fn automation_node_id(&self) -> &AutomationNodeId {
+        &self.automation_node_id
     }
 
     /// Validate the requested key and finite, non-inverted semantic bounds.
@@ -670,6 +680,11 @@ impl VirtualLayoutPin {
     pub(crate) fn entry(&self) -> &VirtualLayoutSemanticEntry {
         &self.entry
     }
+
+    /// Return the provider-supplied automation identity carried by this pin.
+    pub(crate) fn automation_node_id(&self) -> &AutomationNodeId {
+        self.entry.automation_node_id()
+    }
 }
 
 /// Coordinate-space identity included in every query fence.
@@ -732,6 +747,7 @@ pub(crate) struct VirtualLayoutSemanticProjection {
     logical_index: usize,
     bounds: Rect,
     semantics: AutomationNodeSemantics,
+    automation_node_id: AutomationNodeId,
     request: VirtualLayoutSemanticRequest,
     range_request: Option<VirtualLayoutSemanticRangeRequest>,
     authority: VirtualLayoutSemanticProjectionAuthority,
@@ -765,6 +781,7 @@ impl VirtualLayoutSemanticProjection {
             logical_index: pin.entry().logical_index(),
             bounds: pin.entry().bounds(),
             semantics: pin.entry().semantics().clone(),
+            automation_node_id: pin.entry().automation_node_id().clone(),
             request: pin.request().clone(),
             range_request: None,
             authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
@@ -797,6 +814,7 @@ impl VirtualLayoutSemanticProjection {
             logical_index: entry.logical_index(),
             bounds: entry.bounds(),
             semantics: entry.semantics().clone(),
+            automation_node_id: entry.automation_node_id().clone(),
             request: request.item_request(entry.requested_key().clone()),
             range_request: Some(request.clone()),
             authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
@@ -821,6 +839,11 @@ impl VirtualLayoutSemanticProjection {
 
     pub(crate) fn semantics(&self) -> &AutomationNodeSemantics {
         &self.semantics
+    }
+
+    /// Return the exact provider-supplied automation identity.
+    pub(crate) fn automation_node_id(&self) -> &AutomationNodeId {
+        &self.automation_node_id
     }
 
     pub(crate) fn request(&self) -> &VirtualLayoutSemanticRequest {

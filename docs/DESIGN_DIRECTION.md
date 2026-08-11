@@ -1188,15 +1188,19 @@ container identity and opaque stable key, constructs current request evidence,
 and retains one validated `Semantic` pin. A separate crate-private
 `VirtualLayoutSemanticProjection` boundary can be created only from that
 validated pin; it retains the opaque container/key identity, logical index,
-declared coordinate space, finite bounds, `AutomationNodeSemantics`, exact
-request/fence evidence, and explicit `Unmaterialized` authority. This remains
-evidence only: it does not wire `AutomationNodeId`, `AutomationTarget`, or
-`GuiAutomationSnapshot`, and it does not perform automation traversal, offscreen
-materialization, focus/capture transfer, scrolling, paint, hit testing,
-scheduler/renderer work, or product integration. The bounded evidence moves
-Declarative identity from 70% to 71% and broad coverage from `900 / 11` to
-`901 / 11` (~81.91%); generic architecture remains ~97% and layout remains
-97%.
+declared coordinate space, finite bounds, `AutomationNodeSemantics`, the exact
+provider-supplied serializable `AutomationNodeId` evidence, exact request/fence
+evidence, and explicit `Unmaterialized` authority. The opaque
+`VirtualLayoutItemKey` remains the lifecycle and authority identity; the
+automation ID is evidence and is never synthesized from an index, key,
+pointer, slot, or bounds. This remains evidence only: there is no global ID
+admission and the ID is not wired into `AutomationTarget` or
+`GuiAutomationSnapshot`; it does not perform
+automation traversal, offscreen materialization, focus/capture transfer,
+scrolling, paint, hit testing, scheduler/renderer work, or product integration.
+The bounded evidence moves Declarative identity from 70% to 71% and broad
+coverage from `900 / 11` to `901 / 11` (~81.91%); generic architecture remains
+~97% and layout remains 97%.
 
 The private semantic path now also admits one exact logical-index range
 `[start_index, start_index + length)`. It rejects zero length, checked-add
@@ -1204,18 +1208,21 @@ overflow, and lengths above both the live registration budget and the hard
 `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` cap before the range provider is called.
 The provider is called at most once, and only an all-or-nothing vector with
 the exact count, contiguous ordered indices, stable unique opaque keys,
-finite non-inverted bounds, and a current container/policy/mount/data/policy/
-measurement/semantic/coordinate/budget fence becomes ordered private
-`VirtualLayoutSemanticProjection` evidence. Typed unavailable, deferred,
-not-found, rejected, malformed, and stale outcomes expose no partial batch.
-The projections retain `AutomationNodeSemantics` and `Unmaterialized`
-authority only; the existing one-item pin is neither replaced nor cleared,
-and no runtime/materialization/layout/refresh/interaction/scroll/paint/
-hit-test/automation-snapshot work is authorized. This remains private evidence
-only: no public API, automation traversal, offscreen materialization, focus or
-capture transfer, scheduler/renderer policy, or product wiring shipped. Generic
-architecture remains ~97%, Declarative identity remains 71%, layout remains
-97%, and broad coverage remains `901 / 11` (~81.91%).
+distinct provider-supplied serializable `AutomationNodeId` values for distinct
+keys, finite non-inverted bounds, and a current container/policy/mount/data/
+policy/measurement/semantic/coordinate/budget fence becomes ordered private
+`VirtualLayoutSemanticProjection` evidence. A same-key, same-fence ID drift
+against the existing pin and any duplicate ID for distinct keys reject the
+complete query atomically; the incumbent one-item pin remains unchanged. Typed
+unavailable, deferred, not-found, rejected, malformed, and stale outcomes
+expose no partial batch. The projections retain the exact provider ID,
+`AutomationNodeSemantics`, and `Unmaterialized` authority only; the opaque key
+continues to own lifecycle/authority identity. No path, coordinate-space
+resolution, cross-range deduplication, public API, automation traversal,
+offscreen materialization, focus or capture transfer, scheduler/renderer
+policy, or product wiring shipped. Generic architecture remains ~97%,
+Declarative identity remains 71%, layout remains 97%, and broad coverage
+remains `901 / 11` (~81.91%).
 
 ### Leaf content and interactive widgets
 

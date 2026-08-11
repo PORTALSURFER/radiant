@@ -534,8 +534,6 @@ pub enum VirtualLayoutInputError {
     NonFiniteOverscan,
     /// Overscan contains a negative value.
     NegativeOverscan,
-    /// The required item key does not have stable equality.
-    UnstableRequiredKey,
 }
 
 impl VirtualLayoutInputError {
@@ -545,9 +543,18 @@ impl VirtualLayoutInputError {
             Self::InvertedViewport => VirtualLayoutDiagnosticCode::InputInvertedViewport,
             Self::NonFiniteOverscan => VirtualLayoutDiagnosticCode::InputNonFiniteOverscan,
             Self::NegativeOverscan => VirtualLayoutDiagnosticCode::InputNegativeOverscan,
-            Self::UnstableRequiredKey => VirtualLayoutDiagnosticCode::InputUnstableRequiredKey,
         }
     }
+}
+
+/// Crate-private input failures for runtime-only query extensions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VirtualLayoutPrivateInputError {
+    /// Preserve the public geometry error when private construction delegates
+    /// to the public input validator.
+    Public(VirtualLayoutInputError),
+    /// The private required item key does not have stable equality.
+    UnstableRequiredKey,
 }
 
 /// Named construction fields for one immutable virtual-layout query.
@@ -622,13 +629,13 @@ impl VirtualLayoutQueryInput {
     pub(crate) fn from_parts_with_required_key(
         parts: VirtualLayoutQueryInputParts,
         required_key: Option<VirtualLayoutItemKey>,
-    ) -> Result<Self, VirtualLayoutInputError> {
-        let mut input = Self::from_parts(parts)?;
+    ) -> Result<Self, VirtualLayoutPrivateInputError> {
+        let mut input = Self::from_parts(parts).map_err(VirtualLayoutPrivateInputError::Public)?;
         if required_key
             .as_ref()
             .is_some_and(|key| key.stable_equals(key) != Some(true))
         {
-            return Err(VirtualLayoutInputError::UnstableRequiredKey);
+            return Err(VirtualLayoutPrivateInputError::UnstableRequiredKey);
         }
         input.required_key = required_key;
         Ok(input)
@@ -976,8 +983,6 @@ pub enum VirtualLayoutDiagnosticCode {
     InputNonFiniteOverscan,
     /// Input overscan had a negative value.
     InputNegativeOverscan,
-    /// The required item key had unstable equality.
-    InputUnstableRequiredKey,
     /// The policy submitted more entries than the admitted budget.
     OutputOverBudget,
     /// A candidate did not provide a key.
@@ -998,8 +1003,6 @@ pub enum VirtualLayoutDiagnosticCode {
     OutputInvalidExtent,
     /// The policy supplied no extent candidate.
     OutputMissingExtent,
-    /// A required key was not present in the accepted candidate set.
-    OutputMissingRequiredKey,
     /// The policy supplied more than one extent candidate.
     OutputDuplicateExtent,
     /// A non-ready policy answer included output or diagnostics.
@@ -1039,21 +1042,20 @@ pub enum VirtualLayoutFenceField {
     Overscan,
     /// Exact caller budget evidence.
     Budget,
-    /// Exact optional required-item key evidence.
-    RequiredKey,
 }
 
 /// Bounded set of fence fields that differ during exact acceptance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VirtualLayoutFenceFields {
     bits: u16,
+    required_key_mismatch: bool,
 }
 
 impl VirtualLayoutFenceFields {
     /// Return whether no fence fields differ.
     #[must_use]
     pub const fn is_empty(self) -> bool {
-        self.bits == 0
+        self.bits == 0 && !self.required_key_mismatch
     }
 
     /// Return whether one exact field is present in this mismatch set.
@@ -1062,8 +1064,20 @@ impl VirtualLayoutFenceFields {
         self.bits & field.bit() != 0
     }
 
+    /// Return whether private required-key evidence differs.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn has_required_key_mismatch(self) -> bool {
+        self.required_key_mismatch
+    }
+
     const fn with(mut self, field: VirtualLayoutFenceField) -> Self {
         self.bits |= field.bit();
+        self
+    }
+
+    const fn with_required_key_mismatch(mut self) -> Self {
+        self.required_key_mismatch = true;
         self
     }
 }
@@ -1081,6 +1095,7 @@ pub struct VirtualLayoutDiagnostic {
     entry_position: Option<usize>,
     logical_index: Option<usize>,
     fence_fields: VirtualLayoutFenceFields,
+    private_required_key_failure: bool,
 }
 
 impl VirtualLayoutDiagnostic {
@@ -1106,6 +1121,13 @@ impl VirtualLayoutDiagnostic {
     #[must_use]
     pub const fn fence_fields(self) -> VirtualLayoutFenceFields {
         self.fence_fields
+    }
+
+    /// Return whether this diagnostic carries private required-key evidence.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn has_private_required_key_failure(self) -> bool {
+        self.private_required_key_failure
     }
 }
 
@@ -1162,6 +1184,7 @@ impl VirtualLayoutDiagnostics {
             entry_position: None,
             logical_index: None,
             fence_fields: VirtualLayoutFenceFields::default(),
+            private_required_key_failure: false,
         });
     }
 
@@ -1176,6 +1199,32 @@ impl VirtualLayoutDiagnostics {
             entry_position: Some(entry_position),
             logical_index,
             fence_fields: VirtualLayoutFenceFields::default(),
+            private_required_key_failure: false,
+        });
+    }
+
+    fn private_required_key_code(&mut self, code: VirtualLayoutDiagnosticCode) {
+        self.push(VirtualLayoutDiagnostic {
+            code,
+            entry_position: None,
+            logical_index: None,
+            fence_fields: VirtualLayoutFenceFields::default(),
+            private_required_key_failure: true,
+        });
+    }
+
+    fn private_required_key_entry(
+        &mut self,
+        code: VirtualLayoutDiagnosticCode,
+        entry_position: usize,
+        logical_index: Option<usize>,
+    ) {
+        self.push(VirtualLayoutDiagnostic {
+            code,
+            entry_position: Some(entry_position),
+            logical_index,
+            fence_fields: VirtualLayoutFenceFields::default(),
+            private_required_key_failure: true,
         });
     }
 
@@ -1185,6 +1234,7 @@ impl VirtualLayoutDiagnostics {
             entry_position: None,
             logical_index: None,
             fence_fields: fields,
+            private_required_key_failure: false,
         });
     }
 }
@@ -1490,7 +1540,7 @@ impl VirtualLayoutQueryFence {
             _ => false,
         };
         if !required_key_matches {
-            fields = fields.with(VirtualLayoutFenceField::RequiredKey);
+            fields = fields.with_required_key_mismatch();
         }
         fields
     }
@@ -1822,7 +1872,8 @@ impl VirtualLayoutQueryExecutor {
 
         if let Some(required_key) = self.input.required_key() {
             if required_key.stable_equals(required_key) != Some(true) {
-                diagnostics.code(VirtualLayoutDiagnosticCode::OutputUnstableKey);
+                diagnostics
+                    .private_required_key_code(VirtualLayoutDiagnosticCode::OutputUnstableKey);
             } else {
                 let mut required_key_present = false;
                 for (position, candidate) in sink.entries.iter().enumerate() {
@@ -1832,7 +1883,7 @@ impl VirtualLayoutQueryExecutor {
                     match candidate_key.stable_equals(required_key) {
                         Some(true) => required_key_present = true,
                         Some(false) => {}
-                        None => diagnostics.entry(
+                        None => diagnostics.private_required_key_entry(
                             VirtualLayoutDiagnosticCode::OutputUnstableKey,
                             position,
                             Some(candidate.logical_index),
@@ -1840,7 +1891,8 @@ impl VirtualLayoutQueryExecutor {
                     }
                 }
                 if !required_key_present {
-                    diagnostics.code(VirtualLayoutDiagnosticCode::OutputMissingRequiredKey);
+                    diagnostics
+                        .private_required_key_code(VirtualLayoutDiagnosticCode::OutputMissingKey);
                 }
             }
         }
@@ -2109,7 +2161,96 @@ mod tests {
             panic!("a ready result omitting the required key must be invalid");
         };
         assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.code() == VirtualLayoutDiagnosticCode::OutputMissingRequiredKey
+            diagnostic.code() == VirtualLayoutDiagnosticCode::OutputMissingKey
+                && diagnostic.has_private_required_key_failure()
+        }));
+    }
+
+    #[test]
+    fn unstable_required_key_is_rejected_by_private_input_validation() {
+        #[derive(Eq)]
+        struct UnstableRequiredKey {
+            calls: Cell<u32>,
+        }
+
+        impl PartialEq for UnstableRequiredKey {
+            fn eq(&self, _other: &Self) -> bool {
+                let call = self.calls.get();
+                self.calls.set(call.saturating_add(1));
+                call.is_multiple_of(2)
+            }
+        }
+
+        let result = VirtualLayoutQueryInput::from_parts_with_required_key(
+            input_parts(),
+            Some(VirtualLayoutItemKey::new(UnstableRequiredKey {
+                calls: Cell::new(0),
+            })),
+        );
+        assert!(matches!(
+            result,
+            Err(VirtualLayoutPrivateInputError::UnstableRequiredKey)
+        ));
+    }
+
+    #[test]
+    fn late_unstable_required_key_is_invalid_with_existing_code_and_private_marker() {
+        #[derive(Eq)]
+        struct LateUnstableRequiredKey {
+            calls: Cell<u32>,
+        }
+
+        impl PartialEq for LateUnstableRequiredKey {
+            fn eq(&self, _other: &Self) -> bool {
+                let call = self.calls.get();
+                self.calls.set(call.saturating_add(1));
+                call < 6
+            }
+        }
+
+        struct Policy;
+
+        impl VirtualLayoutPolicy for Policy {
+            fn query(
+                &self,
+                input: &VirtualLayoutQueryInput,
+                sink: &mut VirtualLayoutQuerySink,
+            ) -> VirtualLayoutPolicyDecision {
+                let key = input
+                    .required_key()
+                    .expect("the private required key should be present")
+                    .clone();
+                sink.visit(VirtualLayoutItemCandidate::new(
+                    key,
+                    0,
+                    Rect::from_size(10.0, 10.0),
+                    VirtualLayoutVisibility::Visible,
+                    VirtualLayoutBoundsConfidence::Exact,
+                ))
+                .expect("the test budget should admit one item");
+                sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
+                    10.0, 10.0,
+                )))
+                .expect("the policy should supply one extent");
+                VirtualLayoutPolicyDecision::Ready
+            }
+        }
+
+        let input = VirtualLayoutQueryInput::from_parts_with_required_key(
+            input_parts(),
+            Some(VirtualLayoutItemKey::new(LateUnstableRequiredKey {
+                calls: Cell::new(0),
+            })),
+        )
+        .expect("the required key should initially be stable");
+        let VirtualLayoutQueryOutcome::Invalid(diagnostics) =
+            VirtualLayoutQueryExecutor::new(input).execute(&Policy)
+        else {
+            panic!("a late unstable required key must invalidate the result");
+        };
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code() == VirtualLayoutDiagnosticCode::OutputUnstableKey
+                && diagnostic.has_private_required_key_failure()
         }));
     }
 
@@ -2220,9 +2361,8 @@ mod tests {
             panic!("a changed required key must reject the old result");
         };
         assert!(diagnostics.get(0).is_some_and(|diagnostic| {
-            diagnostic
-                .fence_fields()
-                .contains(VirtualLayoutFenceField::RequiredKey)
+            !diagnostic.fence_fields().is_empty()
+                && diagnostic.fence_fields().has_required_key_mismatch()
         }));
     }
 

@@ -14,9 +14,10 @@ use super::{
     VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason, VirtualLayoutDiagnosticCode,
     VirtualLayoutDiagnostics, VirtualLayoutExtent, VirtualLayoutExtentKind,
     VirtualLayoutInputError, VirtualLayoutItem, VirtualLayoutItemKey, VirtualLayoutPolicy,
-    VirtualLayoutPolicyIdentity, VirtualLayoutQueryExecutor, VirtualLayoutQueryFence,
-    VirtualLayoutQueryInput, VirtualLayoutQueryInputParts, VirtualLayoutQueryOutcome,
-    VirtualLayoutQueryResult, VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
+    VirtualLayoutPolicyIdentity, VirtualLayoutPrivateInputError, VirtualLayoutQueryExecutor,
+    VirtualLayoutQueryFence, VirtualLayoutQueryInput, VirtualLayoutQueryInputParts,
+    VirtualLayoutQueryOutcome, VirtualLayoutQueryResult, VirtualLayoutUnavailableReason,
+    VirtualLayoutVisibility,
 };
 use crate::gui::types::Rect;
 use std::{cell::Cell, rc::Rc};
@@ -241,11 +242,21 @@ impl ScopeIdentity {
 pub(crate) enum VirtualLayoutCoordinatorError {
     ScopeMismatch,
     InvalidInput(VirtualLayoutInputError),
+    InvalidRequiredKey,
     RevisionRegression,
     QuerySequenceOverflow,
     RevisionOverflow,
     ReentrantExecution,
     NonFiniteAnchor,
+}
+
+impl From<VirtualLayoutPrivateInputError> for VirtualLayoutCoordinatorError {
+    fn from(error: VirtualLayoutPrivateInputError) -> Self {
+        match error {
+            VirtualLayoutPrivateInputError::Public(error) => Self::InvalidInput(error),
+            VirtualLayoutPrivateInputError::UnstableRequiredKey => Self::InvalidRequiredKey,
+        }
+    }
 }
 
 /// A bounded keyed continuity record.
@@ -667,7 +678,7 @@ impl VirtualLayoutWindowCoordinator {
             parts.clone(),
             required_key.clone(),
         )
-        .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
+        .map_err(VirtualLayoutCoordinatorError::from)?;
         self.sync_input(&input_without_sequence)?;
 
         self.query_sequence = self
@@ -676,7 +687,7 @@ impl VirtualLayoutWindowCoordinator {
             .ok_or(VirtualLayoutCoordinatorError::QuerySequenceOverflow)?;
         parts.query_sequence = self.query_sequence;
         let input = VirtualLayoutQueryInput::from_parts_with_required_key(parts, required_key)
-            .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
+            .map_err(VirtualLayoutCoordinatorError::from)?;
         let executor = VirtualLayoutQueryExecutor::new(input.clone());
         let token = PendingToken {
             owner: Rc::clone(&self.identity),

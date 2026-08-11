@@ -153,6 +153,18 @@ impl<Message> VirtualLayoutRegistration<Message> {
         self.revisions.semantic
     }
 
+    pub(crate) const fn data_revision(&self) -> u64 {
+        self.revisions.data
+    }
+
+    pub(crate) const fn policy_revision(&self) -> u64 {
+        self.revisions.policy
+    }
+
+    pub(crate) const fn measurement_revision(&self) -> u64 {
+        self.revisions.measurement
+    }
+
     pub(crate) fn same_scope(&self, other: &Self) -> bool {
         self.container_id == other.container_id && self.policy_identity == other.policy_identity
     }

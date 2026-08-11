@@ -1053,9 +1053,11 @@ accessibility semantics, and product wiring remain unshipped.
 ### Slice 6 — Focus and accessibility
 
 A private one-item semantic-query/pin authority prerequisite is shipped by this
-patch. It uses an immutable request with an exact container/policy/mount/semantic
-fence, validates the returned key and finite non-inverted bounds, retains at
-most one pin, clears the pin on invalid/not-found/deferred/unavailable/
+patch. It uses an immutable request with the exact applicable
+container identity, policy identity, mount generation, and
+data/policy/measurement/semantic revision fence, validates the returned key and
+finite non-inverted bounds, retains at most one pin, clears the pin on
+invalid/not-found/deferred/unavailable/
 revision/retirement outcomes, and has no materialization/tree/scheduler/
 renderer/paint side effects.
 

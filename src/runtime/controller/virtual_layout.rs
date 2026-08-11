@@ -149,7 +149,10 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
     }
 
     fn update_registration(&mut self, registration: VirtualLayoutRegistration<Message>) {
-        if self.registration.semantic_revision() != registration.semantic_revision()
+        if self.registration.data_revision() != registration.data_revision()
+            || self.registration.policy_revision() != registration.policy_revision()
+            || self.registration.measurement_revision() != registration.measurement_revision()
+            || self.registration.semantic_revision() != registration.semantic_revision()
             || !self.registration.semantic_provider_is_same(&registration)
         {
             self.semantic_pin = None;
@@ -587,6 +590,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             record.registration.container_id,
             &record.registration.policy_identity,
             record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
             record.registration.semantic_revision(),
         ) {
             record.semantic_pin = None;
@@ -916,11 +922,31 @@ mod tests {
         semantic_revision: u64,
         key: u32,
     ) -> VirtualLayoutSemanticRequest {
+        semantic_request_with_revisions(
+            policy_identity,
+            mount_generation,
+            VirtualLayoutRegistrationRevisions {
+                semantic: semantic_revision,
+                ..Default::default()
+            },
+            key,
+        )
+    }
+
+    fn semantic_request_with_revisions(
+        policy_identity: &str,
+        mount_generation: u64,
+        revisions: VirtualLayoutRegistrationRevisions,
+        key: u32,
+    ) -> VirtualLayoutSemanticRequest {
         VirtualLayoutSemanticRequest::new(
             CONTAINER_ID,
             VirtualLayoutPolicyIdentity::new(policy_identity.to_owned()),
             mount_generation,
-            semantic_revision,
+            revisions.data,
+            revisions.policy,
+            revisions.measurement,
+            revisions.semantic,
             VirtualLayoutItemKey::new(key),
         )
     }
@@ -1059,6 +1085,42 @@ mod tests {
                 semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 4, 7),
                 VirtualLayoutSemanticRejectedReason::Stale,
             ),
+            (
+                semantic_request_with_revisions(
+                    "semantic-policy",
+                    SEMANTIC_MOUNT_GENERATION,
+                    VirtualLayoutRegistrationRevisions {
+                        data: 1,
+                        ..Default::default()
+                    },
+                    7,
+                ),
+                VirtualLayoutSemanticRejectedReason::Stale,
+            ),
+            (
+                semantic_request_with_revisions(
+                    "semantic-policy",
+                    SEMANTIC_MOUNT_GENERATION,
+                    VirtualLayoutRegistrationRevisions {
+                        policy: 1,
+                        ..Default::default()
+                    },
+                    7,
+                ),
+                VirtualLayoutSemanticRejectedReason::Stale,
+            ),
+            (
+                semantic_request_with_revisions(
+                    "semantic-policy",
+                    SEMANTIC_MOUNT_GENERATION,
+                    VirtualLayoutRegistrationRevisions {
+                        measurement: 1,
+                        ..Default::default()
+                    },
+                    7,
+                ),
+                VirtualLayoutSemanticRejectedReason::Stale,
+            ),
         ];
         for (request, reason) in cases {
             assert_eq!(
@@ -1148,7 +1210,54 @@ mod tests {
     }
 
     #[test]
-    fn semantic_pin_is_bounded_and_clears_on_revision_change_and_retirement() {
+    fn semantic_pin_is_bounded_and_clears_on_all_revision_changes_and_retirement() {
+        for revision in ["data", "policy", "measurement", "semantic"] {
+            let entry = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+            let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+                Box::new(entry.clone()),
+            ));
+            let mut state = semantic_state(provider, 3);
+            let revisions = state.records[0].registration.revisions;
+            let request = semantic_request_with_revisions(
+                "semantic-policy",
+                SEMANTIC_MOUNT_GENERATION,
+                revisions,
+                7,
+            );
+            assert!(matches!(
+                state.query_semantics(&request),
+                VirtualLayoutSemanticQueryOutcome::Found(_)
+            ));
+            assert_eq!(calls.get(), 1, "{revision} revision should initially query");
+            assert!(state.records[0].semantic_pin.is_some());
+
+            let mut next_registration = state.records[0].registration.clone();
+            match revision {
+                "data" => next_registration.revisions.data += 1,
+                "policy" => next_registration.revisions.policy += 1,
+                "measurement" => next_registration.revisions.measurement += 1,
+                "semantic" => next_registration.revisions.semantic += 1,
+                _ => unreachable!("the revision cases are exhaustive"),
+            }
+            state.records[0].update_registration(next_registration);
+            assert!(
+                state.records[0].semantic_pin.is_none(),
+                "{revision} revision should clear the existing pin"
+            );
+            assert_eq!(
+                state.query_semantics(&request),
+                VirtualLayoutSemanticQueryOutcome::Rejected(
+                    VirtualLayoutSemanticRejectedReason::Stale
+                ),
+                "{revision} revision should reject the stale request"
+            );
+            assert_eq!(
+                calls.get(),
+                1,
+                "{revision} stale request must not invoke the provider"
+            );
+        }
+
         let first = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
         let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
         let (provider, _, outcome) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(

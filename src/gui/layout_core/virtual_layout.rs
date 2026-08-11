@@ -216,16 +216,23 @@ pub(crate) struct VirtualLayoutSemanticRequest {
     container_id: NodeId,
     policy_identity: VirtualLayoutPolicyIdentity,
     mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
     semantic_revision: u64,
     key: VirtualLayoutItemKey,
 }
 
 #[allow(dead_code)]
 impl VirtualLayoutSemanticRequest {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         container_id: NodeId,
         policy_identity: VirtualLayoutPolicyIdentity,
         mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
         semantic_revision: u64,
         key: VirtualLayoutItemKey,
     ) -> Self {
@@ -233,6 +240,9 @@ impl VirtualLayoutSemanticRequest {
             container_id,
             policy_identity,
             mount_generation,
+            data_revision,
+            policy_revision,
+            measurement_revision,
             semantic_revision,
             key,
         }
@@ -250,6 +260,18 @@ impl VirtualLayoutSemanticRequest {
         self.mount_generation
     }
 
+    pub(crate) const fn data_revision(&self) -> u64 {
+        self.data_revision
+    }
+
+    pub(crate) const fn policy_revision(&self) -> u64 {
+        self.policy_revision
+    }
+
+    pub(crate) const fn measurement_revision(&self) -> u64 {
+        self.measurement_revision
+    }
+
     pub(crate) const fn semantic_revision(&self) -> u64 {
         self.semantic_revision
     }
@@ -258,13 +280,17 @@ impl VirtualLayoutSemanticRequest {
         &self.key
     }
 
-    /// Validate the exact mounted scope and semantic revision without side
-    /// effects or access to runtime-owned state.
+    /// Validate the exact mounted scope and all applicable revisions without
+    /// side effects or access to runtime-owned state.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn validate_scope(
         &self,
         container_id: NodeId,
         policy_identity: &VirtualLayoutPolicyIdentity,
         mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
         semantic_revision: u64,
     ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
         if self.container_id != container_id
@@ -272,7 +298,11 @@ impl VirtualLayoutSemanticRequest {
         {
             return Err(VirtualLayoutSemanticRejectedReason::ScopeMismatch);
         }
-        if self.mount_generation != mount_generation || self.semantic_revision != semantic_revision
+        if self.mount_generation != mount_generation
+            || self.data_revision != data_revision
+            || self.policy_revision != policy_revision
+            || self.measurement_revision != measurement_revision
+            || self.semantic_revision != semantic_revision
         {
             return Err(VirtualLayoutSemanticRejectedReason::Stale);
         }

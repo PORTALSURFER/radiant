@@ -34,7 +34,6 @@ mod work;
 
 pub(crate) use automation_compositor::{
     VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError,
-    compose_virtual_layout_automation_snapshot,
 };
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};

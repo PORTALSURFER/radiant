@@ -136,7 +136,7 @@ struct AnchorPlan {
 /// Compose already-classified virtual semantic evidence into one staged
 /// automation snapshot.  The function is pure with respect to the caller's
 /// snapshot and all runtime state.
-pub(crate) fn compose_virtual_layout_automation_snapshot(
+pub(super) fn compose_virtual_layout_automation_snapshot(
     ordinary: &GuiAutomationSnapshot,
     batches: &[VirtualLayoutSemanticClassificationBatch],
 ) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
@@ -946,7 +946,7 @@ mod tests {
             id,
             label,
             VirtualLayoutSemanticClassificationOrigin::Materialized {
-                slot_identity: VirtualLayoutSlotIdentity::from_parts(
+                slot_identity: VirtualLayoutSlotIdentity::from_test_parts(
                     request.container_id(),
                     request.mount_generation(),
                     index,

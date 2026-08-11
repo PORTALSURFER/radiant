@@ -138,7 +138,7 @@ pub(crate) struct VirtualLayoutSemanticClassification {
 
 #[allow(dead_code)]
 impl VirtualLayoutSemanticClassification {
-    pub(crate) fn new(
+    pub(super) fn new(
         projection: VirtualLayoutSemanticProjection,
         origin: VirtualLayoutSemanticClassificationOrigin,
     ) -> Self {
@@ -163,7 +163,7 @@ pub(crate) struct VirtualLayoutSemanticClassificationBatch {
 
 #[allow(dead_code)]
 impl VirtualLayoutSemanticClassificationBatch {
-    pub(crate) fn new(
+    pub(super) fn new(
         request: VirtualLayoutSemanticRangeRequest,
         classifications: Vec<VirtualLayoutSemanticClassification>,
     ) -> Self {
@@ -1183,7 +1183,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             }
         }
 
-        crate::runtime::controller::compose_virtual_layout_automation_snapshot(ordinary, batches)
+        super::automation_compositor::compose_virtual_layout_automation_snapshot(ordinary, batches)
     }
 
     pub(super) fn take_projection_probe(
@@ -1715,7 +1715,10 @@ mod tests {
     use crate::{
         application::{View, empty, scroll, spacer, text},
         gui::{
-            automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
+            automation::{
+                AutomationBounds, AutomationNodeId, AutomationNodeSemantics,
+                AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
+            },
             layout_core::{
                 VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutPinReason,
                 VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
@@ -2427,6 +2430,91 @@ mod tests {
             );
             assert_eq!(state.records[0].retired, retired_before);
         }
+    }
+
+    #[test]
+    fn runtime_composition_rejects_forged_materialized_origin_before_staging() {
+        let (state, projection_batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+            vec![(VirtualLayoutItemKey::new(100_u32), 0)],
+            valid_semantic_range_entries(0, 1),
+        );
+        let classified = state
+            .classify_virtual_layout_semantic_range(&projection_batch)
+            .expect("the live materialization should classify the range");
+        let source = GuiAutomationSnapshot {
+            schema_version: 2,
+            viewport_width: 160,
+            viewport_height: 80,
+            root: AutomationNodeSnapshot::from_semantics(
+                AutomationNodeId::new("root"),
+                AutomationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 160.0,
+                    height: 80.0,
+                },
+                AutomationNodeSemantics::new(AutomationRole::Group),
+            ),
+        };
+        let source_before = source.clone();
+        let fence_before = state.records[0]
+            .materialization
+            .authoritative_fence()
+            .cloned();
+        let active_before = state.records[0]
+            .materialization
+            .active_slots()
+            .into_iter()
+            .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+            .collect::<Vec<_>>();
+        let last_query_before = query_parts_snapshot(state.records[0].last_query.as_ref());
+        let retired_before = state.records[0].retired;
+
+        let mut forged = classified;
+        let VirtualLayoutSemanticClassificationOrigin::Materialized {
+            slot_identity,
+            payload_root,
+        } = forged.classifications[0].origin
+        else {
+            panic!("the fixture should produce materialized origin evidence");
+        };
+        forged.classifications[0].origin =
+            VirtualLayoutSemanticClassificationOrigin::Materialized {
+                slot_identity,
+                payload_root: payload_root + 1,
+            };
+
+        assert_eq!(
+            state.compose_virtual_layout_automation_snapshot(&source, &[forged]),
+            Err(
+                crate::runtime::controller::VirtualLayoutAutomationCompositionError::
+                    LiveClassificationMismatch
+            )
+        );
+        assert_eq!(source, source_before);
+        assert_eq!(
+            state.records[0]
+                .materialization
+                .authoritative_fence()
+                .cloned(),
+            fence_before
+        );
+        assert_eq!(
+            state.records[0]
+                .materialization
+                .active_slots()
+                .into_iter()
+                .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+                .collect::<Vec<_>>(),
+            active_before
+        );
+        assert_eq!(
+            query_parts_snapshot(state.records[0].last_query.as_ref()),
+            last_query_before
+        );
+        assert_eq!(state.records[0].retired, retired_before);
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
     }
 
     #[test]

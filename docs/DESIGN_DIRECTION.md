@@ -1305,36 +1305,38 @@ rules; publication is atomic for the whole surface. Retained evidence may be
 recomposed with current materialization/projection authority, while
 `Unmaterialized`/`materialized = false` remains authoritative. Semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
-scheduling, rendering, or provider registration. Custom-coordinate
-transformation, public snapshot selection/visibility, production semantic
-consumer/request ownership, public registration/API, native/product consumers,
-scheduler/backoff/fairness, multiple active ranges per container, and the
-focus, materialization, scrolling, and action authority remain unshipped. The
-next production consumer contract below defines the session and selected
-publication boundary without implementing it. `automation_snapshot` and
-`automation_target_snapshot` stay pure observational reads.
+scheduling, rendering, or provider registration. The generic logical semantic
+automation session now ships the explicit public snapshot selection/visibility
+boundary. Custom-coordinate transformation, public provider registration/API,
+native/product consumers, scheduler/backoff/fairness, multiple active ranges
+per container, and the focus, materialization, scrolling, and action authority
+remain unshipped. `automation_snapshot` and `automation_target_snapshot` stay
+pure observational reads.
 
-### Next production consumer: semantic automation session (normative; implementation unshipped)
+### Next production consumer: semantic automation session (normative; generic logical implementation shipped)
 
-The shipped private kernel is not the production consumer. Radiant's first
-consumer MUST be one generic backend-neutral semantic automation session, not a
-native adapter or product integration. The caller/host owns session intent and
-MUST explicitly open, update, retry, and close it. `SurfaceRuntime` owns
-bounded session state, demand membership, cancellation/supersession, selected
-publication, and publication lifetime. Mounted virtual-layout runtime owns
-provider registration. Callers MUST NOT infer demand from paint order,
-visibility, viewport/overscan, item count, provider availability, diagnostics,
-or snapshot reads. Session/container identity MUST be opaque and runtime-issued;
-callers cannot fabricate provider identity or authority.
+The shipped private kernel is now consumed by one generic backend-neutral
+semantic automation session, not a native adapter or product integration. The
+caller/host owns session intent and MUST explicitly open, update, retry, and
+close it. `SurfaceRuntime` owns bounded session state, demand membership,
+cancellation/supersession, selected publication, and publication lifetime.
+Mounted virtual-layout runtime owns provider registration. Callers MUST NOT
+infer demand from paint order, visibility, viewport/overscan, item count,
+provider availability, diagnostics, or snapshot reads. Session/container
+identity MUST be opaque and runtime-issued; callers cannot fabricate provider
+identity or authority.
 
 The API names in this section are conceptual only. Ordinary
 `automation_snapshot(&self)` and `automation_target_snapshot(&self)` MUST
 remain pure ordinary reads. A separate explicit refresh operation is the only
 provider-calling or mutating entry. A separate pure selected semantic snapshot
 read returns the last accepted session publication or the conservative ordinary
-baseline together with a typed status. Public selection/visibility is the
-target-required public boundary for the following consumer slice; no public
-provider-registration API is invented here.
+baseline together with a typed status. The shipped operations are
+`open_semantic_automation_session`, `semantic_automation_containers`,
+`refresh_semantic_automation_session`, `retry_semantic_automation_session`,
+`selected_semantic_automation_snapshot`, and
+`close_semantic_automation_session`; no public provider-registration API is
+invented here.
 
 Opening establishes one bounded session and an exact session generation, and its
 initial demand is explicit and starts attempt one. Updating atomically replaces
@@ -1379,12 +1381,12 @@ class and revision, finite/non-inverted conversion, clipping/nesting, and
 conservative singular/stale/unsupported/ambiguous behavior before custom
 coordinates are admitted.
 
-This contract is documentation only and earns no estimate credit. The four
-alignment documents must state that the private kernel is shipped while the
-session consumer and public selected snapshot remain unshipped; the estimates
-remain exactly generic ~97%, Declarative identity 71%, layout 97%, and broad
-coverage `901 / 11` (~81.91%). Existing pure public API and non-goals remain
-explicit.
+This bounded implementation earns one public-API evidence point. The four
+alignment documents must state that the private kernel and generic logical
+session are shipped while native/product/public provider registration,
+scheduling, and custom transforms remain deferred. Estimates are generic ~97%,
+Declarative identity 71%, layout 97%, and broad coverage `902 / 11` (82.00%).
+Existing pure ordinary snapshot APIs and non-goals remain explicit.
 
 ### Leaf content and interactive widgets
 

@@ -39,6 +39,10 @@ impl RuntimeOwner {
         self.open.load(Ordering::Acquire)
     }
 
+    pub(super) const fn id(&self) -> u64 {
+        self.id
+    }
+
     pub(super) fn is_same(&self, other: &Self) -> bool {
         self.id == other.id
     }

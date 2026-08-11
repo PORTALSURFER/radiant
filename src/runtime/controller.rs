@@ -168,6 +168,10 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(in crate::runtime) const fn runtime_identity(&self) -> u64 {
+        self.effect_owner.id()
+    }
+
     pub(crate) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {
         if !self.lifecycle.accepts_work() {
             return None;

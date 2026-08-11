@@ -3,11 +3,11 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~81.91% (901 / 11) |
+| Broad end-to-end target coverage | ~82.00% (902 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
-| Public API and module boundaries | 83% |
+| Public API and module boundaries | 84% |
 | Declarative model, identity, reconciliation | 71% |
 | Input, provenance, and edit lifecycle | 97% |
 | Layout, composition, virtualization | 97% |
@@ -20,8 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 81.9090...%`,
-reported as approximately `81.91%`.
+`(84 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.0%`,
+reported as approximately `82.00%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining native-
 adapter, scheduler-, renderer-, or product-policy boundaries.
@@ -240,37 +240,40 @@ compositor's conflict and union-cap vetoes.
 `Unmaterialized`/`materialized = false` remains authoritative, semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider authority, and snapshot functions remain
-pure reads. The next production consumer contract below defines public snapshot
-selection/visibility and session ownership, but its implementation remains
-unshipped. Custom-coordinate transformation, production/native and product
-consumers, scheduler/backoff/fairness, multiple active ranges per container,
-and public provider-registration/API wiring remain deferred and unimplemented.
-Estimates remain exactly unchanged: generic ~97%, Declarative identity 71%,
-layout 97%, and broad coverage `901 / 11` (~81.91%).
+pure reads. The generic logical production consumer below now implements the
+public snapshot selection/visibility and session ownership boundary. Custom-
+coordinate transformation, production/native and product consumers,
+scheduler/backoff/fairness, multiple active ranges per container, and public
+provider-registration/API wiring remain deferred and unimplemented. The
+consumer adds one public-API evidence point: generic ~97%, Declarative identity
+71%, layout 97%, and broad coverage `902 / 11` (~82.00%).
 
-## Next production consumer: semantic automation session (normative; implementation unshipped)
+## Next production consumer: semantic automation session (normative; generic logical implementation shipped)
 
-This is a documentation-only contract for the next consumer of the shipped
-private semantic-demand/provider-attempt/retention and whole-surface
-publication/composition kernels. The first consumer MUST be a generic,
-backend-neutral semantic automation session, not a native adapter or product
-integration. The caller/host owns session intent and MUST explicitly open,
-update, retry, and close it. `SurfaceRuntime` owns bounded session state,
-demand membership, cancellation/supersession, selected publication, and
-publication lifetime. Mounted virtual-layout runtime owns provider
-registration. Callers MUST NOT infer demand from paint order, visibility,
-viewport/overscan, item count, provider availability, diagnostics, or snapshot
-reads. Session/container identity is opaque and runtime-issued; callers cannot
-fabricate provider identity or authority.
+This is the shipped generic logical consumer of the private
+semantic-demand/provider-attempt/retention and whole-surface
+publication/composition kernels. The first consumer is generic and
+backend-neutral, not a native adapter or product integration. The caller/host
+owns session intent and MUST explicitly open, update, retry, and close it.
+`SurfaceRuntime` owns bounded session state, demand membership,
+cancellation/supersession, selected publication, and publication lifetime.
+Mounted virtual-layout runtime owns provider registration. Callers MUST NOT
+infer demand from paint order, visibility, viewport/overscan, item count,
+provider availability, diagnostics, or snapshot reads. Session/container
+identity is opaque and runtime-issued; callers cannot fabricate provider
+identity or authority.
 
-The operation names are conceptual only, not exact Rust signatures. Ordinary
+The shipped operations are `open_semantic_automation_session`,
+`semantic_automation_containers`, `refresh_semantic_automation_session`,
+`retry_semantic_automation_session`, `selected_semantic_automation_snapshot`,
+and `close_semantic_automation_session`, with the corresponding opaque demand,
+handle, result, status, and fallback types under `radiant::runtime`. Ordinary
 `automation_snapshot(&self)` and `automation_target_snapshot(&self)` remain
 pure ordinary reads. A separate explicit refresh operation is the only
 provider-calling or mutating entry. A separate pure selected semantic snapshot
 read returns the last accepted session publication or the conservative ordinary
-baseline plus a typed status. Public selection/visibility is the target-required
-public boundary for the following consumer slice. This contract invents no
-public provider-registration API.
+baseline plus a typed status. This contract invents no public
+provider-registration API.
 
 Opening establishes one bounded session and an exact session generation with an
 explicit initial demand at attempt one. Updating atomically replaces the whole
@@ -313,10 +316,9 @@ invocation with no identity fallback. A future transform contract must define
 the owner, source/destination, supported class and revision,
 finite/non-inverted conversion, clipping/nesting, and conservative
 singular/stale/unsupported/ambiguous behavior before custom coordinates are
-admitted. The contract earns no estimate credit and the implementation remains
-unshipped: generic ~97%, Declarative identity 71%, layout 97%, and broad
-coverage `901 / 11` (~81.91%) remain exactly unchanged. Existing pure public
-snapshot APIs and non-goals remain explicit.
+admitted. This shipped consumer adds one public-API evidence point: generic
+~97%, Declarative identity 71%, layout 97%, and broad coverage `902 / 11`
+(~82.00%). Existing pure public snapshot APIs and non-goals remain explicit.
 
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.

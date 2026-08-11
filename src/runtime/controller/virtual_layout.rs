@@ -5,10 +5,12 @@
 //! retain materialized slots.
 
 use super::{
-    SurfaceRuntime,
+    SurfaceRuntime, VirtualLayoutAutomationComposition,
     semantic_demand::{
-        SemanticDemandOwner, SemanticPublicationAuthorities, SemanticPublicationClassification,
-        SemanticPublicationOutcome,
+        SemanticDemand, SemanticDemandAdmissionError, SemanticDemandCompletion,
+        SemanticDemandExecutionError, SemanticDemandOwner, SemanticProviderCompletion,
+        SemanticPublicationAuthorities, SemanticPublicationClassification,
+        SemanticPublicationFallbackReason, SemanticPublicationOutcome,
     },
 };
 use crate::{
@@ -31,6 +33,12 @@ use crate::{
     },
     runtime::{
         SurfaceNode, SurfaceTraversalIndex, UiSurface,
+        automation::{
+            SemanticAutomationContainerHandle, SemanticAutomationDemand,
+            SemanticAutomationDemandError, SemanticAutomationFallbackReason,
+            SemanticAutomationRefreshStatus, SemanticAutomationSessionError,
+            SemanticAutomationSessionHandle,
+        },
         surface::{
             MAX_VIRTUAL_LAYOUT_REGISTRATIONS, SourceTraversalIndex, VirtualLayoutRegistration,
         },
@@ -731,8 +739,27 @@ pub(in crate::runtime) struct RuntimeVirtualLayoutState<Message> {
     next_mount_generation: u64,
     projection_probe: Option<RuntimeVirtualLayoutProjectionProbe<Message>>,
     semantic_demand: SemanticDemandOwner<Message>,
+    semantic_session: Option<RuntimeSemanticAutomationSession>,
+    next_semantic_session_generation: u64,
     #[cfg(test)]
     materialization_passes: u32,
+}
+
+struct RuntimeSemanticAutomationSession {
+    handle: SemanticAutomationSessionHandle,
+    selection: Option<RuntimeSemanticAutomationSelection>,
+}
+
+struct RuntimeSemanticAutomationSelection {
+    composition: VirtualLayoutAutomationComposition,
+    ordinary: crate::gui::automation::GuiAutomationSnapshot,
+    runtime_projection_generation: u64,
+    status: SemanticAutomationRefreshStatus,
+}
+
+pub(crate) struct RuntimeSemanticAutomationPublication {
+    pub(crate) composition: VirtualLayoutAutomationComposition,
+    pub(crate) status: SemanticAutomationRefreshStatus,
 }
 
 impl<Message> Default for RuntimeVirtualLayoutState<Message> {
@@ -742,6 +769,8 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
             next_mount_generation: 0,
             projection_probe: None,
             semantic_demand: SemanticDemandOwner::default(),
+            semantic_session: None,
+            next_semantic_session_generation: 0,
             #[cfg(test)]
             materialization_passes: 0,
         }
@@ -750,6 +779,12 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
     fn synchronize_semantic_demand(&mut self) {
+        if let Some(session) = &mut self.semantic_session {
+            // A normal lifecycle/materialization synchronization is an
+            // invalidation boundary for a previously selected publication.
+            // Explicit refresh stores a new selection after this hook returns.
+            session.selection = None;
+        }
         let semantic_registrations = self
             .records
             .iter()
@@ -966,6 +1001,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         }
         self.records.clear();
         self.projection_probe = None;
+        self.semantic_session = None;
     }
 
     /// Query one bounded pin without entering any materialization or
@@ -1403,6 +1439,329 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             .finish_publication(ordinary, plan, &classifications)
     }
 
+    pub(crate) fn open_semantic_automation_session(
+        &mut self,
+        runtime_id: u64,
+    ) -> Result<SemanticAutomationSessionHandle, SemanticAutomationSessionError> {
+        if self.semantic_session.is_some() {
+            return Err(SemanticAutomationSessionError::SessionAlreadyActive);
+        }
+        let generation = self.next_semantic_session_generation.checked_add(1).ok_or(
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CounterOverflow,
+            ),
+        )?;
+        self.next_semantic_session_generation = generation;
+        self.semantic_demand
+            .clear_demands()
+            .map_err(map_semantic_demand_error)?;
+        let handle = SemanticAutomationSessionHandle {
+            runtime_id,
+            generation,
+        };
+        self.semantic_session = Some(RuntimeSemanticAutomationSession {
+            handle,
+            selection: None,
+        });
+        Ok(handle)
+    }
+
+    pub(crate) fn semantic_automation_containers(
+        &self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+    ) -> Result<Vec<SemanticAutomationContainerHandle>, SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        Ok(self
+            .records
+            .iter()
+            .filter(|record| !record.retired)
+            .map(|record| SemanticAutomationContainerHandle {
+                runtime_id,
+                session_generation: session.generation,
+                container_id: record.registration.container_id,
+                mount_generation: record.mount_generation,
+            })
+            .collect())
+    }
+
+    pub(crate) fn refresh_semantic_automation(
+        &mut self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+        demands: &[SemanticAutomationDemand],
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        authorities: (u64, u64, u64),
+    ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        self.synchronize_semantic_demand();
+        let (materialization_authority, classification_authority, ordinary_projection_generation) =
+            authorities;
+
+        let mut requested = Vec::with_capacity(demands.len());
+        for demand in demands {
+            requested.push(self.lower_semantic_automation_demand(runtime_id, session, demand)?);
+        }
+
+        let tickets = self
+            .semantic_demand
+            .replace_demand_set(&requested)
+            .map_err(map_semantic_demand_error)?;
+        let mut failure_reason = None;
+        for ticket in tickets {
+            let completion = match self.semantic_demand.execute(ticket) {
+                Ok(completion) => completion,
+                Err(SemanticDemandExecutionError::Reentrant) => {
+                    return Err(SemanticAutomationSessionError::Reentrant);
+                }
+                Err(SemanticDemandExecutionError::AlreadyExecuted) => {
+                    failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
+                    continue;
+                }
+            };
+            if let SemanticProviderCompletion::Stale = completion {
+                failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
+            }
+            let completion = self.semantic_demand.complete(completion);
+            if let Some(reason) = semantic_completion_fallback_reason(&completion) {
+                failure_reason.get_or_insert(reason);
+            }
+        }
+
+        let publication = self.compose_semantic_publication(
+            ordinary,
+            SemanticPublicationAuthorities {
+                session_generation: session.generation,
+                materialization_authority,
+                classification_authority,
+                ordinary_projection_generation,
+            },
+        );
+        let (composition, status) = match publication {
+            SemanticPublicationOutcome::Published(composition) => {
+                if requested.is_empty() {
+                    (
+                        composition,
+                        SemanticAutomationRefreshStatus::Baseline {
+                            reason: SemanticAutomationFallbackReason::NoDemand,
+                        },
+                    )
+                } else if let Some(reason) = failure_reason {
+                    (
+                        composition,
+                        SemanticAutomationRefreshStatus::Retained { reason },
+                    )
+                } else {
+                    (composition, SemanticAutomationRefreshStatus::Published)
+                }
+            }
+            SemanticPublicationOutcome::OrdinaryBaseline {
+                composition,
+                reason,
+            } => {
+                let reason = failure_reason.unwrap_or_else(|| map_publication_reason(reason));
+                (
+                    composition,
+                    SemanticAutomationRefreshStatus::Baseline { reason },
+                )
+            }
+        };
+
+        let publication = RuntimeSemanticAutomationPublication {
+            composition: composition.clone(),
+            status,
+        };
+        if let Some(session_state) = &mut self.semantic_session {
+            session_state.selection = Some(RuntimeSemanticAutomationSelection {
+                composition,
+                ordinary: ordinary.clone(),
+                runtime_projection_generation: ordinary_projection_generation,
+                status,
+            });
+        }
+        Ok(publication)
+    }
+
+    pub(crate) fn retry_semantic_automation(
+        &mut self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        authorities: (u64, u64, u64),
+    ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        self.synchronize_semantic_demand();
+        let (materialization_authority, classification_authority, ordinary_projection_generation) =
+            authorities;
+        let tickets = self
+            .semantic_demand
+            .retry_all()
+            .map_err(map_semantic_demand_error)?;
+        let mut failure_reason = None;
+        for ticket in tickets {
+            let completion = match self.semantic_demand.execute(ticket) {
+                Ok(completion) => completion,
+                Err(SemanticDemandExecutionError::Reentrant) => {
+                    return Err(SemanticAutomationSessionError::Reentrant);
+                }
+                Err(SemanticDemandExecutionError::AlreadyExecuted) => {
+                    failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
+                    continue;
+                }
+            };
+            if let SemanticProviderCompletion::Stale = completion {
+                failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
+            }
+            let completion = self.semantic_demand.complete(completion);
+            if let Some(reason) = semantic_completion_fallback_reason(&completion) {
+                failure_reason.get_or_insert(reason);
+            }
+        }
+
+        let publication = self.compose_semantic_publication(
+            ordinary,
+            SemanticPublicationAuthorities {
+                session_generation: session.generation,
+                materialization_authority,
+                classification_authority,
+                ordinary_projection_generation,
+            },
+        );
+        let (composition, status) = match publication {
+            SemanticPublicationOutcome::Published(composition) => {
+                if let Some(reason) = failure_reason {
+                    (
+                        composition,
+                        SemanticAutomationRefreshStatus::Retained { reason },
+                    )
+                } else {
+                    (composition, SemanticAutomationRefreshStatus::Published)
+                }
+            }
+            SemanticPublicationOutcome::OrdinaryBaseline {
+                composition,
+                reason,
+            } => (
+                composition,
+                SemanticAutomationRefreshStatus::Baseline {
+                    reason: failure_reason.unwrap_or_else(|| map_publication_reason(reason)),
+                },
+            ),
+        };
+        let publication = RuntimeSemanticAutomationPublication {
+            composition: composition.clone(),
+            status,
+        };
+        if let Some(session_state) = &mut self.semantic_session {
+            session_state.selection = Some(RuntimeSemanticAutomationSelection {
+                composition,
+                ordinary: ordinary.clone(),
+                runtime_projection_generation: ordinary_projection_generation,
+                status,
+            });
+        }
+        Ok(publication)
+    }
+
+    pub(crate) fn selected_semantic_automation(
+        &self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        ordinary_projection_generation: u64,
+    ) -> Result<Option<RuntimeSemanticAutomationPublication>, SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        let Some(selection) = self
+            .semantic_session
+            .as_ref()
+            .and_then(|session| session.selection.as_ref())
+        else {
+            return Ok(None);
+        };
+        if selection.ordinary != *ordinary
+            || selection.runtime_projection_generation != ordinary_projection_generation
+        {
+            return Ok(None);
+        }
+        Ok(Some(RuntimeSemanticAutomationPublication {
+            composition: selection.composition.clone(),
+            status: selection.status,
+        }))
+    }
+
+    pub(crate) fn close_semantic_automation_session(
+        &mut self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+    ) -> Result<(), SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        self.semantic_demand
+            .clear_demands()
+            .map_err(map_semantic_demand_error)?;
+        self.semantic_session = None;
+        Ok(())
+    }
+
+    fn validate_semantic_automation_session(
+        &self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+    ) -> Result<(), SemanticAutomationSessionError> {
+        if session.runtime_id != runtime_id
+            || self
+                .semantic_session
+                .as_ref()
+                .is_none_or(|current| current.handle != session)
+        {
+            return Err(SemanticAutomationSessionError::UnknownSession);
+        }
+        Ok(())
+    }
+
+    fn lower_semantic_automation_demand(
+        &self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+        demand: &SemanticAutomationDemand,
+    ) -> Result<(NodeId, SemanticDemand), SemanticAutomationSessionError> {
+        let (container, lowered) = match demand {
+            SemanticAutomationDemand::Range {
+                container,
+                start_index,
+                length,
+            } => (
+                container,
+                SemanticDemand::Range(
+                    VirtualLayoutSemanticRange::new(*start_index, *length).map_err(|reason| {
+                        SemanticAutomationSessionError::InvalidDemand(map_range_demand_error(
+                            reason,
+                        ))
+                    })?,
+                ),
+            ),
+            SemanticAutomationDemand::RequiredItem { container, key } => {
+                if key.stable_equals(key) != Some(true) {
+                    return Err(SemanticAutomationSessionError::InvalidDemand(
+                        SemanticAutomationDemandError::InvalidKey,
+                    ));
+                }
+                (container, SemanticDemand::RequiredItemPin(key.clone()))
+            }
+        };
+        let Some(record) = self.records.iter().find(|record| {
+            !record.retired
+                && record.registration.container_id == container.container_id
+                && record.mount_generation == container.mount_generation
+        }) else {
+            return Err(SemanticAutomationSessionError::StaleContainerHandle);
+        };
+        if container.runtime_id != runtime_id || container.session_generation != session.generation
+        {
+            return Err(SemanticAutomationSessionError::StaleContainerHandle);
+        }
+        Ok((record.registration.container_id, lowered))
+    }
+
     pub(super) fn take_projection_probe(
         &mut self,
     ) -> Option<RuntimeVirtualLayoutProjectionProbe<Message>> {
@@ -1430,6 +1789,155 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         let next = self.next_mount_generation.checked_add(1)?;
         self.next_mount_generation = next;
         Some(next)
+    }
+}
+
+fn map_semantic_demand_error(
+    error: SemanticDemandAdmissionError,
+) -> SemanticAutomationSessionError {
+    match error {
+        SemanticDemandAdmissionError::DuplicateSource => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::DuplicateSource,
+            )
+        }
+        SemanticDemandAdmissionError::UnknownContainer
+        | SemanticDemandAdmissionError::Retired
+        | SemanticDemandAdmissionError::ScopeMismatch => {
+            SemanticAutomationSessionError::StaleContainerHandle
+        }
+        SemanticDemandAdmissionError::InvalidKey => {
+            SemanticAutomationSessionError::InvalidDemand(SemanticAutomationDemandError::InvalidKey)
+        }
+        SemanticDemandAdmissionError::InvalidRange(reason) => {
+            SemanticAutomationSessionError::InvalidDemand(map_range_demand_error(reason))
+        }
+        SemanticDemandAdmissionError::CustomCoordinate => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CustomCoordinateSpace,
+            )
+        }
+        SemanticDemandAdmissionError::AggregateBudgetExceeded => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::AggregateRangeBudgetExceeded,
+            )
+        }
+        SemanticDemandAdmissionError::CounterOverflow => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CounterOverflow,
+            )
+        }
+        SemanticDemandAdmissionError::NoActiveDemand => {
+            SemanticAutomationSessionError::NoActiveDemand
+        }
+        SemanticDemandAdmissionError::Reentrant => SemanticAutomationSessionError::Reentrant,
+    }
+}
+
+fn map_range_demand_error(
+    reason: VirtualLayoutSemanticRejectedReason,
+) -> SemanticAutomationDemandError {
+    match reason {
+        VirtualLayoutSemanticRejectedReason::RangeLengthZero => {
+            SemanticAutomationDemandError::RangeLengthZero
+        }
+        VirtualLayoutSemanticRejectedReason::RangeIndexOverflow => {
+            SemanticAutomationDemandError::RangeIndexOverflow
+        }
+        VirtualLayoutSemanticRejectedReason::RangeOverBudget => {
+            SemanticAutomationDemandError::RangeOverBudget
+        }
+        _ => SemanticAutomationDemandError::RangeOverBudget,
+    }
+}
+
+fn map_publication_reason(
+    reason: SemanticPublicationFallbackReason,
+) -> SemanticAutomationFallbackReason {
+    match reason {
+        SemanticPublicationFallbackReason::IncompleteDemandSet => {
+            SemanticAutomationFallbackReason::IncompleteDemandSet
+        }
+        SemanticPublicationFallbackReason::StalePlan => SemanticAutomationFallbackReason::Stale,
+        SemanticPublicationFallbackReason::ClassificationRejected
+        | SemanticPublicationFallbackReason::CompositionRejected => {
+            SemanticAutomationFallbackReason::Malformed
+        }
+        SemanticPublicationFallbackReason::CounterOverflow => {
+            SemanticAutomationFallbackReason::CounterOverflow
+        }
+    }
+}
+
+fn semantic_completion_fallback_reason(
+    completion: &SemanticDemandCompletion,
+) -> Option<SemanticAutomationFallbackReason> {
+    match completion {
+        SemanticDemandCompletion::Stale => Some(SemanticAutomationFallbackReason::Stale),
+        SemanticDemandCompletion::RequiredItemPin(outcome) => match outcome {
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+            | VirtualLayoutSemanticQueryOutcome::NotFound => None,
+            VirtualLayoutSemanticQueryOutcome::Deferred(_) => {
+                Some(SemanticAutomationFallbackReason::Deferred)
+            }
+            VirtualLayoutSemanticQueryOutcome::Unavailable(reason) => Some(match reason {
+                VirtualLayoutSemanticUnavailableReason::NoProvider => {
+                    SemanticAutomationFallbackReason::NoProvider
+                }
+                VirtualLayoutSemanticUnavailableReason::DataUnavailable => {
+                    SemanticAutomationFallbackReason::DataUnavailable
+                }
+                VirtualLayoutSemanticUnavailableReason::Unsupported => {
+                    SemanticAutomationFallbackReason::Unsupported
+                }
+            }),
+            VirtualLayoutSemanticQueryOutcome::Rejected(reason) => {
+                Some(map_rejected_reason(*reason))
+            }
+        },
+        SemanticDemandCompletion::Range(outcome) => match outcome {
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+            | VirtualLayoutSemanticRangeQueryOutcome::NotFound => None,
+            VirtualLayoutSemanticRangeQueryOutcome::Deferred(_) => {
+                Some(SemanticAutomationFallbackReason::Deferred)
+            }
+            VirtualLayoutSemanticRangeQueryOutcome::Unavailable(reason) => Some(match reason {
+                VirtualLayoutSemanticUnavailableReason::NoProvider => {
+                    SemanticAutomationFallbackReason::NoProvider
+                }
+                VirtualLayoutSemanticUnavailableReason::DataUnavailable => {
+                    SemanticAutomationFallbackReason::DataUnavailable
+                }
+                VirtualLayoutSemanticUnavailableReason::Unsupported => {
+                    SemanticAutomationFallbackReason::Unsupported
+                }
+            }),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason) => {
+                Some(map_rejected_reason(*reason))
+            }
+        },
+    }
+}
+
+fn map_rejected_reason(
+    reason: VirtualLayoutSemanticRejectedReason,
+) -> SemanticAutomationFallbackReason {
+    match reason {
+        VirtualLayoutSemanticRejectedReason::UnknownContainer
+        | VirtualLayoutSemanticRejectedReason::Retired
+        | VirtualLayoutSemanticRejectedReason::ScopeMismatch
+        | VirtualLayoutSemanticRejectedReason::Stale => SemanticAutomationFallbackReason::Stale,
+        VirtualLayoutSemanticRejectedReason::RangeCountMismatch
+        | VirtualLayoutSemanticRejectedReason::WrongLogicalIndex
+        | VirtualLayoutSemanticRejectedReason::RangeOutOfOrder
+        | VirtualLayoutSemanticRejectedReason::DuplicateKey
+        | VirtualLayoutSemanticRejectedReason::DuplicateSemanticNodeId
+        | VirtualLayoutSemanticRejectedReason::SemanticNodeIdDrift
+        | VirtualLayoutSemanticRejectedReason::NonFiniteBounds
+        | VirtualLayoutSemanticRejectedReason::InvertedBounds => {
+            SemanticAutomationFallbackReason::Malformed
+        }
+        _ => SemanticAutomationFallbackReason::Rejected,
     }
 }
 
@@ -2042,7 +2550,9 @@ mod tests {
             VirtualLayoutQuerySink, VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
         },
         runtime::{
-            RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
+            RuntimeBridge, SemanticAutomationDemand, SemanticAutomationDemandError,
+            SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
+            SemanticAutomationSessionError, SurfaceChild, SurfaceNode, UiSurface,
             surface::VirtualLayoutRegistrationRevisions,
         },
         widgets::WidgetSizing,
@@ -2673,6 +3183,151 @@ mod tests {
     }
 
     #[test]
+    fn semantic_automation_session_refreshes_explicitly_and_preserves_unmaterialized_authority() {
+        let entries = valid_semantic_range_entries(0, 2);
+        let (mut state, _batch, calls, _policy_calls) =
+            materialized_state_and_batch(Vec::new(), entries);
+        let session = state
+            .open_semantic_automation_session(900)
+            .expect("one session should open");
+        let containers = state
+            .semantic_automation_containers(900, session)
+            .expect("the live mounted container should enumerate");
+        assert_eq!(containers.len(), 1);
+        let ordinary = semantic_publication_snapshot();
+        assert_eq!(calls.get(), 1);
+
+        let demand = SemanticAutomationDemand::range(containers[0], 0, 2);
+        let publication = state
+            .refresh_semantic_automation(
+                session.runtime_id,
+                session,
+                &[demand],
+                &ordinary,
+                (1, 2, 3),
+            )
+            .expect("the explicit logical refresh should publish");
+        assert_eq!(calls.get(), 2);
+        assert_eq!(
+            publication.status,
+            SemanticAutomationRefreshStatus::Published
+        );
+        assert_eq!(
+            publication.composition.snapshot().root.children[0]
+                .children
+                .iter()
+                .map(|child| child.id.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                AutomationNodeId::new("range-zero"),
+                AutomationNodeId::new("range-one"),
+            ]
+        );
+        let targets = publication.composition.target_snapshot(3);
+        for target_id in ["range-zero", "range-one"] {
+            let target = targets
+                .targets
+                .iter()
+                .find(|target| target.id == AutomationNodeId::new(target_id))
+                .expect("the semantic target should be present");
+            assert_eq!(
+                target.authority,
+                Some(crate::runtime::AutomationTargetAuthority {
+                    runtime_generation: 3,
+                    materialized: false,
+                })
+            );
+        }
+
+        let selected = state
+            .selected_semantic_automation(900, session, &ordinary, 3)
+            .expect("selected read should remain pure")
+            .expect("the explicit publication should be selected");
+        assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn semantic_automation_demand_validation_is_atomic_and_does_not_call_custom_providers() {
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::Custom(VirtualLayoutPolicyIdentity::new(
+                "unsupported-coordinate",
+            )),
+            VirtualLayoutBudget::new(4),
+        );
+        let session = state
+            .open_semantic_automation_session(901)
+            .expect("one session should open");
+        let container = state
+            .semantic_automation_containers(901, session)
+            .expect("the mounted container should enumerate")[0];
+        let ordinary = semantic_publication_snapshot();
+        let result = state.refresh_semantic_automation(
+            901,
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 1)],
+            &ordinary,
+            (1, 2, 3),
+        );
+        assert!(matches!(
+            result,
+            Err(SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CustomCoordinateSpace,
+            ))
+        ));
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn semantic_automation_deferred_result_is_conservative_until_explicit_retry() {
+        let (provider, calls, outcome) =
+            semantic_provider(VirtualLayoutSemanticQueryOutcome::Deferred(
+                VirtualLayoutSemanticDeferredReason::SemanticPending,
+            ));
+        let mut state = semantic_pin_publication_state(provider);
+        let session = state
+            .open_semantic_automation_session(902)
+            .expect("one session should open");
+        let container = state
+            .semantic_automation_containers(902, session)
+            .expect("the mounted container should enumerate")[0];
+        let ordinary = semantic_publication_snapshot();
+        let first = state
+            .refresh_semantic_automation(
+                902,
+                session,
+                &[SemanticAutomationDemand::required_item(
+                    container,
+                    VirtualLayoutItemKey::new(7_u32),
+                )],
+                &ordinary,
+                (1, 2, 3),
+            )
+            .expect("deferred provider output should produce a typed baseline");
+        assert_eq!(
+            first.status,
+            SemanticAutomationRefreshStatus::Baseline {
+                reason: SemanticAutomationFallbackReason::Deferred,
+            }
+        );
+        assert_eq!(calls.get(), 1);
+
+        *outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::Found(Box::new(semantic_entry(
+            7,
+            Rect::from_xy_size(4.0, 4.0, 24.0, 10.0),
+        )));
+        let retry = state
+            .retry_semantic_automation(902, session, &ordinary, (1, 2, 3))
+            .expect("explicit retry should execute the provider again");
+        assert_eq!(retry.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
     fn semantic_range_classification_preserves_order_and_exact_origin_without_side_effects() {
         let cases = [
             (
@@ -2819,6 +3474,7 @@ mod tests {
         let first = state.compose_semantic_publication(
             &ordinary,
             SemanticPublicationAuthorities {
+                session_generation: 1,
                 materialization_authority: 1,
                 classification_authority: 2,
                 ordinary_projection_generation: 3,
@@ -2849,6 +3505,7 @@ mod tests {
         let second = state.compose_semantic_publication(
             &ordinary,
             SemanticPublicationAuthorities {
+                session_generation: 1,
                 materialization_authority: 4,
                 classification_authority: 5,
                 ordinary_projection_generation: 6,

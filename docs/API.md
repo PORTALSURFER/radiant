@@ -627,12 +627,12 @@ required-key found/not_found evidence for removal replacement remains a later
 prerequisite. The APIs in this section are the currently shipped fixed-row host
 projection path and retain their existing ownership and compatibility behavior.
 
-### Next production consumer: semantic automation session (normative; implementation unshipped)
+### Next production consumer: semantic automation session (normative; generic logical implementation shipped)
 
 The private semantic-demand/provider-attempt/retention and atomic
-whole-surface-publication kernels above are shipped. The next consumer is a
-generic backend-neutral semantic automation session, not a native adapter or
-product integration. The caller/host owns session intent and MUST explicitly
+whole-surface-publication kernels above are shipped. They are now consumed by
+one generic backend-neutral semantic automation session, not a native adapter
+or product integration. The caller/host owns session intent and MUST explicitly
 open, update, retry, and close the session. `SurfaceRuntime` owns bounded
 session state, demand membership, cancellation/supersession, selected
 publication, and publication lifetime. Mounted virtual-layout runtime owns
@@ -641,14 +641,17 @@ visibility, viewport/overscan, item count, provider availability, diagnostics,
 or snapshot reads. Session/container identity is opaque and runtime-issued;
 callers cannot fabricate provider identity or authority.
 
-The operation names here are conceptual, not exact Rust signatures. Ordinary
+The shipped operations are `open_semantic_automation_session`,
+`semantic_automation_containers`, `refresh_semantic_automation_session`,
+`retry_semantic_automation_session`, `selected_semantic_automation_snapshot`,
+and `close_semantic_automation_session`, with the corresponding opaque demand,
+handle, result, status, and fallback types under `radiant::runtime`. Ordinary
 `automation_snapshot(&self)` and `automation_target_snapshot(&self)` remain
 pure ordinary reads. A separate explicit refresh operation is the only
 provider-calling or mutating entry. A separate pure selected semantic snapshot
 read returns the last accepted session publication or the conservative ordinary
-baseline plus a typed status. Public selection/visibility is the target-required
-public boundary for the following consumer slice; this contract invents no
-public provider-registration API.
+baseline plus a typed status. This contract invents no public
+provider-registration API.
 
 Opening establishes one bounded session and an exact session generation with an
 explicit initial demand at attempt one. Updating atomically replaces the whole
@@ -691,10 +694,11 @@ invocation with no identity fallback. A future transform contract must define
 the owner, source/destination, supported class and revision,
 finite/non-inverted conversion, clipping/nesting, and conservative
 singular/stale/unsupported/ambiguous behavior before custom coordinates are
-admitted. This documentation contract earns no estimate credit: generic ~97%,
-Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
-(~81.91%) remain exactly unchanged. The private kernel is shipped, while the
-session consumer and public selected snapshot remain unshipped.
+admitted. This shipped generic logical consumer adds one public-API evidence
+point: generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
+`902 / 11` (~82.00%). Native/product consumers, scheduler/backoff/fairness,
+multiple active ranges per container, public provider registration, and custom
+coordinates remain unshipped.
 
 Large list, table, tree, browser, and picker surfaces should use Radiant's
 virtual-list contract instead of constructing hidden rows. Host applications own

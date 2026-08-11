@@ -75,7 +75,10 @@ pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
 pub use automation::{
     NumericAccessibilityDispatchResult, NumericAccessibilityRequest,
-    NumericAccessibilityUnavailableReason,
+    NumericAccessibilityUnavailableReason, SemanticAutomationContainerHandle,
+    SemanticAutomationDemand, SemanticAutomationDemandError, SemanticAutomationFallbackReason,
+    SemanticAutomationRefresh, SemanticAutomationRefreshStatus, SemanticAutomationSelectedSnapshot,
+    SemanticAutomationSessionError, SemanticAutomationSessionHandle,
 };
 #[allow(deprecated)]
 pub use bridge::{

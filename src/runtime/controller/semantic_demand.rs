@@ -230,6 +230,7 @@ struct SemanticDemandSlot {
 /// materialization/classification consumers own how they advance them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct SemanticPublicationAuthorities {
+    pub(super) session_generation: u64,
     pub(super) materialization_authority: u64,
     pub(super) classification_authority: u64,
     pub(super) ordinary_projection_generation: u64,
@@ -240,6 +241,7 @@ pub(super) struct SemanticPublicationAuthorities {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SemanticPublicationFence {
     pub(super) provider_fence: SemanticProviderFence,
+    pub(super) session_generation: u64,
     pub(super) materialization_authority: u64,
     pub(super) classification_authority: u64,
     pub(super) ordinary_projection_generation: u64,
@@ -254,6 +256,7 @@ impl SemanticPublicationFence {
     ) -> Self {
         Self {
             provider_fence,
+            session_generation: authorities.session_generation,
             materialization_authority: authorities.materialization_authority,
             classification_authority: authorities.classification_authority,
             ordinary_projection_generation: authorities.ordinary_projection_generation,
@@ -263,6 +266,7 @@ impl SemanticPublicationFence {
 
     pub(super) fn same_exact(&self, other: &Self) -> bool {
         self.provider_fence.same_exact(&other.provider_fence)
+            && self.session_generation == other.session_generation
             && self.materialization_authority == other.materialization_authority
             && self.classification_authority == other.classification_authority
             && self.ordinary_projection_generation == other.ordinary_projection_generation
@@ -437,6 +441,7 @@ struct SemanticCompleteCandidate {
 /// This is semantic provider authority only; it is not a second virtual-layout
 /// registration registry and does not retain shell, item, policy, or
 /// materialization ownership.
+#[derive(Clone)]
 struct SemanticLiveAuthority {
     container_id: NodeId,
     policy_identity: crate::layout::VirtualLayoutPolicyIdentity,
@@ -551,6 +556,7 @@ impl SemanticLiveAuthority {
     }
 }
 
+#[derive(Clone)]
 struct SemanticDemandRecord {
     authority: SemanticLiveAuthority,
     registration_generation: u64,
@@ -593,6 +599,7 @@ pub(super) enum SemanticDemandAdmission {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SemanticDemandAdmissionError {
+    DuplicateSource,
     UnknownContainer,
     Retired,
     ScopeMismatch,
@@ -643,6 +650,23 @@ pub(super) struct SemanticDemandOwner<Message> {
     provider_call_in_progress: bool,
     last_complete_candidate: Option<SemanticCompleteCandidate>,
     _message: PhantomData<fn() -> Message>,
+}
+
+impl<Message> Clone for SemanticDemandOwner<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            records: self.records.clone(),
+            next_registration_generation: self.next_registration_generation,
+            next_semantic_provider_generation: self.next_semantic_provider_generation,
+            next_semantic_range_provider_generation: self.next_semantic_range_provider_generation,
+            next_demand_generation: self.next_demand_generation,
+            next_demand_set_generation: self.next_demand_set_generation,
+            demand_set_generation: self.demand_set_generation,
+            provider_call_in_progress: self.provider_call_in_progress,
+            last_complete_candidate: self.last_complete_candidate.clone(),
+            _message: PhantomData,
+        }
+    }
 }
 
 impl<Message> Default for SemanticDemandOwner<Message> {
@@ -816,6 +840,191 @@ impl<Message> SemanticDemandOwner<Message> {
             record.cancel_and_clear();
         }
         self.records.clear();
+        self.last_complete_candidate = None;
+    }
+
+    /// Atomically replace the complete active demand set. Validation and
+    /// counter allocation happen on a staged owner, so a rejected member or
+    /// overflow cannot leave a partially applied set behind.
+    pub(super) fn replace_demand_set(
+        &mut self,
+        demands: &[(NodeId, SemanticDemand)],
+    ) -> Result<Vec<SemanticAttemptTicket>, SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+
+        let mut staged = self.clone();
+        let mut seen = Vec::with_capacity(demands.len());
+        let mut aggregate_range_length = 0_usize;
+        for (container_id, demand) in demands {
+            let index = staged.authority_index(*container_id)?;
+            staged.validate_intent_authority(index)?;
+            let source = demand.source();
+            if seen
+                .iter()
+                .any(|(id, previous)| *id == *container_id && *previous == source)
+            {
+                return Err(SemanticDemandAdmissionError::DuplicateSource);
+            }
+            if let SemanticDemand::Range(range) = demand {
+                range
+                    .validate_budget(staged.records[index].authority.budget)
+                    .map_err(SemanticDemandAdmissionError::InvalidRange)?;
+                aggregate_range_length = aggregate_range_length
+                    .checked_add(range.length())
+                    .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
+            } else if let SemanticDemand::RequiredItemPin(key) = demand
+                && key.stable_equals(key) != Some(true)
+            {
+                return Err(SemanticDemandAdmissionError::InvalidKey);
+            }
+            seen.push((*container_id, source));
+        }
+        if aggregate_range_length > MAX_ACTIVE_RANGE_DEMAND_ENTRIES {
+            return Err(SemanticDemandAdmissionError::AggregateBudgetExceeded);
+        }
+
+        let current_member_count = staged
+            .records
+            .iter()
+            .map(|record| usize::from(record.range.is_some()) + usize::from(record.pin.is_some()))
+            .sum::<usize>();
+        let mut changed = current_member_count != demands.len();
+        if !changed {
+            changed = demands.iter().any(|(container_id, demand)| {
+                let Some(index) = staged.record_index(*container_id) else {
+                    return true;
+                };
+                staged
+                    .slot(index, demand.source())
+                    .and_then(|slot| slot.request.demand().same_exact(demand))
+                    != Some(true)
+            });
+        }
+
+        if !changed {
+            let tickets = demands
+                .iter()
+                .filter_map(|(container_id, demand)| {
+                    let index = staged.record_index(*container_id)?;
+                    let slot = staged.slot(index, demand.source())?;
+                    (slot.status == SemanticSlotStatus::Pending && !slot.executed).then(|| {
+                        SemanticAttemptTicket {
+                            fence: slot.fence.clone(),
+                        }
+                    })
+                })
+                .collect();
+            return Ok(tickets);
+        }
+
+        staged.ensure_demand_set_capacity()?;
+        for index in 0..staged.records.len() {
+            for source in [
+                SemanticDemandSource::Range,
+                SemanticDemandSource::RequiredItemPin,
+            ] {
+                if staged.slot(index, source).is_some()
+                    && !seen.iter().any(|(id, member_source)| {
+                        *id == staged.records[index].authority.container_id
+                            && *member_source == source
+                    })
+                {
+                    staged.remove_slot(index, source);
+                }
+            }
+        }
+
+        let mut tickets = Vec::with_capacity(demands.len());
+        for (container_id, demand) in demands {
+            let index = staged
+                .record_index(*container_id)
+                .ok_or(SemanticDemandAdmissionError::UnknownContainer)?;
+            let source = demand.source();
+            let unchanged = staged
+                .slot(index, source)
+                .and_then(|slot| slot.request.demand().same_exact(demand))
+                == Some(true);
+            if unchanged {
+                if let Some(slot) = staged.slot(index, source)
+                    && slot.status == SemanticSlotStatus::Pending
+                    && !slot.executed
+                {
+                    tickets.push(SemanticAttemptTicket {
+                        fence: slot.fence.clone(),
+                    });
+                }
+                continue;
+            }
+            let request = staged.records[index]
+                .authority
+                .request_for_demand(demand.clone());
+            tickets.push(staged.start_slot(index, request, None)?);
+        }
+        staged.advance_demand_set_generation()?;
+        *self = staged;
+        Ok(tickets)
+    }
+
+    /// Explicitly restart every active source without executing any provider.
+    /// The complete owner is staged so a counter failure leaves all old slots
+    /// and their retained evidence untouched.
+    pub(super) fn retry_all(
+        &mut self,
+    ) -> Result<Vec<SemanticAttemptTicket>, SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+        let mut staged = self.clone();
+        let active = staged
+            .records
+            .iter()
+            .enumerate()
+            .flat_map(|(index, record)| {
+                [
+                    (index, SemanticDemandSource::Range, record.range.is_some()),
+                    (
+                        index,
+                        SemanticDemandSource::RequiredItemPin,
+                        record.pin.is_some(),
+                    ),
+                ]
+                .into_iter()
+                .filter_map(|(index, source, present)| present.then_some((index, source)))
+                .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        if active.is_empty() {
+            return Err(SemanticDemandAdmissionError::NoActiveDemand);
+        }
+
+        let mut tickets = Vec::with_capacity(active.len());
+        for (index, source) in active {
+            tickets.push(staged.restart_slot(index, source)?);
+        }
+        *self = staged;
+        Ok(tickets)
+    }
+
+    /// Cancel all active demand membership while retaining live authorities.
+    pub(super) fn clear_demands(&mut self) -> Result<(), SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+        let mut staged = self.clone();
+        let had_members = staged.records.iter().any(SemanticDemandRecord::has_members);
+        if had_members {
+            staged.ensure_demand_set_capacity()?;
+            for index in 0..staged.records.len() {
+                staged.remove_slot(index, SemanticDemandSource::Range);
+                staged.remove_slot(index, SemanticDemandSource::RequiredItemPin);
+            }
+            staged.advance_demand_set_generation()?;
+        }
+        staged.last_complete_candidate = None;
+        *self = staged;
+        Ok(())
     }
 
     /// Admit or repeat one exact logical range demand.  All fence fields are
@@ -2303,6 +2512,7 @@ mod tests {
 
     fn publication_authorities(seed: u64) -> SemanticPublicationAuthorities {
         SemanticPublicationAuthorities {
+            session_generation: seed,
             materialization_authority: seed,
             classification_authority: seed + 1,
             ordinary_projection_generation: seed + 2,

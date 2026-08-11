@@ -2,6 +2,7 @@ use super::*;
 use radiant::gui::automation::{
     AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
     AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_TOGGLE, AutomationRole,
+    AutomationTargetAuthority,
 };
 use radiant::widgets::{ListItemWidget, SelectableWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION};
 
@@ -83,8 +84,14 @@ fn automation_target_snapshot_flattens_semantic_targets_with_coordinates() {
     let save = automation_target(&target_snapshot.targets, "10").expect("save target");
     let loop_toggle = automation_target(&target_snapshot.targets, "11").expect("loop target");
 
-    assert_eq!(target_snapshot.schema_version, 1);
+    assert_eq!(target_snapshot.schema_version, 2);
     assert_eq!(target_snapshot.viewport_width, 320);
+    let expected_authority = Some(AutomationTargetAuthority::materialized(
+        runtime.refresh_counters().runtime_projection,
+    ));
+    for target in &target_snapshot.targets {
+        assert_eq!(target.authority, expected_authority);
+    }
     assert_eq!(save.tree_index + 1, loop_toggle.tree_index);
     assert_eq!(save.depth, save.path.len() - 1);
     assert_eq!(save.path.first(), Some(&root_id));

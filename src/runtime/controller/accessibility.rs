@@ -145,14 +145,20 @@ where
             return Err(NumericAccessibilityUnavailableReason::UnmaterializedTarget);
         }
 
+        let Some(current) = self.current_automation_target(&target.id) else {
+            return Err(
+                if authority.runtime_generation < self.refresh_counters().runtime_projection {
+                    NumericAccessibilityUnavailableReason::RemovedTarget
+                } else {
+                    NumericAccessibilityUnavailableReason::UnknownTarget
+                },
+            );
+        };
         let widget_id = target
             .id
             .0
             .parse::<WidgetId>()
             .map_err(|_| NumericAccessibilityUnavailableReason::UnknownTarget)?;
-        let Some(current) = self.current_automation_target(&target.id) else {
-            return Err(NumericAccessibilityUnavailableReason::RemovedTarget);
-        };
         if current.authority != Some(authority)
             || current.path != target.path
             || current.role != target.role
@@ -521,6 +527,24 @@ mod tests {
             result,
             NumericAccessibilityDispatchResult::Unavailable {
                 reason: NumericAccessibilityUnavailableReason::RemovedTarget,
+            }
+        );
+    }
+
+    #[test]
+    fn same_generation_unknown_target_is_classified_as_unknown() {
+        let mut runtime = runtime(SurfaceMode::Numeric);
+        let mut unknown = target(&runtime);
+        unknown.id = crate::gui::automation::AutomationNodeId::new("404");
+
+        let result = runtime.dispatch_numeric_accessibility_action(
+            NumericAccessibilityRequest::new(unknown, NumericAccessibilityAction::Increment),
+        );
+
+        assert_eq!(
+            result,
+            NumericAccessibilityDispatchResult::Unavailable {
+                reason: NumericAccessibilityUnavailableReason::UnknownTarget,
             }
         );
     }

@@ -116,9 +116,18 @@ through policy input and the query fence; a ready result omitting that key is
 invalid before coordinator commit, and a changed key invalidates pending work
 and previous fallback. Regression coverage includes the required-key query and
 runtime path within the focused virtual-layout suite, plus the bounded format,
-diff, check, and Clippy gates. No semantic consumer, full focus traversal,
-accessibility traversal, focus-follow/anchor, offscreen materialization,
-scheduler/renderer policy, or product wiring shipped. The layout evidence moves
+diff, check, and Clippy gates. No public semantic-tree consumer or full
+focus/automation traversal, offscreen materialization, focus/capture transfer,
+scrolling, scheduler/renderer policy, or product wiring shipped. A private
+current-fence one-item semantic admission path is now shipped: current
+registration authority constructs the exact request for one live mounted
+container and opaque stable key, and a valid provider result retains one
+`Semantic` pin. No automation
+traversal, offscreen materialization, focus/capture transfer, scrolling, paint,
+hit testing, scheduler/renderer work, public consumer, or product wiring
+shipped. The estimate impact is zero: generic architecture remains ~97%, layout
+remains 97%, and broad coverage remains `900 / 11` (~81.82%). The layout
+evidence moves
 from 96% to 97% and the total from `899` to `900`:
 `899 + 1 = 900`, `900 / 11 = 81.8181...%`, reported as approximately `81.82%`.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of

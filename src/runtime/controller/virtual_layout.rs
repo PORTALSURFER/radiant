@@ -626,6 +626,12 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             record.pin = None;
             return VirtualLayoutSemanticQueryOutcome::Rejected(reason);
         }
+        if request.key().stable_equals(request.key()) != Some(true) {
+            record.pin = None;
+            return VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnstableKey,
+            );
+        }
         let Some(provider) = record.registration.semantic_provider() else {
             record.pin = None;
             return VirtualLayoutSemanticQueryOutcome::Unavailable(
@@ -672,6 +678,52 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         request: &VirtualLayoutSemanticRequest,
     ) -> VirtualLayoutSemanticQueryOutcome {
         self.query_pin(request, VirtualLayoutPinReason::Semantic)
+    }
+
+    /// Admit one semantic item from the selected record's current authority.
+    ///
+    /// The caller supplies only the mounted container identity and opaque key;
+    /// all request fence evidence comes from the live registration record.
+    #[allow(dead_code)]
+    pub(crate) fn admit_current_semantics(
+        &mut self,
+        container_id: crate::layout::NodeId,
+        key: VirtualLayoutItemKey,
+    ) -> VirtualLayoutSemanticQueryOutcome {
+        let Some(index) = self
+            .records
+            .iter()
+            .position(|record| record.registration.container_id == container_id)
+        else {
+            return VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnknownContainer,
+            );
+        };
+        let record = &mut self.records[index];
+        if record.retired {
+            record.pin = None;
+            return VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::Retired,
+            );
+        }
+        if key.stable_equals(&key) != Some(true) {
+            record.pin = None;
+            return VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnstableKey,
+            );
+        }
+
+        let request = VirtualLayoutSemanticRequest::new(
+            record.registration.container_id,
+            record.registration.policy_identity.clone(),
+            record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
+            record.registration.semantic_revision(),
+            key,
+        );
+        self.query_semantics(&request)
     }
 
     pub(super) fn take_projection_probe(
@@ -790,6 +842,18 @@ where
 
     pub(super) fn retire_virtual_layout(&mut self) {
         self.virtual_layout.retire_all();
+    }
+
+    /// Admit one semantic item using only the current mounted registration
+    /// authority. This path performs no materialization or runtime refresh.
+    #[allow(dead_code)]
+    pub(crate) fn admit_virtual_layout_semantics(
+        &mut self,
+        container_id: crate::layout::NodeId,
+        key: VirtualLayoutItemKey,
+    ) -> VirtualLayoutSemanticQueryOutcome {
+        self.virtual_layout
+            .admit_current_semantics(container_id, key)
     }
 }
 
@@ -912,17 +976,29 @@ mod tests {
     struct SemanticProvider {
         calls: Rc<Cell<u32>>,
         outcome: Rc<RefCell<VirtualLayoutSemanticQueryOutcome>>,
+        requests: Rc<RefCell<Vec<VirtualLayoutSemanticRequest>>>,
     }
 
     impl VirtualLayoutSemanticProvider for SemanticProvider {
         fn lookup(
             &self,
-            _request: &VirtualLayoutSemanticRequest,
+            request: &VirtualLayoutSemanticRequest,
         ) -> VirtualLayoutSemanticQueryOutcome {
             self.calls.set(self.calls.get().saturating_add(1));
+            self.requests.borrow_mut().push(request.clone());
             self.outcome.borrow().clone()
         }
     }
+
+    struct UnstableKey;
+
+    impl PartialEq for UnstableKey {
+        fn eq(&self, _other: &Self) -> bool {
+            false
+        }
+    }
+
+    impl Eq for UnstableKey {}
 
     impl VirtualLayoutPolicy for ControlledPolicy {
         fn query(
@@ -1059,6 +1135,7 @@ mod tests {
         let provider = Rc::new(SemanticProvider {
             calls: Rc::clone(&calls),
             outcome: Rc::clone(&outcome),
+            requests: Rc::new(RefCell::new(Vec::new())),
         });
         (provider, calls, outcome)
     }
@@ -1082,6 +1159,108 @@ mod tests {
             SEMANTIC_MOUNT_GENERATION,
         ));
         state
+    }
+
+    #[test]
+    fn current_semantic_admission_constructs_exact_current_request_and_pins_found() {
+        let entry = semantic_entry(7, Rect::from_xy_size(4.0, 8.0, 24.0, 16.0));
+        let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+            Box::new(entry.clone()),
+        ));
+        let revisions = VirtualLayoutRegistrationRevisions {
+            data: 11,
+            policy: 12,
+            measurement: 13,
+            semantic: 14,
+            ..Default::default()
+        };
+        let mut registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 7,
+            }),
+            VirtualLayoutPolicyIdentity::new("current-policy".to_owned()),
+        )
+        .with_semantic_provider(provider.clone());
+        registration.revisions = revisions;
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        let mount_generation = runtime.virtual_layout.records[0].mount_generation;
+        let expected_request =
+            semantic_request_with_revisions("current-policy", mount_generation, revisions, 7);
+
+        assert_eq!(
+            runtime.admit_virtual_layout_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32),),
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(entry.clone()))
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            provider.requests.borrow().as_slice(),
+            std::slice::from_ref(&expected_request)
+        );
+        let pin = runtime.virtual_layout.records[0]
+            .pin
+            .as_ref()
+            .expect("current semantic admission should retain one pin");
+        assert_eq!(pin.reason(), VirtualLayoutPinReason::Semantic);
+        assert_eq!(pin.request(), &expected_request);
+        assert_eq!(pin.entry(), &entry);
+    }
+
+    #[test]
+    fn current_semantic_admission_rejects_non_live_or_unstable_inputs_without_lookup() {
+        let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+            Box::new(semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0))),
+        ));
+        let mut state = semantic_state(provider, 3);
+
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID + 1, VirtualLayoutItemKey::new(7_u32),),
+            VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnknownContainer
+            )
+        );
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(UnstableKey)),
+            VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnstableKey
+            )
+        );
+        state.records[0].retire();
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32),),
+            VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::Retired
+            )
+        );
+        assert_eq!(calls.get(), 0);
+        assert!(state.records[0].pin.is_none());
+
+        let mut missing_provider = RuntimeVirtualLayoutState::default();
+        missing_provider
+            .records
+            .push(RuntimeVirtualLayoutRecord::new(
+                registration(
+                    Rc::new(ReadyPolicy {
+                        calls: Rc::new(Cell::new(0)),
+                        key: 7,
+                    }),
+                    VirtualLayoutPolicyIdentity::new("missing-provider-policy".to_owned()),
+                ),
+                SEMANTIC_MOUNT_GENERATION,
+            ));
+        assert_eq!(
+            missing_provider
+                .admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32),),
+            VirtualLayoutSemanticQueryOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::NoProvider
+            )
+        );
+        assert!(missing_provider.records[0].pin.is_none());
     }
 
     #[test]
@@ -1182,8 +1361,6 @@ mod tests {
             },
             Vector2::new(160.0, 80.0),
         );
-        let mount_generation = runtime.virtual_layout.records[0].mount_generation;
-        let request = semantic_request("semantic-policy", mount_generation, 0, 1);
         let cached_item_count = runtime.virtual_layout.records[0]
             .cached_subtree
             .as_ref()
@@ -1191,9 +1368,35 @@ mod tests {
         let materialization_passes = runtime.virtual_layout.materialization_passes;
         let installation_count = runtime.declarative_owner_projection().installation_count();
         let source_ids = source_node_ids(runtime.surface());
+        let active_keys = runtime.virtual_layout.records[0]
+            .materialization
+            .active_slots()
+            .into_iter()
+            .map(|slot| slot.item().key().clone())
+            .collect::<Vec<_>>();
+        let focus_state = runtime.interaction.focus;
+        let pointer_capture = (
+            runtime.interaction.pointer.capture,
+            runtime.interaction.pointer.capture_state,
+            runtime.interaction.pointer.managed_capture,
+            runtime.interaction.pointer.scroll_drag_capture,
+        );
+        let widget_hit_order = runtime.traversal.widgets.hit_order.clone();
+        let focus_order = runtime.traversal.widgets.focusable.order().to_vec();
+        let pointer_order = runtime.traversal.widgets.pointer.order().to_vec();
+        let keyboard_focus_order = runtime.traversal.widgets.keyboard_focus.order().to_vec();
+        let widget_paths = runtime.traversal.widgets.paths.current.clone();
+        let styled_container_order = runtime.traversal.containers.styled.order().to_vec();
+        let scroll_container_order = runtime.traversal.containers.scroll.order().to_vec();
+        let layout_before = runtime.layout.clone();
+        let layout_root_before = runtime.layout_root.clone();
+        let surface_root_before = runtime.surface().layout_node().clone();
+        let refresh_counters = runtime.refresh_counters();
+        let paint_observation = runtime.latest_paint_segment_observation();
+        let paint_reuse = runtime.base_paint_plan_reuse_eligible();
 
         assert!(matches!(
-            runtime.virtual_layout.query_semantics(&request),
+            runtime.admit_virtual_layout_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32),),
             VirtualLayoutSemanticQueryOutcome::Found(_)
         ));
         assert_eq!(
@@ -1208,10 +1411,124 @@ mod tests {
             materialization_passes
         );
         assert_eq!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .into_iter()
+                .map(|slot| slot.item().key().clone())
+                .collect::<Vec<_>>(),
+            active_keys
+        );
+        assert_eq!(
             runtime.declarative_owner_projection().installation_count(),
             installation_count
         );
         assert_eq!(source_node_ids(runtime.surface()), source_ids);
+        assert_eq!(runtime.interaction.focus, focus_state);
+        assert_eq!(
+            (
+                runtime.interaction.pointer.capture,
+                runtime.interaction.pointer.capture_state,
+                runtime.interaction.pointer.managed_capture,
+                runtime.interaction.pointer.scroll_drag_capture,
+            ),
+            pointer_capture
+        );
+        assert_eq!(runtime.traversal.widgets.hit_order, widget_hit_order);
+        assert_eq!(runtime.traversal.widgets.focusable.order(), focus_order);
+        assert_eq!(runtime.traversal.widgets.pointer.order(), pointer_order);
+        assert_eq!(
+            runtime.traversal.widgets.keyboard_focus.order(),
+            keyboard_focus_order
+        );
+        assert_eq!(runtime.traversal.widgets.paths.current, widget_paths);
+        assert_eq!(
+            runtime.traversal.containers.styled.order(),
+            styled_container_order
+        );
+        assert_eq!(
+            runtime.traversal.containers.scroll.order(),
+            scroll_container_order
+        );
+        assert_eq!(runtime.layout, layout_before);
+        assert_eq!(runtime.layout_root, layout_root_before);
+        assert_eq!(runtime.surface().layout_node(), surface_root_before);
+        assert_eq!(runtime.refresh_counters(), refresh_counters);
+        assert_eq!(
+            runtime.latest_paint_segment_observation(),
+            paint_observation
+        );
+        assert_eq!(runtime.base_paint_plan_reuse_eligible(), paint_reuse);
+    }
+
+    #[test]
+    fn current_semantic_admission_replaces_pin_after_provider_or_revision_change() {
+        let first = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+        let (first_provider, first_calls, _) = semantic_provider(
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(first.clone())),
+        );
+        let mut state = semantic_state(first_provider.clone(), 3);
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(first.clone()))
+        );
+        assert_eq!(first_calls.get(), 1);
+        assert_eq!(state.records[0].pin.as_ref().unwrap().entry(), &first);
+
+        let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
+        let (second_provider, second_calls, second_outcome) = semantic_provider(
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(second.clone())),
+        );
+        let mut replacement = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("semantic-policy".to_owned()),
+        )
+        .with_semantic_provider(second_provider.clone());
+        replacement.revisions.semantic = 3;
+        state.records[0].update_registration(replacement);
+        assert!(state.records[0].pin.is_none());
+
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(second.clone()))
+        );
+        assert_eq!(first_calls.get(), 1);
+        assert_eq!(second_calls.get(), 1);
+        let second_request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 3, 9);
+        assert_eq!(
+            state.records[0].pin.as_ref().unwrap().request(),
+            &second_request
+        );
+        assert_eq!(
+            second_provider.requests.borrow().last(),
+            Some(&second_request)
+        );
+
+        let third = semantic_entry(9, Rect::from_xy_size(1.0, 13.0, 11.0, 12.0));
+        *second_outcome.borrow_mut() =
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(third.clone()));
+        let mut revised = state.records[0].registration.clone();
+        revised.revisions.semantic = 4;
+        state.records[0].update_registration(revised);
+        assert!(state.records[0].pin.is_none());
+
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(third.clone()))
+        );
+        assert_eq!(second_calls.get(), 2);
+        let revised_request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 4, 9);
+        assert_eq!(
+            state.records[0].pin.as_ref().unwrap().request(),
+            &revised_request
+        );
+        assert_eq!(
+            second_provider.requests.borrow().last(),
+            Some(&revised_request)
+        );
     }
 
     #[test]
@@ -1286,10 +1603,9 @@ mod tests {
                 semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
             )));
         let mut state = semantic_state(provider, 3);
-        let request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 3, 7);
 
         assert!(matches!(
-            state.query_semantics(&request),
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
             VirtualLayoutSemanticQueryOutcome::Found(_)
         ));
         assert!(state.records[0].pin.is_some());
@@ -1300,7 +1616,7 @@ mod tests {
         )));
 
         assert_eq!(
-            state.query_semantics(&request),
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
             VirtualLayoutSemanticQueryOutcome::Rejected(
                 VirtualLayoutSemanticRejectedReason::WrongKey
             )
@@ -1310,7 +1626,7 @@ mod tests {
             Rect::from_xy_size(0.0, 0.0, f32::NAN, 10.0),
         )));
         assert_eq!(
-            state.query_semantics(&request),
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
             VirtualLayoutSemanticQueryOutcome::Rejected(
                 VirtualLayoutSemanticRejectedReason::NonFiniteBounds
             )
@@ -1320,7 +1636,7 @@ mod tests {
             Rect::from_min_max(Point::new(10.0, 0.0), Point::new(0.0, 10.0)),
         )));
         assert_eq!(
-            state.query_semantics(&request),
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
             VirtualLayoutSemanticQueryOutcome::Rejected(
                 VirtualLayoutSemanticRejectedReason::InvertedBounds
             )
@@ -1336,9 +1652,8 @@ mod tests {
             Box::new(entry.clone()),
         ));
         let mut state = semantic_state(provider, 3);
-        let request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 3, 7);
         assert!(matches!(
-            state.query_semantics(&request),
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
             VirtualLayoutSemanticQueryOutcome::Found(_)
         ));
         assert!(state.records[0].pin.is_some());
@@ -1356,12 +1671,15 @@ mod tests {
             ),
         ] {
             *outcome.borrow_mut() = outcome_value.clone();
-            assert_eq!(state.query_semantics(&request), outcome_value);
+            assert_eq!(
+                state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
+                outcome_value
+            );
             assert!(state.records[0].pin.is_none());
             *outcome.borrow_mut() =
                 VirtualLayoutSemanticQueryOutcome::Found(Box::new(entry.clone()));
             assert!(matches!(
-                state.query_semantics(&request),
+                state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
                 VirtualLayoutSemanticQueryOutcome::Found(_)
             ));
         }

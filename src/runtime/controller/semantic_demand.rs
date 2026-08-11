@@ -1,12 +1,14 @@
 //! Crate-private semantic-demand ownership for one `SurfaceRuntime`.
 //!
-//! This module stops at provider-attempt admission, execution, completion, and
-//! exact private retention.  It deliberately has no publication candidate,
-//! scheduler, materialization consumer, or snapshot integration.
+//! This module owns crate-private semantic demand, provider attempts, exact
+//! retention, and the staged whole-surface publication kernel.  It deliberately
+//! has no scheduler, native/product consumer, or snapshot integration.
 
 #![allow(dead_code)]
 
+use super::virtual_layout::VirtualLayoutSemanticClassificationInput;
 use crate::{
+    gui::automation::GuiAutomationSnapshot,
     gui::layout_core::{
         VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutSemanticEntry,
         VirtualLayoutSemanticProjection, VirtualLayoutSemanticProjectionBatch,
@@ -181,6 +183,16 @@ enum SemanticEvidence {
     Range(Box<SemanticRangeEvidence>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SemanticSlotStatus {
+    Pending,
+    Found,
+    NotFound,
+    Fallback,
+    Withheld,
+    Terminal,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct SemanticPinEvidence {
     entry: Option<VirtualLayoutSemanticEntry>,
@@ -208,6 +220,216 @@ struct SemanticDemandSlot {
     evidence: Option<SemanticEvidence>,
     withheld: bool,
     retained: Option<SemanticRetainedEvidence>,
+    /// Membership is retained independently of the current attempt/evidence.
+    /// A terminal attempt therefore cannot make an active demand disappear.
+    status: SemanticSlotStatus,
+}
+
+/// Exact composition authorities supplied by the current materialization and
+/// ordinary-projection owners.  These are opaque generations here: the
+/// materialization/classification consumers own how they advance them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SemanticPublicationAuthorities {
+    pub(super) materialization_authority: u64,
+    pub(super) classification_authority: u64,
+    pub(super) ordinary_projection_generation: u64,
+}
+
+/// Whole-surface publication fence for one provider member.  A complete
+/// publication carries one exact fence for every active demand member.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct SemanticPublicationFence {
+    pub(super) provider_fence: SemanticProviderFence,
+    pub(super) materialization_authority: u64,
+    pub(super) classification_authority: u64,
+    pub(super) ordinary_projection_generation: u64,
+    pub(super) complete_demand_set_generation: u64,
+}
+
+impl SemanticPublicationFence {
+    fn new(
+        provider_fence: SemanticProviderFence,
+        authorities: SemanticPublicationAuthorities,
+        complete_demand_set_generation: u64,
+    ) -> Self {
+        Self {
+            provider_fence,
+            materialization_authority: authorities.materialization_authority,
+            classification_authority: authorities.classification_authority,
+            ordinary_projection_generation: authorities.ordinary_projection_generation,
+            complete_demand_set_generation,
+        }
+    }
+
+    pub(super) fn same_exact(&self, other: &Self) -> bool {
+        self.provider_fence.same_exact(&other.provider_fence)
+            && self.materialization_authority == other.materialization_authority
+            && self.classification_authority == other.classification_authority
+            && self.ordinary_projection_generation == other.ordinary_projection_generation
+            && self.complete_demand_set_generation == other.complete_demand_set_generation
+    }
+}
+
+/// Provider evidence normalized for the materialization classifier.  Empty
+/// evidence is authoritative `NotFound`; it has no classifier input.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum SemanticPublicationEvidence {
+    Pin {
+        request: VirtualLayoutSemanticRequest,
+        projection: Box<VirtualLayoutSemanticProjection>,
+    },
+    Range {
+        request: VirtualLayoutSemanticRangeRequest,
+        projections: Vec<VirtualLayoutSemanticProjection>,
+    },
+}
+
+impl SemanticPublicationEvidence {
+    pub(super) fn pin_parts(
+        &self,
+    ) -> Option<(
+        &VirtualLayoutSemanticRequest,
+        &VirtualLayoutSemanticProjection,
+    )> {
+        match self {
+            Self::Pin {
+                request,
+                projection,
+            } => Some((request, projection.as_ref())),
+            Self::Range { .. } => None,
+        }
+    }
+
+    pub(super) fn range_parts(
+        &self,
+    ) -> Option<(
+        &VirtualLayoutSemanticRangeRequest,
+        &[VirtualLayoutSemanticProjection],
+    )> {
+        match self {
+            Self::Range {
+                request,
+                projections,
+            } => Some((request, projections)),
+            Self::Pin { .. } => None,
+        }
+    }
+}
+
+/// One active demand member staged for whole-surface publication.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct SemanticPublicationMember {
+    container_id: NodeId,
+    source: SemanticDemandSource,
+    fence: SemanticPublicationFence,
+    evidence: Option<SemanticPublicationEvidence>,
+    resolved: bool,
+}
+
+impl SemanticPublicationMember {
+    pub(super) fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    pub(super) fn source(&self) -> SemanticDemandSource {
+        self.source
+    }
+
+    pub(super) fn fence(&self) -> &SemanticPublicationFence {
+        &self.fence
+    }
+
+    pub(super) fn evidence(&self) -> Option<&SemanticPublicationEvidence> {
+        self.evidence.as_ref()
+    }
+
+    pub(super) fn resolved(&self) -> bool {
+        self.resolved
+    }
+}
+
+/// Classification evidence paired with the exact publication fence that
+/// admitted it.  The owner accepts this only when the second publication
+/// phase still carries the same member fence.
+#[derive(Clone, Debug)]
+pub(super) struct SemanticPublicationClassification {
+    fence: SemanticPublicationFence,
+    input: VirtualLayoutSemanticClassificationInput,
+}
+
+impl SemanticPublicationClassification {
+    pub(super) fn new(
+        fence: SemanticPublicationFence,
+        input: VirtualLayoutSemanticClassificationInput,
+    ) -> Self {
+        Self { fence, input }
+    }
+
+    pub(super) fn fence(&self) -> &SemanticPublicationFence {
+        &self.fence
+    }
+
+    pub(super) fn input(&self) -> &VirtualLayoutSemanticClassificationInput {
+        &self.input
+    }
+}
+
+/// Immutable first phase of owner publication.  It contains every active
+/// member, including unresolved terminal members, so an incomplete set cannot
+/// be mistaken for a smaller complete set.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct SemanticPublicationPlan {
+    authorities: SemanticPublicationAuthorities,
+    complete_demand_set_generation: u64,
+    members: Vec<SemanticPublicationMember>,
+    complete: bool,
+}
+
+impl SemanticPublicationPlan {
+    pub(super) fn members(&self) -> &[SemanticPublicationMember] {
+        &self.members
+    }
+
+    pub(super) fn complete(&self) -> bool {
+        self.complete
+    }
+
+    pub(super) fn complete_demand_set_generation(&self) -> u64 {
+        self.complete_demand_set_generation
+    }
+
+    fn authorities(&self) -> SemanticPublicationAuthorities {
+        self.authorities
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SemanticPublicationFallbackReason {
+    IncompleteDemandSet,
+    StalePlan,
+    ClassificationRejected,
+    CompositionRejected,
+    CounterOverflow,
+}
+
+/// Result of one atomic publication attempt.  The ordinary baseline is
+/// returned on every incomplete, stale, malformed, or composition-vetoed
+/// attempt; no partial virtual tree is exposed.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum SemanticPublicationOutcome {
+    Published(crate::runtime::controller::VirtualLayoutAutomationComposition),
+    OrdinaryBaseline {
+        composition: crate::runtime::controller::VirtualLayoutAutomationComposition,
+        reason: SemanticPublicationFallbackReason,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct SemanticCompleteCandidate {
+    authorities: SemanticPublicationAuthorities,
+    ordinary: GuiAutomationSnapshot,
+    plan: SemanticPublicationPlan,
+    composition: crate::runtime::controller::VirtualLayoutAutomationComposition,
 }
 
 /// A reduced live authority copied from one accepted runtime record.
@@ -340,6 +562,10 @@ struct SemanticDemandRecord {
 }
 
 impl SemanticDemandRecord {
+    fn has_members(&self) -> bool {
+        self.range.is_some() || self.pin.is_some()
+    }
+
     fn cancel_and_clear(&mut self) {
         [&mut self.range, &mut self.pin]
             .into_iter()
@@ -412,7 +638,10 @@ pub(super) struct SemanticDemandOwner<Message> {
     next_semantic_provider_generation: u64,
     next_semantic_range_provider_generation: u64,
     next_demand_generation: u64,
+    next_demand_set_generation: u64,
+    demand_set_generation: u64,
     provider_call_in_progress: bool,
+    last_complete_candidate: Option<SemanticCompleteCandidate>,
     _message: PhantomData<fn() -> Message>,
 }
 
@@ -424,7 +653,10 @@ impl<Message> Default for SemanticDemandOwner<Message> {
             next_semantic_provider_generation: 0,
             next_semantic_range_provider_generation: 0,
             next_demand_generation: 0,
+            next_demand_set_generation: 0,
+            demand_set_generation: 0,
             provider_call_in_progress: false,
+            last_complete_candidate: None,
             _message: PhantomData,
         }
     }
@@ -455,6 +687,13 @@ impl<Message> SemanticDemandOwner<Message> {
             if active_ids.contains(&self.records[index].authority.container_id) {
                 index += 1;
             } else {
+                if self.records[index].has_members()
+                    && (self.ensure_demand_set_capacity().is_err()
+                        || self.advance_demand_set_generation().is_err())
+                {
+                    self.retire_all();
+                    return Vec::new();
+                }
                 let mut record = self.records.remove(index);
                 record.cancel_and_clear();
             }
@@ -477,6 +716,13 @@ impl<Message> SemanticDemandOwner<Message> {
                 .authority
                 .same_scope(registration)
             {
+                if self.records[existing_index].has_members()
+                    && (self.ensure_demand_set_capacity().is_err()
+                        || self.advance_demand_set_generation().is_err())
+                {
+                    self.retire_all();
+                    return Vec::new();
+                }
                 let mut old = self.records.remove(existing_index);
                 old.cancel_and_clear();
                 let Some(record) = self.new_record(authority) else {
@@ -593,10 +839,12 @@ impl<Message> SemanticDemandOwner<Message> {
 
         let current_length = self
             .slot(index, SemanticDemandSource::Range)
+            .filter(|slot| slot.status != SemanticSlotStatus::Terminal)
             .map(|slot| slot.request.demand().range_length())
             .unwrap_or(0);
         let aggregate = self
             .active_range_length()
+            .ok_or(SemanticDemandAdmissionError::CounterOverflow)?
             .checked_sub(current_length)
             .and_then(|active| active.checked_add(range.length()))
             .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
@@ -663,6 +911,47 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         self.retry_source(container_id, SemanticDemandSource::RequiredItemPin)
+    }
+
+    /// Remove the active range membership without invoking a provider.  The
+    /// complete demand-set generation advances even when the member's last
+    /// attempt was terminal, so a failed member cannot silently vanish from a
+    /// publication set.
+    pub(super) fn remove_range_demand(
+        &mut self,
+        container_id: NodeId,
+    ) -> Result<(), SemanticDemandAdmissionError> {
+        self.remove_source(container_id, SemanticDemandSource::Range)
+    }
+
+    /// Remove the independent one-item semantic-pin membership without
+    /// invoking a provider.
+    pub(super) fn remove_semantic_pin(
+        &mut self,
+        container_id: NodeId,
+    ) -> Result<(), SemanticDemandAdmissionError> {
+        self.remove_source(container_id, SemanticDemandSource::RequiredItemPin)
+    }
+
+    pub(super) fn demand_set_generation(&self) -> u64 {
+        self.demand_set_generation
+    }
+
+    fn remove_source(
+        &mut self,
+        container_id: NodeId,
+        source: SemanticDemandSource,
+    ) -> Result<(), SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+        let index = self.authority_index(container_id)?;
+        if self.slot(index, source).is_none() {
+            return Err(SemanticDemandAdmissionError::NoActiveDemand);
+        }
+        self.ensure_demand_set_capacity()?;
+        self.remove_slot(index, source);
+        self.advance_demand_set_generation()
     }
 
     /// Execute one admitted ticket at most once.  This is a direct owner
@@ -758,6 +1047,166 @@ impl<Message> SemanticDemandOwner<Message> {
                 SemanticDemandCompletion::Range(self.complete_range(index, ticket, outcome))
             }
         }
+    }
+
+    /// Build the first, side-effect-free phase of whole-surface publication.
+    /// Every active membership is represented, including a terminal or
+    /// withheld member that makes the plan incomplete.
+    pub(super) fn publication_plan(
+        &self,
+        authorities: SemanticPublicationAuthorities,
+    ) -> SemanticPublicationPlan {
+        let mut members = Vec::new();
+        let mut complete = true;
+        for record in &self.records {
+            for source in [
+                SemanticDemandSource::Range,
+                SemanticDemandSource::RequiredItemPin,
+            ] {
+                let Some(slot) = self.slot_for_record(record, source) else {
+                    continue;
+                };
+                let member = self.publication_member(slot, source, authorities);
+                complete &= member.resolved();
+                members.push(member);
+            }
+        }
+        SemanticPublicationPlan {
+            authorities,
+            complete_demand_set_generation: self.demand_set_generation,
+            members,
+            complete,
+        }
+    }
+
+    /// Complete the second publication phase.  The plan and all classifier
+    /// outputs are rechecked against current membership/evidence before the
+    /// compositor is called.  Only a successful compositor result updates the
+    /// retained complete candidate.
+    pub(super) fn finish_publication(
+        &mut self,
+        ordinary: &GuiAutomationSnapshot,
+        plan: SemanticPublicationPlan,
+        classifications: &[SemanticPublicationClassification],
+    ) -> SemanticPublicationOutcome {
+        let baseline = |reason| SemanticPublicationOutcome::OrdinaryBaseline {
+            composition: super::automation_compositor::ordinary_virtual_layout_automation_snapshot(
+                ordinary,
+            ),
+            reason,
+        };
+
+        if !plan.complete() || plan.complete_demand_set_generation != self.demand_set_generation {
+            if let Some(candidate) = &self.last_complete_candidate
+                && self.previous_candidate_is_eligible(candidate, ordinary, &plan)
+            {
+                return SemanticPublicationOutcome::Published(candidate.composition.clone());
+            }
+            return baseline(SemanticPublicationFallbackReason::IncompleteDemandSet);
+        }
+
+        let current = self.publication_plan(plan.authorities());
+        if !same_publication_plan(&current, &plan) || !current.complete() {
+            return baseline(SemanticPublicationFallbackReason::StalePlan);
+        }
+        let expected_inputs = current
+            .members
+            .iter()
+            .filter(|member| member.evidence.is_some() && member.resolved)
+            .count();
+        if classifications.len() != expected_inputs
+            || !current
+                .members
+                .iter()
+                .filter(|member| member.evidence.is_some() && member.resolved)
+                .zip(classifications)
+                .all(|(member, classification)| {
+                    self.classification_matches_member(member, classification)
+                })
+        {
+            return baseline(SemanticPublicationFallbackReason::ClassificationRejected);
+        }
+
+        let composition =
+            match super::automation_compositor::compose_virtual_layout_automation_snapshot_inputs(
+                ordinary,
+                &classifications
+                    .iter()
+                    .map(|classification| classification.input().clone())
+                    .collect::<Vec<_>>(),
+            ) {
+                Ok(composition) => composition,
+                Err(_) => return baseline(SemanticPublicationFallbackReason::CompositionRejected),
+            };
+        self.last_complete_candidate = Some(SemanticCompleteCandidate {
+            authorities: current.authorities,
+            ordinary: ordinary.clone(),
+            plan: current,
+            composition: composition.clone(),
+        });
+        SemanticPublicationOutcome::Published(composition)
+    }
+
+    fn publication_member(
+        &self,
+        slot: &SemanticDemandSlot,
+        source: SemanticDemandSource,
+        authorities: SemanticPublicationAuthorities,
+    ) -> SemanticPublicationMember {
+        let (provider_fence, evidence, resolved) = match slot.status {
+            SemanticSlotStatus::Found | SemanticSlotStatus::NotFound => {
+                (slot.fence.clone(), slot.evidence.clone(), true)
+            }
+            SemanticSlotStatus::Fallback | SemanticSlotStatus::Pending => slot
+                .retained
+                .as_ref()
+                .filter(|retained| retained.fence.same_retention_fence(&slot.fence))
+                .map_or((slot.fence.clone(), None, false), |retained| {
+                    (
+                        retained.fence.clone(),
+                        Some(retained.evidence.clone()),
+                        true,
+                    )
+                }),
+            SemanticSlotStatus::Withheld | SemanticSlotStatus::Terminal => {
+                (slot.fence.clone(), None, false)
+            }
+        };
+        let (evidence, evidence_resolved) = publication_evidence(evidence);
+        SemanticPublicationMember {
+            container_id: provider_fence.container_id,
+            source,
+            fence: SemanticPublicationFence::new(
+                provider_fence,
+                authorities,
+                self.demand_set_generation,
+            ),
+            evidence,
+            resolved: resolved && evidence_resolved,
+        }
+    }
+
+    fn classification_matches_member(
+        &self,
+        member: &SemanticPublicationMember,
+        classification: &SemanticPublicationClassification,
+    ) -> bool {
+        member.fence.same_exact(classification.fence())
+            && same_publication_input(member.evidence.as_ref(), classification.input())
+    }
+
+    fn previous_candidate_is_eligible(
+        &self,
+        candidate: &SemanticCompleteCandidate,
+        ordinary: &GuiAutomationSnapshot,
+        current_plan: &SemanticPublicationPlan,
+    ) -> bool {
+        candidate.authorities == current_plan.authorities
+            && candidate.ordinary == *ordinary
+            && candidate.plan.complete == current_plan.complete
+            && candidate.plan.complete_demand_set_generation
+                == current_plan.complete_demand_set_generation
+            && same_publication_members(&candidate.plan.members, &current_plan.members)
     }
 
     fn complete_pin(
@@ -938,9 +1387,19 @@ impl<Message> SemanticDemandOwner<Message> {
             evidence: evidence.clone(),
         };
         if let Some(slot) = self.slot_mut(index, source) {
+            let status = match &evidence {
+                SemanticEvidence::Pin(pin) if pin.entry.is_some() => SemanticSlotStatus::Found,
+                SemanticEvidence::Range(range) if !range.entries.is_empty() => {
+                    SemanticSlotStatus::Found
+                }
+                SemanticEvidence::Pin(_) | SemanticEvidence::Range(_) => {
+                    SemanticSlotStatus::NotFound
+                }
+            };
             slot.evidence = Some(evidence);
             slot.withheld = false;
             slot.retained = Some(retained);
+            slot.status = status;
         }
     }
 
@@ -958,6 +1417,11 @@ impl<Message> SemanticDemandOwner<Message> {
         if let Some(slot) = self.slot_mut(index, source) {
             slot.withheld = fallback.is_none();
             slot.evidence = fallback;
+            slot.status = if slot.withheld {
+                SemanticSlotStatus::Withheld
+            } else {
+                SemanticSlotStatus::Fallback
+            };
         }
     }
 
@@ -992,7 +1456,9 @@ impl<Message> SemanticDemandOwner<Message> {
         {
             return Ok(SemanticDemandAdmission::Unchanged);
         }
+        self.ensure_demand_set_capacity()?;
         let ticket = self.start_slot(index, request, None)?;
+        self.advance_demand_set_generation()?;
         Ok(SemanticDemandAdmission::Started(ticket))
     }
 
@@ -1105,9 +1571,27 @@ impl<Message> SemanticDemandOwner<Message> {
             evidence: None,
             withheld: false,
             retained,
+            status: SemanticSlotStatus::Pending,
         };
         self.set_slot(index, source, Some(slot));
         Ok(SemanticAttemptTicket { fence })
+    }
+
+    fn ensure_demand_set_capacity(&self) -> Result<(), SemanticDemandAdmissionError> {
+        self.next_demand_set_generation
+            .checked_add(1)
+            .ok_or(SemanticDemandAdmissionError::CounterOverflow)
+            .map(|_| ())
+    }
+
+    fn advance_demand_set_generation(&mut self) -> Result<(), SemanticDemandAdmissionError> {
+        let next = self
+            .next_demand_set_generation
+            .checked_add(1)
+            .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
+        self.next_demand_set_generation = next;
+        self.demand_set_generation = next;
+        Ok(())
     }
 
     fn reject_and_clear(
@@ -1135,6 +1619,17 @@ impl<Message> SemanticDemandOwner<Message> {
     }
 
     fn clear_slot(&mut self, index: usize, source: SemanticDemandSource) {
+        if let Some(slot) = self.slot_mut(index, source) {
+            slot.fence.cancelled = true;
+            slot.executed = false;
+            slot.completed = true;
+            slot.evidence = None;
+            slot.withheld = true;
+            slot.status = SemanticSlotStatus::Terminal;
+        }
+    }
+
+    fn remove_slot(&mut self, index: usize, source: SemanticDemandSource) {
         if let Some(slot) = self.slot_mut(index, source) {
             slot.fence.cancelled = true;
         }
@@ -1179,14 +1674,18 @@ impl<Message> SemanticDemandOwner<Message> {
         })
     }
 
-    fn active_range_length(&self) -> usize {
+    fn active_range_length(&self) -> Option<usize> {
         self.records
             .iter()
-            .filter_map(|record| record.range.as_ref())
+            .filter_map(|record| {
+                record
+                    .range
+                    .as_ref()
+                    .filter(|slot| slot.status != SemanticSlotStatus::Terminal)
+            })
             .try_fold(0_usize, |total, slot| {
                 total.checked_add(slot.request.demand().range_length())
             })
-            .unwrap_or(usize::MAX)
     }
 
     fn slot_for_record<'a>(
@@ -1251,6 +1750,208 @@ impl<Message> SemanticDemandOwner<Message> {
             SemanticDemandRequest::RequiredItemPin(_) => None,
         }
     }
+}
+
+fn publication_evidence(
+    evidence: Option<SemanticEvidence>,
+) -> (Option<SemanticPublicationEvidence>, bool) {
+    let Some(evidence) = evidence else {
+        return (None, false);
+    };
+    match evidence {
+        SemanticEvidence::Pin(pin) => {
+            let Some(projection) = pin.projection else {
+                return (None, true);
+            };
+            (
+                Some(SemanticPublicationEvidence::Pin {
+                    request: projection.request().clone(),
+                    projection: Box::new(projection),
+                }),
+                true,
+            )
+        }
+        SemanticEvidence::Range(range) => {
+            if range.projections.is_empty() {
+                return (None, true);
+            }
+            let Some(request) = range
+                .projections
+                .first()
+                .and_then(|projection| projection.range_request())
+                .cloned()
+            else {
+                return (None, false);
+            };
+            (
+                Some(SemanticPublicationEvidence::Range {
+                    request,
+                    projections: range.projections,
+                }),
+                true,
+            )
+        }
+    }
+}
+
+fn same_publication_plan(left: &SemanticPublicationPlan, right: &SemanticPublicationPlan) -> bool {
+    left.authorities == right.authorities
+        && left.complete_demand_set_generation == right.complete_demand_set_generation
+        && left.complete == right.complete
+        && same_publication_members(&left.members, &right.members)
+}
+
+fn same_publication_members(
+    left: &[SemanticPublicationMember],
+    right: &[SemanticPublicationMember],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| same_publication_member(left, right))
+}
+
+fn same_publication_member(
+    left: &SemanticPublicationMember,
+    right: &SemanticPublicationMember,
+) -> bool {
+    left.container_id == right.container_id
+        && left.source == right.source
+        && left.resolved == right.resolved
+        && left.fence.same_exact(&right.fence)
+        && same_publication_evidence(left.evidence.as_ref(), right.evidence.as_ref())
+}
+
+fn same_publication_evidence(
+    left: Option<&SemanticPublicationEvidence>,
+    right: Option<&SemanticPublicationEvidence>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (
+            Some(SemanticPublicationEvidence::Pin {
+                request: left_request,
+                projection: left_projection,
+            }),
+            Some(SemanticPublicationEvidence::Pin {
+                request: right_request,
+                projection: right_projection,
+            }),
+        ) => {
+            same_semantic_request(left_request, right_request)
+                && same_semantic_projection(left_projection.as_ref(), right_projection.as_ref())
+        }
+        (
+            Some(SemanticPublicationEvidence::Range {
+                request: left_request,
+                projections: left_projections,
+            }),
+            Some(SemanticPublicationEvidence::Range {
+                request: right_request,
+                projections: right_projections,
+            }),
+        ) => {
+            same_semantic_range_request(left_request, right_request)
+                && left_projections.len() == right_projections.len()
+                && left_projections
+                    .iter()
+                    .zip(right_projections)
+                    .all(|(left, right)| same_semantic_projection(left, right))
+        }
+        _ => false,
+    }
+}
+
+fn same_publication_input(
+    evidence: Option<&SemanticPublicationEvidence>,
+    input: &VirtualLayoutSemanticClassificationInput,
+) -> bool {
+    match (evidence, input) {
+        (
+            Some(SemanticPublicationEvidence::Range {
+                request,
+                projections,
+            }),
+            VirtualLayoutSemanticClassificationInput::Range(batch),
+        ) => {
+            same_semantic_range_request(request, batch.request())
+                && projections.len() == batch.classifications().len()
+                && projections.iter().zip(batch.classifications()).all(
+                    |(projection, classification)| {
+                        same_semantic_projection(projection, classification.projection())
+                    },
+                )
+        }
+        (
+            Some(SemanticPublicationEvidence::Pin {
+                request,
+                projection,
+            }),
+            VirtualLayoutSemanticClassificationInput::Pin(pin),
+        ) => {
+            same_semantic_request(request, pin.request())
+                && same_semantic_projection(projection.as_ref(), pin.classification().projection())
+        }
+        _ => false,
+    }
+}
+
+fn same_semantic_request(
+    left: &VirtualLayoutSemanticRequest,
+    right: &VirtualLayoutSemanticRequest,
+) -> bool {
+    left.container_id() == right.container_id()
+        && left.mount_generation() == right.mount_generation()
+        && left.data_revision() == right.data_revision()
+        && left.policy_revision() == right.policy_revision()
+        && left.measurement_revision() == right.measurement_revision()
+        && left.semantic_revision() == right.semantic_revision()
+        && stable_policy_identity_equals(left.policy_identity(), right.policy_identity())
+            == Some(true)
+        && left.key().stable_equals(right.key()) == Some(true)
+}
+
+fn same_semantic_range_request(
+    left: &VirtualLayoutSemanticRangeRequest,
+    right: &VirtualLayoutSemanticRangeRequest,
+) -> bool {
+    left.container_id() == right.container_id()
+        && left.mount_generation() == right.mount_generation()
+        && left.data_revision() == right.data_revision()
+        && left.policy_revision() == right.policy_revision()
+        && left.measurement_revision() == right.measurement_revision()
+        && left.semantic_revision() == right.semantic_revision()
+        && left.budget() == right.budget()
+        && left.range() == right.range()
+        && stable_policy_identity_equals(left.policy_identity(), right.policy_identity())
+            == Some(true)
+        && stable_coordinate_space_equals(left.coordinate_space(), right.coordinate_space())
+            == Some(true)
+}
+
+fn same_semantic_projection(
+    left: &VirtualLayoutSemanticProjection,
+    right: &VirtualLayoutSemanticProjection,
+) -> bool {
+    left.identity().container_id() == right.identity().container_id()
+        && left.logical_index() == right.logical_index()
+        && left.bounds().min.x.to_bits() == right.bounds().min.x.to_bits()
+        && left.bounds().min.y.to_bits() == right.bounds().min.y.to_bits()
+        && left.bounds().max.x.to_bits() == right.bounds().max.x.to_bits()
+        && left.bounds().max.y.to_bits() == right.bounds().max.y.to_bits()
+        && left.semantics() == right.semantics()
+        && left.automation_node_id() == right.automation_node_id()
+        && left.authority() == right.authority()
+        && left.identity().key().stable_equals(right.identity().key()) == Some(true)
+        && stable_coordinate_space_equals(left.coordinate_space(), right.coordinate_space())
+            == Some(true)
+        && same_semantic_request(left.request(), right.request())
+        && match (left.range_request(), right.range_request()) {
+            (None, None) => true,
+            (Some(left), Some(right)) => same_semantic_range_request(left, right),
+            _ => false,
+        }
 }
 
 impl<Message> Drop for SemanticDemandOwner<Message> {
@@ -1368,11 +2069,18 @@ fn validate_range_entries(
 
 #[cfg(test)]
 mod tests {
+    use super::super::virtual_layout::{
+        VirtualLayoutSemanticClassification, VirtualLayoutSemanticClassificationBatch,
+        VirtualLayoutSemanticClassificationOrigin, VirtualLayoutSemanticPinClassification,
+    };
     use super::*;
     use crate::{
         application::{scroll, spacer, text},
         gui::{
-            automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
+            automation::{
+                AutomationBounds, AutomationNodeId, AutomationNodeSemantics,
+                AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
+            },
             types::Rect,
         },
         layout::{
@@ -1530,6 +2238,13 @@ mod tests {
         }
     }
 
+    fn assert_terminal_slot(owner: &SemanticDemandOwner<()>, source: SemanticDemandSource) {
+        let slot = owner.slot(0, source).expect("terminal demand membership");
+        assert_eq!(slot.status, SemanticSlotStatus::Terminal);
+        assert!(slot.evidence.is_none());
+        assert!(slot.withheld);
+    }
+
     fn complete_pin(
         owner: &mut SemanticDemandOwner<()>,
         ticket: SemanticAttemptTicket,
@@ -1554,6 +2269,90 @@ mod tests {
                 panic!("expected range completion")
             }
         }
+    }
+
+    fn ordinary_publication_snapshot() -> GuiAutomationSnapshot {
+        let container = AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new(CONTAINER_ID.to_string()),
+            AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: 160.0,
+                height: 80.0,
+            },
+            AutomationNodeSemantics::new(AutomationRole::Group),
+        );
+        let mut root = AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new("publication-root"),
+            AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: 160.0,
+                height: 80.0,
+            },
+            AutomationNodeSemantics::new(AutomationRole::Group),
+        );
+        root.children.push(container);
+        GuiAutomationSnapshot {
+            schema_version: 2,
+            viewport_width: 160,
+            viewport_height: 80,
+            root,
+        }
+    }
+
+    fn publication_authorities(seed: u64) -> SemanticPublicationAuthorities {
+        SemanticPublicationAuthorities {
+            materialization_authority: seed,
+            classification_authority: seed + 1,
+            ordinary_projection_generation: seed + 2,
+        }
+    }
+
+    fn classifications_for_plan(
+        plan: &SemanticPublicationPlan,
+    ) -> Vec<SemanticPublicationClassification> {
+        plan.members()
+            .iter()
+            .filter_map(|member| {
+                let evidence = member.evidence()?;
+                let input = match evidence {
+                    SemanticPublicationEvidence::Range {
+                        request,
+                        projections,
+                    } => VirtualLayoutSemanticClassificationInput::Range(
+                        VirtualLayoutSemanticClassificationBatch::new(
+                            request.clone(),
+                            projections
+                                .iter()
+                                .map(|projection| {
+                                    VirtualLayoutSemanticClassification::new(
+                                        projection.clone(),
+                                        VirtualLayoutSemanticClassificationOrigin::Unmaterialized,
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    ),
+                    SemanticPublicationEvidence::Pin {
+                        request,
+                        projection,
+                    } => VirtualLayoutSemanticClassificationInput::Pin(Box::new(
+                        VirtualLayoutSemanticPinClassification::new(
+                            request.clone(),
+                            VirtualLayoutSemanticClassification::new(
+                                projection.as_ref().clone(),
+                                VirtualLayoutSemanticClassificationOrigin::Unmaterialized,
+                            ),
+                        ),
+                    )),
+                };
+                Some(SemanticPublicationClassification::new(
+                    member.fence().clone(),
+                    input,
+                ))
+            })
+            .collect()
     }
 
     #[test]
@@ -1709,6 +2508,310 @@ mod tests {
         assert!(owner.records[0].range.is_some());
         assert_eq!(pin.calls.get(), 1);
         assert_eq!(range.calls.get(), 1);
+    }
+
+    #[test]
+    fn one_item_pin_is_first_class_and_does_not_call_range_provider() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
+                pin_entry(4, "pin-4"),
+            ))),
+        });
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::NotFound),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration(
+                "policy",
+                8,
+                Default::default(),
+                Some(pin.clone()),
+                Some(range.clone()),
+            ),
+        );
+
+        let ticket = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(4_u32))
+                .expect("pin demand"),
+        );
+        assert!(matches!(
+            complete_pin(&mut owner, ticket),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+
+        let plan = owner.publication_plan(publication_authorities(1));
+        assert!(plan.complete());
+        assert_eq!(plan.members().len(), 1);
+        assert_eq!(
+            plan.members()[0].source(),
+            SemanticDemandSource::RequiredItemPin
+        );
+        assert!(matches!(
+            plan.members()[0].evidence(),
+            Some(SemanticPublicationEvidence::Pin { .. })
+        ));
+        assert_eq!(pin.calls.get(), 1);
+        assert_eq!(range.calls.get(), 0);
+    }
+
+    #[test]
+    fn incomplete_range_and_pin_do_not_publish_partial_state() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
+                pin_entry(2, "pin-2"),
+            ))),
+        });
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(1, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration(
+                "policy",
+                8,
+                Default::default(),
+                Some(pin.clone()),
+                Some(range.clone()),
+            ),
+        );
+        let _pending_pin = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(2_u32))
+                .expect("pin demand"),
+        );
+        let range_ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        assert!(matches!(
+            complete_range(&mut owner, range_ticket),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(10));
+        assert!(!plan.complete());
+        assert_eq!(plan.members().len(), 2);
+        let outcome =
+            owner.finish_publication(&ordinary, plan.clone(), &classifications_for_plan(&plan));
+        let SemanticPublicationOutcome::OrdinaryBaseline {
+            composition,
+            reason,
+        } = outcome
+        else {
+            panic!("an incomplete surface must not publish the completed range");
+        };
+        assert_eq!(
+            reason,
+            SemanticPublicationFallbackReason::IncompleteDemandSet
+        );
+        assert_eq!(composition.snapshot(), &ordinary);
+        assert_eq!(range.calls.get(), 1);
+        assert_eq!(pin.calls.get(), 0);
+    }
+
+    #[test]
+    fn complete_range_and_pin_commit_atomically_as_one_publication() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
+                pin_entry(2, "pin-2"),
+            ))),
+        });
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(1, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration(
+                "policy",
+                8,
+                Default::default(),
+                Some(pin.clone()),
+                Some(range.clone()),
+            ),
+        );
+        let pin_ticket = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(2_u32))
+                .expect("pin demand"),
+        );
+        let range_ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        assert!(matches!(
+            complete_range(&mut owner, range_ticket),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+        assert!(matches!(
+            complete_pin(&mut owner, pin_ticket),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(20));
+        assert!(plan.complete());
+        let classifications = classifications_for_plan(&plan);
+        assert_eq!(classifications.len(), 2);
+        let outcome = owner.finish_publication(&ordinary, plan, &classifications);
+        let SemanticPublicationOutcome::Published(composition) = outcome else {
+            panic!("a complete range and pin set should publish together");
+        };
+        assert_eq!(
+            composition.snapshot().root.children[0]
+                .children
+                .iter()
+                .map(|child| child.id.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                AutomationNodeId::new("range-0"),
+                AutomationNodeId::new("pin-2")
+            ]
+        );
+        assert_eq!(
+            composition.unmaterialized_ids(),
+            &[
+                AutomationNodeId::new("pin-2"),
+                AutomationNodeId::new("range-0"),
+            ]
+            .into_iter()
+            .collect()
+        );
+        assert_eq!(range.calls.get(), 1);
+        assert_eq!(pin.calls.get(), 1);
+    }
+
+    #[test]
+    fn terminal_membership_blocks_subset_publication() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
+                pin_entry(2, "pin-2"),
+            ))),
+        });
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::Unsupported,
+            )),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration(
+                "policy",
+                8,
+                Default::default(),
+                Some(pin),
+                Some(range.clone()),
+            ),
+        );
+        let pin_ticket = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(2_u32))
+                .expect("pin demand"),
+        );
+        let range_ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        assert!(matches!(
+            complete_pin(&mut owner, pin_ticket),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        assert!(matches!(
+            complete_range(&mut owner, range_ticket),
+            VirtualLayoutSemanticRangeQueryOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::Unsupported
+            )
+        ));
+
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(30));
+        assert_eq!(plan.members().len(), 2);
+        assert!(plan.members().iter().any(|member| {
+            member.source() == SemanticDemandSource::Range && !member.resolved()
+        }));
+        assert!(plan.members().iter().any(|member| {
+            member.source() == SemanticDemandSource::RequiredItemPin && member.resolved()
+        }));
+        let outcome =
+            owner.finish_publication(&ordinary, plan.clone(), &classifications_for_plan(&plan));
+        let SemanticPublicationOutcome::OrdinaryBaseline {
+            composition,
+            reason,
+        } = outcome
+        else {
+            panic!("a terminal member must prevent subset publication");
+        };
+        assert_eq!(
+            reason,
+            SemanticPublicationFallbackReason::IncompleteDemandSet
+        );
+        assert_eq!(composition.snapshot(), &ordinary);
+        assert_eq!(range.calls.get(), 1);
+    }
+
+    #[test]
+    fn cancelled_completion_after_membership_removal_is_inert() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
+        });
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::NotFound),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration(
+                "policy",
+                8,
+                Default::default(),
+                Some(pin.clone()),
+                Some(range),
+            ),
+        );
+        let pin_ticket = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(2_u32))
+                .expect("pin demand"),
+        );
+        let _range_ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        let completion = owner.execute(pin_ticket).expect("pin executes once");
+        let range_fence = owner.records[0]
+            .range
+            .as_ref()
+            .expect("range membership")
+            .fence
+            .clone();
+        owner
+            .remove_semantic_pin(CONTAINER_ID)
+            .expect("remove pin membership");
+        let generation_after_removal = owner.demand_set_generation();
+        assert!(owner.records[0].pin.is_none());
+
+        assert!(matches!(
+            owner.complete(completion),
+            SemanticDemandCompletion::Stale
+        ));
+        assert_eq!(owner.demand_set_generation(), generation_after_removal);
+        assert_eq!(
+            owner.records[0]
+                .range
+                .as_ref()
+                .expect("range membership remains")
+                .fence,
+            range_fence
+        );
+        assert_eq!(pin.calls.get(), 1);
     }
 
     #[test]
@@ -1924,7 +3027,7 @@ mod tests {
     }
 
     #[test]
-    fn live_refresh_budget_veto_clears_range_but_preserves_pin() {
+    fn live_refresh_budget_veto_withholds_range_but_preserves_membership() {
         let pin = Rc::new(PinProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
@@ -1967,9 +3070,9 @@ mod tests {
                 .iter()
                 .all(|ticket| ticket.fence().source != SemanticDemandSource::Range)
         );
-        assert!(owner.records[0].range.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
         assert!(owner.records[0].pin.is_some());
-        assert_eq!(owner.active_range_length(), 0);
+        assert_eq!(owner.active_range_length(), Some(0));
         assert_eq!(range.calls.get(), 0);
     }
 
@@ -2061,23 +3164,25 @@ mod tests {
                 VirtualLayoutSemanticUnavailableReason::Unsupported
             )
         ));
-        assert!(owner.records[0].pin.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::RequiredItemPin);
 
         *pin.outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::Unavailable(
             VirtualLayoutSemanticUnavailableReason::NoProvider,
         );
-        let no_provider = started(
-            owner
-                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(1))
-                .expect("new demand"),
-        );
+        assert!(matches!(
+            owner.semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32)),
+            Ok(SemanticDemandAdmission::Unchanged)
+        ));
+        let no_provider = owner
+            .retry_semantic_pin(CONTAINER_ID)
+            .expect("retry terminal demand");
         assert!(matches!(
             complete_pin(&mut owner, no_provider),
             VirtualLayoutSemanticQueryOutcome::Unavailable(
                 VirtualLayoutSemanticUnavailableReason::NoProvider
             )
         ));
-        assert!(owner.records[0].pin.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::RequiredItemPin);
 
         let mut no_provider_owner = SemanticDemandOwner::default();
         sync(
@@ -2095,10 +3200,11 @@ mod tests {
                 VirtualLayoutSemanticUnavailableReason::NoProvider
             )
         ));
+        assert_terminal_slot(&no_provider_owner, SemanticDemandSource::RequiredItemPin);
     }
 
     #[test]
-    fn malformed_pin_and_range_results_clear_only_their_exact_slot() {
+    fn malformed_pin_and_range_results_retain_only_their_exact_slot() {
         let pin = Rc::new(PinProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
@@ -2128,7 +3234,7 @@ mod tests {
                 VirtualLayoutSemanticRejectedReason::WrongKey
             )
         ));
-        assert!(owner.records[0].pin.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::RequiredItemPin);
         assert!(owner.records[0].range.is_some());
         assert!(matches!(
             complete_range(&mut owner, range_ticket),
@@ -2136,11 +3242,11 @@ mod tests {
                 VirtualLayoutSemanticRejectedReason::RangeCountMismatch
             )
         ));
-        assert!(owner.records[0].range.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
     }
 
     #[test]
-    fn range_outcomes_retain_complete_evidence_and_terminal_failures_clear() {
+    fn range_outcomes_retain_complete_evidence_and_terminal_failures_retain_membership() {
         let range = Rc::new(RangeProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
@@ -2210,19 +3316,21 @@ mod tests {
                 VirtualLayoutSemanticRejectedReason::ProviderRejected
             )
         ));
-        assert!(owner.records[0].range.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
 
         *range.outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Unavailable(
             VirtualLayoutSemanticUnavailableReason::Unsupported,
         );
-        let terminal = started(owner.range(CONTAINER_ID, 0, 2).expect("new range demand"));
+        let terminal = owner
+            .retry_range(CONTAINER_ID)
+            .expect("retry rejected range demand");
         assert!(matches!(
             complete_range(&mut owner, terminal),
             VirtualLayoutSemanticRangeQueryOutcome::Unavailable(
                 VirtualLayoutSemanticUnavailableReason::Unsupported
             )
         ));
-        assert!(owner.records[0].range.is_none());
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
         assert_eq!(range.calls.get(), 5);
     }
 

@@ -4,7 +4,13 @@
 //! registration API, schedule policy work, or let a bridge/application object
 //! retain materialized slots.
 
-use super::{SurfaceRuntime, semantic_demand::SemanticDemandOwner};
+use super::{
+    SurfaceRuntime,
+    semantic_demand::{
+        SemanticDemandOwner, SemanticPublicationAuthorities, SemanticPublicationClassification,
+        SemanticPublicationOutcome,
+    },
+};
 use crate::{
     gui::layout_core::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
@@ -180,6 +186,45 @@ impl VirtualLayoutSemanticClassificationBatch {
     pub(crate) fn classifications(&self) -> &[VirtualLayoutSemanticClassification] {
         &self.classifications
     }
+}
+
+/// First-class classification output for one semantic pin.  It intentionally
+/// retains the one-item request rather than manufacturing a one-entry range.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticPinClassification {
+    request: VirtualLayoutSemanticRequest,
+    classification: VirtualLayoutSemanticClassification,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticPinClassification {
+    pub(super) fn new(
+        request: VirtualLayoutSemanticRequest,
+        classification: VirtualLayoutSemanticClassification,
+    ) -> Self {
+        Self {
+            request,
+            classification,
+        }
+    }
+
+    pub(crate) fn request(&self) -> &VirtualLayoutSemanticRequest {
+        &self.request
+    }
+
+    pub(crate) fn classification(&self) -> &VirtualLayoutSemanticClassification {
+        &self.classification
+    }
+}
+
+/// One normalized source of semantic classification evidence for the
+/// compositor.  Range and pin inputs remain source-distinct until the
+/// compositor's exact overlap coalescing pass.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum VirtualLayoutSemanticClassificationInput {
+    Range(VirtualLayoutSemanticClassificationBatch),
+    Pin(Box<VirtualLayoutSemanticPinClassification>),
 }
 
 /// Exact fence fields admitted by the private semantic/materialization bridge.
@@ -589,6 +634,88 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             request: batch.request().clone(),
             classifications,
         })
+    }
+
+    #[allow(dead_code)]
+    fn classify_semantic_pin(
+        &self,
+        request: &VirtualLayoutSemanticRequest,
+        projection: &VirtualLayoutSemanticProjection,
+    ) -> Result<VirtualLayoutSemanticPinClassification, VirtualLayoutSemanticClassificationError>
+    {
+        if self.retired {
+            return Err(VirtualLayoutSemanticClassificationError::Retired);
+        }
+        validate_semantic_pin_classification(
+            request,
+            projection,
+            self.registration.container_id,
+            &self.registration.policy_identity,
+            self.mount_generation,
+            self.registration.data_revision(),
+            self.registration.policy_revision(),
+            self.registration.measurement_revision(),
+            self.registration.semantic_revision(),
+            &self.registration.coordinate_space,
+        )?;
+        let Some(authoritative_fence) = self.materialization.authoritative_fence() else {
+            return Err(
+                VirtualLayoutSemanticClassificationError::MaterializationAuthorityUnavailable,
+            );
+        };
+        if authoritative_fence.container_id() != self.registration.container_id
+            || authoritative_fence.mount_generation() != self.mount_generation
+            || authoritative_fence.data_revision() != self.registration.data_revision()
+            || authoritative_fence.policy_revision() != self.registration.policy_revision()
+            || authoritative_fence.measurement_revision()
+                != self.registration.measurement_revision()
+            || authoritative_fence.semantic_revision() != self.registration.semantic_revision()
+            || authoritative_fence.budget() != self.registration.budget
+            || authoritative_fence
+                .policy_identity()
+                .stable_equals(&self.registration.policy_identity)
+                != Some(true)
+            || stable_coordinate_space_equals(
+                authoritative_fence.coordinate_space(),
+                &self.registration.coordinate_space,
+            ) != Some(true)
+        {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                VirtualLayoutSemanticClassificationFenceField::SemanticRevision,
+            ));
+        }
+
+        let mut matched_active = None;
+        for (active_index, slot) in self.materialization.active_slots().iter().enumerate() {
+            match slot.item().key().stable_equals(projection.identity().key()) {
+                Some(true) => {
+                    if slot.item().logical_index() != projection.logical_index() {
+                        return Err(VirtualLayoutSemanticClassificationError::KeyIndexMismatch);
+                    }
+                    if matched_active.replace(active_index).is_some() {
+                        return Err(
+                            VirtualLayoutSemanticClassificationError::AmbiguousMaterialization,
+                        );
+                    }
+                }
+                Some(false) => {}
+                None => return Err(VirtualLayoutSemanticClassificationError::UnstableKey),
+            }
+        }
+
+        let origin = matched_active
+            .map(|active_index| {
+                let slot = &self.materialization.active_slots()[active_index];
+                VirtualLayoutSemanticClassificationOrigin::Materialized {
+                    slot_identity: slot.identity(),
+                    payload_root: slot.payload().id(),
+                }
+            })
+            .unwrap_or(VirtualLayoutSemanticClassificationOrigin::Unmaterialized);
+        Ok(VirtualLayoutSemanticPinClassification::new(
+            request.clone(),
+            VirtualLayoutSemanticClassification::new(projection.clone(), origin),
+        ))
     }
 }
 
@@ -1156,6 +1283,29 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         record.classify_semantic_range(batch)
     }
 
+    /// Classify one exact one-item semantic projection against the current
+    /// materialization authority.  This is intentionally not represented as a
+    /// synthetic one-entry range.
+    #[allow(dead_code)]
+    pub(crate) fn classify_virtual_layout_semantic_pin(
+        &self,
+        request: &VirtualLayoutSemanticRequest,
+        projection: &VirtualLayoutSemanticProjection,
+    ) -> Result<VirtualLayoutSemanticPinClassification, VirtualLayoutSemanticClassificationError>
+    {
+        let mut matching_records = self
+            .records
+            .iter()
+            .filter(|record| record.registration.container_id == request.container_id());
+        let Some(record) = matching_records.next() else {
+            return Err(VirtualLayoutSemanticClassificationError::UnknownContainer);
+        };
+        if matching_records.next().is_some() {
+            return Err(VirtualLayoutSemanticClassificationError::AmbiguousMaterialization);
+        }
+        record.classify_semantic_pin(request, projection)
+    }
+
     /// Compose already-classified semantic evidence against one ordinary
     /// automation snapshot after revalidating the exact current record and
     /// materialization authority. This path performs no provider call or
@@ -1204,6 +1354,53 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         }
 
         super::automation_compositor::compose_virtual_layout_automation_snapshot(ordinary, batches)
+    }
+
+    /// Compose one owner-prepared publication after current materialization
+    /// classification.  This path remains crate-private and is not wired to
+    /// ordinary automation snapshot reads.
+    #[allow(dead_code)]
+    pub(super) fn compose_semantic_publication(
+        &mut self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        authorities: SemanticPublicationAuthorities,
+    ) -> SemanticPublicationOutcome {
+        self.synchronize_semantic_demand();
+        let plan = self.semantic_demand.publication_plan(authorities);
+        if !plan.complete() {
+            return self.semantic_demand.finish_publication(ordinary, plan, &[]);
+        }
+
+        let mut classifications = Vec::new();
+        for member in plan.members() {
+            let Some(evidence) = member.evidence() else {
+                continue;
+            };
+            let result = if let Some((request, projections)) = evidence.range_parts() {
+                let batch = VirtualLayoutSemanticProjectionBatch::new(
+                    request.clone(),
+                    projections.to_vec(),
+                );
+                self.classify_virtual_layout_semantic_range(&batch)
+                    .map(VirtualLayoutSemanticClassificationInput::Range)
+            } else if let Some((request, projection)) = evidence.pin_parts() {
+                self.classify_virtual_layout_semantic_pin(request, projection)
+                    .map(|classification| {
+                        VirtualLayoutSemanticClassificationInput::Pin(Box::new(classification))
+                    })
+            } else {
+                return self.semantic_demand.finish_publication(ordinary, plan, &[]);
+            };
+            let Ok(classification) = result else {
+                return self.semantic_demand.finish_publication(ordinary, plan, &[]);
+            };
+            classifications.push(SemanticPublicationClassification::new(
+                member.fence().clone(),
+                classification,
+            ));
+        }
+        self.semantic_demand
+            .finish_publication(ordinary, plan, &classifications)
     }
 
     pub(super) fn take_projection_probe(
@@ -1327,6 +1524,87 @@ fn validate_semantic_classification_batch(
         }
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_semantic_pin_classification(
+    request: &VirtualLayoutSemanticRequest,
+    projection: &VirtualLayoutSemanticProjection,
+    container_id: NodeId,
+    policy_identity: &VirtualLayoutPolicyIdentity,
+    mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
+    semantic_revision: u64,
+    coordinate_space: &VirtualLayoutCoordinateSpace,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    if projection.authority() != VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+        || projection.range_request().is_some()
+        || projection.identity().container_id() != container_id
+        || !projection.bounds().is_finite()
+        || projection.bounds().min.x > projection.bounds().max.x
+        || projection.bounds().min.y > projection.bounds().max.y
+    {
+        return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+    }
+    if request.container_id() != container_id
+        || request.mount_generation() != mount_generation
+        || request.data_revision() != data_revision
+        || request.policy_revision() != policy_revision
+        || request.measurement_revision() != measurement_revision
+        || request.semantic_revision() != semantic_revision
+    {
+        return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+            VirtualLayoutSemanticClassificationFenceField::SemanticRevision,
+        ));
+    }
+    match request.policy_identity().stable_equals(policy_identity) {
+        Some(true) => {}
+        Some(false) => {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                VirtualLayoutSemanticClassificationFenceField::PolicyIdentity,
+            ));
+        }
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstablePolicyIdentity),
+    }
+    match stable_coordinate_space_equals(projection.coordinate_space(), coordinate_space) {
+        Some(true) => {}
+        Some(false) => {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                VirtualLayoutSemanticClassificationFenceField::CoordinateSpace,
+            ));
+        }
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstableCoordinateSpace),
+    }
+    if projection.request().container_id() != request.container_id()
+        || projection.request().mount_generation() != request.mount_generation()
+        || projection.request().data_revision() != request.data_revision()
+        || projection.request().policy_revision() != request.policy_revision()
+        || projection.request().measurement_revision() != request.measurement_revision()
+        || projection.request().semantic_revision() != request.semantic_revision()
+    {
+        return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+    }
+    match projection
+        .request()
+        .policy_identity()
+        .stable_equals(request.policy_identity())
+    {
+        Some(true) => {}
+        Some(false) => return Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstablePolicyIdentity),
+    }
+    match projection.identity().key().stable_equals(request.key()) {
+        Some(true) => {}
+        Some(false) => return Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstableKey),
+    }
+    match projection.request().key().stable_equals(request.key()) {
+        Some(true) => Ok(()),
+        Some(false) => Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => Err(VirtualLayoutSemanticClassificationError::UnstableKey),
+    }
 }
 
 fn validate_matching_semantic_range_request(
@@ -2301,6 +2579,62 @@ mod tests {
         (state, batch, semantic_calls, policy_calls)
     }
 
+    fn semantic_pin_publication_state(
+        provider: Rc<dyn VirtualLayoutSemanticProvider>,
+    ) -> RuntimeVirtualLayoutState<()> {
+        let registration = registration_with_parts(RegistrationParts {
+            policy: Rc::new(MaterializationPolicy {
+                calls: Rc::new(Cell::new(0)),
+                entries: Vec::new(),
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("publication-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("publication item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("publication-item-kind")),
+        })
+        .with_semantic_provider(provider);
+        let mut record = RuntimeVirtualLayoutRecord::new(registration, SEMANTIC_MOUNT_GENERATION);
+        let RuntimeVirtualLayoutMaterialization::Committed(batch) =
+            record.materialize(Rect::from_xy_size(0.0, 0.0, 160.0, 80.0))
+        else {
+            panic!("the publication fixture should materialize an empty committed window");
+        };
+        record.commit_batch(*batch);
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(record);
+        state
+    }
+
+    fn semantic_publication_snapshot() -> GuiAutomationSnapshot {
+        let mut root = AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new("publication-root"),
+            AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: 160.0,
+                height: 80.0,
+            },
+            AutomationNodeSemantics::new(AutomationRole::Group),
+        );
+        root.children.push(AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new(CONTAINER_ID.to_string()),
+            AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: 160.0,
+                height: 80.0,
+            },
+            AutomationNodeSemantics::new(AutomationRole::Group),
+        ));
+        GuiAutomationSnapshot {
+            schema_version: 2,
+            viewport_width: 160,
+            viewport_height: 80,
+            root,
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     struct QueryPartsSnapshot {
         container_id: crate::layout::NodeId,
@@ -2454,6 +2788,84 @@ mod tests {
             );
             assert_eq!(state.records[0].retired, retired_before);
         }
+    }
+
+    #[test]
+    fn semantic_publication_reclassifies_retained_pin_without_provider_reentry() {
+        let (provider, calls, outcome) =
+            semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
+                semantic_entry(1, Rect::from_xy_size(4.0, 0.0, 24.0, 10.0)),
+            )));
+        let mut state = semantic_pin_publication_state(provider);
+        state.synchronize_semantic_demand();
+        let ticket = match state
+            .semantic_demand
+            .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32))
+            .expect("pin demand")
+        {
+            SemanticDemandAdmission::Started(ticket) => ticket,
+            SemanticDemandAdmission::Unchanged => panic!("pin demand should start"),
+        };
+        let completion = state
+            .semantic_demand
+            .execute(ticket)
+            .expect("pin attempt executes once");
+        assert!(matches!(
+            state.semantic_demand.complete(completion),
+            SemanticDemandCompletion::RequiredItemPin(VirtualLayoutSemanticQueryOutcome::Found(_))
+        ));
+
+        let ordinary = semantic_publication_snapshot();
+        let first = state.compose_semantic_publication(
+            &ordinary,
+            SemanticPublicationAuthorities {
+                materialization_authority: 1,
+                classification_authority: 2,
+                ordinary_projection_generation: 3,
+            },
+        );
+        assert!(matches!(first, SemanticPublicationOutcome::Published(_)));
+        assert_eq!(calls.get(), 1);
+
+        *outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::Deferred(
+            VirtualLayoutSemanticDeferredReason::SemanticPending,
+        );
+        let retry = state
+            .semantic_demand
+            .retry_semantic_pin(CONTAINER_ID)
+            .expect("retry retained pin");
+        let completion = state
+            .semantic_demand
+            .execute(retry)
+            .expect("retry executes once");
+        assert!(matches!(
+            state.semantic_demand.complete(completion),
+            SemanticDemandCompletion::RequiredItemPin(VirtualLayoutSemanticQueryOutcome::Deferred(
+                _
+            ))
+        ));
+        assert_eq!(calls.get(), 2);
+
+        let second = state.compose_semantic_publication(
+            &ordinary,
+            SemanticPublicationAuthorities {
+                materialization_authority: 4,
+                classification_authority: 5,
+                ordinary_projection_generation: 6,
+            },
+        );
+        let SemanticPublicationOutcome::Published(composition) = second else {
+            panic!("eligible retained pin evidence should reclassify and publish");
+        };
+        assert_eq!(calls.get(), 2);
+        assert_eq!(
+            composition.snapshot().root.children[0]
+                .children
+                .iter()
+                .map(|child| child.id.clone())
+                .collect::<Vec<_>>(),
+            vec![AutomationNodeId::new("semantic-item")]
+        );
     }
 
     #[test]

@@ -201,12 +201,13 @@ or product wiring is added. Estimates remain unchanged: generic ~97%,
 Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
 (~81.91%).
 
-The crate-private pre-publication semantic-demand owner/provider-attempt/retention
-kernel is now shipped. It assigns one crate-private semantic-demand owner per
-`SurfaceRuntime`, one active contiguous logical range-demand slot per mounted
-virtual container, and the existing independent one-item semantic pin. Only an
-explicit semantic/accessibility range request or explicit required-item pin is
-demand; registration is capability-only, and viewport/overscan/paint/hit-test,
+The crate-private semantic-demand owner/provider-attempt/retention kernel and
+private atomic whole-surface publication/composition kernel are now shipped. The
+owner assigns one crate-private semantic-demand owner per `SurfaceRuntime`, one
+active contiguous logical range-demand slot per mounted virtual container, and
+the existing independent one-item semantic pin. Only an explicit
+semantic/accessibility range request or explicit required-item pin is demand;
+registration is capability-only, and viewport/overscan/paint/hit-test,
 provider-availability, item-count, diagnostics, and snapshot reads are not
 demand. The target is logical-only, rejects `Custom` before provider invocation
 without an identity-transform fallback, admits at most
@@ -219,9 +220,9 @@ Demand generation and attempt sequence, an exact per-slot provider fence, and
 exact private retention are shipped for identity, mount,
 data/policy/measurement/semantic revisions, coordinate, budget, exact demand,
 provider identity/generation, source, demand generation, attempt, and
-cancellation. Whole-surface publication fences and composition add
-materialization/classification authority,
-ordinary projection generation, and complete surface demand-set generation.
+cancellation. Private whole-surface publication fences and composition add
+materialization/classification authority, ordinary projection generation, and
+complete surface demand-set generation.
 Only initial/changed explicit demand,
 identity/mount/revision/provider/coordinate/budget changes, and explicit retry
 refresh the provider. Snapshot reads, ordinary repaint, paint-only work, and
@@ -229,17 +230,21 @@ unchanged refresh do not; materialization/ordinary-projection changes may
 reclassify retained exact evidence without provider reentry. `Found`,
 `NotFound`, terminal `Unavailable(NoProvider/Unsupported)`,
 `Unavailable(DataUnavailable)`, `Deferred`, `Rejected`/malformed, and stale/superseded
-outcomes have explicit owner staging, slot, and fallback behavior; publication
-behavior remains unimplemented.
+outcomes have explicit owner staging, slot, and fallback behavior. The private
+publication kernel represents every active member, classifies retained evidence
+without provider reentry, rejects stale/cancelled or incomplete members, and
+stages a complete logical composition only after all publication fences match.
+Focused direct tests cover incomplete A+B, complete A+B, terminal membership,
+pin-only routing, cancelled completion, retained reclassification, and the
+compositor's conflict and union-cap vetoes.
 `Unmaterialized`/`materialized = false` remains authoritative, semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider authority, and snapshot functions remain
-pure reads. Custom-coordinate transformation, production/native consumer,
-scheduler/backoff/fairness, multiple active ranges per container, public API,
-and the remaining runtime publication implementation remain deferred and
-unimplemented. Snapshot visibility remains unimplemented. Estimates remain exactly
-unchanged: generic ~97%, Declarative identity 71%, layout 97%, and broad
-coverage `901 / 11` (~81.91%).
+pure reads. Custom-coordinate transformation, public snapshot selection/visibility,
+production/native and product consumers, scheduler/backoff/fairness, multiple
+active ranges per container, and public API wiring remain deferred and
+unimplemented. Estimates remain exactly unchanged: generic ~97%, Declarative
+identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
 
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.

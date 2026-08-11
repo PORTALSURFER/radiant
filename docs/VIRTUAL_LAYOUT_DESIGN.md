@@ -14,11 +14,12 @@ are shipped and implemented. Their shipped scope includes explicit admission,
 exact `SemanticProviderFence` and `SemanticPublicationFence` fields,
 generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
-composition. Public snapshot visibility/selection, a runtime semantic consumer,
-scheduler/cancellation transport, native/product/public API wiring,
-custom-coordinate transforms, and the other listed non-goals remain target-only
-and unshipped. The private bridge does not claim public API or product
-integration.
+composition. The next production consumer contract in
+[Next production consumer: semantic automation session](#next-production-consumer-semantic-automation-session-normative-implementation-unshipped)
+is now specified but remains unshipped: its session owner, selected-publication
+boundary, scheduler/cancellation transport, native/product/public provider
+registration, and custom-coordinate implementation do not exist in the current
+runtime. The private bridge does not claim public API or product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -126,10 +127,11 @@ At this status:
    owner per `SurfaceRuntime`, explicit admission, exact provider/publication
    fences, generation/attempt/cancellation, typed outcomes and validation,
    exact fallback retention, retained-evidence reclassification, and
-   all-or-nothing logical composition. Public snapshot visibility/selection,
-   the runtime semantic consumer, scheduler/cancellation transport,
-   native/product/public API wiring, custom transforms, and the other listed
-   non-goals remain target-only and unshipped.
+   all-or-nothing logical composition. The next production consumer contract is
+   specified in [Next production consumer: semantic automation session](#next-production-consumer-semantic-automation-session-normative-implementation-unshipped),
+   but its session consumer and public selected-snapshot visibility remain
+   unshipped; native/product/public provider registration and custom transforms
+   remain outside this contract.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -176,12 +178,12 @@ This contract does not:
   interaction, or runtime consumer;
 - define custom-coordinate transformation, a production/native consumer,
   scheduler/backoff/fairness policy, multiple active ranges per container, or a
-  public demand API. These and the remaining downstream
-  semantic-demand/publication public-consumer runtime implementation are
-  deferred; the crate-private owner/provider-attempt/retention and atomic
-  publication/composition kernels are implemented. The logical-only target
-  slice rejects `Custom` before provider invocation and has no identity-transform
-  fallback.
+  public provider-registration/demand API. The next production consumer
+  contract is defined below, but its session and selected-publication runtime
+  implementation are unshipped; the crate-private owner/provider-attempt/
+  retention and atomic publication/composition kernels are implemented. The
+  logical-only target slice rejects `Custom` before provider invocation and has
+  no identity-transform fallback.
 
 ## 2. Normative vocabulary and invariants
 
@@ -284,7 +286,7 @@ must preserve the ownership boundaries.
 | Application data and key extraction | Host application/data source | Owns records, membership, ordering, sorting/filtering, loading, and stable key extraction. Supplies a snapshot and `data_revision`. It must not delegate domain identity to a visible index or to widget allocation. |
 | UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, and anchor resolution. It must not create semantic demand, invoke a semantic provider, mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
 | Virtual-layout registration | The mounted `SurfaceRuntime` | Registration declares capability only. `SurfaceRuntime` derives the live container/policy identity, mount and content revisions, provider identity/generation, coordinate space, and budget. Registration is not demand and exposes no public/application/native demand API. |
-| Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime` | Records and owns only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, private staging, fallback, and the private atomic whole-surface publication/composition kernel. Public snapshot selection/visibility remains deferred. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
+| Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime` | Records and owns only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, private staging, fallback, and the private atomic whole-surface publication/composition kernel. Public snapshot selection/visibility is specified by the next consumer contract below but remains unshipped. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
 | Semantic provider | The registered immutable provider, called by the semantic-demand owner | Supplies only the bounded logical semantic evidence requested by the exact demand. It is called at most once per container/attempt, cannot recursively re-enter the owner, and cannot publish or mutate runtime state. Missing or unsupported capability is an explicit terminal outcome, not a demand source. |
 | Radiant visible-window coordinator | Radiant, one instance per mounted container | Owns viewport/overscan state, query sequence, revision fences, cancellation, accepted-window fallback, anchor state, invalidation coalescing, and the desired keyed set. It is the only component that commits a window. |
 | Materialization and reconciliation | Eventual `SurfaceRuntime` owner, one materialization record per mounted virtual-container generation, using the coordinator/runtime and an explicit host item projection boundary | `SurfaceRuntime` owns the retained record and chooses which accepted keys require runtime items, then reconciles slots by key. `AppBridge`, `RuntimeBridge`, the policy adapter, and product/application state do not own retained slots. The host supplies item data and an explicit item projection/materializer; querying never implicitly constructs a widget. |
@@ -1160,12 +1162,12 @@ private `SemanticPublicationFence` publication/composition kernel are shipped
 and implemented: explicit admission, exact provider/publication fence fields,
 generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
-composition are current private runtime behavior. Public snapshot
-visibility/selection, the runtime semantic consumer, scheduler/cancellation
-transport, native/product/public API wiring, custom transforms, and the other
-listed non-goals remain target-only and unshipped. The contract is deliberately
-crate-private and does not add a public registration, application, or native
-demand API.
+composition are current private runtime behavior. The next production consumer
+contract is specified in [Next production consumer: semantic automation session](#next-production-consumer-semantic-automation-session-normative-implementation-unshipped),
+but public snapshot visibility/selection, the runtime session consumer,
+scheduler/cancellation transport, native/product/public provider registration,
+custom transforms, and the other listed non-goals remain unshipped. The private
+kernel does not add a public registration, application, or native demand API.
 
 #### Owner, sources, and logical scope
 
@@ -1311,6 +1313,124 @@ materialization, scrolling, actions, focus, paint, hit testing, scheduler work,
 renderer work, or provider registration. The automation snapshot functions
 remain pure observational reads; demand/refresh is a separate mutating runtime
 turn with its own publication fence.
+
+### Next production consumer: semantic automation session (normative; implementation unshipped)
+
+The private semantic-demand/publication contract above is shipped. This section
+defines the next production consumer contract only; it adds no runtime code,
+private wrapper, trait, synthetic-registration test, or public Rust symbol, and
+earns no estimate credit. The current implementation remains private-kernel
+shipped, while the semantic session, public selected-snapshot boundary, and
+consumer integration remain unshipped.
+
+#### Owner and authority
+
+The first consumer MUST be a generic, backend-neutral semantic automation
+session. It MUST NOT be a native adapter or a product integration. The caller or
+host owns session intent and MUST explicitly open, update, retry, and close the
+session. `SurfaceRuntime` owns the bounded session state, demand membership,
+cancellation and supersession, selected publication, and publication lifetime.
+Provider registration remains owned by the mounted virtual-layout runtime.
+Callers MUST NOT infer demand from paint order, visibility, viewport or
+overscan, item count, provider availability, diagnostics, or snapshot reads.
+
+The session/container identity issued by the runtime MUST be opaque. A caller
+MUST NOT fabricate provider identity or provider authority, and this contract
+does not invent a public provider-registration API.
+
+#### Conceptual API boundary
+
+The names in this section are conceptual operation labels, not promised Rust
+signatures or public symbols. Ordinary `automation_snapshot(&self)` and
+`automation_target_snapshot(&self)` MUST remain pure ordinary reads. A separate
+explicit refresh operation is the only operation allowed to call a provider or
+mutate semantic session state. A separate pure selected semantic snapshot read
+returns either the last accepted session publication or the conservative
+ordinary baseline together with a typed status.
+
+Public selection and visibility of that selected semantic snapshot is the
+target-required public boundary for the following consumer implementation
+slice. It is specified here but remains unshipped. The refresh and selected-read
+labels MUST NOT be read as an exact Rust API promise, and no public provider
+registration surface is added by this contract PR.
+
+#### Lifecycle and first-implementation bounds
+
+Opening a session MUST establish one bounded session and an exact session
+generation. Its initial demand MUST be explicit and MUST start attempt one.
+Updating a session MUST replace the entire session demand set atomically and
+MUST supersede/cancel all prior work. Retrying an unchanged demand MUST advance
+only the attempt. Closing a session MUST cancel before retiring its generation
+and MUST clear its selected publication and demand.
+
+The first implementation is bounded to one active semantic session per
+`SurfaceRuntime`, one contiguous logical range per mounted container plus the
+existing independent one-item pin, at most 64 registrations, the existing
+per-registration and `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` (1024-entry) caps, an
+aggregate active range length of 1024, and at most one provider call per
+container and attempt. Automatic retry, backoff, and a scheduler are not part
+of this slice. `Deferred` MUST return to the caller; only an explicit retry may
+reattempt it.
+
+#### Selection fences and provider isolation
+
+Every selected result and publication MUST carry the exact session generation,
+demand generation, attempt, request/range or pin, mount/container/policy
+identity, data/policy/measurement/semantic revisions, provider
+identity/generation, coordinate, budget, cancellation, materialization and
+classification authority, ordinary projection generation, and complete-demand-
+set generation. A result is accepted only when every required field matches the
+current fence exactly. A stale, superseded, or cancelled result is inert.
+
+Provider attempts MUST be non-reentrant. A provider callback MUST NOT publish
+or mutate runtime state directly; it returns bounded evidence to the owning
+session turn, which alone validates, stages, and publishes it.
+
+#### Atomic publication, retention, and conservative fallback
+
+The consumer MUST stage the complete selected snapshot and typed status under
+the exact fence. It MAY swap the staged publication only after every active
+demand member resolves or has an eligible exact-fence fallback. It MUST never
+publish a partial subset. `Found` and authoritative `NotFound` are complete
+outcomes and MAY participate in an atomic publication.
+
+For `NoProvider`/`Unsupported`, `DataUnavailable`, `Deferred`,
+`Rejected`/malformed, or stale outcomes, the consumer MUST apply the
+conservative fallback rule: retain only an eligible last-complete selection for
+an unchanged exact demand and fence; otherwise expose the ordinary baseline and
+a typed non-success status. A stale completion is inert and MUST NOT mutate
+runtime state; if reported to the explicit caller, its status is observational
+for that attempt only. No failure may expose a mixed old/new or partial virtual
+selection.
+
+Changed demand, session close, mount/identity/provider changes, revision
+changes, coordinate changes, and budget changes MUST invalidate the old
+selection. Materialization or ordinary-projection changes MAY reclassify
+retained exact provider evidence without provider reentry when the current
+fences permit it. `Unmaterialized` and `materialized = false` remain
+authoritative and MUST never authorize materialization, scrolling, focus, action,
+paint, hit testing, scheduling, or renderer work.
+
+#### Coordinate admission
+
+The first consumer admits only `Logical` coordinates. `Custom` MUST be rejected
+before provider invocation, with no identity fallback. A separate future
+transform contract MUST define the owner, source and destination spaces, the
+supported coordinate class, its revision, finite non-inverted conversion,
+clipping and nesting behavior, and conservative behavior for singular, stale,
+unsupported, or ambiguous transforms before any custom coordinate is admitted.
+
+#### Contract definition of done
+
+The four alignment documents MUST agree on this contract and MUST continue to
+state that the private demand/publication kernel is shipped while the
+consumer/session/public selected snapshot is unshipped. This contract earns no
+estimate credit; the retained estimates are exactly generic ~97%, Declarative
+identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%). Existing
+pure public snapshot APIs and the existing non-goals remain explicit. The
+following implementation slice may add the selected public boundary, but it
+MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
+authority contract.
 
 ### Culling and paint
 
@@ -1603,10 +1723,12 @@ independent one-item semantic pin, explicit-demand-only sources, the 64/1024
 bounds, exact provider/publication fence fields, generation/attempt/cancellation,
 typed outcomes and validation, non-reentrant provider attempts, exact-fence
 fallback retention, retained-evidence reclassification, and all-or-nothing
-logical composition. Public snapshot visibility/selection, the runtime semantic
-consumer, scheduler/cancellation transport, native/product/public API wiring,
-custom transforms, and the other listed non-goals remain target-only and
-unshipped. The shipped private kernel does not authorize materialization,
+logical composition. The next production consumer contract above defines public
+snapshot selection/visibility and the runtime semantic session, but those
+consumer pieces remain unshipped; scheduler/cancellation transport,
+native/product/public provider registration, custom transforms, and the other
+listed non-goals remain outside the slice. The shipped private kernel does not
+authorize materialization,
 scrolling, actions, focus, paint, hit testing, scheduling, rendering, or public
 API behavior.
 
@@ -1655,14 +1777,15 @@ Tests should assert observable ownership, boundedness, identity, and revision
 behavior. They should not assert the names or storage layout of this document's
 non-API pseudocode.
 
-### Semantic demand and refresh acceptance matrix (private atomic publication kernel shipped; public consumer deferred)
+### Semantic demand and refresh acceptance matrix (private atomic publication kernel shipped; consumer contract defined, implementation unshipped)
 
 The following direct rows preserve the approved acceptance contract. The
 owner/provider-attempt/retention and private publication/composition rows
-describe shipped private runtime behavior; public snapshot selection/visibility,
-runtime-consumer, scheduler, native/product, public API, and other downstream
-rows remain target-only and unshipped. This matrix does not claim those public
-or product consumers are wired.
+describe shipped private runtime behavior; the public snapshot selection/
+visibility and runtime session consumer are specified above but unshipped.
+Scheduler, native/product, public provider registration, and other downstream
+rows remain outside this slice. This matrix does not claim those consumers are
+wired.
 
 | Decision | Direct fixture | Required evidence |
 | --- | --- | --- |

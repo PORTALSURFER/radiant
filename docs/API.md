@@ -627,6 +627,75 @@ required-key found/not_found evidence for removal replacement remains a later
 prerequisite. The APIs in this section are the currently shipped fixed-row host
 projection path and retain their existing ownership and compatibility behavior.
 
+### Next production consumer: semantic automation session (normative; implementation unshipped)
+
+The private semantic-demand/provider-attempt/retention and atomic
+whole-surface-publication kernels above are shipped. The next consumer is a
+generic backend-neutral semantic automation session, not a native adapter or
+product integration. The caller/host owns session intent and MUST explicitly
+open, update, retry, and close the session. `SurfaceRuntime` owns bounded
+session state, demand membership, cancellation/supersession, selected
+publication, and publication lifetime. Mounted virtual-layout runtime owns
+provider registration. Callers MUST NOT infer demand from paint order,
+visibility, viewport/overscan, item count, provider availability, diagnostics,
+or snapshot reads. Session/container identity is opaque and runtime-issued;
+callers cannot fabricate provider identity or authority.
+
+The operation names here are conceptual, not exact Rust signatures. Ordinary
+`automation_snapshot(&self)` and `automation_target_snapshot(&self)` remain
+pure ordinary reads. A separate explicit refresh operation is the only
+provider-calling or mutating entry. A separate pure selected semantic snapshot
+read returns the last accepted session publication or the conservative ordinary
+baseline plus a typed status. Public selection/visibility is the target-required
+public boundary for the following consumer slice; this contract invents no
+public provider-registration API.
+
+Opening establishes one bounded session and an exact session generation with an
+explicit initial demand at attempt one. Updating atomically replaces the whole
+session demand set and supersedes/cancels prior work. An unchanged retry
+increments only the attempt. Closing cancels before retiring the generation and
+clears selected publication and demand. The first implementation allows one
+active semantic session per `SurfaceRuntime`, one contiguous logical range per
+mounted container plus the existing independent one-item pin, at most 64
+registrations, per-registration and 1024-entry caps, aggregate range length
+1024, and at most one provider call per container/attempt. Automatic
+retry/backoff and a scheduler are not part of this slice; `Deferred` returns to
+the caller and only explicit retry reattempts.
+
+Selection/publication carries session generation, demand generation, attempt,
+request/range or pin, mount/container/policy identity,
+data/policy/measurement/semantic revisions, provider identity/generation,
+coordinate, budget, cancellation, materialization/classification authority,
+ordinary projection generation, and complete-demand-set generation. Acceptance
+requires exact equality of every required field; stale, superseded, and
+cancelled results are inert. Provider attempts are non-reentrant and cannot
+publish or mutate runtime state directly.
+
+The consumer stages the complete selected snapshot and status under the exact
+fence and swaps only after every active demand member resolves or has an
+eligible exact-fence fallback. It never publishes a partial subset. `Found` and
+authoritative `NotFound` may participate in a complete publication.
+`NoProvider`/`Unsupported`, `DataUnavailable`, `Deferred`,
+`Rejected`/malformed, and stale outcomes retain only an eligible last-complete
+selection for unchanged exact demand/fence; otherwise they expose the ordinary
+baseline and a typed non-success status. Stale does not mutate runtime state.
+Changed demand, close, mount/identity/provider/revision/coordinate/budget
+changes invalidate the old selection. Materialization/ordinary-projection
+changes may reclassify retained exact provider evidence without provider
+reentry when fences permit it. `Unmaterialized`/`materialized = false` never
+authorizes materialization, scrolling, focus, action, paint, hit testing,
+scheduling, or renderer work.
+
+The first consumer admits only `Logical`; `Custom` is rejected before provider
+invocation with no identity fallback. A future transform contract must define
+the owner, source/destination, supported class and revision,
+finite/non-inverted conversion, clipping/nesting, and conservative
+singular/stale/unsupported/ambiguous behavior before custom coordinates are
+admitted. This documentation contract earns no estimate credit: generic ~97%,
+Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
+(~81.91%) remain exactly unchanged. The private kernel is shipped, while the
+session consumer and public selected snapshot remain unshipped.
+
 Large list, table, tree, browser, and picker surfaces should use Radiant's
 virtual-list contract instead of constructing hidden rows. Host applications own
 the logical item collection, stable row keys, selection, and domain state.
@@ -5749,10 +5818,10 @@ without coupling to host state. `SurfaceRuntime::automation_target_snapshot()`
 adds runtime-owned `AutomationTargetAuthority` evidence and schema version 2;
 the pure `GuiAutomationSnapshot::target_snapshot()` helper remains a
 read-only schema-version-1 flattening helper. Directional focus hints and
-live-region values are backend-neutral hints only. Native platform adapters consume this semantic
-tree for the required macOS, Wayland, and Windows accessibility contracts;
-ordinary application APIs do not expose AccessKit, screen-reader, or OS tree
-handles.
+live-region values are backend-neutral hints only. Native platform adapters are
+separate future consumers of selected public semantic data, not the first
+consumer of the provider-backed session contract above; ordinary application
+APIs do not expose AccessKit, screen-reader, or OS tree handles.
 The macOS development app-bundle helper improves process/window discovery for
 app-level automation tools. `RADIANT_AUTOMATION_TARGET_EXPORT` pairs with that
 launch path by exposing the current flattened target snapshot to external

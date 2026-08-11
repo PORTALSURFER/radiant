@@ -1244,11 +1244,35 @@ identity, while carrying a separate private origin of
 retained `SurfaceNode` payloads are read only for `payload().id()` rather than
 cloned. This boundary mutates no pin, provider, materialization, refresh,
 layout, traversal, snapshot, focus, capture, lifecycle, or presentation state.
-Path insertion, coordinate resolution/custom transforms, final ordering,
-global collision/ID admission, cross-range deduplication, and semantic-tree
-construction remain unshipped. The estimates remain unchanged: generic ~97%,
-Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
-(~81.91%).
+The classifier itself still does not perform path insertion, coordinate
+resolution/custom transforms, final ordering, global collision/ID admission,
+cross-range deduplication, or semantic-tree construction; those responsibilities
+belong to the following private compositor boundary.
+
+The next private boundary is now also shipped as staged, crate-private evidence.
+It consumes already validated semantic/materialization classification batches and
+composes them into a private `GuiAutomationSnapshot` candidate. Only the
+backend-neutral `Logical` coordinate space is admitted; `Custom` is rejected
+before any tree insertion because no transform contract exists here. Input is
+normalized by container and logical index, independent of caller order. Exact
+same-key/index evidence coalesces only when every semantic, geometry, provider-ID,
+origin, and fence field agrees; conflicting overlap, key/index drift, duplicate
+payload roots, unstable equality, aggregate registration-budget overflow, and
+the hard query-cap overflow reject atomically.
+
+Composition requires one unique ordinary anchor per container and one exact
+direct generated wrapper root per materialized classification. A materialized
+provider root replaces its wrapper at the same child position and retains the
+wrapper descendants. An unmaterialized provider root is inserted once as a leaf
+and receives private flattened authority with `materialized = false`. Provider,
+ordinary, descendant, container, and cross-range IDs share one namespace: only
+the exact generated wrapper being replaced may be displaced. A final uniqueness
+audit remains mandatory, and failures leave the source snapshot and runtime
+state untouched. This remains a private staged candidate: public APIs and the
+serialized schema are unchanged, and the slice does not invoke providers, own
+scheduling/demand, apply custom transforms, or wire focus, actions, or product
+behavior. Estimates remain unchanged: generic ~97%, Declarative identity 71%,
+layout 97%, and broad coverage `901 / 11` (~81.91%).
 
 ### Leaf content and interactive widgets
 

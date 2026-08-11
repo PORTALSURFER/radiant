@@ -138,6 +138,13 @@ pub(crate) struct VirtualLayoutSemanticClassification {
 
 #[allow(dead_code)]
 impl VirtualLayoutSemanticClassification {
+    pub(crate) fn new(
+        projection: VirtualLayoutSemanticProjection,
+        origin: VirtualLayoutSemanticClassificationOrigin,
+    ) -> Self {
+        Self { projection, origin }
+    }
+
     pub(crate) fn projection(&self) -> &VirtualLayoutSemanticProjection {
         &self.projection
     }
@@ -156,6 +163,16 @@ pub(crate) struct VirtualLayoutSemanticClassificationBatch {
 
 #[allow(dead_code)]
 impl VirtualLayoutSemanticClassificationBatch {
+    pub(crate) fn new(
+        request: VirtualLayoutSemanticRangeRequest,
+        classifications: Vec<VirtualLayoutSemanticClassification>,
+    ) -> Self {
+        Self {
+            request,
+            classifications,
+        }
+    }
+
     pub(crate) fn request(&self) -> &VirtualLayoutSemanticRangeRequest {
         &self.request
     }
@@ -1117,6 +1134,56 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             return Err(VirtualLayoutSemanticClassificationError::AmbiguousMaterialization);
         }
         record.classify_semantic_range(batch)
+    }
+
+    /// Compose already-classified semantic evidence against one ordinary
+    /// automation snapshot after revalidating the exact current record and
+    /// materialization authority. This path performs no provider call or
+    /// runtime mutation.
+    #[allow(dead_code)]
+    pub(crate) fn compose_virtual_layout_automation_snapshot(
+        &self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        batches: &[VirtualLayoutSemanticClassificationBatch],
+    ) -> Result<
+        crate::runtime::controller::VirtualLayoutAutomationComposition,
+        crate::runtime::controller::VirtualLayoutAutomationCompositionError,
+    > {
+        for batch in batches {
+            let mut matching_records = self.records.iter().filter(|record| {
+                record.registration.container_id == batch.request().container_id()
+            });
+            let Some(record) = matching_records.next() else {
+                return Err(
+                    crate::runtime::controller::VirtualLayoutAutomationCompositionError::LiveRecordUnavailable,
+                );
+            };
+            if matching_records.next().is_some() {
+                return Err(
+                    crate::runtime::controller::VirtualLayoutAutomationCompositionError::LiveRecordUnavailable,
+                );
+            }
+
+            let projections = batch
+                .classifications()
+                .iter()
+                .map(|classification| classification.projection().clone())
+                .collect();
+            let projection_batch =
+                VirtualLayoutSemanticProjectionBatch::new(batch.request().clone(), projections);
+            let live = record
+                .classify_semantic_range(&projection_batch)
+                .map_err(|_| {
+                    crate::runtime::controller::VirtualLayoutAutomationCompositionError::LiveClassificationMismatch
+                })?;
+            if live != *batch {
+                return Err(
+                    crate::runtime::controller::VirtualLayoutAutomationCompositionError::LiveClassificationMismatch,
+                );
+            }
+        }
+
+        crate::runtime::controller::compose_virtual_layout_automation_snapshot(ordinary, batches)
     }
 
     pub(super) fn take_projection_probe(

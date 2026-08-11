@@ -7,7 +7,11 @@ materialization/recycling correctness kernel are shipped private slices. The
 private retained-item adapter, private `SurfaceRuntime` registration/two-pass
 bridge, the current-fence one-item semantic admission path, and its private
 semantic projection boundary are also shipped as crate-private/private runtime
-evidence. Public registration,
+evidence. The semantic-demand and refresh contract in
+[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped)
+is an approved target-only boundary and remains unimplemented: it specifies
+ownership, provider refresh, exact publication, and fallback behavior but does
+not claim a runtime implementation or consumer. Public registration,
 scheduler/renderer policy, focus/capture traversal, full accessibility
 semantics, and a product consumer remain unshipped. The private bridge does not
 claim public API or product integration.
@@ -112,7 +116,12 @@ At this status:
    wired into `AutomationTarget` or `GuiAutomationSnapshot`.
 7. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-8. A future slice must name the subset of this contract it implements and must
+8. The semantic-demand and refresh boundary is approved as target-only. It
+   requires one crate-private semantic-demand owner per `SurfaceRuntime`, an
+   exact provider/publication fence, and atomic whole-surface publication, but
+   no part of that owner or refresh turn is shipped by the current private
+   evidence.
+9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope
@@ -128,6 +137,8 @@ It defines:
 - exact revision fences, cancellation, stale-result rejection, and fallback;
 - explicit reconciliation, materialization, focus/accessibility pins, and
   recycling ownership; and
+- the separate semantic-demand, provider-refresh, and whole-surface semantic
+  publication contract for logical virtual ranges;
 - the order and acceptance evidence for implementing the design incrementally.
 
 The contract applies equally to lists, grids, trees, timelines, tables, and
@@ -153,7 +164,12 @@ This contract does not:
 - replace the current fixed-child `VirtualizationPolicy` path or current
   host-owned `VirtualListWindow` path; or
 - define `split_pane` behavior, including its resize, collapse, persistence,
-  interaction, or runtime consumer.
+  interaction, or runtime consumer;
+- define custom-coordinate transformation, a production/native consumer,
+  scheduler/backoff/fairness policy, multiple active ranges per container, a
+  public demand API, or the runtime implementation of semantic demand/refresh.
+  The logical-only target slice rejects `Custom` before provider invocation and
+  has no identity-transform fallback.
 
 ## 2. Normative vocabulary and invariants
 
@@ -180,6 +196,33 @@ The following terms have precise meanings:
 - **Semantic bounds**: logical position and extent information used for
   accessibility or navigation. Semantic bounds do not by themselves paint or
   hit-test a widget.
+- **Semantic-demand owner**: the one crate-private owner inside a
+  `SurfaceRuntime` that records explicit semantic demand, invokes the provider
+  under an exact attempt fence, and stages or publishes the resulting evidence.
+  It is distinct from the ordinary layout coordinator and from observational
+  snapshot reads.
+- **Range-demand slot**: one active contiguous logical half-open range demand
+  for one mounted virtual container. It is not merged with another range and
+  does not replace the independent one-item semantic pin.
+- **Explicit demand**: only a semantic/accessibility-layer range request or an
+  explicit required-item pin. Registration, viewport/overscan, paint,
+  hit-testing, provider availability, item count, diagnostics, and snapshot
+  reads are not demand.
+- **Demand generation**: the monotonically advancing identity of one exact
+  demand set. A changed demand or superseding live fence starts a new
+  generation; an explicit retry advances the attempt within the unchanged exact
+  demand.
+- **Provider attempt**: one bounded provider invocation for one container and
+  demand generation. At most one invocation is active or recorded for a
+  container per attempt.
+- **Eligible fallback**: a previously complete virtual composition whose exact
+  demand, provider, registration, content, coordinate, and budget fence still
+  matches the current demand. A merely recent or observational snapshot is not
+  eligible fallback.
+- **Complete surface demand-set generation**: the exact generation of all
+  active range-demand slots and the independent one-item semantic pin set for a
+  surface. A virtual publication is complete only when every active member is
+  resolved or staged under the same publication fence.
 - **Accepted window**: the last query result committed by the coordinator after
   all identity, revision, cancellation, and structural checks pass.
 - **Previous-valid-window fallback**: an accepted window retained while a newer
@@ -194,23 +237,27 @@ Every implementation MUST preserve these invariants:
 2. One mounted container has exactly one visible-window coordinator and one
    policy identity. Ownership is not inferred from a callback or shared mutable
    object.
-3. A policy query is bounded, read-only, deterministic for the supplied
-   snapshot and inputs, and cannot create, mount, unmount, focus, paint, or
-   recycle a widget.
-4. Only an accepted window may drive materialization, item bounds, hit testing,
+3. One `SurfaceRuntime` has exactly one crate-private semantic-demand owner.
+   The owner has at most one active contiguous range-demand slot per mounted
+   virtual container, plus the independent one-item semantic pin.
+4. A policy query is bounded, read-only, deterministic for the supplied
+   snapshot and inputs, and cannot create, mount, unmount, focus, paint,
+   recycle a widget, create semantic demand, or invoke a semantic provider.
+5. Only an accepted window may drive materialization, item bounds, hit testing,
    focus pins, semantic exposure, culling, or paint planning.
-5. A result is accepted only against an exact current revision fence. A newer
+6. A result is accepted only against an exact current revision fence. A newer
    result is not allowed to overwrite an older result merely because it was
    delivered later or has a numerically larger individual revision.
-6. A key-preserving reorder preserves logical item continuity. A key change,
+7. A key-preserving reorder preserves logical item continuity. A key change,
    incompatible item kind, container identity change, or policy identity change
    does not transfer widget lifecycle or interaction state.
-7. All query, item, pin, semantic, and deferred-work sets are explicitly
+8. All query, item, pin, semantic, and deferred-work sets are explicitly
    bounded. A count, estimate, or semantic request never authorizes full-list
    enumeration or hidden widget materialization.
-8. Invalidation is coalesced and reentrant-safe. Policy code and lifecycle code
-   cannot synchronously re-enter the same coordinator's query or commit path.
-9. Diagnostics are bounded and deterministic. An invalid result is rejected at
+9. Invalidation is coalesced and reentrant-safe. Policy code, lifecycle code,
+   and provider callbacks cannot synchronously re-enter the same coordinator's
+   query or commit path; follow-up invalidation is coalesced.
+10. Diagnostics are bounded and deterministic. An invalid result is rejected at
    the boundary; it is never repaired by choosing an arbitrary duplicate,
    silently dropping a missing key, or accepting non-finite geometry.
 
@@ -222,14 +269,17 @@ must preserve the ownership boundaries.
 | Concern | Owner | Required behavior and boundary |
 | --- | --- | --- |
 | Application data and key extraction | Host application/data source | Owns records, membership, ordering, sorting/filtering, loading, and stable key extraction. Supplies a snapshot and `data_revision`. It must not delegate domain identity to a visible index or to widget allocation. |
-| UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, anchor resolution, and bounded semantic answers. It must not mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
+| UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, and anchor resolution. It must not create semantic demand, invoke a semantic provider, mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
+| Virtual-layout registration | The mounted `SurfaceRuntime` | Registration declares capability only. `SurfaceRuntime` derives the live container/policy identity, mount and content revisions, provider identity/generation, coordinate space, and budget. Registration is not demand and exposes no public/application/native demand API. |
+| Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime` | Records only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, staging, fallback, and atomic whole-surface publication. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
+| Semantic provider | The registered immutable provider, called by the semantic-demand owner | Supplies only the bounded logical semantic evidence requested by the exact demand. It is called at most once per container/attempt, cannot recursively re-enter the owner, and cannot publish or mutate runtime state. Missing or unsupported capability is an explicit terminal outcome, not a demand source. |
 | Radiant visible-window coordinator | Radiant, one instance per mounted container | Owns viewport/overscan state, query sequence, revision fences, cancellation, accepted-window fallback, anchor state, invalidation coalescing, and the desired keyed set. It is the only component that commits a window. |
 | Materialization and reconciliation | Eventual `SurfaceRuntime` owner, one materialization record per mounted virtual-container generation, using the coordinator/runtime and an explicit host item projection boundary | `SurfaceRuntime` owns the retained record and chooses which accepted keys require runtime items, then reconciles slots by key. `AppBridge`, `RuntimeBridge`, the policy adapter, and product/application state do not own retained slots. The host supplies item data and an explicit item projection/materializer; querying never implicitly constructs a widget. |
 | Measurement | Radiant layout/measurement path, using host-provided item content | Owns measurement requests, measurement cache validity, `measurement_revision`, and the promotion of measured bounds into the next accepted result. The host may provide intrinsic-size inputs but does not mutate the coordinator's cache. |
-| Focus and accessibility | Radiant focus/semantic layer with app-supplied semantic data | Owns focus, keyboard traversal, pointer capture continuity, bounded pins, and semantic requests. The host supplies labels, values, roles, actions, and domain focus policy; it does not force a permanent offscreen widget tree. |
+| Focus and accessibility | Radiant focus/semantic layer with app-supplied semantic data | Owns focus, keyboard traversal, pointer capture continuity, bounded pins, and explicit semantic/accessibility request intent. The host supplies labels, values, roles, actions, and domain focus policy; the semantic layer does not own provider invocation or force a permanent offscreen widget tree. |
 | Culling, paint, and hit testing | Radiant layout/input/paint runtime | Consumes accepted item bounds and the scroll clip. Paints visible accepted items, hit-tests only eligible visible/pinned runtime geometry, and never asks the policy to create hidden hit targets during a pointer event. |
 | Recycling | Radiant coordinator/runtime slot store | May reuse allocation/storage only after the old keyed item has been unmounted and reset. It must never transfer lifecycle, focus, capture, hover, semantic state, or item-local state from one key to another. |
-| Scheduler and renderer | Radiant runtime scheduler/renderer | Schedules bounded deferred queries, measurement, reconciliation, and frame work; owns cancellation delivery and rendering of the accepted scene. It does not change key identity, repair invalid policy output, or bypass the coordinator fence. |
+| Scheduler and renderer | Radiant runtime scheduler/renderer | Schedules bounded deferred queries, measurement, reconciliation, and frame work; owns cancellation delivery and rendering of the accepted scene. It does not create semantic demand from ordinary work, change key identity, repair invalid provider output, or bypass a coordinator or semantic-demand fence. Backoff and fairness are deferred. |
 
 The host may observe window changes or diagnostics, but observation does not
 transfer ownership. A callback that sends an application message is an
@@ -316,7 +366,13 @@ unbounded snapshot or make rejection dependent on diagnostic allocation.
 The policy boundary is a conceptual operation, not a prescribed public Rust
 signature. The following pseudocode is **non-API** and illustrates the minimum
 information that must be fenced and the bounded information that may cross the
-boundary:
+boundary. Ordinary layout querying and semantic demand/refresh are separate
+runtime turns. A query may carry already accepted semantic evidence for
+projection, but it cannot create a semantic demand, invoke a semantic provider,
+or publish a virtual semantic tree. The semantic-demand turn is specified in
+[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped).
+
+The following pseudocode illustrates the ordinary query boundary:
 
 ```text
 query(policy, QueryInput) -> QueryResult
@@ -347,7 +403,7 @@ QueryResult {
     estimated_extent,
     measured_extent,
     resolved_anchor,
-    on_demand_semantic_result,
+    retained_semantic_observation,
     deferred_work,
     diagnostics,
 }
@@ -363,7 +419,7 @@ equivalent immutable query context:
 | Container and policy identity | Exact identities from the mounted instance. The policy cannot answer for another container. |
 | Viewport | Current finite viewport rectangle or main-axis interval, cross-axis constraints, scroll origin, and coordinate-space declaration. A viewport change advances `viewport_revision`. |
 | Overscan | Explicit finite leading/trailing pixel, logical-unit, or item budget, plus the coordinator's maximum. The policy MUST honor the smaller admitted bound. |
-| Required key/index | At most the bounded number admitted by the coordinator. A key is authoritative; an index is a lookup hint that must resolve to one key before acceptance. Required items are for focus, capture, semantic, or declared interaction needs, not an unbounded fetch. |
+| Required key/index | At most the bounded number admitted by the coordinator. A key is authoritative; an index is a lookup hint that must resolve to one key before acceptance. An explicit required-item pin may be a semantic demand source, but a query's ordinary required-item input is never an unbounded fetch. |
 | Anchor | Optional primary key, edge/offset rule, and current screen/local offset. An index-only anchor is provisional and loses to a resolved stable key. |
 | Data revision | Exact app snapshot revision for membership, ordering, key extraction, and item data relevant to geometry. |
 | Policy revision | Exact revision for policy parameters and query semantics that remain compatible with the same policy identity. |
@@ -393,7 +449,7 @@ matches the current mounted instance. Its conceptual outputs are:
 | Estimated extent | A finite extent used for scroll mapping while records or measurements are incomplete. The estimate carries its revision/fence and may be corrected later. |
 | Measured extent | Extent contributed by accepted measurements and valid measured gaps. It never silently includes stale measurements from another data, policy, or measurement revision. |
 | Resolved anchor | The retained key, resolved bounds/offset, and any bounded scroll adjustment needed to keep the anchor stable. |
-| On-demand semantic result | A bounded answer for a requested key/index/range: item semantics, a finite semantic range, `not_found`, `unsupported`, `deferred`, or a diagnostic rejection. It is not a complete semantic tree. |
+| Retained semantic observation | Previously accepted item/range evidence read by ordinary projection. A new key/index/range answer, provider call, or semantic-demand state transition belongs to the separate mutating semantic-demand turn; it is not a complete semantic tree. |
 | Deferred work | Finite tokens describing work that may be scheduled later, such as a bounded data fetch, measurement, or semantic lookup. Each token carries the fence needed to accept its completion. |
 | Diagnostics | Bounded validation, ambiguity, estimate, cancellation, and budget records. Diagnostics do not turn an invalid result into a valid one. |
 
@@ -411,6 +467,8 @@ MUST NOT:
 - construct or mutate a widget/view node;
 - mount, update, unmount, recycle, focus, capture, or semantic-register an
   item;
+- create, replace, or clear a semantic-demand slot, invoke a semantic provider,
+  or publish a virtual semantic composition;
 - mutate the scroll offset or anchor directly;
 - synchronously send an application message or invoke user code that re-enters
   the coordinator;
@@ -460,9 +518,11 @@ not-found, or rejected according to its reason.
 Semantic bounds describe a logical item's position, extent, ordering, and
 relationship for accessibility/navigation. They MAY be available without an
 item widget. They MUST NOT create paint, pointer hit regions, pointer capture,
-or widget lifecycle by themselves. A semantic request may promote one bounded
-item to a semantic pin and then to explicit materialization when the focus or
-accessibility policy requires it.
+or widget lifecycle by themselves. Semantic evidence retains explicit
+`Unmaterialized` authority and `materialized = false` when no ordinary runtime
+item exists. Semantics cannot authorize materialization, scrolling, actions,
+focus, paint, hit testing, scheduler work, renderer work, or another provider
+call.
 
 ### Query, item, pin, and semantic budgets
 
@@ -494,6 +554,32 @@ Deferred work MUST be:
 The scheduler MAY prioritize visible work over overscan, pins, or semantics, but
 it MUST preserve the fence and boundedness rules. A deferred result that misses
 its fence is discarded even if it would otherwise be useful.
+
+### Semantic-demand bounds
+
+The approved semantic-demand target adds a separate, finite budget to the
+ordinary query and materialization budgets:
+
+- one crate-private semantic-demand owner exists per `SurfaceRuntime`;
+- a surface admits at most `MAX_VIRTUAL_LAYOUT_REGISTRATIONS` virtual-layout
+  registrations, and `MAX_VIRTUAL_LAYOUT_REGISTRATIONS` is 64;
+- each mounted virtual container has at most one active contiguous logical
+  range-demand slot, with no range merging, plus the existing independent
+  one-item semantic pin;
+- each range demand has a finite per-registration maximum and MUST be no larger
+  than `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES`, and `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES`
+  is 1024;
+- the aggregate length of all active range-demand slots on one surface MUST be
+  no greater than 1024; and
+- the semantic provider is called at most once for one container and one
+  provider attempt.
+
+Registration may declare that this capability exists, but it does not select a
+demand, create a slot, or authorize provider work. `SurfaceRuntime` derives the
+live identity, revisions, provider identity/generation, coordinate, and budget
+used by the demand fence. Provider availability, item count, viewport,
+overscan, paint, hit testing, diagnostics, and snapshot reads do not consume or
+create demand.
 
 ## 7. Revision fences, cancellation, and fallback
 
@@ -546,6 +632,59 @@ revision,” or “same data but newer measurement” substitution is not suffic
 If a change is compatible and should be accepted, the coordinator issues a new
 query with a new exact fence.
 
+The semantic-demand turn has two conceptual exact fences. A per-slot provider
+completion and retention use `SemanticProviderFence`; whole-surface publication
+uses `SemanticPublicationFence`, which wraps the exact provider fence and adds
+the current composition authorities. The names and storage are non-API:
+
+```text
+SemanticProviderFence {
+    container_identity,
+    policy_identity,
+    registration_identity,
+    mount_generation,
+    data_revision,
+    policy_revision,
+    measurement_revision,
+    semantic_revision,
+    coordinate_space,
+    budget,
+    exact_demand,                       // one logical range or one pinned item
+    provider_identity,
+    provider_generation,
+    demand_source,                      // semantic range request or required pin
+    demand_generation,
+    attempt,
+    cancellation,
+}
+
+SemanticPublicationFence {
+    provider_fence,                      // exact SemanticProviderFence
+    materialization_authority,
+    classification_authority,
+    ordinary_projection_generation,
+    complete_surface_demand_set_generation,
+}
+```
+
+Provider completion and per-slot retention require exact equality of every
+`SemanticProviderFence` field. They do not require
+`complete_surface_demand_set_generation`. Whole-surface publication requires
+exact equality of the wrapped provider fence and every
+`SemanticPublicationFence` field against the live owner, materialization,
+classification, ordinary-projection, and complete-surface authority. A missing
+provider is represented by an exact `NoProvider` provider identity/generation,
+not by a wildcard. A cancelled or superseded attempt is not accepted merely
+because the provider returned a structurally valid result. No individual
+revision may be compared independently, and no fence may be partially
+matched.
+
+Adding, removing, or superseding another active slot advances only the
+publication generation for unchanged slots. Exact unchanged provider evidence
+may be restaged under the new `SemanticPublicationFence` without provider
+reentry. Provider completion and per-slot retention still require exact equality
+of the unchanged slot's `SemanticProviderFence`.
+
 ### 7.2 Cancellation and stale rejection
 
 The coordinator MUST cancel or supersede an older query when any of the
@@ -562,6 +701,12 @@ stopped. Every completion still performs the exact fence check. A stale,
 cancelled, malformed, ambiguous, or over-budget result is rejected and cannot
 replace the accepted window, item bounds, focus pins, semantic result, or
 scroll offset. It MAY contribute one bounded diagnostic.
+
+For semantic demand/refresh, a stale or superseded provider completion is
+ignored entirely: it does not clear a slot, retain evidence, publish a
+diagnostic-driven fallback, or trigger a retry. Follow-up invalidation is
+coalesced for a later runtime turn under a new exact demand generation or
+attempt.
 
 ### 7.3 Previous-valid-window fallback
 
@@ -589,6 +734,16 @@ fresh query is pending, but it must not expose stale data as accepted content.
 If no safe fallback exists, the coordinator publishes a bounded empty or
 placeholder window and a diagnostic, then retries through normal scheduling.
 
+For a semantic publication, fallback eligibility is stricter than the ordinary
+window rule: the retained evidence must match the exact demand, provider
+identity/generation, registration identity, content revisions, coordinate, and
+budget fence. Current materialization authority and ordinary projection
+generation may reclassify or recompose that retained exact evidence without a
+provider call. If the exact fallback is not eligible, the runtime withholds the
+complete new virtual generation and retains either the prior eligible complete
+composition or an ordinary-only baseline; it never exposes a mixed partial
+virtual tree.
+
 ### 7.4 Invalidation and reentrancy
 
 Invalidations are queued as flags/reasons and coalesced before the next query.
@@ -600,9 +755,12 @@ MUST NOT synchronously query or commit the same coordinator.
 The commit path is a non-reentrant critical section owned by the coordinator.
 If a callback requests invalidation during commit, the coordinator records it,
 finishes the current bounded commit, and schedules one subsequent query with a
-new sequence/fence. It does not recurse. If the bounded invalidation queue
-overflows, it coalesces to a conservative full invalidation and records one
-diagnostic; it does not drop the invalidation silently.
+new sequence/fence. It does not recurse. Semantic provider callbacks have the
+same rule: they cannot reenter the semantic-demand owner or publication path;
+one follow-up invalidation is coalesced for a later runtime turn. If the
+bounded invalidation queue overflows, it coalesces to a conservative full
+invalidation and records one diagnostic; it does not drop the invalidation
+silently.
 
 ## 8. Anchor and scroll behavior
 
@@ -708,6 +866,59 @@ For an accepted desired keyed set, the coordinator performs this logical order:
 An implementation may optimize allocation, but it must preserve the observable
 remove-before-reuse and same-key continuity rules.
 
+### 9.3 Semantic-demand state and attempt sequence
+
+The semantic-demand state names below are conceptual and non-API. They define
+the required sequence for one mounted virtual container:
+
+1. Registration exposes capability only. It does not allocate a demand slot or
+   invoke a provider. `SurfaceRuntime` derives the live registration, identity,
+   revisions, provider identity/generation, coordinate, and budget for a later
+   demand turn.
+2. A semantic/accessibility-layer range request or an explicit required-item
+   pin creates or supersedes the exact demand for its source. The owner records
+   one contiguous range slot or the independent one-item semantic pin, advances
+   the demand generation when the exact demand changes, and starts attempt one.
+   It never merges ranges or treats ordinary runtime activity as demand.
+3. An attempt captures the complete per-slot provider fence, calls the provider
+   at most once for that container/attempt, and keeps the call outside any
+   recursive owner/publication entry. A later explicit retry uses the same
+   unchanged exact demand with a new attempt; a changed live fence or demand
+   starts a new demand generation.
+4. `Found` is structurally and exactly validated, then staged under the
+   provider and publication fences. No entry is published independently.
+   `NotFound` is authoritative empty evidence for the exact demand and resolves
+   that slot.
+5. `Unavailable(NoProvider)`, `Unavailable(Unsupported)`, and
+   `Unavailable(DataUnavailable)` retain their typed outcome behavior:
+   `Unavailable(NoProvider)` and `Unavailable(Unsupported)` are terminal for
+   the new virtual publication and clear the affected slot;
+   `Unavailable(DataUnavailable)` and `Deferred` retain only an eligible
+   exact-fence fallback; without one,
+   the complete new virtual generation is withheld. `Rejected` and malformed
+   evidence clear the affected slot and fail complete publication without an
+   automatic retry. A stale or superseded completion is ignored entirely.
+6. Each slot is first validated under its exact provider fence and then staged
+   under the current publication fence. Adding, removing, or superseding
+   another active slot advances only the publication generation for unchanged
+   slots; their exact provider evidence may be restaged without provider
+   reentry. Only after every active demand member is resolved or staged under
+   one exact publication generation may the owner publish the virtual semantic
+   composition. Failure retains the prior eligible complete composition or an
+   ordinary-only baseline, never a mixed partial virtual tree.
+7. A materialization or ordinary-projection change may reclassify and recompose
+   retained exact evidence with current materialization/classification
+   authority and ordinary projection generation. It MUST NOT reenter the
+   provider merely because a retained item became materialized, unmaterialized,
+   replaced, or recomposed.
+
+The owner clears a resolved or terminal slot only for the exact source and
+demand that produced the outcome. The independent one-item semantic pin is not
+silently replaced by a range result, and a range result cannot manufacture a
+second pin. No state transition in this sequence grants semantic authority over
+materialization, scrolling, actions, focus, paint, hit testing, scheduling,
+rendering, or provider registration.
+
 ## 10. Materialization, lifecycle, and recycling
 
 ### 10.1 No implicit widget materialization
@@ -726,10 +937,13 @@ The following are forbidden:
 - retaining a widget solely because its old index is still in a window; or
 - letting a semantic lookup silently transfer a widget lifecycle to a new key.
 
-An on-demand focus or semantic request may cause the coordinator to issue a
-new query, create a bounded pin, and explicitly materialize the requested key.
-That is an observable coordinator transition, not an implicit side effect of
-the policy callback.
+Only a separate explicit focus/interaction runtime consumer may cause the
+coordinator to issue a bounded pin, scroll, or materialization transition for a
+required key. Semantic evidence alone cannot authorize materialization,
+scrolling, actions, or focus; a semantic request may create or refresh only
+the exact semantic evidence allowed by the semantic-demand contract. Any
+focus/interaction transition is an observable coordinator decision, not an
+implicit side effect of a policy or semantic-provider callback.
 
 ### 10.2 Item lifecycle ownership
 
@@ -834,7 +1048,11 @@ consumer must invalidate/requery the affected coordinator before treating that
 window as authoritative, even when the general `SurfaceRuntime` refresh path
 could otherwise reuse completed layout. A previous-valid fallback may remain
 visible only under the exact fallback fence rules; it is not a new incomplete
-collection.
+collection. This ordinary shell/item refresh rule is separate from semantic
+provider refresh: a viewport-only or ordinary-projection refresh does not call
+the semantic provider unless one of the explicit semantic-demand triggers in
+[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped)
+also changes.
 
 #### Projection, identity, and retained payload
 
@@ -919,6 +1137,160 @@ Semantic order is the policy's validated logical/semantic order, not an
 accidental paint order. A semantic revision invalidates labels/roles/actions
 without necessarily invalidating geometry, but any result still requires an
 exact semantic fence at acceptance.
+
+### Semantic demand and refresh (approved target contract; unshipped)
+
+This is the approved target-only contract for provider-backed virtual semantic
+demand and refresh. The current private one-item admission, range validation,
+classification, and logical compositor are evidence prerequisites; they do not
+implement this owner, provider-refresh turn, or whole-surface publication. The
+contract is deliberately crate-private and does not add a public registration,
+application, or native demand API.
+
+#### Owner, sources, and logical scope
+
+Each `SurfaceRuntime` has one crate-private semantic-demand owner. For every
+mounted virtual container, that owner has one active contiguous logical
+range-demand slot and the existing independent one-item semantic pin. A new
+range replaces/supersedes the old range slot for that container; ranges are not
+merged, split, or accumulated. The aggregate active range length across the
+surface is at most 1024, and the surface has at most 64 virtual-layout
+registrations (`MAX_VIRTUAL_LAYOUT_REGISTRATIONS`). Each registration's finite
+maximum and `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` (1024) both bound its range
+length. The provider is called at most once per container and attempt.
+
+Capability-only registration is admitted by `SurfaceRuntime` only within the
+64-registration limit and only when its mounted container/registration scope
+is not a duplicate. Admission binds the provider identity and generation,
+container and mount identity, and live data/policy/measurement/semantic
+revisions, coordinate, and budget to that mounted container. A registration
+replacement or unmount retires the prior registration, marks its in-flight
+attempts cancelled, and clears its range-demand slot, independent semantic pin,
+and pending demand state before the old authority is dropped. Registration,
+replacement, and unmount do not invoke a provider or create demand. Public or
+native registration remains deferred; this is a private `SurfaceRuntime`
+boundary only.
+
+Only these events create semantic demand:
+
+1. an explicit range request from the semantic/accessibility layer; or
+2. an explicit required-item pin for the one-item semantic path.
+
+Registration declares capability only. A registration does not select a range,
+create a pin, or initiate a provider call. Viewport and overscan changes,
+ordinary layout or paint, hit testing, provider availability reads, item count,
+diagnostics, and `automation_snapshot`/`automation_target_snapshot` reads are
+not demand. `SurfaceRuntime` derives the live container/policy/registration
+identity, mount generation, data/policy/measurement/semantic revisions,
+provider identity/generation, declared coordinate space, and budget before a
+demand attempt.
+
+The target provider path is logical-only. `Logical` coordinates may be
+validated and staged. `Custom` coordinates are unavailable/rejected before
+provider invocation; no identity-transform fallback is permitted. Coordinate
+transformation, a production/native provider consumer, and public API wiring
+remain deferred.
+
+#### Demand generations, attempts, and refresh
+
+An initial explicit demand creates a demand generation and attempt one. A
+changed exact demand or any live identity, mount, data, policy, measurement,
+semantic, provider identity/generation, coordinate, or budget fence change
+supersedes the old attempt and creates a new demand generation. An explicit
+retry of the unchanged exact demand creates a new attempt within the same
+demand generation. Every attempt carries the exact demand source: a semantic
+range request or an explicit required-item pin.
+
+The owner refreshes the provider only for:
+
+- initial explicit demand;
+- changed explicit demand;
+- container/registration/policy identity or mount changes;
+- data, policy, measurement, or semantic revision changes;
+- provider identity/generation changes, including a live availability change;
+- coordinate or budget changes; or
+- an explicit retry.
+
+A snapshot read, ordinary snapshot observation, ordinary repaint, paint-only
+invalidation, or an unchanged refresh MUST NOT invoke the provider. A
+materialization or ordinary-projection change may reclassify or recompose
+retained exact evidence using current materialization/classification authority
+and ordinary projection generation; it MUST NOT reenter the provider. Provider
+availability is a refresh input only when the derived provider identity or
+generation changes; reading availability alone is not demand.
+
+#### Cancellation and supersession
+
+Before supersession, registration replacement, unmount, or owner retirement,
+the semantic-demand owner marks the active attempt cancelled in its private
+fence. Where the private runtime work boundary provides cancellation delivery,
+the owner delivers that cancellation before dropping the old authority. A
+provider return after cancellation is stale regardless of structural validity
+or matching result fields: it is ignored entirely and cannot retain, clear,
+diagnose, retry, classify, recompose, or publish evidence. Cancellation does
+not automatically retry. Only one of the listed refresh triggers or an
+explicit retry creates a new attempt under a new exact fence.
+
+#### Provider outcomes and exact fences
+
+Provider completion and per-slot retention use exact equality of the
+`SemanticProviderFence`: container/policy/registration identity, mount
+generation, data/policy/measurement/semantic revisions, coordinate, budget,
+exact demand, provider identity/generation, demand source, demand generation,
+attempt, and cancellation. They do not require the complete surface demand-set
+generation. Whole-surface publication uses exact equality of a
+`SemanticPublicationFence`, which wraps that exact provider fence and adds
+materialization authority, classification authority, ordinary projection
+generation, and complete surface demand-set generation. No field is inferred
+from registration or a snapshot read, and no `>=`, partial, or “latest known”
+match is valid.
+
+At most one provider call is made for a container and attempt. The callback
+cannot recursively reenter demand or publication; a follow-up invalidation is
+coalesced for a later runtime turn. The outcome rules are:
+
+| Provider or validation outcome | Required semantic-demand behavior |
+| --- | --- |
+| `Found` | Validate the exact count, contiguous logical demand, stable keys, provider semantic IDs, finite logical bounds, provider identity, and complete fence; stage the complete exact result and do not publish entries individually. |
+| `NotFound` | Treat the exact demand as authoritative empty evidence and resolve that demand slot. It does not authorize an index-based substitute or successor. |
+| `Unavailable(NoProvider)` or `Unavailable(Unsupported)` | Treat the outcome as terminal for the new virtual publication, clear the affected slot, and do not automatically retry or invoke another provider. |
+| `Unavailable(DataUnavailable)` or `Deferred` | Retain only an exact eligible fallback. Without one, withhold the complete new virtual generation; do not expose a partial range. A later explicit retry or valid refresh may begin a new attempt. |
+| `Rejected` or malformed evidence | Clear the affected slot and fail complete publication. Do not automatically retry, repair, merge, or silently downgrade the result. |
+| Stale or superseded completion | Ignore it entirely. It cannot clear, retain, diagnose into, retry, classify, recompose, or publish any semantic state. |
+
+#### Retention, recomposition, and publication
+
+Per-slot retention requires exact equality of the demand, provider
+identity/generation, registration identity, content revisions, coordinate, and
+budget in the `SemanticProviderFence`. It does not require equality of the
+complete surface demand-set generation. A retained provider result is not
+eligible merely because its key, item count, or semantic ID still looks useful.
+Recomposition uses current materialization/classification authority and
+ordinary projection generation only after the retained evidence passes that
+exact provider fence.
+
+Adding, removing, or superseding another active slot advances only the
+publication generation for unchanged slots. Their exact unchanged provider
+evidence may be restaged under the new publication fence without provider
+reentry. For example: after publishing A, adding B restages unchanged A,
+invokes only B, and atomically publishes A+B under one new publication
+generation.
+
+Virtual semantic publication is atomic for the whole surface. Every active
+range-demand slot and the independent one-item semantic pin must be resolved or
+staged under one exact `SemanticPublicationFence` and complete surface
+demand-set generation before a provider result can publish in the new virtual
+composition. If any slot fails, the runtime retains the prior eligible complete
+composition or an ordinary-only baseline. It never publishes a mixed partial
+virtual tree, mixes old and new demand generations, or lets an ordinary
+projection change manufacture missing provider evidence.
+
+`Unmaterialized` and `materialized = false` remain authoritative for semantic
+leaves without ordinary runtime items. Semantic evidence does not authorize
+materialization, scrolling, actions, focus, paint, hit testing, scheduler work,
+renderer work, or provider registration. The automation snapshot functions
+remain pure observational reads; demand/refresh is a separate mutating runtime
+turn with its own publication fence.
 
 ### Culling and paint
 
@@ -1203,6 +1575,19 @@ focus and capture continuity/removal, semantic requests beyond this one-item
 path, semantic-only non-paint behavior, and no permanent full accessibility
 tree.
 
+The approved semantic-demand and refresh completion boundary remains
+target-only and unshipped. It adds one crate-private owner per `SurfaceRuntime`,
+one active contiguous range-demand slot per mounted virtual container plus the
+independent one-item semantic pin, explicit-demand-only sources, the 64/1024
+bounds, exact provider/publication fences, generation/attempt sequencing,
+terminal outcome handling, exact-fence retention, non-reentrant provider
+callbacks, and atomic whole-surface publication. It does not implement a
+runtime owner or provider consumer and does not authorize materialization,
+scrolling, actions, focus, paint, hit testing, scheduling, rendering, or public
+API behavior. Custom-coordinate transformation, production/native consumers,
+scheduler/backoff/fairness, multiple active ranges per container, and runtime
+implementation remain deferred.
+
 ### Slice 7 — Performance and deferred work
 
 Add measured cache strategy, deferred query/measurement scheduling, bounded
@@ -1247,6 +1632,45 @@ following matrix is the minimum evidence for each relevant slice.
 Tests should assert observable ownership, boundedness, identity, and revision
 behavior. They should not assert the names or storage layout of this document's
 non-API pseudocode.
+
+### Semantic demand and refresh acceptance matrix (approved target-only; unshipped)
+
+The following direct rows are required for the future implementation. They
+cover every allow, reject, fallback, refresh, outcome, and publication decision
+in the approved semantic-demand boundary; they are not claims of current test
+coverage.
+
+| Decision | Direct fixture | Required evidence |
+| --- | --- | --- |
+| Owner/registration allow | One `SurfaceRuntime` with valid capability-only registrations | Exactly one crate-private demand owner; live identity/revisions/provider/budget are derived by the runtime; registration alone creates no demand or provider call. |
+| Registration reject | More than 64 virtual-layout registrations or duplicate mounted registration scope | `MAX_VIRTUAL_LAYOUT_REGISTRATIONS` (64) is enforced before a slot or provider attempt exists; no public/application/native demand surface appears. |
+| Registration lifecycle | Admit a capability-only registration, then replace its scope or unmount its container while an attempt is pending | Admission binds provider identity/generation and live revisions to the mounted container; replacement/unmount retires the old authority, cancels attempts, clears demand state, invokes no provider, creates no demand, and leaves public/native registration deferred. |
+| Demand-source allow | Semantic-layer range request and explicit required-item pin | Only those two sources create the range slot/pin; viewport, overscan, paint, hit-test, provider availability, item count, diagnostics, and snapshot reads produce no demand. |
+| Demand-source reject | Registration, snapshot read, ordinary repaint, paint-only invalidation, unchanged refresh, or provider-availability read | No demand generation, attempt, slot mutation, provider invocation, or publication occurs. |
+| Range-slot allow | A valid contiguous logical range for a mounted container | One active range slot exists for the container, the independent one-item pin remains independent, and no range is merged or split. |
+| Range-bound reject | Zero length, overflow, per-registration maximum exceeded, length above `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES`, or aggregate active length above 1024 | Rejection occurs before provider invocation; no partial slot or publication is staged. |
+| Coordinate allow/reject | `Logical` versus `Custom` demand | `Logical` may proceed; `Custom` is rejected/unavailable before provider invocation with no identity-transform fallback. |
+| Generation/attempt allow | Initial or changed demand versus explicit retry | Changed exact demand or live fence starts a new demand generation at attempt one; explicit retry of unchanged demand advances only the attempt. |
+| Cancellation before supersession | In-flight attempt is superseded, its registration is replaced, its container unmounts, or its owner retires | The owner marks the attempt cancelled before the transition; cancellation is delivered through the private runtime work boundary where available, and no automatic retry occurs. |
+| Cancelled provider return | Structurally valid provider result returns after the attempt was cancelled | The result is stale regardless of structural validity or matching fields; it is ignored entirely and cannot retain, clear, diagnose, retry, classify, recompose, or publish. |
+| Refresh allow | Identity, mount, data/policy/measurement/semantic revision, provider identity/generation, coordinate, budget, or explicit-demand change | A new exact provider attempt is created only for the listed trigger and carries the changed fence. |
+| Refresh reject | Snapshot/read, ordinary repaint, paint-only change, unchanged refresh, or materialization/ordinary-projection change | No provider reentry; retained exact evidence may only be reclassified/recomposed with current authority. |
+| Provider-call bound | Reentrant callback or a second call for one container/attempt | At most one provider call occurs; callback reentry is rejected/coalesced and follow-up invalidation waits for a later runtime turn. |
+| Provider `Found` allow | Exact count, contiguous logical indices, stable unique keys/IDs, finite logical bounds, and exact fence | The complete result is validated and staged; no entry is published independently. |
+| Provider `Found` reject | Count/index/key/ID/geometry/provider/fence mismatch or malformed vector | The whole result is rejected atomically; no partial projection or fallback from malformed evidence is accepted. |
+| `NotFound` outcome | Provider reports no result for the exact demand | Exact demand becomes authoritative empty and its slot resolves; no index successor or synthesized item is substituted. |
+| Terminal unavailable | `Unavailable(NoProvider)` or `Unavailable(Unsupported)` | The new virtual publication fails terminally, the affected slot clears, and no automatic retry or alternate provider call occurs. |
+| Eligible fallback | `Unavailable(DataUnavailable)` or `Deferred` with exact demand/provider/registration/content/coordinate/budget fence | The prior complete virtual composition is retained; current materialization/ordinary projection may recompose it without provider reentry. |
+| Fallback withheld | `Unavailable(DataUnavailable)` or `Deferred` without an exact eligible fallback | The complete new virtual generation is withheld and an ordinary-only baseline may remain; no mixed partial virtual tree is visible. |
+| Rejected/malformed outcome | Provider rejection or post-return malformed evidence | The affected slot clears, complete publication fails, and no automatic retry, repair, merge, or silent downgrade occurs. |
+| Stale/superseded outcome | Completion after cancellation, demand generation, attempt, identity, or fence supersession | Completion is ignored entirely with no clear, retain, diagnostic-driven retry, classify, recompose, or publish side effect. |
+| Exact retention | Retained result with every demand/provider/registration/content/coordinate/budget field equal | Evidence remains eligible; recomposition reads current materialization/classification and ordinary-projection generations. |
+| Retention reject | Any mismatch in the exact retention fence | Evidence is ineligible; the runtime withholds the new complete generation or retains only the ordinary-only baseline. |
+| Publication restage allow | A is published; add B while A's provider fence is unchanged | Only the publication generation advances for A; A is restaged under the new publication fence, only B is invoked, and A+B becomes visible atomically under one publication generation. |
+| Whole-surface publication allow | Every active range slot and independent pin resolved/staged under one complete surface demand-set generation | One atomic complete virtual composition becomes visible; no provider result publishes before every active member is staged/resolved under that publication generation. |
+| Whole-surface publication reject | One active member fails, is unresolved, or has a mismatched publication fence | Prior eligible complete composition or ordinary-only baseline remains; no mixed old/new or partial virtual tree is published. |
+| Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
+| Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
 
 ## 15. Explicit exclusion: `split_pane`
 

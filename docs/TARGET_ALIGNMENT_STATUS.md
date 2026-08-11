@@ -200,6 +200,44 @@ provider invocation, scheduling/demand ownership, custom transform, focus/action
 or product wiring is added. Estimates remain unchanged: generic ~97%,
 Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
 (~81.91%).
+
+The approved semantic-demand and refresh contract is target-only and
+unimplemented. It assigns one crate-private semantic-demand owner per
+`SurfaceRuntime`, one active contiguous logical range-demand slot per mounted
+virtual container, and the existing independent one-item semantic pin. Only an
+explicit semantic/accessibility range request or explicit required-item pin is
+demand; registration is capability-only, and viewport/overscan/paint/hit-test,
+provider-availability, item-count, diagnostics, and snapshot reads are not
+demand. The target is logical-only, rejects `Custom` before provider invocation
+without an identity-transform fallback, admits at most
+`MAX_VIRTUAL_LAYOUT_REGISTRATIONS` 64 registrations, bounds each registration
+and `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` at 1024 entries, caps aggregate active
+range length at 1024, and permits at most one provider call per
+container/attempt.
+
+Demand generation and attempt sequence, an exact per-slot provider fence, and
+an exact publication fence wrapping it are specified for identity, mount,
+data/policy/measurement/semantic revisions, coordinate, budget, exact demand,
+provider identity/generation, source, demand generation, attempt, and
+cancellation. Publication adds materialization/classification authority,
+ordinary projection generation, and complete surface demand-set generation.
+Only initial/changed explicit demand,
+identity/mount/revision/provider/coordinate/budget changes, and explicit retry
+refresh the provider. Snapshot reads, ordinary repaint, paint-only work, and
+unchanged refresh do not; materialization/ordinary-projection changes may
+reclassify retained exact evidence without provider reentry. `Found`,
+`NotFound`, terminal `Unavailable(NoProvider/Unsupported)`,
+`Unavailable(DataUnavailable)`, `Deferred`, `Rejected`/malformed, and stale/superseded
+outcomes have explicit staging, slot, fallback, and publication behavior.
+`Unmaterialized`/`materialized = false` remains authoritative, semantics do not
+authorize materialization, scrolling, actions, focus, paint, hit testing,
+scheduling, rendering, or provider authority, and snapshot functions remain
+pure reads. Custom-coordinate transformation, production/native consumer,
+scheduler/backoff/fairness, multiple active ranges per container, public API,
+and runtime implementation remain deferred. Estimates remain exactly
+unchanged: generic ~97%, Declarative identity 71%, layout 97%, and broad
+coverage `901 / 11` (~81.91%).
+
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

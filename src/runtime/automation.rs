@@ -1,5 +1,9 @@
 //! Backend-neutral automation snapshot extraction for runtime surfaces.
 
+use super::controller::{
+    VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError,
+    VirtualLayoutSemanticClassificationBatch,
+};
 use crate::{
     gui::automation::{
         AutomationTarget, AutomationTargetAuthority, GuiAutomationSnapshot,
@@ -87,6 +91,18 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Compose already-classified virtual semantic evidence into a private
+    /// automation snapshot without changing the live runtime.
+    #[allow(dead_code)]
+    pub(crate) fn compose_virtual_layout_automation_snapshot(
+        &self,
+        ordinary: &GuiAutomationSnapshot,
+        batches: &[VirtualLayoutSemanticClassificationBatch],
+    ) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
+        self.virtual_layout
+            .compose_virtual_layout_automation_snapshot(ordinary, batches)
+    }
+
     /// Return a serializable backend-neutral automation snapshot for the current surface.
     pub fn automation_snapshot(&self) -> GuiAutomationSnapshot {
         let viewport = self.context().viewport;

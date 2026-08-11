@@ -1160,11 +1160,33 @@ generated wrapper root is not substituted for the provider ID. The operation
 does not mutate pins, providers, materialization, refresh, layout, traversal,
 snapshots, focus, capture, lifecycle, or presentation state.
 
-This evidence does not add path insertion, coordinate-space resolution or
-custom transforms, final semantic ordering, global ID/collision admission,
-cross-range deduplication, or semantic-tree construction. Those remain later
-work. Estimates remain unchanged: generic architecture ~97%, Declarative
-identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
+This classification boundary does not itself add path insertion,
+coordinate-space resolution or custom transforms, final semantic ordering,
+global ID/collision admission, cross-range deduplication, or semantic-tree
+construction; those responsibilities belong to the private compositor below.
+
+The private automation-tree compositor is now shipped as a staged, crate-private
+consumer of these classification batches. It admits only `Logical` coordinates
+and rejects `Custom` before insertion. It normalizes batches by exact container,
+registration fence, and logical index so caller order cannot affect the result.
+Only exact same-key/index overlaps with identical semantic, geometry,
+provider-ID, origin, and fence evidence coalesce; conflicting overlap,
+key/index drift, duplicate payload roots, unstable equality, aggregate budget
+overflow, and the hard query cap reject the complete composition.
+
+The compositor requires an exact unique ordinary anchor for each participating
+container and an exact direct generated wrapper root for each materialized item.
+It replaces each materialized wrapper in place while preserving its descendants,
+inserts each unmaterialized provider root once as a leaf, and carries private
+flattened authority marking those leaves `materialized = false`. Ordinary,
+descendant, container, provider, and cross-range IDs are one global namespace;
+only the exact generated wrapper being replaced may be displaced. A final ID
+audit and clone-after-preflight staging preserve all-or-nothing behavior and
+leave source/runtime state unchanged on failure. This slice performs no provider
+invocation, scheduling/demand ownership, custom transform, focus/action/product
+wiring, public API change, or serialized-schema change. Estimates remain
+unchanged: generic architecture ~97%, Declarative identity 71%, layout 97%,
+and broad coverage `901 / 11` (~81.91%).
 
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy

@@ -5,6 +5,7 @@
 //! depending on host-specific shell contracts.
 
 mod accessibility;
+mod automation_compositor;
 mod commands;
 mod composition;
 mod context;
@@ -31,6 +32,9 @@ mod traversal_state;
 mod virtual_layout;
 mod work;
 
+pub(crate) use automation_compositor::{
+    VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError,
+};
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
@@ -44,6 +48,7 @@ pub use refresh::{
 };
 pub(crate) use scroll::WheelOrScrollRoute;
 pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
+pub(crate) use virtual_layout::VirtualLayoutSemanticClassificationBatch;
 
 use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,

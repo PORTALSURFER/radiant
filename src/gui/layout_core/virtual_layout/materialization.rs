@@ -174,6 +174,22 @@ impl VirtualLayoutSlotIdentity {
         }
     }
 
+    /// Construct one exact slot identity for cross-module unit-test fixtures.
+    #[cfg(test)]
+    pub(crate) const fn from_test_parts(
+        container_id: NodeId,
+        mount_generation: u64,
+        slot_index: usize,
+        checked_generation: u64,
+    ) -> Self {
+        Self::from_parts(
+            container_id,
+            mount_generation,
+            slot_index,
+            checked_generation,
+        )
+    }
+
     fn new(container_id: NodeId, mount_generation: u64, slot_index: usize) -> Self {
         Self {
             container_id,

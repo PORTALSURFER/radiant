@@ -177,9 +177,29 @@ the provider `AutomationNodeId`. The operation has no provider, pin,
 materialization, refresh, layout, traversal, snapshot, focus, capture,
 lifecycle, scheduler, renderer, or product side effect. Path insertion,
 coordinate resolution/custom transforms, final ordering, collision/ID
-admission, cross-range deduplication, and semantic-tree work remain separate
-unshipped boundaries. Estimates remain unchanged: generic ~97%, Declarative
-identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
+admission, cross-range deduplication, and semantic-tree work are not
+responsibilities of the classifier itself; the private compositor below
+consumes its result for the bounded logical-only tree step.
+
+The private automation-tree compositor is now shipped as staged, crate-private
+evidence. It consumes already validated classification batches, admits only
+`Logical` coordinates, rejects `Custom` before insertion, and normalizes input
+by exact registration fence, container, and logical index. Exact same-key/index
+overlaps coalesce only when semantic, geometry, provider-ID, origin, and fence
+evidence all agree; conflicting overlap, key/index drift, duplicate payload
+roots, unstable equality, aggregate registration-budget overflow, and hard-cap
+overflow reject atomically. It requires exact unique ordinary container anchors
+and exact direct generated wrapper roots, replaces materialized wrappers in
+place while preserving descendants, and inserts each unmaterialized provider
+leaf once with private flattened authority `materialized = false`. Ordinary,
+descendant, provider, container, and cross-range IDs share one namespace; only
+the exact generated wrapper being replaced may be displaced. A final uniqueness
+audit runs after staging, while source snapshots and runtime state remain
+unchanged on failure. Public APIs and serialized schema remain unchanged; no
+provider invocation, scheduling/demand ownership, custom transform, focus/action
+or product wiring is added. Estimates remain unchanged: generic ~97%,
+Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
+(~81.91%).
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

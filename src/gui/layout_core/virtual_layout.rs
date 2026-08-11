@@ -206,6 +206,15 @@ pub(crate) enum VirtualLayoutSemanticRejectedReason {
     ProviderRejected,
 }
 
+/// Owner of one bounded retained virtual-layout pin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutPinReason {
+    Focus,
+    PointerCapture,
+    Semantic,
+}
+
 /// One exact, immutable request for a bounded semantic lookup.
 ///
 /// This boundary is crate-private on purpose. Providers receive only the
@@ -388,20 +397,30 @@ pub(crate) trait VirtualLayoutSemanticProvider {
     fn lookup(&self, request: &VirtualLayoutSemanticRequest) -> VirtualLayoutSemanticQueryOutcome;
 }
 
-/// One bounded semantic pin retained by a mounted runtime record.
+/// One bounded virtual-layout pin retained by a mounted runtime record.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct VirtualLayoutSemanticPin {
+pub(crate) struct VirtualLayoutPin {
+    reason: VirtualLayoutPinReason,
     request: VirtualLayoutSemanticRequest,
     entry: VirtualLayoutSemanticEntry,
 }
 
 #[allow(dead_code)]
-impl VirtualLayoutSemanticPin {
+impl VirtualLayoutPin {
     pub(crate) fn new(
+        reason: VirtualLayoutPinReason,
         request: VirtualLayoutSemanticRequest,
         entry: VirtualLayoutSemanticEntry,
     ) -> Self {
-        Self { request, entry }
+        Self {
+            reason,
+            request,
+            entry,
+        }
+    }
+
+    pub(crate) const fn reason(&self) -> VirtualLayoutPinReason {
+        self.reason
     }
 
     pub(crate) fn request(&self) -> &VirtualLayoutSemanticRequest {

@@ -1112,21 +1112,27 @@ enters an indeterminate state; callback failure, reentry, or unwind terminally
 retires the private kernel with no rollback or recovery claim, while
 pre-callback admission and pure-projection failures remain recoverable. Runtime
 policy for that terminal state is deferred. It does not register a runtime
-surface, project concrete surfaces, own focus/accessibility pins, schedule work,
-or serve a product consumer. Those runtime and product integrations remain
-future. Current fixed-child and host-projected fixed-row virtualization are
+surface, project concrete surfaces, schedule work, or serve a product consumer.
+That materialization kernel itself does not own focus/accessibility pins. The
+already-shipped private retained-item adapter
+and private `SurfaceRuntime` registration/two-pass bridge are crate-private
+runtime evidence; public registration/API, scheduler/renderer policy, full
+focus/accessibility traversal, and a product consumer remain unshipped. Current
+fixed-child and host-projected fixed-row virtualization are
 compatibility paths, not an implementation of those later integrations.
 
-#### Runtime consumer boundary (contract-only)
+#### Runtime consumer boundary (private bridge evidence)
 
-The missing runtime consumer boundary is now contract-frozen but is not shipped.
-For one mounted virtual container generation, `SurfaceRuntime` is the eventual
-owner of one materialization record. `AppBridge`, `RuntimeBridge`, the policy,
-and product/application state may provide projection inputs or observations but
-do not own retained slots. A future registration descriptor is discoverable from
+The private retained-item adapter and private `SurfaceRuntime`
+registration/two-pass bridge are shipped as bounded crate-private runtime
+evidence. They do not claim public registration, a public API, or product
+integration. For one mounted virtual container generation, `SurfaceRuntime`
+owns one materialization record. `AppBridge`, `RuntimeBridge`, the policy, and
+product/application state may provide projection inputs or observations but do
+not own retained slots. The private registration descriptor is discoverable from
 the declarative `UiSurface`/`SurfaceContainer` shell before materialized children
-exist; defining or exporting that registration API, or advancing a capability
-contract version, is outside this slice.
+exist; exporting that descriptor as public API or advancing a capability
+contract version remains outside this slice.
 
 Initial mount is synchronous and has two stages with this fixed order:
 
@@ -1160,13 +1166,14 @@ Descriptor removal, container-generation replacement, and runtime close
 explicitly unmount exactly once before dropping that materialization owner/record
 from `SurfaceRuntime`. Terminal lifecycle failure suppresses partial
 materialization and does not automatically retry or transfer state;
-replacement/recovery policy is deferred.
-This boundary has no scheduler/renderer callbacks and leaves existing public
-APIs and contract versions unchanged. The later executable work is deliberately
-split into (1) the **private retained-item adapter** (the next executable PR),
-which performs fallible scoped `ViewNode` lowering, identity admission, and
-immutable `SurfaceNode` payload construction, and (2) a separate
-`SurfaceRuntime` registration/two-pass bridge.
+replacement/recovery policy is deferred. The private bridge has no
+scheduler/renderer callbacks and leaves existing public APIs and contract
+versions unchanged. The private virtual-layout pin-owner prerequisite is also
+shipped: each mounted record has one bounded optional pin for `Focus`,
+`PointerCapture`, or `Semantic`, fenced by the exact request scope and
+data/policy/measurement/semantic revisions. Full focus traversal, accessibility
+traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
+policy, and product wiring remain unshipped.
 
 ### Leaf content and interactive widgets
 

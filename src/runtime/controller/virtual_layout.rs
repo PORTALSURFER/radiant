@@ -779,19 +779,21 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
     fn synchronize_semantic_demand(&mut self) {
-        if let Some(session) = &mut self.semantic_session {
-            // A normal lifecycle/materialization synchronization is an
-            // invalidation boundary for a previously selected publication.
-            // Explicit refresh stores a new selection after this hook returns.
-            session.selection = None;
-        }
         let semantic_registrations = self
             .records
             .iter()
             .filter(|record| !record.retired)
             .map(|record| (record.registration.clone(), record.mount_generation))
             .collect::<Vec<_>>();
-        let _ = self.semantic_demand.synchronize(&semantic_registrations);
+        let (authority_changed, _) = self
+            .semantic_demand
+            .synchronize_with_change(&semantic_registrations);
+        if authority_changed && let Some(session) = &mut self.semantic_session {
+            // A real lifecycle/authority synchronization is an invalidation
+            // boundary for a previously selected publication.  Rejected
+            // demand updates leave the owner unchanged and retain it.
+            session.selection = None;
+        }
     }
 
     pub(super) fn prepare_surface(
@@ -3244,6 +3246,58 @@ mod tests {
             .expect("selected read should remain pure")
             .expect("the explicit publication should be selected");
         assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn semantic_automation_rejected_replacement_preserves_selected_publication() {
+        let entries = valid_semantic_range_entries(0, 2);
+        let (mut state, _batch, calls, _policy_calls) =
+            materialized_state_and_batch(Vec::new(), entries);
+        let session = state
+            .open_semantic_automation_session(903)
+            .expect("one session should open");
+        let container = state
+            .semantic_automation_containers(903, session)
+            .expect("the live mounted container should enumerate")[0];
+        let ordinary = semantic_publication_snapshot();
+        let published = state
+            .refresh_semantic_automation(
+                903,
+                session,
+                &[SemanticAutomationDemand::range(container, 0, 2)],
+                &ordinary,
+                (1, 2, 3),
+            )
+            .expect("the valid demand should publish");
+        let published_snapshot = published.composition.snapshot().clone();
+        assert_eq!(published.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(calls.get(), 2);
+
+        let rejected = state.refresh_semantic_automation(
+            903,
+            session,
+            &[
+                SemanticAutomationDemand::range(container, 0, 2),
+                SemanticAutomationDemand::range(container, 0, 2),
+            ],
+            &ordinary,
+            (1, 2, 3),
+        );
+        assert!(matches!(
+            rejected,
+            Err(SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::DuplicateSource,
+            ))
+        ));
+        assert_eq!(calls.get(), 2);
+
+        let selected = state
+            .selected_semantic_automation(903, session, &ordinary, 3)
+            .expect("selected read should remain pure")
+            .expect("the prior publication should remain selected");
+        assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(selected.composition.snapshot(), &published_snapshot);
         assert_eq!(calls.get(), 2);
     }
 

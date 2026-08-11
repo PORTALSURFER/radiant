@@ -695,28 +695,39 @@ impl<Message> SemanticDemandOwner<Message> {
         &mut self,
         registrations: &[(VirtualLayoutRegistration<Message>, u64)],
     ) -> Vec<SemanticAttemptTicket> {
+        self.synchronize_with_change(registrations).1
+    }
+
+    /// Synchronize semantic authority and report whether the live authority
+    /// changed alongside the pending restart tickets.
+    pub(super) fn synchronize_with_change(
+        &mut self,
+        registrations: &[(VirtualLayoutRegistration<Message>, u64)],
+    ) -> (bool, Vec<SemanticAttemptTicket>) {
         if registrations.len() > MAX_VIRTUAL_LAYOUT_REGISTRATIONS
             || contains_duplicate_container(registrations)
         {
             self.retire_all();
-            return Vec::new();
+            return (true, Vec::new());
         }
 
         let active_ids: Vec<NodeId> = registrations
             .iter()
             .map(|(registration, _)| registration.container_id)
             .collect();
+        let mut changed = false;
         let mut index = 0;
         while index < self.records.len() {
             if active_ids.contains(&self.records[index].authority.container_id) {
                 index += 1;
             } else {
+                changed = true;
                 if self.records[index].has_members()
                     && (self.ensure_demand_set_capacity().is_err()
                         || self.advance_demand_set_generation().is_err())
                 {
                     self.retire_all();
-                    return Vec::new();
+                    return (true, Vec::new());
                 }
                 let mut record = self.records.remove(index);
                 record.cancel_and_clear();
@@ -728,9 +739,10 @@ impl<Message> SemanticDemandOwner<Message> {
             let authority =
                 SemanticLiveAuthority::from_registration(registration, *mount_generation);
             let Some(existing_index) = self.record_index(registration.container_id) else {
+                changed = true;
                 let Some(record) = self.new_record(authority) else {
                     self.retire_all();
-                    return Vec::new();
+                    return (true, Vec::new());
                 };
                 self.records.push(record);
                 continue;
@@ -740,12 +752,13 @@ impl<Message> SemanticDemandOwner<Message> {
                 .authority
                 .same_scope(registration)
             {
+                changed = true;
                 if self.records[existing_index].has_members()
                     && (self.ensure_demand_set_capacity().is_err()
                         || self.advance_demand_set_generation().is_err())
                 {
                     self.retire_all();
-                    return Vec::new();
+                    return (true, Vec::new());
                 }
                 let mut old = self.records.remove(existing_index);
                 old.cancel_and_clear();
@@ -778,6 +791,7 @@ impl<Message> SemanticDemandOwner<Message> {
                 continue;
             }
 
+            changed = true;
             self.records[existing_index]
                 .authority
                 .update_from(registration, *mount_generation);
@@ -830,7 +844,7 @@ impl<Message> SemanticDemandOwner<Message> {
                 }
             }
         }
-        refresh_tickets
+        (changed, refresh_tickets)
     }
 
     /// Retire all semantic authority and cancel active attempts before clearing

@@ -475,6 +475,45 @@ fn numeric_input_on_interaction_keeps_error_order_without_thread_bounds() {
 }
 
 #[test]
+fn numeric_input_on_interaction_with_accessibility_keeps_local_error_types() {
+    type Outcome = radiant::widgets::NumericAccessibilityOutcome<
+        GenericNumericValue,
+        LocalAdjustmentError,
+        LocalCodecError,
+    >;
+
+    let builder = radiant::application::numeric_input(
+        GenericNumericValue(7),
+        LocalErrorNumericCodec,
+        LocalErrorNumericAdjustment,
+    )
+    .expect("local error policies should construct");
+    let _: radiant::runtime::UiSurface<()> = builder
+        .on_interaction_with_accessibility(
+            |batch: NumericInputInteractionBatch<
+                GenericNumericValue,
+                LocalAdjustmentError,
+                LocalCodecError,
+            >| {
+                assert_eq!(batch.len(), 1);
+            },
+            |outcome: Outcome| {
+                assert!(matches!(
+                    outcome,
+                    Outcome::Edit(_)
+                        | Outcome::NoChange { .. }
+                        | Outcome::Rejected { .. }
+                        | Outcome::Blocked { .. }
+                        | Outcome::AdjustmentFailed { .. }
+                        | Outcome::FormatFailed { .. }
+                ));
+            },
+        )
+        .id(79)
+        .into_surface();
+}
+
+#[test]
 fn numeric_input_on_interaction_maps_one_complete_text_edit_envelope() {
     type Batch = NumericInputInteractionBatch<
         GenericNumericValue,

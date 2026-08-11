@@ -356,7 +356,7 @@ impl<Message> SurfaceNode<Message> {
         layout: &crate::layout::LayoutOutput,
     ) -> AutomationNodeSnapshot {
         let node_id = self.id();
-        AutomationNodeSnapshot::from_semantics(
+        let mut snapshot = AutomationNodeSnapshot::from_semantics(
             AutomationNodeId::new(node_id.to_string()),
             layout
                 .rects
@@ -365,8 +365,13 @@ impl<Message> SurfaceNode<Message> {
                 .map(AutomationBounds::from_rect)
                 .unwrap_or_else(AutomationBounds::zero),
             self.automation_semantics(),
-        )
-        .with_children(self.automation_children(layout))
+        );
+        if let Self::Widget(widget) = self
+            && let Some(actions) = widget.widget().automation_available_actions()
+        {
+            snapshot.available_actions = actions;
+        }
+        snapshot.with_children(self.automation_children(layout))
     }
 
     fn automation_semantics(&self) -> AutomationNodeSemantics {

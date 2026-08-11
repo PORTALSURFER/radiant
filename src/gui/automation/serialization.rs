@@ -5,6 +5,32 @@ use super::model::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationPoint, AutomationRole,
 };
 
+/// Runtime-owned authority evidence captured with an executable automation
+/// target.  The token is evidence only; runtime dispatch must still resolve the
+/// current target and revalidate its capabilities before mutation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationTargetAuthority {
+    /// Runtime projection generation at which the target was materialized.
+    pub runtime_generation: u64,
+    /// Whether the target was materialized in that projection.
+    #[serde(default = "materialized_default")]
+    pub materialized: bool,
+}
+
+const fn materialized_default() -> bool {
+    true
+}
+
+impl AutomationTargetAuthority {
+    /// Build authority evidence for a materialized runtime target.
+    pub const fn materialized(runtime_generation: u64) -> Self {
+        Self {
+            runtime_generation,
+            materialized: true,
+        }
+    }
+}
+
 /// Flattened automation target derived from one semantic node.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AutomationTarget {
@@ -44,6 +70,9 @@ pub struct AutomationTarget {
     pub available_actions: Vec<String>,
     /// Additional deterministic metadata for automation and test consumers.
     pub metadata: BTreeMap<String, String>,
+    /// Optional runtime authority evidence for dispatch requests.
+    #[serde(default)]
+    pub authority: Option<AutomationTargetAuthority>,
 }
 
 impl AutomationTarget {
@@ -75,6 +104,7 @@ impl AutomationTarget {
             interaction_target,
             available_actions: node.available_actions.clone(),
             metadata: node.metadata.clone(),
+            authority: None,
         }
     }
 

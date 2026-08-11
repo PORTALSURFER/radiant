@@ -125,6 +125,8 @@ pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,
     WidgetNodeParts,
 };
+#[cfg(test)]
+pub(crate) use virtual_layout::VirtualLayoutSemanticDeferredReason;
 pub use virtual_layout::{
     VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutBoundsConfidence, VirtualLayoutBudget,
     VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason, VirtualLayoutDiagnostic,
@@ -144,14 +146,11 @@ pub(crate) use virtual_layout::{
     VirtualLayoutMaterializationStore, VirtualLayoutPin, VirtualLayoutPinReason,
     VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind, VirtualLayoutRetainReason,
     VirtualLayoutSemanticEntry, VirtualLayoutSemanticProjection,
-    VirtualLayoutSemanticProjectionBatch, VirtualLayoutSemanticProvider,
-    VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRange,
+    VirtualLayoutSemanticProjectionAuthority, VirtualLayoutSemanticProjectionBatch,
+    VirtualLayoutSemanticProvider, VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRange,
     VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeProviderOutcome,
     VirtualLayoutSemanticRangeQueryOutcome, VirtualLayoutSemanticRangeRequest,
     VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
-    VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
-};
-#[cfg(test)]
-pub(crate) use virtual_layout::{
-    VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticProjectionAuthority,
+    VirtualLayoutSemanticUnavailableReason, VirtualLayoutSlotIdentity,
+    VirtualLayoutWindowCoordinator,
 };

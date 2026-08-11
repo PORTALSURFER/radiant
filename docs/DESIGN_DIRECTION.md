@@ -1224,6 +1224,32 @@ policy, or product wiring shipped. Generic architecture remains ~97%,
 Declarative identity remains 71%, layout remains 97%, and broad coverage
 remains `901 / 11` (~81.91%).
 
+The next bounded boundary is also shipped as private synchronous evidence:
+an already-validated `VirtualLayoutSemanticProjectionBatch` can be classified
+against its matching live runtime record and materialization store without a
+second semantic-provider call. The classifier first matches the batch against
+the live registration and the store's authoritative `VirtualLayoutQueryFence`
+for container identity, stable policy identity, mount generation, data/policy/
+measurement/semantic revisions, coordinate-space identity, and admitted
+budget; only then may it inspect active slots. Missing, retired,
+lifecycle-indeterminate, or authority-less materialization evidence and every
+fence, key, index, unstable-equality, ambiguous, or malformed-evidence failure
+reject atomically. Exact matches require `VirtualLayoutItemKey::stable_equals`
+and the same logical index; each in-range active slot must map exactly once.
+The ordered result preserves the provider `AutomationNodeId`, semantics,
+coordinate declaration, bounds, logical index, request fence, and opaque key
+identity, while carrying a separate private origin of
+`Materialized { exact slot identity, payload-root NodeId }` or
+`Unmaterialized`. The existing projection authority remains unchanged, and
+retained `SurfaceNode` payloads are read only for `payload().id()` rather than
+cloned. This boundary mutates no pin, provider, materialization, refresh,
+layout, traversal, snapshot, focus, capture, lifecycle, or presentation state.
+Path insertion, coordinate resolution/custom transforms, final ordering,
+global collision/ID admission, cross-range deduplication, and semantic-tree
+construction remain unshipped. The estimates remain unchanged: generic ~97%,
+Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
+(~81.91%).
+
 ### Leaf content and interactive widgets
 
 Leaf nodes are placed by containers. Passive content such as text, icons,

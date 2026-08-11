@@ -11,14 +11,18 @@ use crate::{
         VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore, VirtualLayoutPin,
         VirtualLayoutPinReason, VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
         VirtualLayoutRetainReason, VirtualLayoutSemanticProjection,
-        VirtualLayoutSemanticProjectionBatch, VirtualLayoutSemanticQueryOutcome,
-        VirtualLayoutSemanticRange, VirtualLayoutSemanticRangeProviderOutcome,
-        VirtualLayoutSemanticRangeQueryOutcome, VirtualLayoutSemanticRangeRequest,
-        VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
-        VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
+        VirtualLayoutSemanticProjectionAuthority, VirtualLayoutSemanticProjectionBatch,
+        VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRange,
+        VirtualLayoutSemanticRangeProviderOutcome, VirtualLayoutSemanticRangeQueryOutcome,
+        VirtualLayoutSemanticRangeRequest, VirtualLayoutSemanticRejectedReason,
+        VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+        VirtualLayoutSlotIdentity, VirtualLayoutWindowCoordinator,
     },
     gui::types::Rect,
-    layout::{VirtualLayoutItemKey, VirtualLayoutQueryInputParts},
+    layout::{
+        NodeId, VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItemKey,
+        VirtualLayoutPolicyIdentity, VirtualLayoutQueryFence, VirtualLayoutQueryInputParts,
+    },
     runtime::{
         SurfaceNode, SurfaceTraversalIndex, UiSurface,
         surface::{
@@ -113,6 +117,82 @@ enum RuntimeVirtualLayoutMaterialization<Message> {
     Suppressed,
     Committed(Box<RuntimeVirtualLayoutCommittedBatch<Message>>),
     Retired,
+}
+
+/// Private origin evidence for one semantic projection classification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VirtualLayoutSemanticClassificationOrigin {
+    Materialized {
+        slot_identity: VirtualLayoutSlotIdentity,
+        payload_root: NodeId,
+    },
+    Unmaterialized,
+}
+
+/// One semantic projection paired with exact retained-materialization origin.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticClassification {
+    projection: VirtualLayoutSemanticProjection,
+    origin: VirtualLayoutSemanticClassificationOrigin,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticClassification {
+    pub(crate) fn projection(&self) -> &VirtualLayoutSemanticProjection {
+        &self.projection
+    }
+
+    pub(crate) const fn origin(&self) -> VirtualLayoutSemanticClassificationOrigin {
+        self.origin
+    }
+}
+
+/// Atomic ordered output of one exact semantic/materialization classification.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticClassificationBatch {
+    request: VirtualLayoutSemanticRangeRequest,
+    classifications: Vec<VirtualLayoutSemanticClassification>,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticClassificationBatch {
+    pub(crate) fn request(&self) -> &VirtualLayoutSemanticRangeRequest {
+        &self.request
+    }
+
+    pub(crate) fn classifications(&self) -> &[VirtualLayoutSemanticClassification] {
+        &self.classifications
+    }
+}
+
+/// Exact fence fields admitted by the private semantic/materialization bridge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VirtualLayoutSemanticClassificationFenceField {
+    ContainerIdentity,
+    PolicyIdentity,
+    MountGeneration,
+    DataRevision,
+    PolicyRevision,
+    MeasurementRevision,
+    SemanticRevision,
+    CoordinateSpace,
+    Budget,
+}
+
+/// Conservative failure for one all-or-nothing classification attempt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VirtualLayoutSemanticClassificationError {
+    UnknownContainer,
+    Retired,
+    MaterializationAuthorityUnavailable,
+    MalformedBatch,
+    UnstablePolicyIdentity,
+    UnstableCoordinateSpace,
+    FenceMismatch(VirtualLayoutSemanticClassificationFenceField),
+    UnstableKey,
+    AmbiguousMaterialization,
+    KeyIndexMismatch,
+    UnmatchedMaterializedSlot,
 }
 
 struct RuntimeVirtualLayoutRecord<Message> {
@@ -389,6 +469,109 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             pin,
             self.registration.coordinate_space.clone(),
         )
+    }
+
+    fn classify_semantic_range(
+        &self,
+        batch: &VirtualLayoutSemanticProjectionBatch,
+    ) -> Result<VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationError>
+    {
+        if self.retired {
+            return Err(VirtualLayoutSemanticClassificationError::Retired);
+        }
+        validate_semantic_classification_batch(batch)?;
+        validate_semantic_request_scope(
+            batch.request(),
+            self.registration.container_id,
+            &self.registration.policy_identity,
+            self.mount_generation,
+            self.registration.data_revision(),
+            self.registration.policy_revision(),
+            self.registration.measurement_revision(),
+            self.registration.semantic_revision(),
+            &self.registration.coordinate_space,
+            self.registration.budget,
+        )?;
+        let Some(authoritative_fence) = self.materialization.authoritative_fence() else {
+            return Err(
+                VirtualLayoutSemanticClassificationError::MaterializationAuthorityUnavailable,
+            );
+        };
+        validate_semantic_materialization_fence(batch.request(), authoritative_fence)?;
+
+        let active_len = self.materialization.active_len();
+        if active_len > batch.request().budget().max_entries()
+            || active_len > crate::layout::VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
+        {
+            return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+        }
+        let active_slots = self.materialization.active_slots();
+        let mut matched_projection = vec![None; batch.projections().len()];
+        let mut matched_active = vec![None; active_slots.len()];
+
+        for (projection_index, projection) in batch.projections().iter().enumerate() {
+            for (active_index, slot) in active_slots.iter().enumerate() {
+                match slot.item().key().stable_equals(projection.identity().key()) {
+                    Some(true) => {
+                        if slot.item().logical_index() != projection.logical_index() {
+                            return Err(VirtualLayoutSemanticClassificationError::KeyIndexMismatch);
+                        }
+                        if matched_projection[projection_index]
+                            .replace(active_index)
+                            .is_some()
+                            || matched_active[active_index]
+                                .replace(projection_index)
+                                .is_some()
+                        {
+                            return Err(
+                                VirtualLayoutSemanticClassificationError::AmbiguousMaterialization,
+                            );
+                        }
+                    }
+                    Some(false) => {}
+                    None => {
+                        return Err(VirtualLayoutSemanticClassificationError::UnstableKey);
+                    }
+                }
+            }
+        }
+
+        for (active_index, slot) in active_slots.iter().enumerate() {
+            if batch
+                .request()
+                .range()
+                .contains(slot.item().logical_index())
+                && matched_active[active_index].is_none()
+            {
+                return Err(VirtualLayoutSemanticClassificationError::UnmatchedMaterializedSlot);
+            }
+        }
+
+        let classifications = batch
+            .projections()
+            .iter()
+            .enumerate()
+            .map(|(projection_index, projection)| {
+                let origin = matched_projection[projection_index]
+                    .map(|active_index| {
+                        let slot = &active_slots[active_index];
+                        VirtualLayoutSemanticClassificationOrigin::Materialized {
+                            slot_identity: slot.identity(),
+                            payload_root: slot.payload().id(),
+                        }
+                    })
+                    .unwrap_or(VirtualLayoutSemanticClassificationOrigin::Unmaterialized);
+                VirtualLayoutSemanticClassification {
+                    projection: projection.clone(),
+                    origin,
+                }
+            })
+            .collect();
+
+        Ok(VirtualLayoutSemanticClassificationBatch {
+            request: batch.request().clone(),
+            classifications,
+        })
     }
 }
 
@@ -916,6 +1099,26 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.query_semantic_range(&request)
     }
 
+    /// Classify one already-validated semantic range against the matching live
+    /// materialization authority without invoking providers or mutating state.
+    pub(crate) fn classify_virtual_layout_semantic_range(
+        &self,
+        batch: &VirtualLayoutSemanticProjectionBatch,
+    ) -> Result<VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationError>
+    {
+        let mut matching_records = self
+            .records
+            .iter()
+            .filter(|record| record.registration.container_id == batch.request().container_id());
+        let Some(record) = matching_records.next() else {
+            return Err(VirtualLayoutSemanticClassificationError::UnknownContainer);
+        };
+        if matching_records.next().is_some() {
+            return Err(VirtualLayoutSemanticClassificationError::AmbiguousMaterialization);
+        }
+        record.classify_semantic_range(batch)
+    }
+
     pub(super) fn take_projection_probe(
         &mut self,
     ) -> Option<RuntimeVirtualLayoutProjectionProbe<Message>> {
@@ -965,6 +1168,243 @@ fn same_optional_key(
         (None, None) => true,
         (Some(left), Some(right)) => left.stable_equals(right) == Some(true),
         _ => false,
+    }
+}
+
+fn validate_semantic_classification_batch(
+    batch: &VirtualLayoutSemanticProjectionBatch,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    let request = batch.request();
+    let range = request.range();
+    if batch.projections().len() != range.length()
+        || range.length() > request.budget().max_entries()
+        || range.length() > crate::layout::VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
+    {
+        return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+    }
+    for (offset, projection) in batch.projections().iter().enumerate() {
+        if projection.authority() != VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+            || range.expected_index(offset) != Some(projection.logical_index())
+            || projection.identity().container_id() != request.container_id()
+            || !projection.bounds().is_finite()
+            || projection.bounds().min.x > projection.bounds().max.x
+            || projection.bounds().min.y > projection.bounds().max.y
+        {
+            return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+        }
+        let Some(projection_range_request) = projection.range_request() else {
+            return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+        };
+        validate_matching_semantic_range_request(request, projection_range_request)?;
+        validate_matching_semantic_item_request(request, projection.request())?;
+        match stable_coordinate_space_equals(
+            projection.coordinate_space(),
+            request.coordinate_space(),
+        ) {
+            Some(true) => {}
+            Some(false) => {
+                return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+            }
+            None => {
+                return Err(VirtualLayoutSemanticClassificationError::UnstableCoordinateSpace);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_matching_semantic_range_request(
+    expected: &VirtualLayoutSemanticRangeRequest,
+    actual: &VirtualLayoutSemanticRangeRequest,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    if expected.container_id() != actual.container_id()
+        || expected.mount_generation() != actual.mount_generation()
+        || expected.data_revision() != actual.data_revision()
+        || expected.policy_revision() != actual.policy_revision()
+        || expected.measurement_revision() != actual.measurement_revision()
+        || expected.semantic_revision() != actual.semantic_revision()
+        || expected.budget() != actual.budget()
+        || expected.range() != actual.range()
+    {
+        return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+    }
+    match expected
+        .policy_identity()
+        .stable_equals(actual.policy_identity())
+    {
+        Some(true) => {}
+        Some(false) => return Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstablePolicyIdentity),
+    }
+    match stable_coordinate_space_equals(expected.coordinate_space(), actual.coordinate_space()) {
+        Some(true) => Ok(()),
+        Some(false) => Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => Err(VirtualLayoutSemanticClassificationError::UnstableCoordinateSpace),
+    }
+}
+
+fn validate_matching_semantic_item_request(
+    range_request: &VirtualLayoutSemanticRangeRequest,
+    item_request: &VirtualLayoutSemanticRequest,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    if range_request.container_id() != item_request.container_id()
+        || range_request.mount_generation() != item_request.mount_generation()
+        || range_request.data_revision() != item_request.data_revision()
+        || range_request.policy_revision() != item_request.policy_revision()
+        || range_request.measurement_revision() != item_request.measurement_revision()
+        || range_request.semantic_revision() != item_request.semantic_revision()
+    {
+        return Err(VirtualLayoutSemanticClassificationError::MalformedBatch);
+    }
+    match range_request
+        .policy_identity()
+        .stable_equals(item_request.policy_identity())
+    {
+        Some(true) => Ok(()),
+        Some(false) => Err(VirtualLayoutSemanticClassificationError::MalformedBatch),
+        None => Err(VirtualLayoutSemanticClassificationError::UnstablePolicyIdentity),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_semantic_request_scope(
+    request: &VirtualLayoutSemanticRangeRequest,
+    container_id: NodeId,
+    policy_identity: &VirtualLayoutPolicyIdentity,
+    mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
+    semantic_revision: u64,
+    coordinate_space: &VirtualLayoutCoordinateSpace,
+    budget: VirtualLayoutBudget,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    validate_semantic_scope_fields(
+        request,
+        container_id,
+        policy_identity,
+        mount_generation,
+        data_revision,
+        policy_revision,
+        measurement_revision,
+        semantic_revision,
+        coordinate_space,
+        budget,
+    )
+}
+
+fn validate_semantic_materialization_fence(
+    request: &VirtualLayoutSemanticRangeRequest,
+    fence: &VirtualLayoutQueryFence,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    validate_semantic_scope_fields(
+        request,
+        fence.container_id(),
+        fence.policy_identity(),
+        fence.mount_generation(),
+        fence.data_revision(),
+        fence.policy_revision(),
+        fence.measurement_revision(),
+        fence.semantic_revision(),
+        fence.coordinate_space(),
+        fence.budget(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_semantic_scope_fields(
+    request: &VirtualLayoutSemanticRangeRequest,
+    container_id: NodeId,
+    policy_identity: &VirtualLayoutPolicyIdentity,
+    mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
+    semantic_revision: u64,
+    coordinate_space: &VirtualLayoutCoordinateSpace,
+    budget: VirtualLayoutBudget,
+) -> Result<(), VirtualLayoutSemanticClassificationError> {
+    if request.container_id() != container_id {
+        return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+            VirtualLayoutSemanticClassificationFenceField::ContainerIdentity,
+        ));
+    }
+    match request.policy_identity().stable_equals(policy_identity) {
+        Some(true) => {}
+        Some(false) => {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                VirtualLayoutSemanticClassificationFenceField::PolicyIdentity,
+            ));
+        }
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstablePolicyIdentity),
+    }
+    let revision_fields = [
+        (
+            request.mount_generation(),
+            mount_generation,
+            VirtualLayoutSemanticClassificationFenceField::MountGeneration,
+        ),
+        (
+            request.data_revision(),
+            data_revision,
+            VirtualLayoutSemanticClassificationFenceField::DataRevision,
+        ),
+        (
+            request.policy_revision(),
+            policy_revision,
+            VirtualLayoutSemanticClassificationFenceField::PolicyRevision,
+        ),
+        (
+            request.measurement_revision(),
+            measurement_revision,
+            VirtualLayoutSemanticClassificationFenceField::MeasurementRevision,
+        ),
+        (
+            request.semantic_revision(),
+            semantic_revision,
+            VirtualLayoutSemanticClassificationFenceField::SemanticRevision,
+        ),
+    ];
+    for (actual, expected, field) in revision_fields {
+        if actual != expected {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                field,
+            ));
+        }
+    }
+    match stable_coordinate_space_equals(request.coordinate_space(), coordinate_space) {
+        Some(true) => {}
+        Some(false) => {
+            return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                VirtualLayoutSemanticClassificationFenceField::CoordinateSpace,
+            ));
+        }
+        None => return Err(VirtualLayoutSemanticClassificationError::UnstableCoordinateSpace),
+    }
+    if request.budget() != budget {
+        return Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+            VirtualLayoutSemanticClassificationFenceField::Budget,
+        ));
+    }
+    Ok(())
+}
+
+fn stable_coordinate_space_equals(
+    left: &VirtualLayoutCoordinateSpace,
+    right: &VirtualLayoutCoordinateSpace,
+) -> Option<bool> {
+    match (left, right) {
+        (VirtualLayoutCoordinateSpace::Logical, VirtualLayoutCoordinateSpace::Logical) => {
+            Some(true)
+        }
+        (
+            VirtualLayoutCoordinateSpace::Custom(left),
+            VirtualLayoutCoordinateSpace::Custom(right),
+        ) => left.stable_equals(right),
+        (VirtualLayoutCoordinateSpace::Logical, VirtualLayoutCoordinateSpace::Custom(_))
+        | (VirtualLayoutCoordinateSpace::Custom(_), VirtualLayoutCoordinateSpace::Logical) => {
+            Some(false)
+        }
     }
 }
 
@@ -1159,6 +1599,18 @@ where
     ) -> VirtualLayoutSemanticRangeQueryOutcome {
         self.virtual_layout.query_semantic_range(request)
     }
+
+    /// Classify one validated semantic range against exact retained slot
+    /// evidence without invoking providers or changing runtime state.
+    #[allow(dead_code)]
+    pub(crate) fn classify_virtual_layout_semantic_range(
+        &self,
+        batch: &VirtualLayoutSemanticProjectionBatch,
+    ) -> Result<VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationError>
+    {
+        self.virtual_layout
+            .classify_virtual_layout_semantic_range(batch)
+    }
 }
 
 #[cfg(test)]
@@ -1185,8 +1637,8 @@ mod tests {
             VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason,
             VirtualLayoutExtentCandidate, VirtualLayoutItemCandidate, VirtualLayoutItemKey,
             VirtualLayoutOverscan, VirtualLayoutPolicy, VirtualLayoutPolicyDecision,
-            VirtualLayoutPolicyIdentity, VirtualLayoutQueryInput, VirtualLayoutQuerySink,
-            VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
+            VirtualLayoutPolicyIdentity, VirtualLayoutQueryInput, VirtualLayoutQueryInputParts,
+            VirtualLayoutQuerySink, VirtualLayoutUnavailableReason, VirtualLayoutVisibility,
         },
         runtime::{
             RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
@@ -1235,6 +1687,40 @@ mod tests {
             assert!(
                 sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
                     100.0, 20.0,
+                )))
+                .is_ok()
+            );
+            VirtualLayoutPolicyDecision::Ready
+        }
+    }
+
+    struct MaterializationPolicy {
+        calls: Rc<Cell<u32>>,
+        entries: Vec<(VirtualLayoutItemKey, usize)>,
+    }
+
+    impl VirtualLayoutPolicy for MaterializationPolicy {
+        fn query(
+            &self,
+            _input: &VirtualLayoutQueryInput,
+            sink: &mut VirtualLayoutQuerySink,
+        ) -> VirtualLayoutPolicyDecision {
+            self.calls.set(self.calls.get().saturating_add(1));
+            for (key, logical_index) in &self.entries {
+                assert!(
+                    sink.visit(VirtualLayoutItemCandidate::new(
+                        key.clone(),
+                        *logical_index,
+                        Rect::from_xy_size(0.0, *logical_index as f32 * 12.0, 24.0, 10.0),
+                        VirtualLayoutVisibility::Visible,
+                        VirtualLayoutBoundsConfidence::Exact,
+                    ))
+                    .is_ok()
+                );
+            }
+            assert!(
+                sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
+                    240.0, 120.0,
                 )))
                 .is_ok()
             );
@@ -1520,6 +2006,21 @@ mod tests {
         )
     }
 
+    fn semantic_range_entry_with_key(
+        key: VirtualLayoutItemKey,
+        logical_index: usize,
+        automation_node_id: AutomationNodeId,
+    ) -> VirtualLayoutSemanticEntry {
+        VirtualLayoutSemanticEntry::new(
+            key,
+            logical_index,
+            Rect::from_xy_size(4.0, logical_index as f32 * 12.0, 24.0, 10.0),
+            AutomationNodeSemantics::new(AutomationRole::Button)
+                .with_label(format!("semantic item {logical_index}")),
+            automation_node_id,
+        )
+    }
+
     fn semantic_range_request(
         state: &RuntimeVirtualLayoutState<()>,
         start_index: usize,
@@ -1609,6 +2110,436 @@ mod tests {
             })
             .collect()
     }
+
+    type MaterializedStateAndBatch = (
+        RuntimeVirtualLayoutState<()>,
+        VirtualLayoutSemanticProjectionBatch,
+        Rc<Cell<u32>>,
+        Rc<Cell<u32>>,
+    );
+
+    fn materialized_state_and_batch(
+        materialized: Vec<(VirtualLayoutItemKey, usize)>,
+        semantic_entries: Vec<VirtualLayoutSemanticEntry>,
+    ) -> MaterializedStateAndBatch {
+        let policy_calls = Rc::new(Cell::new(0));
+        let (provider, semantic_calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(semantic_entries.clone()),
+        );
+        let registration = registration_with_parts(RegistrationParts {
+            policy: Rc::new(MaterializationPolicy {
+                calls: Rc::clone(&policy_calls),
+                entries: materialized,
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("classification-policy"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("classification item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("classification-item-kind")),
+        })
+        .with_semantic_range_provider(provider);
+        let mut record = RuntimeVirtualLayoutRecord::new(registration, SEMANTIC_MOUNT_GENERATION);
+        let committed = record.materialize(Rect::from_xy_size(0.0, 0.0, 160.0, 80.0));
+        let RuntimeVirtualLayoutMaterialization::Committed(batch) = committed else {
+            panic!("the classification fixture should materialize a committed window");
+        };
+        record.commit_batch(*batch);
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(record);
+        let VirtualLayoutSemanticRangeQueryOutcome::Found(batch) =
+            state.admit_current_semantic_range(CONTAINER_ID, 0, semantic_entries.len())
+        else {
+            panic!("the classification fixture should admit its semantic range");
+        };
+        (state, batch, semantic_calls, policy_calls)
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct QueryPartsSnapshot {
+        container_id: crate::layout::NodeId,
+        policy_identity: VirtualLayoutPolicyIdentity,
+        mount_generation: u64,
+        query_sequence: u64,
+        viewport: Rect,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+        overscan: VirtualLayoutOverscan,
+        budget: VirtualLayoutBudget,
+        viewport_revision: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
+        semantic_revision: u64,
+    }
+
+    fn query_parts_snapshot(
+        parts: Option<&VirtualLayoutQueryInputParts>,
+    ) -> Option<QueryPartsSnapshot> {
+        parts.map(|parts| QueryPartsSnapshot {
+            container_id: parts.container_id,
+            policy_identity: parts.policy_identity.clone(),
+            mount_generation: parts.mount_generation,
+            query_sequence: parts.query_sequence,
+            viewport: parts.viewport,
+            coordinate_space: parts.coordinate_space.clone(),
+            overscan: parts.overscan,
+            budget: parts.budget,
+            viewport_revision: parts.viewport_revision,
+            data_revision: parts.data_revision,
+            policy_revision: parts.policy_revision,
+            measurement_revision: parts.measurement_revision,
+            semantic_revision: parts.semantic_revision,
+        })
+    }
+
+    #[test]
+    fn semantic_range_classification_preserves_order_and_exact_origin_without_side_effects() {
+        let cases = [
+            (
+                vec![
+                    (VirtualLayoutItemKey::new(100_u32), 0),
+                    (VirtualLayoutItemKey::new(102_u32), 2),
+                ],
+                [true, false, true],
+            ),
+            (
+                vec![
+                    (VirtualLayoutItemKey::new(100_u32), 0),
+                    (VirtualLayoutItemKey::new(101_u32), 1),
+                    (VirtualLayoutItemKey::new(102_u32), 2),
+                ],
+                [true, true, true],
+            ),
+            (Vec::new(), [false, false, false]),
+        ];
+
+        for (materialized, expected_materialized) in cases {
+            let entries = valid_semantic_range_entries(0, 3);
+            let (state, batch, semantic_calls, policy_calls) =
+                materialized_state_and_batch(materialized, entries.clone());
+            let fence_before = state.records[0]
+                .materialization
+                .authoritative_fence()
+                .cloned();
+            let active_before = state.records[0]
+                .materialization
+                .active_slots()
+                .into_iter()
+                .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+                .collect::<Vec<_>>();
+            let last_query_before = query_parts_snapshot(state.records[0].last_query.as_ref());
+            let retired_before = state.records[0].retired;
+
+            let classified = state
+                .classify_virtual_layout_semantic_range(&batch)
+                .expect("the matching materialization fence should classify");
+
+            assert_eq!(semantic_calls.get(), 1);
+            assert_eq!(policy_calls.get(), 1);
+            assert_eq!(classified.request(), batch.request());
+            assert_eq!(classified.classifications().len(), entries.len());
+            for (index, (classification, expected_materialized)) in classified
+                .classifications()
+                .iter()
+                .zip(expected_materialized)
+                .enumerate()
+            {
+                let projection = classification.projection();
+                assert_eq!(projection.logical_index(), index);
+                assert_eq!(projection.identity().key(), entries[index].requested_key());
+                assert_eq!(projection.bounds(), entries[index].bounds());
+                assert_eq!(projection.semantics(), entries[index].semantics());
+                assert_eq!(
+                    projection.automation_node_id(),
+                    entries[index].automation_node_id()
+                );
+                assert_eq!(
+                    projection.coordinate_space(),
+                    batch.request().coordinate_space()
+                );
+                assert_eq!(projection.range_request(), Some(batch.request()));
+                assert_eq!(
+                    projection.authority(),
+                    VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+                );
+                match (classification.origin(), expected_materialized) {
+                    (
+                        VirtualLayoutSemanticClassificationOrigin::Materialized {
+                            slot_identity,
+                            payload_root,
+                        },
+                        true,
+                    ) => {
+                        let slot = state.records[0]
+                            .materialization
+                            .active_slots()
+                            .into_iter()
+                            .find(|slot| slot.item().logical_index() == index)
+                            .expect("the exact materialized index should be retained");
+                        assert_eq!(slot_identity, slot.identity());
+                        assert_eq!(payload_root, slot.payload().id());
+                    }
+                    (VirtualLayoutSemanticClassificationOrigin::Unmaterialized, false) => {}
+                    (origin, expected) => {
+                        panic!("unexpected classification origin {origin:?}, expected {expected}");
+                    }
+                }
+            }
+
+            assert_eq!(
+                state.records[0]
+                    .materialization
+                    .authoritative_fence()
+                    .cloned(),
+                fence_before
+            );
+            assert_eq!(
+                state.records[0]
+                    .materialization
+                    .active_slots()
+                    .into_iter()
+                    .map(|slot| (slot.item().logical_index(), slot.payload().id()))
+                    .collect::<Vec<_>>(),
+                active_before
+            );
+            assert_eq!(
+                query_parts_snapshot(state.records[0].last_query.as_ref()),
+                last_query_before
+            );
+            assert_eq!(state.records[0].retired, retired_before);
+        }
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_each_materialization_fence_mismatch() {
+        fn mismatch_container(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.container_id += 1;
+        }
+        fn mismatch_policy(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.policy_identity = VirtualLayoutPolicyIdentity::new("other-policy");
+        }
+        fn mismatch_mount(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.mount_generation += 1;
+        }
+        fn mismatch_data(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.revisions.data += 1;
+        }
+        fn mismatch_policy_revision(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.revisions.policy += 1;
+        }
+        fn mismatch_measurement(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.revisions.measurement += 1;
+        }
+        fn mismatch_semantic(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.revisions.semantic += 1;
+        }
+        fn mismatch_coordinate(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.coordinate_space = VirtualLayoutCoordinateSpace::custom(
+                VirtualLayoutPolicyIdentity::new("other-coordinate-space"),
+            );
+        }
+        fn mismatch_budget(record: &mut RuntimeVirtualLayoutRecord<()>) {
+            record.registration.budget = VirtualLayoutBudget::new(3);
+        }
+
+        type SemanticFenceMismatchCase = (
+            VirtualLayoutSemanticClassificationFenceField,
+            fn(&mut RuntimeVirtualLayoutRecord<()>),
+        );
+        let cases: &[SemanticFenceMismatchCase] = &[
+            (
+                VirtualLayoutSemanticClassificationFenceField::ContainerIdentity,
+                mismatch_container,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::PolicyIdentity,
+                mismatch_policy,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::MountGeneration,
+                mismatch_mount,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::DataRevision,
+                mismatch_data,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::PolicyRevision,
+                mismatch_policy_revision,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::MeasurementRevision,
+                mismatch_measurement,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::SemanticRevision,
+                mismatch_semantic,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::CoordinateSpace,
+                mismatch_coordinate,
+            ),
+            (
+                VirtualLayoutSemanticClassificationFenceField::Budget,
+                mismatch_budget,
+            ),
+        ];
+
+        for &(field, mutate) in cases {
+            let (mut state, batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+                vec![(VirtualLayoutItemKey::new(100_u32), 0)],
+                valid_semantic_range_entries(0, 1),
+            );
+            mutate(&mut state.records[0]);
+            assert_eq!(
+                state.records[0].classify_semantic_range(&batch),
+                Err(VirtualLayoutSemanticClassificationError::FenceMismatch(
+                    field
+                ))
+            );
+            assert_eq!(semantic_calls.get(), 1);
+            assert_eq!(policy_calls.get(), 1);
+        }
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_key_index_incoherence_atomically() {
+        let cases = [
+            (
+                vec![(VirtualLayoutItemKey::new(100_u32), 1)],
+                VirtualLayoutSemanticClassificationError::KeyIndexMismatch,
+            ),
+            (
+                vec![(VirtualLayoutItemKey::new(101_u32), 0)],
+                VirtualLayoutSemanticClassificationError::UnmatchedMaterializedSlot,
+            ),
+        ];
+        for (materialized, expected_error) in cases {
+            let (state, batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+                materialized,
+                vec![semantic_range_entry_with_id(
+                    100,
+                    0,
+                    Rect::from_xy_size(4.0, 0.0, 24.0, 10.0),
+                    AutomationNodeId::new("classification-zero"),
+                )],
+            );
+            let fence_before = state.records[0]
+                .materialization
+                .authoritative_fence()
+                .cloned();
+            let active_before = state.records[0].materialization.active_len();
+            assert_eq!(
+                state.classify_virtual_layout_semantic_range(&batch),
+                Err(expected_error)
+            );
+            assert_eq!(semantic_calls.get(), 1);
+            assert_eq!(policy_calls.get(), 1);
+            assert_eq!(state.records[0].materialization.active_len(), active_before);
+            assert_eq!(
+                state.records[0]
+                    .materialization
+                    .authoritative_fence()
+                    .cloned(),
+                fence_before
+            );
+        }
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_malformed_batch_without_partial_output() {
+        let (state, batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+            vec![(VirtualLayoutItemKey::new(100_u32), 0)],
+            valid_semantic_range_entries(0, 1),
+        );
+        let malformed =
+            VirtualLayoutSemanticProjectionBatch::new(batch.request().clone(), Vec::new());
+        let active_before = state.records[0].materialization.active_len();
+        assert_eq!(
+            state.classify_virtual_layout_semantic_range(&malformed),
+            Err(VirtualLayoutSemanticClassificationError::MalformedBatch)
+        );
+        assert_eq!(state.records[0].materialization.active_len(), active_before);
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_unstable_key_equality_without_provider_reentry() {
+        let unstable = Rc::new(Cell::new(false));
+        let comparisons = Rc::new(Cell::new(0));
+        let key = VirtualLayoutItemKey::new(FlakyKey {
+            unstable: Rc::clone(&unstable),
+            comparisons: Rc::clone(&comparisons),
+        });
+        let (state, batch, semantic_calls, policy_calls) = materialized_state_and_batch(
+            vec![(key.clone(), 0)],
+            vec![semantic_range_entry_with_key(
+                key,
+                0,
+                AutomationNodeId::new("flaky-key"),
+            )],
+        );
+        unstable.set(true);
+        let active_before = state.records[0].materialization.active_len();
+        assert_eq!(
+            state.classify_virtual_layout_semantic_range(&batch),
+            Err(VirtualLayoutSemanticClassificationError::UnstableKey)
+        );
+        assert!(comparisons.get() > 0);
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
+        assert_eq!(state.records[0].materialization.active_len(), active_before);
+    }
+
+    #[test]
+    fn semantic_range_classification_rejects_retired_and_authorityless_materialization() {
+        let (mut retired_state, retired_batch, semantic_calls, policy_calls) =
+            materialized_state_and_batch(
+                vec![(VirtualLayoutItemKey::new(100_u32), 0)],
+                valid_semantic_range_entries(0, 1),
+            );
+        retired_state.records[0].retire();
+        assert_eq!(
+            retired_state.classify_virtual_layout_semantic_range(&retired_batch),
+            Err(VirtualLayoutSemanticClassificationError::Retired)
+        );
+        assert_eq!(semantic_calls.get(), 1);
+        assert_eq!(policy_calls.get(), 1);
+
+        let (provider, authorityless_calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut authorityless_state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(4),
+        );
+        let VirtualLayoutSemanticRangeQueryOutcome::Found(authorityless_batch) =
+            authorityless_state.admit_current_semantic_range(CONTAINER_ID, 0, 1)
+        else {
+            panic!("the authority-less fixture should admit semantic evidence");
+        };
+        assert_eq!(
+            authorityless_state.classify_virtual_layout_semantic_range(&authorityless_batch),
+            Err(VirtualLayoutSemanticClassificationError::MaterializationAuthorityUnavailable)
+        );
+        assert_eq!(authorityless_calls.get(), 1);
+    }
+
+    struct FlakyKey {
+        unstable: Rc<Cell<bool>>,
+        comparisons: Rc<Cell<u32>>,
+    }
+
+    impl PartialEq for FlakyKey {
+        fn eq(&self, _other: &Self) -> bool {
+            let comparison = self.comparisons.get();
+            self.comparisons.set(comparison.saturating_add(1));
+            !self.unstable.get() || comparison.is_multiple_of(2)
+        }
+    }
+
+    impl Eq for FlakyKey {}
 
     #[test]
     fn semantic_range_success_is_ordered_fenced_and_coordinate_declared() {

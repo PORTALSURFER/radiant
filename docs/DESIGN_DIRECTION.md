@@ -1274,19 +1274,24 @@ scheduling/demand, apply custom transforms, or wire focus, actions, or product
 behavior. Estimates remain unchanged: generic ~97%, Declarative identity 71%,
 layout 97%, and broad coverage `901 / 11` (~81.91%).
 
-The approved next semantic boundary is target-only and unshipped. One
-crate-private semantic-demand owner in each `SurfaceRuntime` may receive only
-an explicit semantic/accessibility range request or an explicit required-item
-pin, with one active contiguous logical range per mounted virtual container
-plus the independent one-item semantic pin. Registration declares capability
-only; the runtime derives live identity, revisions, provider identity/
+The semantic-demand/publication boundary now has a shipped crate-private
+runtime slice. One crate-private semantic-demand owner in each `SurfaceRuntime`
+may receive only an explicit semantic/accessibility range request or an
+explicit required-item pin, with one active contiguous logical range per mounted
+virtual container plus the independent one-item semantic pin. Registration
+declares capability only; the runtime derives live identity, revisions, provider
+identity/
 generation, coordinate, and budget. The target is logical-only (`Custom` is
 rejected before provider invocation, with no identity-transform fallback),
 bounded by 64 registrations, per-registration and 1024-entry caps, aggregate
 active range length 1024, and one provider call per container/attempt.
 
-Per-slot provider completion and retention use an exact fence for demand,
-identity, revisions, provider, source, generation, attempt, and cancellation.
+The crate-private semantic-demand/provider-attempt/retention,
+semantic/materialization
+classification, and atomic whole-surface logical publication/composition
+kernels are implemented. Per-slot provider completion and retention use an
+exact fence for demand, identity, revisions, provider, source, generation,
+attempt, and cancellation.
 Whole-surface publication wraps that exact provider fence and adds
 materialization/classification authority, ordinary-projection generation, and
 complete-surface-demand-set generation.
@@ -1301,10 +1306,12 @@ recomposed with current materialization/projection authority, while
 `Unmaterialized`/`materialized = false` remains authoritative. Semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider registration. Custom-coordinate
-transformation, production/native consumers, scheduler/backoff/fairness,
-multiple active ranges per container, public API, and runtime implementation
-remain deferred; `automation_snapshot` and `automation_target_snapshot` stay
-pure observational reads.
+transformation, public snapshot selection/visibility, production semantic
+consumer/request ownership, public registration/API, native/product consumers,
+scheduler/backoff/fairness, multiple active ranges per container, and the
+focus, materialization, scrolling, and action authority remain deferred;
+`automation_snapshot` and `automation_target_snapshot` stay pure observational
+reads.
 
 ### Leaf content and interactive widgets
 

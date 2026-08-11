@@ -1182,7 +1182,14 @@ data/policy/measurement/semantic revisions. The same private bridge carries one
 exact required item key through the query fence and rejects a ready result that
 omits it before commit. Full focus traversal, accessibility
 traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
-policy, and product wiring remain unshipped.
+policy, and product wiring remain unshipped. A private current-fence one-item
+semantic admission path is also shipped: it accepts only a live mounted
+container identity and opaque stable key, constructs current request evidence,
+and retains one validated `Semantic` pin. It does not perform automation
+traversal, offscreen materialization, focus/capture transfer, scrolling, paint,
+hit testing, scheduler/renderer work, or product integration; the estimate
+impact remains zero (generic architecture ~97%, layout 97%, broad 900 / 11
+~81.82%).
 
 ### Leaf content and interactive widgets
 

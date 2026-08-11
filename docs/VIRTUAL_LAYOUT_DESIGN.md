@@ -4,11 +4,12 @@ Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
 capability and bounded query executor are shipped as qualified APIs; the
 crate-private visible-window coordinator and crate-private accepted-window
 materialization/recycling correctness kernel are shipped private slices. The
-private retained-item adapter and private `SurfaceRuntime` registration/two-pass
-bridge are also shipped as crate-private/private runtime evidence. Public
-registration, scheduler/renderer policy, focus/capture traversal, full
-accessibility semantics, and a product consumer remain unshipped. The private
-bridge does not claim public API or product integration.
+private retained-item adapter, private `SurfaceRuntime` registration/two-pass
+bridge, and the current-fence one-item semantic admission path are also shipped
+as crate-private/private runtime evidence. Public registration,
+scheduler/renderer policy, focus/capture traversal, full accessibility
+semantics, and a product consumer remain unshipped. The private bridge does not
+claim public API or product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -90,9 +91,18 @@ At this status:
    stable key or it is rejected before coordinator commit; changing the key
    invalidates pending work and previous fallback. This is query/materialization
    admission evidence only, not focus traversal or offscreen promotion.
-6. The current fixed-child and host-projected fixed-row APIs retain their
+6. The private current-authority semantic admission path accepts only one live
+   mounted container identity and one opaque stable item key. It constructs the
+   exact request from current registration authority, invokes the immutable
+   provider once, and retains one `Semantic` pin only for a valid `Found`
+   result. Unstable, stale, malformed, and typed terminal outcomes clear or
+   reject the pin before any provider result survives. This is semantic-only
+   private evidence with zero estimate impact: it performs no automation
+   traversal, offscreen materialization, focus/capture transfer, scrolling,
+   paint, hit testing, scheduler/renderer work, or product integration.
+7. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-7. A future slice must name the subset of this contract it implements and must
+8. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope
@@ -1057,17 +1067,25 @@ accessibility semantics, and product wiring remain unshipped.
 
 ### Slice 6 — Focus and accessibility
 
-A private bounded pin-owner prerequisite is shipped by this patch. Each mounted
-runtime record owns exactly one optional pin, tagged with one of the private
-`Focus`, `PointerCapture`, or `Semantic` reasons. The pin retains the exact
-immutable request and validated provider entry. The request uses the exact
-applicable container identity, policy identity, mount generation, and
+A private bounded pin-owner prerequisite and the current-fence one-item
+semantic admission path are shipped by this patch. Each mounted runtime record
+owns exactly one optional pin, tagged with one of the private `Focus`,
+`PointerCapture`, or `Semantic` reasons. The pin retains the exact immutable
+request and validated provider entry. The request uses the exact applicable
+container identity, policy identity, mount generation, and
 data/policy/measurement/semantic revision fence; provider invocation remains
-immutable and occurs only after that fence. Invalid key/bounds and
+immutable and occurs only after that fence. The current-authority semantic
+path accepts only the container identity and opaque key, validates stable
+reflexive key equality before provider lookup, and invokes the provider at most
+once. A valid `Found` result installs the `Semantic` pin; invalid key/bounds and
 not-found/deferred/unavailable/rejected, stale, revision, and retirement
-outcomes clear the pin. A successful query replaces the one bounded pin in
-deterministic query order, and this prerequisite has no materialization/tree/
-scheduler/renderer/scroll/paint side effects.
+outcomes clear or reject it. A successful query replaces the one bounded pin
+in deterministic query order.
+
+This semantic admission is private evidence only and has zero estimate impact.
+It performs no automation traversal, offscreen materialization, focus/capture
+transfer, scrolling, paint, hit testing, scheduler/renderer work, or product
+integration.
 
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy
@@ -1077,11 +1095,12 @@ supersedes pending work and disables a previous-valid fallback. This path does
 not yet perform focus traversal, pointer-capture routing, offscreen promotion,
 scroll-to-anchor, or accessibility/product wiring.
 
-The full Slice 6 remains unshipped: full focus traversal, accessibility
+The full Slice 6 remains unshipped: full focus traversal, automation/accessibility
 traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
 policy, and product wiring remain unshipped. Full acceptance still requires
-focus and capture continuity/removal, bounded semantic requests, semantic-only
-non-paint behavior, and no permanent full accessibility tree.
+focus and capture continuity/removal, semantic requests beyond this one-item
+path, semantic-only non-paint behavior, and no permanent full accessibility
+tree.
 
 ### Slice 7 — Performance and deferred work
 

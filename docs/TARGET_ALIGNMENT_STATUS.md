@@ -155,6 +155,31 @@ automation-snapshot state remains untouched. Path, coordinate-space, and
 cross-range deduplication work remain unshipped. This adds private evidence
 only and does not change the retained estimates: generic ~97%, Declarative
 identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
+
+The downstream semantic/materialization classification boundary is now shipped
+as crate-private synchronous evidence. It accepts only a successfully validated
+`VirtualLayoutSemanticProjectionBatch` plus the matching live
+`RuntimeVirtualLayoutRecord` and materialization store, and never calls a
+semantic provider again. Before consulting active slots it requires exact
+equality of the batch request and the live/store materialization fence for
+container, stable policy identity, mount generation, data/policy/measurement/
+semantic revisions, coordinate-space identity, and admitted budget. Missing,
+retired, lifecycle-indeterminate, or authority-less materialization evidence,
+registration-only evidence, and any mismatch reject the complete result.
+Exact-key matching uses only `VirtualLayoutItemKey::stable_equals`, preserves
+range order and every provider semantic field, and rejects same-key index drift,
+another key occupying an in-range index, unstable equality, ambiguity, or
+malformed evidence. Each materialized classification carries an exact slot
+identity and retained payload-root `NodeId`; unmaterialized entries retain a
+separate `Unmaterialized` origin while the existing projection authority stays
+unchanged. The payload is not cloned and the generated wrapper ID never replaces
+the provider `AutomationNodeId`. The operation has no provider, pin,
+materialization, refresh, layout, traversal, snapshot, focus, capture,
+lifecycle, scheduler, renderer, or product side effect. Path insertion,
+coordinate resolution/custom transforms, final ordering, collision/ID
+admission, cross-range deduplication, and semantic-tree work remain separate
+unshipped boundaries. Estimates remain unchanged: generic ~97%, Declarative
+identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

@@ -30,7 +30,7 @@ pub(crate) use coordinator::{
 pub(crate) use materialization::{
     VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
     VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore,
-    VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
+    VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind, VirtualLayoutSlotIdentity,
 };
 
 /// Maximum number of keyed entries that one query may expose.

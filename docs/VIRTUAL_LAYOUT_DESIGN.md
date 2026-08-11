@@ -1133,6 +1133,39 @@ capture, scroll, paint, hit-test, or automation-snapshot side effects. Path
 construction, coordinate-space resolution, and cross-range ID deduplication
 remain later boundaries.
 
+The shipped downstream classification boundary is synchronous, crate-private,
+and read-only. It consumes only a successfully validated
+`VirtualLayoutSemanticProjectionBatch` and its matching live
+`RuntimeVirtualLayoutRecord`/materialization store; it never invokes a semantic
+provider again. Before reading active slots it requires the batch request to
+match the live registration and the store's authoritative `VirtualLayoutQueryFence`
+on container identity, stable policy identity, mount generation, data/policy/
+measurement/semantic revisions, coordinate-space identity, and admitted budget.
+Missing, retired, lifecycle-indeterminate, or authority-less materialization
+evidence, unstable identity/equality, malformed batches, and any fence or
+key/index mismatch reject the complete classification. Registration-only
+evidence cannot classify an item.
+
+Matching is bounded by the semantic range and active-slot caps and uses only
+`VirtualLayoutItemKey::stable_equals`; an exact key at another logical index,
+another key occupying an in-range active index, duplicate/ambiguous evidence,
+or an unstable comparison is never downgraded to `Unmaterialized`. Every
+in-range active slot must correspond exactly once to the ordered semantic
+projection. The result preserves range order, opaque key identity, logical
+index, bounds, coordinate declaration, semantics, provider `AutomationNodeId`,
+and request fence. Its private origin vocabulary is distinct from projection
+authority: `Materialized { slot identity, payload-root NodeId }` or
+`Unmaterialized`; the retained `SurfaceNode` payload is not cloned and the
+generated wrapper root is not substituted for the provider ID. The operation
+does not mutate pins, providers, materialization, refresh, layout, traversal,
+snapshots, focus, capture, lifecycle, or presentation state.
+
+This evidence does not add path insertion, coordinate-space resolution or
+custom transforms, final semantic ordering, global ID/collision admission,
+cross-range deduplication, or semantic-tree construction. Those remain later
+work. Estimates remain unchanged: generic architecture ~97%, Declarative
+identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
+
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy
 input and query fence carry that key, and a ready result that omits it is

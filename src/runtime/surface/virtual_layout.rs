@@ -169,6 +169,13 @@ impl<Message> VirtualLayoutRegistration<Message> {
         }
     }
 
+    /// Clone the one-item provider handle into the private semantic-demand
+    /// authority.  The owner assigns the lifecycle generation; this handle is
+    /// only the provider capability for the current accepted record.
+    pub(crate) fn semantic_provider_handle(&self) -> Option<Rc<dyn VirtualLayoutSemanticProvider>> {
+        self.semantic_provider.as_ref().map(Rc::clone)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn with_semantic_range_provider(
         mut self,
@@ -183,6 +190,27 @@ impl<Message> VirtualLayoutRegistration<Message> {
         &self,
     ) -> Option<&dyn VirtualLayoutSemanticRangeProvider> {
         self.semantic_range_provider.as_deref()
+    }
+
+    /// Compare range-provider capabilities independently from the one-item
+    /// provider.  A source-specific owner generation, not pointer/address
+    /// identity, remains the lifecycle authority after this comparison.
+    #[allow(dead_code)]
+    pub(crate) fn semantic_range_provider_is_same(&self, other: &Self) -> bool {
+        match (
+            &self.semantic_range_provider,
+            &other.semantic_range_provider,
+        ) {
+            (None, None) => true,
+            (Some(previous), Some(next)) => Rc::ptr_eq(previous, next),
+            _ => false,
+        }
+    }
+
+    pub(crate) fn semantic_range_provider_handle(
+        &self,
+    ) -> Option<Rc<dyn VirtualLayoutSemanticRangeProvider>> {
+        self.semantic_range_provider.as_ref().map(Rc::clone)
     }
 
     pub(crate) const fn semantic_revision(&self) -> u64 {

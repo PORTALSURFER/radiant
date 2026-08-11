@@ -201,8 +201,8 @@ or product wiring is added. Estimates remain unchanged: generic ~97%,
 Declarative identity 71%, layout 97%, and broad coverage `901 / 11`
 (~81.91%).
 
-The approved semantic-demand and refresh contract is target-only and
-unimplemented. It assigns one crate-private semantic-demand owner per
+The crate-private pre-publication semantic-demand owner/provider-attempt/retention
+kernel is now shipped. It assigns one crate-private semantic-demand owner per
 `SurfaceRuntime`, one active contiguous logical range-demand slot per mounted
 virtual container, and the existing independent one-item semantic pin. Only an
 explicit semantic/accessibility range request or explicit required-item pin is
@@ -216,10 +216,11 @@ range length at 1024, and permits at most one provider call per
 container/attempt.
 
 Demand generation and attempt sequence, an exact per-slot provider fence, and
-an exact publication fence wrapping it are specified for identity, mount,
+exact private retention are shipped for identity, mount,
 data/policy/measurement/semantic revisions, coordinate, budget, exact demand,
 provider identity/generation, source, demand generation, attempt, and
-cancellation. Publication adds materialization/classification authority,
+cancellation. Whole-surface publication fences and composition add
+materialization/classification authority,
 ordinary projection generation, and complete surface demand-set generation.
 Only initial/changed explicit demand,
 identity/mount/revision/provider/coordinate/budget changes, and explicit retry
@@ -228,13 +229,15 @@ unchanged refresh do not; materialization/ordinary-projection changes may
 reclassify retained exact evidence without provider reentry. `Found`,
 `NotFound`, terminal `Unavailable(NoProvider/Unsupported)`,
 `Unavailable(DataUnavailable)`, `Deferred`, `Rejected`/malformed, and stale/superseded
-outcomes have explicit staging, slot, fallback, and publication behavior.
+outcomes have explicit owner staging, slot, and fallback behavior; publication
+behavior remains unimplemented.
 `Unmaterialized`/`materialized = false` remains authoritative, semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider authority, and snapshot functions remain
 pure reads. Custom-coordinate transformation, production/native consumer,
 scheduler/backoff/fairness, multiple active ranges per container, public API,
-and runtime implementation remain deferred. Estimates remain exactly
+and the remaining runtime publication implementation remain deferred and
+unimplemented. Snapshot visibility remains unimplemented. Estimates remain exactly
 unchanged: generic ~97%, Declarative identity 71%, layout 97%, and broad
 coverage `901 / 11` (~81.91%).
 

@@ -4,7 +4,7 @@
 //! registration API, schedule policy work, or let a bridge/application object
 //! retain materialized slots.
 
-use super::SurfaceRuntime;
+use super::{SurfaceRuntime, semantic_demand::SemanticDemandOwner};
 use crate::{
     gui::layout_core::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
@@ -603,6 +603,7 @@ pub(in crate::runtime) struct RuntimeVirtualLayoutState<Message> {
     records: Vec<RuntimeVirtualLayoutRecord<Message>>,
     next_mount_generation: u64,
     projection_probe: Option<RuntimeVirtualLayoutProjectionProbe<Message>>,
+    semantic_demand: SemanticDemandOwner<Message>,
     #[cfg(test)]
     materialization_passes: u32,
 }
@@ -613,6 +614,7 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
             records: Vec::new(),
             next_mount_generation: 0,
             projection_probe: None,
+            semantic_demand: SemanticDemandOwner::default(),
             #[cfg(test)]
             materialization_passes: 0,
         }
@@ -620,6 +622,16 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 }
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
+    fn synchronize_semantic_demand(&mut self) {
+        let semantic_registrations = self
+            .records
+            .iter()
+            .filter(|record| !record.retired)
+            .map(|record| (record.registration.clone(), record.mount_generation))
+            .collect::<Vec<_>>();
+        let _ = self.semantic_demand.synchronize(&semantic_registrations);
+    }
+
     pub(super) fn prepare_surface(
         &mut self,
         surface: &mut UiSurface<Message>,
@@ -719,6 +731,12 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 self.records[index].retire();
             }
         }
+
+        // Synchronize only after the existing registration, duplicate, mount,
+        // and shell-admission decisions have produced the accepted live set.
+        // This hook creates no demand for a new capability registration and
+        // does not execute or publish semantic evidence.
+        self.synchronize_semantic_demand();
         self.clear_projection_probe_if_empty();
     }
 
@@ -810,10 +828,12 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 }
             }
         }
+        self.synchronize_semantic_demand();
         self.clear_projection_probe_if_empty();
     }
 
     pub(super) fn retire_all(&mut self) {
+        self.semantic_demand.retire_all();
         for record in &mut self.records {
             record.retire();
         }
@@ -1712,6 +1732,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::controller::semantic_demand::{
+        SemanticDemandAdmission, SemanticDemandAdmissionError, SemanticDemandCompletion,
+        SemanticProviderCompletion,
+    };
     use crate::{
         application::{View, empty, scroll, spacer, text},
         gui::{
@@ -5105,6 +5129,61 @@ mod tests {
             panic!("invalid shell test should retain the application container");
         };
         assert!(root.children.is_empty());
+    }
+
+    #[test]
+    fn materialize_retirement_resynchronizes_semantic_owner() {
+        let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::NotFound);
+        let registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 3,
+            }),
+            VirtualLayoutPolicyIdentity::new("semantic-retirement-policy"),
+        )
+        .with_semantic_provider(provider);
+        let mut state = RuntimeVirtualLayoutState::default();
+        let mut surface = surface(registration.clone());
+        state.prepare_surface(&mut surface, &[registration]);
+        assert!(!state.records[0].retired);
+
+        let ticket = match state
+            .semantic_demand
+            .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(3_u32))
+        {
+            Ok(SemanticDemandAdmission::Started(ticket)) => ticket,
+            other => panic!("semantic demand should start for the active record: {other:?}"),
+        };
+
+        // An inert layout with no viewport exercises the existing
+        // materialize_surface retirement path.
+        state.materialize_surface(
+            &mut surface,
+            &crate::gui::layout_core::LayoutOutput::default(),
+        );
+
+        assert!(state.records[0].retired);
+        let stale_execution = state
+            .semantic_demand
+            .execute(ticket.clone())
+            .expect("retired owner authority should make the ticket stale");
+        assert!(matches!(stale_execution, SemanticProviderCompletion::Stale));
+        assert!(matches!(
+            state
+                .semantic_demand
+                .complete(SemanticProviderCompletion::RequiredItemPin {
+                    ticket,
+                    outcome: VirtualLayoutSemanticQueryOutcome::NotFound,
+                }),
+            SemanticDemandCompletion::Stale
+        ));
+        assert!(matches!(
+            state
+                .semantic_demand
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(3_u32)),
+            Err(SemanticDemandAdmissionError::UnknownContainer)
+        ));
+        assert_eq!(calls.get(), 0);
     }
 
     #[test]

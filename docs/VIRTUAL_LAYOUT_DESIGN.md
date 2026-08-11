@@ -7,14 +7,16 @@ materialization/recycling correctness kernel are shipped private slices. The
 private retained-item adapter, private `SurfaceRuntime` registration/two-pass
 bridge, the current-fence one-item semantic admission path, and its private
 semantic projection boundary are also shipped as crate-private/private runtime
-evidence. The semantic-demand and refresh contract in
-[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped)
-is an approved target-only boundary and remains unimplemented: it specifies
-ownership, provider refresh, exact publication, and fallback behavior but does
-not claim a runtime implementation or consumer. Public registration,
-scheduler/renderer policy, focus/capture traversal, full accessibility
-semantics, and a product consumer remain unshipped. The private bridge does not
-claim public API or product integration.
+evidence. The crate-private pre-publication semantic-demand owner/provider-attempt/
+retention kernel in [Semantic demand and refresh](#semantic-demand-and-refresh-pre-publication-kernel-shipped-publication-target-unshipped)
+is shipped and implemented. Its shipped scope includes explicit admission,
+exact `SemanticProviderFence` fields, generation/attempt/cancellation, typed
+outcomes and validation, and exact fallback retention. Whole-surface
+`SemanticPublicationFence` publication/composition, a runtime semantic
+consumer, snapshot visibility/selection, scheduler/cancellation transport,
+native/public API wiring, custom transforms, and the other listed non-goals
+remain target-only and unshipped. The private bridge does not claim public API
+or product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -116,11 +118,15 @@ At this status:
    wired into `AutomationTarget` or `GuiAutomationSnapshot`.
 7. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-8. The semantic-demand and refresh boundary is approved as target-only. It
-   requires one crate-private semantic-demand owner per `SurfaceRuntime`, an
-   exact provider/publication fence, and atomic whole-surface publication, but
-   no part of that owner or refresh turn is shipped by the current private
-   evidence.
+8. The crate-private pre-publication semantic-demand owner/provider-attempt/
+   retention kernel is shipped and implemented. It provides one owner per
+   `SurfaceRuntime`, explicit admission, exact provider fences,
+   generation/attempt/cancellation, typed outcomes and validation, and exact
+   fallback retention. Whole-surface `SemanticPublicationFence`
+   publication/composition, the runtime semantic consumer, snapshot
+   visibility/selection, scheduler/cancellation transport, native/public API
+   wiring, custom transforms, and the other listed non-goals remain target-only
+   and unshipped.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -166,10 +172,12 @@ This contract does not:
 - define `split_pane` behavior, including its resize, collapse, persistence,
   interaction, or runtime consumer;
 - define custom-coordinate transformation, a production/native consumer,
-  scheduler/backoff/fairness policy, multiple active ranges per container, a
-  public demand API, or the runtime implementation of semantic demand/refresh.
-  The logical-only target slice rejects `Custom` before provider invocation and
-  has no identity-transform fallback.
+  scheduler/backoff/fairness policy, multiple active ranges per container, or a
+  public demand API. These and the remaining downstream
+  semantic-demand/publication runtime implementation are deferred; the
+  crate-private pre-publication owner/provider-attempt/retention kernel is
+  implemented. The logical-only target slice rejects `Custom` before provider
+  invocation and has no identity-transform fallback.
 
 ## 2. Normative vocabulary and invariants
 
@@ -198,9 +206,9 @@ The following terms have precise meanings:
   hit-test a widget.
 - **Semantic-demand owner**: the one crate-private owner inside a
   `SurfaceRuntime` that records explicit semantic demand, invokes the provider
-  under an exact attempt fence, and stages or publishes the resulting evidence.
-  It is distinct from the ordinary layout coordinator and from observational
-  snapshot reads.
+  under an exact attempt fence, and stages/retains private evidence. Whole-surface
+  publication remains a target-only downstream boundary. It is distinct from the
+  ordinary layout coordinator and from observational snapshot reads.
 - **Range-demand slot**: one active contiguous logical half-open range demand
   for one mounted virtual container. It is not merged with another range and
   does not replace the independent one-item semantic pin.
@@ -271,7 +279,7 @@ must preserve the ownership boundaries.
 | Application data and key extraction | Host application/data source | Owns records, membership, ordering, sorting/filtering, loading, and stable key extraction. Supplies a snapshot and `data_revision`. It must not delegate domain identity to a visible index or to widget allocation. |
 | UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, and anchor resolution. It must not create semantic demand, invoke a semantic provider, mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
 | Virtual-layout registration | The mounted `SurfaceRuntime` | Registration declares capability only. `SurfaceRuntime` derives the live container/policy identity, mount and content revisions, provider identity/generation, coordinate space, and budget. Registration is not demand and exposes no public/application/native demand API. |
-| Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime` | Records only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, staging, fallback, and atomic whole-surface publication. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
+| Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime` | Records and owns only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, private staging, and fallback. Atomic whole-surface publication/composition is target-only and unimplemented. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
 | Semantic provider | The registered immutable provider, called by the semantic-demand owner | Supplies only the bounded logical semantic evidence requested by the exact demand. It is called at most once per container/attempt, cannot recursively re-enter the owner, and cannot publish or mutate runtime state. Missing or unsupported capability is an explicit terminal outcome, not a demand source. |
 | Radiant visible-window coordinator | Radiant, one instance per mounted container | Owns viewport/overscan state, query sequence, revision fences, cancellation, accepted-window fallback, anchor state, invalidation coalescing, and the desired keyed set. It is the only component that commits a window. |
 | Materialization and reconciliation | Eventual `SurfaceRuntime` owner, one materialization record per mounted virtual-container generation, using the coordinator/runtime and an explicit host item projection boundary | `SurfaceRuntime` owns the retained record and chooses which accepted keys require runtime items, then reconciles slots by key. `AppBridge`, `RuntimeBridge`, the policy adapter, and product/application state do not own retained slots. The host supplies item data and an explicit item projection/materializer; querying never implicitly constructs a widget. |
@@ -370,7 +378,7 @@ boundary. Ordinary layout querying and semantic demand/refresh are separate
 runtime turns. A query may carry already accepted semantic evidence for
 projection, but it cannot create a semantic demand, invoke a semantic provider,
 or publish a virtual semantic tree. The semantic-demand turn is specified in
-[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped).
+[Semantic demand and refresh](#semantic-demand-and-refresh-pre-publication-kernel-shipped-publication-target-unshipped).
 
 The following pseudocode illustrates the ordinary query boundary:
 
@@ -1051,7 +1059,7 @@ visible only under the exact fallback fence rules; it is not a new incomplete
 collection. This ordinary shell/item refresh rule is separate from semantic
 provider refresh: a viewport-only or ordinary-projection refresh does not call
 the semantic provider unless one of the explicit semantic-demand triggers in
-[Semantic demand and refresh](#semantic-demand-and-refresh-approved-target-contract-unshipped)
+[Semantic demand and refresh](#semantic-demand-and-refresh-pre-publication-kernel-shipped-publication-target-unshipped)
 also changes.
 
 #### Projection, identity, and retained payload
@@ -1138,14 +1146,19 @@ accidental paint order. A semantic revision invalidates labels/roles/actions
 without necessarily invalidating geometry, but any result still requires an
 exact semantic fence at acceptance.
 
-### Semantic demand and refresh (approved target contract; unshipped)
+### Semantic demand and refresh (pre-publication kernel shipped; publication target unshipped)
 
-This is the approved target-only contract for provider-backed virtual semantic
-demand and refresh. The current private one-item admission, range validation,
-classification, and logical compositor are evidence prerequisites; they do not
-implement this owner, provider-refresh turn, or whole-surface publication. The
-contract is deliberately crate-private and does not add a public registration,
-application, or native demand API.
+This is the approved contract and implementation boundary for provider-backed
+virtual semantic demand and refresh. The crate-private pre-publication
+semantic-demand owner/provider-attempt/retention kernel is shipped and
+implemented: explicit admission, exact `SemanticProviderFence` fields,
+generation/attempt/cancellation, typed outcomes and validation, and exact
+fallback retention are current private runtime behavior. Whole-surface
+`SemanticPublicationFence` publication/composition, the runtime semantic
+consumer, snapshot visibility/selection, scheduler/cancellation transport,
+native/public API wiring, custom transforms, and the other listed non-goals
+remain target-only and unshipped. The contract is deliberately crate-private
+and does not add a public registration, application, or native demand API.
 
 #### Owner, sources, and logical scope
 
@@ -1575,18 +1588,19 @@ focus and capture continuity/removal, semantic requests beyond this one-item
 path, semantic-only non-paint behavior, and no permanent full accessibility
 tree.
 
-The approved semantic-demand and refresh completion boundary remains
-target-only and unshipped. It adds one crate-private owner per `SurfaceRuntime`,
-one active contiguous range-demand slot per mounted virtual container plus the
-independent one-item semantic pin, explicit-demand-only sources, the 64/1024
-bounds, exact provider/publication fences, generation/attempt sequencing,
-terminal outcome handling, exact-fence retention, non-reentrant provider
-callbacks, and atomic whole-surface publication. It does not implement a
-runtime owner or provider consumer and does not authorize materialization,
-scrolling, actions, focus, paint, hit testing, scheduling, rendering, or public
-API behavior. Custom-coordinate transformation, production/native consumers,
-scheduler/backoff/fairness, multiple active ranges per container, and runtime
-implementation remain deferred.
+The pre-publication semantic-demand owner/provider-attempt/retention kernel is
+shipped and implemented. It provides one crate-private owner per
+`SurfaceRuntime`, one active contiguous range-demand slot per mounted virtual
+container plus the independent one-item semantic pin, explicit-demand-only
+sources, the 64/1024 bounds, exact `SemanticProviderFence` fields,
+generation/attempt/cancellation, typed outcomes and validation, non-reentrant
+provider attempts, and exact-fence fallback retention. Whole-surface
+`SemanticPublicationFence` publication/composition, the runtime semantic
+consumer, snapshot visibility/selection, scheduler/cancellation transport,
+native/public API wiring, custom transforms, and the other listed non-goals
+remain target-only and unshipped. The shipped owner does not authorize
+materialization, scrolling, actions, focus, paint, hit testing, scheduling,
+rendering, or public API behavior.
 
 ### Slice 7 — Performance and deferred work
 
@@ -1633,12 +1647,13 @@ Tests should assert observable ownership, boundedness, identity, and revision
 behavior. They should not assert the names or storage layout of this document's
 non-API pseudocode.
 
-### Semantic demand and refresh acceptance matrix (approved target-only; unshipped)
+### Semantic demand and refresh acceptance matrix (pre-publication kernel shipped; publication target unshipped)
 
-The following direct rows are required for the future implementation. They
-cover every allow, reject, fallback, refresh, outcome, and publication decision
-in the approved semantic-demand boundary; they are not claims of current test
-coverage.
+The following direct rows preserve the approved acceptance contract. The
+pre-publication owner/provider-attempt/retention rows describe shipped private
+runtime behavior; publication, composition, runtime-consumer, snapshot, and
+other downstream rows remain target-only and unshipped. This matrix is not a
+claim of current implementation or test coverage for those future rows.
 
 | Decision | Direct fixture | Required evidence |
 | --- | --- | --- |

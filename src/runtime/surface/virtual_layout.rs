@@ -6,7 +6,7 @@
 
 use crate::{
     application::View,
-    gui::layout_core::VirtualLayoutBatchProjector,
+    gui::layout_core::{VirtualLayoutBatchProjector, VirtualLayoutSemanticProvider},
     gui::types::Rect,
     layout::{
         VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem,
@@ -46,6 +46,7 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     pub(crate) shell: VirtualLayoutShellFactory<Message>,
     pub(crate) item: VirtualLayoutItemFactory<Message>,
     pub(crate) kind: VirtualLayoutKindFactory,
+    semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     shell_lowerer: VirtualLayoutShellLowerer<Message>,
     projector_factory: VirtualLayoutProjectorFactory<Message>,
 }
@@ -63,6 +64,7 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             shell: Rc::clone(&self.shell),
             item: Rc::clone(&self.item),
             kind: Rc::clone(&self.kind),
+            semantic_provider: self.semantic_provider.as_ref().map(Rc::clone),
             shell_lowerer: Rc::clone(&self.shell_lowerer),
             projector_factory: Rc::clone(&self.projector_factory),
         }
@@ -111,6 +113,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
             shell,
             item,
             kind,
+            semantic_provider: None,
             shell_lowerer,
             projector_factory,
         }
@@ -122,6 +125,32 @@ impl<Message> VirtualLayoutRegistration<Message> {
 
     pub(crate) fn projector(&self) -> VirtualLayoutBatchProjector<Message> {
         (self.projector_factory)()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn with_semantic_provider(
+        mut self,
+        provider: Rc<dyn VirtualLayoutSemanticProvider>,
+    ) -> Self {
+        self.semantic_provider = Some(provider);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn semantic_provider(&self) -> Option<&dyn VirtualLayoutSemanticProvider> {
+        self.semantic_provider.as_deref()
+    }
+
+    pub(crate) fn semantic_provider_is_same(&self, other: &Self) -> bool {
+        match (&self.semantic_provider, &other.semantic_provider) {
+            (None, None) => true,
+            (Some(previous), Some(next)) => Rc::ptr_eq(previous, next),
+            _ => false,
+        }
+    }
+
+    pub(crate) const fn semantic_revision(&self) -> u64 {
+        self.revisions.semantic
     }
 
     pub(crate) fn same_scope(&self, other: &Self) -> bool {

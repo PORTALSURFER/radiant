@@ -455,6 +455,109 @@ impl VirtualLayoutCoordinateSpace {
     }
 }
 
+/// Authority carried by one private semantic projection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VirtualLayoutSemanticProjectionAuthority {
+    /// The semantic item is evidence only; no runtime item is materialized.
+    Unmaterialized,
+}
+
+/// Opaque stable identity for one private semantic projection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutSemanticProjectionIdentity {
+    container_id: NodeId,
+    key: VirtualLayoutItemKey,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticProjectionIdentity {
+    pub(crate) const fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    pub(crate) fn key(&self) -> &VirtualLayoutItemKey {
+        &self.key
+    }
+}
+
+/// Backend-neutral, crate-private projection of one validated semantic pin.
+///
+/// This value is intentionally not an automation snapshot or target. It keeps
+/// the exact request/fence evidence and the registration coordinate declaration
+/// for a later consumer without authorizing materialization or interaction.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticProjection {
+    identity: VirtualLayoutSemanticProjectionIdentity,
+    coordinate_space: VirtualLayoutCoordinateSpace,
+    logical_index: usize,
+    bounds: Rect,
+    semantics: AutomationNodeSemantics,
+    request: VirtualLayoutSemanticRequest,
+    authority: VirtualLayoutSemanticProjectionAuthority,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticProjection {
+    /// Create evidence only from a validated semantic pin.
+    ///
+    /// The caller must have validated the request against the live mounted
+    /// registration scope and revisions before calling this constructor. The
+    /// pin content is checked again here so malformed or non-semantic pins can
+    /// never become projections.
+    pub(crate) fn from_validated_semantic_pin(
+        pin: &VirtualLayoutPin,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+    ) -> Option<Self> {
+        if pin.reason() != VirtualLayoutPinReason::Semantic
+            || pin.request().key().stable_equals(pin.request().key()) != Some(true)
+            || pin.entry().validate_for(pin.request()).is_err()
+        {
+            return None;
+        }
+
+        Some(Self {
+            identity: VirtualLayoutSemanticProjectionIdentity {
+                container_id: pin.request().container_id(),
+                key: pin.request().key().clone(),
+            },
+            coordinate_space,
+            logical_index: pin.entry().logical_index(),
+            bounds: pin.entry().bounds(),
+            semantics: pin.entry().semantics().clone(),
+            request: pin.request().clone(),
+            authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
+        })
+    }
+
+    pub(crate) fn identity(&self) -> &VirtualLayoutSemanticProjectionIdentity {
+        &self.identity
+    }
+
+    pub(crate) fn coordinate_space(&self) -> &VirtualLayoutCoordinateSpace {
+        &self.coordinate_space
+    }
+
+    pub(crate) const fn logical_index(&self) -> usize {
+        self.logical_index
+    }
+
+    pub(crate) const fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    pub(crate) fn semantics(&self) -> &AutomationNodeSemantics {
+        &self.semantics
+    }
+
+    pub(crate) fn request(&self) -> &VirtualLayoutSemanticRequest {
+        &self.request
+    }
+
+    pub(crate) const fn authority(&self) -> VirtualLayoutSemanticProjectionAuthority {
+        self.authority
+    }
+}
+
 /// Finite leading and trailing overscan evidence for one query.
 #[derive(Clone, Copy, Debug)]
 pub struct VirtualLayoutOverscan {

@@ -5,8 +5,9 @@ capability and bounded query executor are shipped as qualified APIs; the
 crate-private visible-window coordinator and crate-private accepted-window
 materialization/recycling correctness kernel are shipped private slices. The
 private retained-item adapter, private `SurfaceRuntime` registration/two-pass
-bridge, and the current-fence one-item semantic admission path are also shipped
-as crate-private/private runtime evidence. Public registration,
+bridge, the current-fence one-item semantic admission path, and its private
+semantic projection boundary are also shipped as crate-private/private runtime
+evidence. Public registration,
 scheduler/renderer policy, focus/capture traversal, full accessibility
 semantics, and a product consumer remain unshipped. The private bridge does not
 claim public API or product integration.
@@ -97,9 +98,15 @@ At this status:
    provider once, and retains one `Semantic` pin only for a valid `Found`
    result. Unstable, stale, malformed, and typed terminal outcomes clear or
    reject the pin before any provider result survives. This is semantic-only
-   private evidence with zero estimate impact: it performs no automation
+   private evidence with no public consumer: it performs no automation
    traversal, offscreen materialization, focus/capture transfer, scrolling,
-   paint, hit testing, scheduler/renderer work, or product integration.
+   paint, hit testing, scheduler/renderer work, or product integration. A
+   crate-private `VirtualLayoutSemanticProjection` may be created only from a
+   validated `Semantic` pin. It retains the opaque container/key identity,
+   logical index, declared coordinate space, finite bounds,
+   `AutomationNodeSemantics`, exact request/fence evidence, and explicit
+   `Unmaterialized` authority. It does not wire `AutomationNodeId`,
+   `AutomationTarget`, or `GuiAutomationSnapshot`.
 7. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
 8. A future slice must name the subset of this contract it implements and must
@@ -1082,10 +1089,15 @@ not-found/deferred/unavailable/rejected, stale, revision, and retirement
 outcomes clear or reject it. A successful query replaces the one bounded pin
 in deterministic query order.
 
-This semantic admission is private evidence only and has zero estimate impact.
-It performs no automation traversal, offscreen materialization, focus/capture
-transfer, scrolling, paint, hit testing, scheduler/renderer work, or product
-integration.
+This semantic admission and projection are private evidence only. The projection
+is created only from a validated live `Semantic` pin and has explicit
+`Unmaterialized` authority; it performs no automation traversal, offscreen
+materialization, focus/capture transfer, scrolling, paint, hit testing,
+scheduler/renderer work, or product integration. It does not wire
+`AutomationNodeId`, `AutomationTarget`, or `GuiAutomationSnapshot`. The
+evidence moves Declarative identity from 70% to 71% and broad coverage from
+`900 / 11` to `901 / 11` (~81.91%); generic architecture remains ~97% and
+layout remains 97%.
 
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy

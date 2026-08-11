@@ -1052,20 +1052,23 @@ accessibility semantics, and product wiring remain unshipped.
 
 ### Slice 6 — Focus and accessibility
 
-A private one-item semantic-query/pin authority prerequisite is shipped by this
-patch. It uses an immutable request with the exact applicable
-container identity, policy identity, mount generation, and
-data/policy/measurement/semantic revision fence, validates the returned key and
-finite non-inverted bounds, retains at most one pin, clears the pin on
-invalid/not-found/deferred/unavailable/
-revision/retirement outcomes, and has no materialization/tree/scheduler/
-renderer/paint side effects.
+A private bounded pin-owner prerequisite is shipped by this patch. Each mounted
+runtime record owns exactly one optional pin, tagged with one of the private
+`Focus`, `PointerCapture`, or `Semantic` reasons. The pin retains the exact
+immutable request and validated provider entry. The request uses the exact
+applicable container identity, policy identity, mount generation, and
+data/policy/measurement/semantic revision fence; provider invocation remains
+immutable and occurs only after that fence. Invalid key/bounds and
+not-found/deferred/unavailable/rejected, stale, revision, and retirement
+outcomes clear the pin. A successful query replaces the one bounded pin in
+deterministic query order, and this prerequisite has no materialization/tree/
+scheduler/renderer/scroll/paint side effects.
 
-The full Slice 6 remains unshipped: focus/capture/accessibility traversal,
-focus follow/anchor, offscreen materialization, scheduler, and product wiring
-remain unshipped. Full acceptance requires one-item semantic requests, pin
-limits, focus preservation/removal, semantic-only non-paint behavior, and no
-permanent full accessibility tree.
+The full Slice 6 remains unshipped: full focus traversal, accessibility
+traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
+policy, and product wiring remain unshipped. Full acceptance still requires
+focus and capture continuity/removal, bounded semantic requests, semantic-only
+non-paint behavior, and no permanent full accessibility tree.
 
 ### Slice 7 — Performance and deferred work
 

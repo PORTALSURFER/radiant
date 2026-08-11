@@ -141,8 +141,8 @@ pub use virtual_layout::{
 pub(crate) use virtual_layout::{
     VirtualLayoutBatchProjector, VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter,
     VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
-    VirtualLayoutMaterializationStore, VirtualLayoutProjectionEvidence,
-    VirtualLayoutProjectionKind, VirtualLayoutRetainReason, VirtualLayoutSemanticPin,
+    VirtualLayoutMaterializationStore, VirtualLayoutPin, VirtualLayoutPinReason,
+    VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind, VirtualLayoutRetainReason,
     VirtualLayoutSemanticProvider, VirtualLayoutSemanticQueryOutcome,
     VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
     VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,

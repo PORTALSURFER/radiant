@@ -1888,8 +1888,10 @@ The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
 compatible reprojection foundation, and complete-mode explicit-policy
 KeyboardAdjustment, PointerScrub, NumericInput wheel, and NumericInput
-IME/composition consumption are shipped; the remaining accessibility consumer
-remains target-only:
+IME/composition consumption are shipped; generic runtime accessibility dispatch
+is shipped. Native adapters, virtual materialization/scrolling,
+scheduler/cache/renderer policy, repeat behavior, and product policy remain
+separate unshipped boundaries:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -2093,15 +2095,19 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   complete-mode explicit-policy KeyboardAdjustment and PointerScrub consumers
   are also shipped; the generic wheel-sequence routing kernel and complete-mode
   NumericInput wheel consumer and NumericInput IME/composition consumer are
-  shipped, while the widget-local accessibility policy is shipped and runtime
-  accessibility dispatch remains target-only.
+  shipped, while the widget-local accessibility policy and generic runtime
+  accessibility dispatch are shipped. Native adapters, virtual
+  materialization/scrolling, scheduler/cache/renderer policy, repeat behavior,
+  and product policy remain separate unshipped boundaries.
 - During reconciliation, the shipped text consumer preserves an active edit only
   for an exact same-ID, same-value, enabled, non-read-only numeric successor.
   Every other replacement boundary publishes one ordered `Begin`/`Cancel`
   rollback through the retiring mapper, restores the edit snapshot, and prevents
   the successor from inheriting the retired session. The widget-local
-  accessibility policy is shipped; the remaining runtime numeric owner
-  consumer is target-only. NumericInput IME/composition,
+  accessibility policy and generic runtime accessibility dispatch are shipped;
+  native adapters, virtual materialization/scrolling,
+  scheduler/cache/renderer policy, repeat behavior, and product policy remain
+  separate unshipped boundaries. NumericInput IME/composition,
   PointerScrub, and NumericInput wheel consumption are shipped, as is the
   generic wheel-routing foundation.
 - The codec contract distinguishes `Incomplete`, `Invalid`, `OutOfRange`, and
@@ -2296,8 +2302,10 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. The widget-local accessibility policy is shipped, while runtime
-accessibility dispatch and product-policy consumers remain target-only; the
+shipped. The widget-local accessibility policy and generic runtime accessibility
+dispatch are shipped; native adapters, virtual materialization/scrolling,
+scheduler/cache/renderer policy, repeat behavior, and product policy remain
+separate unshipped boundaries; the
 generic PointerScrub, NumericInput wheel, and NumericInput IME/composition consumers,
 wheel-sequence routing foundation, and metadata-aware keyboard routing kernel
 are shipped.

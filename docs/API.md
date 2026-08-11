@@ -1107,9 +1107,11 @@ shared gate: it acquires TextEdit only when the incumbent is None, and a
 different pending or active owner denies text admission before parsing,
 formatting, focus transfer, or edit lifecycle mutation. Complete-mode
 explicit-policy KeyboardAdjustment, PointerScrub, and NumericInput wheel
-consumption also use the gate; the NumericInput IME/composition consumer and
-the widget-local accessibility policy consumer are shipped, while runtime
-accessibility dispatch remains target-only.
+consumption also use the gate; the NumericInput IME/composition consumer,
+the widget-local accessibility policy consumer, and generic runtime
+accessibility dispatch are shipped. Native adapters, virtual
+materialization/scrolling, scheduler/cache/renderer policy, repeat behavior,
+and product policy remain separate unshipped boundaries.
 
 Radiant ships a bounded public, text-first numeric consumer through the explicit
 `radiant::application::{numeric_input, NumericInputBuilder}` exports. The
@@ -1178,8 +1180,8 @@ replacement teardown, and the explicit complete-mode keyboard adjustment
 contract. Normalized `KeyRelease` plumbing is shipped across the runtime/native
 boundary. Complete-mode PointerScrub and NumericInput wheel consumption are
 separate shipped consumers, and NumericInput IME/composition plus the
-widget-local accessibility policy are now shipped consumers; runtime
-accessibility dispatch, Slider/Knob adoption, native unit/phase adapters,
+widget-local accessibility policy and generic runtime accessibility dispatch
+are now shipped consumers; Slider/Knob adoption, native unit/phase adapters,
 scheduler/renderer integration, and product numeric policy remain follow-up
 slices. The supplied
 `NumericAdjustment<T>` step, scrub, and wheel methods are consumed only by
@@ -1205,8 +1207,10 @@ terminal cleanup, replacement teardown, and compatible reprojection in the
 generic text consumer, and complete-mode explicit-policy KeyboardAdjustment is
 shipped; complete-mode PointerScrub and NumericInput wheel consumers plus their
 wheel-sequence routing foundation are shipped, and NumericInput IME composition
-plus the widget-local accessibility policy are shipped; runtime accessibility
-dispatch remains a target-only consumer. The gate is not a public Rust API, native
+plus the widget-local accessibility policy and generic runtime accessibility
+dispatch are shipped. Native adapters, virtual materialization/scrolling,
+scheduler/cache/renderer policy, repeat behavior, and product policy remain
+separate unshipped boundaries. The gate is not a public Rust API, native
 adapter, storage shape, or product policy.
 The contract applies to each stable numeric-input identity and is the common
 arbitration boundary for all six interaction kinds.
@@ -1288,8 +1292,10 @@ The target contract is accepted only when this matrix holds. The shipped text
 consumer covers the TextEdit admission, cleanup, replacement teardown, and
 compatible reprojection foundation, and complete-mode explicit-policy
 KeyboardAdjustment, PointerScrub, NumericInput wheel, and NumericInput
-IME/composition consumption are shipped; the remaining accessibility consumer
-remains target-only:
+IME/composition consumption are shipped; generic runtime accessibility dispatch
+is shipped. Native adapters, virtual materialization/scrolling,
+scheduler/cache/renderer policy, repeat behavior, and product policy remain
+separate unshipped boundaries:
 
 | Fixture | Expected target behavior |
 | --- | --- |
@@ -1587,8 +1593,10 @@ typed `StepFailed` or `FormatFailed`, or one ordered `[Edit([Cancel]), failure]`
 repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
-shipped. The widget-local accessibility policy is shipped, while runtime
-accessibility dispatch and product-policy consumers remain target-only; the
+shipped. The widget-local accessibility policy and generic runtime accessibility
+dispatch are shipped; native adapters, virtual materialization/scrolling,
+scheduler/cache/renderer policy, repeat behavior, and product policy remain
+separate unshipped boundaries; the
 generic PointerScrub, NumericInput wheel, and NumericInput IME/composition consumers,
 wheel-sequence routing foundation, and metadata-aware routing kernel are shipped
 in the preceding sections.
@@ -1624,8 +1632,10 @@ The preceding `numeric_input` section documents the shipped text-first and
 complete-mode consumer. Normalized `Event::KeyRelease { key, modifiers,
 timestamp }` and `WidgetInput::KeyRelease { key, modifiers, timestamp }`
 plumbing is shipped, and complete mode consumes the contract below only when an
-explicit `NumericStepModifiers` policy is attached. Accessibility and
-platform/product policy remain separate target-only consumers; NumericInput
+explicit `NumericStepModifiers` policy is attached. Generic runtime
+accessibility dispatch is shipped; native adapters, virtual
+materialization/scrolling, scheduler/cache/renderer policy, repeat behavior,
+and product policy remain separate target-only boundaries. NumericInput
 IME/composition, generic PointerScrub, NumericInput wheel consumption, and wheel
 routing foundations are shipped.
 

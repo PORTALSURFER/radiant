@@ -1327,7 +1327,7 @@ or custom-coordinate transform.
 
 The first consumer MUST be a generic, backend-neutral semantic automation
 session. It MUST NOT be a native adapter or a product integration. The caller or
-host owns session intent and MUST explicitly open, update, retry, and close the
+host owns session intent and MUST explicitly open, refresh, retry, and close the
 session. `SurfaceRuntime` owns the bounded session state, demand membership,
 cancellation and supersession, selected publication, and publication lifetime.
 Provider registration remains owned by the mounted virtual-layout runtime.
@@ -1343,11 +1343,13 @@ does not invent a public provider-registration API.
 The ownership and invariant labels in this section are conceptual; the listed
 semantic-session operations are concrete public Rust methods under
 `radiant::runtime`. Ordinary `automation_snapshot(&self)` and
-`automation_target_snapshot(&self)` MUST remain pure ordinary reads. A separate
-explicit refresh operation is the only operation allowed to call a provider or
-mutate semantic session state. A separate pure selected semantic snapshot read
-returns either the last accepted session publication or the conservative
-ordinary baseline together with a typed status.
+`automation_target_snapshot(&self)` MUST remain pure ordinary reads. Explicit
+refresh and retry are the only operations allowed to call a provider: refresh
+atomically replaces the complete demand set, while retry reattempts the
+unchanged set. Opening and closing perform provider-free lifecycle mutation. A
+separate pure selected semantic snapshot read returns either the last accepted
+session publication or the conservative ordinary baseline together with a typed
+status.
 
 Public selection and visibility of that selected semantic snapshot is now the
 shipped consumer boundary. The shipped operations are
@@ -1360,12 +1362,12 @@ provider-registration surface is added.
 
 #### Lifecycle and first-implementation bounds
 
-Opening a session MUST establish one bounded session and an exact session
-generation. Its initial demand MUST be explicit and MUST start attempt one.
-Updating a session MUST replace the entire session demand set atomically and
-MUST supersede/cancel all prior work. Retrying an unchanged demand MUST advance
-only the attempt. Closing a session MUST cancel before retiring its generation
-and MUST clear its selected publication and demand.
+Opening a session MUST establish one bounded empty session and an exact session
+generation. The first explicit refresh MUST supply any initial demand members,
+which MUST start at attempt one. Refresh MUST replace the entire session demand
+set atomically and MUST supersede/cancel all prior work. Retrying an unchanged
+demand MUST advance only the attempt. Closing a session MUST cancel before
+retiring its generation and MUST clear its selected publication and demand.
 
 The first implementation is bounded to one active semantic session per
 `SurfaceRuntime`, one contiguous logical range per mounted container plus the

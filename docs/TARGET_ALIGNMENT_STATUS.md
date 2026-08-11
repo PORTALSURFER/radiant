@@ -254,7 +254,7 @@ This is the shipped generic logical consumer of the private
 semantic-demand/provider-attempt/retention and whole-surface
 publication/composition kernels. The first consumer is generic and
 backend-neutral, not a native adapter or product integration. The caller/host
-owns session intent and MUST explicitly open, update, retry, and close it.
+owns session intent and MUST explicitly open, refresh, retry, and close it.
 `SurfaceRuntime` owns bounded session state, demand membership,
 cancellation/supersession, selected publication, and publication lifetime.
 Mounted virtual-layout runtime owns provider registration. Callers MUST NOT
@@ -269,17 +269,20 @@ The shipped operations are `open_semantic_automation_session`,
 and `close_semantic_automation_session`, with the corresponding opaque demand,
 handle, result, status, and fallback types under `radiant::runtime`. Ordinary
 `automation_snapshot(&self)` and `automation_target_snapshot(&self)` remain
-pure ordinary reads. A separate explicit refresh operation is the only
-provider-calling or mutating entry. A separate pure selected semantic snapshot
-read returns the last accepted session publication or the conservative ordinary
-baseline plus a typed status. This contract invents no public
+pure ordinary reads. Explicit refresh and retry are the only provider-calling
+operations: refresh atomically replaces the complete demand set, while retry
+reattempts the unchanged set. Opening and closing perform provider-free
+lifecycle mutation. A separate pure selected semantic snapshot read returns
+the last accepted session publication or the conservative ordinary baseline
+plus a typed status. This contract invents no public
 provider-registration API.
 
-Opening establishes one bounded session and an exact session generation with an
-explicit initial demand at attempt one. Updating atomically replaces the whole
-session demand set and supersedes/cancels prior work. An unchanged retry
-increments only the attempt. Closing cancels before retiring the generation and
-clears selected publication and demand. The first implementation allows one
+Opening establishes one bounded empty session and an exact session generation.
+The first explicit refresh supplies any initial demand members, which start at
+attempt one. Refresh atomically replaces the whole session demand set and
+supersedes/cancels prior work. An unchanged retry increments only the attempt.
+Closing cancels before retiring the generation and clears selected publication
+and demand. The first implementation allows one
 active semantic session per `SurfaceRuntime`, one contiguous logical range per
 mounted container plus the existing independent one-item pin, at most 64
 registrations, per-registration and 1024-entry caps, aggregate range length

@@ -11,9 +11,11 @@ use crate::{
         VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore, VirtualLayoutPin,
         VirtualLayoutPinReason, VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
         VirtualLayoutRetainReason, VirtualLayoutSemanticProjection,
-        VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRejectedReason,
-        VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
-        VirtualLayoutWindowCoordinator,
+        VirtualLayoutSemanticProjectionBatch, VirtualLayoutSemanticQueryOutcome,
+        VirtualLayoutSemanticRange, VirtualLayoutSemanticRangeProviderOutcome,
+        VirtualLayoutSemanticRangeQueryOutcome, VirtualLayoutSemanticRangeRequest,
+        VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
+        VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
     },
     gui::types::Rect,
     layout::{VirtualLayoutItemKey, VirtualLayoutQueryInputParts},
@@ -710,6 +712,107 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.query_pin(request, VirtualLayoutPinReason::Semantic)
     }
 
+    /// Query one exact semantic range without changing the single-item pin.
+    /// Provider output is validated atomically against the live registration
+    /// fence before any private projection is constructed.
+    #[allow(dead_code)]
+    pub(crate) fn query_semantic_range(
+        &mut self,
+        request: &VirtualLayoutSemanticRangeRequest,
+    ) -> VirtualLayoutSemanticRangeQueryOutcome {
+        let Some(index) = self
+            .records
+            .iter()
+            .position(|record| record.registration.container_id == request.container_id())
+        else {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnknownContainer,
+            );
+        };
+        let record = &mut self.records[index];
+        if record.retired {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::Retired,
+            );
+        }
+        if let Err(reason) = request.validate_scope(
+            record.registration.container_id,
+            &record.registration.policy_identity,
+            record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
+            record.registration.semantic_revision(),
+            &record.registration.coordinate_space,
+            record.registration.budget,
+        ) {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason);
+        }
+        if let Err(reason) = request.range().validate_budget(record.registration.budget) {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason);
+        }
+        let Some(provider) = record.registration.semantic_range_provider() else {
+            return VirtualLayoutSemanticRangeQueryOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::NoProvider,
+            );
+        };
+        let outcome = provider.lookup_range(request);
+
+        // Recheck every fence field after the provider returns. The range is
+        // private evidence only, so a stale result is rejected as a whole.
+        if let Err(reason) = request.validate_scope(
+            record.registration.container_id,
+            &record.registration.policy_identity,
+            record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
+            record.registration.semantic_revision(),
+            &record.registration.coordinate_space,
+            record.registration.budget,
+        ) {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason);
+        }
+
+        match outcome {
+            VirtualLayoutSemanticRangeProviderOutcome::Found(entries) => {
+                if let Err(reason) = validate_semantic_range_entries(request, &entries) {
+                    return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason);
+                }
+                let projections = entries
+                    .iter()
+                    .map(|entry| {
+                        VirtualLayoutSemanticProjection::from_validated_semantic_range_entry(
+                            request,
+                            entry,
+                            record.registration.coordinate_space.clone(),
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let Some(projections) = projections else {
+                    return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                        VirtualLayoutSemanticRejectedReason::WrongLogicalIndex,
+                    );
+                };
+                VirtualLayoutSemanticRangeQueryOutcome::Found(
+                    VirtualLayoutSemanticProjectionBatch::new(request.clone(), projections),
+                )
+            }
+            VirtualLayoutSemanticRangeProviderOutcome::NotFound => {
+                VirtualLayoutSemanticRangeQueryOutcome::NotFound
+            }
+            VirtualLayoutSemanticRangeProviderOutcome::Unavailable(reason) => {
+                VirtualLayoutSemanticRangeQueryOutcome::Unavailable(reason)
+            }
+            VirtualLayoutSemanticRangeProviderOutcome::Deferred(reason) => {
+                VirtualLayoutSemanticRangeQueryOutcome::Deferred(reason)
+            }
+            VirtualLayoutSemanticRangeProviderOutcome::Rejected(reason) => {
+                VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason)
+            }
+        }
+    }
+
     /// Project one already-valid semantic pin without materializing or
     /// refreshing the runtime tree.
     #[allow(dead_code)]
@@ -769,6 +872,43 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.query_semantics(&request)
     }
 
+    /// Build an exact current-authority range request from one mounted record.
+    /// Invalid ranges are rejected before any provider can be observed.
+    #[allow(dead_code)]
+    pub(crate) fn admit_current_semantic_range(
+        &mut self,
+        container_id: crate::layout::NodeId,
+        start_index: usize,
+        length: usize,
+    ) -> VirtualLayoutSemanticRangeQueryOutcome {
+        let range = match VirtualLayoutSemanticRange::new(start_index, length) {
+            Ok(range) => range,
+            Err(reason) => return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason),
+        };
+        let Some(record) = self
+            .records
+            .iter()
+            .find(|record| record.registration.container_id == container_id)
+        else {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnknownContainer,
+            );
+        };
+        let request = VirtualLayoutSemanticRangeRequest::new(
+            record.registration.container_id,
+            record.registration.policy_identity.clone(),
+            record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
+            record.registration.semantic_revision(),
+            record.registration.coordinate_space.clone(),
+            record.registration.budget,
+            range,
+        );
+        self.query_semantic_range(&request)
+    }
+
     pub(super) fn take_projection_probe(
         &mut self,
     ) -> Option<RuntimeVirtualLayoutProjectionProbe<Message>> {
@@ -819,6 +959,40 @@ fn same_optional_key(
         (Some(left), Some(right)) => left.stable_equals(right) == Some(true),
         _ => false,
     }
+}
+
+fn validate_semantic_range_entries(
+    request: &VirtualLayoutSemanticRangeRequest,
+    entries: &[crate::gui::layout_core::VirtualLayoutSemanticEntry],
+) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+    let range = request.range();
+    if entries.len() != range.length() {
+        return Err(VirtualLayoutSemanticRejectedReason::RangeCountMismatch);
+    }
+
+    for pair in entries.windows(2) {
+        if pair[1].logical_index() <= pair[0].logical_index() {
+            return Err(VirtualLayoutSemanticRejectedReason::RangeOutOfOrder);
+        }
+    }
+
+    for (offset, entry) in entries.iter().enumerate() {
+        if range.expected_index(offset) != Some(entry.logical_index()) {
+            return Err(VirtualLayoutSemanticRejectedReason::WrongLogicalIndex);
+        }
+        entry.validate_for_range()?;
+        for previous in &entries[..offset] {
+            match entry
+                .requested_key()
+                .stable_equals(previous.requested_key())
+            {
+                Some(true) => return Err(VirtualLayoutSemanticRejectedReason::DuplicateKey),
+                Some(false) => {}
+                None => return Err(VirtualLayoutSemanticRejectedReason::UnstableKey),
+            }
+        }
+    }
+    Ok(())
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -907,6 +1081,28 @@ where
     ) -> Option<VirtualLayoutSemanticProjection> {
         self.virtual_layout.project_current_semantics(container_id)
     }
+
+    /// Query one exact current-authority semantic range as private evidence.
+    #[allow(dead_code)]
+    pub(crate) fn admit_virtual_layout_semantic_range(
+        &mut self,
+        container_id: crate::layout::NodeId,
+        start_index: usize,
+        length: usize,
+    ) -> VirtualLayoutSemanticRangeQueryOutcome {
+        self.virtual_layout
+            .admit_current_semantic_range(container_id, start_index, length)
+    }
+
+    /// Query a preconstructed private semantic range request without changing
+    /// runtime, materialization, interaction, or presentation state.
+    #[allow(dead_code)]
+    pub(crate) fn query_virtual_layout_semantic_range(
+        &mut self,
+        request: &VirtualLayoutSemanticRangeRequest,
+    ) -> VirtualLayoutSemanticRangeQueryOutcome {
+        self.virtual_layout.query_semantic_range(request)
+    }
 }
 
 #[cfg(test)]
@@ -917,9 +1113,12 @@ mod tests {
         gui::{
             automation::{AutomationNodeSemantics, AutomationRole},
             layout_core::{
-                VirtualLayoutPinReason, VirtualLayoutSemanticDeferredReason,
-                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProjectionAuthority,
-                VirtualLayoutSemanticProvider, VirtualLayoutSemanticQueryOutcome,
+                VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutPinReason,
+                VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
+                VirtualLayoutSemanticProjectionAuthority, VirtualLayoutSemanticProvider,
+                VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRange,
+                VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeProviderOutcome,
+                VirtualLayoutSemanticRangeQueryOutcome, VirtualLayoutSemanticRangeRequest,
                 VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
                 VirtualLayoutSemanticUnavailableReason,
             },
@@ -1032,11 +1231,28 @@ mod tests {
         requests: Rc<RefCell<Vec<VirtualLayoutSemanticRequest>>>,
     }
 
+    struct SemanticRangeProvider {
+        calls: Rc<Cell<u32>>,
+        outcome: Rc<RefCell<VirtualLayoutSemanticRangeProviderOutcome>>,
+        requests: Rc<RefCell<Vec<VirtualLayoutSemanticRangeRequest>>>,
+    }
+
     impl VirtualLayoutSemanticProvider for SemanticProvider {
         fn lookup(
             &self,
             request: &VirtualLayoutSemanticRequest,
         ) -> VirtualLayoutSemanticQueryOutcome {
+            self.calls.set(self.calls.get().saturating_add(1));
+            self.requests.borrow_mut().push(request.clone());
+            self.outcome.borrow().clone()
+        }
+    }
+
+    impl VirtualLayoutSemanticRangeProvider for SemanticRangeProvider {
+        fn lookup_range(
+            &self,
+            request: &VirtualLayoutSemanticRangeRequest,
+        ) -> VirtualLayoutSemanticRangeProviderOutcome {
             self.calls.set(self.calls.get().saturating_add(1));
             self.requests.borrow_mut().push(request.clone());
             self.outcome.borrow().clone()
@@ -1193,6 +1409,81 @@ mod tests {
         (provider, calls, outcome)
     }
 
+    fn semantic_range_provider(
+        outcome: VirtualLayoutSemanticRangeProviderOutcome,
+    ) -> (
+        Rc<SemanticRangeProvider>,
+        Rc<Cell<u32>>,
+        Rc<RefCell<VirtualLayoutSemanticRangeProviderOutcome>>,
+    ) {
+        let calls = Rc::new(Cell::new(0));
+        let outcome = Rc::new(RefCell::new(outcome));
+        let provider = Rc::new(SemanticRangeProvider {
+            calls: Rc::clone(&calls),
+            outcome: Rc::clone(&outcome),
+            requests: Rc::new(RefCell::new(Vec::new())),
+        });
+        (provider, calls, outcome)
+    }
+
+    fn semantic_range_entry(
+        key: u32,
+        logical_index: usize,
+        bounds: Rect,
+    ) -> VirtualLayoutSemanticEntry {
+        VirtualLayoutSemanticEntry::new(
+            VirtualLayoutItemKey::new(key),
+            logical_index,
+            bounds,
+            AutomationNodeSemantics::new(AutomationRole::Button)
+                .with_label(format!("semantic item {logical_index}")),
+        )
+    }
+
+    fn semantic_range_request(
+        state: &RuntimeVirtualLayoutState<()>,
+        start_index: usize,
+        length: usize,
+    ) -> VirtualLayoutSemanticRangeRequest {
+        let record = &state.records[0];
+        VirtualLayoutSemanticRangeRequest::new(
+            record.registration.container_id,
+            record.registration.policy_identity.clone(),
+            record.mount_generation,
+            record.registration.data_revision(),
+            record.registration.policy_revision(),
+            record.registration.measurement_revision(),
+            record.registration.semantic_revision(),
+            record.registration.coordinate_space.clone(),
+            record.registration.budget,
+            VirtualLayoutSemanticRange::new(start_index, length)
+                .expect("test semantic range should be valid"),
+        )
+    }
+
+    fn semantic_range_state(
+        provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+        budget: VirtualLayoutBudget,
+    ) -> RuntimeVirtualLayoutState<()> {
+        let mut registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("semantic-range-policy".to_owned()),
+        );
+        registration.coordinate_space = coordinate_space;
+        registration.budget = budget;
+        registration = registration.with_semantic_range_provider(provider);
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(RuntimeVirtualLayoutRecord::new(
+            registration,
+            SEMANTIC_MOUNT_GENERATION,
+        ));
+        state
+    }
+
     fn semantic_state(
         provider: Rc<dyn VirtualLayoutSemanticProvider>,
         semantic_revision: u64,
@@ -1212,6 +1503,552 @@ mod tests {
             SEMANTIC_MOUNT_GENERATION,
         ));
         state
+    }
+
+    fn valid_semantic_range_entries(
+        start_index: usize,
+        length: usize,
+    ) -> Vec<VirtualLayoutSemanticEntry> {
+        (0..length)
+            .map(|offset| {
+                let logical_index = start_index + offset;
+                semantic_range_entry(
+                    100 + logical_index as u32,
+                    logical_index,
+                    Rect::from_xy_size(4.0, logical_index as f32 * 12.0, 24.0, 10.0),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn semantic_range_success_is_ordered_fenced_and_coordinate_declared() {
+        for coordinate_space in [
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
+                "timeline-canvas",
+            )),
+        ] {
+            let entries = valid_semantic_range_entries(2, 4);
+            let (provider, calls, _) = semantic_range_provider(
+                VirtualLayoutSemanticRangeProviderOutcome::Found(entries.clone()),
+            );
+            let mut state = semantic_range_state(
+                provider.clone(),
+                coordinate_space.clone(),
+                VirtualLayoutBudget::new(4),
+            );
+
+            let outcome = state.admit_current_semantic_range(CONTAINER_ID, 2, 4);
+            let VirtualLayoutSemanticRangeQueryOutcome::Found(batch) = outcome else {
+                panic!("the bounded range should be accepted");
+            };
+            assert_eq!(calls.get(), 1);
+            assert_eq!(
+                provider.requests.borrow().as_slice(),
+                &[batch.request().clone()]
+            );
+            assert_eq!(batch.request().range().start_index(), 2);
+            assert_eq!(batch.request().range().length(), 4);
+            assert_eq!(batch.request().range().end_index(), 6);
+            assert_eq!(batch.request().coordinate_space(), &coordinate_space);
+            assert_eq!(batch.projections().len(), 4);
+
+            for (offset, projection) in batch.projections().iter().enumerate() {
+                let entry = &entries[offset];
+                assert_eq!(projection.identity().container_id(), CONTAINER_ID);
+                assert_eq!(projection.identity().key(), entry.requested_key());
+                assert_eq!(projection.coordinate_space(), &coordinate_space);
+                assert_eq!(projection.logical_index(), 2 + offset);
+                assert_eq!(projection.bounds(), entry.bounds());
+                assert_eq!(projection.semantics(), entry.semantics());
+                assert_eq!(projection.range_request(), Some(batch.request()));
+                assert_eq!(
+                    projection.authority(),
+                    VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+                );
+            }
+            assert!(state.records[0].pin.is_none());
+        }
+    }
+
+    #[test]
+    fn semantic_range_rejects_invalid_request_sizes_before_provider_invocation() {
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 4)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(4),
+        );
+
+        for (start_index, length, reason) in [
+            (0, 0, VirtualLayoutSemanticRejectedReason::RangeLengthZero),
+            (
+                usize::MAX,
+                1,
+                VirtualLayoutSemanticRejectedReason::RangeIndexOverflow,
+            ),
+            (0, 5, VirtualLayoutSemanticRejectedReason::RangeOverBudget),
+        ] {
+            assert_eq!(
+                state.admit_current_semantic_range(CONTAINER_ID, start_index, length),
+                VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason)
+            );
+        }
+        assert_eq!(calls.get(), 0);
+
+        let (hard_cap_provider, hard_cap_calls, _) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(Vec::new()));
+        let mut hard_cap_state = semantic_range_state(
+            hard_cap_provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES + 1),
+        );
+        assert_eq!(
+            hard_cap_state.admit_current_semantic_range(
+                CONTAINER_ID,
+                0,
+                VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES + 1,
+            ),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::RangeOverBudget
+            )
+        );
+        assert_eq!(hard_cap_calls.get(), 0);
+    }
+
+    #[test]
+    fn semantic_range_rejects_missing_retired_unstable_stale_and_missing_provider() {
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(4),
+        );
+        assert_eq!(
+            state.admit_current_semantic_range(CONTAINER_ID + 1, 0, 1),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnknownContainer
+            )
+        );
+        state.records[0].retire();
+        assert_eq!(
+            state.admit_current_semantic_range(CONTAINER_ID, 0, 1),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::Retired
+            )
+        );
+        assert_eq!(calls.get(), 0);
+
+        let (unstable_provider, unstable_calls, _) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                VirtualLayoutSemanticEntry::new(
+                    VirtualLayoutItemKey::new(UnstableKey),
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                    AutomationNodeSemantics::new(AutomationRole::Button),
+                ),
+            ]));
+        let mut unstable_state = semantic_range_state(
+            unstable_provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(4),
+        );
+        assert_eq!(
+            unstable_state.admit_current_semantic_range(CONTAINER_ID, 0, 1),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::UnstableKey
+            )
+        );
+        assert_eq!(unstable_calls.get(), 1);
+
+        let (stale_provider, stale_calls, _) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::NotFound);
+        let mut stale_state = semantic_range_state(
+            stale_provider,
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutBudget::new(4),
+        );
+        let mut stale_request = semantic_range_request(&stale_state, 0, 1);
+        stale_request = VirtualLayoutSemanticRangeRequest::new(
+            stale_request.container_id(),
+            VirtualLayoutPolicyIdentity::new("other-policy"),
+            stale_request.mount_generation(),
+            stale_request.data_revision(),
+            stale_request.policy_revision(),
+            stale_request.measurement_revision(),
+            stale_request.semantic_revision(),
+            stale_request.coordinate_space().clone(),
+            stale_request.budget(),
+            stale_request.range(),
+        );
+        assert_eq!(
+            stale_state.query_semantic_range(&stale_request),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::ScopeMismatch
+            )
+        );
+        assert_eq!(stale_calls.get(), 0);
+
+        let mut no_provider = RuntimeVirtualLayoutState::default();
+        no_provider.records.push(RuntimeVirtualLayoutRecord::new(
+            registration(
+                Rc::new(ReadyPolicy {
+                    calls: Rc::new(Cell::new(0)),
+                    key: 1,
+                }),
+                VirtualLayoutPolicyIdentity::new("semantic-range-policy"),
+            ),
+            SEMANTIC_MOUNT_GENERATION,
+        ));
+        assert_eq!(
+            no_provider.admit_current_semantic_range(CONTAINER_ID, 0, 1),
+            VirtualLayoutSemanticRangeQueryOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::NoProvider
+            )
+        );
+    }
+
+    #[test]
+    fn semantic_range_terminal_provider_outcomes_are_typed_and_atomic() {
+        let outcomes = [
+            (
+                VirtualLayoutSemanticRangeProviderOutcome::NotFound,
+                VirtualLayoutSemanticRangeQueryOutcome::NotFound,
+            ),
+            (
+                VirtualLayoutSemanticRangeProviderOutcome::Unavailable(
+                    VirtualLayoutSemanticUnavailableReason::DataUnavailable,
+                ),
+                VirtualLayoutSemanticRangeQueryOutcome::Unavailable(
+                    VirtualLayoutSemanticUnavailableReason::DataUnavailable,
+                ),
+            ),
+            (
+                VirtualLayoutSemanticRangeProviderOutcome::Deferred(
+                    VirtualLayoutSemanticDeferredReason::SemanticPending,
+                ),
+                VirtualLayoutSemanticRangeQueryOutcome::Deferred(
+                    VirtualLayoutSemanticDeferredReason::SemanticPending,
+                ),
+            ),
+            (
+                VirtualLayoutSemanticRangeProviderOutcome::Rejected(
+                    VirtualLayoutSemanticRejectedReason::ProviderRejected,
+                ),
+                VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                    VirtualLayoutSemanticRejectedReason::ProviderRejected,
+                ),
+            ),
+        ];
+        for (provider_outcome, expected) in outcomes {
+            let (provider, calls, _) = semantic_range_provider(provider_outcome);
+            let mut state = semantic_range_state(
+                provider,
+                VirtualLayoutCoordinateSpace::logical(),
+                VirtualLayoutBudget::new(4),
+            );
+            assert_eq!(
+                state.admit_current_semantic_range(CONTAINER_ID, 0, 2),
+                expected
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(state.records[0].pin.is_none());
+        }
+    }
+
+    #[test]
+    fn semantic_range_rejects_short_long_order_index_duplicate_unstable_and_malformed_output() {
+        let valid = || valid_semantic_range_entries(0, 4);
+        let mut cases = Vec::new();
+        cases.push((
+            valid()[..3].to_vec(),
+            VirtualLayoutSemanticRejectedReason::RangeCountMismatch,
+        ));
+        let mut long = valid();
+        long.push(semantic_range_entry(
+            104,
+            4,
+            Rect::from_xy_size(0.0, 48.0, 10.0, 10.0),
+        ));
+        cases.push((
+            long,
+            VirtualLayoutSemanticRejectedReason::RangeCountMismatch,
+        ));
+        cases.push((
+            vec![
+                semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::RangeOutOfOrder,
+        ));
+        cases.push((
+            vec![
+                semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
+                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(104, 4, Rect::from_xy_size(0.0, 40.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::WrongLogicalIndex,
+        ));
+        cases.push((
+            vec![
+                semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
+                semantic_range_entry(100, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::DuplicateKey,
+        ));
+        cases.push((
+            vec![
+                VirtualLayoutSemanticEntry::new(
+                    VirtualLayoutItemKey::new(UnstableKey),
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                    AutomationNodeSemantics::new(AutomationRole::Button),
+                ),
+                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::UnstableKey,
+        ));
+        cases.push((
+            vec![
+                semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, f32::NAN, 10.0)),
+                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::NonFiniteBounds,
+        ));
+        cases.push((
+            vec![
+                semantic_range_entry(
+                    100,
+                    0,
+                    Rect::from_min_max(Point::new(10.0, 0.0), Point::new(0.0, 10.0)),
+                ),
+                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::InvertedBounds,
+        ));
+
+        for (entries, reason) in cases {
+            let (provider, calls, _) =
+                semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(entries));
+            let mut state = semantic_range_state(
+                provider,
+                VirtualLayoutCoordinateSpace::logical(),
+                VirtualLayoutBudget::new(4),
+            );
+            assert_eq!(
+                state.admit_current_semantic_range(CONTAINER_ID, 0, 4),
+                VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason)
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(state.records[0].pin.is_none());
+        }
+    }
+
+    #[test]
+    fn semantic_range_leaves_the_existing_one_item_pin_unchanged_and_never_retains_a_second_pin() {
+        let (item_provider, _, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+            Box::new(semantic_entry(1, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0))),
+        ));
+        let (range_provider, range_calls, range_outcome) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 2)),
+        );
+        let mut registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("semantic-policy"),
+        )
+        .with_semantic_provider(item_provider)
+        .with_semantic_range_provider(range_provider);
+        registration.budget = VirtualLayoutBudget::new(4);
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(RuntimeVirtualLayoutRecord::new(
+            registration,
+            SEMANTIC_MOUNT_GENERATION,
+        ));
+        assert!(matches!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        let pin_before = state.records[0].pin.clone();
+        assert!(matches!(
+            state.admit_current_semantic_range(CONTAINER_ID, 0, 2),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+        assert_eq!(range_calls.get(), 1);
+        assert_eq!(state.records[0].pin, pin_before);
+
+        *range_outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+            semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, f32::NAN, 10.0)),
+            semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+        ]);
+        assert!(matches!(
+            state.admit_current_semantic_range(CONTAINER_ID, 0, 2),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::NonFiniteBounds
+            )
+        ));
+        assert_eq!(state.records[0].pin, pin_before);
+        assert_eq!(
+            state.records[0].pin.as_ref().unwrap().reason(),
+            VirtualLayoutPinReason::Semantic
+        );
+    }
+
+    #[test]
+    fn surface_range_query_is_private_unmaterialized_and_has_no_runtime_side_effects() {
+        let entries = valid_semantic_range_entries(0, 2);
+        let (provider, calls, _) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(entries));
+        let registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("semantic-range-policy"),
+        )
+        .with_semantic_range_provider(provider);
+        let mut runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+        let cached_item_count = runtime.virtual_layout.records[0]
+            .cached_subtree
+            .as_ref()
+            .map(|subtree| subtree.items.len());
+        let materialization_passes = runtime.virtual_layout.materialization_passes;
+        let installation_count = runtime.declarative_owner_projection().installation_count();
+        let source_ids = source_node_ids(runtime.surface());
+        let active_keys = runtime.virtual_layout.records[0]
+            .materialization
+            .active_slots()
+            .into_iter()
+            .map(|slot| slot.item().key().clone())
+            .collect::<Vec<_>>();
+        let last_required_key = runtime.virtual_layout.records[0].last_required_key.clone();
+        let retired = runtime.virtual_layout.records[0].retired;
+        let focus_state = runtime.interaction.focus;
+        let pointer_capture = (
+            runtime.interaction.pointer.capture,
+            runtime.interaction.pointer.capture_state,
+            runtime.interaction.pointer.managed_capture,
+            runtime.interaction.pointer.scroll_drag_capture,
+        );
+        let widget_hit_order = runtime.traversal.widgets.hit_order.clone();
+        let focus_order = runtime.traversal.widgets.focusable.order().to_vec();
+        let pointer_order = runtime.traversal.widgets.pointer.order().to_vec();
+        let keyboard_focus_order = runtime.traversal.widgets.keyboard_focus.order().to_vec();
+        let widget_paths = runtime.traversal.widgets.paths.current.clone();
+        let scroll_container_order = runtime.traversal.containers.scroll.order().to_vec();
+        let scroll_offset = runtime.layout_state.scroll_offset(CONTAINER_ID);
+        let layout_before = runtime.layout.clone();
+        let layout_root_before = runtime.layout_root.clone();
+        let surface_root_before = runtime.surface().layout_node().clone();
+        let refresh_counters = runtime.refresh_counters();
+        let paint_observation = runtime.latest_paint_segment_observation();
+        let paint_reuse = runtime.base_paint_plan_reuse_eligible();
+        let automation_target_snapshot = runtime.automation_target_snapshot();
+
+        let outcome = runtime.admit_virtual_layout_semantic_range(CONTAINER_ID, 0, 2);
+        let VirtualLayoutSemanticRangeQueryOutcome::Found(batch) = outcome else {
+            panic!("the surface range should be accepted");
+        };
+        assert_eq!(calls.get(), 1);
+        assert!(
+            batch
+                .projections()
+                .iter()
+                .all(|projection| projection.authority()
+                    == VirtualLayoutSemanticProjectionAuthority::Unmaterialized)
+        );
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .cached_subtree
+                .as_ref()
+                .map(|subtree| subtree.items.len()),
+            cached_item_count
+        );
+        assert_eq!(
+            runtime.virtual_layout.materialization_passes,
+            materialization_passes
+        );
+        assert_eq!(
+            runtime.virtual_layout.records[0].last_required_key,
+            last_required_key
+        );
+        assert_eq!(runtime.virtual_layout.records[0].retired, retired);
+        assert_eq!(
+            runtime.virtual_layout.records[0]
+                .materialization
+                .active_slots()
+                .into_iter()
+                .map(|slot| slot.item().key().clone())
+                .collect::<Vec<_>>(),
+            active_keys
+        );
+        assert_eq!(
+            runtime.declarative_owner_projection().installation_count(),
+            installation_count
+        );
+        assert_eq!(source_node_ids(runtime.surface()), source_ids);
+        assert_eq!(runtime.interaction.focus, focus_state);
+        assert_eq!(
+            (
+                runtime.interaction.pointer.capture,
+                runtime.interaction.pointer.capture_state,
+                runtime.interaction.pointer.managed_capture,
+                runtime.interaction.pointer.scroll_drag_capture,
+            ),
+            pointer_capture
+        );
+        assert_eq!(runtime.traversal.widgets.hit_order, widget_hit_order);
+        assert_eq!(runtime.traversal.widgets.focusable.order(), focus_order);
+        assert_eq!(runtime.traversal.widgets.pointer.order(), pointer_order);
+        assert_eq!(
+            runtime.traversal.widgets.keyboard_focus.order(),
+            keyboard_focus_order
+        );
+        assert_eq!(runtime.traversal.widgets.paths.current, widget_paths);
+        assert_eq!(
+            runtime.traversal.containers.scroll.order(),
+            scroll_container_order
+        );
+        assert_eq!(
+            runtime.layout_state.scroll_offset(CONTAINER_ID),
+            scroll_offset
+        );
+        assert_eq!(runtime.layout, layout_before);
+        assert_eq!(runtime.layout_root, layout_root_before);
+        assert_eq!(runtime.surface().layout_node(), surface_root_before);
+        assert_eq!(runtime.refresh_counters(), refresh_counters);
+        assert_eq!(
+            runtime.latest_paint_segment_observation(),
+            paint_observation
+        );
+        assert_eq!(runtime.base_paint_plan_reuse_eligible(), paint_reuse);
+        assert_eq!(
+            runtime.automation_target_snapshot(),
+            automation_target_snapshot
+        );
     }
 
     #[test]

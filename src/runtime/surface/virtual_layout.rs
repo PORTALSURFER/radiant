@@ -6,7 +6,10 @@
 
 use crate::{
     application::View,
-    gui::layout_core::{VirtualLayoutBatchProjector, VirtualLayoutSemanticProvider},
+    gui::layout_core::{
+        VirtualLayoutBatchProjector, VirtualLayoutSemanticProvider,
+        VirtualLayoutSemanticRangeProvider,
+    },
     gui::types::Rect,
     layout::{
         VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem, VirtualLayoutItemKey,
@@ -48,6 +51,7 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     pub(crate) item: VirtualLayoutItemFactory<Message>,
     pub(crate) kind: VirtualLayoutKindFactory,
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
+    semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
     shell_lowerer: VirtualLayoutShellLowerer<Message>,
     projector_factory: VirtualLayoutProjectorFactory<Message>,
 }
@@ -67,6 +71,7 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             item: Rc::clone(&self.item),
             kind: Rc::clone(&self.kind),
             semantic_provider: self.semantic_provider.as_ref().map(Rc::clone),
+            semantic_range_provider: self.semantic_range_provider.as_ref().map(Rc::clone),
             shell_lowerer: Rc::clone(&self.shell_lowerer),
             projector_factory: Rc::clone(&self.projector_factory),
         }
@@ -116,6 +121,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
             item,
             kind,
             semantic_provider: None,
+            semantic_range_provider: None,
             required_key: None,
             shell_lowerer,
             projector_factory,
@@ -161,6 +167,22 @@ impl<Message> VirtualLayoutRegistration<Message> {
             (Some(previous), Some(next)) => Rc::ptr_eq(previous, next),
             _ => false,
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn with_semantic_range_provider(
+        mut self,
+        provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
+    ) -> Self {
+        self.semantic_range_provider = Some(provider);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn semantic_range_provider(
+        &self,
+    ) -> Option<&dyn VirtualLayoutSemanticRangeProvider> {
+        self.semantic_range_provider.as_deref()
     }
 
     pub(crate) const fn semantic_revision(&self) -> u64 {

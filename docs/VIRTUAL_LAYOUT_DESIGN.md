@@ -4,10 +4,11 @@ Status: normative design contract. The query-only keyed `VirtualLayoutPolicy`
 capability and bounded query executor are shipped as qualified APIs; the
 crate-private visible-window coordinator and crate-private accepted-window
 materialization/recycling correctness kernel are shipped private slices. The
-materialization kernel is not runtime registration, concrete surface
-projection, public API, focus or accessibility pin ownership, scheduling, or a
-product consumer. The missing runtime consumer boundary is frozen below as a
-contract-only design; its registration and two-pass bridge are not shipped.
+private retained-item adapter and private `SurfaceRuntime` registration/two-pass
+bridge are also shipped as crate-private/private runtime evidence. Public
+registration, scheduler/renderer policy, focus/capture traversal, full
+accessibility semantics, and a product consumer remain unshipped. The private
+bridge does not claim public API or product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -50,7 +51,9 @@ future keyed design will reuse their names or internal representations.
 ### Status
 
 The contract is approved as a design target, with its first two query-only
-slices and a private materialization/recycling correctness kernel implemented.
+slices, private materialization/recycling correctness kernel, private
+retained-item adapter, and private `SurfaceRuntime` registration/two-pass bridge
+implemented and shipped as crate-private/private runtime evidence.
 At this status:
 
 1. `radiant::layout::VirtualLayoutPolicy` and its bounded query-only identity,
@@ -73,14 +76,15 @@ At this status:
    callback error, reentry, or unwind terminally retires the kernel, clears its
    authority, and never replays or compensates callbacks. Admission, projection,
    and other pre-callback rejection remain recoverable. Runtime policy for that
-   terminal state is deferred. It has no runtime registration, concrete surface
-   projection, focus/accessibility pin ownership, scheduling, or product
-   consumer.
-4. The runtime consumer boundary is specified in [Runtime consumer boundary](#105-runtime-consumer-boundary-contract-only),
-   but no runtime is required or wired to query keyed ranges, materialize keyed
-   items, or recycle item slots according to it. The private kernel exercises
-   those operations only through explicit crate-private projector and lifecycle
-   seams.
+   terminal state is deferred. The kernel itself has no runtime registration,
+   concrete surface projection, focus/accessibility pin ownership, scheduling,
+   or product consumer.
+4. The runtime consumer boundary is specified in [Runtime consumer bridge evidence](#105-runtime-consumer-bridge-evidence)
+   and is now exercised by the private retained-item adapter and private
+   `SurfaceRuntime` registration/two-pass bridge as crate-private/private runtime
+   evidence. These slices do not add public registration or API,
+   scheduler/renderer policy, focus/capture traversal, full accessibility
+   semantics, or a product consumer.
 5. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
 6. A future slice must name the subset of this contract it implements and must
@@ -751,15 +755,18 @@ mounts a new item as a fresh lifecycle. A pool must never retain an active
 focus/capture/IME/semantic registration or use a stale item key as a lookup
 shortcut.
 
-### 10.5 Runtime consumer boundary (contract-only)
+### 10.5 Runtime consumer bridge evidence
 
-This section freezes the missing runtime consumer boundary before an executable
-adapter chooses startup, identity, ownership, or lifecycle policy. It is a
-normative contract, not a shipped registration mechanism. Names, trait
-signatures, and storage types remain non-API until a later implementation slice.
+This section records the existing crate-private/private runtime evidence for
+the runtime consumer boundary. The private retained-item adapter and private
+`SurfaceRuntime` registration/two-pass bridge are shipped as bounded runtime
+evidence; they do not claim public registration, a public API, or product
+integration. Names, trait signatures, and storage types remain non-API, and the
+bridge does not add scheduler/renderer policy, focus/capture traversal, full
+accessibility semantics, or a product consumer.
 
-For one mounted virtual container generation, the eventual owner of exactly one
-materialization record is `SurfaceRuntime`. The record may contain the
+For one mounted virtual container generation, the shipped private bridge keeps
+exactly one materialization record owned by `SurfaceRuntime`. The record may contain the
 coordinator evidence, retained item payloads, slot generations, and lifecycle
 authority needed for that mounted generation, but it is one runtime-owned record
 rather than one retained owner per callback or per policy result. `AppBridge`,
@@ -770,11 +777,11 @@ the materialized slot set.
 
 #### Registration evidence and the two-stage mount
 
-A future registration descriptor MUST be discoverable from the declarative
+The shipped crate-private registration descriptor is discoverable from the declarative
 `UiSurface`/`SurfaceContainer` shell before any materialized item children exist.
-The descriptor is shell evidence for the eventual runtime owner; it is not a
-new public registration/API in this slice. No public export, public
-registration method, or capability contract version is added now.
+The descriptor is shell evidence for the private runtime owner; it is not a new
+public registration/API in this slice. No public export, public registration
+method, or capability contract version is added now.
 
 Initial mount is a synchronous two-stage pipeline on the owning UI runtime. Its
 required order is:
@@ -854,11 +861,11 @@ terminal lifecycle state suppresses the partial materialized tree; it does not
 automatically retry, replay callbacks, or transfer state to a replacement.
 Replacement and recovery policy are deferred to later runtime integration.
 
-This boundary is synchronous and has no scheduler or renderer callbacks. The
-future bridge may request ordinary runtime work through an already-existing
-host contract, but it does not make scheduler/renderer policy part of item
-projection or lifecycle admission. Existing public APIs and all existing
-contract versions remain unchanged.
+This private bridge is synchronous and has no scheduler or renderer callbacks.
+It may request ordinary runtime work through an already-existing host contract,
+but it does not make scheduler/renderer policy part of item projection or
+lifecycle admission. Existing public APIs and all existing contract versions
+remain unchanged.
 
 ## 11. Focus, accessibility, culling, paint, and hit testing
 
@@ -1006,9 +1013,9 @@ same-key continuity, incompatible replacement cleanup, fail-stop lifecycle
 retirement, and unmount tests. Cancellation and those later runtime and product
 consumers remain unshipped.
 
-### Slice 4 — Private retained-item adapter (next executable PR)
+### Slice 4 — Private retained-item adapter (shipped)
 
-The next executable PR is the **private retained-item adapter**. It must provide
+The shipped **private retained-item adapter** provides
 fallible, scoped `ViewNode` lowering for one complete accepted item batch, whole
 shell-plus-batch identity admission, slot-wrapper/descendant identity evidence,
 and an immutable `SurfaceNode` payload for the existing private kernel. It must
@@ -1022,31 +1029,43 @@ version.
 Acceptance requires all-or-nothing pre-callback admission, compatible same-key
 identity preservation, generation advancement for removal and incompatible
 replacement, descendant scoping below the wrapper, and recoverable projection,
-identity, and capacity rejection. This adapter is the prerequisite for direct
-runtime registration; it is not that registration.
+identity, and capacity rejection. This adapter is the prerequisite for the
+private runtime registration bridge shipped in Slice 5; neither slice is public
+registration or product integration.
 
-### Slice 5 — `SurfaceRuntime` registration and two-pass bridge
+### Slice 5 — `SurfaceRuntime` registration and two-pass bridge (shipped)
 
-A separate later PR may connect the future shell registration descriptor to one
-`SurfaceRuntime` materialization record per mounted container generation. It
-must implement the synchronous shell/item pipeline, repeat it for registration
-or relevant geometry changes (including viewport invalidation), and explicitly
-unmount exactly once before descriptor removal, container-generation
-replacement, or runtime close drops the materialization owner/record from
-`SurfaceRuntime`. Terminal lifecycle failure must
-suppress partial materialization without automatic retry or state transfer;
-replacement and recovery remain a later runtime-integration policy. This bridge
-must not move retained-slot ownership into `AppBridge`, `RuntimeBridge`, policy,
-or product state, and must not add scheduler/renderer callbacks, public APIs, or
-contract versions.
+The shipped private `SurfaceRuntime` registration/two-pass bridge connects the
+crate-private shell registration descriptor to one `SurfaceRuntime`
+materialization record per mounted container generation. It implements the
+synchronous shell/item pipeline, repeats it for registration or relevant
+geometry changes (including viewport invalidation), and explicitly unmounts
+exactly once before descriptor removal, container-generation replacement, or
+runtime close drops the materialization owner/record from `SurfaceRuntime`.
+Terminal lifecycle failure suppresses partial materialization without automatic
+retry or state transfer; replacement and recovery remain a later
+runtime-integration policy. This bridge does not move retained-slot ownership
+into `AppBridge`, `RuntimeBridge`, policy, or product state, and does not add
+scheduler/renderer callbacks, public APIs, or contract versions. Public
+registration, scheduler/renderer policy, focus/capture traversal, full
+accessibility semantics, and product wiring remain unshipped.
 
 ### Slice 6 — Focus and accessibility
 
-Add bounded focus/capture/semantic pins, on-demand semantic results, focus
-follow/anchor integration, semantic revision fencing, and keyboard/accessibility
-traversal over offscreen keys. Acceptance requires one-item semantic requests,
-pin limits, focus preservation/removal, semantic-only non-paint behavior, and
-no permanent full accessibility tree.
+A private one-item semantic-query/pin authority prerequisite is shipped by this
+patch. It uses an immutable request with the exact applicable
+container identity, policy identity, mount generation, and
+data/policy/measurement/semantic revision fence, validates the returned key and
+finite non-inverted bounds, retains at most one pin, clears the pin on
+invalid/not-found/deferred/unavailable/
+revision/retirement outcomes, and has no materialization/tree/scheduler/
+renderer/paint side effects.
+
+The full Slice 6 remains unshipped: focus/capture/accessibility traversal,
+focus follow/anchor, offscreen materialization, scheduler, and product wiring
+remain unshipped. Full acceptance requires one-item semantic requests, pin
+limits, focus preservation/removal, semantic-only non-paint behavior, and no
+permanent full accessibility tree.
 
 ### Slice 7 — Performance and deferred work
 

@@ -12,7 +12,10 @@
 
 use std::{any::Any, fmt, rc::Rc};
 
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::{
+    automation::AutomationNodeSemantics,
+    types::{Point, Rect, Vector2},
+};
 
 use super::tree::NodeId;
 
@@ -168,6 +171,247 @@ impl PartialEq for VirtualLayoutItemKey {
 }
 
 impl Eq for VirtualLayoutItemKey {}
+
+/// Typed provider-side unavailable reasons for one semantic lookup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutSemanticUnavailableReason {
+    NoProvider,
+    DataUnavailable,
+    Unsupported,
+}
+
+/// Typed provider-side deferred reasons for one semantic lookup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutSemanticDeferredReason {
+    DataPending,
+    SemanticPending,
+    Retry,
+}
+
+/// Typed provider rejection reasons. Structural malformed output is detected
+/// by the runtime after the provider returns and is reported separately.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutSemanticRejectedReason {
+    UnknownContainer,
+    Retired,
+    ScopeMismatch,
+    Stale,
+    WrongKey,
+    UnstableKey,
+    NonFiniteBounds,
+    InvertedBounds,
+    ProviderRejected,
+}
+
+/// One exact, immutable request for a bounded semantic lookup.
+///
+/// This boundary is crate-private on purpose. Providers receive only the
+/// mounted identity and one key; they do not receive runtime, materializer,
+/// scheduler, renderer, or lifecycle handles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutSemanticRequest {
+    container_id: NodeId,
+    policy_identity: VirtualLayoutPolicyIdentity,
+    mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
+    semantic_revision: u64,
+    key: VirtualLayoutItemKey,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticRequest {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        container_id: NodeId,
+        policy_identity: VirtualLayoutPolicyIdentity,
+        mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
+        semantic_revision: u64,
+        key: VirtualLayoutItemKey,
+    ) -> Self {
+        Self {
+            container_id,
+            policy_identity,
+            mount_generation,
+            data_revision,
+            policy_revision,
+            measurement_revision,
+            semantic_revision,
+            key,
+        }
+    }
+
+    pub(crate) const fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    pub(crate) fn policy_identity(&self) -> &VirtualLayoutPolicyIdentity {
+        &self.policy_identity
+    }
+
+    pub(crate) const fn mount_generation(&self) -> u64 {
+        self.mount_generation
+    }
+
+    pub(crate) const fn data_revision(&self) -> u64 {
+        self.data_revision
+    }
+
+    pub(crate) const fn policy_revision(&self) -> u64 {
+        self.policy_revision
+    }
+
+    pub(crate) const fn measurement_revision(&self) -> u64 {
+        self.measurement_revision
+    }
+
+    pub(crate) const fn semantic_revision(&self) -> u64 {
+        self.semantic_revision
+    }
+
+    pub(crate) fn key(&self) -> &VirtualLayoutItemKey {
+        &self.key
+    }
+
+    /// Validate the exact mounted scope and all applicable revisions without
+    /// side effects or access to runtime-owned state.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn validate_scope(
+        &self,
+        container_id: NodeId,
+        policy_identity: &VirtualLayoutPolicyIdentity,
+        mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
+        semantic_revision: u64,
+    ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+        if self.container_id != container_id
+            || self.policy_identity.stable_equals(policy_identity) != Some(true)
+        {
+            return Err(VirtualLayoutSemanticRejectedReason::ScopeMismatch);
+        }
+        if self.mount_generation != mount_generation
+            || self.data_revision != data_revision
+            || self.policy_revision != policy_revision
+            || self.measurement_revision != measurement_revision
+            || self.semantic_revision != semantic_revision
+        {
+            return Err(VirtualLayoutSemanticRejectedReason::Stale);
+        }
+        Ok(())
+    }
+}
+
+/// One bounded semantic entry returned by a private provider.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticEntry {
+    requested_key: VirtualLayoutItemKey,
+    logical_index: usize,
+    bounds: Rect,
+    semantics: AutomationNodeSemantics,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticEntry {
+    pub(crate) fn new(
+        requested_key: VirtualLayoutItemKey,
+        logical_index: usize,
+        bounds: Rect,
+        semantics: AutomationNodeSemantics,
+    ) -> Self {
+        Self {
+            requested_key,
+            logical_index,
+            bounds,
+            semantics,
+        }
+    }
+
+    pub(crate) fn requested_key(&self) -> &VirtualLayoutItemKey {
+        &self.requested_key
+    }
+
+    pub(crate) const fn logical_index(&self) -> usize {
+        self.logical_index
+    }
+
+    pub(crate) const fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    pub(crate) fn semantics(&self) -> &AutomationNodeSemantics {
+        &self.semantics
+    }
+
+    /// Validate the requested key and finite, non-inverted semantic bounds.
+    pub(crate) fn validate_for(
+        &self,
+        request: &VirtualLayoutSemanticRequest,
+    ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+        match self.requested_key.stable_equals(request.key()) {
+            Some(true) => {}
+            Some(false) => return Err(VirtualLayoutSemanticRejectedReason::WrongKey),
+            None => return Err(VirtualLayoutSemanticRejectedReason::UnstableKey),
+        }
+        if !self.bounds.is_finite() {
+            return Err(VirtualLayoutSemanticRejectedReason::NonFiniteBounds);
+        }
+        if self.bounds.min.x > self.bounds.max.x || self.bounds.min.y > self.bounds.max.y {
+            return Err(VirtualLayoutSemanticRejectedReason::InvertedBounds);
+        }
+        Ok(())
+    }
+}
+
+/// Provider result for one bounded semantic request.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutSemanticQueryOutcome {
+    Found(Box<VirtualLayoutSemanticEntry>),
+    NotFound,
+    Unavailable(VirtualLayoutSemanticUnavailableReason),
+    Deferred(VirtualLayoutSemanticDeferredReason),
+    Rejected(VirtualLayoutSemanticRejectedReason),
+}
+
+/// Crate-private immutable provider boundary for semantic lookup.
+#[allow(dead_code)]
+pub(crate) trait VirtualLayoutSemanticProvider {
+    fn lookup(&self, request: &VirtualLayoutSemanticRequest) -> VirtualLayoutSemanticQueryOutcome;
+}
+
+/// One bounded semantic pin retained by a mounted runtime record.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticPin {
+    request: VirtualLayoutSemanticRequest,
+    entry: VirtualLayoutSemanticEntry,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticPin {
+    pub(crate) fn new(
+        request: VirtualLayoutSemanticRequest,
+        entry: VirtualLayoutSemanticEntry,
+    ) -> Self {
+        Self { request, entry }
+    }
+
+    pub(crate) fn request(&self) -> &VirtualLayoutSemanticRequest {
+        &self.request
+    }
+
+    pub(crate) fn entry(&self) -> &VirtualLayoutSemanticEntry {
+        &self.entry
+    }
+}
 
 /// Coordinate-space identity included in every query fence.
 #[derive(Clone, Debug, PartialEq, Eq)]

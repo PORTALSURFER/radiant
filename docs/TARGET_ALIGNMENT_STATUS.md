@@ -105,6 +105,15 @@ target checks, pre- and post-focus owner checks, focus admission, and a
 type-erased output/mapper seam for the typed local outcome. Native adapters,
 virtual-target materialization, scheduler work, and product policy remain
 separate unshipped boundaries.
+The private virtual-layout semantic authority is now shipped as a bounded
+one-item query/pin prerequisite with the exact applicable
+container identity, policy identity, mount generation, and
+data/policy/measurement/semantic revision fence. Regression coverage is 20
+controller + 7 focused GUI tests, plus `cargo fmt --check`, `git diff --check`,
+`cargo check`, and `cargo clippy -- -D warnings`. No runtime semantic consumer or
+focus/accessibility traversal shipped, so the estimates remain unchanged at
+`899 / 11 = 81.7272...%`, reported as approximately `81.73%`; scheduler,
+renderer policy, and product wiring remain unshipped.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

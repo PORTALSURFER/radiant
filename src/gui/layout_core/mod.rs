@@ -142,5 +142,10 @@ pub(crate) use virtual_layout::{
     VirtualLayoutBatchProjector, VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter,
     VirtualLayoutMaterializationError, VirtualLayoutMaterializationReentry,
     VirtualLayoutMaterializationStore, VirtualLayoutProjectionEvidence,
-    VirtualLayoutProjectionKind, VirtualLayoutRetainReason, VirtualLayoutWindowCoordinator,
+    VirtualLayoutProjectionKind, VirtualLayoutRetainReason, VirtualLayoutSemanticPin,
+    VirtualLayoutSemanticProvider, VirtualLayoutSemanticQueryOutcome,
+    VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
+    VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
 };
+#[cfg(test)]
+pub(crate) use virtual_layout::{VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry};

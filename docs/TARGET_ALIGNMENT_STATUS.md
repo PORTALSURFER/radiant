@@ -240,11 +240,83 @@ compositor's conflict and union-cap vetoes.
 `Unmaterialized`/`materialized = false` remains authoritative, semantics do not
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider authority, and snapshot functions remain
-pure reads. Custom-coordinate transformation, public snapshot selection/visibility,
-production/native and product consumers, scheduler/backoff/fairness, multiple
-active ranges per container, and public API wiring remain deferred and
-unimplemented. Estimates remain exactly unchanged: generic ~97%, Declarative
-identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
+pure reads. The next production consumer contract below defines public snapshot
+selection/visibility and session ownership, but its implementation remains
+unshipped. Custom-coordinate transformation, production/native and product
+consumers, scheduler/backoff/fairness, multiple active ranges per container,
+and public provider-registration/API wiring remain deferred and unimplemented.
+Estimates remain exactly unchanged: generic ~97%, Declarative identity 71%,
+layout 97%, and broad coverage `901 / 11` (~81.91%).
+
+## Next production consumer: semantic automation session (normative; implementation unshipped)
+
+This is a documentation-only contract for the next consumer of the shipped
+private semantic-demand/provider-attempt/retention and whole-surface
+publication/composition kernels. The first consumer MUST be a generic,
+backend-neutral semantic automation session, not a native adapter or product
+integration. The caller/host owns session intent and MUST explicitly open,
+update, retry, and close it. `SurfaceRuntime` owns bounded session state,
+demand membership, cancellation/supersession, selected publication, and
+publication lifetime. Mounted virtual-layout runtime owns provider
+registration. Callers MUST NOT infer demand from paint order, visibility,
+viewport/overscan, item count, provider availability, diagnostics, or snapshot
+reads. Session/container identity is opaque and runtime-issued; callers cannot
+fabricate provider identity or authority.
+
+The operation names are conceptual only, not exact Rust signatures. Ordinary
+`automation_snapshot(&self)` and `automation_target_snapshot(&self)` remain
+pure ordinary reads. A separate explicit refresh operation is the only
+provider-calling or mutating entry. A separate pure selected semantic snapshot
+read returns the last accepted session publication or the conservative ordinary
+baseline plus a typed status. Public selection/visibility is the target-required
+public boundary for the following consumer slice. This contract invents no
+public provider-registration API.
+
+Opening establishes one bounded session and an exact session generation with an
+explicit initial demand at attempt one. Updating atomically replaces the whole
+session demand set and supersedes/cancels prior work. An unchanged retry
+increments only the attempt. Closing cancels before retiring the generation and
+clears selected publication and demand. The first implementation allows one
+active semantic session per `SurfaceRuntime`, one contiguous logical range per
+mounted container plus the existing independent one-item pin, at most 64
+registrations, per-registration and 1024-entry caps, aggregate range length
+1024, and at most one provider call per container/attempt. Automatic
+retry/backoff and a scheduler are not part of this slice; `Deferred` returns to
+the caller and only explicit retry reattempts.
+
+Selection/publication carries session generation, demand generation, attempt,
+request/range or pin, mount/container/policy identity,
+data/policy/measurement/semantic revisions, provider identity/generation,
+coordinate, budget, cancellation, materialization/classification authority,
+ordinary projection generation, and complete-demand-set generation. A result is
+accepted only when every required field matches exactly; stale, superseded, and
+cancelled results are inert. Provider attempts are non-reentrant and cannot
+publish or mutate runtime state directly.
+
+The consumer stages the complete selected snapshot and status under the exact
+fence and swaps only after every active demand member resolves or has an
+eligible exact-fence fallback. It never publishes a partial subset. `Found` and
+authoritative `NotFound` may participate in a complete publication.
+`NoProvider`/`Unsupported`, `DataUnavailable`, `Deferred`,
+`Rejected`/malformed, and stale outcomes retain only an eligible last-complete
+selection for unchanged exact demand/fence; otherwise they expose the ordinary
+baseline and a typed non-success status. Stale does not mutate runtime state.
+Changed demand, close, mount/identity/provider/revision/coordinate/budget
+changes invalidate the old selection. Materialization/ordinary-projection
+changes may reclassify retained exact provider evidence without provider
+reentry when fences permit it. `Unmaterialized`/`materialized = false` never
+authorizes materialization, scrolling, focus, action, paint, hit testing,
+scheduling, or renderer work.
+
+The first consumer admits only `Logical`; `Custom` is rejected before provider
+invocation with no identity fallback. A future transform contract must define
+the owner, source/destination, supported class and revision,
+finite/non-inverted conversion, clipping/nesting, and conservative
+singular/stale/unsupported/ambiguous behavior before custom coordinates are
+admitted. The contract earns no estimate credit and the implementation remains
+unshipped: generic ~97%, Declarative identity 71%, layout 97%, and broad
+coverage `901 / 11` (~81.91%) remain exactly unchanged. Existing pure public
+snapshot APIs and non-goals remain explicit.
 
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.

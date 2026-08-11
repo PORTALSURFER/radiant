@@ -1185,11 +1185,18 @@ traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
 policy, and product wiring remain unshipped. A private current-fence one-item
 semantic admission path is also shipped: it accepts only a live mounted
 container identity and opaque stable key, constructs current request evidence,
-and retains one validated `Semantic` pin. It does not perform automation
-traversal, offscreen materialization, focus/capture transfer, scrolling, paint,
-hit testing, scheduler/renderer work, or product integration; the estimate
-impact remains zero (generic architecture ~97%, layout 97%, broad 900 / 11
-~81.82%).
+and retains one validated `Semantic` pin. A separate crate-private
+`VirtualLayoutSemanticProjection` boundary can be created only from that
+validated pin; it retains the opaque container/key identity, logical index,
+declared coordinate space, finite bounds, `AutomationNodeSemantics`, exact
+request/fence evidence, and explicit `Unmaterialized` authority. This remains
+evidence only: it does not wire `AutomationNodeId`, `AutomationTarget`, or
+`GuiAutomationSnapshot`, and it does not perform automation traversal, offscreen
+materialization, focus/capture transfer, scrolling, paint, hit testing,
+scheduler/renderer work, or product integration. The bounded evidence moves
+Declarative identity from 70% to 71% and broad coverage from `900 / 11` to
+`901 / 11` (~81.91%); generic architecture remains ~97% and layout remains
+97%.
 
 ### Leaf content and interactive widgets
 

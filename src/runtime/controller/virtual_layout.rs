@@ -10,9 +10,10 @@ use crate::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
         VirtualLayoutMaterializationReentry, VirtualLayoutMaterializationStore, VirtualLayoutPin,
         VirtualLayoutPinReason, VirtualLayoutProjectionEvidence, VirtualLayoutProjectionKind,
-        VirtualLayoutRetainReason, VirtualLayoutSemanticQueryOutcome,
-        VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
-        VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
+        VirtualLayoutRetainReason, VirtualLayoutSemanticProjection,
+        VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRejectedReason,
+        VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+        VirtualLayoutWindowCoordinator,
     },
     gui::types::Rect,
     layout::{VirtualLayoutItemKey, VirtualLayoutQueryInputParts},
@@ -155,6 +156,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || self.registration.policy_revision() != registration.policy_revision()
             || self.registration.measurement_revision() != registration.measurement_revision()
             || self.registration.semantic_revision() != registration.semantic_revision()
+            || self.registration.coordinate_space != registration.coordinate_space
             || !self.registration.semantic_provider_is_same(&registration)
             || !same_optional_key(
                 self.registration.required_key(),
@@ -357,6 +359,34 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
                 self.last_required_key.as_ref(),
                 self.registration.required_key(),
             )
+    }
+
+    fn project_current_semantics(&self) -> Option<VirtualLayoutSemanticProjection> {
+        if self.retired {
+            return None;
+        }
+        let pin = self.pin.as_ref()?;
+        if pin.reason() != VirtualLayoutPinReason::Semantic
+            || pin
+                .request()
+                .validate_scope(
+                    self.registration.container_id,
+                    &self.registration.policy_identity,
+                    self.mount_generation,
+                    self.registration.data_revision(),
+                    self.registration.policy_revision(),
+                    self.registration.measurement_revision(),
+                    self.registration.semantic_revision(),
+                )
+                .is_err()
+        {
+            return None;
+        }
+
+        VirtualLayoutSemanticProjection::from_validated_semantic_pin(
+            pin,
+            self.registration.coordinate_space.clone(),
+        )
     }
 }
 
@@ -680,6 +710,19 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.query_pin(request, VirtualLayoutPinReason::Semantic)
     }
 
+    /// Project one already-valid semantic pin without materializing or
+    /// refreshing the runtime tree.
+    #[allow(dead_code)]
+    pub(crate) fn project_current_semantics(
+        &self,
+        container_id: crate::layout::NodeId,
+    ) -> Option<VirtualLayoutSemanticProjection> {
+        self.records
+            .iter()
+            .find(|record| record.registration.container_id == container_id)
+            .and_then(RuntimeVirtualLayoutRecord::project_current_semantics)
+    }
+
     /// Admit one semantic item from the selected record's current authority.
     ///
     /// The caller supplies only the mounted container identity and opaque key;
@@ -855,6 +898,15 @@ where
         self.virtual_layout
             .admit_current_semantics(container_id, key)
     }
+
+    /// Project the current semantic pin as private evidence only.
+    #[allow(dead_code)]
+    pub(crate) fn project_virtual_layout_semantics(
+        &self,
+        container_id: crate::layout::NodeId,
+    ) -> Option<VirtualLayoutSemanticProjection> {
+        self.virtual_layout.project_current_semantics(container_id)
+    }
 }
 
 #[cfg(test)]
@@ -866,9 +918,10 @@ mod tests {
             automation::{AutomationNodeSemantics, AutomationRole},
             layout_core::{
                 VirtualLayoutPinReason, VirtualLayoutSemanticDeferredReason,
-                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProvider,
-                VirtualLayoutSemanticQueryOutcome, VirtualLayoutSemanticRejectedReason,
-                VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProjectionAuthority,
+                VirtualLayoutSemanticProvider, VirtualLayoutSemanticQueryOutcome,
+                VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
+                VirtualLayoutSemanticUnavailableReason,
             },
             types::{Point, Rect, Vector2},
         },
@@ -1264,6 +1317,93 @@ mod tests {
     }
 
     #[test]
+    fn project_current_semantics_preserves_identity_coordinate_entry_and_exact_fence() {
+        let coordinate_spaces = [
+            VirtualLayoutCoordinateSpace::logical(),
+            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
+                "semantic-coordinate-space",
+            )),
+        ];
+        let bounds = Rect::from_xy_size(4.0, 8.0, 24.0, 16.0);
+        let semantics =
+            AutomationNodeSemantics::new(AutomationRole::Row).with_label("projected row");
+
+        for coordinate_space in coordinate_spaces {
+            let key = VirtualLayoutItemKey::new(17_u32);
+            let entry = VirtualLayoutSemanticEntry::new(key.clone(), 23, bounds, semantics.clone());
+            let (provider, _, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+                Box::new(entry.clone()),
+            ));
+            let mut state = semantic_state(provider, 5);
+            state.records[0].registration.coordinate_space = coordinate_space.clone();
+            let request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 5, 17);
+
+            assert_eq!(
+                state.admit_current_semantics(CONTAINER_ID, key),
+                VirtualLayoutSemanticQueryOutcome::Found(Box::new(entry.clone()))
+            );
+
+            let projection = state
+                .project_current_semantics(CONTAINER_ID)
+                .expect("a valid semantic pin should project");
+            assert_eq!(projection.identity().container_id(), CONTAINER_ID);
+            assert_eq!(
+                projection.identity().key(),
+                &VirtualLayoutItemKey::new(17_u32)
+            );
+            assert_eq!(projection.coordinate_space(), &coordinate_space);
+            assert_eq!(projection.logical_index(), 23);
+            assert_eq!(projection.bounds(), bounds);
+            assert_eq!(projection.semantics(), &semantics);
+            assert_eq!(projection.request(), &request);
+            assert_eq!(
+                projection.authority(),
+                VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+            );
+        }
+    }
+
+    #[test]
+    fn project_current_semantics_requires_a_live_semantic_pin() {
+        let entry = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+        let (provider, _, outcome) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+            Box::new(entry.clone()),
+        ));
+        let mut state = semantic_state(provider, 3);
+        let request = semantic_request("semantic-policy", SEMANTIC_MOUNT_GENERATION, 3, 7);
+
+        assert!(state.project_current_semantics(CONTAINER_ID + 1).is_none());
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
+
+        assert!(matches!(
+            state.query_pin(&request, VirtualLayoutPinReason::Focus),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
+
+        assert!(matches!(
+            state.query_semantics(&request),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        assert!(state.project_current_semantics(CONTAINER_ID).is_some());
+
+        *outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::NotFound;
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
+            VirtualLayoutSemanticQueryOutcome::NotFound
+        );
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
+
+        *outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::Found(Box::new(entry));
+        assert!(matches!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        state.records[0].retire();
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
+    }
+
+    #[test]
     fn semantic_query_pins_one_valid_entry_without_materialization_side_effects() {
         let entry = semantic_entry(7, Rect::from_xy_size(4.0, 8.0, 24.0, 16.0));
         let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
@@ -1394,11 +1534,19 @@ mod tests {
         let refresh_counters = runtime.refresh_counters();
         let paint_observation = runtime.latest_paint_segment_observation();
         let paint_reuse = runtime.base_paint_plan_reuse_eligible();
+        let automation_target_snapshot = runtime.automation_target_snapshot();
 
         assert!(matches!(
             runtime.admit_virtual_layout_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32),),
             VirtualLayoutSemanticQueryOutcome::Found(_)
         ));
+        assert_eq!(
+            runtime
+                .project_virtual_layout_semantics(CONTAINER_ID)
+                .expect("semantic admission should expose private evidence")
+                .authority(),
+            VirtualLayoutSemanticProjectionAuthority::Unmaterialized
+        );
         assert_eq!(
             runtime.virtual_layout.records[0]
                 .cached_subtree
@@ -1459,6 +1607,10 @@ mod tests {
             paint_observation
         );
         assert_eq!(runtime.base_paint_plan_reuse_eligible(), paint_reuse);
+        assert_eq!(
+            runtime.automation_target_snapshot(),
+            automation_target_snapshot
+        );
     }
 
     #[test]
@@ -1474,6 +1626,14 @@ mod tests {
         );
         assert_eq!(first_calls.get(), 1);
         assert_eq!(state.records[0].pin.as_ref().unwrap().entry(), &first);
+        assert_eq!(
+            state
+                .project_current_semantics(CONTAINER_ID)
+                .unwrap()
+                .identity()
+                .key(),
+            &VirtualLayoutItemKey::new(7_u32)
+        );
 
         let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
         let (second_provider, second_calls, second_outcome) = semantic_provider(
@@ -1490,6 +1650,7 @@ mod tests {
         replacement.revisions.semantic = 3;
         state.records[0].update_registration(replacement);
         assert!(state.records[0].pin.is_none());
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
 
         assert_eq!(
             state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),
@@ -1506,6 +1667,14 @@ mod tests {
             second_provider.requests.borrow().last(),
             Some(&second_request)
         );
+        assert_eq!(
+            state
+                .project_current_semantics(CONTAINER_ID)
+                .unwrap()
+                .identity()
+                .key(),
+            &VirtualLayoutItemKey::new(9_u32)
+        );
 
         let third = semantic_entry(9, Rect::from_xy_size(1.0, 13.0, 11.0, 12.0));
         *second_outcome.borrow_mut() =
@@ -1514,6 +1683,7 @@ mod tests {
         revised.revisions.semantic = 4;
         state.records[0].update_registration(revised);
         assert!(state.records[0].pin.is_none());
+        assert!(state.project_current_semantics(CONTAINER_ID).is_none());
 
         assert_eq!(
             state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),

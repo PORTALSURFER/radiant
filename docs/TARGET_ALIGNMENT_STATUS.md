@@ -3,12 +3,12 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~81.82% (900 / 11) |
+| Broad end-to-end target coverage | ~81.91% (901 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
-| Declarative model, identity, reconciliation | 70% |
+| Declarative model, identity, reconciliation | 71% |
 | Input, provenance, and edit lifecycle | 97% |
 | Layout, composition, virtualization | 97% |
 | Text, focus, and selection | 74% |
@@ -20,8 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 81.8181...%`,
-reported as approximately `81.82%`.
+`(83 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 81.9090...%`,
+reported as approximately `81.91%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining native-
 adapter, scheduler-, renderer-, or product-policy boundaries.
@@ -122,21 +122,22 @@ scrolling, scheduler/renderer policy, or product wiring shipped. A private
 current-fence one-item semantic admission path is now shipped: current
 registration authority constructs the exact request for one live mounted
 container and opaque stable key, and a valid provider result retains one
-`Semantic` pin. No automation
-traversal, offscreen materialization, focus/capture transfer, scrolling, paint,
-hit testing, scheduler/renderer work, public consumer, or product wiring
-shipped. The estimate impact is zero: generic architecture remains ~97%, layout
-remains 97%, and broad coverage remains `900 / 11` (~81.82%). The layout
-evidence moves
-from 96% to 97% and the total from `899` to `900`:
-`899 + 1 = 900`, `900 / 11 = 81.8181...%`, reported as approximately `81.82%`.
+`Semantic` pin. The crate-private `VirtualLayoutSemanticProjection` boundary
+then retains only validated semantic evidence with the declared coordinate
+space, finite bounds, exact request/fence, and explicit `Unmaterialized`
+authority. It does not wire `AutomationNodeId`, `AutomationTarget`, or
+`GuiAutomationSnapshot`, and no automation traversal, offscreen materialization,
+focus/capture transfer, scrolling, paint, hit testing, scheduler/renderer work,
+public consumer, or product wiring shipped. The evidence moves Declarative
+identity from 70% to 71% and broad coverage from `900 / 11` to `901 / 11`
+(~81.91%); generic architecture remains ~97% and layout remains 97%.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
 The evidence-backed total for this alignment sequence moves from `892` to
-`900`: `892 + 1 + 1 + 5 + 1 = 900`, `900 / 11 = 81.8181...%`, reported as
-approximately `81.82%`. Native adapters, matching-key suppression, and candidate windows
+`901`: `892 + 1 + 1 + 5 + 1 + 1 = 901`, `901 / 11 = 81.9090...%`, reported as
+approximately `81.91%`. Native adapters, matching-key suppression, and candidate windows
 remain separate boundaries. The generic composition foundation, the
 single-line text consumer, the NumericInput consumer, and the other
 previously shipped routing foundations remain distinct from those remaining

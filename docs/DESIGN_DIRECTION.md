@@ -1198,6 +1198,25 @@ Declarative identity from 70% to 71% and broad coverage from `900 / 11` to
 `901 / 11` (~81.91%); generic architecture remains ~97% and layout remains
 97%.
 
+The private semantic path now also admits one exact logical-index range
+`[start_index, start_index + length)`. It rejects zero length, checked-add
+overflow, and lengths above both the live registration budget and the hard
+`VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` cap before the range provider is called.
+The provider is called at most once, and only an all-or-nothing vector with
+the exact count, contiguous ordered indices, stable unique opaque keys,
+finite non-inverted bounds, and a current container/policy/mount/data/policy/
+measurement/semantic/coordinate/budget fence becomes ordered private
+`VirtualLayoutSemanticProjection` evidence. Typed unavailable, deferred,
+not-found, rejected, malformed, and stale outcomes expose no partial batch.
+The projections retain `AutomationNodeSemantics` and `Unmaterialized`
+authority only; the existing one-item pin is neither replaced nor cleared,
+and no runtime/materialization/layout/refresh/interaction/scroll/paint/
+hit-test/automation-snapshot work is authorized. This remains private evidence
+only: no public API, automation traversal, offscreen materialization, focus or
+capture transfer, scheduler/renderer policy, or product wiring shipped. Generic
+architecture remains ~97%, Declarative identity remains 71%, layout remains
+97%, and broad coverage remains `901 / 11` (~81.91%).
+
 ### Leaf content and interactive widgets
 
 Leaf nodes are placed by containers. Passive content such as text, icons,

@@ -1099,6 +1099,32 @@ evidence moves Declarative identity from 70% to 71% and broad coverage from
 `900 / 11` to `901 / 11` (~81.91%); generic architecture remains ~97% and
 layout remains 97%.
 
+The private semantic range extension is an exact downstream query over the same
+mounted registration authority. A request is the half-open interval
+`[start_index, start_index + length)`. Construction rejects `length == 0` and
+an unrepresentable checked-add end; the runtime rejects a length above either
+the registration `VirtualLayoutBudget::max_entries()` or
+`VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` before invoking the provider. The request
+fences the live container identity, policy identity, mount generation, data,
+policy, measurement, semantic revisions, declared coordinate space, and
+registration budget. A missing provider is typed `Unavailable(NoProvider)`;
+provider `NotFound`, `Unavailable`, `Deferred`, and `Rejected` outcomes pass
+through without changing the existing one-item pin.
+
+The range provider is invoked at most once. A `Found` vector is accepted only
+when it has exactly the requested count, contains strictly increasing,
+contiguous logical indices matching the requested interval, has stable
+reflexive opaque keys with no duplicates, and has finite non-inverted bounds.
+The live fence is checked again after provider return. Any count, index, key,
+geometry, provider, or fence failure rejects the complete batch with no partial
+projection. Accepted entries become ordered crate-private
+`VirtualLayoutSemanticProjection` values carrying opaque identity, the
+declared coordinate space, logical index, bounds, `AutomationNodeSemantics`,
+the exact range fence, and `Unmaterialized` authority. The range path never
+replaces, clears, or creates a second retained one-item pin and has no runtime,
+materialization, layout, refresh, focus, capture, scroll, paint, hit-test, or
+automation-snapshot side effects.
+
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy
 input and query fence carry that key, and a ready result that omits it is

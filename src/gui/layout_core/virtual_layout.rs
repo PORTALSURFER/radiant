@@ -204,6 +204,75 @@ pub(crate) enum VirtualLayoutSemanticRejectedReason {
     NonFiniteBounds,
     InvertedBounds,
     ProviderRejected,
+    RangeLengthZero,
+    RangeIndexOverflow,
+    RangeOverBudget,
+    RangeCountMismatch,
+    WrongLogicalIndex,
+    RangeOutOfOrder,
+    DuplicateKey,
+}
+
+/// One exact logical-index interval `[start_index, start_index + length)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutSemanticRange {
+    start_index: usize,
+    length: usize,
+    end_index: usize,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticRange {
+    /// Construct a non-empty interval whose exclusive end is representable.
+    pub(crate) fn new(
+        start_index: usize,
+        length: usize,
+    ) -> Result<Self, VirtualLayoutSemanticRejectedReason> {
+        if length == 0 {
+            return Err(VirtualLayoutSemanticRejectedReason::RangeLengthZero);
+        }
+        let Some(end_index) = start_index.checked_add(length) else {
+            return Err(VirtualLayoutSemanticRejectedReason::RangeIndexOverflow);
+        };
+        Ok(Self {
+            start_index,
+            length,
+            end_index,
+        })
+    }
+
+    pub(crate) const fn start_index(self) -> usize {
+        self.start_index
+    }
+
+    pub(crate) const fn length(self) -> usize {
+        self.length
+    }
+
+    pub(crate) const fn end_index(self) -> usize {
+        self.end_index
+    }
+
+    pub(crate) const fn expected_index(self, offset: usize) -> Option<usize> {
+        if offset >= self.length {
+            return None;
+        }
+        self.start_index.checked_add(offset)
+    }
+
+    pub(crate) const fn contains(self, logical_index: usize) -> bool {
+        logical_index >= self.start_index && logical_index < self.end_index
+    }
+
+    pub(crate) const fn validate_budget(
+        self,
+        budget: VirtualLayoutBudget,
+    ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+        if self.length > budget.max_entries() || self.length > VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES {
+            return Err(VirtualLayoutSemanticRejectedReason::RangeOverBudget);
+        }
+        Ok(())
+    }
 }
 
 /// Owner of one bounded retained virtual-layout pin.
@@ -230,6 +299,143 @@ pub(crate) struct VirtualLayoutSemanticRequest {
     measurement_revision: u64,
     semantic_revision: u64,
     key: VirtualLayoutItemKey,
+}
+
+/// One exact, immutable request for a bounded logical-index semantic range.
+///
+/// The request snapshots the mounted registration's semantic authority,
+/// coordinate declaration, and caller budget. It is private so no provider can
+/// acquire runtime, materialization, focus, capture, scheduler, or renderer
+/// authority through this boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutSemanticRangeRequest {
+    container_id: NodeId,
+    policy_identity: VirtualLayoutPolicyIdentity,
+    mount_generation: u64,
+    data_revision: u64,
+    policy_revision: u64,
+    measurement_revision: u64,
+    semantic_revision: u64,
+    coordinate_space: VirtualLayoutCoordinateSpace,
+    budget: VirtualLayoutBudget,
+    range: VirtualLayoutSemanticRange,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticRangeRequest {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        container_id: NodeId,
+        policy_identity: VirtualLayoutPolicyIdentity,
+        mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
+        semantic_revision: u64,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+        budget: VirtualLayoutBudget,
+        range: VirtualLayoutSemanticRange,
+    ) -> Self {
+        Self {
+            container_id,
+            policy_identity,
+            mount_generation,
+            data_revision,
+            policy_revision,
+            measurement_revision,
+            semantic_revision,
+            coordinate_space,
+            budget,
+            range,
+        }
+    }
+
+    pub(crate) const fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    pub(crate) fn policy_identity(&self) -> &VirtualLayoutPolicyIdentity {
+        &self.policy_identity
+    }
+
+    pub(crate) const fn mount_generation(&self) -> u64 {
+        self.mount_generation
+    }
+
+    pub(crate) const fn data_revision(&self) -> u64 {
+        self.data_revision
+    }
+
+    pub(crate) const fn policy_revision(&self) -> u64 {
+        self.policy_revision
+    }
+
+    pub(crate) const fn measurement_revision(&self) -> u64 {
+        self.measurement_revision
+    }
+
+    pub(crate) const fn semantic_revision(&self) -> u64 {
+        self.semantic_revision
+    }
+
+    pub(crate) fn coordinate_space(&self) -> &VirtualLayoutCoordinateSpace {
+        &self.coordinate_space
+    }
+
+    pub(crate) const fn budget(&self) -> VirtualLayoutBudget {
+        self.budget
+    }
+
+    pub(crate) const fn range(&self) -> VirtualLayoutSemanticRange {
+        self.range
+    }
+
+    /// Validate the exact live mounted authority before or after a provider
+    /// call. Scope identity and all revision/coordinate/budget evidence are
+    /// checked without mutating any runtime state.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn validate_scope(
+        &self,
+        container_id: NodeId,
+        policy_identity: &VirtualLayoutPolicyIdentity,
+        mount_generation: u64,
+        data_revision: u64,
+        policy_revision: u64,
+        measurement_revision: u64,
+        semantic_revision: u64,
+        coordinate_space: &VirtualLayoutCoordinateSpace,
+        budget: VirtualLayoutBudget,
+    ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+        if self.container_id != container_id
+            || self.policy_identity.stable_equals(policy_identity) != Some(true)
+        {
+            return Err(VirtualLayoutSemanticRejectedReason::ScopeMismatch);
+        }
+        if self.mount_generation != mount_generation
+            || self.data_revision != data_revision
+            || self.policy_revision != policy_revision
+            || self.measurement_revision != measurement_revision
+            || self.semantic_revision != semantic_revision
+            || self.coordinate_space != *coordinate_space
+            || self.budget != budget
+        {
+            return Err(VirtualLayoutSemanticRejectedReason::Stale);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn item_request(&self, key: VirtualLayoutItemKey) -> VirtualLayoutSemanticRequest {
+        VirtualLayoutSemanticRequest::new(
+            self.container_id,
+            self.policy_identity.clone(),
+            self.mount_generation,
+            self.data_revision,
+            self.policy_revision,
+            self.measurement_revision,
+            self.semantic_revision,
+            key,
+        )
+    }
 }
 
 #[allow(dead_code)]
@@ -370,6 +576,19 @@ impl VirtualLayoutSemanticEntry {
             Some(false) => return Err(VirtualLayoutSemanticRejectedReason::WrongKey),
             None => return Err(VirtualLayoutSemanticRejectedReason::UnstableKey),
         }
+        self.validate_geometry()
+    }
+
+    /// Validate the opaque key's reflexive stability and finite geometry for
+    /// a range result that has no one-item requested key.
+    pub(crate) fn validate_for_range(&self) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+        if self.requested_key.stable_equals(&self.requested_key) != Some(true) {
+            return Err(VirtualLayoutSemanticRejectedReason::UnstableKey);
+        }
+        self.validate_geometry()
+    }
+
+    fn validate_geometry(&self) -> Result<(), VirtualLayoutSemanticRejectedReason> {
         if !self.bounds.is_finite() {
             return Err(VirtualLayoutSemanticRejectedReason::NonFiniteBounds);
         }
@@ -395,6 +614,27 @@ pub(crate) enum VirtualLayoutSemanticQueryOutcome {
 #[allow(dead_code)]
 pub(crate) trait VirtualLayoutSemanticProvider {
     fn lookup(&self, request: &VirtualLayoutSemanticRequest) -> VirtualLayoutSemanticQueryOutcome;
+}
+
+/// Provider result for one bounded logical-index semantic range.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+pub(crate) enum VirtualLayoutSemanticRangeProviderOutcome {
+    Found(Vec<VirtualLayoutSemanticEntry>),
+    NotFound,
+    Unavailable(VirtualLayoutSemanticUnavailableReason),
+    Deferred(VirtualLayoutSemanticDeferredReason),
+    Rejected(VirtualLayoutSemanticRejectedReason),
+}
+
+/// Crate-private provider boundary for one exact semantic range. The runtime
+/// invokes it at most once after validating the live request fence.
+#[allow(dead_code)]
+pub(crate) trait VirtualLayoutSemanticRangeProvider {
+    fn lookup_range(
+        &self,
+        request: &VirtualLayoutSemanticRangeRequest,
+    ) -> VirtualLayoutSemanticRangeProviderOutcome;
 }
 
 /// One bounded virtual-layout pin retained by a mounted runtime record.
@@ -493,6 +733,7 @@ pub(crate) struct VirtualLayoutSemanticProjection {
     bounds: Rect,
     semantics: AutomationNodeSemantics,
     request: VirtualLayoutSemanticRequest,
+    range_request: Option<VirtualLayoutSemanticRangeRequest>,
     authority: VirtualLayoutSemanticProjectionAuthority,
 }
 
@@ -525,6 +766,39 @@ impl VirtualLayoutSemanticProjection {
             bounds: pin.entry().bounds(),
             semantics: pin.entry().semantics().clone(),
             request: pin.request().clone(),
+            range_request: None,
+            authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
+        })
+    }
+
+    /// Create one range projection only after the complete range has been
+    /// validated by the runtime. The range request is retained as exact
+    /// provenance alongside the item-shaped request retained by the existing
+    /// one-item projection boundary.
+    pub(crate) fn from_validated_semantic_range_entry(
+        request: &VirtualLayoutSemanticRangeRequest,
+        entry: &VirtualLayoutSemanticEntry,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+    ) -> Option<Self> {
+        if coordinate_space != *request.coordinate_space()
+            || request.range().expected_index(0).is_none()
+            || !request.range().contains(entry.logical_index())
+            || entry.validate_for_range().is_err()
+        {
+            return None;
+        }
+
+        Some(Self {
+            identity: VirtualLayoutSemanticProjectionIdentity {
+                container_id: request.container_id(),
+                key: entry.requested_key().clone(),
+            },
+            coordinate_space,
+            logical_index: entry.logical_index(),
+            bounds: entry.bounds(),
+            semantics: entry.semantics().clone(),
+            request: request.item_request(entry.requested_key().clone()),
+            range_request: Some(request.clone()),
             authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
         })
     }
@@ -553,9 +827,55 @@ impl VirtualLayoutSemanticProjection {
         &self.request
     }
 
+    pub(crate) fn range_request(&self) -> Option<&VirtualLayoutSemanticRangeRequest> {
+        self.range_request.as_ref()
+    }
+
     pub(crate) const fn authority(&self) -> VirtualLayoutSemanticProjectionAuthority {
         self.authority
     }
+}
+
+/// Atomic, ordered batch of private semantic projections for one exact range.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct VirtualLayoutSemanticProjectionBatch {
+    request: VirtualLayoutSemanticRangeRequest,
+    projections: Vec<VirtualLayoutSemanticProjection>,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutSemanticProjectionBatch {
+    pub(crate) fn new(
+        request: VirtualLayoutSemanticRangeRequest,
+        projections: Vec<VirtualLayoutSemanticProjection>,
+    ) -> Self {
+        Self {
+            request,
+            projections,
+        }
+    }
+
+    pub(crate) fn request(&self) -> &VirtualLayoutSemanticRangeRequest {
+        &self.request
+    }
+
+    pub(crate) fn projections(&self) -> &[VirtualLayoutSemanticProjection] {
+        &self.projections
+    }
+
+    pub(crate) fn into_projections(self) -> Vec<VirtualLayoutSemanticProjection> {
+        self.projections
+    }
+}
+
+/// All-or-nothing result of a private current-authority semantic range query.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum VirtualLayoutSemanticRangeQueryOutcome {
+    Found(VirtualLayoutSemanticProjectionBatch),
+    NotFound,
+    Unavailable(VirtualLayoutSemanticUnavailableReason),
+    Deferred(VirtualLayoutSemanticDeferredReason),
+    Rejected(VirtualLayoutSemanticRejectedReason),
 }
 
 /// Finite leading and trailing overscan evidence for one query.

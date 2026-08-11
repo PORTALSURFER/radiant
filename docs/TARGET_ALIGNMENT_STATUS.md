@@ -131,6 +131,21 @@ focus/capture transfer, scrolling, paint, hit testing, scheduler/renderer work,
 public consumer, or product wiring shipped. The evidence moves Declarative
 identity from 70% to 71% and broad coverage from `900 / 11` to `901 / 11`
 (~81.91%); generic architecture remains ~97% and layout remains 97%.
+The same private boundary now has an exact range query over
+`[start_index, start_index + length)`: zero length, checked-add overflow, and
+length above either the live registration budget or
+`VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` are rejected before provider invocation.
+At most one range-provider call is made. Only an exact-count, contiguous
+ordered logical-index vector with stable unique opaque keys, finite
+non-inverted bounds, and the current container/policy/mount/data/policy/
+measurement/semantic/coordinate/budget fence becomes ordered
+`VirtualLayoutSemanticProjection` evidence. Not-found, unavailable, deferred,
+rejected, malformed, and stale results are all-or-nothing and do not mutate
+the existing one-item pin. Focus, capture, runtime/materialization/layout,
+refresh, scroll, paint, hit-test, and automation-snapshot state remains
+untouched. This adds private evidence only and does not change the retained
+estimates: generic ~97%, Declarative identity 71%, layout 97%, and broad
+coverage `901 / 11` (~81.91%).
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

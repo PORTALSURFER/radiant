@@ -85,9 +85,14 @@ At this status:
    evidence. These slices do not add public registration or API,
    scheduler/renderer policy, focus/capture traversal, full accessibility
    semantics, or a product consumer.
-5. The current fixed-child and host-projected fixed-row APIs retain their
+5. The private runtime bridge now carries at most one required item key through
+   policy input and the exact query fence. A ready result must contain that
+   stable key or it is rejected before coordinator commit; changing the key
+   invalidates pending work and previous fallback. This is query/materialization
+   admission evidence only, not focus traversal or offscreen promotion.
+6. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
-6. A future slice must name the subset of this contract it implements and must
+7. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
 ### Scope
@@ -1063,6 +1068,14 @@ not-found/deferred/unavailable/rejected, stale, revision, and retirement
 outcomes clear the pin. A successful query replaces the one bounded pin in
 deterministic query order, and this prerequisite has no materialization/tree/
 scheduler/renderer/scroll/paint side effects.
+
+The private runtime bridge also ships one bounded required-key admission path.
+An in-crate registration may request one exact stable key; the immutable policy
+input and query fence carry that key, and a ready result that omits it is
+rejected before coordinator commit or materialization. A changed required key
+supersedes pending work and disables a previous-valid fallback. This path does
+not yet perform focus traversal, pointer-capture routing, offscreen promotion,
+scroll-to-anchor, or accessibility/product wiring.
 
 The full Slice 6 remains unshipped: full focus traversal, accessibility
 traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer

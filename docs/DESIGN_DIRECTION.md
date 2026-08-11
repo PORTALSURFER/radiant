@@ -1326,7 +1326,8 @@ provider availability, diagnostics, or snapshot reads. Session/container
 identity MUST be opaque and runtime-issued; callers cannot fabricate provider
 identity or authority.
 
-The API names in this section are conceptual only. Ordinary
+The ownership labels in this section are conceptual; the shipped operations
+are concrete `SurfaceRuntime` methods. Ordinary
 `automation_snapshot(&self)` and `automation_target_snapshot(&self)` MUST
 remain pure ordinary reads. A separate explicit refresh operation is the only
 provider-calling or mutating entry. A separate pure selected semantic snapshot

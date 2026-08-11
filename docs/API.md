@@ -612,9 +612,11 @@ fallback, and anchor evidence internally. The crate-private runtime bridge
 inside `SurfaceRuntime` now contains private
 semantic-demand/provider-attempt/retention, semantic/materialization
 classification, and atomic whole-surface logical publication/composition
-evidence. It still does not select or expose a semantic snapshot, provide a
-public semantic consumer, or serve product collections. A separate crate-private
-materialization/recycling correctness kernel is shipped
+evidence. That kernel remains private and does not itself expose a
+provider-registration API or serve product collections. The shipped generic
+logical session below is the public semantic selection boundary and exposes
+only the bounded selected snapshot through explicit `SurfaceRuntime` operations.
+A separate crate-private materialization/recycling correctness kernel is shipped
 for accepted-commit evidence and explicit private projector/lifecycle tests; it
 does not expose a public constructor or prelude entry, register through
 `LayoutCapabilities`, project concrete surfaces, own focus/accessibility pins,

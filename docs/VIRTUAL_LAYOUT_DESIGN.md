@@ -1340,8 +1340,9 @@ does not invent a public provider-registration API.
 
 #### Conceptual API boundary
 
-The names in this section are conceptual operation labels, not promised Rust
-signatures or public symbols. Ordinary `automation_snapshot(&self)` and
+The ownership and invariant labels in this section are conceptual; the listed
+semantic-session operations are concrete public Rust methods under
+`radiant::runtime`. Ordinary `automation_snapshot(&self)` and
 `automation_target_snapshot(&self)` MUST remain pure ordinary reads. A separate
 explicit refresh operation is the only operation allowed to call a provider or
 mutate semantic session state. A separate pure selected semantic snapshot read
@@ -1349,7 +1350,7 @@ returns either the last accepted session publication or the conservative
 ordinary baseline together with a typed status.
 
 Public selection and visibility of that selected semantic snapshot is now the
-shipped consumer boundary. The concrete Rust operations are
+shipped consumer boundary. The shipped operations are
 `open_semantic_automation_session`, `semantic_automation_containers`,
 `refresh_semantic_automation_session`, `retry_semantic_automation_session`,
 `selected_semantic_automation_snapshot`, and
@@ -1730,9 +1731,9 @@ logical composition. The generic logical production consumer above now ships
 public snapshot selection/visibility and the runtime semantic session;
 scheduler/cancellation transport, native/product/public provider registration,
 custom transforms, and the other listed non-goals remain outside the slice. The
-shipped private kernel and session do not authorize materialization,
-scrolling, actions, focus, paint, hit testing, scheduling, rendering, or public
-API behavior.
+shipped private kernel and session do not authorize materialization, scrolling,
+actions, focus, paint, hit testing, scheduling, rendering, public provider
+registration, or any other deferred authority.
 
 ### Slice 7 — Performance and deferred work
 

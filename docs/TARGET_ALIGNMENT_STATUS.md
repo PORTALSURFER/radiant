@@ -3,14 +3,14 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% (92–99%, medium confidence) |
-| Broad end-to-end target coverage | ~81.73% (899 / 11) |
+| Broad end-to-end target coverage | ~81.82% (900 / 11) |
 
 | Category | Estimate |
 | --- | ---: |
 | Public API and module boundaries | 83% |
 | Declarative model, identity, reconciliation | 70% |
 | Input, provenance, and edit lifecycle | 97% |
-| Layout, composition, virtualization | 96% |
+| Layout, composition, virtualization | 97% |
 | Text, focus, and selection | 74% |
 | Numeric controls | 92% |
 | Runtime, effects, and scheduling | 96% |
@@ -20,8 +20,8 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 The broad estimate is the unweighted mean of the category rows:
-`(83 + 70 + 97 + 96 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 81.7272...%`,
-reported as approximately `81.73%`.
+`(83 + 70 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 81.8181...%`,
+reported as approximately `81.82%`.
 The generic architecture-sequence estimate remains about 97%; this consumer
 adds executable evidence without claiming completion of the remaining native-
 adapter, scheduler-, renderer-, or product-policy boundaries.
@@ -105,25 +105,29 @@ target checks, pre- and post-focus owner checks, focus admission, and a
 type-erased output/mapper seam for the typed local outcome. Native adapters,
 virtual-target materialization, scheduler work, and product policy remain
 separate unshipped boundaries.
-The private virtual-layout pin-owner prerequisite is now shipped as a bounded
+The private virtual-layout pin-owner prerequisite is shipped as a bounded
 one-item query path. Each mounted runtime record owns exactly one optional pin
 tagged `Focus`, `PointerCapture`, or `Semantic`; it retains the exact request
 and validated provider entry, uses the applicable container identity, policy
 identity, mount generation, and data/policy/measurement/semantic revision
 fence, and clears/rejects terminal outcomes before any stale pin survives.
-Regression coverage is 21 controller + 7 focused GUI tests, plus the bounded
-format, diff, check, and Clippy gates. No runtime semantic consumer, full focus
-traversal, accessibility traversal, focus-follow/anchor, offscreen
-materialization, scheduler/renderer policy, or product wiring shipped, so the
-estimates remain unchanged at `899 / 11 = 81.7272...%`, reported as
-approximately `81.73%`.
+The private runtime bridge now also forwards at most one exact required item key
+through policy input and the query fence; a ready result omitting that key is
+invalid before coordinator commit, and a changed key invalidates pending work
+and previous fallback. Regression coverage includes the required-key query and
+runtime path within the focused virtual-layout suite, plus the bounded format,
+diff, check, and Clippy gates. No semantic consumer, full focus traversal,
+accessibility traversal, focus-follow/anchor, offscreen materialization,
+scheduler/renderer policy, or product wiring shipped. The layout evidence moves
+from 96% to 97% and the total from `899` to `900`:
+`899 + 1 = 900`, `900 / 11 = 81.8181...%`, reported as approximately `81.82%`.
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
-The evidence-backed total for this consumer moves from `892` to `899`:
-`892 + 1 + 1 + 5 = 899`, `899 / 11 = 81.7272...%`, reported as approximately
-`81.73%`. Native adapters, matching-key suppression, and candidate windows
+The evidence-backed total for this alignment sequence moves from `892` to
+`900`: `892 + 1 + 1 + 5 + 1 = 900`, `900 / 11 = 81.8181...%`, reported as
+approximately `81.82%`. Native adapters, matching-key suppression, and candidate windows
 remain separate boundaries. The generic composition foundation, the
 single-line text consumer, the NumericInput consumer, and the other
 previously shipped routing foundations remain distinct from those remaining

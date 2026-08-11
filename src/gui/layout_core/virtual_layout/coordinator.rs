@@ -101,6 +101,7 @@ pub(crate) enum VirtualLayoutInvalidation {
     Measurement,
     Semantic,
     OverscanBudget,
+    RequiredKey,
     Anchor,
 }
 
@@ -118,6 +119,7 @@ impl VirtualLayoutInvalidationFlags {
     const SEMANTIC: u8 = 1 << 4;
     const OVERSCAN_BUDGET: u8 = 1 << 5;
     const ANCHOR: u8 = 1 << 6;
+    const REQUIRED_KEY: u8 = 1 << 7;
 
     /// Return whether the category has been coalesced since the last commit.
     #[must_use]
@@ -139,6 +141,7 @@ impl VirtualLayoutInvalidation {
             Self::Measurement => VirtualLayoutInvalidationFlags::MEASUREMENT,
             Self::Semantic => VirtualLayoutInvalidationFlags::SEMANTIC,
             Self::OverscanBudget => VirtualLayoutInvalidationFlags::OVERSCAN_BUDGET,
+            Self::RequiredKey => VirtualLayoutInvalidationFlags::REQUIRED_KEY,
             Self::Anchor => VirtualLayoutInvalidationFlags::ANCHOR,
         }
     }
@@ -153,6 +156,7 @@ pub(crate) struct VirtualLayoutCoordinatorRevisions {
     pub(crate) measurement: u64,
     pub(crate) semantic: u64,
     pub(crate) overscan_budget: u64,
+    pub(crate) required_key: u64,
     pub(crate) anchor: u64,
 }
 
@@ -186,6 +190,7 @@ impl VirtualLayoutCoordinatorRevisions {
             VirtualLayoutInvalidation::Measurement => &mut self.measurement,
             VirtualLayoutInvalidation::Semantic => &mut self.semantic,
             VirtualLayoutInvalidation::OverscanBudget => &mut self.overscan_budget,
+            VirtualLayoutInvalidation::RequiredKey => &mut self.required_key,
             VirtualLayoutInvalidation::Anchor => &mut self.anchor,
         };
         *revision = revision
@@ -415,6 +420,7 @@ struct InputEvidence {
     coordinate_space: VirtualLayoutCoordinateSpace,
     overscan: VirtualLayoutBudgetEvidence,
     budget: VirtualLayoutBudget,
+    required_key: Option<VirtualLayoutItemKey>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -434,6 +440,7 @@ impl InputEvidence {
                 trailing: overscan.trailing(),
             },
             budget: input.budget(),
+            required_key: input.required_key().cloned(),
         }
     }
 
@@ -635,18 +642,32 @@ impl VirtualLayoutWindowCoordinator {
         Ok(())
     }
 
-    /// Begin one exact-fenced query.  The coordinator assigns the query sequence.
+    /// Begin one exact-fenced query without a required item key.
     pub(crate) fn begin_query(
         &mut self,
+        parts: VirtualLayoutQueryInputParts,
+    ) -> Result<VirtualLayoutPendingQuery, VirtualLayoutCoordinatorError> {
+        self.begin_query_with_required_key(parts, None)
+    }
+
+    /// Begin one exact-fenced query with the private optional required item
+    /// key. The coordinator assigns the query sequence and owns supersession
+    /// when the key changes.
+    pub(crate) fn begin_query_with_required_key(
+        &mut self,
         mut parts: VirtualLayoutQueryInputParts,
+        required_key: Option<VirtualLayoutItemKey>,
     ) -> Result<VirtualLayoutPendingQuery, VirtualLayoutCoordinatorError> {
         self.ensure_not_executing()?;
         if !self.scope.matches(&parts) {
             return Err(VirtualLayoutCoordinatorError::ScopeMismatch);
         }
 
-        let input_without_sequence = VirtualLayoutQueryInput::from_parts(parts.clone())
-            .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
+        let input_without_sequence = VirtualLayoutQueryInput::from_parts_with_required_key(
+            parts.clone(),
+            required_key.clone(),
+        )
+        .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
         self.sync_input(&input_without_sequence)?;
 
         self.query_sequence = self
@@ -654,7 +675,7 @@ impl VirtualLayoutWindowCoordinator {
             .checked_add(1)
             .ok_or(VirtualLayoutCoordinatorError::QuerySequenceOverflow)?;
         parts.query_sequence = self.query_sequence;
-        let input = VirtualLayoutQueryInput::from_parts(parts)
+        let input = VirtualLayoutQueryInput::from_parts_with_required_key(parts, required_key)
             .map_err(VirtualLayoutCoordinatorError::InvalidInput)?;
         let executor = VirtualLayoutQueryExecutor::new(input.clone());
         let token = PendingToken {
@@ -810,6 +831,20 @@ impl VirtualLayoutWindowCoordinator {
             if previous.overscan != evidence.overscan || previous.budget != evidence.budget {
                 changed[5] = true;
             }
+            if !same_optional_key(
+                previous.required_key.as_ref(),
+                evidence.required_key.as_ref(),
+            ) {
+                changed[6] = true;
+            }
+        }
+
+        if changed[6] {
+            self.revisions.required_key = self
+                .revisions
+                .required_key
+                .checked_add(1)
+                .ok_or(VirtualLayoutCoordinatorError::RevisionOverflow)?;
         }
 
         for (index, invalidation) in [
@@ -819,6 +854,7 @@ impl VirtualLayoutWindowCoordinator {
             VirtualLayoutInvalidation::Measurement,
             VirtualLayoutInvalidation::Semantic,
             VirtualLayoutInvalidation::OverscanBudget,
+            VirtualLayoutInvalidation::RequiredKey,
         ]
         .into_iter()
         .enumerate()
@@ -1040,6 +1076,7 @@ impl VirtualLayoutWindowCoordinator {
                 accepted.fence.coordinate_space(),
                 &current.coordinate_space,
             )
+            || !same_optional_key(accepted.fence.required_key(), current.required_key.as_ref())
         {
             return VirtualLayoutWindowView::empty();
         }
@@ -1084,6 +1121,17 @@ fn limit_diagnostics(mut diagnostics: VirtualLayoutDiagnostics) -> VirtualLayout
 
 fn key_matches(left: &VirtualLayoutItemKey, right: &VirtualLayoutItemKey) -> bool {
     left.stable_equals(right) == Some(true)
+}
+
+fn same_optional_key(
+    left: Option<&VirtualLayoutItemKey>,
+    right: Option<&VirtualLayoutItemKey>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => left.stable_equals(right) == Some(true),
+        _ => false,
+    }
 }
 
 fn key_change_sort_key(change: &VirtualLayoutKeyChange) -> (usize, u8) {
@@ -2153,6 +2201,56 @@ mod tests {
                 .entries
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn required_key_change_invalidates_fallback_and_supersedes_pending_query() {
+        let mut coordinator =
+            VirtualLayoutWindowCoordinator::new(41, VirtualLayoutPolicyIdentity::new("policy"), 7);
+        let first_pending = coordinator
+            .begin_query_with_required_key(
+                parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8),
+                Some(VirtualLayoutItemKey::new(1_u32)),
+            )
+            .expect("first required-key query should begin");
+        let first_outcome = first_pending.execute(&ready_policy(&[1], 100.0));
+        assert!(matches!(
+            coordinator.complete(first_pending, first_outcome),
+            VirtualLayoutCompletion::Committed(_)
+        ));
+
+        let changed_parts = parts(0, Rect::from_xy_size(0.0, 0.0, 100.0, 20.0), 1, 8);
+        let changed_input = VirtualLayoutQueryInput::from_parts_with_required_key(
+            changed_parts.clone(),
+            Some(VirtualLayoutItemKey::new(2_u32)),
+        )
+        .expect("changed required-key input should be valid");
+        assert!(coordinator.fallback_for(&changed_input).entries.is_empty());
+
+        let stale_pending = coordinator
+            .begin_query_with_required_key(
+                changed_parts.clone(),
+                Some(VirtualLayoutItemKey::new(1_u32)),
+            )
+            .expect("stale query should begin");
+        let current_pending = coordinator
+            .begin_query_with_required_key(changed_parts, Some(VirtualLayoutItemKey::new(2_u32)))
+            .expect("current query should begin");
+        assert!(
+            coordinator
+                .invalidations()
+                .contains(VirtualLayoutInvalidation::RequiredKey)
+        );
+        let current_outcome = current_pending.execute(&ready_policy(&[2], 100.0));
+        assert!(matches!(
+            coordinator.complete(current_pending, current_outcome),
+            VirtualLayoutCompletion::Committed(_)
+        ));
+        let stale_outcome = stale_pending.execute(&ready_policy(&[1], 100.0));
+        assert!(matches!(
+            coordinator.complete(stale_pending, stale_outcome),
+            VirtualLayoutCompletion::Stale(_)
+        ));
     }
 
     #[test]

@@ -1134,6 +1134,13 @@ the declarative `UiSurface`/`SurfaceContainer` shell before materialized childre
 exist; exporting that descriptor as public API or advancing a capability
 contract version remains outside this slice.
 
+The private bridge also forwards at most one exact required item key through the
+immutable policy input and query fence. A ready result that omits the required
+key is rejected before coordinator commit or materialization; changing the key
+supersedes pending work and disables a previous-valid fallback. This is private
+query/materialization admission evidence, not focus traversal, pointer-capture
+routing, offscreen promotion, or product wiring.
+
 Initial mount is synchronous and has two stages with this fixed order:
 
 ```text
@@ -1171,7 +1178,9 @@ scheduler/renderer callbacks and leaves existing public APIs and contract
 versions unchanged. The private virtual-layout pin-owner prerequisite is also
 shipped: each mounted record has one bounded optional pin for `Focus`,
 `PointerCapture`, or `Semantic`, fenced by the exact request scope and
-data/policy/measurement/semantic revisions. Full focus traversal, accessibility
+data/policy/measurement/semantic revisions. The same private bridge carries one
+exact required item key through the query fence and rejects a ready result that
+omits it before commit. Full focus traversal, accessibility
 traversal, focus-follow/anchor, offscreen materialization, scheduler/renderer
 policy, and product wiring remain unshipped.
 

@@ -15,7 +15,7 @@ use crate::{
         VirtualLayoutSemanticUnavailableReason, VirtualLayoutWindowCoordinator,
     },
     gui::types::Rect,
-    layout::VirtualLayoutQueryInputParts,
+    layout::{VirtualLayoutItemKey, VirtualLayoutQueryInputParts},
     runtime::{
         SurfaceNode, SurfaceTraversalIndex, UiSurface,
         surface::{
@@ -118,6 +118,7 @@ struct RuntimeVirtualLayoutRecord<Message> {
     coordinator: VirtualLayoutWindowCoordinator,
     materialization: RuntimeMaterialization<Message>,
     last_query: Option<VirtualLayoutQueryInputParts>,
+    last_required_key: Option<VirtualLayoutItemKey>,
     pin: Option<VirtualLayoutPin>,
     cached_subtree: Option<RuntimeVirtualLayoutSubtree<Message>>,
     retired: bool,
@@ -142,6 +143,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             coordinator,
             materialization,
             last_query: None,
+            last_required_key: None,
             pin: None,
             cached_subtree: None,
             retired: false,
@@ -154,6 +156,10 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || self.registration.measurement_revision() != registration.measurement_revision()
             || self.registration.semantic_revision() != registration.semantic_revision()
             || !self.registration.semantic_provider_is_same(&registration)
+            || !same_optional_key(
+                self.registration.required_key(),
+                registration.required_key(),
+            )
         {
             self.pin = None;
         }
@@ -163,7 +169,11 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
         }
     }
 
-    fn needs_query(&self, parts: &VirtualLayoutQueryInputParts) -> bool {
+    fn needs_query(
+        &self,
+        parts: &VirtualLayoutQueryInputParts,
+        required_key: Option<&VirtualLayoutItemKey>,
+    ) -> bool {
         let Some(previous) = &self.last_query else {
             return true;
         };
@@ -179,6 +189,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || previous.policy_revision != parts.policy_revision
             || previous.measurement_revision != parts.measurement_revision
             || previous.semantic_revision != parts.semantic_revision
+            || !same_optional_key(self.last_required_key.as_ref(), required_key)
     }
 
     fn needs_query_for_viewport(&self, viewport: Rect) -> bool {
@@ -186,6 +197,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             &self
                 .registration
                 .query_parts(viewport, self.mount_generation),
+            self.registration.required_key(),
         )
     }
 
@@ -196,10 +208,13 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
         let parts = self
             .registration
             .query_parts(viewport, self.mount_generation);
-        if !self.needs_query(&parts) {
+        if !self.needs_query(&parts, self.registration.required_key()) {
             return RuntimeVirtualLayoutMaterialization::Reused;
         }
-        let pending = match self.coordinator.begin_query(parts.clone()) {
+        let pending = match self
+            .coordinator
+            .begin_query_with_required_key(parts.clone(), self.registration.required_key().cloned())
+        {
             Ok(pending) => pending,
             Err(_) => {
                 self.retire();
@@ -322,6 +337,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
 
     fn commit_batch(&mut self, batch: RuntimeVirtualLayoutCommittedBatch<Message>) {
         self.last_query = Some(batch.query);
+        self.last_required_key = batch.subtree.registration.required_key().cloned();
         self.cached_subtree = Some(batch.subtree);
     }
 
@@ -332,6 +348,15 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             let _ = self.materialization.unmount();
         }
         self.cached_subtree = None;
+        self.last_required_key = None;
+    }
+
+    fn cached_subtree_matches_required_key(&self) -> bool {
+        self.cached_subtree.is_some()
+            && same_optional_key(
+                self.last_required_key.as_ref(),
+                self.registration.required_key(),
+            )
     }
 }
 
@@ -433,7 +458,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 continue;
             }
             let container_id = self.records[index].registration.container_id;
-            if let Some(cached) = &self.records[index].cached_subtree {
+            if self.records[index].cached_subtree_matches_required_key()
+                && let Some(cached) = self.records[index].cached_subtree.as_ref()
+            {
                 let installed = surface.install_virtual_layout_subtree(
                     container_id,
                     &cached.shell,
@@ -688,6 +715,17 @@ fn suppress_cached_virtual_layout_subtree<Message>(
     let _ = surface.replace_virtual_layout_shell(container_id, subtree.shell, subtree.registration);
 }
 
+fn same_optional_key(
+    left: Option<&VirtualLayoutItemKey>,
+    right: Option<&VirtualLayoutItemKey>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => left.stable_equals(right) == Some(true),
+        _ => false,
+    }
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: crate::runtime::RuntimeBridge<Message>,
@@ -800,6 +838,11 @@ mod tests {
         key: u32,
     }
 
+    struct RequiredKeyPolicy {
+        calls: Rc<Cell<u32>>,
+        required_key: u32,
+    }
+
     impl VirtualLayoutPolicy for ReadyPolicy {
         fn query(
             &self,
@@ -810,6 +853,39 @@ mod tests {
             assert!(
                 sink.visit(VirtualLayoutItemCandidate::new(
                     VirtualLayoutItemKey::new(self.key),
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 100.0, 20.0),
+                    VirtualLayoutVisibility::Visible,
+                    VirtualLayoutBoundsConfidence::Exact,
+                ))
+                .is_ok()
+            );
+            assert!(
+                sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
+                    100.0, 20.0,
+                )))
+                .is_ok()
+            );
+            VirtualLayoutPolicyDecision::Ready
+        }
+    }
+
+    impl VirtualLayoutPolicy for RequiredKeyPolicy {
+        fn query(
+            &self,
+            input: &VirtualLayoutQueryInput,
+            sink: &mut VirtualLayoutQuerySink,
+        ) -> VirtualLayoutPolicyDecision {
+            self.calls.set(self.calls.get().saturating_add(1));
+            let expected = VirtualLayoutItemKey::new(self.required_key);
+            assert!(
+                input
+                    .required_key()
+                    .is_some_and(|key| { key.stable_equals(&expected) == Some(true) })
+            );
+            assert!(
+                sink.visit(VirtualLayoutItemCandidate::new(
+                    VirtualLayoutItemKey::new(self.required_key),
                     0,
                     Rect::from_xy_size(0.0, 0.0, 100.0, 20.0),
                     VirtualLayoutVisibility::Visible,
@@ -916,6 +992,15 @@ mod tests {
             item: Rc::new(|_| text::<()>("virtual item")),
             kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
         })
+    }
+
+    fn registration_with_required_key(
+        policy: Rc<dyn VirtualLayoutPolicy>,
+        policy_identity: VirtualLayoutPolicyIdentity,
+        required_key: u32,
+    ) -> VirtualLayoutRegistration<()> {
+        registration(policy, policy_identity)
+            .with_required_key(VirtualLayoutItemKey::new(required_key))
     }
 
     fn semantic_entry(key: u32, bounds: Rect) -> VirtualLayoutSemanticEntry {
@@ -1561,6 +1646,31 @@ mod tests {
             runtime.declarative_owner_projection().installation_count(),
             1
         );
+    }
+
+    #[test]
+    fn runtime_forwards_one_required_key_before_materialization() {
+        let calls = Rc::new(Cell::new(0));
+        let runtime = SurfaceRuntime::new(
+            TestBridge {
+                surface: surface(registration_with_required_key(
+                    Rc::new(RequiredKeyPolicy {
+                        calls: Rc::clone(&calls),
+                        required_key: 7,
+                    }),
+                    VirtualLayoutPolicyIdentity::new("required-key-policy"),
+                    7,
+                )),
+            },
+            Vector2::new(160.0, 80.0),
+        );
+
+        assert_eq!(calls.get(), 1);
+        let slots = runtime.virtual_layout.records[0]
+            .materialization
+            .active_slots();
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].item().key(), &VirtualLayoutItemKey::new(7_u32));
     }
 
     #[test]

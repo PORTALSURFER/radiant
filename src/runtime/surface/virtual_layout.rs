@@ -9,7 +9,7 @@ use crate::{
     gui::layout_core::{VirtualLayoutBatchProjector, VirtualLayoutSemanticProvider},
     gui::types::Rect,
     layout::{
-        VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem,
+        VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem, VirtualLayoutItemKey,
         VirtualLayoutOverscan, VirtualLayoutPolicy, VirtualLayoutPolicyIdentity,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
@@ -42,6 +42,7 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     pub(crate) coordinate_space: VirtualLayoutCoordinateSpace,
     pub(crate) overscan: VirtualLayoutOverscan,
     pub(crate) budget: VirtualLayoutBudget,
+    required_key: Option<VirtualLayoutItemKey>,
     pub(crate) revisions: VirtualLayoutRegistrationRevisions,
     pub(crate) shell: VirtualLayoutShellFactory<Message>,
     pub(crate) item: VirtualLayoutItemFactory<Message>,
@@ -60,6 +61,7 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             coordinate_space: self.coordinate_space.clone(),
             overscan: self.overscan,
             budget: self.budget,
+            required_key: self.required_key.clone(),
             revisions: self.revisions,
             shell: Rc::clone(&self.shell),
             item: Rc::clone(&self.item),
@@ -114,6 +116,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
             item,
             kind,
             semantic_provider: None,
+            required_key: None,
             shell_lowerer,
             projector_factory,
         }
@@ -125,6 +128,17 @@ impl<Message> VirtualLayoutRegistration<Message> {
 
     pub(crate) fn projector(&self) -> VirtualLayoutBatchProjector<Message> {
         (self.projector_factory)()
+    }
+
+    /// Request one private exact item key in the next bounded policy query.
+    #[allow(dead_code)]
+    pub(crate) fn with_required_key(mut self, key: VirtualLayoutItemKey) -> Self {
+        self.required_key = Some(key);
+        self
+    }
+
+    pub(crate) fn required_key(&self) -> Option<&VirtualLayoutItemKey> {
+        self.required_key.as_ref()
     }
 
     #[allow(dead_code)]

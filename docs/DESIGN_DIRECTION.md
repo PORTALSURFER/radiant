@@ -1274,6 +1274,38 @@ scheduling/demand, apply custom transforms, or wire focus, actions, or product
 behavior. Estimates remain unchanged: generic ~97%, Declarative identity 71%,
 layout 97%, and broad coverage `901 / 11` (~81.91%).
 
+The approved next semantic boundary is target-only and unshipped. One
+crate-private semantic-demand owner in each `SurfaceRuntime` may receive only
+an explicit semantic/accessibility range request or an explicit required-item
+pin, with one active contiguous logical range per mounted virtual container
+plus the independent one-item semantic pin. Registration declares capability
+only; the runtime derives live identity, revisions, provider identity/
+generation, coordinate, and budget. The target is logical-only (`Custom` is
+rejected before provider invocation, with no identity-transform fallback),
+bounded by 64 registrations, per-registration and 1024-entry caps, aggregate
+active range length 1024, and one provider call per container/attempt.
+
+Per-slot provider completion and retention use an exact fence for demand,
+identity, revisions, provider, source, generation, attempt, and cancellation.
+Whole-surface publication wraps that exact provider fence and adds
+materialization/classification authority, ordinary-projection generation, and
+complete-surface-demand-set generation.
+Only explicit demand or listed identity/revision/provider/coordinate/budget
+changes and explicit retry refresh the provider; snapshots, ordinary repaint,
+paint-only work, unchanged refresh, and ordinary recomposition do not. Found,
+NotFound, terminal unavailable, `Unavailable(DataUnavailable)`, `Deferred`,
+rejected/malformed,
+and stale outcomes follow the exact staging, fallback, and slot-resolution
+rules; publication is atomic for the whole surface. Retained evidence may be
+recomposed with current materialization/projection authority, while
+`Unmaterialized`/`materialized = false` remains authoritative. Semantics do not
+authorize materialization, scrolling, actions, focus, paint, hit testing,
+scheduling, rendering, or provider registration. Custom-coordinate
+transformation, production/native consumers, scheduler/backoff/fairness,
+multiple active ranges per container, public API, and runtime implementation
+remain deferred; `automation_snapshot` and `automation_target_snapshot` stay
+pure observational reads.
+
 ### Leaf content and interactive widgets
 
 Leaf nodes are placed by containers. Passive content such as text, icons,
@@ -1690,11 +1722,14 @@ projection whose stable domain identity is not represented by its item type.
 Virtualization does not make offscreen content inaccessible. A virtual
 collection exposes a lightweight `VirtualSemantics` model containing count,
 stable item keys, positions, labels, values, and supported actions. Assistive
-technology and keyboard navigation may request an offscreen item by key or
-index; Radiant materializes the smallest required semantic/visual range, moves
-the scroll anchor when appropriate, and releases it again under the normal
-viewport policy. It never expands a large collection into a permanent complete
-accessibility tree merely to satisfy one request.
+technology and keyboard navigation may issue an explicit semantic range
+request or required-item pin by key or index. The target semantic-demand
+owner retains only bounded logical evidence; semantic evidence does not
+materialize widgets, move the scroll anchor, perform actions, transfer focus,
+paint, hit-test, schedule, render, or register a provider. Those authorities
+remain with their explicit runtime consumers. It never expands a large
+collection into a permanent complete accessibility tree merely to satisfy one
+request.
 
 `virtual_tree` is the corresponding first-class hierarchical collection. It
 accepts keyed roots, an application-owned child relation, and an item view;
@@ -1711,12 +1746,14 @@ virtual_tree(state.library_roots.snapshot(), library_children, library_item)
 ```
 
 Trees support disclosure toggles, Left/Right parent-child navigation, typeahead,
-range selection, drag/drop insertion cues, and on-demand semantic materialization
-with level, set size, and position information. Child data may be absent or
+range selection, drag/drop insertion cues, and on-demand semantic evidence with
+level, set size, and position information. Child data may be absent or
 effect-backed; expansion then projects a normal loading, error, or retry row
 without materializing unrelated branches. Tree membership, ordering, expansion,
 and domain mutations remain application state, while Radiant owns visible-range
-flattening, culling, focus reveal, recycling, and accessibility traversal.
+flattening, culling, explicit focus/navigation policy, recycling, and
+accessibility traversal. Semantic evidence alone does not materialize, scroll,
+act, or transfer focus.
 
 The runtime maintains an incremental keyed visible-tree index rather than
 flattening the complete hierarchy for every projection. Expand, collapse,

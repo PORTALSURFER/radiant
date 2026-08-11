@@ -277,6 +277,7 @@ pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Me
 #[derive(Default)]
 pub struct WidgetMessageMapper<Message> {
     map: Option<OutputMapper<Message>>,
+    accessibility_action: Option<OutputMapper<Message>>,
     native_file_drop: Option<EventMapper<NativeFileDrop, Message>>,
 }
 
@@ -284,6 +285,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
+            accessibility_action: self.accessibility_action.clone(),
             native_file_drop: self.native_file_drop.clone(),
         }
     }
@@ -294,6 +296,7 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn none() -> Self {
         Self {
             map: None,
+            accessibility_action: None,
             native_file_drop: None,
         }
     }
@@ -324,6 +327,7 @@ impl<Message> WidgetMessageMapper<Message> {
                 matches,
                 clone_message: Message::clone,
             })),
+            accessibility_action: None,
             native_file_drop: None,
         }
     }
@@ -337,8 +341,28 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn dynamic_mapped(map: EventMapper<WidgetOutput, Option<Message>>) -> Self {
         Self {
             map: Some(OutputMapper::Dynamic(map)),
+            accessibility_action: None,
             native_file_drop: None,
         }
+    }
+
+    /// Add a typed mapper for the neutral accessibility-action output lane.
+    ///
+    /// The normal widget-output mapper remains independent, so a complete
+    /// numeric input can map text/keyboard/pointer/wheel interaction batches
+    /// and accessibility outcomes to the same host message type without
+    /// duplicating either dispatch.
+    pub fn with_accessibility_action<Output>(
+        mut self,
+        map: impl Fn(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Clone + 'static,
+    {
+        self.accessibility_action = Some(OutputMapper::Dynamic(EventMapper::new(
+            move |output: WidgetOutput| output.typed_cloned::<Output>().map(&map),
+        )));
+        self
     }
 
     /// Build a button-output mapper while preserving typed equality evidence.
@@ -382,6 +406,7 @@ impl<Message> WidgetMessageMapper<Message> {
 
     pub(super) fn uses_dynamic_output_callback(&self) -> bool {
         matches!(self.map, Some(OutputMapper::Dynamic(_)))
+            || matches!(self.accessibility_action, Some(OutputMapper::Dynamic(_)))
     }
 
     /// Return whether this mapper carries opaque host or native-drop behavior.
@@ -389,10 +414,15 @@ impl<Message> WidgetMessageMapper<Message> {
     /// Reconciliation cannot compare callback identity or captured state, so
     /// any message binding is conservatively treated as structural.
     pub(in crate::runtime::surface) fn output_mapper_descriptor(&self) -> MapperDescriptor {
-        match self.map.as_ref() {
-            Some(OutputMapper::Dynamic(map)) => map.descriptor(),
-            Some(OutputMapper::Constant(_)) => MapperDescriptor::Conservative,
-            None => MapperDescriptor::Absent,
+        match (self.map.as_ref(), self.accessibility_action.as_ref()) {
+            (None, None) => MapperDescriptor::Absent,
+            (Some(OutputMapper::Dynamic(map)), None) | (None, Some(OutputMapper::Dynamic(map))) => {
+                map.descriptor()
+            }
+            (Some(OutputMapper::Constant(_)), None) | (None, Some(OutputMapper::Constant(_))) => {
+                MapperDescriptor::Conservative
+            }
+            (Some(_), Some(_)) => MapperDescriptor::Conservative,
         }
     }
 
@@ -407,6 +437,13 @@ impl<Message> WidgetMessageMapper<Message> {
 
     pub(super) fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match self.map.as_ref()? {
+            OutputMapper::Dynamic(map) => map.invoke(output),
+            OutputMapper::Constant(map) => map.map_output(&output),
+        }
+    }
+
+    pub(super) fn map_accessibility_output(&self, output: WidgetOutput) -> Option<Message> {
+        match self.accessibility_action.as_ref()? {
             OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
         }

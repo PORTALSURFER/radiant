@@ -4,6 +4,7 @@
 //! layout output together so backends can route normalized widget input without
 //! depending on host-specific shell contracts.
 
+mod accessibility;
 mod commands;
 mod composition;
 mod context;

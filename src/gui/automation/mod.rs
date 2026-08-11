@@ -10,10 +10,10 @@ mod test_fixtures;
 mod tests;
 
 pub use model::{
-    AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
-    AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE,
-    AutomationBounds, AutomationFocusHints, AutomationLiveRegion, AutomationNodeId,
-    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationPoint, AutomationRole,
-    GuiAutomationSnapshot,
+    AUTOMATION_ACTION_DECREMENT, AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_INCREMENT,
+    AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT, AUTOMATION_ACTION_SET_TEXT,
+    AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE, AutomationBounds, AutomationFocusHints,
+    AutomationLiveRegion, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+    AutomationPoint, AutomationRole, GuiAutomationSnapshot,
 };
-pub use serialization::{AutomationTarget, GuiAutomationTargetSnapshot};
+pub use serialization::{AutomationTarget, AutomationTargetAuthority, GuiAutomationTargetSnapshot};

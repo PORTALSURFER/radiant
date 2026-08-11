@@ -32,7 +32,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         CompositionRange, CompositionSample, EditEvent, FocusLossDecision, InteractionProvenance,
-        NumericAccessibilityAction, NumericAccessibilityOutcome,
+        NumericAccessibilityAction, NumericAccessibilityBlockOwner, NumericAccessibilityOutcome,
         NumericAccessibilityRejectedReason, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteractionBatch,
         NumericParseResult, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
@@ -46,6 +46,9 @@ use crate::{
 };
 
 type NumericInputOutputEncoder<T> = Rc<dyn Fn(NumericInputEditBatch<T>) -> WidgetOutput>;
+type NumericAccessibilityActionHandler<T, C, A> = Rc<
+    dyn Fn(&mut NumericInputWidget<T, C, A>, NumericAccessibilityAction) -> Option<WidgetOutput>,
+>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NumericInputOutputMode {
@@ -169,6 +172,7 @@ pub(crate) struct NumericInputWidget<T, C, A> {
     scrub_policy: Option<NumericScrubPolicy>,
     output_mode: NumericInputOutputMode,
     output_encoder: NumericInputOutputEncoder<T>,
+    accessibility_action_handler: Option<NumericAccessibilityActionHandler<T, C, A>>,
     keyboard_policy: Rc<dyn KeyboardAdjustmentPolicy<T>>,
     pointer_policy: Option<Rc<dyn PointerScrubOutputPolicy<T>>>,
     wheel_policy: Option<NumericWheelPolicy>,
@@ -197,6 +201,7 @@ where
             scrub_policy: self.scrub_policy,
             output_mode: self.output_mode,
             output_encoder: Rc::clone(&self.output_encoder),
+            accessibility_action_handler: self.accessibility_action_handler.as_ref().map(Rc::clone),
             keyboard_policy: Rc::clone(&self.keyboard_policy),
             pointer_policy: self.pointer_policy.as_ref().map(Rc::clone),
             wheel_policy: self.wheel_policy,
@@ -271,6 +276,7 @@ where
             scrub_policy: None,
             output_mode: NumericInputOutputMode::Compatibility,
             output_encoder: compatibility_output_encoder(),
+            accessibility_action_handler: None,
             keyboard_policy: no_keyboard_adjustment_policy(),
             pointer_policy: None,
             wheel_policy: None,
@@ -311,6 +317,7 @@ where
     pub(crate) fn set_compatibility_output_mode(&mut self) {
         self.output_mode = NumericInputOutputMode::Compatibility;
         self.output_encoder = compatibility_output_encoder();
+        self.accessibility_action_handler = None;
         self.keyboard_policy = no_keyboard_adjustment_policy();
         self.pointer_policy = None;
         self.wheel_output_policy = None;
@@ -323,6 +330,7 @@ where
     {
         self.output_mode = NumericInputOutputMode::Complete;
         self.output_encoder = Rc::new(encode_complete_output::<T, A::Error, C::Error>);
+        self.accessibility_action_handler = None;
         self.keyboard_policy = complete_keyboard_adjustment_policy(
             Rc::clone(&self.codec),
             Rc::clone(&self.adjustment),
@@ -335,6 +343,17 @@ where
             Rc::clone(&self.codec),
             Rc::clone(&self.adjustment),
         ));
+    }
+
+    pub(crate) fn set_accessibility_action_mode(&mut self)
+    where
+        A::Error: 'static,
+        C::Error: 'static,
+    {
+        self.set_complete_output_mode();
+        self.accessibility_action_handler = Some(Rc::new(|input, action| {
+            NumericInputWidget::handle_accessibility_action(input, action).map(WidgetOutput::typed)
+        }));
     }
 
     fn encode_output(&self, batch: NumericInputEditBatch<T>) -> WidgetOutput {
@@ -1652,6 +1671,48 @@ where
             | Some(NumericParseResult::OutOfRange)
             | None => FocusLossDecision::Veto,
         }
+    }
+
+    fn supports_accessibility_action(&self, action: &NumericAccessibilityAction) -> bool {
+        self.accessibility_action_handler.is_some()
+            && matches!(
+                action,
+                NumericAccessibilityAction::Increment
+                    | NumericAccessibilityAction::Decrement
+                    | NumericAccessibilityAction::SetValueText(_)
+            )
+    }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        self.accessibility_action_handler.as_ref()?;
+        let mut actions = Vec::with_capacity(4);
+        if self.text_input.common.focus != crate::widgets::FocusBehavior::None
+            && !self.text_input.common.state.disabled
+        {
+            actions.push(crate::gui::automation::AUTOMATION_ACTION_FOCUS.to_owned());
+        }
+        if !self.text_input.common.state.read_only && !self.text_input.common.state.disabled {
+            actions.extend([
+                crate::gui::automation::AUTOMATION_ACTION_INCREMENT.to_owned(),
+                crate::gui::automation::AUTOMATION_ACTION_DECREMENT.to_owned(),
+                crate::gui::automation::AUTOMATION_ACTION_SET_TEXT.to_owned(),
+            ]);
+        }
+        Some(actions)
+    }
+
+    fn accessibility_action_owner(&self) -> Option<NumericAccessibilityBlockOwner> {
+        self.interaction_gate
+            .incumbent()
+            .map(NumericAccessibilityBlockOwner::from)
+    }
+
+    fn handle_accessibility_action(
+        &mut self,
+        action: NumericAccessibilityAction,
+    ) -> Option<WidgetOutput> {
+        let handler = self.accessibility_action_handler.as_ref().map(Rc::clone)?;
+        handler(self, action)
     }
 
     fn handle_input(

@@ -5,9 +5,10 @@ use crate::{
     layout::Vector2,
     runtime::WidgetMessageMapper,
     widgets::{
-        NumericAdjustment, NumericCodec, NumericInputConstructionError, NumericInputEditBatch,
-        NumericInputInteractionBatch, NumericInputWidget, NumericScrubPolicy, NumericStepModifiers,
-        NumericWheelPolicy, TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
+        NumericAccessibilityOutcome, NumericAdjustment, NumericCodec,
+        NumericInputConstructionError, NumericInputEditBatch, NumericInputInteractionBatch,
+        NumericInputWidget, NumericScrubPolicy, NumericStepModifiers, NumericWheelPolicy,
+        TextInputChrome, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -112,6 +113,28 @@ where
         input.set_complete_output_mode();
         let mut node =
             view_node_from_widget(MappedWidget::new(input, WidgetMessageMapper::typed(map)));
+        node.style = self.style;
+        node
+    }
+
+    /// Emit complete interaction messages and runtime-dispatched accessibility
+    /// outcomes through one explicit host mapper pair.
+    pub fn on_interaction_with_accessibility<Message: 'static>(
+        self,
+        interaction_map: impl Fn(NumericInputInteractionBatch<T, A::Error, C::Error>) -> Message
+        + 'static,
+        accessibility_map: impl Fn(NumericAccessibilityOutcome<T, A::Error, C::Error>) -> Message
+        + 'static,
+    ) -> ViewNode<Message>
+    where
+        A::Error: 'static,
+        C::Error: 'static,
+    {
+        let mut input = self.input;
+        input.set_accessibility_action_mode();
+        let messages = WidgetMessageMapper::typed(interaction_map)
+            .with_accessibility_action(accessibility_map);
+        let mut node = view_node_from_widget(MappedWidget::new(input, messages));
         node.style = self.style;
         node
     }

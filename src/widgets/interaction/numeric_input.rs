@@ -357,8 +357,8 @@ pub enum NumericInputInteraction<T, StepError, FormatError> {
 /// A discrete, backend-neutral action for the generic numeric input.
 ///
 /// This is the widget-local policy vocabulary. Runtime target resolution,
-/// focus admission, stale-target classification, and native action mapping
-/// remain separate contracts at the runtime and platform boundaries.
+/// focus admission, stale-target classification, and native action mapping are
+/// separate contracts at the runtime and platform boundaries.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum NumericAccessibilityAction {
     /// Apply one ordinary increase step.
@@ -381,6 +381,8 @@ pub enum NumericAccessibilityRejectedReason {
     ReadOnly,
     /// The runtime has not admitted the target as focused and editable.
     NotFocusable,
+    /// The focused widget vetoed the ordinary focus transition.
+    FocusDenied,
     /// The complete text payload is an accepted prefix but not a value.
     Incomplete,
     /// The complete text payload does not match the codec grammar.
@@ -422,11 +424,13 @@ impl From<NumericInteractionOwner> for NumericAccessibilityBlockOwner {
 
 /// Result of the generic numeric widget's local accessibility policy.
 ///
-/// `Unavailable` and stale/removed/unmaterialized target outcomes are owned by
-/// the future runtime dispatch boundary and therefore do not appear here. A
+/// Stale/removed/unmaterialized target outcomes and pre-focus admission are
+/// owned by the runtime dispatch boundary and therefore do not appear here. A
 /// successful changed action is one bounded `Begin`/`Update`/`Commit` batch;
-/// all other outcomes leave the exact widget state unchanged.
-#[derive(Clone, Debug, PartialEq)]
+/// all other outcomes leave the exact widget state unchanged. The runtime
+/// carries this local result through its type-erased output boundary after
+/// admission.
+#[derive(Debug, PartialEq)]
 pub enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
     /// One accepted changed action with its complete atomic edit lifecycle.
     Edit(NumericInputEditBatch<T>),
@@ -461,6 +465,32 @@ pub enum NumericAccessibilityOutcome<T, AdjustmentError, FormatError> {
         /// The codec-provided failure.
         error: Rc<FormatError>,
     },
+}
+
+impl<T: Clone, AdjustmentError, FormatError> Clone
+    for NumericAccessibilityOutcome<T, AdjustmentError, FormatError>
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Edit(edit) => Self::Edit(edit.clone()),
+            Self::NoChange { action } => Self::NoChange {
+                action: action.clone(),
+            },
+            Self::Rejected { action, reason } => Self::Rejected {
+                action: action.clone(),
+                reason: *reason,
+            },
+            Self::Blocked { owner } => Self::Blocked { owner: *owner },
+            Self::AdjustmentFailed { action, error } => Self::AdjustmentFailed {
+                action: action.clone(),
+                error: Rc::clone(error),
+            },
+            Self::FormatFailed { action, error } => Self::FormatFailed {
+                action: action.clone(),
+                error: Rc::clone(error),
+            },
+        }
+    }
 }
 
 impl<T, StepError, FormatError> NumericInputInteraction<T, StepError, FormatError> {

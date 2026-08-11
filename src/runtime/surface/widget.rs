@@ -237,6 +237,19 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_composition_input()
     }
 
+    pub(in crate::runtime) fn supports_accessibility_action(
+        &self,
+        action: &crate::widgets::NumericAccessibilityAction,
+    ) -> bool {
+        self.widget.supports_accessibility_action(action)
+    }
+
+    pub(in crate::runtime) fn accessibility_action_owner(
+        &self,
+    ) -> Option<crate::widgets::NumericAccessibilityBlockOwner> {
+        self.widget.accessibility_action_owner()
+    }
+
     pub(in crate::runtime) fn retains_managed_composition(&self) -> bool {
         self.widget.retains_managed_composition()
     }
@@ -347,6 +360,23 @@ impl<Message> SurfaceWidget<Message> {
             .map_output(output)
             .map(super::WidgetDispatchResult::Message)
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn dispatch_accessibility_action(
+        &mut self,
+        widget_id: WidgetId,
+        action: crate::widgets::NumericAccessibilityAction,
+    ) -> Option<(WidgetOutput, super::WidgetDispatchResult<Message>)> {
+        if self.id() != widget_id {
+            return None;
+        }
+        let output = self.widget.handle_accessibility_action(action)?;
+        let mapped = self
+            .messages
+            .map_accessibility_output(output.clone())
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        Some((output, mapped))
     }
 
     pub(in crate::runtime) fn dispatch_wheel_sample(

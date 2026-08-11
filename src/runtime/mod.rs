@@ -53,11 +53,12 @@ pub use crate::application::{
     retained_canvas_with,
 };
 pub use crate::gui::automation::{
-    AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
-    AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE,
-    AutomationBounds, AutomationFocusHints, AutomationLiveRegion, AutomationNodeId,
-    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationPoint, AutomationRole,
-    AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
+    AUTOMATION_ACTION_DECREMENT, AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_INCREMENT,
+    AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT, AUTOMATION_ACTION_SET_TEXT,
+    AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE, AutomationBounds, AutomationFocusHints,
+    AutomationLiveRegion, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+    AutomationPoint, AutomationRole, AutomationTarget, AutomationTargetAuthority,
+    GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, EmbeddedVelloError, EmbeddedVelloRenderer,
@@ -72,6 +73,10 @@ pub use crate::gui_runtime::{
 };
 pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
+pub use automation::{
+    NumericAccessibilityDispatchResult, NumericAccessibilityRequest,
+    NumericAccessibilityUnavailableReason,
+};
 #[allow(deprecated)]
 pub use bridge::{
     App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,

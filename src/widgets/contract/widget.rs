@@ -8,7 +8,8 @@ use crate::{
     widgets::{
         WidgetRevision,
         interaction::{
-            CompositionSample, WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+            CompositionSample, NumericAccessibilityAction, NumericAccessibilityBlockOwner,
+            WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
         },
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
@@ -127,6 +128,34 @@ pub trait Widget: WidgetClone + Any {
     /// preserves the existing focus-loss behavior for custom widgets.
     fn prepare_focus_loss(&mut self) -> FocusLossDecision {
         FocusLossDecision::Allow
+    }
+
+    /// Return whether this widget currently supports one neutral numeric
+    /// accessibility action.
+    ///
+    /// The default keeps custom widgets out of the numeric action boundary.
+    /// Runtime callers must still revalidate identity, focus, ownership, and
+    /// enabled/editable state before invoking the action hook.
+    fn supports_accessibility_action(&self, _action: &NumericAccessibilityAction) -> bool {
+        false
+    }
+
+    /// Report a current local interaction owner that blocks an accessibility
+    /// action without changing focus or widget state.
+    fn accessibility_action_owner(&self) -> Option<NumericAccessibilityBlockOwner> {
+        None
+    }
+
+    /// Consume one already-admitted neutral accessibility action.
+    ///
+    /// The default is inert. Implementations return a type-erased
+    /// [`WidgetOutput`] so application-owned typed policy envelopes remain
+    /// available without making the generic runtime know their type parameters.
+    fn handle_accessibility_action(
+        &mut self,
+        _action: NumericAccessibilityAction,
+    ) -> Option<WidgetOutput> {
+        None
     }
 
     /// Preflight one pointer press without mutating widget state.
@@ -361,6 +390,16 @@ pub trait Widget: WidgetClone + Any {
             return semantics.resolve_automation_semantics(common);
         }
         fallback_automation_semantics(common)
+    }
+
+    /// Return explicit automation action names when this widget's interaction
+    /// policy is richer than the role-derived defaults.
+    ///
+    /// The default keeps the snapshot contract role-derived. Runtime dispatch
+    /// still treats this list as advertisement only and revalidates the live
+    /// widget capability before invoking an action.
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        None
     }
 
     /// Return whether other widgets under the pointer may receive pointer-move

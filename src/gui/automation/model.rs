@@ -11,6 +11,10 @@ pub const AUTOMATION_ACTION_SELECT: &str = "select";
 pub const AUTOMATION_ACTION_SET_TEXT: &str = "set_text";
 /// Stable action name for changing a continuous value.
 pub const AUTOMATION_ACTION_SET_VALUE: &str = "set_value";
+/// Stable action name for applying one ordinary increase step.
+pub const AUTOMATION_ACTION_INCREMENT: &str = "increment";
+/// Stable action name for applying one ordinary decrease step.
+pub const AUTOMATION_ACTION_DECREMENT: &str = "decrement";
 /// Stable action name for toggling an on/off value.
 pub const AUTOMATION_ACTION_TOGGLE: &str = "toggle";
 

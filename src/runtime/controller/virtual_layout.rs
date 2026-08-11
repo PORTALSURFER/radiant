@@ -677,6 +677,11 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                     record.pin = None;
                     return VirtualLayoutSemanticQueryOutcome::Rejected(reason);
                 }
+                if let Err(reason) =
+                    validate_semantic_entry_against_pin(record.pin.as_ref(), request, &entry)
+                {
+                    return VirtualLayoutSemanticQueryOutcome::Rejected(reason);
+                }
                 record.pin = Some(VirtualLayoutPin::new(
                     reason,
                     request.clone(),
@@ -776,7 +781,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
 
         match outcome {
             VirtualLayoutSemanticRangeProviderOutcome::Found(entries) => {
-                if let Err(reason) = validate_semantic_range_entries(request, &entries) {
+                if let Err(reason) =
+                    validate_semantic_range_entries(request, &entries, record.pin.as_ref())
+                {
                     return VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason);
                 }
                 let projections = entries
@@ -964,6 +971,7 @@ fn same_optional_key(
 fn validate_semantic_range_entries(
     request: &VirtualLayoutSemanticRangeRequest,
     entries: &[crate::gui::layout_core::VirtualLayoutSemanticEntry],
+    existing_pin: Option<&VirtualLayoutPin>,
 ) -> Result<(), VirtualLayoutSemanticRejectedReason> {
     let range = request.range();
     if entries.len() != range.length() {
@@ -987,12 +995,60 @@ fn validate_semantic_range_entries(
                 .stable_equals(previous.requested_key())
             {
                 Some(true) => return Err(VirtualLayoutSemanticRejectedReason::DuplicateKey),
-                Some(false) => {}
+                Some(false) => {
+                    if entry.automation_node_id() == previous.automation_node_id() {
+                        return Err(VirtualLayoutSemanticRejectedReason::DuplicateSemanticNodeId);
+                    }
+                }
                 None => return Err(VirtualLayoutSemanticRejectedReason::UnstableKey),
             }
         }
+        let item_request = request.item_request(entry.requested_key().clone());
+        validate_semantic_entry_against_pin(existing_pin, &item_request, entry)?;
     }
     Ok(())
+}
+
+fn validate_semantic_entry_against_pin(
+    existing_pin: Option<&VirtualLayoutPin>,
+    request: &VirtualLayoutSemanticRequest,
+    entry: &crate::gui::layout_core::VirtualLayoutSemanticEntry,
+) -> Result<(), VirtualLayoutSemanticRejectedReason> {
+    let Some(existing_pin) = existing_pin else {
+        return Ok(());
+    };
+    match existing_pin
+        .request()
+        .key()
+        .stable_equals(entry.requested_key())
+    {
+        Some(true) => {
+            if same_semantic_request_fence(existing_pin.request(), request)
+                && existing_pin.automation_node_id() != entry.automation_node_id()
+            {
+                return Err(VirtualLayoutSemanticRejectedReason::SemanticNodeIdDrift);
+            }
+        }
+        Some(false) => {}
+        None => return Err(VirtualLayoutSemanticRejectedReason::UnstableKey),
+    }
+    Ok(())
+}
+
+fn same_semantic_request_fence(
+    left: &VirtualLayoutSemanticRequest,
+    right: &VirtualLayoutSemanticRequest,
+) -> bool {
+    left.container_id() == right.container_id()
+        && left
+            .policy_identity()
+            .stable_equals(right.policy_identity())
+            == Some(true)
+        && left.mount_generation() == right.mount_generation()
+        && left.data_revision() == right.data_revision()
+        && left.policy_revision() == right.policy_revision()
+        && left.measurement_revision() == right.measurement_revision()
+        && left.semantic_revision() == right.semantic_revision()
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -1111,7 +1167,7 @@ mod tests {
     use crate::{
         application::{View, empty, scroll, spacer, text},
         gui::{
-            automation::{AutomationNodeSemantics, AutomationRole},
+            automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
             layout_core::{
                 VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutPinReason,
                 VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
@@ -1349,11 +1405,20 @@ mod tests {
     }
 
     fn semantic_entry(key: u32, bounds: Rect) -> VirtualLayoutSemanticEntry {
+        semantic_entry_with_id(key, AutomationNodeId::new("semantic-item"), bounds)
+    }
+
+    fn semantic_entry_with_id(
+        key: u32,
+        automation_node_id: AutomationNodeId,
+        bounds: Rect,
+    ) -> VirtualLayoutSemanticEntry {
         VirtualLayoutSemanticEntry::new(
             VirtualLayoutItemKey::new(key),
             key as usize,
             bounds,
             AutomationNodeSemantics::new(AutomationRole::Button).with_label("semantic item"),
+            automation_node_id,
         )
     }
 
@@ -1431,12 +1496,27 @@ mod tests {
         logical_index: usize,
         bounds: Rect,
     ) -> VirtualLayoutSemanticEntry {
+        semantic_range_entry_with_id(
+            key,
+            logical_index,
+            bounds,
+            AutomationNodeId::new("range-item"),
+        )
+    }
+
+    fn semantic_range_entry_with_id(
+        key: u32,
+        logical_index: usize,
+        bounds: Rect,
+        automation_node_id: AutomationNodeId,
+    ) -> VirtualLayoutSemanticEntry {
         VirtualLayoutSemanticEntry::new(
             VirtualLayoutItemKey::new(key),
             logical_index,
             bounds,
             AutomationNodeSemantics::new(AutomationRole::Button)
                 .with_label(format!("semantic item {logical_index}")),
+            automation_node_id,
         )
     }
 
@@ -1509,13 +1589,22 @@ mod tests {
         start_index: usize,
         length: usize,
     ) -> Vec<VirtualLayoutSemanticEntry> {
+        let automation_node_ids = [
+            "range-zero",
+            "range-one",
+            "range-two",
+            "range-three",
+            "range-four",
+            "range-five",
+        ];
         (0..length)
             .map(|offset| {
                 let logical_index = start_index + offset;
-                semantic_range_entry(
+                semantic_range_entry_with_id(
                     100 + logical_index as u32,
                     logical_index,
                     Rect::from_xy_size(4.0, logical_index as f32 * 12.0, 24.0, 10.0),
+                    AutomationNodeId::new(automation_node_ids[offset]),
                 )
             })
             .collect()
@@ -1562,6 +1651,7 @@ mod tests {
                 assert_eq!(projection.logical_index(), 2 + offset);
                 assert_eq!(projection.bounds(), entry.bounds());
                 assert_eq!(projection.semantics(), entry.semantics());
+                assert_eq!(projection.automation_node_id(), entry.automation_node_id());
                 assert_eq!(projection.range_request(), Some(batch.request()));
                 assert_eq!(
                     projection.authority(),
@@ -1651,6 +1741,7 @@ mod tests {
                     0,
                     Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
                     AutomationNodeSemantics::new(AutomationRole::Button),
+                    AutomationNodeId::new("unstable-range-key"),
                 ),
             ]));
         let mut unstable_state = semantic_range_state(
@@ -1790,10 +1881,30 @@ mod tests {
         ));
         cases.push((
             vec![
-                semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
-                semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
-                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
-                semantic_range_entry(104, 4, Rect::from_xy_size(0.0, 40.0, 10.0, 10.0)),
+                semantic_range_entry_with_id(
+                    100,
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                    AutomationNodeId::new("wrong-index-zero"),
+                ),
+                semantic_range_entry_with_id(
+                    101,
+                    1,
+                    Rect::from_xy_size(0.0, 10.0, 10.0, 10.0),
+                    AutomationNodeId::new("wrong-index-one"),
+                ),
+                semantic_range_entry_with_id(
+                    102,
+                    2,
+                    Rect::from_xy_size(0.0, 20.0, 10.0, 10.0),
+                    AutomationNodeId::new("wrong-index-two"),
+                ),
+                semantic_range_entry_with_id(
+                    104,
+                    4,
+                    Rect::from_xy_size(0.0, 40.0, 10.0, 10.0),
+                    AutomationNodeId::new("wrong-index-four"),
+                ),
             ],
             VirtualLayoutSemanticRejectedReason::WrongLogicalIndex,
         ));
@@ -1808,11 +1919,31 @@ mod tests {
         ));
         cases.push((
             vec![
+                semantic_range_entry_with_id(
+                    100,
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                    AutomationNodeId::new("shared-range-node"),
+                ),
+                semantic_range_entry_with_id(
+                    101,
+                    1,
+                    Rect::from_xy_size(0.0, 10.0, 10.0, 10.0),
+                    AutomationNodeId::new("shared-range-node"),
+                ),
+                semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
+                semantic_range_entry(103, 3, Rect::from_xy_size(0.0, 30.0, 10.0, 10.0)),
+            ],
+            VirtualLayoutSemanticRejectedReason::DuplicateSemanticNodeId,
+        ));
+        cases.push((
+            vec![
                 VirtualLayoutSemanticEntry::new(
                     VirtualLayoutItemKey::new(UnstableKey),
                     0,
                     Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
                     AutomationNodeSemantics::new(AutomationRole::Button),
+                    AutomationNodeId::new("unstable-range-key"),
                 ),
                 semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
                 semantic_range_entry(102, 2, Rect::from_xy_size(0.0, 20.0, 10.0, 10.0)),
@@ -1895,6 +2026,27 @@ mod tests {
         assert_eq!(range_calls.get(), 1);
         assert_eq!(state.records[0].pin, pin_before);
 
+        let incumbent_id = pin_before
+            .as_ref()
+            .expect("the one-item pin should remain available")
+            .automation_node_id()
+            .clone();
+        *range_outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+            semantic_range_entry_with_id(
+                100,
+                0,
+                Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                incumbent_id,
+            ),
+            semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
+        ]);
+        assert!(matches!(
+            state.admit_current_semantic_range(CONTAINER_ID, 0, 2),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+        assert_eq!(range_calls.get(), 2);
+        assert_eq!(state.records[0].pin, pin_before);
+
         *range_outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
             semantic_range_entry(100, 0, Rect::from_xy_size(0.0, 0.0, f32::NAN, 10.0)),
             semantic_range_entry(101, 1, Rect::from_xy_size(0.0, 10.0, 10.0, 10.0)),
@@ -1910,6 +2062,55 @@ mod tests {
             state.records[0].pin.as_ref().unwrap().reason(),
             VirtualLayoutPinReason::Semantic
         );
+    }
+
+    #[test]
+    fn semantic_node_id_cross_key_reuse_is_allowed_but_same_key_drift_rejects() {
+        let first = semantic_entry_with_id(
+            7,
+            AutomationNodeId::new("shared-node"),
+            Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+        );
+        let (provider, calls, outcome) = semantic_provider(
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(first.clone())),
+        );
+        let mut state = semantic_state(provider, 3);
+        assert!(matches!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(7_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(_)
+        ));
+        let cross_key = semantic_entry_with_id(
+            9,
+            AutomationNodeId::new("shared-node"),
+            Rect::from_xy_size(0.0, 12.0, 10.0, 10.0),
+        );
+        *outcome.borrow_mut() =
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(cross_key.clone()));
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(cross_key))
+        );
+        let pin_after_cross_key = state.records[0].pin.clone();
+        let projection_after_cross_key = state.project_current_semantics(CONTAINER_ID);
+
+        *outcome.borrow_mut() =
+            VirtualLayoutSemanticQueryOutcome::Found(Box::new(semantic_entry_with_id(
+                9,
+                AutomationNodeId::new("drifted-node"),
+                Rect::from_xy_size(1.0, 1.0, 12.0, 12.0),
+            )));
+        assert_eq!(
+            state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(9_u32)),
+            VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::SemanticNodeIdDrift
+            )
+        );
+        assert_eq!(state.records[0].pin, pin_after_cross_key);
+        assert_eq!(
+            state.project_current_semantics(CONTAINER_ID),
+            projection_after_cross_key
+        );
+        assert_eq!(calls.get(), 3);
     }
 
     #[test]
@@ -2099,6 +2300,7 @@ mod tests {
         assert_eq!(pin.reason(), VirtualLayoutPinReason::Semantic);
         assert_eq!(pin.request(), &expected_request);
         assert_eq!(pin.entry(), &entry);
+        assert_eq!(pin.automation_node_id(), entry.automation_node_id());
     }
 
     #[test]
@@ -2167,7 +2369,13 @@ mod tests {
 
         for coordinate_space in coordinate_spaces {
             let key = VirtualLayoutItemKey::new(17_u32);
-            let entry = VirtualLayoutSemanticEntry::new(key.clone(), 23, bounds, semantics.clone());
+            let entry = VirtualLayoutSemanticEntry::new(
+                key.clone(),
+                23,
+                bounds,
+                semantics.clone(),
+                AutomationNodeId::new("projected-row"),
+            );
             let (provider, _, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
                 Box::new(entry.clone()),
             ));
@@ -2192,6 +2400,15 @@ mod tests {
             assert_eq!(projection.logical_index(), 23);
             assert_eq!(projection.bounds(), bounds);
             assert_eq!(projection.semantics(), &semantics);
+            assert_eq!(
+                projection.automation_node_id(),
+                &AutomationNodeId::new("projected-row")
+            );
+            assert_eq!(
+                serde_json::to_string(projection.automation_node_id())
+                    .expect("AutomationNodeId should remain serializable"),
+                "\"projected-row\""
+            );
             assert_eq!(projection.request(), &request);
             assert_eq!(
                 projection.authority(),
@@ -2262,6 +2479,10 @@ mod tests {
         );
         assert_eq!(state.records[0].pin.as_ref().unwrap().request(), &request);
         assert_eq!(state.records[0].pin.as_ref().unwrap().entry(), &entry);
+        assert_eq!(
+            state.records[0].pin.as_ref().unwrap().automation_node_id(),
+            entry.automation_node_id()
+        );
         assert_eq!(state.records[0].cached_subtree.is_some(), cached_before);
         assert_eq!(state.materialization_passes, passes_before);
     }
@@ -2269,7 +2490,11 @@ mod tests {
     #[test]
     fn pin_reasons_are_valid_and_one_pin_replaces_in_query_order() {
         let first = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
-        let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
+        let second = semantic_entry_with_id(
+            9,
+            AutomationNodeId::new("semantic-second"),
+            Rect::from_xy_size(0.0, 12.0, 10.0, 10.0),
+        );
         let (provider, calls, outcome) = semantic_provider(
             VirtualLayoutSemanticQueryOutcome::Found(Box::new(first.clone())),
         );
@@ -2472,7 +2697,11 @@ mod tests {
             &VirtualLayoutItemKey::new(7_u32)
         );
 
-        let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
+        let second = semantic_entry_with_id(
+            9,
+            AutomationNodeId::new("semantic-second"),
+            Rect::from_xy_size(0.0, 12.0, 10.0, 10.0),
+        );
         let (second_provider, second_calls, second_outcome) = semantic_provider(
             VirtualLayoutSemanticQueryOutcome::Found(Box::new(second.clone())),
         );
@@ -2513,7 +2742,11 @@ mod tests {
             &VirtualLayoutItemKey::new(9_u32)
         );
 
-        let third = semantic_entry(9, Rect::from_xy_size(1.0, 13.0, 11.0, 12.0));
+        let third = semantic_entry_with_id(
+            9,
+            AutomationNodeId::new("semantic-third"),
+            Rect::from_xy_size(1.0, 13.0, 11.0, 12.0),
+        );
         *second_outcome.borrow_mut() =
             VirtualLayoutSemanticQueryOutcome::Found(Box::new(third.clone()));
         let mut revised = state.records[0].registration.clone();
@@ -2742,7 +2975,11 @@ mod tests {
         }
 
         let first = semantic_entry(7, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
-        let second = semantic_entry(9, Rect::from_xy_size(0.0, 12.0, 10.0, 10.0));
+        let second = semantic_entry_with_id(
+            9,
+            AutomationNodeId::new("semantic-after-revision"),
+            Rect::from_xy_size(0.0, 12.0, 10.0, 10.0),
+        );
         let (provider, _, outcome) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
             Box::new(first.clone()),
         ));

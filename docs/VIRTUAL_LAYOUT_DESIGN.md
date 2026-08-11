@@ -104,9 +104,12 @@ At this status:
    crate-private `VirtualLayoutSemanticProjection` may be created only from a
    validated `Semantic` pin. It retains the opaque container/key identity,
    logical index, declared coordinate space, finite bounds,
-   `AutomationNodeSemantics`, exact request/fence evidence, and explicit
-   `Unmaterialized` authority. It does not wire `AutomationNodeId`,
-   `AutomationTarget`, or `GuiAutomationSnapshot`.
+   `AutomationNodeSemantics`, the exact provider-supplied serializable
+   `AutomationNodeId` evidence, exact request/fence evidence, and explicit
+   `Unmaterialized` authority. `VirtualLayoutItemKey` remains the lifecycle and
+   authority identity; the automation ID is never synthesized from an index, key,
+   pointer, slot, or bounds. There is no global ID admission, and the ID is not
+   wired into `AutomationTarget` or `GuiAutomationSnapshot`.
 7. The current fixed-child and host-projected fixed-row APIs retain their
    existing behavior and compatibility promises.
 8. A future slice must name the subset of this contract it implements and must
@@ -1114,16 +1117,21 @@ through without changing the existing one-item pin.
 The range provider is invoked at most once. A `Found` vector is accepted only
 when it has exactly the requested count, contains strictly increasing,
 contiguous logical indices matching the requested interval, has stable
-reflexive opaque keys with no duplicates, and has finite non-inverted bounds.
-The live fence is checked again after provider return. Any count, index, key,
-geometry, provider, or fence failure rejects the complete batch with no partial
-projection. Accepted entries become ordered crate-private
-`VirtualLayoutSemanticProjection` values carrying opaque identity, the
-declared coordinate space, logical index, bounds, `AutomationNodeSemantics`,
-the exact range fence, and `Unmaterialized` authority. The range path never
-replaces, clears, or creates a second retained one-item pin and has no runtime,
-materialization, layout, refresh, focus, capture, scroll, paint, hit-test, or
-automation-snapshot side effects.
+reflexive opaque keys with no duplicates, has distinct provider-supplied
+serializable `AutomationNodeId` values for distinct keys, and has finite
+non-inverted bounds. The live fence is checked again after provider return. Any
+count, index, key, semantic-ID, geometry, provider, or fence failure rejects
+the complete batch with no partial projection. A same-key, same-fence
+provider-ID drift against an existing one-item pin is also rejected without
+exposing or replacing that pin. Accepted entries become ordered crate-private
+`VirtualLayoutSemanticProjection` values carrying the opaque key identity, the
+unchanged provider ID, the declared coordinate space, logical index, bounds,
+`AutomationNodeSemantics`, the exact range fence, and `Unmaterialized`
+authority. The range path never replaces, clears, or creates a second retained
+one-item pin and has no runtime, materialization, layout, refresh, focus,
+capture, scroll, paint, hit-test, or automation-snapshot side effects. Path
+construction, coordinate-space resolution, and cross-range ID deduplication
+remain later boundaries.
 
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy

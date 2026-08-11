@@ -124,28 +124,37 @@ registration authority constructs the exact request for one live mounted
 container and opaque stable key, and a valid provider result retains one
 `Semantic` pin. The crate-private `VirtualLayoutSemanticProjection` boundary
 then retains only validated semantic evidence with the declared coordinate
-space, finite bounds, exact request/fence, and explicit `Unmaterialized`
-authority. It does not wire `AutomationNodeId`, `AutomationTarget`, or
+space, finite bounds, the exact provider-supplied serializable `AutomationNodeId`,
+exact request/fence, and explicit `Unmaterialized` authority. The opaque
+`VirtualLayoutItemKey` remains lifecycle/authority identity; IDs are not
+synthesized from indices, keys, pointers, slots, or bounds. There is no global
+ID admission; this private evidence is not wired into `AutomationTarget` or
 `GuiAutomationSnapshot`, and no automation traversal, offscreen materialization,
-focus/capture transfer, scrolling, paint, hit testing, scheduler/renderer work,
-public consumer, or product wiring shipped. The evidence moves Declarative
-identity from 70% to 71% and broad coverage from `900 / 11` to `901 / 11`
-(~81.91%); generic architecture remains ~97% and layout remains 97%.
+focus/capture transfer,
+scrolling, paint, hit testing, scheduler/renderer work, public consumer, or
+product wiring shipped. The evidence moves Declarative identity from 70% to
+71% and broad coverage from `900 / 11` to `901 / 11` (~81.91%); generic
+architecture remains ~97% and layout remains 97%.
 The same private boundary now has an exact range query over
 `[start_index, start_index + length)`: zero length, checked-add overflow, and
 length above either the live registration budget or
 `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` are rejected before provider invocation.
 At most one range-provider call is made. Only an exact-count, contiguous
-ordered logical-index vector with stable unique opaque keys, finite
+ordered logical-index vector with stable unique opaque keys, distinct exact
+provider-supplied `AutomationNodeId` values for distinct keys, finite
 non-inverted bounds, and the current container/policy/mount/data/policy/
 measurement/semantic/coordinate/budget fence becomes ordered
-`VirtualLayoutSemanticProjection` evidence. Not-found, unavailable, deferred,
-rejected, malformed, and stale results are all-or-nothing and do not mutate
-the existing one-item pin. Focus, capture, runtime/materialization/layout,
-refresh, scroll, paint, hit-test, and automation-snapshot state remains
-untouched. This adds private evidence only and does not change the retained
-estimates: generic ~97%, Declarative identity 71%, layout 97%, and broad
-coverage `901 / 11` (~81.91%).
+`VirtualLayoutSemanticProjection` evidence. Duplicate semantic IDs and
+same-key, same-fence ID drift against an existing pin reject atomically;
+not-found, unavailable, deferred, rejected, malformed, and stale results are
+all-or-nothing and do not mutate the existing one-item pin. The provider ID is
+carried unchanged through each projection and the ordered batch, while the
+opaque key remains the only lifecycle/authority identity. Focus, capture,
+runtime/materialization/layout, refresh, scroll, paint, hit-test, and
+automation-snapshot state remains untouched. Path, coordinate-space, and
+cross-range deduplication work remain unshipped. This adds private evidence
+only and does not change the retained estimates: generic ~97%, Declarative
+identity 71%, layout 97%, and broad coverage `901 / 11` (~81.91%).
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,

@@ -35,9 +35,11 @@ Current values remain exactly: Public API 84; Declarative 71; Input 97; Layout
 provider-free exact semantic cardinality declaration and its exact private
 registration/live-fence invalidation foundation are now shipped and remain
 provider-free; this production slice does not change any estimate. The
-compositor-owned normalized fence-carriage foundation is now shipped; the full
-normalized sidecar remains unshipped and is the next executable backend-neutral
-slice before the later native implementation. Estimates remain unchanged. The
+compositor-owned complete normalized sidecar is now shipped from the exact
+staged union, with final paths, materialization origin, and source-qualified
+publication fences retained atomically by the selected composition. Estimates
+remain unchanged. Native cardinality queries/topology and custom-coordinate
+transforms remain later gaps. The
 partial native implementation in stash
 `radiant-native-semantic-consumer-partial-sol-audit` and the incomplete
 cardinality/sidecar attempt in stash
@@ -465,9 +467,10 @@ carries an exact `usize` logical item count and separate `u64` cardinality
 revision; an optional `VirtualLayoutParts` field and qualified
 `VirtualLayoutParts::with_semantic_cardinality(...)` builder are shipped outside
 the common prelude. The exact private registration/live-fence invalidation
-foundation is shipped. Only native cardinality query/child traversal, the
-normalized sidecar, native topology, and the later platform consumer remain
-unshipped. `None` is unknown/unsupported, exact zero is supported, cardinality
+foundation is shipped. The normalized sidecar is shipped; only native
+cardinality query/child traversal, native topology, and the later platform
+consumer remain unshipped. Custom-coordinate transformation also remains
+deferred. `None` is unknown/unsupported, exact zero is supported, cardinality
 is immutable declaration evidence rather than a callback or demand, is not capped
 at 1024, and does not allocate proportional storage. Count reads, updates,
 mount, and enumeration are provider-free. Unknown cardinality does not vend a

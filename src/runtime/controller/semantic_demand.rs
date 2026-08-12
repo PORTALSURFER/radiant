@@ -1360,12 +1360,9 @@ impl<Message> SemanticDemandOwner<Message> {
         }
 
         let composition =
-            match super::automation_compositor::compose_virtual_layout_automation_snapshot_inputs(
+            match super::automation_compositor::compose_virtual_layout_automation_publication(
                 ordinary,
-                &classifications
-                    .iter()
-                    .map(|classification| classification.input().clone())
-                    .collect::<Vec<_>>(),
+                classifications,
             ) {
                 Ok(composition) => composition,
                 Err(_) => return baseline(SemanticPublicationFallbackReason::CompositionRejected),
@@ -2406,11 +2403,20 @@ mod tests {
     }
 
     fn pin_entry(key: u32, node_id: &str) -> VirtualLayoutSemanticEntry {
+        pin_entry_at(key, key as usize, node_id, "item")
+    }
+
+    fn pin_entry_at(
+        key: u32,
+        logical_index: usize,
+        node_id: &str,
+        label: &str,
+    ) -> VirtualLayoutSemanticEntry {
         VirtualLayoutSemanticEntry::new(
             VirtualLayoutItemKey::new(key),
-            key as usize,
+            logical_index,
             Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
-            AutomationNodeSemantics::new(AutomationRole::Button).with_label("item"),
+            AutomationNodeSemantics::new(AutomationRole::Button).with_label(label),
             AutomationNodeId::new(node_id),
         )
     }
@@ -2922,26 +2928,25 @@ mod tests {
         let pin = Rc::new(PinProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::Found(Box::new(
-                pin_entry(2, "pin-2"),
+                pin_entry_at(2, 0, "range-0", "range item"),
             ))),
         });
         let range = Rc::new(RangeProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
-                range_entry(1, 0),
+                range_entry(2, 0),
             ])),
         });
         let mut owner = SemanticDemandOwner::default();
-        sync(
-            &mut owner,
-            registration(
-                "policy",
-                8,
-                Default::default(),
-                Some(pin.clone()),
-                Some(range.clone()),
-            ),
+        let mut registration = registration(
+            "policy",
+            8,
+            Default::default(),
+            Some(pin.clone()),
+            Some(range.clone()),
         );
+        registration.semantic_cardinality = Some(VirtualLayoutSemanticCardinality::new(17, 23));
+        sync(&mut owner, registration);
         let pin_ticket = started(
             owner
                 .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(2_u32))
@@ -2962,7 +2967,7 @@ mod tests {
         assert!(plan.complete());
         let classifications = classifications_for_plan(&plan);
         assert_eq!(classifications.len(), 2);
-        let outcome = owner.finish_publication(&ordinary, plan, &classifications);
+        let outcome = owner.finish_publication(&ordinary, plan.clone(), &classifications);
         let SemanticPublicationOutcome::Published(composition) = outcome else {
             panic!("a complete range and pin set should publish together");
         };
@@ -2972,22 +2977,86 @@ mod tests {
                 .iter()
                 .map(|child| child.id.clone())
                 .collect::<Vec<_>>(),
-            vec![
-                AutomationNodeId::new("range-0"),
-                AutomationNodeId::new("pin-2")
-            ]
+            vec![AutomationNodeId::new("range-0")]
         );
         assert_eq!(
             composition.unmaterialized_ids(),
-            &[
-                AutomationNodeId::new("pin-2"),
-                AutomationNodeId::new("range-0"),
-            ]
-            .into_iter()
-            .collect()
+            &[AutomationNodeId::new("range-0")].into_iter().collect()
+        );
+        assert_eq!(composition.fence_carrier().len(), 1);
+        let carrier_entry = &composition.fence_carrier()[0];
+        assert_eq!(carrier_entry.container_id, CONTAINER_ID);
+        assert_eq!(carrier_entry.logical_index, 0);
+        assert_eq!(&carrier_entry.provider, &AutomationNodeId::new("range-0"));
+        assert_eq!(
+            carrier_entry.fences.range.as_ref(),
+            Some(classifications[0].fence())
+        );
+        assert_eq!(
+            carrier_entry.fences.required_item_pin.as_ref(),
+            Some(classifications[1].fence())
+        );
+        assert_ne!(
+            carrier_entry.fences.range.as_ref(),
+            carrier_entry.fences.required_item_pin.as_ref()
+        );
+        let range_fence = carrier_entry.fences.range.as_ref().expect("range fence");
+        assert_eq!(
+            range_fence.provider_fence.semantic_cardinality,
+            Some(VirtualLayoutSemanticCardinality::new(17, 23))
+        );
+        assert_eq!(range_fence.session_generation, 20);
+        assert_eq!(range_fence.materialization_authority, 20);
+        assert_eq!(range_fence.classification_authority, 21);
+        assert_eq!(range_fence.ordinary_projection_generation, 22);
+        assert_eq!(
+            range_fence.complete_demand_set_generation,
+            plan.complete_demand_set_generation()
         );
         assert_eq!(range.calls.get(), 1);
         assert_eq!(pin.calls.get(), 1);
+    }
+
+    #[test]
+    fn same_source_publication_fence_drift_rejects_without_partial_carrier() {
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(4, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration("policy", 8, Default::default(), None, Some(range)),
+        );
+        let ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        assert!(matches!(
+            complete_range(&mut owner, ticket),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(40));
+        let classifications = classifications_for_plan(&plan);
+        assert_eq!(classifications.len(), 1);
+        let first = classifications[0].clone();
+        let mut drifted = first.clone();
+        drifted.fence.complete_demand_set_generation += 1;
+
+        let result =
+            super::super::automation_compositor::compose_virtual_layout_automation_publication(
+                &ordinary,
+                &[first, drifted],
+            );
+        assert_eq!(
+            result,
+            Err(
+                super::super::automation_compositor::
+                    VirtualLayoutAutomationCompositionError::PublicationFenceDrift
+            )
+        );
+        assert_eq!(ordinary, ordinary_publication_snapshot());
     }
 
     #[test]

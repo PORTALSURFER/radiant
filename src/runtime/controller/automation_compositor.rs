@@ -5,9 +5,14 @@
 //! lifecycle state, or publish into a live surface.  The input snapshot is
 //! cloned only after all structural and identity preflight has succeeded.
 
-use super::virtual_layout::{
-    VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationInput,
-    VirtualLayoutSemanticClassificationOrigin,
+use super::{
+    semantic_demand::{
+        SemanticDemandSource, SemanticPublicationClassification, SemanticPublicationFence,
+    },
+    virtual_layout::{
+        VirtualLayoutSemanticClassificationBatch, VirtualLayoutSemanticClassificationInput,
+        VirtualLayoutSemanticClassificationOrigin,
+    },
 };
 use crate::{
     gui::{
@@ -30,6 +35,49 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 pub(crate) struct VirtualLayoutAutomationComposition {
     snapshot: GuiAutomationSnapshot,
     unmaterialized_ids: BTreeSet<AutomationNodeId>,
+    fence_carrier: Vec<VirtualLayoutAutomationFenceCarrierEntry>,
+}
+
+/// One normalized exact-fence source set carried alongside one composed
+/// provider node.  Range and required-item-pin fences remain separate because
+/// a valid overlap has two exact publication sources.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct NormalizedSemanticPublicationFenceSet {
+    pub(super) range: Option<SemanticPublicationFence>,
+    pub(super) required_item_pin: Option<SemanticPublicationFence>,
+}
+
+impl NormalizedSemanticPublicationFenceSet {
+    fn with_source(source: SemanticDemandSource, fence: SemanticPublicationFence) -> Self {
+        let mut fences = Self::default();
+        match source {
+            SemanticDemandSource::Range => fences.range = Some(fence),
+            SemanticDemandSource::RequiredItemPin => fences.required_item_pin = Some(fence),
+        }
+        fences
+    }
+
+    fn merge(&mut self, other: &Self) -> Result<(), VirtualLayoutAutomationCompositionError> {
+        merge_exact_fence(&mut self.range, &other.range)?;
+        merge_exact_fence(&mut self.required_item_pin, &other.required_item_pin)?;
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.range.is_none() && self.required_item_pin.is_none()
+    }
+}
+
+/// Bounded source-aware exact-fence carrier for one normalized provider node.
+/// The copied publication fence remains the sole owner of its cardinality,
+/// registration, revision, coordinate, budget, provider, and publication
+/// authorities.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutAutomationFenceCarrierEntry {
+    pub(super) container_id: NodeId,
+    pub(super) logical_index: usize,
+    pub(super) provider: AutomationNodeId,
+    pub(super) fences: NormalizedSemanticPublicationFenceSet,
 }
 
 #[allow(dead_code)]
@@ -41,6 +89,19 @@ impl VirtualLayoutAutomationComposition {
         Self {
             snapshot,
             unmaterialized_ids,
+            fence_carrier: Vec::new(),
+        }
+    }
+
+    fn with_fence_carrier(
+        snapshot: GuiAutomationSnapshot,
+        unmaterialized_ids: BTreeSet<AutomationNodeId>,
+        fence_carrier: Vec<VirtualLayoutAutomationFenceCarrierEntry>,
+    ) -> Self {
+        Self {
+            snapshot,
+            unmaterialized_ids,
+            fence_carrier,
         }
     }
 
@@ -74,6 +135,12 @@ impl VirtualLayoutAutomationComposition {
     pub(crate) fn unmaterialized_ids(&self) -> &BTreeSet<AutomationNodeId> {
         &self.unmaterialized_ids
     }
+
+    /// Return the bounded exact-fence carrier without exposing it through the
+    /// public automation snapshot schema.
+    pub(crate) fn fence_carrier(&self) -> &[VirtualLayoutAutomationFenceCarrierEntry] {
+        &self.fence_carrier
+    }
 }
 
 /// Typed failures for one all-or-nothing automation composition attempt.
@@ -91,6 +158,8 @@ pub(crate) enum VirtualLayoutAutomationCompositionError {
     AmbiguousOverlap,
     /// Same-key/index evidence disagreed in one or more fields.
     ConflictingOverlap,
+    /// One source supplied two non-identical exact publication fences.
+    PublicationFenceDrift,
     /// A custom coordinate space has no compositor transform contract.
     CoordinateTransformUnavailable,
     /// The union for one live container exceeds its admitted budget.
@@ -125,6 +194,7 @@ struct NormalizedEntry {
     projection: VirtualLayoutSemanticProjection,
     origin: VirtualLayoutSemanticClassificationOrigin,
     request: NormalizedRequest,
+    fences: NormalizedSemanticPublicationFenceSet,
 }
 
 #[derive(Clone)]
@@ -141,6 +211,12 @@ struct AnchorPlan {
     path: NodePath,
 }
 
+#[derive(Clone)]
+struct CompositorInput {
+    input: VirtualLayoutSemanticClassificationInput,
+    fences: NormalizedSemanticPublicationFenceSet,
+}
+
 /// Compose already-classified virtual semantic evidence into one staged
 /// automation snapshot.  The function is pure with respect to the caller's
 /// snapshot and all runtime state.
@@ -152,16 +228,28 @@ pub(super) fn compose_virtual_layout_automation_snapshot(
         .iter()
         .cloned()
         .map(VirtualLayoutSemanticClassificationInput::Range)
+        .map(unfenced_input)
         .collect::<Vec<_>>();
-    compose_virtual_layout_automation_snapshot_inputs(ordinary, &inputs)
+    compose_normalized_virtual_layout_automation_snapshot(ordinary, &inputs)
 }
 
-/// Compose normalized range and first-class pin classifications together.
-/// This is the compositor half of the owner-mediated publication kernel; it
-/// remains a pure staged operation and never invokes a provider.
-pub(super) fn compose_virtual_layout_automation_snapshot_inputs(
+/// Compose an owner-approved publication while retaining every exact fence at
+/// the compositor boundary.  The supplied classifications are the only source
+/// of fences; this path never synthesizes, revises, or re-queries them.
+pub(super) fn compose_virtual_layout_automation_publication(
     ordinary: &GuiAutomationSnapshot,
-    inputs: &[VirtualLayoutSemanticClassificationInput],
+    classifications: &[SemanticPublicationClassification],
+) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
+    let inputs = classifications
+        .iter()
+        .map(fenced_input)
+        .collect::<Result<Vec<_>, _>>()?;
+    compose_normalized_virtual_layout_automation_snapshot(ordinary, &inputs)
+}
+
+fn compose_normalized_virtual_layout_automation_snapshot(
+    ordinary: &GuiAutomationSnapshot,
+    inputs: &[CompositorInput],
 ) -> Result<VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError> {
     if inputs.is_empty() {
         return Ok(VirtualLayoutAutomationComposition::new(
@@ -217,9 +305,12 @@ pub(super) fn compose_virtual_layout_automation_snapshot_inputs(
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
 
-    Ok(VirtualLayoutAutomationComposition::new(
+    let fence_carrier = build_fence_carrier(&entries_by_container)?;
+
+    Ok(VirtualLayoutAutomationComposition::with_fence_carrier(
         staged,
         unmaterialized_ids,
+        fence_carrier,
     ))
 }
 
@@ -230,7 +321,7 @@ pub(super) fn ordinary_virtual_layout_automation_snapshot(
 }
 
 fn normalize_inputs(
-    inputs: &[VirtualLayoutSemanticClassificationInput],
+    inputs: &[CompositorInput],
 ) -> Result<Vec<NormalizedEntry>, VirtualLayoutAutomationCompositionError> {
     let mut entries = Vec::new();
     let mut container_fences = BTreeMap::<NodeId, VirtualLayoutSemanticRangeRequest>::new();
@@ -241,7 +332,7 @@ fn normalize_inputs(
         .ok_or(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded)?;
 
     for input in inputs {
-        match input {
+        match &input.input {
             VirtualLayoutSemanticClassificationInput::Range(batch) => {
                 let request = batch.request();
                 let range = request.range();
@@ -294,6 +385,7 @@ fn normalize_inputs(
                         projection: projection.clone(),
                         origin: classification.origin(),
                         request: NormalizedRequest::Range(request.clone()),
+                        fences: input.fences.clone(),
                     });
                 }
             }
@@ -361,6 +453,7 @@ fn normalize_inputs(
                     projection: projection.clone(),
                     origin: classification.origin(),
                     request: NormalizedRequest::Pin(request.clone()),
+                    fences: input.fences.clone(),
                 });
             }
         }
@@ -382,6 +475,12 @@ fn normalize_inputs(
             {
                 Some(true) => {
                     if same_entry_evidence(previous, &entry)? {
+                        let Some(previous) = unique.last_mut() else {
+                            return Err(
+                                VirtualLayoutAutomationCompositionError::MalformedClassification,
+                            );
+                        };
+                        previous.fences.merge(&entry.fences)?;
                         continue;
                     }
                     return Err(VirtualLayoutAutomationCompositionError::ConflictingOverlap);
@@ -445,6 +544,47 @@ fn normalize_inputs(
     }
 
     Ok(unique)
+}
+
+fn unfenced_input(input: VirtualLayoutSemanticClassificationInput) -> CompositorInput {
+    CompositorInput {
+        input,
+        fences: NormalizedSemanticPublicationFenceSet::default(),
+    }
+}
+
+fn fenced_input(
+    classification: &SemanticPublicationClassification,
+) -> Result<CompositorInput, VirtualLayoutAutomationCompositionError> {
+    let source = match &classification.input() {
+        VirtualLayoutSemanticClassificationInput::Range(_) => SemanticDemandSource::Range,
+        VirtualLayoutSemanticClassificationInput::Pin(_) => SemanticDemandSource::RequiredItemPin,
+    };
+    if classification.fence().provider_fence.source != source {
+        return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    }
+    Ok(CompositorInput {
+        input: classification.input().clone(),
+        fences: NormalizedSemanticPublicationFenceSet::with_source(
+            source,
+            classification.fence().clone(),
+        ),
+    })
+}
+
+fn merge_exact_fence(
+    destination: &mut Option<SemanticPublicationFence>,
+    incoming: &Option<SemanticPublicationFence>,
+) -> Result<(), VirtualLayoutAutomationCompositionError> {
+    let Some(incoming) = incoming else {
+        return Ok(());
+    };
+    match destination {
+        None => *destination = Some(incoming.clone()),
+        Some(existing) if existing.same_exact(incoming) => {}
+        Some(_) => return Err(VirtualLayoutAutomationCompositionError::PublicationFenceDrift),
+    }
+    Ok(())
 }
 
 fn validate_classification(
@@ -736,6 +876,30 @@ fn group_entries(
         entries.sort_by_key(|entry| entry.projection.logical_index());
     }
     Ok(grouped)
+}
+
+fn build_fence_carrier(
+    entries_by_container: &BTreeMap<NodeId, Vec<NormalizedEntry>>,
+) -> Result<Vec<VirtualLayoutAutomationFenceCarrierEntry>, VirtualLayoutAutomationCompositionError>
+{
+    let mut carrier = Vec::new();
+    for (container_id, entries) in entries_by_container {
+        for entry in entries {
+            if entry.fences.is_empty() {
+                continue;
+            }
+            if carrier.len() >= VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES {
+                return Err(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded);
+            }
+            carrier.push(VirtualLayoutAutomationFenceCarrierEntry {
+                container_id: *container_id,
+                logical_index: entry.projection.logical_index(),
+                provider: entry.projection.automation_node_id().clone(),
+                fences: entry.fences.clone(),
+            });
+        }
+    }
+    Ok(carrier)
 }
 
 fn collect_ordinary_locations(
@@ -1236,6 +1400,7 @@ mod tests {
             .expect("empty composition succeeds");
         assert_eq!(composed.snapshot(), &ordinary);
         assert!(composed.unmaterialized_ids().is_empty());
+        assert!(composed.fence_carrier().is_empty());
     }
 
     #[test]

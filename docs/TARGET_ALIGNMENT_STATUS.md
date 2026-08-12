@@ -35,8 +35,9 @@ Current values remain exactly: Public API 84; Declarative 71; Input 97; Layout
 provider-free exact semantic cardinality declaration and its exact private
 registration/live-fence invalidation foundation are now shipped and remain
 provider-free; this production slice does not change any estimate. The
-compositor-owned normalized native sidecar is still unshipped and is the next
-executable backend-neutral slice before the later native implementation. The
+compositor-owned normalized fence-carriage foundation is now shipped; the full
+normalized sidecar remains unshipped and is the next executable backend-neutral
+slice before the later native implementation. Estimates remain unchanged. The
 partial native implementation in stash
 `radiant-native-semantic-consumer-partial-sol-audit` and the incomplete
 cardinality/sidecar attempt in stash

@@ -5,7 +5,7 @@
 //! policy/data snapshot before it performs the shell pass.
 
 use crate::{
-    application::View,
+    application::{View, virtual_layout::VirtualLayoutSemanticCardinality},
     gui::layout_core::{
         VirtualLayoutBatchProjector, VirtualLayoutSemanticProvider,
         VirtualLayoutSemanticRangeProvider,
@@ -53,6 +53,7 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     pub(crate) kind: VirtualLayoutKindFactory,
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
+    pub(crate) semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
     semantic_provider_token: Option<usize>,
     semantic_range_provider_token: Option<usize>,
     shell_lowerer: VirtualLayoutShellLowerer<Message>,
@@ -75,6 +76,7 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             kind: Rc::clone(&self.kind),
             semantic_provider: self.semantic_provider.as_ref().map(Rc::clone),
             semantic_range_provider: self.semantic_range_provider.as_ref().map(Rc::clone),
+            semantic_cardinality: self.semantic_cardinality,
             semantic_provider_token: self.semantic_provider_token,
             semantic_range_provider_token: self.semantic_range_provider_token,
             shell_lowerer: Rc::clone(&self.shell_lowerer),
@@ -134,6 +136,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
             kind,
             semantic_provider: None,
             semantic_range_provider: None,
+            semantic_cardinality: None,
             semantic_provider_token: None,
             semantic_range_provider_token: None,
             required_key: None,
@@ -161,6 +164,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
             .semantic_range_provider
             .as_ref()
             .map(crate::runtime::provider_identity);
+        let semantic_cardinality = parts.semantic_cardinality;
         let mut registration = Self::new(
             container_id,
             parts.policy_identity,
@@ -188,6 +192,7 @@ impl<Message> VirtualLayoutRegistration<Message> {
                 Some(crate::runtime::adapt_range_provider(provider));
             registration.semantic_range_provider_token = range_provider_token;
         }
+        registration.semantic_cardinality = semantic_cardinality;
         registration
     }
 

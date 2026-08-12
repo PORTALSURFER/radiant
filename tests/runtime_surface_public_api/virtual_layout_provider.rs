@@ -1,6 +1,9 @@
 use super::*;
 use radiant::{
-    application::{VirtualLayoutParts, virtual_layout_from_parts},
+    application::{
+        VirtualLayoutParts, virtual_layout::VirtualLayoutSemanticCardinality,
+        virtual_layout_from_parts,
+    },
     gui::automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
     layout::{
         VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutItemCandidate,
@@ -716,6 +719,7 @@ struct DynamicSurfaceConfig {
     mounted: bool,
     policy_scope: u32,
     revisions: VirtualLayoutRevisions,
+    semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
     item_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
 }
@@ -736,6 +740,7 @@ fn public_provider_replacement_scope_removal_and_close_fence_old_handles() {
         mounted: true,
         policy_scope: 1,
         revisions: VirtualLayoutRevisions::new(1, 2, 3, 4),
+        semantic_cardinality: Some(VirtualLayoutSemanticCardinality::new(0, 10)),
         item_provider: None,
         range_provider: Some(Rc::clone(&first_provider)),
     }));
@@ -743,26 +748,29 @@ fn public_provider_replacement_scope_removal_and_close_fence_old_handles() {
     let bridge = declarative_runtime_bridge(
         (),
         move |_state: &mut ()| {
-            let (mounted, policy_scope, revisions, item_provider, range_provider) = {
+            let (
+                mounted,
+                policy_scope,
+                revisions,
+                semantic_cardinality,
+                item_provider,
+                range_provider,
+            ) = {
                 let config = bridge_config.borrow();
                 (
                     config.mounted,
                     config.policy_scope,
                     config.revisions,
+                    config.semantic_cardinality,
                     config.item_provider.clone(),
                     config.range_provider.clone(),
                 )
             };
             if mounted {
-                arc_surface(
-                    virtual_layout_from_parts(public_parts_with(
-                        policy_scope,
-                        revisions,
-                        item_provider,
-                        range_provider,
-                    ))
-                    .into_surface(),
-                )
+                let mut parts =
+                    public_parts_with(policy_scope, revisions, item_provider, range_provider);
+                parts.semantic_cardinality = semantic_cardinality;
+                arc_surface(virtual_layout_from_parts(parts).into_surface())
             } else {
                 arc_surface(ui::empty::<()>().into_surface())
             }
@@ -820,6 +828,48 @@ fn public_provider_replacement_scope_removal_and_close_fence_old_handles() {
         .expect("same-scope handle remains valid after provider replacement");
     assert_eq!(second_calls.get(), 1);
 
+    config.borrow_mut().semantic_cardinality =
+        Some(VirtualLayoutSemanticCardinality::new(usize::MAX, 10));
+    runtime.refresh_with_scope(RepaintScope::Projection);
+    let count_invalidated = runtime
+        .selected_semantic_automation_snapshot(session)
+        .expect("count-change selection read");
+    assert!(matches!(
+        count_invalidated.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Invalidated
+        }
+    ));
+    assert_eq!(
+        second_calls.get(),
+        1,
+        "count synchronization is provider-free"
+    );
+    runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(old_container, 0, 2)],
+        )
+        .expect("the unchanged provider can republish after count invalidation");
+    assert_eq!(second_calls.get(), 2);
+
+    config.borrow_mut().semantic_cardinality = Some(VirtualLayoutSemanticCardinality::new(3, 11));
+    runtime.refresh_with_scope(RepaintScope::Projection);
+    let revision_invalidated = runtime
+        .selected_semantic_automation_snapshot(session)
+        .expect("revision-change selection read");
+    assert!(matches!(
+        revision_invalidated.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Invalidated
+        }
+    ));
+    assert_eq!(
+        second_calls.get(),
+        2,
+        "cardinality revision synchronization is provider-free"
+    );
+
     config.borrow_mut().policy_scope = 2;
     runtime.refresh_with_scope(RepaintScope::Projection);
     let stale_scope = runtime.refresh_semantic_automation_session(
@@ -859,7 +909,7 @@ fn public_provider_replacement_scope_removal_and_close_fence_old_handles() {
     );
     assert_eq!(
         second_calls.get(),
-        1,
-        "lifecycle fences do not call providers"
+        2,
+        "subsequent lifecycle fences do not call providers"
     );
 }

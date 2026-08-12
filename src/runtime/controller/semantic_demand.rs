@@ -8,6 +8,7 @@
 
 use super::virtual_layout::VirtualLayoutSemanticClassificationInput;
 use crate::{
+    application::virtual_layout::VirtualLayoutSemanticCardinality,
     gui::automation::GuiAutomationSnapshot,
     gui::layout_core::{
         VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutSemanticEntry,
@@ -108,6 +109,7 @@ pub(super) struct SemanticProviderFence {
     pub(super) policy_revision: u64,
     pub(super) measurement_revision: u64,
     pub(super) semantic_revision: u64,
+    pub(super) semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
     pub(super) coordinate_space: VirtualLayoutCoordinateSpace,
     pub(super) budget: VirtualLayoutBudget,
     pub(super) demand: SemanticDemand,
@@ -132,6 +134,7 @@ impl SemanticProviderFence {
             && self.policy_revision == other.policy_revision
             && self.measurement_revision == other.measurement_revision
             && self.semantic_revision == other.semantic_revision
+            && self.semantic_cardinality == other.semantic_cardinality
             && stable_coordinate_space_equals(&self.coordinate_space, &other.coordinate_space)
                 == Some(true)
             && self.budget == other.budget
@@ -157,6 +160,7 @@ impl SemanticProviderFence {
             && self.policy_revision == other.policy_revision
             && self.measurement_revision == other.measurement_revision
             && self.semantic_revision == other.semantic_revision
+            && self.semantic_cardinality == other.semantic_cardinality
             && stable_coordinate_space_equals(&self.coordinate_space, &other.coordinate_space)
                 == Some(true)
             && self.budget == other.budget
@@ -450,6 +454,7 @@ struct SemanticLiveAuthority {
     policy_revision: u64,
     measurement_revision: u64,
     semantic_revision: u64,
+    semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
     coordinate_space: VirtualLayoutCoordinateSpace,
     budget: VirtualLayoutBudget,
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
@@ -471,6 +476,7 @@ impl SemanticLiveAuthority {
             policy_revision: registration.policy_revision(),
             measurement_revision: registration.measurement_revision(),
             semantic_revision: registration.semantic_revision(),
+            semantic_cardinality: registration.semantic_cardinality,
             coordinate_space: registration.coordinate_space.clone(),
             budget: registration.budget,
             semantic_provider: registration.semantic_provider_handle(),
@@ -496,6 +502,7 @@ impl SemanticLiveAuthority {
             || self.policy_revision != registration.policy_revision()
             || self.measurement_revision != registration.measurement_revision()
             || self.semantic_revision != registration.semantic_revision()
+            || self.semantic_cardinality != registration.semantic_cardinality
             || stable_coordinate_space_equals(
                 &self.coordinate_space,
                 &registration.coordinate_space,
@@ -1775,6 +1782,7 @@ impl<Message> SemanticDemandOwner<Message> {
             policy_revision: record.authority.policy_revision,
             measurement_revision: record.authority.measurement_revision,
             semantic_revision: record.authority.semantic_revision,
+            semantic_cardinality: record.authority.semantic_cardinality,
             coordinate_space: record.authority.coordinate_space.clone(),
             budget: record.authority.budget,
             demand: request.demand(),
@@ -2292,6 +2300,7 @@ mod tests {
     };
     use super::*;
     use crate::{
+        application::virtual_layout::VirtualLayoutSemanticCardinality,
         application::{scroll, spacer, text},
         gui::{
             automation::{
@@ -2441,6 +2450,22 @@ mod tests {
         if let Some(provider) = range_provider {
             registration = registration.with_semantic_range_provider(provider);
         }
+        registration
+    }
+
+    fn registration_with_cardinality(
+        policy_identity: &str,
+        cardinality: Option<VirtualLayoutSemanticCardinality>,
+        pin_provider: Rc<dyn VirtualLayoutSemanticProvider>,
+    ) -> VirtualLayoutRegistration<()> {
+        let mut registration = registration(
+            policy_identity,
+            8,
+            Default::default(),
+            Some(pin_provider),
+            None,
+        );
+        registration.semantic_cardinality = cardinality;
         registration
     }
 
@@ -2618,6 +2643,63 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(owner.synchronize(&over_capacity).is_empty());
         assert!(owner.records.is_empty());
+    }
+
+    #[test]
+    fn cardinality_is_preserved_through_registration_and_exact_live_fences() {
+        let old_pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
+        });
+        let old_calls = &old_pin.calls;
+        let new_pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
+        });
+        let new_calls = &new_pin.calls;
+        let zero = Some(VirtualLayoutSemanticCardinality::new(0, 17));
+        let large = Some(VirtualLayoutSemanticCardinality::new(usize::MAX, 18));
+        let base = registration_with_cardinality("cardinality-policy", zero, old_pin.clone());
+        let mut owner = SemanticDemandOwner::default();
+
+        assert!(
+            owner
+                .synchronize(&[(base.clone(), MOUNT_GENERATION)])
+                .is_empty()
+        );
+        assert_eq!(owner.records[0].authority.semantic_cardinality, zero);
+        assert_eq!(old_calls.get(), 0);
+
+        let initial = started(
+            owner
+                .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32))
+                .expect("initial demand"),
+        );
+        assert_eq!(initial.fence().semantic_cardinality, zero);
+
+        let replaced = base.with_semantic_provider(new_pin.clone());
+        let provider_refresh = owner.synchronize(&[(replaced.clone(), MOUNT_GENERATION)]);
+        assert_eq!(provider_refresh.len(), 1);
+        let provider_ticket = &provider_refresh[0];
+        assert_ne!(
+            provider_ticket.fence().provider_generation,
+            initial.fence().provider_generation
+        );
+        assert_eq!(provider_ticket.fence().semantic_cardinality, zero);
+        assert_eq!(new_calls.get(), 0);
+
+        let mut cardinality_changed = replaced;
+        cardinality_changed.semantic_cardinality = large;
+        let cardinality_refresh = owner.synchronize(&[(cardinality_changed, MOUNT_GENERATION)]);
+        assert_eq!(cardinality_refresh.len(), 1);
+        let cardinality_ticket = &cardinality_refresh[0];
+        assert_eq!(cardinality_ticket.fence().semantic_cardinality, large);
+        assert_eq!(
+            cardinality_ticket.fence().provider_generation,
+            provider_ticket.fence().provider_generation,
+            "cardinality changes invalidate the live fence without replacing the provider"
+        );
+        assert_eq!(new_calls.get(), 0);
     }
 
     #[test]

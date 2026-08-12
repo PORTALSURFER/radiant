@@ -12,6 +12,30 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// Exact provider-free logical cardinality evidence for one virtual layout.
+///
+/// The value is declaration evidence, not a provider capability or demand. An
+/// exact zero is valid, and the count is intentionally not bounded by the
+/// per-query virtual-layout budget.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct VirtualLayoutSemanticCardinality {
+    /// Exact number of logical items declared by the host.
+    pub logical_item_count: usize,
+    /// Host-owned revision for the declared cardinality.
+    pub cardinality_revision: u64,
+}
+
+impl VirtualLayoutSemanticCardinality {
+    /// Build exact logical cardinality evidence.
+    #[must_use]
+    pub const fn new(logical_item_count: usize, cardinality_revision: u64) -> Self {
+        Self {
+            logical_item_count,
+            cardinality_revision,
+        }
+    }
+}
+
 /// Pure shell projection factory for a logical virtual-layout declaration.
 pub type VirtualLayoutShellFactory<Message> = Rc<dyn Fn() -> View<Message>>;
 /// Pure item projection factory for a logical virtual-layout declaration.
@@ -45,6 +69,8 @@ pub struct VirtualLayoutParts<Message> {
     pub semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     /// Optional contiguous-range semantic provider.
     pub semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
+    /// Optional exact provider-free logical cardinality declaration.
+    pub semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
 }
 
 impl<Message> VirtualLayoutParts<Message> {
@@ -74,6 +100,7 @@ impl<Message> VirtualLayoutParts<Message> {
             kind,
             semantic_provider: None,
             semantic_range_provider: None,
+            semantic_cardinality: None,
         }
     }
 
@@ -94,6 +121,16 @@ impl<Message> VirtualLayoutParts<Message> {
         provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
     ) -> Self {
         self.semantic_range_provider = Some(provider);
+        self
+    }
+
+    /// Attach optional exact provider-free logical cardinality evidence.
+    #[must_use]
+    pub fn with_semantic_cardinality(
+        mut self,
+        cardinality: VirtualLayoutSemanticCardinality,
+    ) -> Self {
+        self.semantic_cardinality = Some(cardinality);
         self
     }
 }

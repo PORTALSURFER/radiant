@@ -31,14 +31,17 @@ awarded for this contract or implementation. Other native adapters,
 scheduler-, renderer-, and product-policy boundaries remain separate.
 Current values remain exactly: Public API 84; Declarative 71; Input 97; Layout
 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics
-66; Examples/docs 76; generic ~97%; broad `902 / 11` = 82.00%. The current
-native consumer blocker is the missing provider-free exact semantic cardinality
-authority and compositor-owned normalized native sidecar needed before AppKit
-may safely expose a virtual child container. This contract is normative but
-unshipped; the partial native implementation in stash
-`radiant-native-semantic-consumer-partial-sol-audit` is non-evidence and earns no
-estimate credit. The next executable slice is the backend-neutral
-cardinality/normalized-sidecar foundation, not a native implementation.
+66; Examples/docs 76; generic ~97%; broad `902 / 11` = 82.00%. The
+provider-free exact semantic cardinality declaration and its exact private
+registration/live-fence invalidation foundation are now shipped and remain
+provider-free; this production slice does not change any estimate. The
+compositor-owned normalized native sidecar is still unshipped and is the next
+executable backend-neutral slice before the later native implementation. The
+partial native implementation in stash
+`radiant-native-semantic-consumer-partial-sol-audit` and the incomplete
+cardinality/sidecar attempt in stash
+`backend-neutral-semantic-sidecar-partial-luna-audit` are non-evidence and earn
+no estimate credit.
 The generic widget interaction teardown seam is now executable: an additive
 defaulted `Widget` hook can terminate retiring local state, old-surface mappers
 collect ordered UI-local output before discard, and the existing deferred
@@ -454,18 +457,22 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-The unshipped native boundary now has an explicit provider-free cardinality
-contract. The future qualified `VirtualLayoutSemanticCardinality` value carries
-an exact `usize` logical item count and separate `u64` cardinality revision; an
-optional `VirtualLayoutParts` field and qualified
-`VirtualLayoutParts::with_semantic_cardinality(...)` builder are specified but
-not implemented and remain outside the prelude. `None` is unknown/unsupported,
-exact zero is supported, cardinality is immutable declaration evidence rather
-than a callback or demand, is not capped at 1024, and does not allocate
-proportional storage. Count reads, updates, mount, and enumeration are
-provider-free. Unknown cardinality does not vend a virtual child container;
-positive cardinality without a range provider is unsupported for native child
-traversal and is not vended; exact zero is representable without a provider.
+The later native boundary now rests on the shipped provider-free declaration and
+fence foundation. The qualified public
+`radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` value
+carries an exact `usize` logical item count and separate `u64` cardinality
+revision; an optional `VirtualLayoutParts` field and qualified
+`VirtualLayoutParts::with_semantic_cardinality(...)` builder are shipped outside
+the common prelude. The exact private registration/live-fence invalidation
+foundation is shipped. Only native cardinality query/child traversal, the
+normalized sidecar, native topology, and the later platform consumer remain
+unshipped. `None` is unknown/unsupported, exact zero is supported, cardinality
+is immutable declaration evidence rather than a callback or demand, is not capped
+at 1024, and does not allocate proportional storage. Count reads, updates,
+mount, and enumeration are provider-free. Unknown cardinality does not vend a
+virtual child container; positive cardinality without a range provider is
+unsupported for native child traversal and is not vended; exact zero is
+representable without a provider.
 AppKit count is exact, and range normalization uses checked subtraction and
 zero/out-of-range/overflow, declared-budget, 1024-cap, and remaining-aggregate
 checks without synthesizing keys from indices.

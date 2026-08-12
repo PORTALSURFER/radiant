@@ -1532,16 +1532,18 @@ remain private and do not create a public imperative provider registry.
 `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-#### Provider-free semantic cardinality (future, qualified, unshipped)
+#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer deferred)
 
-The future declarative implementation adds one optional qualified value
-capability, provisionally named `VirtualLayoutSemanticCardinality`, to
+The shipped declaration foundation exposes the qualified public value
+`radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
 `VirtualLayoutParts<Message>`. The value contains exactly an `usize` logical
 item count and a separate `u64` cardinality revision. The corresponding
-qualified builder is provisionally
-`VirtualLayoutParts::with_semantic_cardinality(...)`. This documentation-only
-contract does not implement the field or builder, and both remain outside the
-prelude.
+qualified builder is
+`VirtualLayoutParts::with_semantic_cardinality(...)`. The field and builder ship
+outside the common prelude, and the exact private registration/live-fence
+invalidation foundation is shipped. Native child traversal, normalized
+sidecar, native topology, and AppKit queries remain unshipped in the later
+platform consumer.
 
 Cardinality is immutable declaration evidence. It is not a callback, provider
 availability signal, or demand. `None` means unknown/unsupported; exact zero is
@@ -1678,16 +1680,18 @@ semantic providers to a virtual layout:
   `Rejected`. An item provider uses `T = VirtualLayoutSemanticEntry`; a range
   provider uses `T = Vec<VirtualLayoutSemanticEntry>` within the bounded query
   cap.
-- The future declaration adds one optional qualified value capability,
-  provisionally `VirtualLayoutSemanticCardinality`, to
-  `VirtualLayoutParts<Message>`, plus the qualified builder
+- The shipped declaration exposes the qualified public value
+  `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` as
+  an optional field on `VirtualLayoutParts<Message>`, plus the qualified builder
   `VirtualLayoutParts::with_semantic_cardinality(...)`. It contains the exact
-  `usize` logical item count and a separate `u64` cardinality revision. This
-  documentation-only contract does not implement the field or builder. The
-  value is immutable declaration evidence, not a callback or demand; `None` is
+  `usize` logical item count and a separate `u64` cardinality revision. The
+  field and builder ship outside the common prelude, and the exact private
+  registration/live-fence invalidation foundation is shipped. The value is
+  immutable declaration evidence, not a callback or demand; `None` is
   unknown/unsupported, exact zero is supported, the count is independent of
   the 1024 per-query/aggregate caps, and it must not allocate proportional
-  storage. It remains outside the prelude.
+  storage. The normalized sidecar, native cardinality query/topology, and
+  platform consumer remain unshipped. It remains outside the prelude.
 - Provider-supplied `Unavailable` reasons are only `DataUnavailable` and
   `Unsupported`. `NoProvider` is not provider-supplied: it is synthesized by
   the runtime when the relevant optional slot is absent. Provider `Deferred`
@@ -2212,7 +2216,7 @@ public selected snapshot, and qualified declarative provider attachment.
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
 | Native semantic accessibility boundary | A private later macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves native actions separate. |
-| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder are future/unshipped and outside the prelude. |
+| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, plus the exact private registration/live-fence invalidation foundation, are shipped outside the prelude. The native cardinality query/child traversal, normalized sidecar, native topology, and platform consumer remain unshipped. |
 | Cardinality fence | Count or cardinality revision changes, provider replacement, unmount, recovery, native deactivation, or session close | Exact `(count, cardinality_revision)` equality is required together with registration identity/generation, container/mount, existing revisions, coordinate, budget, and provider generations. Count/revision changes invalidate semantic/native state provider-free; provider replacement preserves count but invalidates provider publication; lifecycle retirement clears all state. |
 | Cardinality availability | Unknown count, positive count without a range provider, exact zero, or positive count with a range provider | Unknown does not vend a virtual child container; positive-without-range-provider is unsupported and not vended; exact zero is representable without a provider; positive-with-range-provider may vend the private container. Count reads, updates, mount, and enumeration never create demand. |
 | Native cardinality query | AppKit asks for a count or a bounded range `(index, maxCount)` | Count returns the exact declared count. Range normalization uses checked subtraction from count, handles zero and out-of-range inputs, rejects overflow, applies declared budget, 1024 per-query cap, and remaining aggregate budget, and never synthesizes a key from the index. |

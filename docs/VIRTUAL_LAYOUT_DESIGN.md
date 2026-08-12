@@ -9,7 +9,7 @@ bridge, the current-fence one-item semantic admission path, and its private
 semantic projection boundary are also shipped as crate-private/private runtime
 evidence. The crate-private semantic-demand owner/provider-attempt/retention
 kernel and private atomic whole-surface publication/composition kernel in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-custom-deferred)
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred)
 are shipped and implemented. Their shipped scope includes explicit admission,
 exact `SemanticProviderFence` and `SemanticPublicationFence` fields,
 generation/attempt/cancellation, typed outcomes and validation, exact fallback
@@ -19,10 +19,12 @@ composition. The next production consumer contract in
 is now shipped for the bounded generic logical consumer: its runtime-owned
 session owner, selected-publication boundary, explicit refresh/retry/close
 operations, and conservative fallback are live. Scheduler/cancellation
-transport, native/product provider consumers, and custom-coordinate
-implementation remain deferred. The public declarative Logical-only provider
-attachment contract below is normative and shipped as the first public-API
-evidence point. It does not provide a native/product integration.
+transport, native/product provider consumer implementations, and
+custom-coordinate implementation remain deferred. The later macOS/AppKit native
+semantic accessibility query contract below is normative for that consumer. The
+public declarative Logical-only provider attachment contract below is normative
+and shipped as the first public-API evidence point; it does not itself provide a
+native/product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -133,8 +135,9 @@ At this status:
    all-or-nothing logical composition. The generic logical semantic automation
    session and public selected-snapshot visibility are shipped through
    `SurfaceRuntime`; the public declarative Logical-only provider attachment
-   contract below is normative and shipped. Native/product provider consumers
-   and custom transforms remain outside this contract.
+   contract below is normative and shipped. Native/product provider consumer
+   implementations and custom transforms remain outside this contract; the later
+   macOS/AppKit native semantic accessibility query contract is defined below.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -179,7 +182,8 @@ This contract does not:
   host-owned `VirtualListWindow` path; or
 - define `split_pane` behavior, including its resize, collapse, persistence,
   interaction, or runtime consumer;
-- implement custom-coordinate transformation, a production/native consumer,
+- implement custom-coordinate transformation or a production/native consumer
+  implementation,
   scheduler/backoff/fairness policy, multiple active ranges per container, or a
   public imperative provider-registration API. The one public declarative
   Logical-only provider-attachment contract is defined below and is shipped.
@@ -391,7 +395,7 @@ boundary. Ordinary layout querying and semantic demand/refresh are separate
 runtime turns. A query may carry already accepted semantic evidence for
 projection, but it cannot create a semantic demand, invoke a semantic provider,
 or publish a virtual semantic tree. The semantic-demand turn is specified in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-custom-deferred).
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred).
 
 The following pseudocode illustrates the ordinary query boundary:
 
@@ -1079,7 +1083,7 @@ provider refresh: a viewport-only or ordinary-projection refresh does not call
 the semantic provider unless it is part of explicit
 `refresh_semantic_automation_session` or `retry_semantic_automation_session`
 demand intent in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-custom-deferred)
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred)
 also changes.
 
 #### Projection, identity, and retained payload
@@ -1166,7 +1170,7 @@ accidental paint order. A semantic revision invalidates labels/roles/actions
 without necessarily invalidating geometry, but any result still requires an
 exact semantic fence at acceptance.
 
-### Semantic demand and refresh (generic logical consumer shipped; native/custom deferred)
+### Semantic demand and refresh (generic logical consumer shipped; native contract defined; custom deferred)
 
 This is the approved contract and implementation boundary for provider-backed
 virtual semantic demand, refresh, and private atomic publication. The
@@ -1177,8 +1181,10 @@ generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
 composition are current private runtime behavior. The generic logical runtime
 session consumer and public selected-snapshot boundary are also shipped;
-scheduler/cancellation transport, native/product provider consumers, and custom
-transforms remain unshipped. The private kernel does not add a public
+scheduler/cancellation transport, native/product provider consumer
+implementations, and custom transforms remain unshipped. The later macOS/AppKit
+native semantic accessibility query contract is defined below. The private kernel
+does not add a public
 imperative provider-registration surface; the shipped qualified surface is
 defined in
 [Public declarative logical provider attachment](#public-declarative-logical-provider-attachment-normative-shipped).
@@ -1235,9 +1241,9 @@ data/policy/measurement/semantic revisions, provider identity/generation, fixed
 The target provider path is logical-only. `Logical` coordinates may be
 validated and staged. `Custom` coordinates are unavailable/rejected before
 provider invocation; no identity-transform fallback is permitted. The public
-parts have no custom-coordinate field. Custom-coordinate transformation and a
-production/native provider consumer remain deferred; the public provider
-implementation is shipped.
+parts have no custom-coordinate field. Custom-coordinate transformation and the
+production/native provider consumer implementation remain deferred; the public
+provider implementation is shipped.
 
 #### Demand generations, attempts, and refresh
 
@@ -1457,12 +1463,78 @@ The four alignment documents MUST agree on this contract and MUST continue to
 state that the private demand/publication kernel and the generic logical
 consumer are shipped. The public declarative Logical-only provider contract is
 normative and shipped as the first public-API evidence point; native/product
-provider consumers, scheduling, and custom transforms remain deferred. Numeric
+provider consumer implementations, scheduling, and custom transforms remain
+deferred. The later macOS/AppKit native semantic accessibility query contract is
+defined below. Numeric
 estimates remain unchanged for this branch: generic ~97%, Declarative identity
 71%, layout 97%, and broad coverage `902 / 11` (82.00%). Existing pure
 public snapshot APIs and the existing non-goals remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
+
+### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+
+This is the later macOS/AppKit consumer contract for the shipped generic logical
+semantic automation session. It defines a private adapter boundary only; it does
+not ship native code or add a public provider API. One private native-window
+adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
+lease remain private: neither owns provider registration, mount identity, provider
+generations, demand fences, cancellation, or publication.
+
+The existing one-active-session bound remains. A native lease MUST NOT evict,
+supersede, or silently reuse an externally active session. If an external session
+is active, lease acquisition has exactly one typed unavailable outcome,
+`Unavailable(SessionContended)`, and performs no provider call. Multi-consumer
+arbitration is a later contract.
+
+Accessibility enablement, native tree-root construction, accessibility-state
+observation, ordinary native events, repaint, and ordinary property reads are
+observation/capability only. Only an explicit bounded native item or child-range
+query MAY become `SemanticAutomationDemand`. A query MUST translate to exactly
+one current runtime-issued semantic-session lease and one current runtime-issued
+container handle, plus either one stable required-item key or one finite
+contiguous logical range. Missing, stale, ambiguous, duplicate, oversized, or
+unrepresentable evidence is unavailable and MUST cause no provider call.
+
+The adapter submits intent only through the existing explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` operations. It MUST NOT invoke a
+provider directly or cause a second call for one container/attempt. Native
+callbacks MUST NOT synchronously re-enter a provider or mutate `SurfaceRuntime`
+through observational access. Native-to-runtime handoff enters one owned runtime
+turn and is bounded transport only; it creates no scheduler, retry, or fairness
+policy.
+
+Native tree publication exposes only a complete selected snapshot under the
+existing exact fence. It MUST NOT expose partial virtual subtrees, mix
+generations, or repair malformed or colliding evidence. `DataUnavailable` and
+`Deferred` MAY retain only an exact eligible complete selection. Missing provider,
+unsupported, rejected, panic, malformed, collision, stale, or cancelled evidence
+uses the existing typed conservative baseline behavior; stale and cancelled
+completions are inert and MUST NOT mutate or publish native state.
+
+The first consumer accepts provider semantics only in `Logical`. Native
+conversion MUST identify source surface space, destination window/screen
+accessibility space, DPI, window/display generation, orientation, clipping, and a
+finite non-inverted conversion. Stale or unsupported conversion withholds native
+bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+
+Activation/opening is provider-free. Explicit native queries refresh, and an
+explicit repeated query MAY retry. Deactivation, window retirement, recovery
+replacement, and close MUST cancel and retire the lease before native objects
+drop. `materialized = false` remains authoritative: native semantics cannot
+materialize, scroll, focus, execute actions, paint, hit-test, schedule, render,
+or claim provider authority.
+
+Native tree publication and native action dispatch are separate contracts. This
+consumer MUST NOT connect numeric accessibility dispatch. The adapter and lease
+remain private and do not create a public imperative provider registry.
+`automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+`selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
+native actions, focus, scrolling, product policy, custom transforms, scheduler,
+and renderer behavior are excluded.
 
 ### Public declarative logical provider attachment (normative; shipped)
 
@@ -1626,15 +1698,15 @@ which is part of this contract and includes provider panic and reentry.
 
 #### Native boundary and non-goals
 
-Future native accessibility may translate an explicit platform query only into
-the backend-neutral semantic-session model above. It is a separate later
-contract and is not the hidden owner of provider registration, demand, or
-publication. Native IME and other native events remain non-demand inputs.
-
-This contract does not define custom transforms; native accessibility trees or
-actions; focus; scrolling or materialization; scheduler, backoff, or fairness;
-renderer, paint, hit-testing, or cache policy; product policy; multiple ranges
-per container; or a prelude export. It also does not add a public imperative
+The later macOS/AppKit native semantic accessibility query contract is defined
+in [Native semantic accessibility query consumer](#native-semantic-accessibility-query-consumer-normative-later-macosappkit-consumer).
+It is not the hidden owner of provider registration, demand, or publication.
+Native IME and other ordinary native events remain non-demand inputs. The public
+declarative attachment contract does not implement native tree publication or
+native action dispatch; those are separate contracts. Custom transforms, focus,
+scrolling or materialization, scheduler/backoff/fairness, renderer, paint,
+hit-testing, cache policy, product policy, multiple ranges per container, and a
+prelude export remain excluded here. It also does not add a public imperative
 registration API or promise any worker/threading model.
 
 ### Culling and paint
@@ -1930,8 +2002,9 @@ typed outcomes and validation, non-reentrant provider attempts, exact-fence
 fallback retention, retained-evidence reclassification, and all-or-nothing
 logical composition. The generic logical production consumer above now ships
 public snapshot selection/visibility and the runtime semantic session;
-scheduler/cancellation transport, native/product provider consumers, custom
-transforms, and the other listed non-goals remain outside the slice. The
+scheduler/cancellation transport, native/product provider consumer
+implementations, custom transforms, and the other listed non-goals remain
+outside the slice. The
 shipped private kernel and session do not authorize materialization, scrolling,
 actions, focus, paint, hit testing, scheduling, rendering, public provider
 registration, or any other deferred authority.
@@ -2026,7 +2099,7 @@ public selected snapshot, and qualified declarative provider attachment.
 | Whole-surface publication reject | One active member fails, is unresolved, or has a mismatched publication fence | Prior eligible complete composition or ordinary-only baseline remains; no mixed old/new or partial virtual tree is published. |
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
-| Native boundary | A future native accessibility request is translated into an explicit backend-neutral session demand | Translation may use only the explicit session model; native accessibility is a separate later contract and never the hidden registration/demand owner. IME/native events alone remain inert. |
+| Native semantic accessibility boundary | A private later macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves native actions separate. |
 
 ## 15. Explicit exclusion: `split_pane`
 

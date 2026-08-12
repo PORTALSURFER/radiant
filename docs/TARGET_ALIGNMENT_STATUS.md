@@ -22,8 +22,9 @@
 The broad estimate is the unweighted mean of the category rows:
 `(84 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.0%`,
 reported as approximately `82.00%`.
-The generic architecture-sequence estimate remains about 97%; this slice adds
-the first executable native Winit consumer without changing the estimates.
+The generic architecture-sequence estimate remains about 97%; the
+documentation-only native semantic accessibility contract below defines a later
+macOS/AppKit consumer boundary without changing the estimates.
 The broad estimate remains intentionally `902 / 11` (~82.00%) and Public API
 remains 84% until shipped validation is complete; no design-only credit is
 awarded for this contract or implementation. Other native adapters,
@@ -375,25 +376,87 @@ validated `Found`, authoritative `NotFound`, terminal missing/Unsupported,
 exact-fence retention only for `DataUnavailable`/`Deferred`, conservative
 baseline for rejection/panic/malformed/collision, inert stale/cancelled/
 superseded results, atomic whole-surface publication, and preserved
-`Unmaterialized` authority. Future native accessibility may translate explicit
-platform queries only through the backend-neutral session model; it is a
-separate later contract and not a hidden provider owner. The full acceptance
-matrix and non-goals are in `docs/VIRTUAL_LAYOUT_DESIGN.md`; those non-goals are
-custom transforms, native accessibility/tree/actions, focus,
+`Unmaterialized` authority. The later macOS/AppKit native semantic accessibility
+query contract below translates explicit platform queries only through the
+backend-neutral session model and is not a hidden provider owner. The full
+acceptance matrix and native contract are in `docs/VIRTUAL_LAYOUT_DESIGN.md`;
+custom transforms, native accessibility action dispatch, focus,
 scrolling/materialization, scheduler/backoff/fairness, renderer/paint/
-hit-testing/cache policy, product policy, multiple ranges, and prelude export.
+hit-testing/cache policy, product policy, multiple ranges, and prelude export
+remain excluded.
 
 This contract is normative and shipped. It is the first public-API evidence
 point; all estimates above remain exactly unchanged,
 including broad coverage `902 / 11` (~82.00%) and Public API 84%.
 
-Slider/Knob, platform, scheduler, renderer, and product policy remain out of
-scope for this slice.
+## Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+
+This documentation records the later macOS/AppKit consumer contract over the
+shipped generic logical semantic automation session. One private native-window
+adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
+lease remain private: neither owns provider registration, mount identity, provider
+generations, demand fences, cancellation, or publication. The existing bound of
+one active semantic session per `SurfaceRuntime` remains. A native lease MUST NOT
+evict, supersede, or silently reuse an externally active session; contention
+returns the one private typed unavailable result `Unavailable(SessionContended)`.
+Multi-consumer arbitration is a later contract.
+
+Accessibility enablement, native tree-root construction, accessibility-state
+observation, ordinary native events, repaint, and ordinary property reads are
+observation/capability only. Only an explicit bounded native item or child-range
+query MAY become `SemanticAutomationDemand`. Each query MUST translate to exactly
+one current runtime-issued semantic-session lease and one current runtime-issued
+container handle, plus either one stable required-item key or one finite
+contiguous logical range. Missing, stale, ambiguous, duplicate, oversized, or
+unrepresentable evidence is unavailable and MUST cause no provider call.
+
+The adapter submits intent only through the existing explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` operations. It never invokes a
+provider directly or causes a second call for one container/attempt. Native
+callbacks MUST NOT synchronously re-enter a provider or mutate `SurfaceRuntime`
+through observational access. Native-to-runtime handoff enters one owned runtime
+turn and is bounded transport only; it does not add scheduler, retry, or fairness
+policy.
+
+Native publication exposes only a complete selected snapshot under the existing
+exact fence. It MUST NOT expose partial virtual subtrees, mix generations, or
+repair malformed or colliding evidence. `DataUnavailable` and `Deferred` MAY
+retain only an exact eligible complete selection. Missing provider, unsupported,
+rejected, panic, malformed, collision, stale, or cancelled evidence uses the
+existing typed conservative baseline behavior; stale and cancelled completions
+are inert and MUST NOT mutate or publish native state.
+
+The first consumer accepts provider semantics only in `Logical`. Native
+conversion MUST identify source surface space, destination window/screen
+accessibility space, DPI, window/display generation, orientation, clipping, and a
+finite non-inverted conversion. Stale or unsupported conversion withholds native
+bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+
+Activation/opening is provider-free. Explicit native queries refresh, and an
+explicit repeated query MAY retry. Deactivation, window retirement, recovery
+replacement, and close cancel and retire the lease before native objects drop.
+`materialized = false` remains authoritative: native semantics cannot materialize,
+scroll, focus, execute actions, paint, hit-test, schedule, render, or claim
+provider authority. Native tree publication and native action dispatch are
+separate contracts; this consumer does not connect numeric accessibility
+dispatch. The adapter and lease are not public imperative provider-registration
+APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+`selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
+native actions, focus, scrolling, product policy, custom transforms, scheduler,
+and renderer behavior remain excluded. It changes no estimate and adds no native
+implementation or public API.
+
+For the public provider-attachment evidence point, Slider/Knob, scheduler,
+renderer, and product policy remain out of scope; the native contract above is
+only a later macOS/AppKit boundary.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
 The evidence-backed total remains `902 / 11` (~82.00%) for this alignment
-sequence; this native Winit slice does not award estimate credit before shipped
-validation. The generic composition foundation, the single-line text consumer,
+sequence; this documentation-only contract does not award estimate credit.
+The generic composition foundation, the single-line text consumer,
 the NumericInput consumer, and the primary/auxiliary Winit consumer remain
 distinct from the deferred matching-key, candidate-window, other native-adapter,
 and product-policy boundaries.

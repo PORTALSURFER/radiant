@@ -703,8 +703,69 @@ finite/non-inverted conversion, clipping/nesting, and conservative
 singular/stale/unsupported/ambiguous behavior before custom coordinates are
 admitted. This shipped generic logical consumer adds one public-API evidence
 point: generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
-`902 / 11` (~82.00%). Native/product consumers, scheduler/backoff/fairness,
-multiple active ranges per container, and custom coordinates remain unshipped.
+`902 / 11` (~82.00%). Native/product consumer implementations,
+scheduler/backoff/fairness, multiple active ranges per container, and custom
+coordinates remain unshipped; the later macOS/AppKit native semantic
+accessibility query contract is defined below.
+
+### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+
+The first native semantic consumer is a later macOS/AppKit contract over the
+shipped generic logical semantic automation session. One private native-window
+adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
+lease remain private: neither owns provider registration, mount identity, provider
+generations, demand fences, cancellation, or publication. The existing bound of
+one active semantic session per `SurfaceRuntime` remains. A native lease MUST NOT
+evict, supersede, or silently reuse an externally active session; contention
+returns the one private typed unavailable result `Unavailable(SessionContended)`.
+Multi-consumer arbitration is a later contract.
+
+Accessibility enablement, native tree-root construction, accessibility-state
+observation, ordinary native events, repaint, and ordinary property reads are
+observation/capability only. Only an explicit bounded native item or child-range
+query MAY become `SemanticAutomationDemand`. Each query MUST translate to exactly
+one current runtime-issued semantic-session lease and one current runtime-issued
+container handle, plus either one stable required-item key or one finite
+contiguous logical range. Missing, stale, ambiguous, duplicate, oversized, or
+unrepresentable evidence is unavailable and MUST cause no provider call.
+
+The adapter submits intent only through the existing explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` operations. It never invokes a
+provider directly or causes a second call for one container/attempt. Native
+callbacks MUST NOT synchronously re-enter a provider or mutate `SurfaceRuntime`
+through observational access. Native-to-runtime handoff enters one owned runtime
+turn and is bounded transport only; it does not add scheduler, retry, or fairness
+policy.
+
+Native publication exposes only a complete selected snapshot under the existing
+exact fence. It MUST NOT expose partial virtual subtrees, mix generations, or
+repair malformed or colliding evidence. `DataUnavailable` and `Deferred` MAY
+retain only an exact eligible complete selection. Missing provider, unsupported,
+rejected, panic, malformed, collision, stale, or cancelled evidence uses the
+existing typed conservative baseline behavior; stale and cancelled completions
+are inert and MUST NOT mutate or publish native state.
+
+The first consumer accepts provider semantics only in `Logical`. Native
+conversion MUST identify source surface space, destination window/screen
+accessibility space, DPI, window/display generation, orientation, clipping, and a
+finite non-inverted conversion. Stale or unsupported conversion withholds native
+bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+
+Activation/opening is provider-free. Explicit native queries refresh, and an
+explicit repeated query MAY retry. Deactivation, window retirement, recovery
+replacement, and close cancel and retire the lease before native objects drop.
+`materialized = false` remains authoritative: native semantics cannot materialize,
+scroll, focus, execute actions, paint, hit-test, schedule, render, or claim
+provider authority. Native tree publication and native action dispatch are
+separate contracts; this consumer does not connect numeric accessibility
+dispatch. The adapter and lease are not public imperative provider-registration
+APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+`selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
+native actions, focus, scrolling, product policy, custom transforms, scheduler,
+and renderer behavior remain excluded.
 
 ### Public declarative Logical-only provider attachment (normative; shipped)
 
@@ -742,11 +803,11 @@ and IME/native events do not create demand. The full exact-fence, validation,
 fallback, lifecycle, native-boundary, non-goal, and acceptance-matrix contract
 is in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This implementation
 is the first public-API evidence point; numeric estimates remain unchanged for
-this branch. Future native
-accessibility may translate explicit platform queries only through the same
-backend-neutral semantic-session model, under a separate later contract; it is
-not the hidden provider-registration or demand owner. The non-goals are custom
-transforms, native accessibility trees/actions, focus, scrolling/materialization,
+this branch. The later macOS/AppKit native semantic accessibility query contract
+translates explicit platform queries only through the same backend-neutral
+semantic-session model; it is not the hidden provider-registration or demand
+owner. The non-goals are custom transforms, native accessibility action dispatch,
+focus, scrolling/materialization,
 scheduler/backoff/fairness, renderer/paint/hit-testing/cache policy, product
 policy, multiple ranges, and prelude export.
 

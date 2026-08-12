@@ -89,6 +89,62 @@ fn public_parts(
 }
 
 #[test]
+fn direct_nested_public_shell_is_rejected_without_provider_authority() {
+    let inner_calls = Rc::new(Cell::new(0));
+    let provider_calls = Rc::clone(&inner_calls);
+    let inner_provider: Rc<dyn VirtualLayoutSemanticRangeProvider> =
+        Rc::new(move |_request: &VirtualLayoutSemanticRangeRequest| {
+            provider_calls.set(provider_calls.get() + 1);
+            VirtualLayoutSemanticProviderOutcome::Found(vec![semantic_entry(
+                7,
+                0,
+                "nested-provider",
+            )])
+        });
+
+    let bridge = declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| {
+            let inner_provider = Rc::clone(&inner_provider);
+            let mut outer_parts =
+                public_parts_with(2, VirtualLayoutRevisions::new(5, 6, 7, 8), None, None);
+            outer_parts.shell = Rc::new(move || {
+                virtual_layout_from_parts(public_parts_with(
+                    3,
+                    VirtualLayoutRevisions::new(9, 10, 11, 12),
+                    None,
+                    Some(Rc::clone(&inner_provider)),
+                ))
+            });
+            arc_surface(virtual_layout_from_parts(outer_parts).into_surface())
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+
+    assert_eq!(
+        inner_calls.get(),
+        0,
+        "mounting must not call the inner provider"
+    );
+    let session = runtime
+        .open_semantic_automation_session()
+        .expect("session opens after rejecting the nested shell");
+    let containers = runtime
+        .semantic_automation_containers(session)
+        .expect("container enumeration succeeds");
+    assert!(
+        containers.is_empty(),
+        "a rejected nested shell must not install inner or outer provider authority"
+    );
+    assert_eq!(
+        inner_calls.get(),
+        0,
+        "the rejected inner provider stays unused"
+    );
+}
+
+#[test]
 fn public_range_provider_is_explicit_only_and_preserves_unmaterialized_authority() {
     let calls = Rc::new(Cell::new(0));
     let provider_calls = Rc::clone(&calls);

@@ -24,6 +24,8 @@ pub(crate) enum VirtualLayoutViewAdmissionError {
     DirectSurfaceNode,
     /// The item supplied a scene, overlay, or other out-of-band effect.
     UnsupportedSceneEffects,
+    /// The shell directly supplied another virtual-layout registration.
+    NestedVirtualLayout,
     /// The admitted identity set contained an ambiguous key or id.
     IdentityCollision,
     /// Lowering or user widget construction unwound.
@@ -120,6 +122,9 @@ pub(crate) fn lower_virtual_layout_batch<Message: 'static>(
     container_id: NodeId,
     items: Vec<(ViewNode<Message>, u64, usize, u64)>,
 ) -> Result<VirtualLayoutViewBatch<Message>, VirtualLayoutViewAdmissionError> {
+    if matches!(&shell.kind, ViewNodeKind::VirtualLayout(_)) {
+        return Err(VirtualLayoutViewAdmissionError::NestedVirtualLayout);
+    }
     if shell.id.is_some_and(|id| id != container_id) {
         return Err(VirtualLayoutViewAdmissionError::IdentityCollision);
     }

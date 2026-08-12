@@ -77,11 +77,33 @@ pub(super) fn push_text_input_widget_paint(
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
+    push_text_input_widget_paint_with_hidden_composition(
+        primitives,
+        input,
+        bounds,
+        theme,
+        input.composition_hides_native_adornments(),
+    );
+}
+
+pub(super) fn push_text_input_widget_paint_with_hidden_composition(
+    primitives: &mut Vec<PaintPrimitive>,
+    input: &TextInputWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+    hidden_composition: bool,
+) {
     let tokens =
         crate::widgets::resolve_widget_visual_tokens(theme, input.common.style, input.common.state);
     push_text_input_chrome(primitives, &input.common, input.props.chrome, bounds, theme);
     let rect = text_input_content_rect(bounds);
     let font_size = input_font_size(bounds);
+    let mut selection_color = text_input_selection_color(theme);
+    let mut caret_color = theme.accent_danger;
+    if hidden_composition {
+        selection_color.a = 0;
+        caret_color.a = 0;
+    }
     primitives.push(PaintPrimitive::TextInput(PaintTextInput {
         widget_id: input.common.id,
         rect,
@@ -93,8 +115,8 @@ pub(super) fn push_text_input_widget_paint(
         color: tokens.foreground,
         placeholder_color: theme.text_muted,
         completion_color: theme.text_muted,
-        selection_color: text_input_selection_color(theme),
-        caret_color: theme.accent_danger,
+        selection_color,
+        caret_color,
         focused: input.common.state.focused,
     }));
 }

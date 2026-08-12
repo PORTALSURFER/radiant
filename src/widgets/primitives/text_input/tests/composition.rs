@@ -1,7 +1,11 @@
 use crate::gui::types::{Rect, Vector2};
+use crate::layout::LayoutOutput;
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
 use crate::widgets::contract::{Widget, WidgetSizing};
 use crate::widgets::interaction::{
-    CompositionRange, CompositionSample, TextInputMessage, WidgetInput, WidgetKey,
+    CompositionRange, CompositionSample, CompositionSelectionState, TextInputMessage, WidgetInput,
+    WidgetKey,
 };
 
 use super::super::TextInputWidget;
@@ -41,6 +45,12 @@ fn update(preedit: &str, selection: (usize, usize)) -> CompositionSample {
 fn dispatch(input: &mut TextInputWidget, sample: CompositionSample) -> Option<TextInputMessage> {
     input
         .handle_composition_sample(sample)
+        .and_then(|output| output.typed_cloned::<TextInputMessage>())
+}
+
+fn dispatch_hidden(input: &mut TextInputWidget, preedit: &str) -> Option<TextInputMessage> {
+    input
+        .handle_hidden_composition_update(preedit.to_owned(), None)
         .and_then(|output| output.typed_cloned::<TextInputMessage>())
 }
 
@@ -93,6 +103,79 @@ fn text_input_composition_supports_empty_preedit_and_cancel_restores_selection()
     assert_eq!(input.state.value, "ab");
     assert_eq!(input.state.selection_range(), (0, 2));
     assert!(!input.retains_managed_composition());
+}
+
+#[test]
+fn text_input_composition_keeps_hidden_native_selection_absent() {
+    let mut input = text_input("a");
+    focus(&mut input);
+
+    assert_eq!(dispatch(&mut input, start((0, 1), (0, 1), 1)), None);
+    assert_eq!(
+        input.composition_preedit_selection_state(),
+        CompositionSelectionState::Unreported
+    );
+    assert_eq!(dispatch_hidden(&mut input, "あ"), None);
+    assert_eq!(input.state.value, "あ");
+    assert_eq!(input.composition_preedit_selection(), None);
+    assert_eq!(
+        input.composition_preedit_selection_state(),
+        CompositionSelectionState::Hidden
+    );
+
+    assert_eq!(dispatch(&mut input, update("あい", (1, 1))), None);
+    assert_eq!(
+        input.composition_preedit_selection(),
+        Some(scalar_range(1, 1, 2))
+    );
+    assert_eq!(
+        input.composition_preedit_selection_state(),
+        CompositionSelectionState::Visible(scalar_range(1, 1, 2))
+    );
+}
+
+#[test]
+fn hidden_composition_keeps_focus_but_zeroes_adornment_colors_until_visible_update() {
+    let mut input = text_input("a");
+    focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((0, 1), (0, 1), 1)), None);
+    assert_eq!(dispatch(&mut input, update("あい", (0, 1))), None);
+
+    let bounds = Rect::from_min_size(Default::default(), Vector2::new(180.0, 28.0));
+    let paint = |input: &TextInputWidget| {
+        let mut primitives = Vec::new();
+        input.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        primitives
+            .into_iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::TextInput(input) => Some(input),
+                _ => None,
+            })
+            .expect("text input should emit a paint primitive")
+    };
+
+    let visible = paint(&input);
+    assert!(visible.focused);
+    assert_ne!(visible.selection_color.a, 0);
+    assert_ne!(visible.caret_color.a, 0);
+
+    assert_eq!(dispatch_hidden(&mut input, "隠"), None);
+    let hidden = paint(&input);
+    assert!(hidden.focused);
+    assert_eq!(hidden.selection_color.a, 0);
+    assert_eq!(hidden.caret_color.a, 0);
+
+    assert_eq!(dispatch(&mut input, update("隠れ", (1, 1))), None);
+    let visible_again = paint(&input);
+    assert!(visible_again.focused);
+    assert_ne!(visible_again.selection_color.a, 0);
+    assert_ne!(visible_again.caret_color.a, 0);
+    assert_eq!(input.state.selection_range(), (1, 1));
 }
 
 #[test]

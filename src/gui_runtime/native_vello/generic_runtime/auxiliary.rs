@@ -709,6 +709,15 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     observation,
                 );
             }
+            WindowEvent::Ime(ime) => {
+                let routed = self.runner.route_native_ime_event(ime);
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    routed,
+                    adapter,
+                    observation,
+                );
+            }
             WindowEvent::RedrawRequested => {
                 let redraw_result = self.runner.redraw(event_loop, adapter);
                 if let Err(failure) = redraw_result {

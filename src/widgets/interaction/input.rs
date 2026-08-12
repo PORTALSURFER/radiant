@@ -7,9 +7,10 @@ mod pointer;
 mod text_edit;
 mod wheel;
 
+pub(crate) use composition::CompositionSelectionState;
 pub use composition::{
     CompositionPhase, CompositionRange, CompositionRangeError, CompositionSample,
-    CompositionSampleError,
+    CompositionSampleError, CompositionStartContext,
 };
 pub use event::WidgetInput;
 pub use keyboard::{KeyboardModifiers, WidgetKey};

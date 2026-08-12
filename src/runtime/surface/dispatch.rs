@@ -61,6 +61,31 @@ impl<Message> UiSurface<Message> {
             .dispatch_composition_sample_at_path(widget_id, child_path.as_slice(), sample)
     }
 
+    pub(in crate::runtime) fn dispatch_widget_hidden_composition_update_message(
+        &mut self,
+        widget_id: WidgetId,
+        preedit: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_hidden_composition_update(widget_id, preedit, timestamp))
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_hidden_composition_update_message_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &WidgetPath,
+        preedit: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.root.dispatch_hidden_composition_update_at_path(
+            widget_id,
+            child_path.as_slice(),
+            preedit,
+            timestamp,
+        )
+    }
+
     pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message(
         &mut self,
         widget_id: WidgetId,

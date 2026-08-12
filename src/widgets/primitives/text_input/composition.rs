@@ -3,7 +3,7 @@
 use super::editing_ops::byte_index_for_char;
 use super::{TextInputMessage, TextInputState, TextInputWidget};
 use crate::widgets::contract::Widget;
-use crate::widgets::interaction::{CompositionRange, CompositionSample};
+use crate::widgets::interaction::{CompositionRange, CompositionSample, CompositionSelectionState};
 
 /// Widget-local composition state captured at `Start`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub(crate) struct TextInputComposition {
     replacement_range: CompositionRange,
     original_selection: CompositionRange,
     preedit: String,
-    preedit_selection: CompositionRange,
+    preedit_selection: CompositionSelectionState,
 }
 
 pub(super) fn handle_sample(
@@ -31,13 +31,23 @@ pub(super) fn handle_sample(
         } => text_input.start_composition(replacement_range, selection),
         CompositionSample::Update {
             preedit, selection, ..
-        } => text_input.update_composition(preedit, selection),
+        } => text_input.update_composition(preedit, CompositionSelectionState::Visible(selection)),
         CompositionSample::Commit { text, .. } => text_input.commit_composition(text),
         CompositionSample::Cancel { .. } => {
             text_input.cancel_composition();
             None
         }
     }
+}
+
+pub(super) fn handle_hidden_update(
+    text_input: &mut TextInputWidget,
+    preedit: String,
+) -> Option<TextInputMessage> {
+    if !text_input.accepts_editing_input() {
+        return None;
+    }
+    text_input.update_composition(preedit, CompositionSelectionState::Hidden)
 }
 
 impl TextInputWidget {
@@ -53,14 +63,12 @@ impl TextInputWidget {
         if !replacement_range.is_valid_for(scalar_len) || !selection.is_valid_for(scalar_len) {
             return None;
         }
-        let preedit_selection = CompositionRange::new(0, 0, 0).ok()?;
-
         self.composition = Some(TextInputComposition {
             original_value: self.state.value.clone(),
             replacement_range,
             original_selection: selection,
             preedit: String::new(),
-            preedit_selection,
+            preedit_selection: CompositionSelectionState::Unreported,
         });
         set_state_selection(&mut self.state, selection);
         None
@@ -69,17 +77,24 @@ impl TextInputWidget {
     pub(super) fn update_composition(
         &mut self,
         preedit: String,
-        selection: CompositionRange,
+        selection: CompositionSelectionState,
     ) -> Option<TextInputMessage> {
         let mut composition = self.composition.take()?;
-        if !selection.is_valid_for(preedit.chars().count()) {
-            self.restore_composition(composition);
-            return None;
-        }
-        let Some(display_selection) = display_selection(composition.replacement_range, selection)
-        else {
-            self.restore_composition(composition);
-            return None;
+        let display_selection = match selection {
+            CompositionSelectionState::Visible(selection) => {
+                if !selection.is_valid_for(preedit.chars().count()) {
+                    self.restore_composition(composition);
+                    return None;
+                }
+                let Some(display_selection) =
+                    display_selection(composition.replacement_range, selection)
+                else {
+                    self.restore_composition(composition);
+                    return None;
+                };
+                Some(display_selection)
+            }
+            CompositionSelectionState::Unreported | CompositionSelectionState::Hidden => None,
         };
 
         composition.preedit = preedit;
@@ -89,7 +104,9 @@ impl TextInputWidget {
             composition.replacement_range,
             &composition.preedit,
         );
-        set_state_selection(&mut self.state, display_selection);
+        if let Some(display_selection) = display_selection {
+            set_state_selection(&mut self.state, display_selection);
+        }
         self.composition = Some(composition);
         None
     }
@@ -120,6 +137,12 @@ impl TextInputWidget {
         set_state_selection(&mut self.state, composition.original_selection);
     }
 
+    pub(super) fn composition_hides_native_adornments(&self) -> bool {
+        self.composition
+            .as_ref()
+            .is_some_and(|composition| composition.preedit_selection.is_hidden())
+    }
+
     pub(super) fn committed_value_for_sync(&self) -> &str {
         self.composition
             .as_ref()
@@ -132,7 +155,16 @@ impl TextInputWidget {
     pub(super) fn composition_preedit_selection(&self) -> Option<CompositionRange> {
         self.composition
             .as_ref()
-            .map(|composition| composition.preedit_selection)
+            .and_then(|composition| composition.preedit_selection.visible_range())
+    }
+
+    #[cfg(test)]
+    pub(super) fn composition_preedit_selection_state(&self) -> CompositionSelectionState {
+        self.composition
+            .as_ref()
+            .map_or(CompositionSelectionState::Unreported, |composition| {
+                composition.preedit_selection
+            })
     }
 
     pub(super) fn can_preserve_composition_with(&self, successor: Option<&dyn Widget>) -> bool {

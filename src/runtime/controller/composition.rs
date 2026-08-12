@@ -2,6 +2,7 @@
 
 use super::SurfaceRuntime;
 use super::interaction_state::RuntimeManagedCompositionState;
+use crate::gui::input::InputTimestamp;
 use crate::runtime::{RuntimeBridge, WidgetDispatchResult};
 use crate::widgets::{CompositionPhase, CompositionSample, WidgetId};
 
@@ -100,6 +101,37 @@ where
         self.dispatch_composition_sample(sample)
     }
 
+    /// Route a native preedit update with explicitly hidden selection through
+    /// the existing fixed composition owner.  This is crate-private so the
+    /// public sample vocabulary remains limited to its four lifecycle variants.
+    pub(crate) fn dispatch_hidden_composition_update(
+        &mut self,
+        preedit: String,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<WidgetId> {
+        if !self.lifecycle.accepts_work() {
+            return None;
+        }
+        let RuntimeManagedCompositionState::Active { widget_id } =
+            self.interaction.composition.managed_composition
+        else {
+            self.block_managed_composition();
+            return None;
+        };
+        if !self.managed_composition_is_live(widget_id) {
+            self.block_managed_composition();
+            return None;
+        }
+        self.dispatch_managed_hidden_composition(widget_id, preedit, timestamp)
+    }
+
+    pub(crate) fn managed_composition_is_active(&self) -> bool {
+        matches!(
+            self.interaction.composition.managed_composition,
+            RuntimeManagedCompositionState::Active { .. }
+        )
+    }
+
     fn dispatch_composition_start(&mut self, sample: CompositionSample) -> Option<WidgetId> {
         let widget_id = self.interaction.focus.focused_widget?;
         if !self.composition_widget_is_unique(widget_id)
@@ -153,6 +185,25 @@ where
         dispatch.was_routed().then_some(widget_id)
     }
 
+    fn dispatch_managed_hidden_composition(
+        &mut self,
+        widget_id: WidgetId,
+        preedit: String,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<WidgetId> {
+        let dispatch = self.dispatch_hidden_composition_to_widget(widget_id, preedit, timestamp)?;
+        if matches!(
+            self.interaction.composition.managed_composition,
+            RuntimeManagedCompositionState::Active {
+                widget_id: active_widget_id
+            } if active_widget_id == widget_id
+        ) && !self.composition_owner_still_retained(widget_id)
+        {
+            self.block_managed_composition();
+        }
+        dispatch.was_routed().then_some(widget_id)
+    }
+
     fn dispatch_composition_to_widget(
         &mut self,
         widget_id: WidgetId,
@@ -166,6 +217,33 @@ where
                 .push((sample.phase(), managed_composition));
         }
         let result = self.dispatch_surface_composition_sample(widget_id, sample)?;
+        let retained = result.1;
+        let dispatch = match result.0 {
+            WidgetDispatchResult::Message(message) => {
+                let outcome = self.dispatch_message(message);
+                self.pending_input_command_outcome.merge(outcome);
+                CompositionWidgetDispatch::Handled { retained }
+            }
+            WidgetDispatchResult::UnmappedOutput => {
+                self.relayout();
+                CompositionWidgetDispatch::Handled { retained }
+            }
+            WidgetDispatchResult::NoOutput if retained => {
+                CompositionWidgetDispatch::RetainedNoOutput
+            }
+            WidgetDispatchResult::NoOutput => CompositionWidgetDispatch::Unhandled,
+        };
+        Some(dispatch)
+    }
+
+    fn dispatch_hidden_composition_to_widget(
+        &mut self,
+        widget_id: WidgetId,
+        preedit: String,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<CompositionWidgetDispatch> {
+        let result =
+            self.dispatch_surface_hidden_composition_update(widget_id, preedit, timestamp)?;
         let retained = result.1;
         let dispatch = match result.0 {
             WidgetDispatchResult::Message(message) => {

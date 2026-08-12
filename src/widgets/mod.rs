@@ -69,6 +69,7 @@ pub use contract::{
     WidgetSemanticsRevision, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
     stable_widget_id, stable_widget_id_u64,
 };
+pub(crate) use interaction::CompositionSelectionState;
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,
     CanvasGestureMetadata, CanvasGestureState, CanvasMessage, CanvasPointer, CompositionPhase,

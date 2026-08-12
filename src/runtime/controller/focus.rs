@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use super::interaction_state::RuntimeFocusedKeyCapture;
 use super::{FocusTraversal, SurfaceRuntime};
+use crate::widgets::interaction::CompositionStartContext;
 use crate::widgets::{FocusLossDecision, KeyboardModifiers};
 use crate::{
     gui::input::InputTimestamp,
@@ -473,6 +474,19 @@ where
                 .accepts_text_input()
                 .then_some(widget_id)
         })
+    }
+
+    /// Return the exact current scalar replacement and selection context for
+    /// a focused native composition start.
+    pub fn focused_composition_start_context(&self) -> Option<CompositionStartContext> {
+        let widget_id = self.interaction.focus.focused_widget?;
+        if !self.is_authoritative_focus_target(widget_id)
+            || self.focused_text_input_id() != Some(widget_id)
+        {
+            return None;
+        }
+        self.surface_widget(widget_id)
+            .and_then(|widget| widget.widget_object().composition_start_context())
     }
 
     /// Return whether the focused widget asks to receive `key` before host shortcuts.

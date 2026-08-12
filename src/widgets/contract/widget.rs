@@ -1,15 +1,19 @@
 //! Object-safe widget trait shared by built-in primitives and custom widgets.
 
 use crate::{
-    gui::types::{Point, Rect},
+    gui::{
+        input::InputTimestamp,
+        types::{Point, Rect},
+    },
     layout::{LayoutOutput, Vector2},
     runtime::{PaintPrimitive, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
         WidgetRevision,
         interaction::{
-            CompositionSample, NumericAccessibilityAction, NumericAccessibilityBlockOwner,
-            WheelSample, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+            CompositionSample, CompositionStartContext, NumericAccessibilityAction,
+            NumericAccessibilityBlockOwner, WheelSample, WidgetCursor, WidgetInput, WidgetKey,
+            WidgetOutput,
         },
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
@@ -289,12 +293,35 @@ pub trait Widget: WidgetClone + Any {
         false
     }
 
+    /// Return the exact current committed-value context for composition start.
+    ///
+    /// The default keeps existing custom widgets out of native IME admission.
+    /// Implementations must use Unicode-scalar ranges from their current text
+    /// state; native adapters never derive this context from preedit bytes.
+    fn composition_start_context(&self) -> Option<CompositionStartContext> {
+        None
+    }
+
     /// Route one validated backend-neutral composition sample into this widget.
     ///
     /// The hook is object-safe and intentionally separate from [`WidgetInput`]
     /// so existing `Event` and `WidgetInput` compatibility remains unchanged.
     fn handle_composition_sample(&mut self, _sample: CompositionSample) -> Option<WidgetOutput> {
         None
+    }
+
+    /// Route a native preedit update whose selection/caret is explicitly
+    /// hidden by the platform adapter.
+    ///
+    /// Existing custom widgets conservatively receive the established cancel
+    /// behavior instead of retaining a previous visible selection. Widgets
+    /// that support hidden preedit delivery can override this object-safe hook.
+    fn handle_hidden_composition_update(
+        &mut self,
+        _preedit: String,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        self.handle_composition_sample(CompositionSample::cancel_with_metadata(timestamp))
     }
 
     /// Report whether this widget retains the runtime-managed composition

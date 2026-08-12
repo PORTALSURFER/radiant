@@ -115,6 +115,77 @@ impl CompositionRange {
     }
 }
 
+/// Exact focused text context captured when native composition begins.
+///
+/// Both ranges use the committed value's Unicode-scalar coordinates. Native
+/// adapters obtain this value from the focused widget rather than deriving a
+/// replacement range from preedit text or native byte offsets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CompositionStartContext {
+    replacement_range: CompositionRange,
+    selection: CompositionRange,
+}
+
+impl CompositionStartContext {
+    /// Construct a focused composition context with matching scalar lengths.
+    pub fn new(
+        replacement_range: CompositionRange,
+        selection: CompositionRange,
+    ) -> Result<Self, CompositionSampleError> {
+        if replacement_range.scalar_len() != selection.scalar_len() {
+            return Err(CompositionSampleError::StartRangeScalarLengthMismatch {
+                replacement: replacement_range.scalar_len(),
+                selection: selection.scalar_len(),
+            });
+        }
+        Ok(Self {
+            replacement_range,
+            selection,
+        })
+    }
+
+    /// Return the committed-value scalar range replaced on commit.
+    pub const fn replacement_range(self) -> CompositionRange {
+        self.replacement_range
+    }
+
+    /// Return the committed-value scalar selection captured at start.
+    pub const fn selection(self) -> CompositionRange {
+        self.selection
+    }
+}
+
+/// Runtime-only state for native preedit selection evidence.
+///
+/// `Unreported` is the state immediately after `Start`, before the adapter has
+/// delivered a preedit selection.  It is intentionally distinct from
+/// `Hidden`, which is explicit native evidence that caret and selection paint
+/// must be suppressed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum CompositionSelectionState {
+    /// No preedit selection has been reported yet.
+    #[default]
+    Unreported,
+    /// The adapter reported this exact visible preedit selection.
+    Visible(CompositionRange),
+    /// The adapter explicitly reported that the preedit selection is hidden.
+    Hidden,
+}
+
+impl CompositionSelectionState {
+    #[cfg(test)]
+    pub(crate) const fn visible_range(self) -> Option<CompositionRange> {
+        match self {
+            Self::Visible(range) => Some(range),
+            Self::Unreported | Self::Hidden => None,
+        }
+    }
+
+    pub(crate) const fn is_hidden(self) -> bool {
+        matches!(self, Self::Hidden)
+    }
+}
+
 /// Lifecycle phase carried by one validated composition sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CompositionPhase {
@@ -155,10 +226,10 @@ pub enum CompositionSampleError {
 
 /// Validated backend-neutral composition input.
 ///
-/// `Start` and `Update` carry only Unicode-scalar ranges.  Native adapters may
-/// preserve an exact [`InputTimestamp`] when one exists; synthetic
-/// constructors intentionally leave it absent.  No sequence identity is
-/// fabricated by this vocabulary.
+/// `Start` and `Update` carry only Unicode-scalar ranges. Native adapters may
+/// preserve an exact [`InputTimestamp`] when one exists; synthetic constructors
+/// intentionally leave it absent. No sequence identity is fabricated by this
+/// vocabulary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompositionSample {
     /// Begin a composition over a captured committed-text range.
@@ -418,6 +489,24 @@ mod tests {
             CompositionSample::update(
                 "あ",
                 CompositionRange::new(0, 1, 2).expect("range with mismatched evidence"),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn focused_start_context_keeps_both_exact_scalar_ranges() {
+        let replacement = CompositionRange::new(1, 3, 4).expect("valid replacement");
+        let selection = CompositionRange::new(2, 2, 4).expect("valid selection");
+        let context = CompositionStartContext::new(replacement, selection)
+            .expect("matching scalar lengths should be accepted");
+
+        assert_eq!(context.replacement_range(), replacement);
+        assert_eq!(context.selection(), selection);
+        assert!(
+            CompositionStartContext::new(
+                replacement,
+                CompositionRange::new(0, 0, 3).expect("different scalar length"),
             )
             .is_err()
         );

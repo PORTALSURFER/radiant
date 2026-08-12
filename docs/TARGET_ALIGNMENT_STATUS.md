@@ -22,9 +22,12 @@
 The broad estimate is the unweighted mean of the category rows:
 `(84 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.0%`,
 reported as approximately `82.00%`.
-The generic architecture-sequence estimate remains about 97%; this consumer
-adds executable evidence without claiming completion of the remaining native-
-adapter, scheduler-, renderer-, or product-policy boundaries.
+The generic architecture-sequence estimate remains about 97%; this slice adds
+the first executable native Winit consumer without changing the estimates.
+The broad estimate remains intentionally `902 / 11` (~82.00%) and Public API
+remains 84% until shipped validation is complete; no design-only credit is
+awarded for this contract or implementation. Other native adapters,
+scheduler-, renderer-, and product-policy boundaries remain separate.
 The generic widget interaction teardown seam is now executable: an additive
 defaulted `Widget` hook can terminate retiring local state, old-surface mappers
 collect ordered UI-local output before discard, and the existing deferred
@@ -79,9 +82,16 @@ widget-local start/update/commit/cancel state with revision-aware
 reprojection. Numeric preedit remains visible local text without parse or
 publication; a valid commit reuses text sanitization and the numeric codec for
 one terminal `[Begin, Commit]` batch, while invalid commits remain correctable
-and cancel/focus-loss restores the captured edit. The source deliberately
-leaves native IME adapters, matching-key suppression, candidate windows, and
-product behavior unshipped. Complete-mode
+and cancel/focus-loss restores the captured edit. The shared native Winit
+normalizer/router is now wired to both primary and auxiliary Vello loops:
+`Ime::Enabled` is capability-only, valid byte endpoints become scalar ranges,
+`Preedit(..., None)` uses the additive defaulted hidden-update hook rather than
+changing the four-variant public `CompositionSample` vocabulary, and malformed
+evidence cancels conservatively. Built-in hidden preedits retain actual focus,
+clear stale visible selection/caret adornments with zero-alpha existing
+colors, and the native encoder skips that geometry; the legacy hook fallback
+conservatively cancels. Matching-key suppression, candidate windows, other
+native IME adapters, and product behavior remain unshipped. Complete-mode
 NumericInput
 PointerScrub consumption is now shipped for the explicitly configured
 primary-plus-Alt/Option path, including managed capture, bounded output, typed
@@ -327,13 +337,12 @@ Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
-The evidence-backed total for this alignment sequence moves from `892` to
-`901`: `892 + 1 + 1 + 5 + 1 + 1 = 901`, `901 / 11 = 81.9090...%`, reported as
-approximately `81.91%`. Native adapters, matching-key suppression, and candidate windows
-remain separate boundaries. The generic composition foundation, the
-single-line text consumer, the NumericInput consumer, and the other
-previously shipped routing foundations remain distinct from those remaining
-boundaries.
+The evidence-backed total remains `902 / 11` (~82.00%) for this alignment
+sequence; this native Winit slice does not award estimate credit before shipped
+validation. The generic composition foundation, the single-line text consumer,
+the NumericInput consumer, and the primary/auxiliary Winit consumer remain
+distinct from the deferred matching-key, candidate-window, other native-adapter,
+and product-policy boundaries.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless

@@ -464,12 +464,21 @@ Current target-specific seams are intentionally narrow:
 - `src/gui_runtime/native_vello/generic_runtime/accessibility.rs`,
   `src/gui_runtime/native_vello/generic_runtime/adapter.rs`,
   `src/gui_runtime/native_vello/generic_runtime/auxiliary.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/ime.rs`,
   `src/gui_runtime/native_vello/generic_runtime/lifecycle.rs`,
   `src/gui_runtime/native_vello/generic_runtime/window_environment.rs`, and
   `src/gui_runtime/native_vello/runtime_event.rs` own the native window
   environment event boundary. The runtime keeps monitor, accessibility, and
   theme changes behind the backend-neutral invalidation contract, while
   unsupported targets retain the same no-op or fallback behavior.
+  The shared IME module normalizes Winit byte ranges to Unicode-scalar
+  composition evidence for both primary and auxiliary windows. Public
+  `CompositionSample` remains the four-variant `Start`/`Update`/`Commit`/`Cancel`
+  vocabulary; explicitly hidden preedit selection travels through the
+  additive defaulted `Widget::handle_hidden_composition_update` hook and the
+  existing fixed composition owner. Hidden built-in preedits keep actual focus
+  while zeroing the existing caret/selection colors, and the native encoder
+  skips zero-alpha adornment geometry.
   `SurfaceRuntime` now owns the immutable per-window `WindowEnvironment`
   snapshot and updates it before deferred projection; custom bridges may opt in
   through the default-no-op `RuntimeBridge::set_window_environment` hook.

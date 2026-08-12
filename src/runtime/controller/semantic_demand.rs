@@ -2986,24 +2986,39 @@ mod tests {
             composition.unmaterialized_ids(),
             &[AutomationNodeId::new("range-0")].into_iter().collect()
         );
-        assert_eq!(composition.fence_carrier().len(), 1);
-        let carrier_entry = &composition.fence_carrier()[0];
-        assert_eq!(carrier_entry.container_id, CONTAINER_ID);
-        assert_eq!(carrier_entry.logical_index, 0);
-        assert_eq!(&carrier_entry.provider, &AutomationNodeId::new("range-0"));
+        assert_eq!(composition.normalized_sidecar().entries().len(), 1);
+        let sidecar_entry = &composition.normalized_sidecar().entries()[0];
+        assert_eq!(sidecar_entry.container_id(), CONTAINER_ID);
+        assert_eq!(sidecar_entry.logical_index(), 0);
+        assert_eq!(sidecar_entry.provider(), &AutomationNodeId::new("range-0"));
+        assert_eq!(sidecar_entry.normalized_path(), &[0, 0]);
         assert_eq!(
-            carrier_entry.fences.range.as_ref(),
+            sidecar_entry.materialization_authority(),
+            VirtualLayoutSemanticClassificationOrigin::Unmaterialized
+        );
+        assert_eq!(
+            sidecar_entry.publication_fences().range.as_ref(),
             Some(classifications[0].fence())
         );
         assert_eq!(
-            carrier_entry.fences.required_item_pin.as_ref(),
+            sidecar_entry
+                .publication_fences()
+                .required_item_pin
+                .as_ref(),
             Some(classifications[1].fence())
         );
         assert_ne!(
-            carrier_entry.fences.range.as_ref(),
-            carrier_entry.fences.required_item_pin.as_ref()
+            sidecar_entry.publication_fences().range.as_ref(),
+            sidecar_entry
+                .publication_fences()
+                .required_item_pin
+                .as_ref()
         );
-        let range_fence = carrier_entry.fences.range.as_ref().expect("range fence");
+        let range_fence = sidecar_entry
+            .publication_fences()
+            .range
+            .as_ref()
+            .expect("range fence");
         assert_eq!(
             range_fence.provider_fence.semantic_cardinality,
             Some(VirtualLayoutSemanticCardinality::new(17, 23))
@@ -3044,9 +3059,9 @@ mod tests {
         let classifications = classifications_for_plan(&stale_plan);
         let first = owner.finish_publication(&ordinary, stale_plan.clone(), &classifications);
         let SemanticPublicationOutcome::Published(composition) = first else {
-            panic!("a complete publication should retain a fence carrier");
+            panic!("a complete publication should retain its normalized sidecar");
         };
-        assert!(!composition.fence_carrier().is_empty());
+        assert!(!composition.normalized_sidecar().entries().is_empty());
 
         owner
             .remove_range_demand(CONTAINER_ID)
@@ -3067,12 +3082,12 @@ mod tests {
         };
         assert_eq!(reason, SemanticPublicationFallbackReason::StalePlan);
         assert_eq!(composition.snapshot(), &ordinary);
-        assert!(composition.fence_carrier().is_empty());
+        assert!(composition.normalized_sidecar().entries().is_empty());
         assert_eq!(range.calls.get(), 1);
     }
 
     #[test]
-    fn same_source_publication_fence_drift_rejects_without_partial_carrier() {
+    fn same_source_publication_fence_drift_rejects_without_partial_sidecar() {
         let range = Rc::new(RangeProvider {
             calls: Cell::new(0),
             outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![

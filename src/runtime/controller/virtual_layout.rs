@@ -3247,6 +3247,13 @@ mod tests {
             .expect("selected read should remain pure")
             .expect("the explicit publication should be selected");
         assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(selected.composition.normalized_sidecar().entries().len(), 2);
+        assert!(
+            state
+                .selected_semantic_automation(900, session, &ordinary, 4)
+                .expect("a changed projection generation should remain a pure read")
+                .is_none()
+        );
         assert_eq!(calls.get(), 2);
     }
 
@@ -3299,6 +3306,10 @@ mod tests {
             .expect("the prior publication should remain selected");
         assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
         assert_eq!(selected.composition.snapshot(), &published_snapshot);
+        assert_eq!(
+            selected.composition.normalized_sidecar(),
+            published.composition.normalized_sidecar()
+        );
         assert_eq!(calls.get(), 2);
     }
 
@@ -3369,6 +3380,7 @@ mod tests {
                 reason: SemanticAutomationFallbackReason::Deferred,
             }
         );
+        assert!(first.composition.normalized_sidecar().entries().is_empty());
         assert_eq!(calls.get(), 1);
 
         *outcome.borrow_mut() = VirtualLayoutSemanticQueryOutcome::Found(Box::new(semantic_entry(
@@ -3379,6 +3391,7 @@ mod tests {
             .retry_semantic_automation(902, session, &ordinary, (1, 2, 3))
             .expect("explicit retry should execute the provider again");
         assert_eq!(retry.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(retry.composition.normalized_sidecar().entries().len(), 1);
         assert_eq!(calls.get(), 2);
     }
 

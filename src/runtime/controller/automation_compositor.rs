@@ -25,7 +25,7 @@ use crate::{
             VirtualLayoutSemanticRangeRequest, VirtualLayoutSemanticRequest,
         },
     },
-    layout::{NodeId, VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES},
+    layout::{NodeId, VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutItemKey},
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -35,7 +35,69 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 pub(crate) struct VirtualLayoutAutomationComposition {
     snapshot: GuiAutomationSnapshot,
     unmaterialized_ids: BTreeSet<AutomationNodeId>,
-    fence_carrier: Vec<VirtualLayoutAutomationFenceCarrierEntry>,
+    normalized_sidecar: VirtualLayoutNormalizedSemanticSidecar,
+}
+
+/// The complete bounded normalized semantic sidecar paired with one composed
+/// automation snapshot.  It is emitted from the same normalized union as the
+/// snapshot and never reconstructs provider members from raw requests.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutNormalizedSemanticSidecar {
+    entries: Vec<VirtualLayoutNormalizedSemanticSidecarEntry>,
+}
+
+/// One normalized provider item and its exact final location in the composed
+/// snapshot.  Descendant trees remain owned by the snapshot; the sidecar only
+/// retains the path needed to locate the already-audited node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutNormalizedSemanticSidecarEntry {
+    container_id: NodeId,
+    logical_index: usize,
+    key: VirtualLayoutItemKey,
+    provider: AutomationNodeId,
+    origin: VirtualLayoutSemanticClassificationOrigin,
+    path: NodePath,
+    fences: NormalizedSemanticPublicationFenceSet,
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutNormalizedSemanticSidecar {
+    pub(crate) fn entries(&self) -> &[VirtualLayoutNormalizedSemanticSidecarEntry] {
+        &self.entries
+    }
+}
+
+#[allow(dead_code)]
+impl VirtualLayoutNormalizedSemanticSidecarEntry {
+    pub(crate) const fn container_id(&self) -> NodeId {
+        self.container_id
+    }
+
+    pub(crate) const fn logical_index(&self) -> usize {
+        self.logical_index
+    }
+
+    pub(crate) fn key(&self) -> &VirtualLayoutItemKey {
+        &self.key
+    }
+
+    pub(crate) fn provider(&self) -> &AutomationNodeId {
+        &self.provider
+    }
+
+    pub(crate) fn normalized_path(&self) -> &[usize] {
+        &self.path.0
+    }
+
+    pub(crate) const fn materialization_authority(
+        &self,
+    ) -> VirtualLayoutSemanticClassificationOrigin {
+        self.origin
+    }
+
+    pub(crate) fn publication_fences(&self) -> &NormalizedSemanticPublicationFenceSet {
+        &self.fences
+    }
 }
 
 /// One normalized exact-fence source set carried alongside one composed
@@ -47,6 +109,7 @@ pub(crate) struct NormalizedSemanticPublicationFenceSet {
     pub(super) required_item_pin: Option<SemanticPublicationFence>,
 }
 
+#[allow(dead_code)]
 impl NormalizedSemanticPublicationFenceSet {
     fn with_source(source: SemanticDemandSource, fence: SemanticPublicationFence) -> Self {
         let mut fences = Self::default();
@@ -68,18 +131,6 @@ impl NormalizedSemanticPublicationFenceSet {
     }
 }
 
-/// Bounded source-aware exact-fence carrier for one normalized provider node.
-/// The copied publication fence remains the sole owner of its cardinality,
-/// registration, revision, coordinate, budget, provider, and publication
-/// authorities.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct VirtualLayoutAutomationFenceCarrierEntry {
-    pub(super) container_id: NodeId,
-    pub(super) logical_index: usize,
-    pub(super) provider: AutomationNodeId,
-    pub(super) fences: NormalizedSemanticPublicationFenceSet,
-}
-
 #[allow(dead_code)]
 impl VirtualLayoutAutomationComposition {
     fn new(
@@ -89,19 +140,19 @@ impl VirtualLayoutAutomationComposition {
         Self {
             snapshot,
             unmaterialized_ids,
-            fence_carrier: Vec::new(),
+            normalized_sidecar: VirtualLayoutNormalizedSemanticSidecar::default(),
         }
     }
 
-    fn with_fence_carrier(
+    fn with_normalized_sidecar(
         snapshot: GuiAutomationSnapshot,
         unmaterialized_ids: BTreeSet<AutomationNodeId>,
-        fence_carrier: Vec<VirtualLayoutAutomationFenceCarrierEntry>,
+        normalized_sidecar: VirtualLayoutNormalizedSemanticSidecar,
     ) -> Self {
         Self {
             snapshot,
             unmaterialized_ids,
-            fence_carrier,
+            normalized_sidecar,
         }
     }
 
@@ -136,10 +187,10 @@ impl VirtualLayoutAutomationComposition {
         &self.unmaterialized_ids
     }
 
-    /// Return the bounded exact-fence carrier without exposing it through the
-    /// public automation snapshot schema.
-    pub(crate) fn fence_carrier(&self) -> &[VirtualLayoutAutomationFenceCarrierEntry] {
-        &self.fence_carrier
+    /// Return the complete normalized semantic sidecar without exposing it
+    /// through the public automation snapshot schema.
+    pub(crate) fn normalized_sidecar(&self) -> &VirtualLayoutNormalizedSemanticSidecar {
+        &self.normalized_sidecar
     }
 }
 
@@ -182,6 +233,8 @@ pub(crate) enum VirtualLayoutAutomationCompositionError {
     WrongParentPayloadRoot,
     /// The final automation-node namespace contains a collision.
     AutomationNodeIdCollision,
+    /// A normalized provider item has no unique path in the final snapshot.
+    UnresolvedNormalizedPath,
     /// The classification no longer matches one live virtual-layout record.
     LiveClassificationMismatch,
     /// No unique live record exists for one classification container.
@@ -305,12 +358,12 @@ fn compose_normalized_virtual_layout_automation_snapshot(
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
 
-    let fence_carrier = build_fence_carrier(&entries_by_container)?;
+    let normalized_sidecar = build_normalized_sidecar(&staged.root, &entries_by_container)?;
 
-    Ok(VirtualLayoutAutomationComposition::with_fence_carrier(
+    Ok(VirtualLayoutAutomationComposition::with_normalized_sidecar(
         staged,
         unmaterialized_ids,
-        fence_carrier,
+        normalized_sidecar,
     ))
 }
 
@@ -327,11 +380,22 @@ fn normalize_inputs(
     let mut container_fences = BTreeMap::<NodeId, VirtualLayoutSemanticRangeRequest>::new();
     let mut pin_scopes =
         BTreeMap::<NodeId, (VirtualLayoutSemanticRequest, VirtualLayoutCoordinateSpace)>::new();
+    let mut source_fences = BTreeMap::<NodeId, NormalizedSemanticPublicationFenceSet>::new();
     let raw_input_cap = VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES
         .checked_add(64)
         .ok_or(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded)?;
 
     for input in inputs {
+        let container_id = match &input.input {
+            VirtualLayoutSemanticClassificationInput::Range(batch) => {
+                batch.request().container_id()
+            }
+            VirtualLayoutSemanticClassificationInput::Pin(pin) => pin.request().container_id(),
+        };
+        source_fences
+            .entry(container_id)
+            .or_default()
+            .merge(&input.fences)?;
         match &input.input {
             VirtualLayoutSemanticClassificationInput::Range(batch) => {
                 let request = batch.request();
@@ -556,11 +620,21 @@ fn unfenced_input(input: VirtualLayoutSemanticClassificationInput) -> Compositor
 fn fenced_input(
     classification: &SemanticPublicationClassification,
 ) -> Result<CompositorInput, VirtualLayoutAutomationCompositionError> {
-    let source = match &classification.input() {
-        VirtualLayoutSemanticClassificationInput::Range(_) => SemanticDemandSource::Range,
-        VirtualLayoutSemanticClassificationInput::Pin(_) => SemanticDemandSource::RequiredItemPin,
+    let (container_id, source) = match &classification.input() {
+        VirtualLayoutSemanticClassificationInput::Range(batch) => {
+            (batch.request().container_id(), SemanticDemandSource::Range)
+        }
+        VirtualLayoutSemanticClassificationInput::Pin(pin) => (
+            pin.request().container_id(),
+            SemanticDemandSource::RequiredItemPin,
+        ),
     };
-    if classification.fence().provider_fence.source != source {
+    if !classification.fence().same_exact(classification.fence()) {
+        return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
+    }
+    if classification.fence().provider_fence.source != source
+        || classification.fence().provider_fence.container_id != container_id
+    {
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
     Ok(CompositorInput {
@@ -878,28 +952,43 @@ fn group_entries(
     Ok(grouped)
 }
 
-fn build_fence_carrier(
+fn build_normalized_sidecar(
+    root: &AutomationNodeSnapshot,
     entries_by_container: &BTreeMap<NodeId, Vec<NormalizedEntry>>,
-) -> Result<Vec<VirtualLayoutAutomationFenceCarrierEntry>, VirtualLayoutAutomationCompositionError>
-{
-    let mut carrier = Vec::new();
-    for (container_id, entries) in entries_by_container {
-        for entry in entries {
-            if entry.fences.is_empty() {
-                continue;
-            }
-            if carrier.len() >= VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES {
+) -> Result<VirtualLayoutNormalizedSemanticSidecar, VirtualLayoutAutomationCompositionError> {
+    let final_locations = collect_ordinary_locations(root);
+    let mut sidecar_entries = Vec::new();
+    for (container_id, normalized_entries) in entries_by_container {
+        for entry in normalized_entries {
+            if sidecar_entries.len() >= VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES {
                 return Err(VirtualLayoutAutomationCompositionError::HardQueryCapExceeded);
             }
-            carrier.push(VirtualLayoutAutomationFenceCarrierEntry {
+            let provider = entry.projection.automation_node_id();
+            let paths = final_locations
+                .get(provider)
+                .filter(|paths| paths.len() == 1)
+                .ok_or(VirtualLayoutAutomationCompositionError::UnresolvedNormalizedPath)?;
+            let path = paths
+                .first()
+                .cloned()
+                .ok_or(VirtualLayoutAutomationCompositionError::UnresolvedNormalizedPath)?;
+            if node_at_path(root, &path).is_none_or(|node| node.id != *provider) {
+                return Err(VirtualLayoutAutomationCompositionError::UnresolvedNormalizedPath);
+            }
+            sidecar_entries.push(VirtualLayoutNormalizedSemanticSidecarEntry {
                 container_id: *container_id,
                 logical_index: entry.projection.logical_index(),
-                provider: entry.projection.automation_node_id().clone(),
+                key: entry.projection.identity().key().clone(),
+                provider: provider.clone(),
+                origin: entry.origin,
+                path,
                 fences: entry.fences.clone(),
             });
         }
     }
-    Ok(carrier)
+    Ok(VirtualLayoutNormalizedSemanticSidecar {
+        entries: sidecar_entries,
+    })
 }
 
 fn collect_ordinary_locations(
@@ -1400,7 +1489,7 @@ mod tests {
             .expect("empty composition succeeds");
         assert_eq!(composed.snapshot(), &ordinary);
         assert!(composed.unmaterialized_ids().is_empty());
-        assert!(composed.fence_carrier().is_empty());
+        assert!(composed.normalized_sidecar().entries().is_empty());
     }
 
     #[test]
@@ -1433,6 +1522,36 @@ mod tests {
             Some("unmaterialized")
         );
         assert!(node_by_id(&composed.snapshot().root, &WRAPPER_ID.to_string()).is_none());
+
+        let sidecar = composed.normalized_sidecar().entries();
+        assert_eq!(sidecar.len(), 2);
+        assert_eq!(sidecar[0].container_id(), CONTAINER_ID);
+        assert_eq!(sidecar[0].logical_index(), 0);
+        assert_eq!(sidecar[0].key(), &VirtualLayoutItemKey::new(10_u32));
+        assert_eq!(sidecar[0].provider(), &AutomationNodeId::new("provider-10"));
+        assert_eq!(sidecar[0].normalized_path(), &[0, 1]);
+        assert_eq!(
+            sidecar[0].materialization_authority(),
+            VirtualLayoutSemanticClassificationOrigin::Materialized {
+                slot_identity: VirtualLayoutSlotIdentity::from_test_parts(
+                    CONTAINER_ID,
+                    request.mount_generation(),
+                    0,
+                    1,
+                ),
+                payload_root: WRAPPER_ID,
+            }
+        );
+        assert!(sidecar[0].publication_fences().is_empty());
+        assert_eq!(sidecar[1].container_id(), CONTAINER_ID);
+        assert_eq!(sidecar[1].logical_index(), 1);
+        assert_eq!(sidecar[1].key(), &VirtualLayoutItemKey::new(11_u32));
+        assert_eq!(sidecar[1].provider(), &AutomationNodeId::new("provider-11"));
+        assert_eq!(sidecar[1].normalized_path(), &[0, 2]);
+        assert_eq!(
+            sidecar[1].materialization_authority(),
+            VirtualLayoutSemanticClassificationOrigin::Unmaterialized
+        );
 
         let target_snapshot = composed.target_snapshot(77);
         let materialized_target = target_snapshot

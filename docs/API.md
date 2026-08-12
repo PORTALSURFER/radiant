@@ -704,24 +704,21 @@ singular/stale/unsupported/ambiguous behavior before custom coordinates are
 admitted. This shipped generic logical consumer adds one public-API evidence
 point: generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
 `902 / 11` (~82.00%). Native/product consumers, scheduler/backoff/fairness,
-multiple active ranges per container, public declarative provider-attachment
-implementation, and custom coordinates remain unshipped.
+multiple active ranges per container, and custom coordinates remain unshipped.
 
-### Planned public declarative Logical-only provider attachment (normative; implementation unshipped)
+### Public declarative Logical-only provider attachment (normative; shipped)
 
 The existing semantic-session methods above are the only current public
-provider-calling intent. The one planned public declarative attachment path is
+provider-calling intent. The one public declarative attachment path is
 `radiant::application::VirtualLayoutParts<Message>` with
 `virtual_layout_from_parts`; it may carry optional semantic item and contiguous
 range providers. `radiant::runtime::VirtualLayoutRevisions`,
 `VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
 read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
-`VirtualLayoutSemanticProviderOutcome<T>` are qualified proposed vocabulary
-only.
-They are not shipped exports, are not in the prelude, and the parts have no
-custom-coordinate field.
+`VirtualLayoutSemanticProviderOutcome<T>` are qualified shipped vocabulary. They
+are not in the prelude, and the parts have no custom-coordinate field.
 
-The planned boundary preserves the existing 64-registration limit, one
+The shipped boundary preserves the existing 64-registration limit, one
 contiguous range and one required-item slot per mounted container, 1024 entries
 per query and in aggregate, and exact runtime-issued source tickets. Callbacks
 are read-only synchronous `Rc` capabilities; reentry is rejected and provider
@@ -743,8 +740,9 @@ opening, enumeration, ordinary snapshot/target reads, repaint,
 viewport/visibility/overscan, diagnostics, item count, provider availability,
 and IME/native events do not create demand. The full exact-fence, validation,
 fallback, lifecycle, native-boundary, non-goal, and acceptance-matrix contract
-is in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md); this planned path
-earns zero alignment estimate credit and is not implemented. Future native
+is in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This implementation
+is the first public-API evidence point; numeric estimates remain unchanged for
+this branch. Future native
 accessibility may translate explicit platform queries only through the same
 backend-neutral semantic-session model, under a separate later contract; it is
 not the hidden provider-registration or demand owner. The non-goals are custom
@@ -5420,12 +5418,16 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_external_drag_acceptance` |
+
+Run `cargo run --example logical_provider_attachment` to inspect the portable
+declarative Logical-only provider attachment shape.
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

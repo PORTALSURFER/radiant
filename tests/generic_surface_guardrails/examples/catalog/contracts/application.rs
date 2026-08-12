@@ -88,6 +88,16 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     ),
     ("list", &["list(", "list_row(", ".fill_height()"]),
     (
+        "logical_provider_attachment",
+        &[
+            "use radiant::prelude as ui;",
+            "VirtualLayoutParts",
+            "virtual_layout_from_parts",
+            "VirtualLayoutSemanticRangeProvider",
+            ".with_semantic_range_provider(",
+        ],
+    ),
+    (
         "tree_and_details",
         &[
             "message_tree_list_with_drag(",

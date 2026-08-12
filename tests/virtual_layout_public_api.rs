@@ -2,6 +2,16 @@
 
 use std::cell::Cell;
 
+use radiant::{
+    application::{VirtualLayoutParts, virtual_layout_from_parts},
+    runtime::{
+        VirtualLayoutRevisions, VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
+        VirtualLayoutSemanticProvider, VirtualLayoutSemanticProviderOutcome,
+        VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
+        VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+    },
+};
+
 use radiant::layout::{
     NodeId, Point, Rect, Vector2, VirtualLayoutBoundsConfidence, VirtualLayoutBudget,
     VirtualLayoutCoordinateSpace, VirtualLayoutDeferredReason, VirtualLayoutDiagnosticCode,
@@ -59,6 +69,12 @@ impl VirtualLayoutPolicy for OneItemPolicy {
 }
 
 fn assert_object_safe(_: &dyn VirtualLayoutPolicy) {}
+
+fn assert_public_provider_object_safe(
+    _: &dyn VirtualLayoutSemanticProvider,
+    _: &dyn VirtualLayoutSemanticRangeProvider,
+) {
+}
 
 #[derive(Eq)]
 struct UnstableIdentity {
@@ -286,4 +302,69 @@ fn policy_dispositions_are_distinct_and_the_capability_is_not_in_the_prelude() {
         "/src/prelude/layout.rs"
     ));
     assert!(!prelude_layout.contains("VirtualLayoutPolicy"));
+}
+
+#[test]
+fn public_provider_attachment_is_qualified_and_has_no_prelude_or_runtime_leakage() {
+    let item_provider: std::rc::Rc<dyn VirtualLayoutSemanticProvider> =
+        std::rc::Rc::new(|_request: &VirtualLayoutSemanticRequest| {
+            VirtualLayoutSemanticProviderOutcome::Found(VirtualLayoutSemanticEntry::new(
+                VirtualLayoutItemKey::new(7_u32),
+                0,
+                Rect::from_xy_size(0.0, 0.0, 20.0, 20.0),
+                radiant::gui::automation::AutomationNodeSemantics::new(
+                    radiant::gui::automation::AutomationRole::Row,
+                ),
+                radiant::gui::automation::AutomationNodeId::new("public-provider"),
+            ))
+        });
+    let range_provider: std::rc::Rc<dyn VirtualLayoutSemanticRangeProvider> =
+        std::rc::Rc::new(|_request: &VirtualLayoutSemanticRangeRequest| {
+            VirtualLayoutSemanticProviderOutcome::Unavailable(
+                VirtualLayoutSemanticUnavailableReason::Unsupported,
+            )
+        });
+    assert_public_provider_object_safe(&*item_provider, &*range_provider);
+
+    let _parts = VirtualLayoutParts::new(
+        std::rc::Rc::new(OneItemPolicy),
+        VirtualLayoutPolicyIdentity::new("qualified-provider-test"),
+        VirtualLayoutOverscan::new(0.0, 0.0).expect("valid overscan"),
+        VirtualLayoutBudget::new(1),
+        VirtualLayoutRevisions::new(1, 2, 3, 4),
+        std::rc::Rc::new(|| radiant::prelude::column::<()>([])),
+        std::rc::Rc::new(|_item| radiant::prelude::text::<()>("item")),
+        std::rc::Rc::new(|_item| VirtualLayoutPolicyIdentity::new("item-kind")),
+    )
+    .with_semantic_provider(item_provider)
+    .with_semantic_range_provider(range_provider);
+    let _ = virtual_layout_from_parts(_parts);
+
+    assert_eq!(
+        VirtualLayoutSemanticDeferredReason::Retry,
+        VirtualLayoutSemanticDeferredReason::Retry
+    );
+    assert_eq!(VirtualLayoutRevisions::new(1, 2, 3, 4).semantic, 4);
+    for source in [
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/prelude/application.rs"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/prelude/application/view.rs"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/prelude/runtime.rs"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/prelude/runtime/commands.rs"
+        )),
+    ] {
+        assert!(!source.contains("VirtualLayoutParts"));
+        assert!(!source.contains("VirtualLayoutSemanticProvider"));
+        assert!(!source.contains("VirtualLayoutSemanticRangeProvider"));
+    }
 }

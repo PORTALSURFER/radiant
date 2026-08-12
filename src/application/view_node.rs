@@ -121,6 +121,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
     },
     Runtime(SurfaceNode<Message>),
+    VirtualLayout(super::VirtualLayoutParts<Message>),
     Widget(Box<dyn WidgetView<Message>>),
     Container {
         policy: ContainerPolicy,
@@ -420,6 +421,7 @@ impl<Message> ViewNode<Message> {
                 );
             }
             ViewNodeKind::Runtime(_)
+            | ViewNodeKind::VirtualLayout(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }

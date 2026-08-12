@@ -33,6 +33,7 @@ pub(in crate::application) enum StructuralKind {
     VirtualScroll,
     Overlay,
     FloatingLayer,
+    VirtualLayout,
 }
 
 /// Typed static child positions used by application-view lowering.
@@ -90,6 +91,7 @@ impl StructuralKind {
             Self::VirtualScroll => 5,
             Self::Overlay => 6,
             Self::FloatingLayer => 7,
+            Self::VirtualLayout => 8,
         }
     }
 }

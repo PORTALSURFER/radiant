@@ -289,6 +289,9 @@ mod paint_projection;
 #[path = "runtime_surface_public_api/pointer_motion.rs"]
 mod pointer_motion;
 #[cfg(test)]
+#[path = "runtime_surface_public_api/virtual_layout_provider.rs"]
+mod virtual_layout_provider;
+#[cfg(test)]
 #[path = "runtime_surface_public_api/virtual_scroll.rs"]
 mod virtual_scroll;
 

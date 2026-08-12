@@ -34,6 +34,7 @@ mod platform;
 mod resource;
 mod surface;
 mod update_snapshot;
+mod virtual_layout;
 
 #[cfg(test)]
 pub(crate) fn test_arc_surface<Message>(
@@ -208,6 +209,7 @@ pub use resource::{
     ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,
     ResourceRequest, ResourceSlot,
 };
+pub(crate) use surface::lower_public_virtual_layout;
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection, SurfaceTraversalIndex,
     WheelHitTarget, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
@@ -221,3 +223,10 @@ pub(crate) use surface::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
 };
 pub use update_snapshot::RuntimeUpdateSnapshot;
+pub use virtual_layout::{
+    VirtualLayoutRevisions, VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
+    VirtualLayoutSemanticProvider, VirtualLayoutSemanticProviderOutcome,
+    VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
+    VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+};
+pub(crate) use virtual_layout::{adapt_item_provider, adapt_range_provider, provider_identity};

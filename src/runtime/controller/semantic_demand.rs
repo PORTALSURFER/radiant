@@ -3709,10 +3709,9 @@ mod tests {
             outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
         });
         let mut owner = SemanticDemandOwner::default();
-        sync(
-            &mut owner,
-            registration("policy", 8, Default::default(), Some(pin), None),
-        );
+        let mut registration = registration("policy", 8, Default::default(), Some(pin), None);
+        registration.semantic_cardinality = Some(VirtualLayoutSemanticCardinality::new(1, 1));
+        sync(&mut owner, registration);
         let ticket = started(
             owner
                 .semantic_pin(CONTAINER_ID, VirtualLayoutItemKey::new(1_u32))
@@ -3743,6 +3742,20 @@ mod tests {
         assert!(!base.same_retention_fence(&changed));
         let mut changed = base.clone();
         changed.semantic_revision += 1;
+        assert!(!base.same_retention_fence(&changed));
+        let mut changed = base.clone();
+        changed
+            .semantic_cardinality
+            .as_mut()
+            .expect("semantic cardinality")
+            .logical_item_count += 1;
+        assert!(!base.same_retention_fence(&changed));
+        let mut changed = base.clone();
+        changed
+            .semantic_cardinality
+            .as_mut()
+            .expect("semantic cardinality")
+            .cardinality_revision += 1;
         assert!(!base.same_retention_fence(&changed));
         let mut changed = base.clone();
         changed.coordinate_space =

@@ -47,6 +47,7 @@ mod repaint_policy;
 mod retained_canvas;
 mod status_bar;
 mod tree_list;
+mod virtual_layout;
 mod widget_view;
 pub(in crate::application) use builders::{
     danger_style, default_badge_sizing, default_button_sizing, default_canvas_sizing,

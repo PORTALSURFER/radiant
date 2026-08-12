@@ -39,6 +39,7 @@ pub(in crate::runtime) use traversal::{
 };
 #[cfg(test)]
 pub(in crate::runtime) use virtual_layout::VirtualLayoutRegistrationRevisions;
+pub(crate) use virtual_layout::lower_public_virtual_layout;
 pub(in crate::runtime) use virtual_layout::{
     MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration,
 };

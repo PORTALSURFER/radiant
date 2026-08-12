@@ -125,7 +125,6 @@ pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,
     WidgetNodeParts,
 };
-#[cfg(test)]
 pub(crate) use virtual_layout::VirtualLayoutSemanticDeferredReason;
 pub use virtual_layout::{
     VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutBoundsConfidence, VirtualLayoutBudget,

@@ -294,6 +294,7 @@ fn validate_item<Message>(node: &ViewNode<Message>) -> Result<(), VirtualLayoutV
         ViewNodeKind::Runtime(_) => Err(VirtualLayoutViewAdmissionError::DirectSurfaceNode),
         ViewNodeKind::Scene { .. }
         | ViewNodeKind::OverlayPanel { .. }
+        | ViewNodeKind::VirtualLayout(_)
         | ViewNodeKind::FloatingLayer { .. } => {
             Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
         }

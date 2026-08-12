@@ -296,6 +296,7 @@ impl<Message> ViewNode<Message> {
                     include_overlays,
                 )?,
             ViewNodeKind::Runtime(_)
+            | ViewNodeKind::VirtualLayout(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }
@@ -405,6 +406,7 @@ impl<Message> ViewNode<Message> {
                 include_overlays,
             )?,
             ViewNodeKind::Runtime(_)
+            | ViewNodeKind::VirtualLayout(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }
@@ -570,6 +572,7 @@ impl<Message> ViewNode<Message> {
             | ViewNodeKind::VirtualScroll { child, .. }
             | ViewNodeKind::FloatingLayer { child, .. } => child.collect_overlay_layers(layers),
             ViewNodeKind::Runtime(_)
+            | ViewNodeKind::VirtualLayout(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }
@@ -646,6 +649,7 @@ impl<Message> ViewNode<Message> {
         match &self.kind {
             ViewNodeKind::Scene { .. } => StructuralKind::Scene,
             ViewNodeKind::Runtime(_) => StructuralKind::Runtime,
+            ViewNodeKind::VirtualLayout(_) => StructuralKind::VirtualLayout,
             ViewNodeKind::Widget(_) => StructuralKind::Widget,
             ViewNodeKind::Container { .. } => StructuralKind::Container,
             ViewNodeKind::Scroll { .. } => StructuralKind::Scroll,

@@ -13,6 +13,7 @@ mod panels;
 mod runtime;
 mod surfaces;
 mod view;
+mod virtual_layout;
 
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,
@@ -118,3 +119,4 @@ pub use view::{
     StatefulAppBuilder, StatefulAppWithView, ViewNode, ViewProjection, WidgetView,
     WidgetViewContext, WindowBuilder, app, preserve_state, window,
 };
+pub use virtual_layout::{VirtualLayoutParts, virtual_layout_from_parts};

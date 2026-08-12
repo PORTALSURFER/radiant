@@ -255,11 +255,11 @@ scheduling, rendering, or provider authority, and snapshot functions remain
 pure reads. The generic logical production consumer below now implements the
 public snapshot selection/visibility and session ownership boundary. Custom-
 coordinate transformation, production/native and product consumers,
-scheduler/backoff/fairness, multiple active ranges per container, and public
-provider-registration/API wiring remain deferred and unimplemented. The
-normative/planned public declarative Logical-only provider contract is recorded
-in `docs/VIRTUAL_LAYOUT_DESIGN.md`, but its provider path remains unshipped. The
-consumer adds one public-API evidence point: generic ~97%, Declarative identity
+scheduler/backoff/fairness, and multiple active ranges per container remain
+deferred and unimplemented. The normative public declarative Logical-only
+provider attachment contract is shipped at its qualified boundary and recorded
+in `docs/VIRTUAL_LAYOUT_DESIGN.md`. This implementation is the first public-API
+evidence point: generic ~97%, Declarative identity
 71%, layout 97%, and broad coverage `902 / 11` (~82.00%).
 
 ## Next production consumer: semantic automation session (normative; generic logical implementation shipped)
@@ -340,22 +340,22 @@ admitted. This shipped consumer adds one public-API evidence point: generic
 ~97%, Declarative identity 71%, layout 97%, and broad coverage `902 / 11`
 (~82.00%). Existing pure public snapshot APIs and non-goals remain explicit.
 
-## Planned public declarative provider attachment (normative; implementation unshipped)
+## Public declarative provider attachment (normative; shipped; first public-API evidence point)
 
 The four primary alignment documents now define one public declarative
 Logical-only capability for attaching semantic item/range providers. The
-qualified proposed vocabulary is
+qualified shipped vocabulary is
 `radiant::application::VirtualLayoutParts<Message>`,
 `virtual_layout_from_parts`, `radiant::runtime::VirtualLayoutRevisions`,
 `VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
 read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
 `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`, `Unavailable`,
-`Deferred`, and `Rejected`. These are planned names only, are not shipped
-exports, and are not in the prelude. The first boundary is synchronous,
+`Deferred`, and `Rejected`. These are shipped qualified exports and are not in
+the prelude. The first boundary is synchronous,
 single-threaded `Rc` with no `Send`/`Sync`/worker/scheduler promise and no
 custom-coordinate field.
 
-`SurfaceRuntime` will own mounted registration, removal, provider replacement,
+`SurfaceRuntime` owns mounted registration, removal, provider replacement,
 registration/mount/provider generations, lifetime cancellation, and exact
 source tickets, bounded by 64 registrations, one range and one required-item
 slot per container, 1024 entries per query and in aggregate, and at most one
@@ -383,8 +383,8 @@ custom transforms, native accessibility/tree/actions, focus,
 scrolling/materialization, scheduler/backoff/fairness, renderer/paint/
 hit-testing/cache policy, product policy, multiple ranges, and prelude export.
 
-This contract is normative/planned and implementation-unshipped. It earns zero
-alignment estimate credit; all estimates above remain exactly unchanged,
+This contract is normative and shipped. It is the first public-API evidence
+point; all estimates above remain exactly unchanged,
 including broad coverage `902 / 11` (~82.00%) and Public API 84%.
 
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of

@@ -21,9 +21,8 @@ session owner, selected-publication boundary, explicit refresh/retry/close
 operations, and conservative fallback are live. Scheduler/cancellation
 transport, native/product provider consumers, and custom-coordinate
 implementation remain deferred. The public declarative Logical-only provider
-attachment contract below is normative/planned but implementation-unshipped.
-The private registration bridge still does not claim that public contract is
-shipped or provide a product integration.
+attachment contract below is normative and shipped as the first public-API
+evidence point. It does not provide a native/product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -134,9 +133,8 @@ At this status:
    all-or-nothing logical composition. The generic logical semantic automation
    session and public selected-snapshot visibility are shipped through
    `SurfaceRuntime`; the public declarative Logical-only provider attachment
-   contract below is normative/planned but its implementation remains
-   unshipped. Native/product provider consumers and custom transforms remain
-   outside this contract.
+   contract below is normative and shipped. Native/product provider consumers
+   and custom transforms remain outside this contract.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -184,8 +182,8 @@ This contract does not:
 - implement custom-coordinate transformation, a production/native consumer,
   scheduler/backoff/fairness policy, multiple active ranges per container, or a
   public imperative provider-registration API. The one public declarative
-  Logical-only provider-attachment contract is defined below but is not yet
-  shipped. The generic logical session and selected-publication runtime
+  Logical-only provider-attachment contract is defined below and is shipped.
+  The generic logical session and selected-publication runtime
   implementation are shipped below; the
   crate-private owner/provider-attempt/retention and atomic
   publication/composition kernels remain the only provider authority. The
@@ -293,7 +291,7 @@ must preserve the ownership boundaries.
 | --- | --- | --- |
 | Application data and key extraction | Host application/data source | Owns records, membership, ordering, sorting/filtering, loading, and stable key extraction. Supplies a snapshot and `data_revision`. It must not delegate domain identity to a visible index or to widget allocation. |
 | UI-local policy queries | The registered policy adapter, invoked by Radiant | Reads only bounded query inputs and app snapshot access. Computes keyed range-to-bounds, extent estimates, and anchor resolution. It must not create semantic demand, invoke a semantic provider, mutate UI state, invoke a materializer, schedule recursive work, or make lifecycle decisions. |
-| Virtual-layout registration | The mounted `SurfaceRuntime` | The planned public declarative capability declares provider capability only. `SurfaceRuntime` derives the live container/policy identity, registration and mount generations, content revisions, provider identity/generation, the fixed `Logical` coordinate, and budget. Registration is not demand, exposes no imperative register/remove API, and never accepts an application-owned mount generation. |
+| Virtual-layout registration | The mounted `SurfaceRuntime` | The public declarative capability declares provider capability only. `SurfaceRuntime` derives the live container/policy identity, registration and mount generations, content revisions, provider identity/generation, the fixed `Logical` coordinate, and budget. Registration is not demand, exposes no imperative register/remove API, and never accepts an application-owned mount generation. |
 | Semantic demand and publication | One crate-private semantic-demand owner per `SurfaceRuntime`, driven by one explicit public session | Records and owns only explicit semantic/accessibility range requests and explicit required-item pins; owns one active contiguous range-demand slot per mounted virtual container plus the independent one-item semantic pin, provider attempts, exact fences, staging, fallback, and the atomic whole-surface selected publication. It does not grant materialization, scrolling, action, focus, paint, hit-test, scheduler, renderer, or provider authority to semantics. |
 | Semantic provider | The registered immutable provider, called by the semantic-demand owner | Supplies only the bounded logical semantic evidence requested by the exact demand. It is called at most once per container/attempt, cannot recursively re-enter the owner, and cannot publish or mutate runtime state. Missing or unsupported capability is an explicit terminal outcome, not a demand source. |
 | Radiant visible-window coordinator | Radiant, one instance per mounted container | Owns viewport/overscan state, query sequence, revision fences, cancellation, accepted-window fallback, anchor state, invalidation coalescing, and the desired keyed set. It is the only component that commits a window. |
@@ -1179,11 +1177,11 @@ generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
 composition are current private runtime behavior. The generic logical runtime
 session consumer and public selected-snapshot boundary are also shipped;
-scheduler/cancellation transport, native/product provider consumers, custom
-transforms, and the public declarative provider-attachment implementation remain
-unshipped. The private kernel does not add a public provider-registration
-surface; the normative planned surface is defined in
-[Public declarative logical provider attachment](#public-declarative-logical-provider-attachment-normativeplanned-implementation-unshipped).
+scheduler/cancellation transport, native/product provider consumers, and custom
+transforms remain unshipped. The private kernel does not add a public
+imperative provider-registration surface; the shipped qualified surface is
+defined in
+[Public declarative logical provider attachment](#public-declarative-logical-provider-attachment-normative-shipped).
 
 #### Owner, sources, and logical scope
 
@@ -1206,8 +1204,8 @@ replacement or unmount retires the prior registration, marks its in-flight
 attempts cancelled, and clears its range-demand slot, independent semantic pin,
 and pending demand state before the old authority is dropped. Registration,
 replacement, and unmount do not invoke a provider or create demand. The current
-registration bridge is private; the public declarative capability is planned
-and unshipped.
+registration bridge is private; the qualified public declarative capability is
+shipped at the boundary defined below.
 
 A same-scope declaration update may retain the mounted container identity, but
 the runtime advances the registration generation for changed capability or
@@ -1236,10 +1234,10 @@ data/policy/measurement/semantic revisions, provider identity/generation, fixed
 
 The target provider path is logical-only. `Logical` coordinates may be
 validated and staged. `Custom` coordinates are unavailable/rejected before
-provider invocation; no identity-transform fallback is permitted. The planned
-public parts have no custom-coordinate field. Coordinate transformation, a
-production/native provider consumer, and public provider implementation remain
-deferred.
+provider invocation; no identity-transform fallback is permitted. The public
+parts have no custom-coordinate field. Custom-coordinate transformation and a
+production/native provider consumer remain deferred; the public provider
+implementation is shipped.
 
 #### Demand generations, attempts, and refresh
 
@@ -1458,27 +1456,26 @@ unsupported, or ambiguous transforms before any custom coordinate is admitted.
 The four alignment documents MUST agree on this contract and MUST continue to
 state that the private demand/publication kernel and the generic logical
 consumer are shipped. The public declarative Logical-only provider contract is
-normative/planned but implementation-unshipped; native/product provider
-consumers, scheduling, and custom transforms remain deferred. This bounded
-implementation earns one public-API evidence point: generic ~97%, Declarative
-identity 71%, layout 97%, and broad coverage `902 / 11` (82.00%). Existing pure
+normative and shipped as the first public-API evidence point; native/product
+provider consumers, scheduling, and custom transforms remain deferred. Numeric
+estimates remain unchanged for this branch: generic ~97%, Declarative identity
+71%, layout 97%, and broad coverage `902 / 11` (82.00%). Existing pure
 public snapshot APIs and the existing non-goals remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
 
-### Public declarative logical provider attachment (normative/planned; implementation unshipped)
+### Public declarative logical provider attachment (normative; shipped)
 
 The existing generic semantic automation session and its explicit
 `refresh_semantic_automation_session(session, demands)` and
 `retry_semantic_automation_session(session)` operations are shipped. The
-public provider-attachment path defined here is a separate planned contract:
-it is normative, but its implementation and exports are unshipped. The
+public provider-attachment path defined here is normative and shipped. The
 current crate-private registration bridge is evidence for the runtime ownership
-rules only; it is not a public provider API.
+rules underneath the qualified public API.
 
-#### Proposed vocabulary (not shipped exports)
+#### Qualified public vocabulary
 
-There is exactly one planned public declarative capability for attaching
+There is exactly one public declarative capability for attaching
 semantic providers to a virtual layout:
 
 - `radiant::application::VirtualLayoutParts<Message>` carries the normal
@@ -1513,9 +1510,8 @@ semantic providers to a virtual layout:
   reasons are bounded to `DataPending`,
   `SemanticPending`, and `Retry`.
 
-These names are qualified proposed vocabulary only. They are not current
-exports, are not in the prelude, and must not be described as shipped API until
-an implementation lands. The first boundary stores callbacks as synchronous
+These names are qualified exports, are not in the prelude, and are limited to
+this shipped logical attachment boundary. The first boundary stores callbacks as synchronous
 single-threaded `Rc` capabilities. It makes no `Send`, `Sync`, worker, or
 scheduler promise and does not define asynchronous provider completion.
 
@@ -1625,7 +1621,7 @@ complete whole-surface composition:
   scheduling, renderer work, or provider registration.
 
 The complete allow/veto/terminal/fallback/stale/authority fixtures are in the
-[semantic provider acceptance matrix](#semantic-provider-acceptance-matrix-normative-public-declarative-attachment-planned-implementation-unshipped),
+[semantic provider acceptance matrix](#semantic-provider-acceptance-matrix-normative-public-declarative-attachment-shipped),
 which is part of this contract and includes provider panic and reentry.
 
 #### Native boundary and non-goals
@@ -1934,9 +1930,8 @@ typed outcomes and validation, non-reentrant provider attempts, exact-fence
 fallback retention, retained-evidence reclassification, and all-or-nothing
 logical composition. The generic logical production consumer above now ships
 public snapshot selection/visibility and the runtime semantic session;
-scheduler/cancellation transport, native/product provider consumers, public
-declarative provider-attachment implementation, custom transforms, and the
-other listed non-goals remain outside the slice. The
+scheduler/cancellation transport, native/product provider consumers, custom
+transforms, and the other listed non-goals remain outside the slice. The
 shipped private kernel and session do not authorize materialization, scrolling,
 actions, focus, paint, hit testing, scheduling, rendering, public provider
 registration, or any other deferred authority.
@@ -1986,14 +1981,12 @@ Tests should assert observable ownership, boundedness, identity, and revision
 behavior. They should not assert the names or storage layout of this document's
 non-API pseudocode.
 
-### Semantic provider acceptance matrix (normative; public declarative attachment planned; implementation unshipped)
+### Semantic provider acceptance matrix (normative; public declarative attachment shipped)
 
 The following direct rows preserve the approved acceptance contract. The
 owner/provider-attempt/retention and private publication/composition rows
-describe shipped runtime behavior, including the generic logical session and
-public selected snapshot. The declarative provider vocabulary and lifecycle
-rows are normative planned behavior only; they do not claim public exports or
-provider-path implementation.
+describe shipped runtime behavior, including the generic logical session,
+public selected snapshot, and qualified declarative provider attachment.
 
 | Decision | Direct fixture | Required evidence |
 | --- | --- | --- |
@@ -2001,7 +1994,7 @@ provider-path implementation.
 | Registration reject | More than 64 virtual-layout registrations or duplicate mounted registration scope | `MAX_VIRTUAL_LAYOUT_REGISTRATIONS` (64) is enforced before a slot or provider attempt exists; no public/application/native demand surface appears. |
 | Registration lifecycle | Admit a declaration, replace its scope or provider, or unmount its container while an attempt is pending | The runtime owns registration/mount/provider generations; scope replacement gets a fresh mount generation, provider replacement advances only its source generation, removal cancels and clears old authority, late work is stale, and none of these events invokes a provider or creates demand. |
 | Missing-provider synthesis | The selected item or range provider slot is absent when explicit session intent executes it | The runtime creates the exact `NoProvider` outcome for that source; registration/removal/provider replacement itself performs no callback and no automatic retry. |
-| Declarative API veto | Application attempts an imperative register/remove call or supplies a mount generation/custom-coordinate field | No such public operation or field exists in the planned capability; the declaration is rejected at the boundary and runtime ownership is unchanged. |
+| Declarative API veto | Application attempts an imperative register/remove call or supplies a mount generation/custom-coordinate field | No such public operation or field exists in the capability; runtime ownership is unchanged and custom coordinates are rejected before provider invocation. |
 | Provider callback isolation | Synchronous `Rc` item/range callback receives its read-only request | Callback has no mutable runtime, materialization, focus/action, scheduler, or provider-registration authority; no `Send`/`Sync` or worker promise is made. |
 | Demand-source allow | Explicit session refresh with a semantic range request or required-item pin | Only those exact source tickets can call a provider; viewport, overscan, paint, hit-test, provider availability, item count, diagnostics, and snapshot reads produce no demand. |
 | Demand-source reject | Registration, opening, enumeration, closing, snapshot/target read, ordinary repaint, paint-only invalidation, unchanged refresh, provider-availability read, or IME/native event | No demand generation, attempt, slot mutation, provider invocation, or publication occurs. |

@@ -1117,8 +1117,9 @@ surface, project concrete surfaces, schedule work, or serve a product consumer.
 That materialization kernel itself does not own focus/accessibility pins. The
 already-shipped private retained-item adapter
 and private `SurfaceRuntime` registration/two-pass bridge are crate-private
-runtime evidence; the public declarative provider contract below is planned but
-unshipped. Scheduler/renderer policy, full focus/accessibility traversal, and a
+runtime evidence; the qualified public declarative provider contract below is
+shipped at the Logical-only boundary. Scheduler/renderer policy, full
+focus/accessibility traversal, and a
 product consumer remain unshipped. Current
 fixed-child and host-projected fixed-row virtualization are
 compatibility paths, not an implementation of those later integrations.
@@ -1311,10 +1312,10 @@ materialization/projection authority, while
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider registration. The generic logical semantic
 automation session now ships the explicit public snapshot selection/visibility
-boundary. Custom-coordinate transformation, public provider registration/API,
-native/product consumers, scheduler/backoff/fairness, multiple active ranges
-per container, and the focus, materialization, scrolling, and action authority
-remain unshipped. `automation_snapshot` and `automation_target_snapshot` stay
+boundary. Custom-coordinate transformation, native/product consumers,
+scheduler/backoff/fairness, multiple active ranges per container, and the focus,
+materialization, scrolling, and action authority remain unshipped.
+`automation_snapshot` and `automation_target_snapshot` stay
 pure observational reads.
 
 ### Next production consumer: semantic automation session (normative; generic logical implementation shipped)
@@ -1393,23 +1394,23 @@ coordinates are admitted.
 
 This bounded implementation earns one public-API evidence point. The private
 kernel and generic logical session are shipped; the public declarative
-Logical-only provider contract below is normative/planned but implementation-
-unshipped. Native/product provider consumers, scheduling, and custom transforms
-remain deferred. Estimates are generic ~97%, Declarative identity 71%, layout
-97%, and broad coverage `902 / 11` (82.00%). Existing pure ordinary snapshot
+Logical-only provider contract below is normative and shipped. Native/product
+provider consumers, scheduling, and custom transforms remain deferred. Estimates
+are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
+`902 / 11` (82.00%). Existing pure ordinary snapshot
 APIs and non-goals remain explicit.
 
-### Public declarative Logical-only provider attachment (normative; implementation unshipped)
+### Public declarative Logical-only provider attachment (normative; shipped)
 
-The only planned public attachment path is
+The only public declarative attachment path is
 `radiant::application::VirtualLayoutParts<Message>` with
 `virtual_layout_from_parts`. It carries optional item/range semantic providers
 and has no custom-coordinate field. `radiant::runtime::VirtualLayoutRevisions`,
 `VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
 read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
 `VirtualLayoutSemanticProviderOutcome<T>` (`Found`, `NotFound`, `Unavailable`,
-`Deferred`, `Rejected`) are qualified proposed vocabulary only: they are not
-shipped exports or prelude entries.
+`Deferred`, `Rejected`) are qualified shipped vocabulary: they are not prelude
+entries.
 
 The runtime preserves the existing 64-registration limit, one contiguous range
 and one required-item slot per mounted container, 1024 entries per query and in
@@ -1438,8 +1439,9 @@ rejection/panic/malformed/collision use the conservative baseline. Stale,
 cancelled, and superseded results are inert; publication is whole-surface
 atomic and `Unmaterialized` authority is preserved. The full lifecycle,
 native-boundary, non-goal, and acceptance matrix is in
-[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This planned path earns
-zero alignment estimate credit and is not implemented.
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This implementation is
+the first public-API evidence point; numeric estimates remain unchanged for
+this branch.
 
 Its non-goals are custom transforms; native accessibility trees/actions; focus;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,

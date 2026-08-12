@@ -241,6 +241,9 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
             }
             ViewNodeKind::Runtime(node) if reidentify_runtime_root => node.with_id(id),
             ViewNodeKind::Runtime(node) => node,
+            ViewNodeKind::VirtualLayout(parts) => {
+                crate::runtime::lower_public_virtual_layout(id, parts)
+            }
             ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
                 id,
                 sizing: node.sizing,

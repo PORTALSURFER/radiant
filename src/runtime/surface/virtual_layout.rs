@@ -12,12 +12,13 @@ use crate::{
     },
     gui::types::Rect,
     layout::{
-        VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem, VirtualLayoutItemKey,
-        VirtualLayoutOverscan, VirtualLayoutPolicy, VirtualLayoutPolicyIdentity,
+        ContainerPolicy, VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItem,
+        VirtualLayoutItemKey, VirtualLayoutOverscan, VirtualLayoutPolicy,
+        VirtualLayoutPolicyIdentity,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
 };
-use std::rc::Rc;
+use std::{panic::AssertUnwindSafe, rc::Rc};
 
 pub(crate) const MAX_VIRTUAL_LAYOUT_REGISTRATIONS: usize = 64;
 
@@ -52,6 +53,8 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     pub(crate) kind: VirtualLayoutKindFactory,
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
+    semantic_provider_token: Option<usize>,
+    semantic_range_provider_token: Option<usize>,
     shell_lowerer: VirtualLayoutShellLowerer<Message>,
     projector_factory: VirtualLayoutProjectorFactory<Message>,
 }
@@ -72,6 +75,8 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             kind: Rc::clone(&self.kind),
             semantic_provider: self.semantic_provider.as_ref().map(Rc::clone),
             semantic_range_provider: self.semantic_range_provider.as_ref().map(Rc::clone),
+            semantic_provider_token: self.semantic_provider_token,
+            semantic_range_provider_token: self.semantic_range_provider_token,
             shell_lowerer: Rc::clone(&self.shell_lowerer),
             projector_factory: Rc::clone(&self.projector_factory),
         }
@@ -101,8 +106,15 @@ impl<Message> VirtualLayoutRegistration<Message> {
         let shell_for_lowering = Rc::clone(&shell);
         let shell_container_id = container_id;
         let shell_lowerer = Rc::new(move || {
-            crate::application::lower_virtual_layout_shell(shell_for_lowering(), shell_container_id)
+            std::panic::catch_unwind(AssertUnwindSafe(|| {
+                crate::application::lower_virtual_layout_shell(
+                    shell_for_lowering(),
+                    shell_container_id,
+                )
                 .ok()
+            }))
+            .ok()
+            .flatten()
         });
         let projector_factory = VirtualLayoutBatchProjector::factory(
             Rc::clone(&shell),
@@ -122,6 +134,8 @@ impl<Message> VirtualLayoutRegistration<Message> {
             kind,
             semantic_provider: None,
             semantic_range_provider: None,
+            semantic_provider_token: None,
+            semantic_range_provider_token: None,
             required_key: None,
             shell_lowerer,
             projector_factory,
@@ -130,6 +144,51 @@ impl<Message> VirtualLayoutRegistration<Message> {
 
     pub(crate) fn lowered_shell(&self) -> Option<SurfaceNode<Message>> {
         (self.shell_lowerer)()
+    }
+
+    pub(crate) fn from_public_parts(
+        container_id: crate::layout::NodeId,
+        parts: crate::application::VirtualLayoutParts<Message>,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        let item_provider_token = parts
+            .semantic_provider
+            .as_ref()
+            .map(crate::runtime::provider_identity);
+        let range_provider_token = parts
+            .semantic_range_provider
+            .as_ref()
+            .map(crate::runtime::provider_identity);
+        let mut registration = Self::new(
+            container_id,
+            parts.policy_identity,
+            parts.policy,
+            VirtualLayoutCoordinateSpace::logical(),
+            parts.overscan,
+            parts.budget,
+            VirtualLayoutRegistrationRevisions {
+                viewport: 0,
+                data: parts.revisions.data,
+                policy: parts.revisions.policy,
+                measurement: parts.revisions.measurement,
+                semantic: parts.revisions.semantic,
+            },
+            parts.shell,
+            parts.item,
+            parts.kind,
+        );
+        if let Some(provider) = parts.semantic_provider {
+            registration.semantic_provider = Some(crate::runtime::adapt_item_provider(provider));
+            registration.semantic_provider_token = item_provider_token;
+        }
+        if let Some(provider) = parts.semantic_range_provider {
+            registration.semantic_range_provider =
+                Some(crate::runtime::adapt_range_provider(provider));
+            registration.semantic_range_provider_token = range_provider_token;
+        }
+        registration
     }
 
     pub(crate) fn projector(&self) -> VirtualLayoutBatchProjector<Message> {
@@ -162,6 +221,9 @@ impl<Message> VirtualLayoutRegistration<Message> {
     }
 
     pub(crate) fn semantic_provider_is_same(&self, other: &Self) -> bool {
+        if self.semantic_provider_token.is_some() || other.semantic_provider_token.is_some() {
+            return self.semantic_provider_token == other.semantic_provider_token;
+        }
         match (&self.semantic_provider, &other.semantic_provider) {
             (None, None) => true,
             (Some(previous), Some(next)) => Rc::ptr_eq(previous, next),
@@ -174,6 +236,13 @@ impl<Message> VirtualLayoutRegistration<Message> {
     /// only the provider capability for the current accepted record.
     pub(crate) fn semantic_provider_handle(&self) -> Option<Rc<dyn VirtualLayoutSemanticProvider>> {
         self.semantic_provider.as_ref().map(Rc::clone)
+    }
+
+    pub(crate) fn semantic_provider_token(&self) -> Option<usize> {
+        self.semantic_provider.as_ref().and_then(|provider| {
+            self.semantic_provider_token
+                .or(Some(Rc::as_ptr(provider) as *const () as usize))
+        })
     }
 
     #[allow(dead_code)]
@@ -197,6 +266,11 @@ impl<Message> VirtualLayoutRegistration<Message> {
     /// identity, remains the lifecycle authority after this comparison.
     #[allow(dead_code)]
     pub(crate) fn semantic_range_provider_is_same(&self, other: &Self) -> bool {
+        if self.semantic_range_provider_token.is_some()
+            || other.semantic_range_provider_token.is_some()
+        {
+            return self.semantic_range_provider_token == other.semantic_range_provider_token;
+        }
         match (
             &self.semantic_range_provider,
             &other.semantic_range_provider,
@@ -211,6 +285,13 @@ impl<Message> VirtualLayoutRegistration<Message> {
         &self,
     ) -> Option<Rc<dyn VirtualLayoutSemanticRangeProvider>> {
         self.semantic_range_provider.as_ref().map(Rc::clone)
+    }
+
+    pub(crate) fn semantic_range_provider_token(&self) -> Option<usize> {
+        self.semantic_range_provider.as_ref().and_then(|provider| {
+            self.semantic_range_provider_token
+                .or(Some(Rc::as_ptr(provider) as *const () as usize))
+        })
     }
 
     pub(crate) const fn semantic_revision(&self) -> u64 {
@@ -253,6 +334,17 @@ impl<Message> VirtualLayoutRegistration<Message> {
             measurement_revision: self.revisions.measurement,
             semantic_revision: self.revisions.semantic,
         }
+    }
+}
+
+pub(crate) fn lower_public_virtual_layout<Message: 'static>(
+    container_id: crate::layout::NodeId,
+    parts: crate::application::VirtualLayoutParts<Message>,
+) -> SurfaceNode<Message> {
+    let registration = VirtualLayoutRegistration::from_public_parts(container_id, parts);
+    match registration.lowered_shell() {
+        Some(shell) => shell.with_virtual_layout_registration(registration),
+        None => SurfaceNode::container(container_id, ContainerPolicy::default(), Vec::new()),
     }
 }
 

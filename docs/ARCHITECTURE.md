@@ -192,19 +192,19 @@ new focused export leaf or a module split, not a formatting workaround.
 ## Virtual Layout Semantic Provider Boundary
 
 The current private `SurfaceRuntime` virtual-layout registration and semantic
-demand/publication kernel are implementation evidence. The public declarative
-provider path is normative/planned but implementation-unshipped and is defined
-fully in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
+demand/publication kernel are implementation evidence. The qualified public
+declarative provider path is normative and shipped at the Logical-only boundary
+defined fully in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
 
-The only planned public attachment capability is
+The only public declarative attachment capability is
 `radiant::application::VirtualLayoutParts<Message>` with
 `virtual_layout_from_parts`. It may attach optional
 `VirtualLayoutSemanticProvider` and `VirtualLayoutSemanticRangeProvider`
 capabilities through read-only item/range requests and
 `VirtualLayoutSemanticEntry` results. `radiant::runtime::VirtualLayoutRevisions`
 and generic `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`,
-`Unavailable`, `Deferred`, and `Rejected` are qualified proposed vocabulary
-only: none are shipped exports or prelude entries, and the parts have no
+`Unavailable`, `Deferred`, and `Rejected` are qualified shipped vocabulary:
+they are not prelude entries, and the parts have no
 custom-coordinate field.
 
 `SurfaceRuntime` owns mounted registration, removal, replacement,
@@ -243,7 +243,8 @@ model as a separate later contract; it is not a hidden provider owner. The
 contract's non-goals are custom transforms, native accessibility/tree/actions,
 focus, scrolling/materialization, scheduler/backoff/fairness,
 renderer/paint/hit-testing/cache policy, product policy, multiple ranges, and
-prelude export. This planned path earns zero alignment estimate credit.
+prelude export. This implementation is the first public-API evidence point;
+numeric estimates remain unchanged for this branch.
 
 ## Declarative Effect Ownership And Lifecycle Seam
 

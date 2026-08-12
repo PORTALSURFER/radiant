@@ -454,6 +454,8 @@ struct SemanticLiveAuthority {
     budget: VirtualLayoutBudget,
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
+    semantic_provider_token: Option<usize>,
+    semantic_range_provider_token: Option<usize>,
 }
 
 impl SemanticLiveAuthority {
@@ -473,6 +475,8 @@ impl SemanticLiveAuthority {
             budget: registration.budget,
             semantic_provider: registration.semantic_provider_handle(),
             semantic_range_provider: registration.semantic_range_provider_handle(),
+            semantic_provider_token: registration.semantic_provider_token(),
+            semantic_range_provider_token: registration.semantic_range_provider_token(),
         }
     }
 
@@ -772,16 +776,14 @@ impl<Message> SemanticDemandOwner<Message> {
             let shared_live_changed = self.records[existing_index]
                 .authority
                 .shared_live_changed(registration, *mount_generation);
-            let semantic_provider_changed = !same_provider_handle(
-                &self.records[existing_index].authority.semantic_provider,
-                &registration.semantic_provider_handle(),
-            );
-            let semantic_range_provider_changed = !same_provider_handle(
-                &self.records[existing_index]
-                    .authority
-                    .semantic_range_provider,
-                &registration.semantic_range_provider_handle(),
-            );
+            let semantic_provider_changed = self.records[existing_index]
+                .authority
+                .semantic_provider_token
+                != registration.semantic_provider_token();
+            let semantic_range_provider_changed = self.records[existing_index]
+                .authority
+                .semantic_range_provider_token
+                != registration.semantic_range_provider_token();
             let live_changed =
                 shared_live_changed || semantic_provider_changed || semantic_range_provider_changed;
             if !live_changed {
@@ -2216,14 +2218,6 @@ fn contains_duplicate_container<Message>(
                 .iter()
                 .any(|(previous, _)| previous.container_id == registration.container_id)
         })
-}
-
-fn same_provider_handle<T: ?Sized>(left: &Option<Rc<T>>, right: &Option<Rc<T>>) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(left), Some(right)) => Rc::ptr_eq(left, right),
-        _ => false,
-    }
 }
 
 fn stable_policy_identity_equals(

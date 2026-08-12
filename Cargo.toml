@@ -194,6 +194,10 @@ name = "virtualized_list"
 path = "examples/virtualized_list.rs"
 
 [[example]]
+name = "logical_provider_attachment"
+path = "examples/logical_provider_attachment.rs"
+
+[[example]]
 name = "styling"
 path = "examples/styling.rs"
 

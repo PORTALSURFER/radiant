@@ -22,9 +22,10 @@
 The broad estimate is the unweighted mean of the category rows:
 `(84 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.0%`,
 reported as approximately `82.00%`.
-The generic architecture-sequence estimate remains about 97%; the
-documentation-only native semantic accessibility contract below defines a later
-macOS/AppKit consumer boundary without changing the estimates.
+The generic architecture-sequence estimate remains about 97%; the private
+primary-window macOS/AppKit semantic accessibility consumer below is now
+implemented without changing the estimates. Live host/AppKit acceptance remains
+pending, so no estimate credit is awarded.
 The broad estimate remains intentionally `902 / 11` (~82.00%) and Public API
 remains 84% until shipped validation is complete; no design-only credit is
 awarded for this contract or implementation. Other native adapters,
@@ -392,8 +393,8 @@ validated `Found`, authoritative `NotFound`, terminal missing/Unsupported,
 exact-fence retention only for `DataUnavailable`/`Deferred`, conservative
 baseline for rejection/panic/malformed/collision, inert stale/cancelled/
 superseded results, atomic whole-surface publication, and preserved
-`Unmaterialized` authority. The later macOS/AppKit native semantic accessibility
-query contract below translates explicit platform queries only through the
+`Unmaterialized` authority. The private primary-window macOS/AppKit native
+semantic accessibility query contract below translates explicit platform queries only through the
 backend-neutral session model and is not a hidden provider owner. The full
 acceptance matrix and native contract are in `docs/VIRTUAL_LAYOUT_DESIGN.md`;
 custom transforms, native accessibility action dispatch, focus,
@@ -405,10 +406,11 @@ This contract is normative and shipped. It is the first public-API evidence
 point; all estimates above remain exactly unchanged,
 including broad coverage `902 / 11` (~82.00%) and Public API 84%.
 
-## Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+## Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
-This documentation records the later macOS/AppKit consumer contract over the
-shipped generic logical semantic automation session. One private native-window
+This documentation records the private primary-window macOS/AppKit production
+consumer over the shipped generic logical semantic automation session. One
+private native-window
 adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
 lease remain private: neither owns provider registration, mount identity, provider
 generations, demand fences, cancellation, or publication. The existing bound of
@@ -416,6 +418,12 @@ one active semantic session per `SurfaceRuntime` remains. A native lease MUST NO
 evict, supersede, or silently reuse an externally active session; contention
 returns the one private typed unavailable result `Unavailable(SessionContended)`.
 Multi-consumer arbitration is a later contract.
+
+Lease acquisition is lazy: passive root construction, ordinary native-tree
+observation, exact count reads, registration/cardinality synchronization, and
+ordinary property reads never acquire the lease or create demand. Only an
+explicit item or child-range query reaching the owned runtime turn may acquire
+it.
 
 Accessibility enablement, native tree-root construction, accessibility-state
 observation, ordinary native events, repaint, and ordinary property reads are
@@ -460,17 +468,17 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-The later native boundary now rests on the shipped provider-free declaration and
+The private native boundary now rests on the shipped provider-free declaration and
 fence foundation. The qualified public
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` value
 carries an exact `usize` logical item count and separate `u64` cardinality
 revision; an optional `VirtualLayoutParts` field and qualified
 `VirtualLayoutParts::with_semantic_cardinality(...)` builder are shipped outside
 the common prelude. The exact private registration/live-fence invalidation
-foundation is shipped. The normalized sidecar is shipped; only native
-cardinality query/child traversal, native topology, and the later platform
-consumer remain unshipped. Custom-coordinate transformation also remains
-deferred. `None` is unknown/unsupported, exact zero is supported, cardinality
+foundation, normalized sidecar, native topology, bounded AppKit cardinality
+query/child traversal, and the private primary-window platform consumer are
+implemented. Live host/AppKit acceptance remains pending; custom-coordinate
+transformation also remains deferred. `None` is unknown/unsupported, exact zero is supported, cardinality
 is immutable declaration evidence rather than a callback or demand, is not capped
 at 1024, and does not allocate proportional storage. Count reads, updates,
 mount, and enumeration are provider-free. Unknown cardinality does not vend a
@@ -534,18 +542,19 @@ actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
 behavior.
 
-This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
-native actions, focus, scrolling, product policy, custom transforms, scheduler,
-and renderer behavior remain excluded. It changes no estimate and adds no native
-implementation or public API.
+This contract is limited to the private primary-window macOS/AppKit consumer.
+Wayland, Windows, native actions, focus, scrolling, product policy, custom
+transforms, scheduler, and renderer behavior remain excluded. It changes no
+estimate and adds no public API.
 
 For the public provider-attachment evidence point, Slider/Knob, scheduler,
 renderer, and product policy remain out of scope; the native contract above is
-only a later macOS/AppKit boundary.
+the private primary-window macOS/AppKit boundary.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
 The evidence-backed total remains `902 / 11` (~82.00%) for this alignment
-sequence; this documentation-only contract does not award estimate credit.
+sequence; this implementation does not award estimate credit until live
+host/AppKit acceptance is demonstrated.
 The generic composition foundation, the single-line text consumer,
 the NumericInput consumer, and the primary/auxiliary Winit consumer remain
 distinct from the deferred matching-key, candidate-window, other native-adapter,

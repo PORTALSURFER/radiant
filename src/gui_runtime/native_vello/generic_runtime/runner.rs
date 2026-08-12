@@ -1,5 +1,7 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
+#[cfg(target_os = "macos")]
+use super::native_semantic_accessibility::NativeSemanticAccessibilityAdapter;
 use super::recovery::{
     NativeRecoveryCandidate, NativeRecoveryCoordinator, NativeRecoveryEpisodeToken,
     NativeRecoveryRequest,
@@ -63,6 +65,8 @@ where
     /// One application-level adapter shared by the primary and auxiliary
     /// generic-native windows. Auxiliary runners borrow it at event boundaries.
     pub(super) adapter: Option<GenericNativeAdapterOwner>,
+    #[cfg(target_os = "macos")]
+    pub(super) native_semantic_accessibility: Option<NativeSemanticAccessibilityAdapter>,
     pub(super) window: NativeRunnerWindowState,
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
@@ -210,6 +214,8 @@ where
             application_reopen_proxy: None,
             application_reopen_events: None,
             adapter: None,
+            #[cfg(target_os = "macos")]
+            native_semantic_accessibility: None,
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
@@ -235,6 +241,13 @@ where
             recovery_cause: None,
             recovery_primary_was_visible: false,
             recovery_auxiliary_followup_pending: false,
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn republish_native_semantic_accessibility_passively(&mut self) {
+        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
+            adapter.publish_passive(&self.core.runtime);
         }
     }
 
@@ -422,6 +435,57 @@ where
         self.native_lifecycle.is_recovering()
     }
 
+    #[cfg(target_os = "macos")]
+    pub(super) fn attach_native_semantic_accessibility(
+        &mut self,
+        proxy: EventLoopProxy<super::RuntimeUserEvent>,
+    ) {
+        if self.auxiliary_owner || self.native_semantic_accessibility.is_some() {
+            return;
+        }
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            return;
+        };
+        match NativeSemanticAccessibilityAdapter::attach(&window, proxy) {
+            Ok(mut adapter) => {
+                adapter.publish_passive(&self.core.runtime);
+                self.native_semantic_accessibility = Some(adapter);
+            }
+            Err(error) => {
+                warn!(error = %error, "radiant native semantic accessibility attachment withheld");
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(super) fn handle_native_semantic_accessibility_query(
+        &mut self,
+        query: super::super::runtime_event::NativeSemanticAccessibilityQuery,
+    ) {
+        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
+            adapter.handle_query(&mut self.core.runtime, query);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(super) fn invalidate_native_semantic_accessibility_geometry(&mut self) {
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            return;
+        };
+        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
+            adapter.invalidate_window_generation(&window);
+            adapter.publish_passive(&self.core.runtime);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(super) fn close_native_semantic_accessibility(&mut self) {
+        if let Some(mut adapter) = self.native_semantic_accessibility.take() {
+            adapter.close_lease(&mut self.core.runtime);
+            adapter.retire();
+        }
+    }
+
     pub(super) const fn is_stopped(&self) -> bool {
         self.native_lifecycle.is_stopped()
     }
@@ -523,6 +587,8 @@ where
                 "radiant generic native vello: native shutdown admitted after terminal failure"
             );
         }
+        #[cfg(target_os = "macos")]
+        self.close_native_semantic_accessibility();
         let _ = self.core.runtime.begin_closing();
         self.fence_native_presentation();
         self.clear_cpu_frame_fairness();
@@ -856,6 +922,8 @@ where
         if !self.admit_device_recovery() {
             return;
         }
+        #[cfg(target_os = "macos")]
+        self.close_native_semantic_accessibility();
         self.recovery_cause = Some(cause);
         self.recovery_primary_was_visible = window.is_visible().unwrap_or(true);
         if self
@@ -980,6 +1048,10 @@ where
             return Err(String::from(
                 "native recovery lifecycle completion was vetoed",
             ));
+        }
+        #[cfg(target_os = "macos")]
+        if let Some(proxy) = self.runtime_wakeup.event_loop_proxy() {
+            self.attach_native_semantic_accessibility(proxy);
         }
         for window in &mut self.auxiliary_windows {
             if !window.finish_device_recovery_if_no_rebuild() {
@@ -1410,6 +1482,8 @@ where
     }
 
     pub(super) fn export_automation_targets(&mut self) {
+        #[cfg(target_os = "macos")]
+        self.republish_native_semantic_accessibility_passively();
         let snapshot = self.core.runtime.automation_target_snapshot();
         match self.automation_targets.export(&snapshot) {
             Ok(true) => {
@@ -1611,26 +1685,6 @@ where
             self.queue_window_environment_change(
                 crate::runtime::WindowEnvironmentChange::ColorSchemeOrContrast,
             );
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(super) fn queue_accessibility_display_snapshot(
-        &mut self,
-        next: super::window_environment::AccessibilityDisplaySnapshot,
-    ) {
-        let previous = self.window.accessibility_display;
-        self.window.accessibility_display = next;
-        let environment = super::window_environment::environment_for_native_state(
-            self.window.dpi_scale,
-            self.window.environment.color_scheme(),
-            next,
-        );
-        let changed = self.update_window_environment(environment);
-        for change in super::window_environment::accessibility_display_changes(previous, next) {
-            if changed {
-                self.queue_window_environment_change(change);
-            }
         }
     }
 

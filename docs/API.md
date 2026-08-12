@@ -703,15 +703,16 @@ finite/non-inverted conversion, clipping/nesting, and conservative
 singular/stale/unsupported/ambiguous behavior before custom coordinates are
 admitted. This shipped generic logical consumer adds one public-API evidence
 point: generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
-`902 / 11` (~82.00%). Native/product consumer implementations,
+`902 / 11` (~82.00%). Product consumer implementations,
 scheduler/backoff/fairness, multiple active ranges per container, and custom
-coordinates remain unshipped; the later macOS/AppKit native semantic
-accessibility query contract is defined below.
+coordinates remain unshipped; the private primary-window macOS/AppKit native
+semantic accessibility consumer is implemented below.
 
-### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
-The first native semantic consumer is a later macOS/AppKit contract over the
-shipped generic logical semantic automation session. One private native-window
+The first native semantic consumer is the private primary-window macOS/AppKit
+production path over the shipped generic logical semantic automation session.
+One private native-window
 adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
 lease remain private: neither owns provider registration, mount identity, provider
 generations, demand fences, cancellation, or publication. The existing bound of
@@ -719,6 +720,12 @@ one active semantic session per `SurfaceRuntime` remains. A native lease MUST NO
 evict, supersede, or silently reuse an externally active session; contention
 returns the one private typed unavailable result `Unavailable(SessionContended)`.
 Multi-consumer arbitration is a later contract.
+
+Lease acquisition is lazy: passive root construction, ordinary native-tree
+observation, exact count reads, registration/cardinality synchronization, and
+ordinary property reads never acquire the lease or create demand. Only an
+explicit item or child-range query reaching the owned runtime turn may acquire
+it.
 
 Accessibility enablement, native tree-root construction, accessibility-state
 observation, ordinary native events, repaint, and ordinary property reads are
@@ -763,7 +770,7 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer deferred)
+#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
 
 The shipped declaration foundation exposes the qualified public value
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality`. It
@@ -773,9 +780,10 @@ shipped `VirtualLayoutParts<Message>` contract carries an optional cardinality
 field and the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`; the field and builder ship
 outside the common prelude. The exact private registration/live-fence
-invalidation foundation is shipped. Native child traversal, the normalized
-sidecar, native topology, AppKit queries, and the platform consumer remain
-deferred to the later native contract.
+invalidation foundation, normalized sidecar, native topology, bounded AppKit
+queries, and private primary-window platform consumer are implemented. Live
+host/AppKit acceptance remains pending; no public API is added and alignment
+estimates remain unchanged.
 
 Cardinality is immutable declaration evidence. It is not a callback, demand, or
 provider availability signal. `None` means unknown or unsupported; an exact zero
@@ -866,9 +874,11 @@ actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
 behavior.
 
-This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
-native actions, focus, scrolling, product policy, custom transforms, scheduler,
-and renderer behavior remain excluded.
+This contract is limited to the private primary-window macOS/AppKit consumer.
+Automated validation is recorded by the implementation handoff; live host/AppKit
+acceptance remains pending for this cycle, so alignment estimates remain
+unchanged. Wayland, Windows, native actions, focus, scrolling, product policy,
+custom transforms, scheduler, and renderer behavior remain excluded.
 
 ### Public declarative Logical-only provider attachment (normative; shipped)
 
@@ -888,9 +898,10 @@ field on `VirtualLayoutParts<Message>` and the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`. The value contains the
 exact `usize` logical item count and separate `u64` cardinality revision. The
 optional field and builder now ship outside the common prelude, and the exact
-private registration/live-fence invalidation foundation is shipped. The
-normalized sidecar, native topology, AppKit query path, and platform consumer
-remain deferred to the later native contract. Cardinality is immutable
+private registration/live-fence invalidation foundation, normalized sidecar,
+native topology, bounded AppKit query path, and private primary-window platform
+consumer are implemented. Live host/AppKit acceptance remains pending; no
+public API is added and alignment estimates remain unchanged. Cardinality is immutable
 declaration evidence, not a callback or demand; its exact count is independent
 of the one-range and one-required-item slots and of the 1024 per-query/aggregate
 budgets.
@@ -919,8 +930,8 @@ and IME/native events do not create demand. The full exact-fence, validation,
 fallback, lifecycle, native-boundary, non-goal, and acceptance-matrix contract
 is in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This implementation
 is the first public-API evidence point; numeric estimates remain unchanged for
-this branch. The later macOS/AppKit native semantic accessibility query contract
-translates explicit platform queries only through the same backend-neutral
+this branch. The private primary-window macOS/AppKit native semantic accessibility
+consumer translates explicit platform queries only through the same backend-neutral
 semantic-session model; it is not the hidden provider-registration or demand
 owner. The non-goals are custom transforms, native accessibility action dispatch,
 focus, scrolling/materialization,

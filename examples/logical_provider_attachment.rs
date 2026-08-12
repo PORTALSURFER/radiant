@@ -2,6 +2,7 @@
 
 use radiant::prelude as ui;
 use radiant::{
+    application::virtual_layout::VirtualLayoutSemanticCardinality,
     application::{VirtualLayoutParts, virtual_layout_from_parts},
     gui::automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
     layout::{
@@ -66,7 +67,8 @@ fn view() -> ui::View<()> {
         Rc::new(|_item| ui::text::<()>("Playlist item")),
         Rc::new(|_item| VirtualLayoutPolicyIdentity::new("playlist-item")),
     )
-    .with_semantic_range_provider(range_provider);
+    .with_semantic_range_provider(range_provider)
+    .with_semantic_cardinality(VirtualLayoutSemanticCardinality::new(1, 1));
 
     ui::column([
         ui::text("Logical provider attachment"),

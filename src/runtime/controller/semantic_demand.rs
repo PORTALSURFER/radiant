@@ -124,7 +124,7 @@ pub(super) struct SemanticProviderFence {
 impl SemanticProviderFence {
     /// Compare every field, including attempt, demand generation, and
     /// cancellation.  Unstable opaque equality never authorizes a match.
-    pub(super) fn same_exact(&self, other: &Self) -> bool {
+    pub(crate) fn same_exact(&self, other: &Self) -> bool {
         self.container_id == other.container_id
             && stable_policy_identity_equals(&self.policy_identity, &other.policy_identity)
                 == Some(true)
@@ -698,6 +698,21 @@ impl<Message> Default for SemanticDemandOwner<Message> {
 }
 
 impl<Message> SemanticDemandOwner<Message> {
+    /// Return the private range-provider authority generations for a passive
+    /// native token fence.  This reads owner state only; it never starts or
+    /// retries a demand.
+    pub(super) fn native_range_authority(&self, container_id: NodeId) -> Option<(u64, u64)> {
+        self.records
+            .iter()
+            .find(|record| !record.retired && record.authority.container_id == container_id)
+            .map(|record| {
+                (
+                    record.registration_generation,
+                    record.semantic_range_provider_generation,
+                )
+            })
+    }
+
     /// Synchronize only the reduced semantic authority of accepted mounted
     /// records.  New capability registration creates no demand, attempt,
     /// provider call, or publication.  Existing active demand is restarted
@@ -800,25 +815,44 @@ impl<Message> SemanticDemandOwner<Message> {
                 continue;
             }
 
+            let Some(next_registration_generation) =
+                self.next_registration_generation.checked_add(1)
+            else {
+                // A live authority change without a fresh registration fence
+                // could make native retention appear current after overflow.
+                // Retire the complete owner instead of accepting a wrapped or
+                // partially updated authority.
+                self.retire_all();
+                return (true, Vec::new());
+            };
+            let next_semantic_provider_generation = semantic_provider_changed
+                .then(|| self.next_semantic_provider_generation.checked_add(1))
+                .flatten();
+            if semantic_provider_changed && next_semantic_provider_generation.is_none() {
+                self.retire_all();
+                return (true, Vec::new());
+            }
+            let next_semantic_range_provider_generation = semantic_range_provider_changed
+                .then(|| self.next_semantic_range_provider_generation.checked_add(1))
+                .flatten();
+            if semantic_range_provider_changed && next_semantic_range_provider_generation.is_none()
+            {
+                self.retire_all();
+                return (true, Vec::new());
+            }
+
             changed = true;
+            self.next_registration_generation = next_registration_generation;
             self.records[existing_index]
                 .authority
                 .update_from(registration, *mount_generation);
-            if semantic_provider_changed {
-                let Some(next) = checked_next(&mut self.next_semantic_provider_generation) else {
-                    let mut record = self.records.remove(existing_index);
-                    record.cancel_and_clear();
-                    continue;
-                };
+            self.records[existing_index].registration_generation = next_registration_generation;
+            if let Some(next) = next_semantic_provider_generation {
+                self.next_semantic_provider_generation = next;
                 self.records[existing_index].semantic_provider_generation = next;
             }
-            if semantic_range_provider_changed {
-                let Some(next) = checked_next(&mut self.next_semantic_range_provider_generation)
-                else {
-                    let mut record = self.records.remove(existing_index);
-                    record.cancel_and_clear();
-                    continue;
-                };
+            if let Some(next) = next_semantic_range_provider_generation {
+                self.next_semantic_range_provider_generation = next;
                 self.records[existing_index].semantic_range_provider_generation = next;
             }
 
@@ -3343,6 +3377,59 @@ mod tests {
             VirtualLayoutSemanticQueryOutcome::NotFound
         );
         assert_eq!(pin.calls.get(), 4);
+    }
+
+    #[test]
+    fn accepted_same_scope_live_changes_advance_registration_generation_and_overflow_retires() {
+        let pin = Rc::new(PinProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticQueryOutcome::NotFound),
+        });
+        let first_range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::NotFound),
+        });
+        let second_range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::NotFound),
+        });
+        let base = registration(
+            "policy",
+            8,
+            Default::default(),
+            Some(pin),
+            Some(first_range),
+        );
+        let mut owner = SemanticDemandOwner::default();
+        sync(&mut owner, base.clone());
+        let initial_generation = owner.records[0].registration_generation;
+
+        let mut revised = base.clone();
+        revised.revisions.data = 1;
+        let (changed, _) = owner.synchronize_with_change(&[(revised.clone(), MOUNT_GENERATION)]);
+        assert!(changed);
+        assert_eq!(
+            owner.records[0].registration_generation,
+            initial_generation + 1
+        );
+
+        let provider_changed = revised.with_semantic_range_provider(second_range);
+        let (changed, _) =
+            owner.synchronize_with_change(&[(provider_changed.clone(), MOUNT_GENERATION)]);
+        assert!(changed);
+        assert_eq!(
+            owner.records[0].registration_generation,
+            initial_generation + 2
+        );
+
+        owner.next_registration_generation = u64::MAX;
+        let mut overflowed = provider_changed;
+        overflowed.revisions.data = 2;
+        let (changed, tickets) = owner.synchronize_with_change(&[(overflowed, MOUNT_GENERATION)]);
+        assert!(changed);
+        assert!(tickets.is_empty());
+        assert!(owner.records.is_empty());
+        assert_eq!(owner.next_registration_generation, u64::MAX);
     }
 
     #[test]

@@ -4,6 +4,8 @@ use super::controller::{
     VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError,
     VirtualLayoutSemanticClassificationBatch,
 };
+#[cfg(target_os = "macos")]
+use crate::application::virtual_layout::VirtualLayoutSemanticCardinality;
 use crate::{
     gui::automation::{
         AutomationTarget, AutomationTargetAuthority, GuiAutomationSnapshot,
@@ -16,6 +18,22 @@ use crate::{
         NumericAccessibilityRejectedReason, WidgetId, WidgetOutput,
     },
 };
+
+/// Provider-free admission evidence consumed by the private native semantic
+/// adapter.  This is deliberately smaller than a public container handle: a
+/// native callback may observe cardinality and registration identity without
+/// opening a semantic session or creating demand.
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct NativeSemanticContainerSnapshot {
+    pub(crate) container_id: crate::layout::NodeId,
+    pub(crate) mount_generation: u64,
+    pub(crate) registration_generation: u64,
+    pub(crate) provider_generation: u64,
+    pub(crate) cardinality: VirtualLayoutSemanticCardinality,
+    pub(crate) has_range_provider: bool,
+    pub(crate) max_entries: usize,
+}
 
 /// Opaque runtime-issued identity for one semantic automation session.
 ///
@@ -278,6 +296,42 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    #[cfg(target_os = "macos")]
+    /// Return provider-free, current logical virtual-container admission
+    /// evidence for the private native primary-window consumer.  The view is
+    /// intentionally unavailable through the public automation API.
+    pub(crate) fn native_semantic_containers(&self) -> Vec<NativeSemanticContainerSnapshot> {
+        let ordinary = self.automation_snapshot();
+        self.virtual_layout.native_semantic_containers(&ordinary)
+    }
+
+    #[cfg(target_os = "macos")]
+    /// Return the exact selected composition retained by the runtime owner.
+    /// The native adapter consumes this complete composition and its sidecar;
+    /// it never reconstructs provider members from public snapshots.
+    pub(crate) fn native_semantic_automation_composition(
+        &self,
+        session: SemanticAutomationSessionHandle,
+    ) -> Result<
+        Option<(
+            VirtualLayoutAutomationComposition,
+            SemanticAutomationRefreshStatus,
+        )>,
+        SemanticAutomationSessionError,
+    > {
+        let counters = self.refresh_counters();
+        let ordinary = self.automation_snapshot();
+        Ok(self
+            .virtual_layout
+            .selected_semantic_automation(
+                self.runtime_identity(),
+                session,
+                &ordinary,
+                counters.runtime_projection,
+            )?
+            .map(|publication| (publication.composition, publication.status)))
+    }
+
     /// Compose already-classified virtual semantic evidence into a private
     /// automation snapshot without changing the live runtime.
     #[allow(dead_code)]

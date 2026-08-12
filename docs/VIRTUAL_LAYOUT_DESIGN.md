@@ -19,7 +19,7 @@ composition. The next production consumer contract in
 is now shipped for the bounded generic logical consumer: its runtime-owned
 session owner, selected-publication boundary, explicit refresh/retry/close
 operations, and conservative fallback are live. Scheduler/cancellation
-transport, native/product provider consumer implementations, and
+transport, product provider consumer implementations, and
 custom-coordinate implementation remain deferred. The later macOS/AppKit native
 semantic accessibility query contract below is normative for that consumer. The
 public declarative Logical-only provider attachment contract below is normative
@@ -1181,9 +1181,9 @@ generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
 composition are current private runtime behavior. The generic logical runtime
 session consumer and public selected-snapshot boundary are also shipped;
-scheduler/cancellation transport, native/product provider consumer
-implementations, and custom transforms remain unshipped. The later macOS/AppKit
-native semantic accessibility query contract is defined below. The private kernel
+scheduler/cancellation transport, product provider consumer implementations, and
+custom transforms remain unshipped. The private primary-window macOS/AppKit
+native semantic accessibility query contract is implemented below. The private kernel
 does not add a public
 imperative provider-registration surface; the shipped qualified surface is
 defined in
@@ -1460,23 +1460,23 @@ unsupported, or ambiguous transforms before any custom coordinate is admitted.
 #### Contract definition of done
 
 The four alignment documents MUST agree on this contract and MUST continue to
-state that the private demand/publication kernel and the generic logical
-consumer are shipped. The public declarative Logical-only provider contract is
-normative and shipped as the first public-API evidence point; native/product
-provider consumer implementations, scheduling, and custom transforms remain
-deferred. The later macOS/AppKit native semantic accessibility query contract is
-defined below. Numeric
+state that the private demand/publication kernel, the generic logical consumer,
+and the private primary-window macOS/AppKit consumer are shipped. The public
+declarative Logical-only provider contract is normative and shipped as the first
+public-API evidence point; product provider consumer implementations, scheduling,
+and custom transforms remain deferred. The private native consumer has automated
+evidence in this cycle; live host/AppKit acceptance remains pending. Numeric
 estimates remain unchanged for this branch: generic ~97%, Declarative identity
 71%, layout 97%, and broad coverage `902 / 11` (82.00%). Existing pure
 public snapshot APIs and the existing non-goals remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
 
-### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
-This is the later macOS/AppKit consumer contract for the shipped generic logical
-semantic automation session. It defines a private adapter boundary only; it does
-not ship native code or add a public provider API. One private native-window
+This is the private primary-window macOS/AppKit production consumer for the
+shipped generic logical semantic automation session. It defines a private adapter
+boundary and adds no public provider API. One private native-window
 adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
 lease remain private: neither owns provider registration, mount identity, provider
 generations, demand fences, cancellation, or publication.
@@ -1486,6 +1486,12 @@ supersede, or silently reuse an externally active session. If an external sessio
 is active, lease acquisition has exactly one typed unavailable outcome,
 `Unavailable(SessionContended)`, and performs no provider call. Multi-consumer
 arbitration is a later contract.
+
+Lease acquisition is lazy: passive root construction, ordinary native-tree
+observation, exact count reads, registration/cardinality synchronization, and
+ordinary property reads never acquire the lease or create demand. Only an
+explicit item or child-range query reaching the owned runtime turn may acquire
+it.
 
 Accessibility enablement, native tree-root construction, accessibility-state
 observation, ordinary native events, repaint, and ordinary property reads are
@@ -1532,7 +1538,7 @@ remain private and do not create a public imperative provider registry.
 `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer deferred)
+#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
 
 The shipped declaration foundation exposes the qualified public value
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
@@ -1541,9 +1547,10 @@ item count and a separate `u64` cardinality revision. The corresponding
 qualified builder is
 `VirtualLayoutParts::with_semantic_cardinality(...)`. The field and builder ship
 outside the common prelude, and the exact private registration/live-fence
-invalidation foundation is shipped. Native child traversal, normalized
-sidecar, native topology, and AppKit queries remain unshipped in the later
-platform consumer.
+invalidation foundation, normalized sidecar, native topology, bounded AppKit
+queries, and private primary-window platform consumer are implemented. Live
+host/AppKit acceptance remains pending; no public API is added and alignment
+estimates remain unchanged.
 
 Cardinality is immutable declaration evidence. It is not a callback, provider
 availability signal, or demand. `None` means unknown/unsupported; exact zero is
@@ -1636,9 +1643,9 @@ actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
 behavior.
 
-This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
-native actions, focus, scrolling, product policy, custom transforms, scheduler,
-and renderer behavior are excluded.
+This contract is limited to the private primary-window macOS/AppKit consumer.
+Wayland, Windows, native actions, focus, scrolling, product policy, custom
+transforms, scheduler, and renderer behavior are excluded.
 
 ### Public declarative logical provider attachment (normative; shipped)
 
@@ -1691,7 +1698,8 @@ semantic providers to a virtual layout:
   unknown/unsupported, exact zero is supported, the count is independent of
   the 1024 per-query/aggregate caps, and it must not allocate proportional
   storage. The normalized sidecar, native cardinality query/topology, and
-  platform consumer remain unshipped. It remains outside the prelude.
+  private primary-window platform consumer are implemented outside the prelude;
+  live host/AppKit acceptance remains pending.
 - Provider-supplied `Unavailable` reasons are only `DataUnavailable` and
   `Unsupported`. `NoProvider` is not provider-supplied: it is synthesized by
   the runtime when the relevant optional slot is absent. Provider `Deferred`
@@ -1814,8 +1822,8 @@ which is part of this contract and includes provider panic and reentry.
 
 #### Native boundary and non-goals
 
-The later macOS/AppKit native semantic accessibility query contract is defined
-in [Native semantic accessibility query consumer](#native-semantic-accessibility-query-consumer-normative-later-macosappkit-consumer).
+The private primary-window macOS/AppKit native semantic accessibility query
+contract is defined in [Native semantic accessibility query consumer](#native-semantic-accessibility-query-consumer-normative-private-primary-window-macosappkit-consumer).
 It is not the hidden owner of provider registration, demand, or publication.
 Native IME and other ordinary native events remain non-demand inputs. The public
 declarative attachment contract does not implement native tree publication or
@@ -2215,8 +2223,8 @@ public selected snapshot, and qualified declarative provider attachment.
 | Whole-surface publication reject | One active member fails, is unresolved, or has a mismatched publication fence | Prior eligible complete composition or ordinary-only baseline remains; no mixed old/new or partial virtual tree is published. |
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
-| Native semantic accessibility boundary | A private later macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves native actions separate. |
-| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, plus the exact private registration/live-fence invalidation foundation, are shipped outside the prelude. The native cardinality query/child traversal, normalized sidecar, native topology, and platform consumer remain unshipped. |
+| Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves native actions separate. Automated evidence is shipped; live host/AppKit acceptance remains pending. |
+| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, exact private registration/live-fence invalidation foundation, normalized sidecar, native topology, bounded AppKit query path, and private primary-window consumer are implemented outside the prelude. Live host/AppKit acceptance remains pending. |
 | Cardinality fence | Count or cardinality revision changes, provider replacement, unmount, recovery, native deactivation, or session close | Exact `(count, cardinality_revision)` equality is required together with registration identity/generation, container/mount, existing revisions, coordinate, budget, and provider generations. Count/revision changes invalidate semantic/native state provider-free; provider replacement preserves count but invalidates provider publication; lifecycle retirement clears all state. |
 | Cardinality availability | Unknown count, positive count without a range provider, exact zero, or positive count with a range provider | Unknown does not vend a virtual child container; positive-without-range-provider is unsupported and not vended; exact zero is representable without a provider; positive-with-range-provider may vend the private container. Count reads, updates, mount, and enumeration never create demand. |
 | Native cardinality query | AppKit asks for a count or a bounded range `(index, maxCount)` | Count returns the exact declared count. Range normalization uses checked subtraction from count, handles zero and out-of-range inputs, rejects overflow, applies declared budget, 1024 per-query cap, and remaining aggregate budget, and never synthesizes a key from the index. |

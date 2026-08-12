@@ -249,19 +249,20 @@ isolation, reentry rejection, conservative panic mapping, validated
 `Found`/authoritative `NotFound`, terminal missing/Unsupported, exact-fence
 retention only for `DataUnavailable`/`Deferred`, conservative rejection
 baseline, inert stale/cancelled/superseded results, atomic publication, and
-preserved `Unmaterialized` authority are normative. The later macOS/AppKit native
-semantic accessibility query contract below translates explicit platform queries
-only through the backend-neutral session model; it is not a hidden provider
-owner. The contract's non-goals are custom transforms, native accessibility
+preserved `Unmaterialized` authority are normative. The private primary-window
+macOS/AppKit semantic accessibility consumer below translates explicit platform
+queries only through the backend-neutral session model; it is not a hidden
+provider owner. The contract's non-goals are custom transforms, native accessibility
 action dispatch, focus, scrolling/materialization, scheduler/backoff/fairness,
 renderer/paint/hit-testing/cache policy, product policy, multiple ranges, and
 prelude export. This implementation is the first public-API evidence point;
 numeric estimates remain unchanged for this branch.
 
-## Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+## Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
-The first native semantic consumer is a later macOS/AppKit contract over the
-shipped generic logical semantic automation session. One private native-window
+The first native semantic consumer is the private primary-window macOS/AppKit
+production path over the shipped generic logical semantic automation session.
+One private native-window
 adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
 lease remain private: neither owns provider registration, mount identity, provider
 generations, demand fences, cancellation, or publication. The existing bound of
@@ -269,6 +270,12 @@ one active semantic session per `SurfaceRuntime` remains. A native lease MUST NO
 evict, supersede, or silently reuse an externally active session; contention
 returns the one private typed unavailable result `Unavailable(SessionContended)`.
 Multi-consumer arbitration is a later contract.
+
+Lease acquisition is lazy: passive root construction, ordinary native-tree
+observation, exact count reads, registration/cardinality synchronization, and
+ordinary property reads never acquire the lease or create demand. Only an
+explicit item or child-range query reaching the owned runtime turn may acquire
+it.
 
 Accessibility enablement, native tree-root construction, accessibility-state
 observation, ordinary native events, repaint, and ordinary property reads are
@@ -387,7 +394,10 @@ actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
 behavior.
 
-This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
+This contract is limited to the private primary-window macOS/AppKit consumer.
+Automated validation is recorded by the implementation handoff; live host/AppKit
+acceptance remains pending for this cycle, so alignment estimates remain
+unchanged. Wayland, Windows,
 native actions, focus, scrolling, product policy, custom transforms, scheduler,
 and renderer behavior remain excluded.
 

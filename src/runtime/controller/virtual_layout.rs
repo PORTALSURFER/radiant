@@ -13,6 +13,12 @@ use super::{
         SemanticPublicationFallbackReason, SemanticPublicationOutcome,
     },
 };
+#[cfg(target_os = "macos")]
+use crate::{
+    application::virtual_layout::VirtualLayoutSemanticCardinality,
+    gui::automation::{AutomationNodeId, AutomationNodeSnapshot},
+    runtime::automation::NativeSemanticContainerSnapshot,
+};
 use crate::{
     gui::layout_core::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
@@ -45,6 +51,30 @@ use crate::{
     },
 };
 use std::convert::Infallible;
+
+#[cfg(target_os = "macos")]
+fn count_automation_nodes_with_id(
+    node: &AutomationNodeSnapshot,
+    wanted: &AutomationNodeId,
+) -> usize {
+    usize::from(node.id == *wanted)
+        + node
+            .children
+            .iter()
+            .map(|child| count_automation_nodes_with_id(child, wanted))
+            .sum::<usize>()
+}
+
+#[cfg(target_os = "macos")]
+fn native_semantic_registration_is_admitted(
+    coordinate_space: &VirtualLayoutCoordinateSpace,
+    cardinality: Option<VirtualLayoutSemanticCardinality>,
+    has_range_provider: bool,
+) -> bool {
+    coordinate_space == &VirtualLayoutCoordinateSpace::Logical
+        && cardinality
+            .is_some_and(|cardinality| cardinality.logical_item_count == 0 || has_range_provider)
+}
 
 #[derive(Default)]
 struct RuntimeVirtualLayoutLifecycle;
@@ -779,6 +809,57 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 }
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
+    #[cfg(target_os = "macos")]
+    /// Return only current logical registrations with one unambiguous ordinary
+    /// automation anchor and an exact cardinality.  This is a passive view:
+    /// cloning a provider capability is not a provider call and does not
+    /// create semantic demand.
+    pub(crate) fn native_semantic_containers(
+        &self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+    ) -> Vec<NativeSemanticContainerSnapshot> {
+        let mut accepted = Vec::new();
+        for record in self.records.iter().filter(|record| !record.retired) {
+            let Some(cardinality) = record.registration.semantic_cardinality else {
+                continue;
+            };
+            let has_range_provider = record
+                .registration
+                .semantic_range_provider_handle()
+                .is_some();
+            if !native_semantic_registration_is_admitted(
+                &record.registration.coordinate_space,
+                Some(cardinality),
+                has_range_provider,
+            ) {
+                continue;
+            }
+            let anchor = AutomationNodeId::new(record.registration.container_id.to_string());
+            if count_automation_nodes_with_id(&ordinary.root, &anchor) != 1 {
+                continue;
+            }
+            let Some((registration_generation, provider_generation)) = self
+                .semantic_demand
+                .native_range_authority(record.registration.container_id)
+            else {
+                continue;
+            };
+            accepted.push(NativeSemanticContainerSnapshot {
+                container_id: record.registration.container_id,
+                mount_generation: record.mount_generation,
+                registration_generation,
+                provider_generation,
+                cardinality,
+                has_range_provider,
+                max_entries: record.registration.budget.max_entries(),
+            });
+            if accepted.len() == MAX_VIRTUAL_LAYOUT_REGISTRATIONS {
+                break;
+            }
+        }
+        accepted
+    }
+
     fn synchronize_semantic_demand(&mut self) {
         let semantic_registrations = self
             .records
@@ -3255,6 +3336,94 @@ mod tests {
                 .is_none()
         );
         assert_eq!(calls.get(), 2);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_passive_admission_reads_cardinality_without_demand() {
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::Logical,
+            VirtualLayoutBudget::new(4),
+        );
+        state.records[0].registration.semantic_cardinality =
+            Some(VirtualLayoutSemanticCardinality::new(0, 1));
+        state.synchronize_semantic_demand();
+        let containers = state.native_semantic_containers(&semantic_publication_snapshot());
+        assert_eq!(containers.len(), 1);
+        assert_eq!(containers[0].cardinality.logical_item_count, 0);
+        assert!(state.semantic_session.is_none());
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_passive_admission_vetoes_positive_without_range_provider() {
+        let mut registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("native-veto"),
+        );
+        registration.semantic_cardinality = Some(VirtualLayoutSemanticCardinality::new(2, 1));
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(RuntimeVirtualLayoutRecord::new(
+            registration,
+            SEMANTIC_MOUNT_GENERATION,
+        ));
+        state.synchronize_semantic_demand();
+        assert!(
+            state
+                .native_semantic_containers(&semantic_publication_snapshot())
+                .is_empty()
+        );
+        assert!(state.semantic_session.is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_admission_rejects_custom_zero_before_provider_access() {
+        let zero = Some(VirtualLayoutSemanticCardinality::new(0, 1));
+        assert!(native_semantic_registration_is_admitted(
+            &VirtualLayoutCoordinateSpace::Logical,
+            zero,
+            false,
+        ));
+        assert!(!native_semantic_registration_is_admitted(
+            &VirtualLayoutCoordinateSpace::Custom(VirtualLayoutPolicyIdentity::new("custom")),
+            zero,
+            false,
+        ));
+    }
+
+    #[test]
+    fn semantic_session_contention_is_typed_without_eviction() {
+        let (provider, _calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::Logical,
+            VirtualLayoutBudget::new(4),
+        );
+        let first = state
+            .open_semantic_automation_session(904)
+            .expect("the first session should own the lease");
+        assert_eq!(
+            state.open_semantic_automation_session(904),
+            Err(SemanticAutomationSessionError::SessionAlreadyActive)
+        );
+        assert_eq!(
+            state
+                .semantic_session
+                .as_ref()
+                .map(|session| session.handle),
+            Some(first)
+        );
     }
 
     #[test]

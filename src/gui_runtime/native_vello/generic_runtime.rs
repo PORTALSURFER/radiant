@@ -52,6 +52,8 @@ mod native_cursor;
 mod native_file_drop;
 mod native_file_open;
 mod native_pointer;
+#[cfg(target_os = "macos")]
+mod native_semantic_accessibility;
 mod pointer_click;
 mod popup_drag;
 mod post_gpu_overlay;

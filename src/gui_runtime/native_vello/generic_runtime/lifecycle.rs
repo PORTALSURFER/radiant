@@ -61,8 +61,13 @@ where
                 );
                 return;
             };
+            #[cfg(target_os = "macos")]
+            let semantic_proxy = event_proxy.clone();
             if let Err(error) = self.initialize_runtime(event_loop, event_proxy, &mut maintenance) {
                 self.record_initialization_error_and_exit(event_loop, error);
+            } else {
+                #[cfg(target_os = "macos")]
+                self.attach_native_semantic_accessibility(semantic_proxy);
             }
         }
     }
@@ -179,11 +184,21 @@ where
                 self.admit_native_shutdown(event_loop, None);
             }
             WindowEvent::CloseRequested => {}
-            WindowEvent::Resized(size) => self.resize_surface(size),
+            WindowEvent::Resized(size) => {
+                self.resize_surface(size);
+                #[cfg(target_os = "macos")]
+                self.invalidate_native_semantic_accessibility_geometry();
+            }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.update_native_dpi_scale(scale_factor);
+                #[cfg(target_os = "macos")]
+                self.invalidate_native_semantic_accessibility_geometry();
             }
-            WindowEvent::Moved(_) => self.observe_monitor_move(),
+            WindowEvent::Moved(_) => {
+                self.observe_monitor_move();
+                #[cfg(target_os = "macos")]
+                self.invalidate_native_semantic_accessibility_geometry();
+            }
             WindowEvent::ThemeChanged(theme) => self.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
                 let routed = self.handle_focus_lost_before_external_drag();
@@ -334,6 +349,23 @@ where
                     for window in &mut self.auxiliary_windows {
                         window.queue_accessibility_display_snapshot(snapshot);
                     }
+                    self.invalidate_native_semantic_accessibility_geometry();
+                }
+            }
+            #[cfg(target_os = "macos")]
+            RuntimeUserEvent::NativeSemanticAccessibilityQuery {
+                window_id,
+                generation,
+                query,
+            } => {
+                if self.is_running()
+                    && Some(window_id) == self.window.id
+                    && self
+                        .native_semantic_accessibility
+                        .as_ref()
+                        .is_some_and(|adapter| adapter.accepts_generation(generation))
+                {
+                    self.handle_native_semantic_accessibility_query(query);
                 }
             }
         }
@@ -631,6 +663,26 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    #[cfg(target_os = "macos")]
+    pub(super) fn queue_accessibility_display_snapshot(
+        &mut self,
+        next: super::window_environment::AccessibilityDisplaySnapshot,
+    ) {
+        let previous = self.window.accessibility_display;
+        self.window.accessibility_display = next;
+        let environment = super::window_environment::environment_for_native_state(
+            self.window.dpi_scale,
+            self.window.environment.color_scheme(),
+            next,
+        );
+        let changed = self.update_window_environment(environment);
+        for change in super::window_environment::accessibility_display_changes(previous, next) {
+            if changed {
+                self.queue_window_environment_change(change);
+            }
+        }
+    }
+
     fn schedule_native_resource_maintenance(
         &self,
         event_loop: &ActiveEventLoop,

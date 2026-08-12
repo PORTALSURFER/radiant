@@ -74,6 +74,8 @@ pub use crate::gui_runtime::{
 };
 pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
+#[cfg(target_os = "macos")]
+pub(crate) use automation::NativeSemanticContainerSnapshot;
 pub use automation::{
     NumericAccessibilityDispatchResult, NumericAccessibilityRequest,
     NumericAccessibilityUnavailableReason, SemanticAutomationContainerHandle,
@@ -113,6 +115,11 @@ pub use controller::{
     SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
     SurfaceIdentityReplacement, SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement,
     SurfaceRefreshCounters, SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
+};
+#[cfg(target_os = "macos")]
+pub(crate) use controller::{
+    NormalizedSemanticPublicationFenceSet, VirtualLayoutAutomationComposition,
+    VirtualLayoutNormalizedSemanticSidecar, VirtualLayoutNormalizedSemanticSidecarEntry,
 };
 pub use devtools::{
     DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,

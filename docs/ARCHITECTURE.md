@@ -189,6 +189,62 @@ new focused export leaf or a module split, not a formatting workaround.
 - `tests` owns public API, behavior, source-quality, example, and documentation
   guardrails.
 
+## Virtual Layout Semantic Provider Boundary
+
+The current private `SurfaceRuntime` virtual-layout registration and semantic
+demand/publication kernel are implementation evidence. The public declarative
+provider path is normative/planned but implementation-unshipped and is defined
+fully in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
+
+The only planned public attachment capability is
+`radiant::application::VirtualLayoutParts<Message>` with
+`virtual_layout_from_parts`. It may attach optional
+`VirtualLayoutSemanticProvider` and `VirtualLayoutSemanticRangeProvider`
+capabilities through read-only item/range requests and
+`VirtualLayoutSemanticEntry` results. `radiant::runtime::VirtualLayoutRevisions`
+and generic `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`,
+`Unavailable`, `Deferred`, and `Rejected` are qualified proposed vocabulary
+only: none are shipped exports or prelude entries, and the parts have no
+custom-coordinate field.
+
+`SurfaceRuntime` owns mounted registration, removal, replacement,
+registration/mount/provider generations, lifetime cancellation, exact source
+tickets, and whole-surface publication. Each mounted container has one active
+contiguous range slot and one independent required-item slot; the surface is
+bounded to 64 registrations, 1024 entries per query, and 1024 aggregate active
+range entries, with at most one provider call per container and attempt. There
+is no public imperative register/remove API or application-owned mount
+generation. The first callback boundary is synchronous single-threaded `Rc`,
+with no `Send`/`Sync`, worker, or scheduler promise. Only explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` call providers. Registration,
+opening, enumeration, ordinary snapshot/target reads, repaint,
+viewport/visibility/overscan, diagnostics, item count, provider availability,
+and IME/native events do not create demand.
+
+Scope replacement is remove-then-mount with a fresh mount generation. A same-
+scope declaration update advances the registration generation when capability
+or revision evidence changes; replacing only one provider advances only its
+source generation. Removal, unmount, and provider replacement cancel the old
+source tickets, retire old authority, and make late returns stale without
+calling a provider. A missing optional provider becomes runtime-synthesized
+`NoProvider` only when explicit session intent executes that source.
+
+`NoProvider` is runtime-synthesized; provider unavailable reasons are
+`DataUnavailable` and `Unsupported`, and bounded deferred reasons are
+`DataPending`, `SemanticPending`, and `Retry`. Exact fences, read-only callback
+isolation, reentry rejection, conservative panic mapping, validated
+`Found`/authoritative `NotFound`, terminal missing/Unsupported, exact-fence
+retention only for `DataUnavailable`/`Deferred`, conservative rejection
+baseline, inert stale/cancelled/superseded results, atomic publication, and
+preserved `Unmaterialized` authority are normative. Future native accessibility
+may translate explicit platform queries only through the backend-neutral session
+model as a separate later contract; it is not a hidden provider owner. The
+contract's non-goals are custom transforms, native accessibility/tree/actions,
+focus, scrolling/materialization, scheduler/backoff/fairness,
+renderer/paint/hit-testing/cache policy, product policy, multiple ranges, and
+prelude export. This planned path earns zero alignment estimate credit.
+
 ## Declarative Effect Ownership And Lifecycle Seam
 
 The current effect-ownership seam is intentionally narrower than the target

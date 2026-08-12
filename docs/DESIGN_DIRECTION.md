@@ -1458,15 +1458,17 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-#### Provider-free semantic cardinality (future, qualified, unshipped)
+#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer deferred)
 
-The future declarative contract adds one optional qualified value capability,
-provisionally named `VirtualLayoutSemanticCardinality`, to
-`VirtualLayoutParts<Message>`, with a qualified builder provisionally named
+The shipped declaration foundation exposes the qualified public value
+`radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
+`VirtualLayoutParts<Message>`, with the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`. The value contains the
-exact `usize` logical item count and a separate `u64` cardinality revision. This
-documentation-only contract does not implement the field or builder; both remain
-qualified and outside the prelude.
+exact `usize` logical item count and a separate `u64` cardinality revision. The
+field and builder ship outside the common prelude, and the exact private
+registration/live-fence invalidation foundation is shipped. Native child
+traversal, normalized sidecar, native topology, AppKit queries, and the platform
+consumer remain unshipped in the later native contract.
 
 Cardinality is immutable declaration evidence, not a callback, provider
 availability signal, or demand. `None` is unknown/unsupported and exact zero is
@@ -1560,15 +1562,18 @@ read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
 `Deferred`, `Rejected`) are qualified shipped vocabulary: they are not prelude
 entries.
 
-The future implementation contract adds one optional qualified
-`VirtualLayoutSemanticCardinality` value field to `VirtualLayoutParts<Message>`
-and the qualified builder
+The shipped declaration foundation exposes the qualified public
+`radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` value
+field on `VirtualLayoutParts<Message>` and the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`. It contains an exact
-`usize` logical item count and separate `u64` cardinality revision. This
-documentation-only change does not implement the field or builder; they remain
-outside the prelude. Cardinality is immutable declaration evidence, not a
-callback or demand, and its exact count is independent of the one-range,
-one-required-item, 64-registration, 1024 per-query, and 1024 aggregate budgets.
+`usize` logical item count and separate `u64` cardinality revision. The field
+and builder ship outside the common prelude, and the exact private
+registration/live-fence invalidation foundation is shipped. Native child
+traversal, normalized sidecar, native topology, AppKit queries, and the platform
+consumer remain unshipped in the later native contract. Cardinality is immutable
+declaration evidence, not a callback or demand, and its exact count is
+independent of the one-range, one-required-item, 64-registration, 1024
+per-query, and 1024 aggregate budgets.
 
 The runtime preserves the existing 64-registration limit, one contiguous range
 and one required-item slot per mounted container, 1024 entries per query and in

@@ -308,6 +308,7 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || self.registration.policy_revision() != registration.policy_revision()
             || self.registration.measurement_revision() != registration.measurement_revision()
             || self.registration.semantic_revision() != registration.semantic_revision()
+            || self.registration.semantic_cardinality != registration.semantic_cardinality
             || self.registration.coordinate_space != registration.coordinate_space
             || !self.registration.semantic_provider_is_same(&registration)
             || !same_optional_key(

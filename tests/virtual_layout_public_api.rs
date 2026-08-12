@@ -3,7 +3,10 @@
 use std::cell::Cell;
 
 use radiant::{
-    application::{VirtualLayoutParts, virtual_layout_from_parts},
+    application::{
+        VirtualLayoutParts, virtual_layout::VirtualLayoutSemanticCardinality,
+        virtual_layout_from_parts,
+    },
     runtime::{
         VirtualLayoutRevisions, VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
         VirtualLayoutSemanticProvider, VirtualLayoutSemanticProviderOutcome,
@@ -366,5 +369,56 @@ fn public_provider_attachment_is_qualified_and_has_no_prelude_or_runtime_leakage
         assert!(!source.contains("VirtualLayoutParts"));
         assert!(!source.contains("VirtualLayoutSemanticProvider"));
         assert!(!source.contains("VirtualLayoutSemanticRangeProvider"));
+        assert!(!source.contains("VirtualLayoutSemanticCardinality"));
     }
+}
+
+#[test]
+fn semantic_cardinality_is_additive_qualified_declaration_evidence() {
+    let zero = VirtualLayoutSemanticCardinality::new(0, 17);
+    let large = VirtualLayoutSemanticCardinality::new(usize::MAX, 18);
+    assert_eq!(zero.logical_item_count, 0);
+    assert_eq!(zero.cardinality_revision, 17);
+    assert_eq!(large.logical_item_count, usize::MAX);
+    assert_eq!(large.cardinality_revision, 18);
+
+    let calls = std::rc::Rc::new(Cell::new(0));
+    let provider_calls = std::rc::Rc::clone(&calls);
+    let provider: std::rc::Rc<dyn VirtualLayoutSemanticProvider> =
+        std::rc::Rc::new(move |_request: &VirtualLayoutSemanticRequest| {
+            provider_calls.set(provider_calls.get() + 1);
+            VirtualLayoutSemanticProviderOutcome::NotFound
+        });
+    let parts = VirtualLayoutParts::new(
+        std::rc::Rc::new(OneItemPolicy),
+        VirtualLayoutPolicyIdentity::new("cardinality-declaration"),
+        VirtualLayoutOverscan::new(0.0, 0.0).expect("valid overscan"),
+        VirtualLayoutBudget::new(1),
+        VirtualLayoutRevisions::new(1, 2, 3, 4),
+        std::rc::Rc::new(|| radiant::prelude::column::<()>([])),
+        std::rc::Rc::new(|_item| radiant::prelude::text::<()>("item")),
+        std::rc::Rc::new(|_item| VirtualLayoutPolicyIdentity::new("item-kind")),
+    )
+    .with_semantic_provider(provider)
+    .with_semantic_cardinality(zero);
+    assert_eq!(parts.semantic_cardinality, Some(zero));
+    let _ = virtual_layout_from_parts(parts);
+    assert_eq!(
+        calls.get(),
+        0,
+        "declaration construction stays provider-free"
+    );
+
+    let large_parts = VirtualLayoutParts::new(
+        std::rc::Rc::new(OneItemPolicy),
+        VirtualLayoutPolicyIdentity::new("large-cardinality-declaration"),
+        VirtualLayoutOverscan::new(0.0, 0.0).expect("valid overscan"),
+        VirtualLayoutBudget::new(1),
+        VirtualLayoutRevisions::new(1, 2, 3, 4),
+        std::rc::Rc::new(|| radiant::prelude::column::<()>([])),
+        std::rc::Rc::new(|_item| radiant::prelude::text::<()>("item")),
+        std::rc::Rc::new(|_item| VirtualLayoutPolicyIdentity::new("item-kind")),
+    )
+    .with_semantic_cardinality(large);
+    assert_eq!(large_parts.semantic_cardinality, Some(large));
 }

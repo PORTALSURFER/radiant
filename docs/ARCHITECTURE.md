@@ -207,16 +207,17 @@ and generic `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`,
 they are not prelude entries, and the parts have no
 custom-coordinate field.
 
-The future declarative contract adds one optional qualified value capability,
-provisionally named `VirtualLayoutSemanticCardinality`, to
+The shipped qualified declaration foundation exposes the public value
+`radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
 `VirtualLayoutParts<Message>`, with the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`. It contains exactly an
-`usize` logical item count and a separate `u64` cardinality revision. This is a
-future documentation contract only: the field and builder are not implemented
-by this change and remain outside the prelude. The value is immutable declaration
-evidence, not a callback or demand; `None` is unknown/unsupported, exact zero is
-supported, the count is not capped at 1024, and it never allocates proportional
-storage.
+`usize` logical item count and a separate `u64` cardinality revision. The field
+and builder ship outside the common prelude, and the exact private
+registration/live-fence invalidation foundation is shipped. The normalized
+sidecar, native child traversal/topology, AppKit queries, and native platform
+consumer remain deferred. The value is immutable declaration evidence, not a
+callback or demand; `None` is unknown/unsupported, exact zero is supported, the
+count is not capped at 1024, and it never allocates proportional storage.
 
 `SurfaceRuntime` owns mounted registration, removal, replacement,
 registration/mount/provider generations, lifetime cancellation, exact source

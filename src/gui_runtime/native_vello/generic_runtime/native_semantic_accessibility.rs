@@ -302,7 +302,7 @@ mod macos {
                 unsafe { transmute(objc_msgSend_stret as *const ()) };
             let mut result = MaybeUninit::<NSRect>::uninit();
             unsafe { message(result.as_mut_ptr(), receiver, selector) };
-            return unsafe { result.assume_init() };
+            unsafe { result.assume_init() }
         }
 
         #[cfg(not(target_arch = "x86_64"))]
@@ -320,7 +320,7 @@ mod macos {
                 unsafe { transmute(objc_msgSend_stret as *const ()) };
             let mut result = MaybeUninit::<NSRect>::uninit();
             unsafe { message(result.as_mut_ptr(), receiver, selector, rect) };
-            return unsafe { result.assume_init() };
+            unsafe { result.assume_init() }
         }
 
         #[cfg(not(target_arch = "x86_64"))]
@@ -527,6 +527,33 @@ mod macos {
 
     fn accessibility_children_count(node: &NativeCallbackNode) -> usize {
         node.logical_count.unwrap_or(node.children.len())
+    }
+
+    fn complete_virtual_child_tokens(node: &NativeCallbackNode) -> Option<Vec<u64>> {
+        let count = node.logical_count?;
+        if count > MAX_NATIVE_ITEMS {
+            return None;
+        }
+        if count == 0 {
+            return (node.children.is_empty() && node.logical_children.is_empty()).then(Vec::new);
+        }
+        if node.logical_children.len() != count {
+            return None;
+        }
+        if !node
+            .logical_children
+            .iter()
+            .enumerate()
+            .all(|(offset, (index, _))| *index == offset)
+        {
+            return None;
+        }
+        let tokens = node
+            .logical_children
+            .iter()
+            .map(|(_, token)| *token)
+            .collect::<Vec<_>>();
+        (node.children == tokens).then_some(tokens)
     }
 
     fn native_range_query_is_admitted(
@@ -791,7 +818,7 @@ mod macos {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     struct NativeContainerToken {
         token: u64,
         container_id: u64,
@@ -801,6 +828,50 @@ mod macos {
         cardinality: crate::application::virtual_layout::VirtualLayoutSemanticCardinality,
         lease: Option<SemanticAutomationSessionHandle>,
         window_generation: u64,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct NativeActiveRange {
+        key: NativeQueryKey,
+        container: NativeContainerToken,
+        length: usize,
+    }
+
+    fn stage_active_range(
+        existing: &[NativeActiveRange],
+        candidate: NativeActiveRange,
+    ) -> Option<Vec<NativeActiveRange>> {
+        if candidate.length == 0 {
+            return None;
+        }
+        let mut staged = existing.to_vec();
+        if let Some(index) = staged
+            .iter()
+            .position(|active| active.container.container_id == candidate.container.container_id)
+        {
+            staged[index] = candidate;
+        } else {
+            staged.push(candidate);
+        }
+
+        let mut total = 0_usize;
+        for active in &staged {
+            total = total.checked_add(active.length)?;
+            if total > MAX_NATIVE_ITEMS {
+                return None;
+            }
+        }
+        Some(staged)
+    }
+
+    fn active_range_matches_retry(
+        active: &[NativeActiveRange],
+        key: NativeQueryKey,
+        current: &NativeContainerToken,
+    ) -> bool {
+        active
+            .iter()
+            .any(|range| range.key == key && range.container.eq(current))
     }
 
     #[derive(Clone, Debug)]
@@ -873,6 +944,7 @@ mod macos {
         window_generation: u64,
         transform: Option<NativeCoordinateTransform>,
         current_containers: Vec<NativeSemanticContainerSnapshot>,
+        active_ranges: Vec<NativeActiveRange>,
         attached: bool,
         #[cfg(test)]
         layout_notifications: usize,
@@ -903,6 +975,7 @@ mod macos {
                 window_generation: 1,
                 transform: NativeCoordinateTransform::read(window),
                 current_containers: Vec::new(),
+                active_ranges: Vec::new(),
                 attached: false,
                 #[cfg(test)]
                 layout_notifications: 0,
@@ -963,12 +1036,16 @@ mod macos {
                 self.finish_query(key, false);
                 return;
             };
+            let Some(current_token) = self.current_container_token(key.token) else {
+                self.finish_query(key, false);
+                return;
+            };
             let Some(length) = normalize_range(
                 container.cardinality.logical_item_count,
                 container.max_entries,
                 key.start_index,
                 key.max_count,
-                self.current_item_count(),
+                0,
             ) else {
                 self.finish_query(key, false);
                 return;
@@ -1011,21 +1088,55 @@ mod macos {
                     return;
                 }
             };
-            let Some(handle) = handles.into_iter().find(|handle| {
-                handle.container_id == container.container_id
-                    && handle.mount_generation == container.mount_generation
-            }) else {
-                self.finish_query(key, false);
-                return;
-            };
-            let demand = SemanticAutomationDemand::range(handle, key.start_index, length);
-            let refresh = if explicit_retry {
-                runtime.retry_semantic_automation_session(session)
+            let mut prior_ranges = self.active_ranges.clone();
+            prior_ranges.retain(|active| {
+                self.tokens
+                    .containers
+                    .iter()
+                    .any(|current| current == &active.container)
+            });
+            let retry_active =
+                explicit_retry && active_range_matches_retry(&prior_ranges, key, &current_token);
+            let (staged_ranges, refresh) = if retry_active {
+                (
+                    prior_ranges.clone(),
+                    runtime.retry_semantic_automation_session(session),
+                )
             } else {
-                runtime.refresh_semantic_automation_session(session, &[demand])
+                let candidate = NativeActiveRange {
+                    key,
+                    container: current_token.clone(),
+                    length,
+                };
+                let Some(staged_ranges) = stage_active_range(&prior_ranges, candidate) else {
+                    self.finish_query(key, false);
+                    return;
+                };
+                let mut demands = Vec::with_capacity(staged_ranges.len());
+                for range in &staged_ranges {
+                    let Some(handle) = handles.iter().find(|handle| {
+                        handle.container_id == range.container.container_id
+                            && handle.mount_generation == range.container.mount_generation
+                    }) else {
+                        self.finish_query(key, false);
+                        return;
+                    };
+                    demands.push(SemanticAutomationDemand::range(
+                        *handle,
+                        range.key.start_index,
+                        range.length,
+                    ));
+                }
+                (
+                    staged_ranges,
+                    runtime.refresh_semantic_automation_session(session, &demands),
+                )
             };
             let refresh = match refresh {
-                Ok(refresh) => refresh,
+                Ok(refresh) => {
+                    self.active_ranges = staged_ranges;
+                    refresh
+                }
                 Err(error) => {
                     self.handle_session_error(error);
                     self.finish_query(key, false);
@@ -1071,6 +1182,7 @@ mod macos {
             self.transform = NativeCoordinateTransform::read(window);
             self.retire_published_objects();
             self.tokens.retire_all();
+            self.active_ranges.clear();
         }
 
         pub(crate) fn close_lease<Bridge, Message>(
@@ -1084,12 +1196,14 @@ mod macos {
             }
             self.retire_published_objects();
             self.tokens.retire_all();
+            self.active_ranges.clear();
         }
 
         pub(crate) fn retire(&mut self) {
             self.generation = self.generation.saturating_add(1);
             self.retire_published_objects();
             self.tokens.retire_all();
+            self.active_ranges.clear();
             self.attached = false;
         }
 
@@ -1109,6 +1223,7 @@ mod macos {
                     self.lease = None;
                     self.current_containers.clear();
                     self.tokens.retire_all();
+                    self.active_ranges.clear();
                     self.retire_published_objects();
                     NativeSemanticUnavailableReason::Stale
                 }
@@ -1128,8 +1243,6 @@ mod macos {
                 .iter()
                 .find(|container| container.token == token)
                 .map(|container| NativeContainerTokenView {
-                    container_id: container.container_id,
-                    mount_generation: container.mount_generation,
                     cardinality: container.cardinality,
                     max_entries: self
                         .current_containers
@@ -1144,19 +1257,17 @@ mod macos {
                 })
         }
 
-        fn current_item_count(&self) -> usize {
-            self.callback_state
-                .try_borrow()
-                .map(|state| {
-                    state
-                        .projection
-                        .nodes
-                        .iter()
-                        .filter(|node| node.kind == NativeNodeKind::Item)
-                        .count()
-                        .min(MAX_NATIVE_ITEMS)
-                })
-                .unwrap_or(0)
+        fn current_container_token(&self, token: u64) -> Option<NativeContainerToken> {
+            let state = self.callback_state.try_borrow().ok()?;
+            let node = state.node_for_token(token)?;
+            if node.kind != NativeNodeKind::Container {
+                return None;
+            }
+            self.tokens
+                .containers
+                .iter()
+                .find(|container| container.token == token)
+                .cloned()
         }
 
         fn publish_projection(
@@ -1177,11 +1288,13 @@ mod macos {
                     self.tokens.retire_all();
                     self.retire_published_objects();
                     self.current_containers.clear();
+                    self.active_ranges.clear();
                     self.attached = false;
                     return Err(error);
                 }
             };
             self.prune_token_ledger(&specs);
+            self.reconcile_active_ranges_with_tokens();
             if self.specs_match_projection(&specs) {
                 self.current_containers = containers.to_vec();
                 self.attached = true;
@@ -1197,6 +1310,7 @@ mod macos {
                     self.tokens.retire_all();
                     self.retire_published_objects();
                     self.current_containers.clear();
+                    self.active_ranges.clear();
                     self.attached = false;
                     return Err(error);
                 }
@@ -1717,6 +1831,29 @@ mod macos {
                 self.tokens.root = None;
             }
         }
+
+        fn reconcile_active_ranges_with_tokens(&mut self) {
+            let containers = &self.tokens.containers;
+            self.active_ranges.retain_mut(|active| {
+                let Some(current) = containers
+                    .iter()
+                    .find(|container| {
+                        container.container_id == active.container.container_id
+                            && container.mount_generation == active.container.mount_generation
+                            && container.registration_generation
+                                == active.container.registration_generation
+                            && container.provider_generation == active.container.provider_generation
+                            && container.cardinality == active.container.cardinality
+                            && container.window_generation == active.container.window_generation
+                    })
+                    .cloned()
+                else {
+                    return false;
+                };
+                active.container = current;
+                true
+            });
+        }
     }
 
     impl Drop for NativeSemanticAccessibilityAdapter {
@@ -1728,8 +1865,6 @@ mod macos {
 
     #[derive(Clone, Copy)]
     struct NativeContainerTokenView {
-        container_id: u64,
-        mount_generation: u64,
         cardinality: crate::application::virtual_layout::VirtualLayoutSemanticCardinality,
         max_entries: usize,
         has_range_provider: bool,
@@ -1885,7 +2020,14 @@ mod macos {
                     state.view
                 }
             } else if name == c"AXChildren" {
-                let children = node.children.clone();
+                let children = if node.kind == NativeNodeKind::Container {
+                    let Some(children) = complete_virtual_child_tokens(node) else {
+                        return null_mut();
+                    };
+                    children
+                } else {
+                    node.children.clone()
+                };
                 let objects = children
                     .iter()
                     .filter_map(|token| state.node_for_token(*token).map(|node| node.object))
@@ -2018,6 +2160,37 @@ mod macos {
     mod tests {
         use super::*;
 
+        fn test_container(container_id: u64) -> NativeContainerToken {
+            NativeContainerToken {
+                token: container_id,
+                container_id,
+                mount_generation: 1,
+                registration_generation: 2,
+                provider_generation: 3,
+                cardinality:
+                    crate::application::virtual_layout::VirtualLayoutSemanticCardinality::new(8, 4),
+                lease: None,
+                window_generation: 5,
+            }
+        }
+
+        fn test_active_range(
+            container_id: u64,
+            start_index: usize,
+            length: usize,
+        ) -> NativeActiveRange {
+            let container = test_container(container_id);
+            NativeActiveRange {
+                key: NativeQueryKey {
+                    token: container.token,
+                    start_index,
+                    max_count: length,
+                },
+                container,
+                length,
+            }
+        }
+
         #[test]
         fn checked_range_arithmetic_is_bounded() {
             assert_eq!(normalize_range(0, 10, 0, 1, 0), None);
@@ -2049,6 +2222,70 @@ mod macos {
                 positive.cardinality,
                 positive.has_range_provider,
                 Some(1),
+            ));
+        }
+
+        #[test]
+        fn active_range_staging_retains_distinct_containers() {
+            let a = test_active_range(1, 0, 2);
+            let b = test_active_range(2, 4, 3);
+            assert_eq!(
+                stage_active_range(std::slice::from_ref(&a), b.clone()),
+                Some(vec![a, b])
+            );
+        }
+
+        #[test]
+        fn active_range_staging_replaces_only_the_matching_container() {
+            let a = test_active_range(1, 0, 2);
+            let b = test_active_range(2, 4, 3);
+            let replacement = test_active_range(1, 8, 1);
+            assert_eq!(
+                stage_active_range(&[a, b.clone()], replacement.clone()),
+                Some(vec![replacement, b])
+            );
+        }
+
+        #[test]
+        fn active_range_staging_rejects_zero_length_cap_and_overflow() {
+            assert_eq!(stage_active_range(&[], test_active_range(1, 0, 0)), None);
+            let at_cap = test_active_range(1, 0, MAX_NATIVE_ITEMS);
+            assert!(stage_active_range(&[], at_cap.clone()).is_some());
+            assert_eq!(
+                stage_active_range(&[at_cap], test_active_range(2, 0, 1)),
+                None
+            );
+            assert_eq!(
+                stage_active_range(
+                    &[test_active_range(1, 0, usize::MAX)],
+                    test_active_range(2, 0, 1),
+                ),
+                None
+            );
+        }
+
+        #[test]
+        fn active_range_retry_requires_exact_key_and_container() {
+            let active = test_active_range(1, 4, 3);
+            assert!(active_range_matches_retry(
+                std::slice::from_ref(&active),
+                active.key,
+                &active.container,
+            ));
+            assert!(!active_range_matches_retry(
+                std::slice::from_ref(&active),
+                NativeQueryKey {
+                    start_index: active.key.start_index + 1,
+                    ..active.key
+                },
+                &active.container,
+            ));
+            let mut changed_container = active.container.clone();
+            changed_container.mount_generation += 1;
+            assert!(!active_range_matches_retry(
+                std::slice::from_ref(&active),
+                active.key,
+                &changed_container,
             ));
         }
 
@@ -2104,6 +2341,43 @@ mod macos {
             assert_eq!(retained_logical_child_tokens(&children, 110, 0, 10), None);
             assert!(!logical_child_range_is_retained(&children, 110, 0, 10));
             assert!(logical_child_range_is_retained(&children, 110, 100, 10));
+        }
+
+        #[test]
+        fn complete_virtual_child_tokens_requires_an_exact_projection() {
+            let mut node = NativeCallbackNode {
+                object: null_mut(),
+                token: 1,
+                kind: NativeNodeKind::Container,
+                parent: None,
+                children: vec![10, 11, 12],
+                logical_children: vec![(0, 10), (1, 11), (2, 12)],
+                role: "AXGroup",
+                frame: NSRect {
+                    origin: NSPoint { x: 0.0, y: 0.0 },
+                    size: NSSize {
+                        width: 1.0,
+                        height: 1.0,
+                    },
+                },
+                label: None,
+                description: None,
+                value: None,
+                logical_count: Some(3),
+            };
+            assert_eq!(complete_virtual_child_tokens(&node), Some(vec![10, 11, 12]));
+
+            node.children = (1_000..1_010).collect();
+            node.logical_children = (100..110)
+                .map(|logical_index| (logical_index, logical_index as u64 + 900))
+                .collect();
+            node.logical_count = Some(110);
+            assert_eq!(complete_virtual_child_tokens(&node), None);
+
+            node.children = vec![10, 99, 12];
+            node.logical_children = vec![(0, 10), (1, 11), (2, 12)];
+            node.logical_count = Some(3);
+            assert_eq!(complete_virtual_child_tokens(&node), None);
         }
 
         #[test]

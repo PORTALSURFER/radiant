@@ -763,6 +763,106 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
+#### Provider-free semantic cardinality (future, qualified, unshipped)
+
+The future declarative contract adds one optional, qualified value capability,
+provisionally named `VirtualLayoutSemanticCardinality`. It contains exactly an
+`usize` logical item count and a separate `u64` cardinality revision, conceptually
+`{ logical_item_count, cardinality_revision }`. The future
+`VirtualLayoutParts<Message>` contract adds an optional cardinality field and a
+qualified builder, provisionally
+`VirtualLayoutParts::with_semantic_cardinality(...)`; this documentation-only
+change does not add either to Rust. Both remain outside the common prelude.
+
+Cardinality is immutable declaration evidence. It is not a callback, demand, or
+provider availability signal. `None` means unknown or unsupported; an exact zero
+is supported. The count is not capped at `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` (1024)
+and must not cause storage proportional to the count. Count reads, declaration
+updates, mounting, and enumeration are provider-free and never create demand.
+
+The runtime fences the exact `(logical_item_count, cardinality_revision)` pair
+with registration identity and generation, container identity, mount generation,
+the existing data/policy/measurement/semantic revisions, coordinate space, budget,
+and source-qualified provider generations. Fence equality is exact; no latest-
+revision ordering or partial match is valid. A count or cardinality-revision
+change invalidates affected semantic and native state without calling a provider.
+Replacing a provider preserves the cardinality declaration but invalidates its
+provider publication. Unmount, native recovery, deactivation, and session close
+retire all cardinality, token, and publication state.
+
+The native adapter does not vend a virtual child container when cardinality is
+unknown. A positive count without a range provider is unsupported for native child
+traversal and is not vended; an exact zero may be represented without a provider.
+An AppKit count read returns the exact declared count. A bounded child-range query
+normalizes `index` and `maxCount` by checked subtraction from that count: zero
+count or zero maximum is empty, an out-of-range index is empty, subtraction and
+end arithmetic must not overflow, and the normalized length must fit the declared
+budget, the 1024 per-query cap, and the remaining aggregate budget. A provider
+must supply the stable key; the adapter never synthesizes one from an index.
+
+#### Compositor-owned normalized native sidecar and private topology
+
+The compositor produces one crate-private normalized native sidecar from the
+same staged `entries_by_container` union that produces
+`VirtualLayoutAutomationComposition`. Each retained member carries container,
+mount, and registration authority; the exact cardinality fence; logical index;
+stable `VirtualLayoutItemKey`; provider `AutomationNodeId`; final normalized
+node/path; materialization authority; and the publication fence. Exact same-key,
+same-index overlaps coalesce only under the existing full-evidence equality.
+Raw range or pin members are never reconstructed by the native adapter.
+
+Conflicting, ambiguous, duplicate, unstable, colliding, ordinary-ID, or
+aggregate-budget failures reject the whole publication. The sidecar is stored
+atomically with `RuntimeSemanticAutomationSelection`'s composition, status,
+ordinary projection, and native projection. There is no parallel native
+reconstruction and no mixed native/public selection.
+
+The primary content view/window exposes one private root. Each accepted virtual
+anchor exposes one private read-only virtual container, and each normalized
+logical item is a direct child of that container; duplicate placement elsewhere
+is suppressed. Container identities and monotonic item tokens are runtime-issued
+and private. Tokens are never derived from an index, pointer, provider ID,
+serialized ID, or bounds. Token continuity requires exact lease, container,
+mount, cardinality-fence, and stable-key equality; a cardinality change retires
+the tokens. Foreign, stale, retired, duplicate, ambiguous, or colliding tokens
+return `nil`/`NSNotFound` without a provider call.
+
+The root, virtual containers, and all non-text items map to
+`NSAccessibilityGroupRole`; only `Text` and `Readout` map to
+`NSAccessibilityStaticTextRole`. The native surface exposes only role, exact
+parent/children, finite frame, label, description/help, and static-text value.
+It omits checked, selected, enabled, read-only, focusable, focused, tab, live,
+and action metadata. Focus is always false, actions are empty/no-op, and
+buttons, toggles, sliders, tables, and text inputs are never mapped to
+actionable roles. Defunct objects return conservative empty or zero values.
+
+AppKit callbacks are non-blocking and never call or synchronously mutate the
+runtime or a provider. A valid explicit item or range query enqueues/coalesces
+one owned runtime turn. While it is pending, the count remains exact; item and
+range reads return only an exact eligible retained result under the same fence,
+otherwise empty/`nil`, with no placeholder or mixed tree. Identical in-flight
+queries coalesce. An explicit repeated query after `Deferred` may retry; an
+ordinary read is never a retry.
+
+An accepted publication installs the complete normalized native projection
+atomically. Retention requires exact equality of the semantic fence and native
+coordinate/cardinality fence. `DataUnavailable` or `Deferred` without an exact
+fallback exposes only an empty/baseline result; terminal failures clear virtual
+native publication; stale and cancelled results are inert. A changed visible
+state posts exactly one `NSAccessibilityLayoutChangedNotification` only after
+the complete state is queryable on the main thread. Unchanged, pending, stale,
+cancelled, and rejected work posts no layout notification. Retired custom
+objects follow the `UIElementDestroyed` notification lifecycle.
+
+This extension preserves the one-session bound, opaque private handles, explicit
+refresh/retry-only demand, one range plus one required-item slot, 64
+registrations, 1024 per-query and aggregate caps, one provider call per
+container/attempt, exact publication/fallback, `materialized = false`,
+Logical-only conservative coordinates, and pure snapshots. It excludes focus,
+actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
+product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
+behavior.
+
 This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
 native actions, focus, scrolling, product policy, custom transforms, scheduler,
 and renderer behavior remain excluded.
@@ -778,6 +878,16 @@ range providers. `radiant::runtime::VirtualLayoutRevisions`,
 read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
 `VirtualLayoutSemanticProviderOutcome<T>` are qualified shipped vocabulary. They
 are not in the prelude, and the parts have no custom-coordinate field.
+
+The future declarative implementation contract adds one optional
+`VirtualLayoutSemanticCardinality` value field to `VirtualLayoutParts<Message>`
+and a qualified builder, provisionally
+`VirtualLayoutParts::with_semantic_cardinality(...)`. The value contains the
+exact `usize` logical item count and separate `u64` cardinality revision. This
+documentation-only contract does not implement that field or builder, and they
+remain outside the prelude. Cardinality is immutable declaration evidence, not a
+callback or demand; its exact count is independent of the one-range and
+one-required-item slots and of the 1024 per-query/aggregate budgets.
 
 The shipped boundary preserves the existing 64-registration limit, one
 contiguous range and one required-item slot per mounted container, 1024 entries

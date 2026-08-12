@@ -207,6 +207,17 @@ and generic `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`,
 they are not prelude entries, and the parts have no
 custom-coordinate field.
 
+The future declarative contract adds one optional qualified value capability,
+provisionally named `VirtualLayoutSemanticCardinality`, to
+`VirtualLayoutParts<Message>`, with the qualified builder
+`VirtualLayoutParts::with_semantic_cardinality(...)`. It contains exactly an
+`usize` logical item count and a separate `u64` cardinality revision. This is a
+future documentation contract only: the field and builder are not implemented
+by this change and remain outside the prelude. The value is immutable declaration
+evidence, not a callback or demand; `None` is unknown/unsupported, exact zero is
+supported, the count is not capped at 1024, and it never allocates proportional
+storage.
+
 `SurfaceRuntime` owns mounted registration, removal, replacement,
 registration/mount/provider generations, lifetime cancellation, exact source
 tickets, and whole-surface publication. Each mounted container has one active
@@ -300,6 +311,80 @@ separate contracts; this consumer does not connect numeric accessibility
 dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+The native adapter uses provider-free semantic cardinality as its only child
+count authority. It does not vend a virtual child container for unknown
+cardinality. A positive count without a range provider is unsupported for native
+child traversal and is not vended; exact zero is representable without a
+provider. Count reads, declaration updates, mounting, and enumeration never
+create demand. AppKit count returns the exact declared `usize` count. Range
+normalization checks zero, out-of-range, checked subtraction/end arithmetic,
+declared budget, `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES` (1024), and remaining
+aggregate budget; it never synthesizes a key from an index.
+
+The exact `(count, cardinality_revision)` pair is fenced with registration
+identity/generation, container and mount identity/generation, the existing
+data/policy/measurement/semantic revisions, coordinate space, budget, and
+source-qualified provider generations. Equality is exact, never latest-ordering
+or partial matching. Any count or cardinality-revision change invalidates
+affected semantic/native state provider-free. Provider replacement preserves the
+count but invalidates provider publication; unmount, recovery, deactivation, and
+close retire all state.
+
+The compositor emits one crate-private normalized sidecar from the same staged
+`entries_by_container` union that emits `VirtualLayoutAutomationComposition`.
+Each member retains container/mount/registration authority, the cardinality
+fence, logical index, stable `VirtualLayoutItemKey`, provider `AutomationNodeId`,
+final normalized node/path, materialization authority, and publication fence.
+Same-key/index overlap coalesces only under existing full-evidence equality.
+Raw range/pin members are not reconstructed by the native adapter. Conflicting,
+ambiguous, duplicate, unstable, colliding, ordinary-ID, or aggregate failures
+reject the whole publication. The sidecar is stored atomically with
+`RuntimeSemanticAutomationSelection` composition/status/ordinary/projection;
+parallel reconstruction and mixed native/public selection are forbidden.
+
+The primary content view/window exposes one private root; each accepted virtual
+anchor has one private read-only virtual container; each normalized logical item
+is a direct child, with duplicate placement suppressed elsewhere. Container
+identity and monotonic item tokens are private and runtime-issued. Tokens are
+never derived from index, pointer, provider ID, serialized ID, or bounds, and
+continuity requires exact lease/container/mount/cardinality-fence/key equality.
+Cardinality change retires tokens. Foreign, stale, retired, duplicate, ambiguous,
+or colliding tokens return `nil`/`NSNotFound` without a provider call.
+
+Root, container, and non-text roles map to `NSAccessibilityGroupRole`; only
+`Text` and `Readout` map to `NSAccessibilityStaticTextRole`. The adapter exposes
+only role, exact parent/children, finite frame, label, description/help, and
+static-text value. Checked/selected/enabled/read-only/focusable/focused/tab/live/
+action metadata is omitted; focused is false, actions are empty/no-op, and
+buttons/toggles/sliders/tables/text inputs never become actionable roles.
+Defunct objects return conservative empty/zero values.
+
+AppKit callbacks are non-blocking and never call or mutate the runtime/provider.
+A valid explicit item/range query enqueues and coalesces one owned runtime turn.
+While pending, count remains exact; item/range reads return only an exact
+eligible retained same-fence result, otherwise empty/`nil`, with no placeholders
+or mixed tree. Identical in-flight queries coalesce. An explicit repeat after
+`Deferred` may retry; ordinary reads are not retries.
+
+Accepted publication installs the complete normalized native projection
+atomically and retains it only under an exact semantic plus native
+coordinate/cardinality fence. `DataUnavailable`/`Deferred` without exact
+fallback expose empty/baseline; terminal failures clear virtual native
+publication; stale/cancelled results are inert. A changed visible state posts
+exactly one `NSAccessibilityLayoutChangedNotification` after complete state is
+queryable on the main thread. Unchanged, pending, stale, cancelled, and rejected
+work posts no layout notification. Retired custom objects follow the
+`UIElementDestroyed` notification lifecycle.
+
+This extension preserves the one-session bound, opaque private handles, explicit
+refresh/retry-only demand, one range plus one required-item slot, 64
+registrations, 1024 per-query and aggregate caps, one provider call per
+container/attempt, exact publication/fallback, `materialized = false`,
+Logical-only conservative coordinates, and pure snapshots. It excludes focus,
+actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
+product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
+behavior.
 
 This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
 native actions, focus, scrolling, product policy, custom transforms, scheduler,

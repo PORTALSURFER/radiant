@@ -869,10 +869,29 @@ mod macos {
         active: &[NativeActiveRange],
         key: NativeQueryKey,
         current: &NativeContainerToken,
+        normalized_length: usize,
     ) -> bool {
-        active
-            .iter()
-            .any(|range| range.key == key && range.container.eq(current))
+        active.iter().any(|range| {
+            range.key == key && range.length == normalized_length && range.container.eq(current)
+        })
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum NativeSemanticQueryAction {
+        ExactRetry,
+        RejectRetry,
+        CompleteRefresh,
+    }
+
+    fn native_semantic_query_action(
+        explicit_retry: bool,
+        exact_active_retry: bool,
+    ) -> NativeSemanticQueryAction {
+        match (explicit_retry, exact_active_retry) {
+            (true, true) => NativeSemanticQueryAction::ExactRetry,
+            (true, false) => NativeSemanticQueryAction::RejectRetry,
+            (false, _) => NativeSemanticQueryAction::CompleteRefresh,
+        }
     }
 
     fn semantic_demands_for_active_ranges(
@@ -1045,6 +1064,17 @@ mod macos {
             let _ = self.publish_projection(&ordinary, &containers, selected);
         }
 
+        fn publish_ordinary_projection<Bridge, Message>(
+            &mut self,
+            runtime: &SurfaceRuntime<Bridge, Message>,
+        ) where
+            Bridge: RuntimeBridge<Message>,
+        {
+            let ordinary = runtime.automation_snapshot();
+            let containers = runtime.native_semantic_containers();
+            let _ = self.publish_projection(&ordinary, &containers, None);
+        }
+
         pub(crate) fn accepts_generation(&self, generation: u64) -> bool {
             self.generation == generation
         }
@@ -1102,6 +1132,23 @@ mod macos {
                 return;
             }
 
+            let mut prior_ranges = self.active_ranges.clone();
+            prior_ranges.retain(|active| {
+                self.tokens
+                    .containers
+                    .iter()
+                    .any(|current| current == &active.container)
+            });
+            let action = native_semantic_query_action(
+                explicit_retry,
+                active_range_matches_retry(&prior_ranges, key, &current_token, length),
+            );
+            if action == NativeSemanticQueryAction::RejectRetry {
+                self.publish_ordinary_projection(runtime);
+                self.finish_query(key, false);
+                return;
+            }
+
             let session = match self.lease {
                 Some(session) => session,
                 None => match runtime.open_semantic_automation_session() {
@@ -1127,43 +1174,60 @@ mod macos {
                 Ok(handles) => handles,
                 Err(error) => {
                     self.handle_session_error(error);
+                    self.publish_ordinary_projection(runtime);
                     self.finish_query(key, false);
                     return;
                 }
             };
-            let mut prior_ranges = self.active_ranges.clone();
-            prior_ranges.retain(|active| {
-                self.tokens
-                    .containers
-                    .iter()
-                    .any(|current| current == &active.container)
-            });
-            let retry_active =
-                explicit_retry && active_range_matches_retry(&prior_ranges, key, &current_token);
-            let (staged_ranges, refresh) = if retry_active {
-                (
-                    prior_ranges.clone(),
-                    runtime.retry_semantic_automation_session(session),
-                )
-            } else {
-                let candidate = NativeActiveRange {
-                    key,
-                    container: current_token.clone(),
-                    length,
-                };
-                let Some(staged_ranges) = stage_active_range(&prior_ranges, candidate) else {
-                    self.finish_query(key, false);
-                    return;
-                };
-                let Some(demands) = semantic_demands_for_active_ranges(&staged_ranges, &handles)
-                else {
-                    self.finish_query(key, false);
-                    return;
-                };
-                (
-                    staged_ranges,
-                    runtime.refresh_semantic_automation_session(session, &demands),
-                )
+            let (staged_ranges, refresh) = match action {
+                NativeSemanticQueryAction::ExactRetry => {
+                    let Some(handle) = handles
+                        .iter()
+                        .find(|handle| {
+                            handle.container_id == current_token.container_id
+                                && handle.mount_generation == current_token.mount_generation
+                        })
+                        .copied()
+                    else {
+                        self.handle_session_error(
+                            SemanticAutomationSessionError::StaleContainerHandle,
+                        );
+                        self.publish_ordinary_projection(runtime);
+                        self.finish_query(key, false);
+                        return;
+                    };
+                    (
+                        prior_ranges.clone(),
+                        runtime.retry_semantic_automation_range(
+                            session,
+                            handle,
+                            key.start_index,
+                            length,
+                        ),
+                    )
+                }
+                NativeSemanticQueryAction::CompleteRefresh => {
+                    let candidate = NativeActiveRange {
+                        key,
+                        container: current_token.clone(),
+                        length,
+                    };
+                    let Some(staged_ranges) = stage_active_range(&prior_ranges, candidate) else {
+                        self.finish_query(key, false);
+                        return;
+                    };
+                    let Some(demands) =
+                        semantic_demands_for_active_ranges(&staged_ranges, &handles)
+                    else {
+                        self.finish_query(key, false);
+                        return;
+                    };
+                    (
+                        staged_ranges,
+                        runtime.refresh_semantic_automation_session(session, &demands),
+                    )
+                }
+                NativeSemanticQueryAction::RejectRetry => unreachable!(),
             };
             let refresh = match refresh {
                 Ok(refresh) => {
@@ -1172,6 +1236,7 @@ mod macos {
                 }
                 Err(error) => {
                     self.handle_session_error(error);
+                    self.publish_ordinary_projection(runtime);
                     self.finish_query(key, false);
                     return;
                 }
@@ -2398,6 +2463,7 @@ mod macos {
                 std::slice::from_ref(&active),
                 active.key,
                 &active.container,
+                active.length,
             ));
             assert!(!active_range_matches_retry(
                 std::slice::from_ref(&active),
@@ -2406,6 +2472,7 @@ mod macos {
                     ..active.key
                 },
                 &active.container,
+                active.length,
             ));
             let mut changed_container = active.container.clone();
             changed_container.mount_generation += 1;
@@ -2413,7 +2480,24 @@ mod macos {
                 std::slice::from_ref(&active),
                 active.key,
                 &changed_container,
+                active.length,
             ));
+        }
+
+        #[test]
+        fn retry_decision_rejects_mismatches_without_refreshing_the_complete_set() {
+            assert_eq!(
+                native_semantic_query_action(true, true),
+                NativeSemanticQueryAction::ExactRetry
+            );
+            assert_eq!(
+                native_semantic_query_action(true, false),
+                NativeSemanticQueryAction::RejectRetry
+            );
+            assert_eq!(
+                native_semantic_query_action(false, false),
+                NativeSemanticQueryAction::CompleteRefresh
+            );
         }
 
         #[test]

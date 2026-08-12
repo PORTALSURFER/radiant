@@ -694,6 +694,16 @@ Current target-specific seams are intentionally narrow:
   `SurfaceRuntime` now owns the immutable per-window `WindowEnvironment`
   snapshot and updates it before deferred projection; custom bridges may opt in
   through the default-no-op `RuntimeBridge::set_window_environment` hook.
+- `src/gui_runtime/native_vello/generic_runtime/native_semantic_accessibility.rs`
+  owns the macOS AppKit accessibility consumer. Native callbacks remain
+  callback-local, while the event-loop turn uses the private runtime bridge for
+  exact deferred range retries and ordinary-authoritative fallback.
+  `src/gui_runtime/native_vello/generic_runtime/runner.rs` owns its native
+  runner lifecycle wiring; `src/runtime/automation.rs`,
+  `src/runtime/controller.rs`, and
+  `src/runtime/controller/virtual_layout.rs` own the crate-private bridge and
+  whole-surface semantic publication path without changing the public
+  `RuntimeBridge` or automation snapshot contract.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/macos.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/macos/bridge.rs`,
   `src/gui_runtime/native_vello/generic_runtime/external_drag/macos/payload.rs`,

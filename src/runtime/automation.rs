@@ -453,6 +453,40 @@ where
         })
     }
 
+    #[cfg(target_os = "macos")]
+    pub(crate) fn retry_semantic_automation_range(
+        &mut self,
+        session: SemanticAutomationSessionHandle,
+        container: SemanticAutomationContainerHandle,
+        start_index: usize,
+        length: usize,
+    ) -> Result<SemanticAutomationRefresh, SemanticAutomationSessionError> {
+        let counters = self.refresh_counters();
+        let ordinary = self.automation_snapshot();
+        let publication = self.virtual_layout.retry_semantic_automation_range(
+            self.runtime_identity(),
+            session,
+            container,
+            start_index,
+            length,
+            &ordinary,
+            (
+                counters.layout,
+                counters.runtime_projection,
+                counters.runtime_projection,
+            ),
+        )?;
+        let selected = selected_snapshot_from_publication(
+            publication.composition,
+            publication.status,
+            counters.runtime_projection,
+        );
+        Ok(SemanticAutomationRefresh {
+            status: selected.status,
+            selected,
+        })
+    }
+
     /// Read the currently selected session publication without calling a
     /// provider or changing runtime state.
     pub fn selected_semantic_automation_snapshot(

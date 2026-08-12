@@ -1171,6 +1171,42 @@ impl<Message> SemanticDemandOwner<Message> {
         self.retry_source(container_id, SemanticDemandSource::Range)
     }
 
+    /// Check the exact active logical range without changing owner state.
+    /// The retry bridge uses this fence before delegating to `retry_range`,
+    /// whose owner-level restart preserves the existing attempt,
+    /// cancellation, authority, and retention rules.
+    pub(super) fn active_range_matches(
+        &self,
+        container_id: NodeId,
+        start_index: usize,
+        length: usize,
+    ) -> bool {
+        let Ok(range) = VirtualLayoutSemanticRange::new(start_index, length) else {
+            return false;
+        };
+        let Some(index) = self.record_index(container_id) else {
+            return false;
+        };
+        let Some(slot) = self.slot(index, SemanticDemandSource::Range) else {
+            return false;
+        };
+        slot.status != SemanticSlotStatus::Terminal
+            && !slot.fence.cancelled
+            && slot
+                .request
+                .demand()
+                .same_exact(&SemanticDemand::Range(range))
+                == Some(true)
+    }
+
+    #[cfg(test)]
+    pub(super) fn active_range_fence(&self, container_id: NodeId) -> Option<SemanticProviderFence> {
+        let index = self.record_index(container_id)?;
+        self.slot(index, SemanticDemandSource::Range)
+            .filter(|slot| slot.status != SemanticSlotStatus::Terminal)
+            .map(|slot| slot.fence.clone())
+    }
+
     /// Explicitly retry the unchanged semantic pin demand.
     pub(super) fn retry_semantic_pin(
         &mut self,
@@ -3284,6 +3320,43 @@ mod tests {
             range_fence
         );
         assert_eq!(pin.calls.get(), 1);
+    }
+
+    #[test]
+    fn cancelled_range_completion_after_exact_retry_is_inert() {
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::NotFound),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration("policy", 8, Default::default(), None, Some(range.clone())),
+        );
+
+        let first = started(owner.range(CONTAINER_ID, 0, 2).expect("range demand"));
+        let completion = owner
+            .execute(first.clone())
+            .expect("first attempt executes");
+        let retry = owner.retry_range(CONTAINER_ID).expect("exact range retry");
+        assert_eq!(
+            retry.fence().demand_generation,
+            first.fence().demand_generation
+        );
+        assert_eq!(retry.fence().attempt, first.fence().attempt + 1);
+        assert!(owner.active_range_matches(CONTAINER_ID, 0, 2));
+        assert!(!owner.active_range_matches(CONTAINER_ID, 1, 2));
+        assert!(!owner.active_range_matches(CONTAINER_ID + 1, 0, 2));
+        assert!(matches!(
+            owner.complete(completion),
+            SemanticDemandCompletion::Stale
+        ));
+        assert_eq!(range.calls.get(), 1);
+        assert_eq!(
+            complete_range(&mut owner, retry),
+            VirtualLayoutSemanticRangeQueryOutcome::NotFound
+        );
+        assert_eq!(range.calls.get(), 2);
     }
 
     #[test]

@@ -19,9 +19,10 @@ mod macos {
         },
         layout::{VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutItemKey},
         runtime::{
-            NativeSemanticContainerSnapshot, RuntimeBridge, SemanticAutomationDemand,
-            SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
-            SemanticAutomationSessionError, SemanticAutomationSessionHandle, SurfaceRuntime,
+            NativeSemanticContainerSnapshot, RuntimeBridge, SemanticAutomationContainerHandle,
+            SemanticAutomationDemand, SemanticAutomationFallbackReason,
+            SemanticAutomationRefreshStatus, SemanticAutomationSessionError,
+            SemanticAutomationSessionHandle, SurfaceRuntime,
         },
     };
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -874,6 +875,48 @@ mod macos {
             .any(|range| range.key == key && range.container.eq(current))
     }
 
+    fn semantic_demands_for_active_ranges(
+        active_ranges: &[NativeActiveRange],
+        handles: &[SemanticAutomationContainerHandle],
+    ) -> Option<Vec<SemanticAutomationDemand>> {
+        active_ranges
+            .iter()
+            .map(|range| {
+                let handle = handles.iter().find(|handle| {
+                    handle.container_id == range.container.container_id
+                        && handle.mount_generation == range.container.mount_generation
+                })?;
+                Some(SemanticAutomationDemand::range(
+                    *handle,
+                    range.key.start_index,
+                    range.length,
+                ))
+            })
+            .collect()
+    }
+
+    fn semantic_projection_is_eligible(
+        refresh_status: SemanticAutomationRefreshStatus,
+        selected_status: Option<SemanticAutomationRefreshStatus>,
+    ) -> bool {
+        let Some(selected_status) = selected_status else {
+            return false;
+        };
+        match (refresh_status, selected_status) {
+            (
+                SemanticAutomationRefreshStatus::Published,
+                SemanticAutomationRefreshStatus::Published,
+            ) => true,
+            (
+                SemanticAutomationRefreshStatus::Retained { reason },
+                SemanticAutomationRefreshStatus::Retained {
+                    reason: selected_reason,
+                },
+            ) => reason == selected_reason,
+            _ => false,
+        }
+    }
+
     #[derive(Clone, Debug)]
     struct NativeItemToken {
         token: u64,
@@ -1112,21 +1155,11 @@ mod macos {
                     self.finish_query(key, false);
                     return;
                 };
-                let mut demands = Vec::with_capacity(staged_ranges.len());
-                for range in &staged_ranges {
-                    let Some(handle) = handles.iter().find(|handle| {
-                        handle.container_id == range.container.container_id
-                            && handle.mount_generation == range.container.mount_generation
-                    }) else {
-                        self.finish_query(key, false);
-                        return;
-                    };
-                    demands.push(SemanticAutomationDemand::range(
-                        *handle,
-                        range.key.start_index,
-                        range.length,
-                    ));
-                }
+                let Some(demands) = semantic_demands_for_active_ranges(&staged_ranges, &handles)
+                else {
+                    self.finish_query(key, false);
+                    return;
+                };
                 (
                     staged_ranges,
                     runtime.refresh_semantic_automation_session(session, &demands),
@@ -1151,18 +1184,12 @@ mod macos {
                     None
                 }
             };
-            let stale = matches!(
-                status,
-                SemanticAutomationRefreshStatus::Baseline {
-                    reason: SemanticAutomationFallbackReason::Stale
-                        | SemanticAutomationFallbackReason::Invalidated
-                }
-            );
-            if !stale {
-                let ordinary = runtime.automation_snapshot();
-                let containers = runtime.native_semantic_containers();
-                let _ = self.publish_projection(&ordinary, &containers, projection);
-            }
+            let projection = projection.filter(|(_, selected_status)| {
+                semantic_projection_is_eligible(status, Some(*selected_status))
+            });
+            let ordinary = runtime.automation_snapshot();
+            let containers = runtime.native_semantic_containers();
+            let _ = self.publish_projection(&ordinary, &containers, projection);
             let deferred = matches!(
                 status,
                 SemanticAutomationRefreshStatus::Baseline {
@@ -2174,6 +2201,15 @@ mod macos {
             }
         }
 
+        fn test_handle(container_id: u64) -> SemanticAutomationContainerHandle {
+            SemanticAutomationContainerHandle {
+                runtime_id: 11,
+                session_generation: 12,
+                container_id,
+                mount_generation: 1,
+            }
+        }
+
         fn test_active_range(
             container_id: u64,
             start_index: usize,
@@ -2262,6 +2298,97 @@ mod macos {
                 ),
                 None
             );
+        }
+
+        #[test]
+        fn semantic_demands_preserve_complete_active_range_order_and_bounds() {
+            let first = test_active_range(1, 7, 2);
+            let second = test_active_range(2, 19, 4);
+            let demands = semantic_demands_for_active_ranges(
+                &[first, second],
+                &[test_handle(1), test_handle(2)],
+            )
+            .expect("all active ranges should have live handles");
+
+            assert_eq!(
+                demands,
+                vec![
+                    SemanticAutomationDemand::range(test_handle(1), 7, 2),
+                    SemanticAutomationDemand::range(test_handle(2), 19, 4),
+                ]
+            );
+        }
+
+        #[test]
+        fn semantic_demands_fail_when_an_active_range_handle_is_missing() {
+            let first = test_active_range(1, 7, 2);
+            let second = test_active_range(2, 19, 4);
+
+            assert_eq!(
+                semantic_demands_for_active_ranges(&[first, second], &[test_handle(1)]),
+                None
+            );
+        }
+
+        #[test]
+        fn baseline_refresh_replaces_any_previous_semantic_projection_with_ordinary() {
+            let reasons = [
+                SemanticAutomationFallbackReason::NoDemand,
+                SemanticAutomationFallbackReason::IncompleteDemandSet,
+                SemanticAutomationFallbackReason::NoProvider,
+                SemanticAutomationFallbackReason::Unsupported,
+                SemanticAutomationFallbackReason::DataUnavailable,
+                SemanticAutomationFallbackReason::Deferred,
+                SemanticAutomationFallbackReason::Rejected,
+                SemanticAutomationFallbackReason::Malformed,
+                SemanticAutomationFallbackReason::Stale,
+                SemanticAutomationFallbackReason::Invalidated,
+                SemanticAutomationFallbackReason::CounterOverflow,
+            ];
+            for reason in reasons {
+                assert!(!semantic_projection_is_eligible(
+                    SemanticAutomationRefreshStatus::Baseline { reason },
+                    Some(SemanticAutomationRefreshStatus::Published),
+                ));
+                assert!(!semantic_projection_is_eligible(
+                    SemanticAutomationRefreshStatus::Baseline { reason },
+                    Some(SemanticAutomationRefreshStatus::Retained { reason }),
+                ));
+            }
+        }
+
+        #[test]
+        fn only_exact_published_or_retained_statuses_keep_semantic_projection() {
+            assert!(semantic_projection_is_eligible(
+                SemanticAutomationRefreshStatus::Published,
+                Some(SemanticAutomationRefreshStatus::Published),
+            ));
+            assert!(!semantic_projection_is_eligible(
+                SemanticAutomationRefreshStatus::Published,
+                None,
+            ));
+            assert!(!semantic_projection_is_eligible(
+                SemanticAutomationRefreshStatus::Published,
+                Some(SemanticAutomationRefreshStatus::Retained {
+                    reason: SemanticAutomationFallbackReason::Deferred,
+                }),
+            ));
+            assert!(semantic_projection_is_eligible(
+                SemanticAutomationRefreshStatus::Retained {
+                    reason: SemanticAutomationFallbackReason::Deferred,
+                },
+                Some(SemanticAutomationRefreshStatus::Retained {
+                    reason: SemanticAutomationFallbackReason::Deferred,
+                }),
+            ));
+            assert!(!semantic_projection_is_eligible(
+                SemanticAutomationRefreshStatus::Retained {
+                    reason: SemanticAutomationFallbackReason::Deferred,
+                },
+                Some(SemanticAutomationRefreshStatus::Retained {
+                    reason: SemanticAutomationFallbackReason::Stale,
+                }),
+            ));
         }
 
         #[test]

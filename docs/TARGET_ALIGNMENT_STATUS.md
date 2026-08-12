@@ -488,6 +488,9 @@ representable without a provider.
 AppKit count is exact, and range normalization uses checked subtraction and
 zero/out-of-range/overflow, declared-budget, 1024-cap, and remaining-aggregate
 checks without synthesizing keys from indices.
+The macOS-only exact-range retry fixtures are cfg-gated from non-macOS test
+builds; this CI portability correction changes no production behavior, public
+API, target evidence, or estimate.
 
 The exact `(count, cardinality_revision)` pair is fenced with registration
 identity/generation, container/mount, existing revisions, coordinate, budget,

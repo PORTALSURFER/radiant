@@ -2696,6 +2696,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    use crate::runtime::SemanticAutomationSessionHandle;
     use crate::runtime::controller::semantic_demand::{
         SemanticDemandAdmission, SemanticDemandAdmissionError, SemanticDemandCompletion,
         SemanticProviderCompletion,
@@ -2730,8 +2732,8 @@ mod tests {
         runtime::{
             RuntimeBridge, SemanticAutomationDemand, SemanticAutomationDemandError,
             SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
-            SemanticAutomationSessionError, SemanticAutomationSessionHandle, SurfaceChild,
-            SurfaceNode, UiSurface, surface::VirtualLayoutRegistrationRevisions,
+            SemanticAutomationSessionError, SurfaceChild, SurfaceNode, UiSurface,
+            surface::VirtualLayoutRegistrationRevisions,
         },
         widgets::WidgetSizing,
     };
@@ -3066,6 +3068,7 @@ mod tests {
         (provider, calls, outcome)
     }
 
+    #[cfg(target_os = "macos")]
     fn semantic_range_entries_with_prefix(
         prefix: &str,
         start_index: usize,
@@ -3285,6 +3288,7 @@ mod tests {
         (state, batch, semantic_calls, policy_calls)
     }
 
+    #[cfg(target_os = "macos")]
     fn committed_range_record(
         registration: VirtualLayoutRegistration<()>,
     ) -> RuntimeVirtualLayoutRecord<()> {
@@ -3298,6 +3302,7 @@ mod tests {
         record
     }
 
+    #[cfg(target_os = "macos")]
     type TwoRangeState = (
         RuntimeVirtualLayoutState<()>,
         Rc<Cell<u32>>,
@@ -3306,6 +3311,7 @@ mod tests {
         Rc<RefCell<VirtualLayoutSemanticRangeProviderOutcome>>,
     );
 
+    #[cfg(target_os = "macos")]
     fn two_range_state() -> TwoRangeState {
         let initial_a = semantic_range_entries_with_prefix("a-initial", 0, 2);
         let initial_b = semantic_range_entries_with_prefix("b-initial", 2, 2);

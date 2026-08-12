@@ -1248,15 +1248,15 @@ retained `SurfaceNode` payloads are read only for `payload().id()` rather than
 cloned. This boundary mutates no pin, provider, materialization, refresh,
 layout, traversal, snapshot, focus, capture, lifecycle, or presentation state.
 The classifier itself still does not perform path insertion, coordinate
-resolution/custom transforms, final ordering, global collision/ID admission,
+resolution or resolver invocation, final ordering, global collision/ID admission,
 cross-range deduplication, or semantic-tree construction; those responsibilities
 belong to the following private compositor boundary.
 
 The next private boundary is now also shipped as staged, crate-private evidence.
 It consumes already validated semantic/materialization classification batches and
-composes them into a private `GuiAutomationSnapshot` candidate. Only the
-backend-neutral `Logical` coordinate space is admitted; `Custom` is rejected
-before any tree insertion because no transform contract exists here. Input is
+composes them into a private `GuiAutomationSnapshot` candidate. `Logical` is
+admitted unchanged; `Custom` is admitted only with an exact private transform
+witness, and the compositor never invokes the resolver. Input is
 normalized by container and logical index, independent of caller order. Exact
 same-key/index evidence coalesces only when every semantic, geometry, provider-ID,
 origin, and fence field agrees; conflicting overlap, key/index drift, duplicate
@@ -1272,8 +1272,8 @@ ordinary, descendant, container, and cross-range IDs share one namespace: only
 the exact generated wrapper being replaced may be displaced. A final uniqueness
 audit remains mandatory, and failures leave the source snapshot and runtime
 state untouched. This remains a private staged candidate: public APIs and the
-serialized schema are unchanged, and the slice does not invoke providers, own
-scheduling/demand, apply custom transforms, or wire focus, actions, or product
+serialized schema are unchanged, and the slice does not invoke providers or
+resolvers, own scheduling/demand, or wire focus, actions, or product
 behavior. Estimates remain unchanged: generic ~97%, Declarative identity 71%,
 layout 97%, and broad coverage `901 / 11` (~81.91%).
 
@@ -1367,10 +1367,12 @@ request/range or pin, mount/container/policy identity, registration identity and
 generation, data/policy/measurement/semantic revisions, provider
 identity/generation,
 coordinate, budget, cancellation, materialization/classification authority,
-ordinary projection generation, and complete-demand-set generation. A result is
-accepted only when every required field matches exactly; stale, superseded, or
-cancelled results are inert. Provider attempts are non-reentrant, and providers
-cannot publish or mutate runtime state directly.
+ordinary projection generation, and complete-demand-set generation. For
+`Custom`, exact transform identity/revision, resolver generation/token,
+destination context, and a private transform witness are also required. A
+result is accepted only when every required field matches exactly; stale,
+superseded, or cancelled results are inert. Provider attempts are
+non-reentrant, and providers cannot publish or mutate runtime state directly.
 
 The consumer stages the complete selected snapshot and status under the exact
 fence, then swaps only after every active demand member resolves or has an
@@ -1388,21 +1390,26 @@ without provider reentry when fences permit it.
 
 `Unmaterialized`/`materialized = false` remains authoritative and never
 authorizes materialization, scrolling, focus, action, paint, hit testing,
-scheduling, or renderer work. The first consumer admits only `Logical`.
-`Custom` is rejected before provider invocation with no identity fallback. A
-future transform contract must define owner, source/destination, supported
-class and revision, finite/non-inverted conversion, clipping/nesting, and
-conservative singular/stale/unsupported/ambiguous behavior before custom
-coordinates are admitted.
+scheduling, or renderer work. The generic consumer admits `Logical` unchanged
+and admits `Custom` only from the qualified application-owned transform
+attachment. The synchronous `Rc` resolver receives finite source geometry,
+the runtime-validated ordinary anchor, complete destination clip, host
+revisions, and exact transform revision, then returns a conservative AABB
+directly. The runtime owns context validation, panic/reentry containment,
+clipping, exact witness continuity, retention, and invalidation; invocation is
+limited to explicit refresh/retry after complete provider validation and at
+most once per accepted entry. Native remains Logical-only and consumes only
+resolved logical bounds.
 
 This bounded implementation earns one public-API evidence point. The private
-kernel and generic logical session are shipped; the public declarative
-Logical-only provider contract below is normative and shipped. Native/product
- provider consumer implementations, scheduling, and custom transforms remain
-deferred; the private primary-window macOS/AppKit native semantic accessibility
-query contract is implemented below. Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
-`902 / 11` (82.00%). Existing pure ordinary snapshot
-APIs and non-goals remain explicit.
+kernel and generic semantic session are shipped; the public declarative
+provider and custom-coordinate attachment contract below is normative and
+shipped. Native/product custom conversion, scheduling, and other product
+consumer implementations remain separate; the private primary-window
+macOS/AppKit native semantic accessibility query contract is implemented below.
+Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad
+coverage `903 / 11` (~82.09%). Existing pure ordinary snapshot APIs and
+non-goals remain explicit.
 
 ### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -1449,11 +1456,12 @@ rejected, panic, malformed, collision, stale, or cancelled evidence uses the
 existing typed conservative baseline behavior; stale and cancelled completions
 are inert and MUST NOT mutate or publish native state.
 
-The first consumer accepts provider semantics only in `Logical`. Native
+The first native consumer accepts provider semantics only in `Logical`. Native
 conversion MUST identify source surface space, destination window/screen
 accessibility space, DPI, window/display generation, orientation, clipping, and a
 finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+bounds. Custom declarations are not admitted by this native path; no resolver
+is invoked and no affine or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -1552,26 +1560,31 @@ registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
 Logical-only conservative coordinates, and pure snapshots. It excludes focus,
 actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
-product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
-behavior.
+product, native custom-coordinate conversion, Wayland/Windows, auxiliary,
+multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
 unchanged. Wayland, Windows, native actions, focus, scrolling, product policy,
-custom transforms, scheduler, and renderer behavior remain excluded.
+native custom-coordinate conversion, scheduler, and renderer behavior remain
+excluded.
 
-### Public declarative Logical-only provider attachment (normative; shipped)
+### Public declarative provider attachment (normative; custom attachment bounded)
 
 The only public declarative attachment path is
 `radiant::application::VirtualLayoutParts<Message>` with
 `virtual_layout_from_parts`. It carries optional item/range semantic providers
-and has no custom-coordinate field. `radiant::runtime::VirtualLayoutRevisions`,
+and may attach a qualified custom-coordinate resolver. `radiant::runtime::VirtualLayoutRevisions`,
 `VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
 read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
 `VirtualLayoutSemanticProviderOutcome<T>` (`Found`, `NotFound`, `Unavailable`,
 `Deferred`, `Rejected`) are qualified shipped vocabulary: they are not prelude
-entries.
+entries. `radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransform`
+and its request/outcome vocabulary remain qualified and outside the prelude.
+`VirtualLayoutParts::with_semantic_coordinate_transform(identity, revision, Rc)`
+declares `Custom(identity)`; otherwise the existing declaration remains
+`Logical`.
 
 The shipped declaration foundation exposes the qualified public
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` value
@@ -1581,8 +1594,7 @@ field on `VirtualLayoutParts<Message>` and the qualified builder
 and builder ship outside the common prelude, and the exact private
 registration/live-fence invalidation foundation, normalized sidecar, native
 topology, bounded AppKit queries, and private primary-window platform consumer
-are implemented. Live host/AppKit acceptance remains pending; no public API is
-added and alignment estimates remain unchanged. Cardinality is immutable
+are implemented. Live host/AppKit acceptance remains pending. Cardinality is immutable
 declaration evidence, not a callback or demand, and its exact count is
 independent of the one-range, one-required-item, 64-registration, 1024
 per-query, and 1024 aggregate budgets.
@@ -1602,7 +1614,9 @@ provider reasons are `DataUnavailable`/`Unsupported`, and deferred reasons are
 `DataPending`/`SemanticPending`/`Retry`.
 
 Only explicit `refresh_semantic_automation_session(session, demands)` and
-`retry_semantic_automation_session(session)` may call providers. Registration,
+`retry_semantic_automation_session(session)` may call providers; an attached
+custom resolver is invoked only inside those explicit turns after complete
+provider-output validation. Registration,
 opening, enumeration, ordinary snapshot/target reads, repaint,
 viewport/visibility/overscan, diagnostics, item count, provider availability,
 and IME/native events are non-demand and never call providers. All other
@@ -1614,11 +1628,11 @@ rejection/panic/malformed/collision use the conservative baseline. Stale,
 cancelled, and superseded results are inert; publication is whole-surface
 atomic and `Unmaterialized` authority is preserved. The full lifecycle,
 native-boundary, non-goal, and acceptance matrix is in
-[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This implementation is
-the first public-API evidence point; numeric estimates remain unchanged for
-this branch.
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This bounded
+attachment moves Public API to 85% and broad coverage to `903 / 11`
+(~82.09%); no Platform credit is awarded without live AppKit acceptance.
 
-Its non-goals are custom transforms; native accessibility action dispatch; focus;
+Its non-goals are native custom-coordinate conversion; native accessibility action dispatch; focus;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
 hit-testing, or cache policy; product policy; multiple ranges per container;
 and prelude export.

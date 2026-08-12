@@ -26,6 +26,7 @@ mod pointer;
 mod refresh;
 mod scratch;
 mod scroll;
+mod semantic_coordinate;
 mod semantic_demand;
 mod state;
 mod timers;

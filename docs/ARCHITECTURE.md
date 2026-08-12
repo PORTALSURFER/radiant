@@ -193,8 +193,9 @@ new focused export leaf or a module split, not a formatting workaround.
 
 The current private `SurfaceRuntime` virtual-layout registration and semantic
 demand/publication kernel are implementation evidence. The qualified public
-declarative provider path is normative and shipped at the Logical-only boundary
-defined fully in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
+declarative provider path is normative and shipped at the Logical boundary,
+with the bounded custom-coordinate attachment defined fully in
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
 
 The only public declarative attachment capability is
 `radiant::application::VirtualLayoutParts<Message>` with
@@ -204,8 +205,12 @@ capabilities through read-only item/range requests and
 `VirtualLayoutSemanticEntry` results. `radiant::runtime::VirtualLayoutRevisions`
 and generic `VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`,
 `Unavailable`, `Deferred`, and `Rejected` are qualified shipped vocabulary:
-they are not prelude entries, and the parts have no
-custom-coordinate field.
+they are not prelude entries. The separately qualified
+`radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransform`
+request/outcome vocabulary and
+`VirtualLayoutParts::with_semantic_coordinate_transform(...)` attach a
+synchronous `Rc` resolver for `Custom(identity)`; without the attachment the
+existing declaration remains `Logical`.
 
 The shipped qualified declaration foundation exposes the public value
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
@@ -218,6 +223,17 @@ sidecar, native child traversal/topology, AppKit queries, and native platform
 consumer remain deferred. The value is immutable declaration evidence, not a
 callback or demand; `None` is unknown/unsupported, exact zero is supported, the
 count is not capped at 1024, and it never allocates proportional storage.
+
+The custom resolver receives only a finite source rectangle, the unique
+runtime-validated ordinary anchor, the complete effective logical destination
+clip, host revision evidence, and the exact transform revision. It returns a
+conservative finite AABB directly; no affine matrix, inverse, point mapping,
+hit-test, or materialization assumption exists. `SurfaceRuntime` owns the
+attachment lifetime, resolver generation/token, destination admission,
+panic/reentry containment, clipping, exact private transform witness,
+retention, publication, and invalidation. It invokes the resolver only during
+explicit semantic refresh/retry after complete provider-output validation and
+at most once per accepted provider entry.
 
 `SurfaceRuntime` owns mounted registration, removal, replacement,
 registration/mount/provider generations, lifetime cancellation, exact source
@@ -252,11 +268,11 @@ baseline, inert stale/cancelled/superseded results, atomic publication, and
 preserved `Unmaterialized` authority are normative. The private primary-window
 macOS/AppKit semantic accessibility consumer below translates explicit platform
 queries only through the backend-neutral session model; it is not a hidden
-provider owner. The contract's non-goals are custom transforms, native accessibility
-action dispatch, focus, scrolling/materialization, scheduler/backoff/fairness,
+provider owner. The contract's non-goals are native custom-coordinate
+conversion, native accessibility action dispatch, focus, scrolling/materialization, scheduler/backoff/fairness,
 renderer/paint/hit-testing/cache policy, product policy, multiple ranges, and
-prelude export. This implementation is the first public-API evidence point;
-numeric estimates remain unchanged for this branch.
+prelude export. This bounded attachment is the public-API evidence point; no
+Platform credit is awarded because live AppKit acceptance remains pending.
 
 ## Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -303,11 +319,12 @@ rejected, panic, malformed, collision, stale, or cancelled evidence uses the
 existing typed conservative baseline behavior; stale and cancelled completions
 are inert and MUST NOT mutate or publish native state.
 
-The first consumer accepts provider semantics only in `Logical`. Native
+The first native consumer accepts provider semantics only in `Logical`. Native
 conversion MUST identify source surface space, destination window/screen
 accessibility space, DPI, window/display generation, orientation, clipping, and a
 finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+bounds. Custom declarations are not admitted by this native path; no resolver
+is invoked and no affine or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -398,8 +415,8 @@ This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
 unchanged. Wayland, Windows,
-native actions, focus, scrolling, product policy, custom transforms, scheduler,
-and renderer behavior remain excluded.
+native actions, focus, scrolling, product policy, native custom-coordinate
+conversion, scheduler, and renderer behavior remain excluded.
 
 ## Declarative Effect Ownership And Lifecycle Seam
 

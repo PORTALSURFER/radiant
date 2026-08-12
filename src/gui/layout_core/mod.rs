@@ -150,6 +150,6 @@ pub(crate) use virtual_layout::{
     VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeProviderOutcome,
     VirtualLayoutSemanticRangeQueryOutcome, VirtualLayoutSemanticRangeRequest,
     VirtualLayoutSemanticRejectedReason, VirtualLayoutSemanticRequest,
-    VirtualLayoutSemanticUnavailableReason, VirtualLayoutSlotIdentity,
-    VirtualLayoutWindowCoordinator,
+    VirtualLayoutSemanticTransformWitness, VirtualLayoutSemanticUnavailableReason,
+    VirtualLayoutSlotIdentity, VirtualLayoutWindowCoordinator,
 };

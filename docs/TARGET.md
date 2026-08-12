@@ -891,6 +891,16 @@ handles through ordinary application APIs. Accessibility actions use the same
 focus, identity, virtualization, and edit-transaction contracts as pointer and
 keyboard input.
 
+Virtual-layout semantic providers may declare a qualified application-owned
+custom-coordinate transform through `VirtualLayoutParts`. The synchronous
+`Rc` resolver receives only finite source geometry, runtime-validated logical
+destination context, host revisions, and its exact transform revision, and
+returns a conservative logical-window AABB directly. The runtime owns exact
+admission, clipping, panic/reentry containment, retention, and publication;
+ordinary snapshots and passive paths remain resolver-free. The private primary-
+window AppKit consumer consumes resolved logical bounds only and does not invoke
+the custom resolver.
+
 ## Application Independence
 
 Radiant must remain independent from any specific application domain.

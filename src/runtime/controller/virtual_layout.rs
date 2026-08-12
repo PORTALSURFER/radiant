@@ -6,6 +6,7 @@
 
 use super::{
     SurfaceRuntime, VirtualLayoutAutomationComposition,
+    semantic_coordinate::SemanticCoordinateContext,
     semantic_demand::{
         SemanticDemand, SemanticDemandAdmissionError, SemanticDemandCompletion,
         SemanticDemandExecutionError, SemanticDemandOwner, SemanticProviderCompletion,
@@ -340,6 +341,10 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
             || self.registration.semantic_revision() != registration.semantic_revision()
             || self.registration.semantic_cardinality != registration.semantic_cardinality
             || self.registration.coordinate_space != registration.coordinate_space
+            || self.registration.semantic_coordinate_transform_token()
+                != registration.semantic_coordinate_transform_token()
+            || self.registration.semantic_coordinate_transform_revision()
+                != registration.semantic_coordinate_transform_revision()
             || !self.registration.semantic_provider_is_same(&registration)
             || !same_optional_key(
                 self.registration.required_key(),
@@ -546,6 +551,12 @@ impl<Message> RuntimeVirtualLayoutRecord<Message> {
 
     fn project_current_semantics(&self) -> Option<VirtualLayoutSemanticProjection> {
         if self.retired {
+            return None;
+        }
+        if !matches!(
+            self.registration.coordinate_space,
+            VirtualLayoutCoordinateSpace::Logical
+        ) {
             return None;
         }
         let pin = self.pin.as_ref()?;
@@ -1113,6 +1124,15 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 VirtualLayoutSemanticRejectedReason::Retired,
             );
         }
+        if !matches!(
+            record.registration.coordinate_space,
+            VirtualLayoutCoordinateSpace::Logical
+        ) {
+            record.pin = None;
+            return VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable,
+            );
+        }
         if let Err(reason) = request.validate_scope(
             record.registration.container_id,
             &record.registration.policy_identity,
@@ -1205,6 +1225,14 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         if record.retired {
             return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
                 VirtualLayoutSemanticRejectedReason::Retired,
+            );
+        }
+        if !matches!(
+            record.registration.coordinate_space,
+            VirtualLayoutCoordinateSpace::Logical
+        ) {
+            return VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable,
             );
         }
         if let Err(reason) = request.validate_scope(
@@ -1575,6 +1603,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         session: SemanticAutomationSessionHandle,
         demands: &[SemanticAutomationDemand],
         ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        coordinate_context: &SemanticCoordinateContext,
         authorities: (u64, u64, u64),
     ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
         self.validate_semantic_automation_session(runtime_id, session)?;
@@ -1589,7 +1618,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
 
         let tickets = self
             .semantic_demand
-            .replace_demand_set(&requested)
+            .replace_demand_set(&requested, coordinate_context)
             .map_err(map_semantic_demand_error)?;
         let mut failure_reason = None;
         for ticket in tickets {
@@ -1606,7 +1635,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             if let SemanticProviderCompletion::Stale = completion {
                 failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
             }
-            let completion = self.semantic_demand.complete(completion);
+            let completion = self
+                .semantic_demand
+                .complete_with_context(completion, Some(coordinate_context));
             if let Some(reason) = semantic_completion_fallback_reason(&completion) {
                 failure_reason.get_or_insert(reason);
             }
@@ -1671,6 +1702,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         runtime_id: u64,
         session: SemanticAutomationSessionHandle,
         ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        coordinate_context: &SemanticCoordinateContext,
         authorities: (u64, u64, u64),
     ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
         self.validate_semantic_automation_session(runtime_id, session)?;
@@ -1679,7 +1711,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             authorities;
         let tickets = self
             .semantic_demand
-            .retry_all()
+            .retry_all(coordinate_context)
             .map_err(map_semantic_demand_error)?;
         let mut failure_reason = None;
         for ticket in tickets {
@@ -1696,7 +1728,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             if let SemanticProviderCompletion::Stale = completion {
                 failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
             }
-            let completion = self.semantic_demand.complete(completion);
+            let completion = self
+                .semantic_demand
+                .complete_with_context(completion, Some(coordinate_context));
             if let Some(reason) = semantic_completion_fallback_reason(&completion) {
                 failure_reason.get_or_insert(reason);
             }
@@ -1757,6 +1791,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         start_index: usize,
         length: usize,
         ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        coordinate_context: &SemanticCoordinateContext,
         authorities: (u64, u64, u64),
     ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
         self.validate_semantic_automation_session(runtime_id, session)?;
@@ -1791,7 +1826,9 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         if let SemanticProviderCompletion::Stale = completion {
             failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
         }
-        let completion = self.semantic_demand.complete(completion);
+        let completion = self
+            .semantic_demand
+            .complete_with_context(completion, Some(coordinate_context));
         if let Some(reason) = semantic_completion_fallback_reason(&completion) {
             failure_reason.get_or_insert(reason);
         }
@@ -1991,6 +2028,11 @@ fn map_semantic_demand_error(
             SemanticAutomationSessionError::InvalidDemand(map_range_demand_error(reason))
         }
         SemanticDemandAdmissionError::CustomCoordinate => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CustomCoordinateSpace,
+            )
+        }
+        SemanticDemandAdmissionError::CoordinateContextUnavailable => {
             SemanticAutomationSessionError::InvalidDemand(
                 SemanticAutomationDemandError::CustomCoordinateSpace,
             )
@@ -3476,6 +3518,7 @@ mod tests {
                 session,
                 &[demand],
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             )
             .expect("the explicit logical refresh should publish");
@@ -3574,7 +3617,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn native_semantic_admission_rejects_custom_zero_before_provider_access() {
+    fn native_semantic_admission_remains_logical_only() {
         let zero = Some(VirtualLayoutSemanticCardinality::new(0, 1));
         assert!(native_semantic_registration_is_admitted(
             &VirtualLayoutCoordinateSpace::Logical,
@@ -3632,6 +3675,7 @@ mod tests {
                 session,
                 &[SemanticAutomationDemand::range(container, 0, 2)],
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             )
             .expect("the valid demand should publish");
@@ -3647,6 +3691,7 @@ mod tests {
                 SemanticAutomationDemand::range(container, 0, 2),
             ],
             &ordinary,
+            &SemanticCoordinateContext::empty(),
             (1, 2, 3),
         );
         assert!(matches!(
@@ -3694,6 +3739,7 @@ mod tests {
             session,
             &[SemanticAutomationDemand::range(container, 0, 1)],
             &ordinary,
+            &SemanticCoordinateContext::empty(),
             (1, 2, 3),
         );
         assert!(matches!(
@@ -3728,6 +3774,7 @@ mod tests {
                     VirtualLayoutItemKey::new(7_u32),
                 )],
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             )
             .expect("deferred provider output should produce a typed baseline");
@@ -3745,7 +3792,13 @@ mod tests {
             Rect::from_xy_size(4.0, 4.0, 24.0, 10.0),
         )));
         let retry = state
-            .retry_semantic_automation(902, session, &ordinary, (1, 2, 3))
+            .retry_semantic_automation(
+                902,
+                session,
+                &ordinary,
+                &SemanticCoordinateContext::empty(),
+                (1, 2, 3),
+            )
             .expect("explicit retry should execute the provider again");
         assert_eq!(retry.status, SemanticAutomationRefreshStatus::Published);
         assert_eq!(retry.composition.normalized_sidecar().entries().len(), 1);
@@ -3782,6 +3835,7 @@ mod tests {
                     SemanticAutomationDemand::range(container_b, 2, 2),
                 ],
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             )
             .expect("the complete A+B refresh should publish");
@@ -3806,6 +3860,7 @@ mod tests {
                 0,
                 2,
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             )
             .expect("the exact A retry should publish the complete surface");
@@ -3863,6 +3918,7 @@ mod tests {
                 1,
                 2,
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             ),
             Err(SemanticAutomationSessionError::StaleContainerHandle)
@@ -3875,6 +3931,7 @@ mod tests {
                 0,
                 2,
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             ),
             Err(SemanticAutomationSessionError::StaleContainerHandle)
@@ -3891,6 +3948,7 @@ mod tests {
                 0,
                 2,
                 &ordinary,
+                &SemanticCoordinateContext::empty(),
                 (1, 2, 3),
             ),
             Err(SemanticAutomationSessionError::UnknownSession)
@@ -3910,7 +3968,13 @@ mod tests {
             semantic_range_entries_with_prefix("b-whole", 2, 2),
         );
         let whole_retry = state
-            .retry_semantic_automation(session.runtime_id, session, &ordinary, (1, 2, 3))
+            .retry_semantic_automation(
+                session.runtime_id,
+                session,
+                &ordinary,
+                &SemanticCoordinateContext::empty(),
+                (1, 2, 3),
+            )
             .expect("the public whole-session retry should retain its behavior");
         assert_eq!(
             whole_retry.status,
@@ -4578,12 +4642,8 @@ mod tests {
 
     #[test]
     fn semantic_range_success_is_ordered_fenced_and_coordinate_declared() {
-        for coordinate_space in [
-            VirtualLayoutCoordinateSpace::logical(),
-            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
-                "timeline-canvas",
-            )),
-        ] {
+        let coordinate_space = VirtualLayoutCoordinateSpace::logical();
+        {
             let entries = valid_semantic_range_entries(2, 4);
             let (provider, calls, _) = semantic_range_provider(
                 VirtualLayoutSemanticRangeProviderOutcome::Found(entries.clone()),
@@ -4626,6 +4686,24 @@ mod tests {
             }
             assert!(state.records[0].pin.is_none());
         }
+
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(2, 4)),
+        );
+        let mut custom_state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
+                "timeline-canvas",
+            )),
+            VirtualLayoutBudget::new(4),
+        );
+        assert_eq!(
+            custom_state.admit_current_semantic_range(CONTAINER_ID, 2, 4),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable,
+            )
+        );
+        assert_eq!(calls.get(), 0);
     }
 
     #[test]
@@ -5323,12 +5401,7 @@ mod tests {
 
     #[test]
     fn project_current_semantics_preserves_identity_coordinate_entry_and_exact_fence() {
-        let coordinate_spaces = [
-            VirtualLayoutCoordinateSpace::logical(),
-            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
-                "semantic-coordinate-space",
-            )),
-        ];
+        let coordinate_spaces = [VirtualLayoutCoordinateSpace::logical()];
         let bounds = Rect::from_xy_size(4.0, 8.0, 24.0, 16.0);
         let semantics =
             AutomationNodeSemantics::new(AutomationRole::Row).with_label("projected row");
@@ -5381,6 +5454,33 @@ mod tests {
                 VirtualLayoutSemanticProjectionAuthority::Unmaterialized
             );
         }
+
+        let (provider, calls, _) = semantic_provider(VirtualLayoutSemanticQueryOutcome::Found(
+            Box::new(VirtualLayoutSemanticEntry::new(
+                VirtualLayoutItemKey::new(17_u32),
+                23,
+                bounds,
+                semantics,
+                AutomationNodeId::new("projected-row"),
+            )),
+        ));
+        let mut custom_state = semantic_state(provider, 5);
+        custom_state.records[0].registration.coordinate_space =
+            VirtualLayoutCoordinateSpace::custom(VirtualLayoutPolicyIdentity::new(
+                "semantic-coordinate-space",
+            ));
+        assert_eq!(
+            custom_state.admit_current_semantics(CONTAINER_ID, VirtualLayoutItemKey::new(17_u32),),
+            VirtualLayoutSemanticQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable,
+            )
+        );
+        assert!(
+            custom_state
+                .project_current_semantics(CONTAINER_ID)
+                .is_none()
+        );
+        assert_eq!(calls.get(), 0);
     }
 
     #[test]

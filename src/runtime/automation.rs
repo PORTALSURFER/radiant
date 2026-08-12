@@ -403,11 +403,13 @@ where
     ) -> Result<SemanticAutomationRefresh, SemanticAutomationSessionError> {
         let counters = self.refresh_counters();
         let ordinary = self.automation_snapshot();
+        let coordinate_context = self.semantic_coordinate_context(&ordinary);
         let publication = self.virtual_layout.refresh_semantic_automation(
             self.runtime_identity(),
             session,
             demands,
             &ordinary,
+            &coordinate_context,
             (
                 counters.layout,
                 counters.runtime_projection,
@@ -432,10 +434,12 @@ where
     ) -> Result<SemanticAutomationRefresh, SemanticAutomationSessionError> {
         let counters = self.refresh_counters();
         let ordinary = self.automation_snapshot();
+        let coordinate_context = self.semantic_coordinate_context(&ordinary);
         let publication = self.virtual_layout.retry_semantic_automation(
             self.runtime_identity(),
             session,
             &ordinary,
+            &coordinate_context,
             (
                 counters.layout,
                 counters.runtime_projection,
@@ -463,6 +467,7 @@ where
     ) -> Result<SemanticAutomationRefresh, SemanticAutomationSessionError> {
         let counters = self.refresh_counters();
         let ordinary = self.automation_snapshot();
+        let coordinate_context = self.semantic_coordinate_context(&ordinary);
         let publication = self.virtual_layout.retry_semantic_automation_range(
             self.runtime_identity(),
             session,
@@ -470,6 +475,7 @@ where
             start_index,
             length,
             &ordinary,
+            &coordinate_context,
             (
                 counters.layout,
                 counters.runtime_projection,

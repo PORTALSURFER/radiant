@@ -34,7 +34,7 @@ mod platform;
 mod resource;
 mod surface;
 mod update_snapshot;
-mod virtual_layout;
+pub mod virtual_layout;
 
 #[cfg(test)]
 pub(crate) fn test_arc_surface<Message>(
@@ -236,4 +236,6 @@ pub use virtual_layout::{
     VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
     VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
 };
-pub(crate) use virtual_layout::{adapt_item_provider, adapt_range_provider, provider_identity};
+pub(crate) use virtual_layout::{
+    adapt_coordinate_transform, adapt_item_provider, adapt_range_provider, provider_identity,
+};

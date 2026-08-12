@@ -58,6 +58,7 @@ pub(crate) struct VirtualLayoutNormalizedSemanticSidecarEntry {
     origin: VirtualLayoutSemanticClassificationOrigin,
     path: NodePath,
     fences: NormalizedSemanticPublicationFenceSet,
+    transform_witness: Option<crate::gui::layout_core::VirtualLayoutSemanticTransformWitness>,
 }
 
 #[allow(dead_code)]
@@ -97,6 +98,12 @@ impl VirtualLayoutNormalizedSemanticSidecarEntry {
 
     pub(crate) fn publication_fences(&self) -> &NormalizedSemanticPublicationFenceSet {
         &self.fences
+    }
+
+    pub(crate) fn transform_witness(
+        &self,
+    ) -> Option<&crate::gui::layout_core::VirtualLayoutSemanticTransformWitness> {
+        self.transform_witness.as_ref()
     }
 }
 
@@ -423,14 +430,6 @@ fn normalize_inputs(
                 {
                     return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
                 }
-                if !matches!(
-                    request.coordinate_space(),
-                    VirtualLayoutCoordinateSpace::Logical
-                ) {
-                    return Err(
-                        VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
-                    );
-                }
                 if let Some(previous_request) = container_fences.get(&request.container_id())
                     && !same_range_scope(previous_request, request)?
                 {
@@ -460,6 +459,7 @@ fn normalize_inputs(
                 for (offset, classification) in batch.classifications().iter().enumerate() {
                     let projection = classification.projection();
                     validate_classification(batch, projection, offset)?;
+                    validate_projection_witness_fence(projection, input.fences.range.as_ref())?;
                     entries.push(NormalizedEntry {
                         container_id: request.container_id(),
                         projection: projection.clone(),
@@ -474,14 +474,10 @@ fn normalize_inputs(
                 let classification = pin.classification();
                 let projection = classification.projection();
                 validate_pin_classification(request, projection)?;
-                if !matches!(
-                    projection.coordinate_space(),
-                    VirtualLayoutCoordinateSpace::Logical
-                ) {
-                    return Err(
-                        VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
-                    );
-                }
+                validate_projection_witness_fence(
+                    projection,
+                    input.fences.required_item_pin.as_ref(),
+                )?;
                 if let Some(range_request) = container_fences.get(&request.container_id())
                     && (!same_item_scope(range_request, request)?
                         || !same_coordinate_space(
@@ -703,6 +699,16 @@ fn validate_classification(
     {
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
     }
+    if !valid_projection_coordinate(projection)? {
+        return Err(match projection.coordinate_space() {
+            VirtualLayoutCoordinateSpace::Custom(_) => {
+                VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable
+            }
+            VirtualLayoutCoordinateSpace::Logical => {
+                VirtualLayoutAutomationCompositionError::MalformedClassification
+            }
+        });
+    }
     let identity_key = projection.identity().key();
     let request_key = projection.request().key();
     if identity_key.stable_equals(identity_key) != Some(true)
@@ -732,6 +738,9 @@ fn validate_pin_classification(
     }
     if !same_pin_request(request, projection.request())? {
         return Err(VirtualLayoutAutomationCompositionError::MalformedClassification);
+    }
+    if !valid_projection_coordinate(projection)? {
+        return Err(VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable);
     }
     let identity_key = projection.identity().key();
     let request_key = request.key();
@@ -832,13 +841,21 @@ fn same_pin_request(
     left: &VirtualLayoutSemanticRequest,
     right: &VirtualLayoutSemanticRequest,
 ) -> Result<bool, VirtualLayoutAutomationCompositionError> {
-    if !same_pin_scope(
-        left,
-        &VirtualLayoutCoordinateSpace::Logical,
-        right,
-        &VirtualLayoutCoordinateSpace::Logical,
-    )? {
+    if left.container_id() != right.container_id()
+        || left.mount_generation() != right.mount_generation()
+        || left.data_revision() != right.data_revision()
+        || left.policy_revision() != right.policy_revision()
+        || left.measurement_revision() != right.measurement_revision()
+        || left.semantic_revision() != right.semantic_revision()
+    {
         return Ok(false);
+    }
+    if left
+        .policy_identity()
+        .stable_equals(right.policy_identity())
+        != Some(true)
+    {
+        return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
     }
     match left.key().stable_equals(right.key()) {
         Some(value) => Ok(value),
@@ -872,6 +889,10 @@ fn same_entry_evidence(
         || left.projection.automation_node_id() != right.projection.automation_node_id()
         || !same_rect(left.projection.bounds(), right.projection.bounds())
         || left.projection.semantics() != right.projection.semantics()
+        || !same_transform_witness(
+            left.projection.transform_witness(),
+            right.projection.transform_witness(),
+        )
     {
         return Ok(false);
     }
@@ -922,6 +943,93 @@ fn same_entry_evidence(
         }
     }
     Ok(true)
+}
+
+fn valid_projection_coordinate(
+    projection: &VirtualLayoutSemanticProjection,
+) -> Result<bool, VirtualLayoutAutomationCompositionError> {
+    if !projection.bounds().is_finite()
+        || projection.bounds().min.x > projection.bounds().max.x
+        || projection.bounds().min.y > projection.bounds().max.y
+    {
+        return Ok(false);
+    }
+    match (
+        projection.coordinate_space(),
+        projection.transform_witness(),
+    ) {
+        (VirtualLayoutCoordinateSpace::Logical, None) => Ok(true),
+        (VirtualLayoutCoordinateSpace::Custom(identity), Some(witness)) => {
+            if witness.identity().stable_equals(identity) != Some(true) {
+                return Err(VirtualLayoutAutomationCompositionError::UnstableEquality);
+            }
+            Ok(witness.transform_generation() != 0 && witness.resolver_token() != 0)
+        }
+        _ => Ok(false),
+    }
+}
+
+fn validate_projection_witness_fence(
+    projection: &VirtualLayoutSemanticProjection,
+    fence: Option<&SemanticPublicationFence>,
+) -> Result<(), VirtualLayoutAutomationCompositionError> {
+    match projection.coordinate_space() {
+        VirtualLayoutCoordinateSpace::Logical => {
+            if projection.transform_witness().is_some() {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            }
+        }
+        VirtualLayoutCoordinateSpace::Custom(identity) => {
+            let Some(witness) = projection.transform_witness() else {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            };
+            let Some(fence) = fence else {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            };
+            let provider_fence = &fence.provider_fence;
+            let Some(transform_revision) = provider_fence.semantic_transform_revision else {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            };
+            let Some(transform_token) = provider_fence.semantic_transform_token else {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            };
+            if provider_fence.coordinate_context.is_none()
+                || witness.identity().stable_equals(identity) != Some(true)
+                || !witness.same_exact(
+                    identity,
+                    transform_revision,
+                    provider_fence.semantic_transform_generation,
+                    transform_token,
+                )
+            {
+                return Err(
+                    VirtualLayoutAutomationCompositionError::CoordinateTransformUnavailable,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn same_transform_witness(
+    left: Option<&crate::gui::layout_core::VirtualLayoutSemanticTransformWitness>,
+    right: Option<&crate::gui::layout_core::VirtualLayoutSemanticTransformWitness>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => left == right,
+        _ => false,
+    }
 }
 
 fn same_range_scope(
@@ -999,6 +1107,7 @@ fn build_normalized_sidecar(
                 origin: entry.origin,
                 path,
                 fences: entry.fences.clone(),
+                transform_witness: entry.projection.transform_witness().cloned(),
             });
         }
     }

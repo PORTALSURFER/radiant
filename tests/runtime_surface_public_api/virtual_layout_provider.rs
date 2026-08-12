@@ -11,6 +11,9 @@ use radiant::{
         VirtualLayoutPolicyDecision, VirtualLayoutPolicyIdentity, VirtualLayoutQueryInput,
         VirtualLayoutQuerySink, VirtualLayoutVisibility,
     },
+    runtime::virtual_layout::{
+        VirtualLayoutSemanticCoordinateTransform, VirtualLayoutSemanticCoordinateTransformOutcome,
+    },
     runtime::{
         RepaintScope, SemanticAutomationDemand, SemanticAutomationFallbackReason,
         SemanticAutomationRefreshStatus, SemanticAutomationSessionError, VirtualLayoutRevisions,
@@ -89,6 +92,275 @@ fn public_parts(
         None,
         range_provider,
     )
+}
+
+#[derive(Clone, Copy)]
+enum CustomProviderResponse {
+    Found,
+    DataUnavailable,
+    Deferred,
+}
+
+#[derive(Clone, Copy)]
+enum CustomTransformResponse {
+    Unsupported,
+    Singular,
+    Ambiguous,
+    Panic,
+    Inverted,
+    NonFinite,
+    OutsideClip,
+}
+
+fn controlled_coordinate_transform(
+    response: Rc<Cell<CustomTransformResponse>>,
+    calls: Rc<Cell<usize>>,
+) -> Rc<dyn VirtualLayoutSemanticCoordinateTransform> {
+    Rc::new(
+        move |request: &radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+        calls.set(calls.get() + 1);
+        match response.get() {
+            CustomTransformResponse::Unsupported => {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Unsupported
+            }
+            CustomTransformResponse::Singular => {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Singular
+            }
+            CustomTransformResponse::Ambiguous => {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Ambiguous
+            }
+            CustomTransformResponse::Panic => panic!("custom transform panic fixture"),
+            CustomTransformResponse::Inverted => {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_min_max(
+                    Point::new(10.0, 10.0),
+                    Point::new(1.0, 1.0),
+                ))
+            }
+            CustomTransformResponse::NonFinite => {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_min_max(
+                    Point::new(f32::NAN, 0.0),
+                    Point::new(1.0, 1.0),
+                ))
+            }
+            CustomTransformResponse::OutsideClip => {
+                let clip = request.destination_clip();
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_xy_size(
+                    clip.max.x + 10.0,
+                    clip.max.y + 10.0,
+                    1.0,
+                    1.0,
+                ))
+            }
+        }
+        },
+    )
+}
+
+#[test]
+fn custom_coordinate_attachment_maps_nonlinearly_only_during_explicit_refresh() {
+    let provider_calls = Rc::new(Cell::new(0));
+    let transform_calls = Rc::new(Cell::new(0));
+    let provider_response = Rc::new(Cell::new(CustomProviderResponse::Found));
+    let provider: Rc<dyn VirtualLayoutSemanticRangeProvider> = Rc::new({
+        let provider_calls = Rc::clone(&provider_calls);
+        let provider_response = Rc::clone(&provider_response);
+        move |_request: &VirtualLayoutSemanticRangeRequest| match provider_response.get() {
+            CustomProviderResponse::Found => {
+                provider_calls.set(provider_calls.get() + 1);
+                VirtualLayoutSemanticProviderOutcome::Found(vec![
+                    semantic_entry(7, 0, "custom-provider-7"),
+                    semantic_entry(8, 1, "custom-provider-8"),
+                ])
+            }
+            CustomProviderResponse::DataUnavailable => {
+                provider_calls.set(provider_calls.get() + 1);
+                VirtualLayoutSemanticProviderOutcome::Unavailable(
+                    VirtualLayoutSemanticUnavailableReason::DataUnavailable,
+                )
+            }
+            CustomProviderResponse::Deferred => {
+                provider_calls.set(provider_calls.get() + 1);
+                VirtualLayoutSemanticProviderOutcome::Deferred(
+                    VirtualLayoutSemanticDeferredReason::SemanticPending,
+                )
+            }
+        }
+    });
+    let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> = Rc::new({
+        let transform_calls = Rc::clone(&transform_calls);
+        move |request: &radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+            transform_calls.set(transform_calls.get() + 1);
+            assert_eq!(request.revisions(), VirtualLayoutRevisions::new(1, 2, 3, 4));
+            assert_eq!(request.transform_revision(), 17);
+            let source = request.source_rect();
+            let anchor = request.ordinary_container_anchor();
+            let min_x = anchor.min.x + source.min.x * source.min.x / 120.0;
+            let max_x = anchor.min.x + source.max.x * source.max.x / 120.0;
+            let min_y = anchor.min.y + source.min.y * 2.0;
+            let max_y = request.destination_clip().max.y + 1.0;
+            VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_min_max(
+                Point::new(min_x, min_y),
+                Point::new(max_x, max_y),
+            ))
+        }
+    });
+    let bridge = declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| {
+            let parts = public_parts(Some(Rc::clone(&provider)))
+                .with_semantic_coordinate_transform(
+                    VirtualLayoutPolicyIdentity::new("custom-space"),
+                    17,
+                    Rc::clone(&transform),
+                );
+            arc_surface(virtual_layout_from_parts(parts).into_surface())
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    assert_eq!(provider_calls.get(), 0);
+    assert_eq!(transform_calls.get(), 0);
+    let ordinary_before = runtime.automation_snapshot();
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    assert_eq!(runtime.automation_snapshot(), ordinary_before);
+    assert_eq!(transform_calls.get(), 0);
+
+    let refresh = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("custom transform refresh succeeds");
+    assert_eq!(refresh.status, SemanticAutomationRefreshStatus::Published);
+    assert_eq!(provider_calls.get(), 1);
+    assert_eq!(transform_calls.get(), 2);
+    let first = refresh
+        .selected
+        .targets
+        .targets
+        .iter()
+        .find(|target| target.id.0 == "custom-provider-8")
+        .expect("transformed provider entry is published");
+    assert!(
+        first.bounds.width > 20.0,
+        "the nonlinear x envelope was used"
+    );
+    assert!(first.bounds.height >= 48.0);
+    assert_eq!(first.bounds.height, 52.0);
+    let selected = runtime
+        .selected_semantic_automation_snapshot(session)
+        .expect("selected reads remain passive");
+    assert_eq!(selected.status, SemanticAutomationRefreshStatus::Published);
+    assert_eq!(provider_calls.get(), 1);
+    assert_eq!(transform_calls.get(), 2);
+
+    runtime.set_viewport(Vector2::new(180.0, 80.0));
+    let refreshed_context = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("changed destination context refreshes the custom transform");
+    assert_eq!(
+        refreshed_context.status,
+        SemanticAutomationRefreshStatus::Published
+    );
+    assert_eq!(provider_calls.get(), 2);
+    assert_eq!(transform_calls.get(), 4);
+
+    provider_response.set(CustomProviderResponse::DataUnavailable);
+    let retained = runtime
+        .retry_semantic_automation_session(session)
+        .expect("data-unavailable custom retry retains the exact transformed selection");
+    assert_eq!(
+        retained.status,
+        SemanticAutomationRefreshStatus::Retained {
+            reason: SemanticAutomationFallbackReason::DataUnavailable,
+        }
+    );
+    assert_eq!(provider_calls.get(), 3);
+    assert_eq!(transform_calls.get(), 4);
+
+    provider_response.set(CustomProviderResponse::Deferred);
+    let deferred = runtime
+        .retry_semantic_automation_session(session)
+        .expect("deferred custom retry retains the exact transformed selection");
+    assert_eq!(
+        deferred.status,
+        SemanticAutomationRefreshStatus::Retained {
+            reason: SemanticAutomationFallbackReason::Deferred,
+        }
+    );
+    assert_eq!(provider_calls.get(), 4);
+    assert_eq!(transform_calls.get(), 4);
+}
+
+#[test]
+fn custom_transform_failures_use_ordinary_baseline_without_partial_entries() {
+    for response_kind in [
+        CustomTransformResponse::Unsupported,
+        CustomTransformResponse::Singular,
+        CustomTransformResponse::Ambiguous,
+        CustomTransformResponse::Panic,
+        CustomTransformResponse::Inverted,
+        CustomTransformResponse::NonFinite,
+        CustomTransformResponse::OutsideClip,
+    ] {
+        let provider_calls = Rc::new(Cell::new(0));
+        let transform_calls = Rc::new(Cell::new(0));
+        let provider: Rc<dyn VirtualLayoutSemanticRangeProvider> = Rc::new({
+            let provider_calls = Rc::clone(&provider_calls);
+            move |_request: &VirtualLayoutSemanticRangeRequest| {
+                provider_calls.set(provider_calls.get() + 1);
+                VirtualLayoutSemanticProviderOutcome::Found(vec![
+                    semantic_entry(7, 0, "failed-transform-7"),
+                    semantic_entry(8, 1, "failed-transform-8"),
+                ])
+            }
+        });
+        let transform = controlled_coordinate_transform(
+            Rc::new(Cell::new(response_kind)),
+            Rc::clone(&transform_calls),
+        );
+        let bridge = declarative_runtime_bridge(
+            (),
+            move |_state: &mut ()| {
+                let parts = public_parts(Some(Rc::clone(&provider)))
+                    .with_semantic_coordinate_transform(
+                        VirtualLayoutPolicyIdentity::new("failure-space"),
+                        19,
+                        Rc::clone(&transform),
+                    );
+                arc_surface(virtual_layout_from_parts(parts).into_surface())
+            },
+            |_state: &mut (), _message: ()| {},
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+        let (session, container) = start_range_session(&mut runtime);
+        let publication = runtime
+            .refresh_semantic_automation_session(
+                session,
+                &[SemanticAutomationDemand::range(container, 0, 2)],
+            )
+            .expect("transform failure is represented by a conservative publication");
+        assert_eq!(
+            publication.status,
+            SemanticAutomationRefreshStatus::Baseline {
+                reason: SemanticAutomationFallbackReason::Rejected,
+            }
+        );
+        assert_eq!(provider_calls.get(), 1);
+        assert_eq!(transform_calls.get(), 1);
+        assert!(
+            publication
+                .selected
+                .targets
+                .targets
+                .iter()
+                .all(|target| !target.id.0.starts_with("failed-transform-"))
+        );
+    }
 }
 
 #[test]

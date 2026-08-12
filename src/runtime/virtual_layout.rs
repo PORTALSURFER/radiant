@@ -49,6 +49,198 @@ impl VirtualLayoutRevisions {
     }
 }
 
+/// Read-only request supplied to an application-owned custom-coordinate
+/// resolver.
+///
+/// The source rectangle is the complete provider rectangle. `anchor` and
+/// `destination_clip` are the current runtime-owned destination context in
+/// top-left-origin logical window coordinates. The runtime constructs this
+/// value only after validating every field and never exposes runtime handles,
+/// mounts, or mutable state through it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VirtualLayoutSemanticCoordinateTransformRequest {
+    source_rect: Rect,
+    ordinary_container_anchor: Rect,
+    destination_clip: Rect,
+    revisions: VirtualLayoutRevisions,
+    transform_revision: u64,
+}
+
+impl VirtualLayoutSemanticCoordinateTransformRequest {
+    pub(crate) const fn new(
+        source_rect: Rect,
+        ordinary_container_anchor: Rect,
+        destination_clip: Rect,
+        revisions: VirtualLayoutRevisions,
+        transform_revision: u64,
+    ) -> Self {
+        Self {
+            source_rect,
+            ordinary_container_anchor,
+            destination_clip,
+            revisions,
+            transform_revision,
+        }
+    }
+
+    /// Return the complete finite source-space rectangle.
+    #[must_use]
+    pub const fn source_rect(self) -> Rect {
+        self.source_rect
+    }
+
+    /// Return the unique ordinary virtual-container anchor in destination
+    /// logical window coordinates.
+    #[must_use]
+    pub const fn ordinary_container_anchor(self) -> Rect {
+        self.ordinary_container_anchor
+    }
+
+    /// Return the exact effective destination clip chain intersection.
+    #[must_use]
+    pub const fn destination_clip(self) -> Rect {
+        self.destination_clip
+    }
+
+    /// Return the host revisions captured by this transform request.
+    #[must_use]
+    pub const fn revisions(self) -> VirtualLayoutRevisions {
+        self.revisions
+    }
+
+    /// Return the data revision captured by this transform request.
+    #[must_use]
+    pub const fn data_revision(self) -> u64 {
+        self.revisions.data
+    }
+
+    /// Return the policy revision captured by this transform request.
+    #[must_use]
+    pub const fn policy_revision(self) -> u64 {
+        self.revisions.policy
+    }
+
+    /// Return the measurement revision captured by this transform request.
+    #[must_use]
+    pub const fn measurement_revision(self) -> u64 {
+        self.revisions.measurement
+    }
+
+    /// Return the semantic revision captured by this transform request.
+    #[must_use]
+    pub const fn semantic_revision(self) -> u64 {
+        self.revisions.semantic
+    }
+
+    /// Return the exact application-owned transform revision.
+    #[must_use]
+    pub const fn transform_revision(self) -> u64 {
+        self.transform_revision
+    }
+}
+
+/// Typed result of one custom-coordinate transform attempt.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum VirtualLayoutSemanticCoordinateTransformOutcome {
+    /// A conservative finite axis-aligned destination envelope.
+    Found(Rect),
+    /// The application does not support this source rectangle or context.
+    Unsupported,
+    /// The source mapping has no conservative finite result.
+    Singular,
+    /// The source mapping is ambiguous for the supplied context.
+    Ambiguous,
+}
+
+/// Application-owned, synchronous, read-only custom-coordinate resolver.
+///
+/// The callback describes the complete source rectangle directly. Radiant
+/// does not assume an affine matrix, an inverse, point mapping, hit testing,
+/// or materialization semantics. Implementations need not be `Send` or `Sync`.
+pub trait VirtualLayoutSemanticCoordinateTransform {
+    /// Resolve one complete source rectangle to a conservative destination
+    /// envelope in logical window space.
+    fn transform(
+        &self,
+        request: &VirtualLayoutSemanticCoordinateTransformRequest,
+    ) -> VirtualLayoutSemanticCoordinateTransformOutcome;
+}
+
+impl<F> VirtualLayoutSemanticCoordinateTransform for F
+where
+    F: Fn(
+            &VirtualLayoutSemanticCoordinateTransformRequest,
+        ) -> VirtualLayoutSemanticCoordinateTransformOutcome
+        + 'static,
+{
+    fn transform(
+        &self,
+        request: &VirtualLayoutSemanticCoordinateTransformRequest,
+    ) -> VirtualLayoutSemanticCoordinateTransformOutcome {
+        self(request)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum VirtualLayoutSemanticCoordinateTransformInvocation {
+    Found(Rect),
+    Unsupported,
+    Singular,
+    Ambiguous,
+    Panic,
+    Reentrant,
+}
+
+pub(crate) trait VirtualLayoutSemanticCoordinateTransformInvoker {
+    fn invoke(
+        &self,
+        request: &VirtualLayoutSemanticCoordinateTransformRequest,
+    ) -> VirtualLayoutSemanticCoordinateTransformInvocation;
+}
+
+struct PublicCoordinateTransformAdapter {
+    transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+    in_call: Cell<bool>,
+}
+
+impl VirtualLayoutSemanticCoordinateTransformInvoker for PublicCoordinateTransformAdapter {
+    fn invoke(
+        &self,
+        request: &VirtualLayoutSemanticCoordinateTransformRequest,
+    ) -> VirtualLayoutSemanticCoordinateTransformInvocation {
+        if self.in_call.replace(true) {
+            return VirtualLayoutSemanticCoordinateTransformInvocation::Reentrant;
+        }
+        let outcome =
+            std::panic::catch_unwind(AssertUnwindSafe(|| self.transform.transform(request)));
+        self.in_call.set(false);
+        match outcome {
+            Ok(VirtualLayoutSemanticCoordinateTransformOutcome::Found(rect)) => {
+                VirtualLayoutSemanticCoordinateTransformInvocation::Found(rect)
+            }
+            Ok(VirtualLayoutSemanticCoordinateTransformOutcome::Unsupported) => {
+                VirtualLayoutSemanticCoordinateTransformInvocation::Unsupported
+            }
+            Ok(VirtualLayoutSemanticCoordinateTransformOutcome::Singular) => {
+                VirtualLayoutSemanticCoordinateTransformInvocation::Singular
+            }
+            Ok(VirtualLayoutSemanticCoordinateTransformOutcome::Ambiguous) => {
+                VirtualLayoutSemanticCoordinateTransformInvocation::Ambiguous
+            }
+            Err(_) => VirtualLayoutSemanticCoordinateTransformInvocation::Panic,
+        }
+    }
+}
+
+pub(crate) fn adapt_coordinate_transform(
+    transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+) -> Rc<dyn VirtualLayoutSemanticCoordinateTransformInvoker> {
+    Rc::new(PublicCoordinateTransformAdapter {
+        transform,
+        in_call: Cell::new(false),
+    })
+}
+
 /// Read-only request for one required-item semantic lookup.
 ///
 /// Runtime-owned container and mount identities are intentionally not exposed
@@ -476,4 +668,77 @@ pub(crate) fn adapt_range_provider(
 
 pub(crate) fn provider_identity<T: ?Sized>(provider: &Rc<T>) -> usize {
     Rc::as_ptr(provider) as *const () as usize
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    fn request() -> VirtualLayoutSemanticCoordinateTransformRequest {
+        VirtualLayoutSemanticCoordinateTransformRequest::new(
+            Rect::from_xy_size(1.0, 2.0, 3.0, 4.0),
+            Rect::from_xy_size(10.0, 20.0, 30.0, 40.0),
+            Rect::from_xy_size(0.0, 0.0, 100.0, 80.0),
+            VirtualLayoutRevisions::new(1, 2, 3, 4),
+            5,
+        )
+    }
+
+    #[test]
+    fn coordinate_transform_adapter_contains_panic() {
+        let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> =
+            Rc::new(|_: &VirtualLayoutSemanticCoordinateTransformRequest| {
+                panic!("transform panic fixture")
+            });
+        let adapter = PublicCoordinateTransformAdapter {
+            transform,
+            in_call: Cell::new(false),
+        };
+        assert_eq!(
+            adapter.invoke(&request()),
+            VirtualLayoutSemanticCoordinateTransformInvocation::Panic
+        );
+        assert_eq!(
+            adapter.invoke(&request()),
+            VirtualLayoutSemanticCoordinateTransformInvocation::Panic
+        );
+    }
+
+    #[test]
+    fn coordinate_transform_adapter_rejects_recursive_invocation() {
+        let adapter_slot: Rc<
+            RefCell<Option<Rc<dyn VirtualLayoutSemanticCoordinateTransformInvoker>>>,
+        > = Rc::new(RefCell::new(None));
+        let first_call = Rc::new(Cell::new(true));
+        let transform_slot = Rc::clone(&adapter_slot);
+        let first_call_for_transform = Rc::clone(&first_call);
+        let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> = Rc::new(
+            move |request: &VirtualLayoutSemanticCoordinateTransformRequest| {
+                if first_call_for_transform.replace(false) {
+                    let adapter = transform_slot
+                        .borrow()
+                        .as_ref()
+                        .cloned()
+                        .expect("adapter is installed before invocation");
+                    assert_eq!(
+                        adapter.invoke(request),
+                        VirtualLayoutSemanticCoordinateTransformInvocation::Reentrant
+                    );
+                }
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(request.destination_clip())
+            },
+        );
+        let adapter: Rc<dyn VirtualLayoutSemanticCoordinateTransformInvoker> =
+            Rc::new(PublicCoordinateTransformAdapter {
+                transform,
+                in_call: Cell::new(false),
+            });
+        adapter_slot.borrow_mut().replace(Rc::clone(&adapter));
+
+        assert!(matches!(
+            adapter.invoke(&request()),
+            VirtualLayoutSemanticCoordinateTransformInvocation::Found(_)
+        ));
+    }
 }

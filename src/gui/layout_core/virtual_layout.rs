@@ -213,6 +213,15 @@ pub(crate) enum VirtualLayoutSemanticRejectedReason {
     DuplicateKey,
     DuplicateSemanticNodeId,
     SemanticNodeIdDrift,
+    CoordinateTransformContextUnavailable,
+    CoordinateTransformUnsupported,
+    CoordinateTransformSingular,
+    CoordinateTransformAmbiguous,
+    CoordinateTransformPanic,
+    CoordinateTransformReentrant,
+    CoordinateTransformInvalidOutput,
+    CoordinateTransformOverflow,
+    CoordinateTransformOutsideClip,
 }
 
 /// One exact logical-index interval `[start_index, start_index + length)`.
@@ -724,6 +733,94 @@ pub(crate) struct VirtualLayoutSemanticProjectionIdentity {
     key: VirtualLayoutItemKey,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct VirtualLayoutSemanticRectBits {
+    min_x: u32,
+    min_y: u32,
+    max_x: u32,
+    max_y: u32,
+}
+
+impl VirtualLayoutSemanticRectBits {
+    fn from_rect(rect: Rect) -> Self {
+        Self {
+            min_x: rect.min.x.to_bits(),
+            min_y: rect.min.y.to_bits(),
+            max_x: rect.max.x.to_bits(),
+            max_y: rect.max.y.to_bits(),
+        }
+    }
+}
+
+/// Private exact evidence proving which application resolver produced one
+/// custom-coordinate projection. Resolved bounds are already stored on the
+/// projection; this witness prevents a compositor from admitting an unlabeled
+/// or differently fenced custom result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VirtualLayoutSemanticTransformWitness {
+    identity: VirtualLayoutPolicyIdentity,
+    transform_revision: u64,
+    transform_generation: u64,
+    resolver_token: usize,
+    source_rect: VirtualLayoutSemanticRectBits,
+    ordinary_container_anchor: VirtualLayoutSemanticRectBits,
+    destination_clip: VirtualLayoutSemanticRectBits,
+}
+
+impl VirtualLayoutSemanticTransformWitness {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        identity: VirtualLayoutPolicyIdentity,
+        transform_revision: u64,
+        transform_generation: u64,
+        resolver_token: usize,
+        source_rect: Rect,
+        ordinary_container_anchor: Rect,
+        destination_clip: Rect,
+    ) -> Self {
+        Self {
+            identity,
+            transform_revision,
+            transform_generation,
+            resolver_token,
+            source_rect: VirtualLayoutSemanticRectBits::from_rect(source_rect),
+            ordinary_container_anchor: VirtualLayoutSemanticRectBits::from_rect(
+                ordinary_container_anchor,
+            ),
+            destination_clip: VirtualLayoutSemanticRectBits::from_rect(destination_clip),
+        }
+    }
+
+    pub(crate) fn same_exact(
+        &self,
+        identity: &VirtualLayoutPolicyIdentity,
+        transform_revision: u64,
+        transform_generation: u64,
+        resolver_token: usize,
+    ) -> bool {
+        self.identity.stable_equals(identity) == Some(true)
+            && self.transform_revision == transform_revision
+            && self.transform_generation == transform_generation
+            && self.resolver_token == resolver_token
+    }
+
+    pub(crate) fn identity(&self) -> &VirtualLayoutPolicyIdentity {
+        &self.identity
+    }
+
+    pub(crate) const fn transform_revision(&self) -> u64 {
+        self.transform_revision
+    }
+
+    pub(crate) const fn transform_generation(&self) -> u64 {
+        self.transform_generation
+    }
+
+    pub(crate) const fn resolver_token(&self) -> usize {
+        self.resolver_token
+    }
+}
+
 #[allow(dead_code)]
 impl VirtualLayoutSemanticProjectionIdentity {
     pub(crate) const fn container_id(&self) -> NodeId {
@@ -751,6 +848,7 @@ pub(crate) struct VirtualLayoutSemanticProjection {
     request: VirtualLayoutSemanticRequest,
     range_request: Option<VirtualLayoutSemanticRangeRequest>,
     authority: VirtualLayoutSemanticProjectionAuthority,
+    transform_witness: Option<VirtualLayoutSemanticTransformWitness>,
 }
 
 #[allow(dead_code)]
@@ -764,6 +862,14 @@ impl VirtualLayoutSemanticProjection {
     pub(crate) fn from_validated_semantic_pin(
         pin: &VirtualLayoutPin,
         coordinate_space: VirtualLayoutCoordinateSpace,
+    ) -> Option<Self> {
+        Self::from_validated_semantic_pin_with_transform(pin, coordinate_space, None)
+    }
+
+    pub(crate) fn from_validated_semantic_pin_with_transform(
+        pin: &VirtualLayoutPin,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+        transform_witness: Option<VirtualLayoutSemanticTransformWitness>,
     ) -> Option<Self> {
         if pin.reason() != VirtualLayoutPinReason::Semantic
             || pin.request().key().stable_equals(pin.request().key()) != Some(true)
@@ -785,6 +891,7 @@ impl VirtualLayoutSemanticProjection {
             request: pin.request().clone(),
             range_request: None,
             authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
+            transform_witness,
         })
     }
 
@@ -796,6 +903,20 @@ impl VirtualLayoutSemanticProjection {
         request: &VirtualLayoutSemanticRangeRequest,
         entry: &VirtualLayoutSemanticEntry,
         coordinate_space: VirtualLayoutCoordinateSpace,
+    ) -> Option<Self> {
+        Self::from_validated_semantic_range_entry_with_transform(
+            request,
+            entry,
+            coordinate_space,
+            None,
+        )
+    }
+
+    pub(crate) fn from_validated_semantic_range_entry_with_transform(
+        request: &VirtualLayoutSemanticRangeRequest,
+        entry: &VirtualLayoutSemanticEntry,
+        coordinate_space: VirtualLayoutCoordinateSpace,
+        transform_witness: Option<VirtualLayoutSemanticTransformWitness>,
     ) -> Option<Self> {
         if coordinate_space != *request.coordinate_space()
             || request.range().expected_index(0).is_none()
@@ -818,6 +939,7 @@ impl VirtualLayoutSemanticProjection {
             request: request.item_request(entry.requested_key().clone()),
             range_request: Some(request.clone()),
             authority: VirtualLayoutSemanticProjectionAuthority::Unmaterialized,
+            transform_witness,
         })
     }
 
@@ -856,6 +978,10 @@ impl VirtualLayoutSemanticProjection {
 
     pub(crate) const fn authority(&self) -> VirtualLayoutSemanticProjectionAuthority {
         self.authority
+    }
+
+    pub(crate) fn transform_witness(&self) -> Option<&VirtualLayoutSemanticTransformWitness> {
+        self.transform_witness.as_ref()
     }
 }
 

@@ -671,7 +671,8 @@ retry/backoff and a scheduler are not part of this slice; `Deferred` returns to
 the caller and only explicit retry reattempts.
 
 Selection/publication carries session generation, demand generation, attempt,
-request/range or pin, mount/container/policy identity,
+request/range or pin, mount/container/policy identity, registration identity and
+generation,
 data/policy/measurement/semantic revisions, provider identity/generation,
 coordinate, budget, cancellation, materialization/classification authority,
 ordinary projection generation, and complete-demand-set generation. Acceptance
@@ -683,16 +684,17 @@ The consumer stages the complete selected snapshot and status under the exact
 fence and swaps only after every active demand member resolves or has an
 eligible exact-fence fallback. It never publishes a partial subset. `Found` and
 authoritative `NotFound` may participate in a complete publication.
-`NoProvider`/`Unsupported`, `DataUnavailable`, `Deferred`,
-`Rejected`/malformed, and stale outcomes retain only an eligible last-complete
-selection for unchanged exact demand/fence; otherwise they expose the ordinary
-baseline and a typed non-success status. Stale does not mutate runtime state.
-Changed demand, close, mount/identity/provider/revision/coordinate/budget
-changes invalidate the old selection. Materialization/ordinary-projection
-changes may reclassify retained exact provider evidence without provider
-reentry when fences permit it. `Unmaterialized`/`materialized = false` never
-authorizes materialization, scrolling, focus, action, paint, hit testing,
-scheduling, or renderer work.
+`DataUnavailable` and `Deferred` retain only an eligible last-complete selection
+for unchanged exact demand/fence; without that exact fallback they expose the
+ordinary baseline and a typed non-success status. `NoProvider`/`Unsupported`
+are terminal. `Rejected`/malformed, provider panic, and collision outcomes use
+the conservative ordinary baseline even when an older selection exists. Stale,
+cancelled, and superseded results are inert. Changed demand, close,
+mount/identity/provider/revision/coordinate/budget changes invalidate the old
+selection. Materialization/ordinary-projection changes may reclassify retained
+exact provider evidence without provider reentry when fences permit it.
+`Unmaterialized`/`materialized = false` never authorizes materialization,
+scrolling, focus, action, paint, hit testing, scheduling, or renderer work.
 
 The first consumer admits only `Logical`; `Custom` is rejected before provider
 invocation with no identity fallback. A future transform contract must define
@@ -702,8 +704,53 @@ singular/stale/unsupported/ambiguous behavior before custom coordinates are
 admitted. This shipped generic logical consumer adds one public-API evidence
 point: generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
 `902 / 11` (~82.00%). Native/product consumers, scheduler/backoff/fairness,
-multiple active ranges per container, public provider registration, and custom
-coordinates remain unshipped.
+multiple active ranges per container, public declarative provider-attachment
+implementation, and custom coordinates remain unshipped.
+
+### Planned public declarative Logical-only provider attachment (normative; implementation unshipped)
+
+The existing semantic-session methods above are the only current public
+provider-calling intent. The one planned public declarative attachment path is
+`radiant::application::VirtualLayoutParts<Message>` with
+`virtual_layout_from_parts`; it may carry optional semantic item and contiguous
+range providers. `radiant::runtime::VirtualLayoutRevisions`,
+`VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
+read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
+`VirtualLayoutSemanticProviderOutcome<T>` are qualified proposed vocabulary
+only.
+They are not shipped exports, are not in the prelude, and the parts have no
+custom-coordinate field.
+
+The planned boundary preserves the existing 64-registration limit, one
+contiguous range and one required-item slot per mounted container, 1024 entries
+per query and in aggregate, and exact runtime-issued source tickets. Callbacks
+are read-only synchronous `Rc` capabilities; reentry is rejected and provider
+panic maps to the conservative baseline. There is no `Send`/`Sync`, worker, or
+scheduler promise.
+
+The mounted registration, removal, provider replacement, registration/mount/
+provider generations, lifetime cancellation, and exact source tickets are
+runtime-owned. There is no public imperative registration API or
+application-owned mount generation. The first boundary is synchronous,
+single-threaded `Rc`, with no `Send`/`Sync`/worker/scheduler promise. Provider
+`Unavailable` reasons are `DataUnavailable` and `Unsupported`; bounded
+`Deferred` reasons are `DataPending`, `SemanticPending`, and `Retry`; missing
+slots produce runtime-synthesized `NoProvider`.
+
+Only explicit `refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` call providers. Registration,
+opening, enumeration, ordinary snapshot/target reads, repaint,
+viewport/visibility/overscan, diagnostics, item count, provider availability,
+and IME/native events do not create demand. The full exact-fence, validation,
+fallback, lifecycle, native-boundary, non-goal, and acceptance-matrix contract
+is in [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md); this planned path
+earns zero alignment estimate credit and is not implemented. Future native
+accessibility may translate explicit platform queries only through the same
+backend-neutral semantic-session model, under a separate later contract; it is
+not the hidden provider-registration or demand owner. The non-goals are custom
+transforms, native accessibility trees/actions, focus, scrolling/materialization,
+scheduler/backoff/fairness, renderer/paint/hit-testing/cache policy, product
+policy, multiple ranges, and prelude export.
 
 Large list, table, tree, browser, and picker surfaces should use Radiant's
 virtual-list contract instead of constructing hidden rows. Host applications own

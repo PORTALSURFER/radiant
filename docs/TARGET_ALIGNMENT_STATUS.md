@@ -233,11 +233,13 @@ provider identity/generation, source, demand generation, attempt, and
 cancellation. Private whole-surface publication fences and composition add
 materialization/classification authority, ordinary projection generation, and
 complete surface demand-set generation.
-Only initial/changed explicit demand,
-identity/mount/revision/provider/coordinate/budget changes, and explicit retry
-refresh the provider. Snapshot reads, ordinary repaint, paint-only work, and
-unchanged refresh do not; materialization/ordinary-projection changes may
-reclassify retained exact evidence without provider reentry. `Found`,
+Only explicit `refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` call a provider. Registration,
+opening, enumeration, snapshot reads, ordinary repaint, viewport/visibility/
+overscan, paint-only work, provider-availability reads, item count, diagnostics,
+IME/native events, and unchanged refresh do not create demand or call a
+provider; materialization/ordinary-projection changes may reclassify retained
+exact evidence without provider reentry. `Found`,
 `NotFound`, terminal `Unavailable(NoProvider/Unsupported)`,
 `Unavailable(DataUnavailable)`, `Deferred`, `Rejected`/malformed, and stale/superseded
 outcomes have explicit owner staging, slot, and fallback behavior. The private
@@ -255,6 +257,8 @@ public snapshot selection/visibility and session ownership boundary. Custom-
 coordinate transformation, production/native and product consumers,
 scheduler/backoff/fairness, multiple active ranges per container, and public
 provider-registration/API wiring remain deferred and unimplemented. The
+normative/planned public declarative Logical-only provider contract is recorded
+in `docs/VIRTUAL_LAYOUT_DESIGN.md`, but its provider path remains unshipped. The
 consumer adds one public-API evidence point: generic ~97%, Declarative identity
 71%, layout 97%, and broad coverage `902 / 11` (~82.00%).
 
@@ -301,7 +305,8 @@ retry/backoff and a scheduler are not part of this slice; `Deferred` returns to
 the caller and only explicit retry reattempts.
 
 Selection/publication carries session generation, demand generation, attempt,
-request/range or pin, mount/container/policy identity,
+request/range or pin, mount/container/policy identity, registration identity and
+generation,
 data/policy/measurement/semantic revisions, provider identity/generation,
 coordinate, budget, cancellation, materialization/classification authority,
 ordinary projection generation, and complete-demand-set generation. A result is
@@ -313,10 +318,12 @@ The consumer stages the complete selected snapshot and status under the exact
 fence and swaps only after every active demand member resolves or has an
 eligible exact-fence fallback. It never publishes a partial subset. `Found` and
 authoritative `NotFound` may participate in a complete publication.
-`NoProvider`/`Unsupported`, `DataUnavailable`, `Deferred`,
-`Rejected`/malformed, and stale outcomes retain only an eligible last-complete
-selection for unchanged exact demand/fence; otherwise they expose the ordinary
-baseline and a typed non-success status. Stale does not mutate runtime state.
+`DataUnavailable` and `Deferred` retain only an eligible last-complete selection
+for unchanged exact demand/fence; without that exact fallback they expose the
+ordinary baseline and a typed non-success status. `NoProvider`/`Unsupported`
+are terminal. `Rejected`/malformed, provider panic, and collision outcomes use
+the conservative ordinary baseline even when an older selection exists. Stale,
+cancelled, or superseded results are inert and do not mutate runtime state.
 Changed demand, close, mount/identity/provider/revision/coordinate/budget
 changes invalidate the old selection. Materialization/ordinary-projection
 changes may reclassify retained exact provider evidence without provider
@@ -332,6 +339,53 @@ singular/stale/unsupported/ambiguous behavior before custom coordinates are
 admitted. This shipped consumer adds one public-API evidence point: generic
 ~97%, Declarative identity 71%, layout 97%, and broad coverage `902 / 11`
 (~82.00%). Existing pure public snapshot APIs and non-goals remain explicit.
+
+## Planned public declarative provider attachment (normative; implementation unshipped)
+
+The four primary alignment documents now define one public declarative
+Logical-only capability for attaching semantic item/range providers. The
+qualified proposed vocabulary is
+`radiant::application::VirtualLayoutParts<Message>`,
+`virtual_layout_from_parts`, `radiant::runtime::VirtualLayoutRevisions`,
+`VirtualLayoutSemanticProvider`, `VirtualLayoutSemanticRangeProvider`,
+read-only item/range requests, `VirtualLayoutSemanticEntry`, and generic
+`VirtualLayoutSemanticProviderOutcome<T>` with `Found`, `NotFound`, `Unavailable`,
+`Deferred`, and `Rejected`. These are planned names only, are not shipped
+exports, and are not in the prelude. The first boundary is synchronous,
+single-threaded `Rc` with no `Send`/`Sync`/worker/scheduler promise and no
+custom-coordinate field.
+
+`SurfaceRuntime` will own mounted registration, removal, provider replacement,
+registration/mount/provider generations, lifetime cancellation, and exact
+source tickets, bounded by 64 registrations, one range and one required-item
+slot per container, 1024 entries per query and in aggregate, and at most one
+provider call per container/attempt. There is no public imperative registration
+API or application-owned mount generation. Only explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` may call providers; registration,
+opening, enumeration, ordinary reads/repaint/viewport/visibility/overscan,
+diagnostics, item count, provider availability, and IME/native events do not
+create demand. `NoProvider` is runtime-synthesized; provider unavailable
+reasons are `DataUnavailable`/`Unsupported`, and bounded deferred reasons are
+`DataPending`/`SemanticPending`/`Retry`.
+
+The normative behavior includes exact fence/source-ticket matching,
+read-only callback isolation, reentry rejection, conservative panic mapping,
+validated `Found`, authoritative `NotFound`, terminal missing/Unsupported,
+exact-fence retention only for `DataUnavailable`/`Deferred`, conservative
+baseline for rejection/panic/malformed/collision, inert stale/cancelled/
+superseded results, atomic whole-surface publication, and preserved
+`Unmaterialized` authority. Future native accessibility may translate explicit
+platform queries only through the backend-neutral session model; it is a
+separate later contract and not a hidden provider owner. The full acceptance
+matrix and non-goals are in `docs/VIRTUAL_LAYOUT_DESIGN.md`; those non-goals are
+custom transforms, native accessibility/tree/actions, focus,
+scrolling/materialization, scheduler/backoff/fairness, renderer/paint/
+hit-testing/cache policy, product policy, multiple ranges, and prelude export.
+
+This contract is normative/planned and implementation-unshipped. It earns zero
+alignment estimate credit; all estimates above remain exactly unchanged,
+including broad coverage `902 / 11` (~82.00%) and Public API 84%.
 
 Slider/Knob, platform, scheduler, renderer, and product policy remain out of
 scope for this slice.

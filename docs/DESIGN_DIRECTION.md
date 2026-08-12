@@ -308,9 +308,10 @@ commit, and cancellation events. The single-line `TextInputWidget` consumes
 these backend-neutral samples while keeping pre-edit state local and emitting
 one ordinary text change only on commit. Platform adapters own
 candidate-window and host-specific IME behavior; the backend-neutral text
-model owns the logical composition range. Native adapters and matching-key
-suppression remain separate boundaries; `NumericInputWidget` now consumes the
-generic composition lifecycle, and a numeric codec never emits typed values
+model owns the logical composition range. Other native adapters,
+candidate-window placement, and matching-key suppression remain separate
+boundaries; `NumericInputWidget` now consumes the generic composition lifecycle,
+and a numeric codec never emits typed values
 from pre-edit text.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
@@ -2033,7 +2034,7 @@ generic text consumer, and complete-mode explicit-policy KeyboardAdjustment and
 PointerScrub consumers are shipped; the generic wheel-sequence routing
 foundation and complete-mode NumericInput wheel consumer are shipped, and the
 NumericInput IME/composition consumer plus the widget-local accessibility
-policy and generic runtime accessibility dispatch are shipped. Native adapter
+policy and generic runtime accessibility dispatch are shipped. Other native adapter
 translation remains a separate platform boundary.
 The gate is not a public Rust API, native
 adapter, storage shape, or product policy.
@@ -2118,7 +2119,7 @@ consumer covers the TextEdit admission, cleanup, replacement teardown, and
 compatible reprojection foundation, and complete-mode explicit-policy
 KeyboardAdjustment, PointerScrub, NumericInput wheel, and NumericInput
 IME/composition consumption are shipped; generic runtime accessibility dispatch
-is shipped. Native adapters, virtual materialization/scrolling,
+is shipped. Other native adapters, virtual materialization/scrolling,
 scheduler/cache/renderer policy, repeat behavior, and product policy remain
 separate unshipped boundaries:
 
@@ -2129,12 +2130,12 @@ separate unshipped boundaries:
 | 3. Wheel and pointer attempts during every other owner | A wheel attempt during TextEdit, ImeComposition, KeyboardAdjustment, PointerScrub, or AccessibilityEdit, and a scrub attempt during TextEdit, ImeComposition, KeyboardAdjustment, WheelSequence, or AccessibilityEdit, are denied by the incumbent-owner gate. Ineligible wheel input retains permitted scroll fallback; unmodified pointer input remains text selection; no partial lifecycle is emitted. |
 | 4. Accessibility pre-focus and post-focus checks | With an incumbent before focus transfer, accessibility returns Blocked { owner } without transferring focus. If an owner appears after an otherwise allowed transfer, the post-focus check returns Blocked { owner } before numeric mutation and performs no further focus or interaction mutation. |
 | 5. Terminal cleanup then independent admission | After an owner reaches its own terminal/cancel/authority boundary and cleanup completes, the owner is None; a later eligible interaction is admitted with a fresh transaction identity and does not join prior capture, continuity, or history. |
-| 6. Same-boundary IME commit and matching key suppression | An accepted IME Commit wins at the shared delivery boundary, then matching key/character text is consumed or suppressed before ordinary text routing; exactly one committed replacement occurs and no duplicate text is inserted. |
+| 6. Same-boundary IME commit and matching key suppression | An accepted IME Commit wins at the shared delivery boundary; matching-key suppression remains a deferred adapter boundary, while ordinary keyboard/character routing otherwise remains unchanged. |
 | 7. Stale or observational evidence | Missing, stale, malformed, ambiguous, timestamp, sequence, geometry, snapshot, or diagnostic evidence cannot create, transfer, or terminate ownership and cannot authorize execution or fallback changes. |
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
 
-### Target IME/composition lifecycle (foundation, TextInputWidget, and NumericInputWidget consumers shipped; adapters not shipped)
+### Target IME/composition lifecycle (TextInputWidget, NumericInputWidget, and native Winit consumers shipped)
 
 For a numeric input, the shared owner gate is checked after the focused stable
 identity is resolved and before Start captures composition state. Start may
@@ -2142,29 +2143,50 @@ acquire ImeComposition only when the incumbent is None; a different pending or
 active owner denies Start without preedit, parsing, cancellation, focus
 transfer, or incumbent mutation.
 
-This is now a shipped, qualified backend-neutral foundation rather than a
-complete IME consumer. `radiant::widgets::interaction` exposes validated
-`CompositionRange`, `CompositionSample`, `CompositionPhase`, and typed
-validation errors; `Widget` exposes default-compatible object-safe hooks; and
-the generic `SurfaceRuntime` owns a private fixed-size focused routing kernel.
-The normalized lifecycle vocabulary is `Start`, `Update { preedit, selection }`,
-`Commit { text }`, and `Cancel`; every sample carries optional native timestamp
-metadata when the native sample supplied it. Native adapters, candidate-window
-integration, and matching-key suppression remain unshipped. `NumericInputWidget`
-consumes the same lifecycle through the shared owner gate: preedit updates stay
-local and do not parse or publish; valid committed text is sanitized and parsed
-once to emit one `[Begin, Commit]` batch; invalid or incomplete commits remain
-correctable as text editing, and Cancel or focus loss restores the captured edit
-state. All ranges exposed by this generic contract are Unicode-scalar
-ranges. A native adapter may use UTF-16 or another platform offset internally,
-but it owns the translation into scalar evidence; the generic contract does
-not choose a backend-specific offset convention.
+This is now a shipped, qualified backend-neutral foundation, the
+`TextInputWidget` and `NumericInputWidget` consumers, and the first native
+consumer in `src/gui_runtime/native_vello/generic_runtime/ime.rs`. The same
+Winit normalizer/router is used by the primary and auxiliary Vello event loops.
+`radiant::widgets::interaction` exposes validated `CompositionRange`,
+`CompositionSample`, `CompositionPhase`, and typed validation errors; `Widget`
+exposes default-compatible object-safe hooks; and the generic `SurfaceRuntime`
+owns a private fixed-size focused routing kernel. The public normalized
+lifecycle vocabulary remains exactly `Start`, visible `Update { preedit,
+selection }`, `Commit { text }`, and `Cancel`. Native adapters deliver
+explicitly hidden preedit selection through the additive object-safe
+`Widget::handle_hidden_composition_update(preedit, timestamp)` hook; its
+default conservatively routes through existing cancel behavior for legacy
+custom widgets. Built-in text consumers keep actual focus true while hidden,
+zero the existing caret/selection colors, and the native encoder skips
+zero-alpha adornment geometry without adding public text-state or paint fields.
 
-Every composition replacement range and every `Update.selection` is a bounded
-half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in
+The Winit adapter handles exactly `Ime::Enabled`, `Ime::Preedit`,
+`Ime::Commit`, and `Ime::Disabled`. `Enabled` is platform capability only and
+does not start composition. A first `Preedit`, including an empty preedit, or
+a direct `Commit` queries the authoritative focused widget for its exact
+committed-value Unicode-scalar replacement and selection context. Winit
+preedit endpoints stay adapter-local bytes and convert only when ordered, in
+bounds, and on UTF-8 character boundaries. `None` remains hidden; no `0..0`,
+end-of-preedit, or previous selection is fabricated. Malformed evidence
+cancels/retains conservatively without committed mutation. Winit has no native
+timestamp here, so samples keep `None` and fabricate no sequence metadata.
+
+`NumericInputWidget` consumes the same lifecycle through the shared owner gate:
+preedit updates stay local and do not parse or publish; valid committed text is
+sanitized and parsed once to emit one `[Begin, Commit]` batch; invalid or
+incomplete commits remain correctable as text editing, and Cancel or focus loss
+restores the captured edit state. Candidate-window placement and matching-key
+suppression remain deferred boundaries, as do multiline editing and product
+integration. Other platform adapters remain separate. All ranges exposed by
+this generic contract are Unicode-scalar ranges; a native adapter owns any
+platform-specific offset translation.
+
+Every composition replacement range and every visible `Update.selection` is a
+bounded half-open Unicode-scalar interval `[start, end)`. Both endpoints lie in
 `0..=scalar_len` and `start <= end`. For a replacement range, `scalar_len` is
-the captured committed text scalar length; for `Update.selection`, it is that
-update's preedit scalar length. `start == end` means a collapsed caret.
+the captured committed text scalar length; for a visible `Update.selection`, it
+is that update's preedit scalar length. Hidden preedit delivery has no range and
+`start == end` means a collapsed caret only when a range is present.
 Malformed, inverted (`start > end`), or out-of-bounds endpoints are invalid
 evidence and follow the conservative cancel/retain/no-committed-mutation
 outcome below.
@@ -2173,15 +2195,18 @@ Ownership is split deliberately. The application owns committed text and its
 durable `TextInputRevision`/value. The widget owns transient pre-edit text,
 the captured scalar replacement range, scalar selection/caret, and the
 composition lifecycle. The runtime pins a composition to one focused stable
-widget identity. The native adapter owns platform IME APIs, candidate-window
-placement, native offsets, and range translation. Composition is not a new
+widget identity. The native adapter owns platform IME APIs, native offsets, and
+range translation; the Winit adapter shares one router across primary and
+auxiliary Vello windows. Composition is not a new
 `InteractionSource` or numeric edit provenance; it is text-input metadata.
 
 `Start` is accepted only for the focused stable widget and captures that widget
 identity, the authoritative document revision, the committed text, the scalar
 replacement range, and the scalar selection at composition start. `Update`
 replaces the preedit verbatim—never appends it—and carries an explicit scalar
-selection inside that preedit. An empty preedit is valid and visible. An update
+selection inside that preedit. The hidden hook carries no selection and
+explicitly hides the native cursor/selection. An empty preedit is valid and
+visible. An update
 does not mutate committed text, emit ordinary `Changed`, invoke a
 `NumericCodec`, or create a `NumericEditSession`, `EditEvent`, or other numeric
 edit output.
@@ -2198,13 +2223,11 @@ text.
 `Cancel` clears the preedit, restores the original committed text, captured
 replacement range, and scalar selection, and emits no committed text change.
 
-Native IME delivery has first refusal at the adapter/runtime boundary. When a
-native `Commit` is followed by matching normalized `KeyPress`/character text
-for the same focused identity and delivery boundary, that key text is
-consumed/suppressed before ordinary text routing so it cannot insert a second
-copy. A nonmatching ordinary key remains on normal routing; the generic
-contract does not prescribe platform-specific key matching beyond the
-adapter's matching evidence.
+Native IME delivery reaches the focused composition owner before any ordinary
+keyboard/character handling changes. Matching-key suppression is deliberately
+deferred: this slice does not invent platform matching evidence or suppress a
+later ordinary key. Non-IME keyboard and character routing remains on its
+existing path.
 
 Reprojection is authority- and identity-fenced. A compatible same-ID
 reprojection with an equal or older external `TextInputRevision` preserves the
@@ -2243,11 +2266,12 @@ Unicode-scalar convention above.
 | Commit `"あい"` | One atomic captured-range replacement and one committed change; numeric parsing starts only afterward. |
 | Cancel | Original committed text, replacement range, and selection are restored; no committed change is emitted. |
 | Direct commit | `Start` followed directly by `Commit` is valid and produces one atomic committed change. |
-| Native commit plus matching key text | Matching `KeyPress`/character text is consumed/suppressed; a nonmatching ordinary key keeps normal routing. |
+| Native Winit delivery and hidden cursor | `Enabled` alone does not start composition; a first `Preedit` or direct `Commit` captures the focused scalar context; `Preedit(..., None)` remains hidden and never becomes `0..0`, end-of-preedit, or a previous selection. |
+| Native commit plus ordinary key text | The native commit is handled by the composition owner; matching-key suppression remains deferred and ordinary keyboard/character routing otherwise remains unchanged. |
 | Reprojection and stale delivery | Same-ID equal/older revision preserves; newer revision cancels/replaces; stale old lifecycle samples are ignored. |
 | Boundary cancellation | Identity change, disable/read-only, and uncommitted focus loss cancel/restore; an explicit commit wins when ordered at the same boundary. |
-| Malformed range | Invalid scalar/UTF-16 evidence conservatively cancels and retains committed text/selection; there is no clamp, guess, or mutation. |
-| Metadata | Native timestamps remain exact, synthetic samples omit them, and no sequence range is fabricated. |
+| Malformed range | Invalid byte endpoints, inverted endpoints, out-of-bounds endpoints, and non-character boundaries conservatively cancel and retain committed text/selection; there is no clamp, guess, or mutation. |
+| Metadata and window parity | Winit timestamps remain absent, no sequence range is fabricated, and primary and auxiliary Vello loops produce identical owner/output behavior. |
 
 ### Numeric controls
 
@@ -2325,7 +2349,7 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   are also shipped; the generic wheel-sequence routing kernel and complete-mode
   NumericInput wheel consumer and NumericInput IME/composition consumer are
   shipped, while the widget-local accessibility policy and generic runtime
-  accessibility dispatch are shipped. Native adapters, virtual
+  accessibility dispatch are shipped. Other native adapters, virtual
   materialization/scrolling, scheduler/cache/renderer policy, repeat behavior,
   and product policy remain separate unshipped boundaries.
 - During reconciliation, the shipped text consumer preserves an active edit only
@@ -2334,7 +2358,7 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   rollback through the retiring mapper, restores the edit snapshot, and prevents
   the successor from inheriting the retired session. The widget-local
   accessibility policy and generic runtime accessibility dispatch are shipped;
-  native adapters, virtual materialization/scrolling,
+  other native adapters, virtual materialization/scrolling,
   scheduler/cache/renderer policy, repeat behavior, and product policy remain
   separate unshipped boundaries. NumericInput IME/composition,
   PointerScrub, and NumericInput wheel consumption are shipped, as is the
@@ -2532,7 +2556,7 @@ repeat rollback. It also accepts exactly the TextEdit terminal shapes above;
 all retain the existing capacity and illegal-shape rejection rules. TextEdit
 mapping, typed-failure production, numeric stepping, and mapper exclusivity are
 shipped. The widget-local accessibility policy and generic runtime accessibility
-dispatch are shipped; native adapters, virtual materialization/scrolling,
+dispatch are shipped; other native adapters, virtual materialization/scrolling,
 scheduler/cache/renderer policy, repeat behavior, and product policy remain
 separate unshipped boundaries; the
 generic PointerScrub, NumericInput wheel, and NumericInput IME/composition consumers,
@@ -2555,9 +2579,9 @@ are shipped.
 | 10. Denied, unchanged, stale, orphaned, or competing input | No interaction batch, mapper invocation, host message, or mutation is emitted. (Shipped.) |
 | 11. Associated-error contract | The complete mapper uses `NumericInputInteractionBatch<T, A::Error, C::Error>` in that order, with only `A::Error: 'static` and `C::Error: 'static`; no `Clone`, `Send`, or `Sync` bound is introduced. (Shipped.) |
 | 12. Mapper exclusivity | Each builder selects exactly one compatibility or complete binding mode; it never broadcasts to both mappers or duplicates a host dispatch, and `on_edit` remains TextEdit-only. (Shipped.) |
-| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, NumericInput IME/composition, the widget-local NumericInput accessibility policy, generic runtime accessibility dispatch, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. Native adapters and product-policy consumers remain unshipped. |
+| 13. Current-runtime truth | TextEdit mapping, complete-mode explicit-policy `KeyboardAdjustment`, `PointerScrub`, `NumericInput` wheel adjustment, NumericInput IME/composition, the widget-local NumericInput accessibility policy, generic runtime accessibility dispatch, terminal validation, both binding modes, the generic wheel-sequence routing foundation, and the generic metadata-aware focused-key routing kernel are shipped. Other native adapters and product-policy consumers remain unshipped. |
 
-### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; native adapters and product policy remain target-only)
+### Complete-mode numeric keyboard adjustment contract (explicit policy shipped; other native adapters and product policy remain target-only)
 
 Keyboard admission uses the shared incumbent-owner gate before any numeric
 step or keyboard transaction. KeyboardAdjustment may start only when the stable
@@ -2691,7 +2715,7 @@ explicit-policy KeyboardAdjustment, PointerScrub, and NumericInput wheel
 consumers produce these interactions. The generic wheel-routing foundation is
 also shipped, while NumericInput IME composition, the widget-local
 accessibility policy, and generic runtime accessibility dispatch are shipped.
-Native adapter translation remains separate. The
+Other native adapter translation remains separate. The
 wheel consumer is independently accepted and supplies the current numeric
 wheel evidence; the foundation itself remains generic and policy-free.
 

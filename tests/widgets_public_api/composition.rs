@@ -116,7 +116,7 @@ fn widget_sizing_supports_named_parts_construction() {
 fn composition_samples_are_qualified_validated_and_timestamp_free_when_synthetic() {
     use radiant::widgets::interaction::{
         CompositionPhase, CompositionRange, CompositionRangeError, CompositionSample,
-        CompositionSampleError,
+        CompositionSampleError, CompositionStartContext,
     };
 
     let replacement = CompositionRange::from_range(0..1, 2).expect("valid scalar range");
@@ -131,8 +131,28 @@ fn composition_samples_are_qualified_validated_and_timestamp_free_when_synthetic
     let update = CompositionSample::update("あい", update_selection).expect("valid update");
     assert_eq!(update.preedit(), Some("あい"));
     assert_eq!(update.timestamp(), None);
-    assert_eq!(CompositionSample::commit("あい").text(), Some("あい"));
-    assert_eq!(CompositionSample::cancel().timestamp(), None);
+    let commit = CompositionSample::commit("あい");
+    assert_eq!(commit.text(), Some("あい"));
+    let cancel = CompositionSample::cancel();
+    assert_eq!(cancel.timestamp(), None);
+
+    fn exhaustive_sample_match(sample: CompositionSample) {
+        match sample {
+            CompositionSample::Start { .. } => {}
+            CompositionSample::Update { .. } => {}
+            CompositionSample::Commit { .. } => {}
+            CompositionSample::Cancel { .. } => {}
+        }
+    }
+    exhaustive_sample_match(start);
+    exhaustive_sample_match(update);
+    exhaustive_sample_match(commit);
+    exhaustive_sample_match(cancel);
+
+    let start_context = CompositionStartContext::new(replacement, selection)
+        .expect("matching scalar context ranges should be accepted");
+    assert_eq!(start_context.replacement_range(), replacement);
+    assert_eq!(start_context.selection(), selection);
 
     assert_eq!(
         CompositionRange::new(2, 1, 2),
@@ -163,4 +183,131 @@ fn composition_types_stay_out_of_the_common_prelude_and_preserve_legacy_traits()
     assert_clone::<radiant::widgets::WidgetInput>();
     assert_clone::<radiant::widgets::interaction::CompositionSample>();
     assert!(!include_str!("../../src/prelude/widgets.rs").contains("CompositionSample"));
+}
+
+#[derive(Clone)]
+struct LegacyHiddenCompositionWidget {
+    common: WidgetCommon,
+    terminal_samples: Rc<RefCell<Vec<(CompositionPhase, bool)>>>,
+}
+
+impl LegacyHiddenCompositionWidget {
+    fn new(terminal_samples: Rc<RefCell<Vec<(CompositionPhase, bool)>>>) -> Self {
+        Self {
+            common: WidgetCommon::new(30, WidgetSizing::fixed(Vector2::new(120.0, 28.0)))
+                .with_keyboard_focus(),
+            terminal_samples,
+        }
+    }
+}
+
+impl Widget for LegacyHiddenCompositionWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
+        if sample.phase() == CompositionPhase::Cancel {
+            self.terminal_samples
+                .borrow_mut()
+                .push((sample.phase(), sample.timestamp().is_some()));
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Clone)]
+struct OptInHiddenCompositionWidget {
+    common: WidgetCommon,
+    hidden_updates: Rc<RefCell<Vec<(String, bool)>>>,
+}
+
+impl OptInHiddenCompositionWidget {
+    fn new(hidden_updates: Rc<RefCell<Vec<(String, bool)>>>) -> Self {
+        Self {
+            common: WidgetCommon::new(31, WidgetSizing::fixed(Vector2::new(120.0, 28.0)))
+                .with_keyboard_focus(),
+            hidden_updates,
+        }
+    }
+}
+
+impl Widget for OptInHiddenCompositionWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn handle_hidden_composition_update(
+        &mut self,
+        preedit: String,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        self.hidden_updates
+            .borrow_mut()
+            .push((preedit, timestamp.is_some()));
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[test]
+fn hidden_composition_hook_is_additive_and_legacy_default_cancels() {
+    let terminal_samples = Rc::new(RefCell::new(Vec::new()));
+    let mut legacy = LegacyHiddenCompositionWidget::new(terminal_samples.clone());
+    assert!(
+        Widget::handle_hidden_composition_update(
+            &mut legacy,
+            String::from("ignored preedit"),
+            None,
+        )
+        .is_none()
+    );
+    assert_eq!(
+        terminal_samples.borrow().as_slice(),
+        &[(CompositionPhase::Cancel, false)]
+    );
+
+    let hidden_updates = Rc::new(RefCell::new(Vec::new()));
+    let mut opt_in = OptInHiddenCompositionWidget::new(hidden_updates.clone());
+    assert!(
+        Widget::handle_hidden_composition_update(&mut opt_in, String::from("exact preedit"), None,)
+            .is_none()
+    );
+    assert_eq!(
+        hidden_updates.borrow().as_slice(),
+        &[(String::from("exact preedit"), false)]
+    );
 }

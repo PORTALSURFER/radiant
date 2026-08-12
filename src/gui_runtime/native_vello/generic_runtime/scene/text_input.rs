@@ -41,7 +41,8 @@ pub(super) fn encode_text_input(
             input.font_size,
             text_rect.width(),
         );
-        if let Some((start, end)) = layout.selection_offsets
+        if input.selection_color.a != 0
+            && let Some((start, end)) = layout.selection_offsets
             && let Some(rect) = selection_rect(input, start, end)
         {
             super::encode_rect(scene, input.selection_color, rect);
@@ -157,7 +158,7 @@ fn draw_completion_suffix(
 }
 
 fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animation_time: Duration) {
-    if !x.is_finite() {
+    if input.caret_color.a == 0 || !x.is_finite() {
         return;
     }
     let pulse = (animation_time.as_secs_f32() * std::f32::consts::TAU * 0.85).sin();
@@ -180,4 +181,65 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
             Point::new(caret_x + caret_width, caret_y + caret_height),
         ),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_block_caret;
+    use crate::{
+        gui::types::{Point, Rect, Rgba8},
+        runtime::PaintTextInput,
+        widgets::TextInputState,
+    };
+    use std::time::Duration;
+    use vello::Scene;
+
+    #[test]
+    fn zero_alpha_caret_color_skips_native_caret_geometry() {
+        let input = PaintTextInput {
+            widget_id: 1,
+            rect: Rect::from_min_max(Point::default(), Point::new(120.0, 28.0)),
+            placeholder: None,
+            completion_suffix: None,
+            state: TextInputState::from_value(String::from("text")),
+            font_size: 12.0,
+            baseline: None,
+            color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            placeholder_color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            completion_color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            selection_color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 0,
+            },
+            caret_color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 0,
+            },
+            focused: true,
+        };
+        let mut scene = Scene::new();
+
+        encode_block_caret(&mut scene, &input, 12.0, Duration::ZERO);
+
+        assert!(scene.encoding().is_empty());
+    }
 }

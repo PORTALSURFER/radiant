@@ -294,6 +294,16 @@ where
         self.runtime.focused_text_input_id().is_some()
     }
 
+    pub(in crate::gui_runtime::native_vello) fn focused_composition_start_context(
+        &self,
+    ) -> Option<crate::widgets::interaction::CompositionStartContext> {
+        self.runtime.focused_composition_start_context()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn managed_composition_is_active(&self) -> bool {
+        self.runtime.managed_composition_is_active()
+    }
+
     pub(in crate::gui_runtime::native_vello) fn focused_widget_preempts_host_shortcut_key(
         &self,
         key: WidgetKey,

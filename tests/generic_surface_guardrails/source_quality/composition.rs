@@ -14,6 +14,8 @@ fn composition_stays_qualified_and_additive_to_legacy_input_models() {
     let runtime_state =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/interaction_state.rs"))
             .expect("runtime interaction state should be readable");
+    let widget_contract = fs::read_to_string(manifest_dir.join("src/widgets/contract/widget.rs"))
+        .expect("widget contract should be readable");
     let widget_input =
         fs::read_to_string(manifest_dir.join("src/widgets/interaction/input/event.rs"))
             .expect("legacy WidgetInput model should be readable");
@@ -25,8 +27,11 @@ fn composition_stays_qualified_and_additive_to_legacy_input_models() {
 
     assert!(interaction_input.contains("pub enum CompositionSample"));
     assert!(interaction_input.contains("pub struct CompositionRange"));
+    assert!(interaction_input.contains("pub(crate) enum CompositionSelectionState"));
     assert!(runtime_kernel.contains("pub fn dispatch_composition_sample"));
+    assert!(runtime_kernel.contains("dispatch_hidden_composition_update"));
     assert!(runtime_kernel.contains("RuntimeManagedCompositionState::Active"));
+    assert!(widget_contract.contains("handle_hidden_composition_update"));
     assert!(runtime_state.contains("RuntimeManagedCompositionState"));
     assert!(runtime_state.contains("Idle"));
     assert!(runtime_state.contains("Active"));

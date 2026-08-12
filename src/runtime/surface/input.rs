@@ -175,6 +175,18 @@ impl<Message> SurfaceNode<Message> {
             .map(|widget| widget.dispatch_composition_sample(widget_id, sample))
     }
 
+    pub(super) fn dispatch_hidden_composition_update_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        preedit: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_hidden_composition_update(widget_id, preedit, timestamp))
+    }
+
     pub(super) fn dispatch_pointer_capture_cancelled_at_path(
         &mut self,
         widget_id: WidgetId,

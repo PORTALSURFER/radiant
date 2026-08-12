@@ -40,6 +40,14 @@ fn dispatch(
     Widget::handle_composition_sample(input, sample).and_then(|output| output.typed_cloned())
 }
 
+fn dispatch_hidden(
+    input: &mut NumericInputWidget<u32, U32Codec, U32Adjustment>,
+    preedit: &str,
+) -> Option<NumericInputEditBatch<u32>> {
+    Widget::handle_hidden_composition_update(input, preedit.to_owned(), None)
+        .and_then(|output| output.typed_cloned())
+}
+
 #[test]
 fn numeric_composition_keeps_preedit_local_and_does_not_parse_or_publish() {
     let (mut input, parse_calls) = super::u32_input_with_parse_calls();
@@ -60,6 +68,76 @@ fn numeric_composition_keeps_preedit_local_and_does_not_parse_or_publish() {
         Some("7")
     );
     assert_eq!(parse_calls.get(), 0);
+}
+
+#[test]
+fn numeric_composition_keeps_hidden_native_selection_absent() {
+    let mut input = super::u32_input();
+    super::focus(&mut input);
+
+    assert_eq!(dispatch(&mut input, start((0, 1), 1)), None);
+    assert_eq!(
+        input
+            .composition
+            .as_ref()
+            .map(|composition| composition.preedit_selection),
+        Some(CompositionSelectionState::Unreported)
+    );
+    assert_eq!(dispatch_hidden(&mut input, "12"), None);
+    assert_eq!(input.text_input.state.value, "12");
+    assert_eq!(
+        input
+            .composition
+            .as_ref()
+            .map(|composition| composition.preedit_selection),
+        Some(CompositionSelectionState::Hidden)
+    );
+}
+
+#[test]
+fn numeric_hidden_composition_suppresses_embedded_text_input_adornments() {
+    let mut input = super::u32_input();
+    super::focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((0, 1), 1)), None);
+    assert_eq!(dispatch(&mut input, update("12", (0, 1))), None);
+
+    let bounds = Rect::from_min_size(
+        Default::default(),
+        crate::gui::types::Vector2::new(180.0, 28.0),
+    );
+    let paint = |input: &NumericInputWidget<u32, U32Codec, U32Adjustment>| {
+        let mut primitives = Vec::new();
+        Widget::append_paint(
+            input,
+            &mut primitives,
+            bounds,
+            &crate::layout::LayoutOutput::default(),
+            &crate::theme::ThemeTokens::default(),
+        );
+        primitives
+            .into_iter()
+            .find_map(|primitive| match primitive {
+                crate::runtime::PaintPrimitive::TextInput(input) => Some(input),
+                _ => None,
+            })
+            .expect("numeric input should emit an embedded text input paint primitive")
+    };
+
+    let visible = paint(&input);
+    assert!(visible.focused);
+    assert_ne!(visible.selection_color.a, 0);
+    assert_ne!(visible.caret_color.a, 0);
+
+    assert_eq!(dispatch_hidden(&mut input, "隠"), None);
+    let hidden = paint(&input);
+    assert!(hidden.focused);
+    assert_eq!(hidden.selection_color.a, 0);
+    assert_eq!(hidden.caret_color.a, 0);
+
+    assert_eq!(dispatch(&mut input, update("隠れ", (1, 1))), None);
+    let visible_again = paint(&input);
+    assert_ne!(visible_again.selection_color.a, 0);
+    assert_ne!(visible_again.caret_color.a, 0);
 }
 
 #[test]

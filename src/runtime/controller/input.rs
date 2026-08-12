@@ -38,6 +38,23 @@ where
         }
     }
 
+    pub(super) fn dispatch_surface_hidden_composition_update(
+        &mut self,
+        widget_id: WidgetId,
+        preedit: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        if let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) {
+            self.surface
+                .dispatch_widget_hidden_composition_update_message_at_path(
+                    widget_id, child_path, preedit, timestamp,
+                )
+        } else {
+            self.surface
+                .dispatch_widget_hidden_composition_update_message(widget_id, preedit, timestamp)
+        }
+    }
+
     pub(super) fn dispatch_surface_pointer_capture_cancelled(
         &mut self,
         widget_id: WidgetId,

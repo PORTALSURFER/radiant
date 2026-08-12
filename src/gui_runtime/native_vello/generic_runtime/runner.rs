@@ -1651,6 +1651,12 @@ where
         self.handle_route_outcome_inner(event_loop, outcome, None, None, true, true);
     }
 
+    pub(super) fn sync_native_ime_allowed(&self) {
+        if let Some(window) = self.window.window.as_ref() {
+            window.set_ime_allowed(self.core.has_focused_text_input());
+        }
+    }
+
     pub(super) fn handle_route_outcome_without_timed_frame(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -1706,6 +1712,7 @@ where
             self.admit_native_shutdown(event_loop, None);
             return;
         }
+        self.sync_native_ime_allowed();
         if applied.sync_auxiliary_windows_now
             && adapter.is_none()
             && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()

@@ -24,6 +24,7 @@ enum CompositionHostMessage {
 #[derive(Clone)]
 struct CompositionProbeWidget {
     common: WidgetCommon,
+    active: bool,
 }
 
 impl CompositionProbeWidget {
@@ -31,6 +32,7 @@ impl CompositionProbeWidget {
         Self {
             common: WidgetCommon::new(OWNER, WidgetSizing::fixed(Vector2::new(120.0, 32.0)))
                 .with_keyboard_focus(),
+            active: false,
         }
     }
 }
@@ -53,12 +55,16 @@ impl Widget for CompositionProbeWidget {
     }
 
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
+        self.active = matches!(
+            sample.phase(),
+            CompositionPhase::Start | CompositionPhase::Update
+        );
         (sample.phase() == CompositionPhase::Cancel)
             .then(|| WidgetOutput::typed(CompositionHostMessage::Cancel { owner_id: OWNER }))
     }
 
     fn retains_managed_composition(&self) -> bool {
-        true
+        self.active
     }
 
     fn append_paint(
@@ -144,5 +150,38 @@ fn invalid_terminal_clears_runtime_owner_before_mapped_cancel_refresh() {
     assert_eq!(
         runtime.interaction.composition.managed_composition,
         RuntimeManagedCompositionState::Blocked
+    );
+}
+
+#[test]
+fn hidden_update_uses_fixed_owner_and_legacy_default_cancel_fallback() {
+    let mut runtime =
+        SurfaceRuntime::new(CompositionProbeBridge::default(), Vector2::new(160.0, 40.0));
+
+    assert!(runtime.focus_widget(OWNER));
+    assert_eq!(
+        runtime.dispatch_composition_sample(valid_start()),
+        Some(OWNER)
+    );
+    assert_eq!(
+        runtime.dispatch_hidden_composition_update(String::from("hidden"), None),
+        Some(OWNER)
+    );
+    assert_eq!(
+        runtime.bridge().host_messages,
+        vec![CompositionHostMessage::Cancel { owner_id: OWNER }]
+    );
+    assert_eq!(
+        runtime.interaction.composition.managed_composition,
+        RuntimeManagedCompositionState::Blocked
+    );
+
+    assert_eq!(
+        runtime.dispatch_hidden_composition_update(String::from("stale"), None),
+        None
+    );
+    assert_eq!(
+        runtime.bridge().host_messages,
+        vec![CompositionHostMessage::Cancel { owner_id: OWNER }]
     );
 }

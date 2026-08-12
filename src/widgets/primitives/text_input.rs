@@ -9,7 +9,10 @@ use super::WidgetCommon;
 use crate::widgets::contract::{
     FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
 };
-use crate::widgets::interaction::{CompositionSample, TextInputMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{
+    CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,
+    WidgetOutput,
+};
 
 mod builders;
 mod composition;
@@ -85,6 +88,32 @@ impl TextInputWidget {
     pub(super) fn accepts_editing_input(&self) -> bool {
         self.common.state.focused && !self.common.state.disabled && !self.common.state.read_only
     }
+
+    pub(crate) fn native_composition_start_context(&self) -> Option<CompositionStartContext> {
+        if !self.accepts_editing_input() {
+            return None;
+        }
+        let scalar_len = self.state.char_len();
+        let (start, end) = self.state.selection_range();
+        let selection = CompositionRange::new(start, end, scalar_len).ok()?;
+        CompositionStartContext::new(selection, selection).ok()
+    }
+
+    pub(crate) fn append_paint_with_hidden_composition(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        theme: &ThemeTokens,
+        hidden_composition: bool,
+    ) {
+        paint::push_text_input_widget_paint_with_hidden_composition(
+            primitives,
+            self,
+            bounds,
+            theme,
+            hidden_composition,
+        );
+    }
 }
 
 impl WidgetSemantics for TextInputWidget {
@@ -124,8 +153,20 @@ impl Widget for TextInputWidget {
         !self.common.state.disabled && !self.common.state.read_only
     }
 
+    fn composition_start_context(&self) -> Option<CompositionStartContext> {
+        self.native_composition_start_context()
+    }
+
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
         composition::handle_sample(self, sample).map(WidgetOutput::typed)
+    }
+
+    fn handle_hidden_composition_update(
+        &mut self,
+        preedit: String,
+        _timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        composition::handle_hidden_update(self, preedit).map(WidgetOutput::typed)
     }
 
     fn retains_managed_composition(&self) -> bool {

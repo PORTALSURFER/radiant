@@ -427,6 +427,33 @@ impl<Message> SurfaceWidget<Message> {
         (result, retains)
     }
 
+    pub(in crate::runtime) fn dispatch_hidden_composition_update(
+        &mut self,
+        widget_id: WidgetId,
+        preedit: String,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> (super::WidgetDispatchResult<Message>, bool) {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| {
+                self.widget
+                    .handle_hidden_composition_update(preedit, timestamp)
+            })
+            .flatten()
+        else {
+            return (
+                super::WidgetDispatchResult::NoOutput,
+                self.id() == widget_id && self.widget.retains_managed_composition(),
+            );
+        };
+        let retains = self.widget.retains_managed_composition();
+        let result = self
+            .messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        (result, retains)
+    }
+
     pub(super) fn dispatch_output(
         &self,
         widget_id: WidgetId,

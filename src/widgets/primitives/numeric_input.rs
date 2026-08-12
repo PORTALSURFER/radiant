@@ -31,8 +31,9 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        CompositionRange, CompositionSample, EditEvent, FocusLossDecision, InteractionProvenance,
-        NumericAccessibilityAction, NumericAccessibilityBlockOwner, NumericAccessibilityOutcome,
+        CompositionRange, CompositionSample, CompositionSelectionState, EditEvent,
+        FocusLossDecision, InteractionProvenance, NumericAccessibilityAction,
+        NumericAccessibilityBlockOwner, NumericAccessibilityOutcome,
         NumericAccessibilityRejectedReason, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteractionBatch,
         NumericParseResult, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
@@ -92,7 +93,7 @@ struct NumericInputComposition {
     replacement_range: CompositionRange,
     original_selection: CompositionRange,
     preedit: String,
-    preedit_selection: CompositionRange,
+    preedit_selection: CompositionSelectionState,
 }
 
 fn byte_index_for_char(value: &str, char_index: usize) -> usize {
@@ -1215,11 +1216,6 @@ where
         }
 
         let original_value = self.text_input.state.value.clone();
-        let Ok(preedit_selection) = CompositionRange::new(0, 0, 0) else {
-            self.interaction_gate
-                .release(NumericInteractionOwner::ImeComposition);
-            return;
-        };
         set_composition_selection(&mut self.text_input.state, selection);
         self.begin_text_edit_session(timestamp);
         self.composition = Some(NumericInputComposition {
@@ -1227,23 +1223,29 @@ where
             replacement_range,
             original_selection: selection,
             preedit: String::new(),
-            preedit_selection,
+            preedit_selection: CompositionSelectionState::Unreported,
         });
     }
 
-    fn update_composition(&mut self, preedit: String, selection: CompositionRange) {
+    fn update_composition(&mut self, preedit: String, selection: CompositionSelectionState) {
         let Some(mut composition) = self.composition.take() else {
             return;
         };
-        if !selection.is_valid_for(preedit.chars().count()) {
-            self.composition = Some(composition);
-            return;
-        }
-        let Some(display_selection) =
-            composition_display_selection(composition.replacement_range, selection)
-        else {
-            self.composition = Some(composition);
-            return;
+        let display_selection = match selection {
+            CompositionSelectionState::Visible(selection) => {
+                if !selection.is_valid_for(preedit.chars().count()) {
+                    self.composition = Some(composition);
+                    return;
+                }
+                let Some(display_selection) =
+                    composition_display_selection(composition.replacement_range, selection)
+                else {
+                    self.composition = Some(composition);
+                    return;
+                };
+                Some(display_selection)
+            }
+            CompositionSelectionState::Unreported | CompositionSelectionState::Hidden => None,
         };
 
         composition.preedit = preedit;
@@ -1253,7 +1255,9 @@ where
             composition.replacement_range,
             &composition.preedit,
         );
-        set_composition_selection(&mut self.text_input.state, display_selection);
+        if let Some(display_selection) = display_selection {
+            set_composition_selection(&mut self.text_input.state, display_selection);
+        }
         self.composition = Some(composition);
     }
 
@@ -1322,7 +1326,7 @@ where
             CompositionSample::Update {
                 preedit, selection, ..
             } if self.is_editable() && self.composition.is_some() => {
-                self.update_composition(preedit, selection);
+                self.update_composition(preedit, CompositionSelectionState::Visible(selection));
                 None
             }
             CompositionSample::Commit { text, timestamp }
@@ -2049,8 +2053,26 @@ where
         !self.text_input.common.state.disabled && !self.text_input.common.state.read_only
     }
 
+    fn composition_start_context(
+        &self,
+    ) -> Option<crate::widgets::interaction::CompositionStartContext> {
+        self.text_input.native_composition_start_context()
+    }
+
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
         self.dispatch_composition_sample(sample)
+    }
+
+    fn handle_hidden_composition_update(
+        &mut self,
+        preedit: String,
+        _timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> Option<WidgetOutput> {
+        if !self.is_editable() || self.composition.is_none() {
+            return None;
+        }
+        self.update_composition(preedit, CompositionSelectionState::Hidden);
+        None
     }
 
     fn retains_managed_composition(&self) -> bool {
@@ -2171,9 +2193,16 @@ where
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
-        layout: &LayoutOutput,
+        _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        Widget::append_paint(&self.text_input, primitives, bounds, layout, theme);
+        self.text_input.append_paint_with_hidden_composition(
+            primitives,
+            bounds,
+            theme,
+            self.composition
+                .as_ref()
+                .is_some_and(|composition| composition.preedit_selection.is_hidden()),
+        );
     }
 }

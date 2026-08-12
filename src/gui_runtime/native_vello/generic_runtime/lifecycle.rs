@@ -258,6 +258,10 @@ where
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
+            WindowEvent::Ime(ime) => {
+                let routed = self.route_native_ime_event(ime);
+                self.handle_route_outcome(event_loop, routed);
+            }
             WindowEvent::RedrawRequested => {
                 self.redraw_and_exit_on_error(event_loop);
                 self.publish_staged_frame_diagnostics();

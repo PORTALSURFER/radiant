@@ -221,6 +221,7 @@ where
         native_resource_publication.publish(native_resources);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
+        self.sync_native_ime_allowed();
         self.window.native_dpi_scale = candidate_native_dpi_scale;
         self.window.dpi_scale = candidate_dpi_scale;
         self.window.monitor_fingerprint = candidate_monitor_fingerprint;

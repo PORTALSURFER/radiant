@@ -113,6 +113,7 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
         focus.contains("use super::{FocusTraversal, SurfaceRuntime};")
             && focus.contains("gui::{focus::FocusSurface, input::KeyPress}")
             && focus.contains("runtime::RuntimeBridge")
+            && focus.contains("widgets::interaction::CompositionStartContext")
             && focus.contains("widgets::{WidgetId, WidgetInput, WidgetKey}")
             && !focus.starts_with("use super::*;")
             && focus.contains("fn next_focus_target"),

@@ -21,7 +21,7 @@ impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
+    pub(super) fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         let pending = self.runtime.take_pending_input_command_outcome();
         let repaint_requested = self.runtime.take_repaint_requested();
         let mut outcome = GenericRouteOutcome {

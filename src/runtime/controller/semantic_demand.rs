@@ -1328,7 +1328,10 @@ impl<Message> SemanticDemandOwner<Message> {
             reason,
         };
 
-        if !plan.complete() || plan.complete_demand_set_generation != self.demand_set_generation {
+        if plan.complete_demand_set_generation != self.demand_set_generation {
+            return baseline(SemanticPublicationFallbackReason::StalePlan);
+        }
+        if !plan.complete() {
             if let Some(candidate) = &self.last_complete_candidate
                 && self.previous_candidate_is_eligible(candidate, ordinary, &plan)
             {
@@ -3015,6 +3018,57 @@ mod tests {
         );
         assert_eq!(range.calls.get(), 1);
         assert_eq!(pin.calls.get(), 1);
+    }
+
+    #[test]
+    fn stale_complete_demand_set_plan_returns_empty_ordinary_baseline() {
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(4, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration("policy", 8, Default::default(), None, Some(range.clone())),
+        );
+        let ticket = started(owner.range(CONTAINER_ID, 0, 1).expect("range demand"));
+        assert!(matches!(
+            complete_range(&mut owner, ticket),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+
+        let ordinary = ordinary_publication_snapshot();
+        let stale_plan = owner.publication_plan(publication_authorities(40));
+        let classifications = classifications_for_plan(&stale_plan);
+        let first = owner.finish_publication(&ordinary, stale_plan.clone(), &classifications);
+        let SemanticPublicationOutcome::Published(composition) = first else {
+            panic!("a complete publication should retain a fence carrier");
+        };
+        assert!(!composition.fence_carrier().is_empty());
+
+        owner
+            .remove_range_demand(CONTAINER_ID)
+            .expect("remove range demand");
+        let later_plan = owner.publication_plan(publication_authorities(40));
+        assert_ne!(
+            stale_plan.complete_demand_set_generation(),
+            later_plan.complete_demand_set_generation()
+        );
+
+        let outcome = owner.finish_publication(&ordinary, stale_plan, &classifications);
+        let SemanticPublicationOutcome::OrdinaryBaseline {
+            composition,
+            reason,
+        } = outcome
+        else {
+            panic!("a stale complete plan must return the ordinary baseline");
+        };
+        assert_eq!(reason, SemanticPublicationFallbackReason::StalePlan);
+        assert_eq!(composition.snapshot(), &ordinary);
+        assert!(composition.fence_carrier().is_empty());
+        assert_eq!(range.calls.get(), 1);
     }
 
     #[test]

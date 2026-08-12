@@ -216,7 +216,7 @@ impl SemanticCoordinateContext {
         let clipped = output
             .intersection(destination.destination_clip)
             .ok_or(VirtualLayoutSemanticRejectedReason::CoordinateTransformOutsideClip)?;
-        if !valid_rect(clipped) {
+        if !clipped.has_finite_positive_area() {
             return Err(VirtualLayoutSemanticRejectedReason::CoordinateTransformInvalidOutput);
         }
         let witness = VirtualLayoutSemanticTransformWitness::new(
@@ -307,7 +307,7 @@ fn intersect_valid(left: Rect, right: Rect) -> Result<Rect, SemanticCoordinateCo
     let intersection = left
         .intersection(right)
         .ok_or(SemanticCoordinateContextError::EmptyClip)?;
-    if valid_rect(intersection) {
+    if intersection.has_finite_positive_area() {
         Ok(intersection)
     } else {
         Err(SemanticCoordinateContextError::EmptyClip)

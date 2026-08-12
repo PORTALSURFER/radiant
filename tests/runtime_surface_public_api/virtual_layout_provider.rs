@@ -364,6 +364,71 @@ fn custom_transform_failures_use_ordinary_baseline_without_partial_entries() {
 }
 
 #[test]
+fn edge_touching_custom_transform_uses_ordinary_baseline_without_custom_target() {
+    let provider_calls = Rc::new(Cell::new(0));
+    let transform_calls = Rc::new(Cell::new(0));
+    let provider: Rc<dyn VirtualLayoutSemanticRangeProvider> = Rc::new({
+        let provider_calls = Rc::clone(&provider_calls);
+        move |_request: &VirtualLayoutSemanticRangeRequest| {
+            provider_calls.set(provider_calls.get() + 1);
+            VirtualLayoutSemanticProviderOutcome::Found(vec![
+                semantic_entry(7, 0, "edge-touching-provider-7"),
+                semantic_entry(8, 1, "edge-touching-provider-8"),
+            ])
+        }
+    });
+    let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> = Rc::new({
+        let transform_calls = Rc::clone(&transform_calls);
+        move |request: &radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+            transform_calls.set(transform_calls.get() + 1);
+            let clip = request.destination_clip();
+            VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_min_max(
+                Point::new(clip.max.x, clip.min.y),
+                Point::new(clip.max.x + 1.0, clip.max.y),
+            ))
+        }
+    });
+    let bridge = declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| {
+            let parts = public_parts(Some(Rc::clone(&provider)))
+                .with_semantic_coordinate_transform(
+                    VirtualLayoutPolicyIdentity::new("edge-touching-space"),
+                    23,
+                    Rc::clone(&transform),
+                );
+            arc_surface(virtual_layout_from_parts(parts).into_surface())
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    let publication = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("edge contact is represented by a conservative publication");
+
+    assert_eq!(
+        publication.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Rejected,
+        }
+    );
+    assert_eq!(provider_calls.get(), 1);
+    assert_eq!(transform_calls.get(), 1);
+    assert!(
+        publication
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("edge-touching-provider-"))
+    );
+}
+
+#[test]
 fn direct_nested_public_shell_is_rejected_without_provider_authority() {
     let inner_calls = Rc::new(Cell::new(0));
     let provider_calls = Rc::clone(&inner_calls);

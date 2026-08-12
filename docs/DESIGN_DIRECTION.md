@@ -1312,9 +1312,11 @@ materialization/projection authority, while
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider registration. The generic logical semantic
 automation session now ships the explicit public snapshot selection/visibility
-boundary. Custom-coordinate transformation, native/product consumers,
-scheduler/backoff/fairness, multiple active ranges per container, and the focus,
-materialization, scrolling, and action authority remain unshipped.
+boundary. Custom-coordinate transformation and native/product consumer
+implementations remain unshipped; the later macOS/AppKit native semantic
+accessibility query contract is defined below. Scheduler/backoff/fairness,
+multiple active ranges per container, and the focus, materialization, scrolling,
+and action authority remain unshipped.
 `automation_snapshot` and `automation_target_snapshot` stay
 pure observational reads.
 
@@ -1395,10 +1397,70 @@ coordinates are admitted.
 This bounded implementation earns one public-API evidence point. The private
 kernel and generic logical session are shipped; the public declarative
 Logical-only provider contract below is normative and shipped. Native/product
-provider consumers, scheduling, and custom transforms remain deferred. Estimates
-are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
+provider consumer implementations, scheduling, and custom transforms remain
+deferred; the later macOS/AppKit native semantic accessibility query contract is
+defined below. Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
 `902 / 11` (82.00%). Existing pure ordinary snapshot
 APIs and non-goals remain explicit.
+
+### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+
+The first native semantic consumer is a later macOS/AppKit contract over the
+shipped generic logical semantic automation session. One private native-window
+adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
+lease remain private: neither owns provider registration, mount identity, provider
+generations, demand fences, cancellation, or publication. The existing bound of
+one active semantic session per `SurfaceRuntime` remains. A native lease MUST NOT
+evict, supersede, or silently reuse an externally active session; contention
+returns the one private typed unavailable result `Unavailable(SessionContended)`.
+Multi-consumer arbitration is a later contract.
+
+Accessibility enablement, native tree-root construction, accessibility-state
+observation, ordinary native events, repaint, and ordinary property reads are
+observation/capability only. Only an explicit bounded native item or child-range
+query MAY become `SemanticAutomationDemand`. Each query MUST translate to exactly
+one current runtime-issued semantic-session lease and one current runtime-issued
+container handle, plus either one stable required-item key or one finite
+contiguous logical range. Missing, stale, ambiguous, duplicate, oversized, or
+unrepresentable evidence is unavailable and MUST cause no provider call.
+
+The adapter submits intent only through the existing explicit
+`refresh_semantic_automation_session(session, demands)` and
+`retry_semantic_automation_session(session)` operations. It never invokes a
+provider directly or causes a second call for one container/attempt. Native
+callbacks MUST NOT synchronously re-enter a provider or mutate `SurfaceRuntime`
+through observational access. Native-to-runtime handoff enters one owned runtime
+turn and is bounded transport only; it does not add scheduler, retry, or fairness
+policy.
+
+Native publication exposes only a complete selected snapshot under the existing
+exact fence. It MUST NOT expose partial virtual subtrees, mix generations, or
+repair malformed or colliding evidence. `DataUnavailable` and `Deferred` MAY
+retain only an exact eligible complete selection. Missing provider, unsupported,
+rejected, panic, malformed, collision, stale, or cancelled evidence uses the
+existing typed conservative baseline behavior; stale and cancelled completions
+are inert and MUST NOT mutate or publish native state.
+
+The first consumer accepts provider semantics only in `Logical`. Native
+conversion MUST identify source surface space, destination window/screen
+accessibility space, DPI, window/display generation, orientation, clipping, and a
+finite non-inverted conversion. Stale or unsupported conversion withholds native
+bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+
+Activation/opening is provider-free. Explicit native queries refresh, and an
+explicit repeated query MAY retry. Deactivation, window retirement, recovery
+replacement, and close cancel and retire the lease before native objects drop.
+`materialized = false` remains authoritative: native semantics cannot materialize,
+scroll, focus, execute actions, paint, hit-test, schedule, render, or claim
+provider authority. Native tree publication and native action dispatch are
+separate contracts; this consumer does not connect numeric accessibility
+dispatch. The adapter and lease are not public imperative provider-registration
+APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+`selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
+native actions, focus, scrolling, product policy, custom transforms, scheduler,
+and renderer behavior remain excluded.
 
 ### Public declarative Logical-only provider attachment (normative; shipped)
 
@@ -1443,7 +1505,7 @@ native-boundary, non-goal, and acceptance matrix is in
 the first public-API evidence point; numeric estimates remain unchanged for
 this branch.
 
-Its non-goals are custom transforms; native accessibility trees/actions; focus;
+Its non-goals are custom transforms; native accessibility action dispatch; focus;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
 hit-testing, or cache policy; product policy; multiple ranges per container;
 and prelude export.

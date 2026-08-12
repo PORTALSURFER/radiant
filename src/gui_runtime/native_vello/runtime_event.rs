@@ -20,6 +20,20 @@ impl DeviceLossRegistration {
     }
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) enum NativeSemanticAccessibilityQuery {
+    /// An explicit AppKit child-range request.  The callback has already
+    /// bounded `max_count`; the owned runtime turn performs the remaining
+    /// cardinality, declaration-budget, and aggregate-budget validation.
+    ChildrenRange {
+        token: u64,
+        start_index: usize,
+        max_count: usize,
+        explicit_retry: bool,
+    },
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
@@ -51,6 +65,12 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     NativeResourceMaintenanceRequested,
     #[cfg(target_os = "macos")]
     AccessibilityDisplayChanged,
+    #[cfg(target_os = "macos")]
+    NativeSemanticAccessibilityQuery {
+        window_id: WindowId,
+        generation: u64,
+        query: NativeSemanticAccessibilityQuery,
+    },
 }
 
 impl PartialEq for RuntimeUserEvent {
@@ -120,6 +140,23 @@ impl PartialEq for RuntimeUserEvent {
             }
             #[cfg(target_os = "macos")]
             (Self::AccessibilityDisplayChanged, Self::AccessibilityDisplayChanged) => true,
+            #[cfg(target_os = "macos")]
+            (
+                Self::NativeSemanticAccessibilityQuery {
+                    window_id: left_window_id,
+                    generation: left_generation,
+                    query: left_query,
+                },
+                Self::NativeSemanticAccessibilityQuery {
+                    window_id: right_window_id,
+                    generation: right_generation,
+                    query: right_query,
+                },
+            ) => {
+                left_window_id == right_window_id
+                    && left_generation == right_generation
+                    && left_query == right_query
+            }
             _ => false,
         }
     }

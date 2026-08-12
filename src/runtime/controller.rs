@@ -33,6 +33,11 @@ mod traversal_state;
 mod virtual_layout;
 mod work;
 
+#[cfg(target_os = "macos")]
+pub(crate) use automation_compositor::{
+    NormalizedSemanticPublicationFenceSet, VirtualLayoutNormalizedSemanticSidecar,
+    VirtualLayoutNormalizedSemanticSidecarEntry,
+};
 pub(crate) use automation_compositor::{
     VirtualLayoutAutomationComposition, VirtualLayoutAutomationCompositionError,
 };

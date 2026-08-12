@@ -1312,9 +1312,10 @@ materialization/projection authority, while
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider registration. The generic logical semantic
 automation session now ships the explicit public snapshot selection/visibility
-boundary. Custom-coordinate transformation and native/product consumer
-implementations remain unshipped; the later macOS/AppKit native semantic
-accessibility query contract is defined below. Scheduler/backoff/fairness,
+boundary. Custom-coordinate transformation, product consumer implementations,
+and other native adapters remain unshipped; the private primary-window
+macOS/AppKit native semantic accessibility query contract is implemented below.
+Scheduler/backoff/fairness,
 multiple active ranges per container, and the focus, materialization, scrolling,
 and action authority remain unshipped.
 `automation_snapshot` and `automation_target_snapshot` stay
@@ -1397,16 +1398,17 @@ coordinates are admitted.
 This bounded implementation earns one public-API evidence point. The private
 kernel and generic logical session are shipped; the public declarative
 Logical-only provider contract below is normative and shipped. Native/product
-provider consumer implementations, scheduling, and custom transforms remain
-deferred; the later macOS/AppKit native semantic accessibility query contract is
-defined below. Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
+ provider consumer implementations, scheduling, and custom transforms remain
+deferred; the private primary-window macOS/AppKit native semantic accessibility
+query contract is implemented below. Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad coverage
 `902 / 11` (82.00%). Existing pure ordinary snapshot
 APIs and non-goals remain explicit.
 
-### Native semantic accessibility query consumer (normative; later macOS/AppKit consumer)
+### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
-The first native semantic consumer is a later macOS/AppKit contract over the
-shipped generic logical semantic automation session. One private native-window
+The first native semantic consumer is the private primary-window macOS/AppKit
+production path over the shipped generic logical semantic automation session.
+One private native-window
 adapter MAY acquire one runtime-issued semantic-session lease. The adapter and
 lease remain private: neither owns provider registration, mount identity, provider
 generations, demand fences, cancellation, or publication. The existing bound of
@@ -1414,6 +1416,12 @@ one active semantic session per `SurfaceRuntime` remains. A native lease MUST NO
 evict, supersede, or silently reuse an externally active session; contention
 returns the one private typed unavailable result `Unavailable(SessionContended)`.
 Multi-consumer arbitration is a later contract.
+
+Lease acquisition is lazy: passive root construction, ordinary native-tree
+observation, exact count reads, registration/cardinality synchronization, and
+ordinary property reads never acquire the lease or create demand. Only an
+explicit item or child-range query reaching the owned runtime turn may acquire
+it.
 
 Accessibility enablement, native tree-root construction, accessibility-state
 observation, ordinary native events, repaint, and ordinary property reads are
@@ -1458,7 +1466,7 @@ dispatch. The adapter and lease are not public imperative provider-registration
 APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
-#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer deferred)
+#### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
 
 The shipped declaration foundation exposes the qualified public value
 `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` on
@@ -1466,9 +1474,10 @@ The shipped declaration foundation exposes the qualified public value
 `VirtualLayoutParts::with_semantic_cardinality(...)`. The value contains the
 exact `usize` logical item count and a separate `u64` cardinality revision. The
 field and builder ship outside the common prelude, and the exact private
-registration/live-fence invalidation foundation is shipped. Native child
-traversal, normalized sidecar, native topology, AppKit queries, and the platform
-consumer remain unshipped in the later native contract.
+registration/live-fence invalidation foundation, normalized sidecar, native
+topology, bounded AppKit queries, and private primary-window platform consumer
+are implemented. Live host/AppKit acceptance remains pending; no public API is
+added and alignment estimates remain unchanged.
 
 Cardinality is immutable declaration evidence, not a callback, provider
 availability signal, or demand. `None` is unknown/unsupported and exact zero is
@@ -1546,9 +1555,11 @@ actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
 behavior.
 
-This contract is limited to the later macOS/AppKit consumer. Wayland, Windows,
-native actions, focus, scrolling, product policy, custom transforms, scheduler,
-and renderer behavior remain excluded.
+This contract is limited to the private primary-window macOS/AppKit consumer.
+Automated validation is recorded by the implementation handoff; live host/AppKit
+acceptance remains pending for this cycle, so alignment estimates remain
+unchanged. Wayland, Windows, native actions, focus, scrolling, product policy,
+custom transforms, scheduler, and renderer behavior remain excluded.
 
 ### Public declarative Logical-only provider attachment (normative; shipped)
 
@@ -1568,9 +1579,10 @@ field on `VirtualLayoutParts<Message>` and the qualified builder
 `VirtualLayoutParts::with_semantic_cardinality(...)`. It contains an exact
 `usize` logical item count and separate `u64` cardinality revision. The field
 and builder ship outside the common prelude, and the exact private
-registration/live-fence invalidation foundation is shipped. Native child
-traversal, normalized sidecar, native topology, AppKit queries, and the platform
-consumer remain unshipped in the later native contract. Cardinality is immutable
+registration/live-fence invalidation foundation, normalized sidecar, native
+topology, bounded AppKit queries, and private primary-window platform consumer
+are implemented. Live host/AppKit acceptance remains pending; no public API is
+added and alignment estimates remain unchanged. Cardinality is immutable
 declaration evidence, not a callback or demand, and its exact count is
 independent of the one-range, one-required-item, 64-registration, 1024
 per-query, and 1024 aggregate budgets.

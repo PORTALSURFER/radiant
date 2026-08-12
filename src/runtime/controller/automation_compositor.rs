@@ -129,6 +129,22 @@ impl NormalizedSemanticPublicationFenceSet {
     fn is_empty(&self) -> bool {
         self.range.is_none() && self.required_item_pin.is_none()
     }
+
+    /// Compare the complete publication fence set without exposing fence
+    /// fields to a native or product adapter.
+    pub(crate) fn same_exact(&self, other: &Self) -> bool {
+        self.range
+            .as_ref()
+            .zip(other.range.as_ref())
+            .is_none_or(|(left, right)| left.same_exact(right))
+            && self.range.is_some() == other.range.is_some()
+            && self
+                .required_item_pin
+                .as_ref()
+                .zip(other.required_item_pin.as_ref())
+                .is_none_or(|(left, right)| left.same_exact(right))
+            && self.required_item_pin.is_some() == other.required_item_pin.is_some()
+    }
 }
 
 #[allow(dead_code)]

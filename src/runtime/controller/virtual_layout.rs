@@ -13,6 +13,12 @@ use super::{
         SemanticPublicationFallbackReason, SemanticPublicationOutcome,
     },
 };
+#[cfg(target_os = "macos")]
+use crate::{
+    application::virtual_layout::VirtualLayoutSemanticCardinality,
+    gui::automation::{AutomationNodeId, AutomationNodeSnapshot},
+    runtime::automation::NativeSemanticContainerSnapshot,
+};
 use crate::{
     gui::layout_core::{
         VirtualLayoutCompletion, VirtualLayoutLifecycleAdapter, VirtualLayoutMaterializationError,
@@ -45,6 +51,30 @@ use crate::{
     },
 };
 use std::convert::Infallible;
+
+#[cfg(target_os = "macos")]
+fn count_automation_nodes_with_id(
+    node: &AutomationNodeSnapshot,
+    wanted: &AutomationNodeId,
+) -> usize {
+    usize::from(node.id == *wanted)
+        + node
+            .children
+            .iter()
+            .map(|child| count_automation_nodes_with_id(child, wanted))
+            .sum::<usize>()
+}
+
+#[cfg(target_os = "macos")]
+fn native_semantic_registration_is_admitted(
+    coordinate_space: &VirtualLayoutCoordinateSpace,
+    cardinality: Option<VirtualLayoutSemanticCardinality>,
+    has_range_provider: bool,
+) -> bool {
+    coordinate_space == &VirtualLayoutCoordinateSpace::Logical
+        && cardinality
+            .is_some_and(|cardinality| cardinality.logical_item_count == 0 || has_range_provider)
+}
 
 #[derive(Default)]
 struct RuntimeVirtualLayoutLifecycle;
@@ -779,6 +809,57 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 }
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
+    #[cfg(target_os = "macos")]
+    /// Return only current logical registrations with one unambiguous ordinary
+    /// automation anchor and an exact cardinality.  This is a passive view:
+    /// cloning a provider capability is not a provider call and does not
+    /// create semantic demand.
+    pub(crate) fn native_semantic_containers(
+        &self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+    ) -> Vec<NativeSemanticContainerSnapshot> {
+        let mut accepted = Vec::new();
+        for record in self.records.iter().filter(|record| !record.retired) {
+            let Some(cardinality) = record.registration.semantic_cardinality else {
+                continue;
+            };
+            let has_range_provider = record
+                .registration
+                .semantic_range_provider_handle()
+                .is_some();
+            if !native_semantic_registration_is_admitted(
+                &record.registration.coordinate_space,
+                Some(cardinality),
+                has_range_provider,
+            ) {
+                continue;
+            }
+            let anchor = AutomationNodeId::new(record.registration.container_id.to_string());
+            if count_automation_nodes_with_id(&ordinary.root, &anchor) != 1 {
+                continue;
+            }
+            let Some((registration_generation, provider_generation)) = self
+                .semantic_demand
+                .native_range_authority(record.registration.container_id)
+            else {
+                continue;
+            };
+            accepted.push(NativeSemanticContainerSnapshot {
+                container_id: record.registration.container_id,
+                mount_generation: record.mount_generation,
+                registration_generation,
+                provider_generation,
+                cardinality,
+                has_range_provider,
+                max_entries: record.registration.budget.max_entries(),
+            });
+            if accepted.len() == MAX_VIRTUAL_LAYOUT_REGISTRATIONS {
+                break;
+            }
+        }
+        accepted
+    }
+
     fn synchronize_semantic_demand(&mut self) {
         let semantic_registrations = self
             .records
@@ -1619,6 +1700,100 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             if let Some(reason) = semantic_completion_fallback_reason(&completion) {
                 failure_reason.get_or_insert(reason);
             }
+        }
+
+        let publication = self.compose_semantic_publication(
+            ordinary,
+            SemanticPublicationAuthorities {
+                session_generation: session.generation,
+                materialization_authority,
+                classification_authority,
+                ordinary_projection_generation,
+            },
+        );
+        let (composition, status) = match publication {
+            SemanticPublicationOutcome::Published(composition) => {
+                if let Some(reason) = failure_reason {
+                    (
+                        composition,
+                        SemanticAutomationRefreshStatus::Retained { reason },
+                    )
+                } else {
+                    (composition, SemanticAutomationRefreshStatus::Published)
+                }
+            }
+            SemanticPublicationOutcome::OrdinaryBaseline {
+                composition,
+                reason,
+            } => (
+                composition,
+                SemanticAutomationRefreshStatus::Baseline {
+                    reason: failure_reason.unwrap_or_else(|| map_publication_reason(reason)),
+                },
+            ),
+        };
+        let publication = RuntimeSemanticAutomationPublication {
+            composition: composition.clone(),
+            status,
+        };
+        if let Some(session_state) = &mut self.semantic_session {
+            session_state.selection = Some(RuntimeSemanticAutomationSelection {
+                composition,
+                ordinary: ordinary.clone(),
+                runtime_projection_generation: ordinary_projection_generation,
+                status,
+            });
+        }
+        Ok(publication)
+    }
+
+    #[cfg(target_os = "macos")]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn retry_semantic_automation_range(
+        &mut self,
+        runtime_id: u64,
+        session: SemanticAutomationSessionHandle,
+        container: SemanticAutomationContainerHandle,
+        start_index: usize,
+        length: usize,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        authorities: (u64, u64, u64),
+    ) -> Result<RuntimeSemanticAutomationPublication, SemanticAutomationSessionError> {
+        self.validate_semantic_automation_session(runtime_id, session)?;
+        self.synchronize_semantic_demand();
+        let demand = SemanticAutomationDemand::range(container, start_index, length);
+        let (container_id, _) =
+            self.lower_semantic_automation_demand(runtime_id, session, &demand)?;
+        if !self
+            .semantic_demand
+            .active_range_matches(container_id, start_index, length)
+        {
+            return Err(SemanticAutomationSessionError::StaleContainerHandle);
+        }
+
+        let (materialization_authority, classification_authority, ordinary_projection_generation) =
+            authorities;
+        let ticket = self
+            .semantic_demand
+            .retry_range(container_id)
+            .map_err(map_semantic_demand_error)?;
+        let mut failure_reason = None;
+        let completion = match self.semantic_demand.execute(ticket) {
+            Ok(completion) => completion,
+            Err(SemanticDemandExecutionError::Reentrant) => {
+                return Err(SemanticAutomationSessionError::Reentrant);
+            }
+            Err(SemanticDemandExecutionError::AlreadyExecuted) => {
+                failure_reason = Some(SemanticAutomationFallbackReason::Stale);
+                SemanticProviderCompletion::Stale
+            }
+        };
+        if let SemanticProviderCompletion::Stale = completion {
+            failure_reason.get_or_insert(SemanticAutomationFallbackReason::Stale);
+        }
+        let completion = self.semantic_demand.complete(completion);
+        if let Some(reason) = semantic_completion_fallback_reason(&completion) {
+            failure_reason.get_or_insert(reason);
         }
 
         let publication = self.compose_semantic_publication(
@@ -2521,6 +2696,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    use crate::runtime::SemanticAutomationSessionHandle;
     use crate::runtime::controller::semantic_demand::{
         SemanticDemandAdmission, SemanticDemandAdmissionError, SemanticDemandCompletion,
         SemanticProviderCompletion,
@@ -2891,6 +3068,25 @@ mod tests {
         (provider, calls, outcome)
     }
 
+    #[cfg(target_os = "macos")]
+    fn semantic_range_entries_with_prefix(
+        prefix: &str,
+        start_index: usize,
+        length: usize,
+    ) -> Vec<VirtualLayoutSemanticEntry> {
+        (0..length)
+            .map(|offset| {
+                let logical_index = start_index + offset;
+                semantic_range_entry_with_id(
+                    100 + logical_index as u32,
+                    logical_index,
+                    Rect::from_xy_size(4.0, logical_index as f32 * 12.0, 24.0, 10.0),
+                    AutomationNodeId::new(format!("{prefix}-{logical_index}")),
+                )
+            })
+            .collect()
+    }
+
     fn semantic_range_entry(
         key: u32,
         logical_index: usize,
@@ -3092,6 +3288,72 @@ mod tests {
         (state, batch, semantic_calls, policy_calls)
     }
 
+    #[cfg(target_os = "macos")]
+    fn committed_range_record(
+        registration: VirtualLayoutRegistration<()>,
+    ) -> RuntimeVirtualLayoutRecord<()> {
+        let mut record = RuntimeVirtualLayoutRecord::new(registration, SEMANTIC_MOUNT_GENERATION);
+        let RuntimeVirtualLayoutMaterialization::Committed(batch) =
+            record.materialize(Rect::from_xy_size(0.0, 0.0, 160.0, 80.0))
+        else {
+            panic!("the range fixture should materialize a committed window");
+        };
+        record.commit_batch(*batch);
+        record
+    }
+
+    #[cfg(target_os = "macos")]
+    type TwoRangeState = (
+        RuntimeVirtualLayoutState<()>,
+        Rc<Cell<u32>>,
+        Rc<Cell<u32>>,
+        Rc<RefCell<VirtualLayoutSemanticRangeProviderOutcome>>,
+        Rc<RefCell<VirtualLayoutSemanticRangeProviderOutcome>>,
+    );
+
+    #[cfg(target_os = "macos")]
+    fn two_range_state() -> TwoRangeState {
+        let initial_a = semantic_range_entries_with_prefix("a-initial", 0, 2);
+        let initial_b = semantic_range_entries_with_prefix("b-initial", 2, 2);
+        let (provider_a, calls_a, outcome_a) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(initial_a));
+        let (provider_b, calls_b, outcome_b) =
+            semantic_range_provider(VirtualLayoutSemanticRangeProviderOutcome::Found(initial_b));
+
+        let mut registration_a = registration_with_parts(RegistrationParts {
+            policy: Rc::new(MaterializationPolicy {
+                calls: Rc::new(Cell::new(0)),
+                entries: Vec::new(),
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("range-a"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("range-a item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("range-a-kind")),
+        })
+        .with_semantic_range_provider(provider_a);
+        registration_a.container_id = CONTAINER_ID;
+
+        let mut registration_b = registration_with_parts(RegistrationParts {
+            policy: Rc::new(MaterializationPolicy {
+                calls: Rc::new(Cell::new(0)),
+                entries: Vec::new(),
+            }),
+            policy_identity: VirtualLayoutPolicyIdentity::new("range-b"),
+            revisions: Default::default(),
+            shell: Rc::new(|| scroll(spacer::<()>())),
+            item: Rc::new(|_| text::<()>("range-b item")),
+            kind: Rc::new(|_| VirtualLayoutPolicyIdentity::new("range-b-kind")),
+        })
+        .with_semantic_range_provider(provider_b);
+        registration_b.container_id = CONTAINER_ID + 1;
+
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(committed_range_record(registration_a));
+        state.records.push(committed_range_record(registration_b));
+        (state, calls_a, calls_b, outcome_a, outcome_b)
+    }
+
     fn semantic_pin_publication_state(
         provider: Rc<dyn VirtualLayoutSemanticProvider>,
     ) -> RuntimeVirtualLayoutState<()> {
@@ -3120,6 +3382,10 @@ mod tests {
     }
 
     fn semantic_publication_snapshot() -> GuiAutomationSnapshot {
+        semantic_publication_snapshot_for(&[CONTAINER_ID])
+    }
+
+    fn semantic_publication_snapshot_for(container_ids: &[u64]) -> GuiAutomationSnapshot {
         let mut root = AutomationNodeSnapshot::from_semantics(
             AutomationNodeId::new("publication-root"),
             AutomationBounds {
@@ -3130,16 +3396,19 @@ mod tests {
             },
             AutomationNodeSemantics::new(AutomationRole::Group),
         );
-        root.children.push(AutomationNodeSnapshot::from_semantics(
-            AutomationNodeId::new(CONTAINER_ID.to_string()),
-            AutomationBounds {
-                x: 0.0,
-                y: 0.0,
-                width: 160.0,
-                height: 80.0,
-            },
-            AutomationNodeSemantics::new(AutomationRole::Group),
-        ));
+        root.children
+            .extend(container_ids.iter().map(|container_id| {
+                AutomationNodeSnapshot::from_semantics(
+                    AutomationNodeId::new(container_id.to_string()),
+                    AutomationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 160.0,
+                        height: 80.0,
+                    },
+                    AutomationNodeSemantics::new(AutomationRole::Group),
+                )
+            }));
         GuiAutomationSnapshot {
             schema_version: 2,
             viewport_width: 160,
@@ -3255,6 +3524,94 @@ mod tests {
                 .is_none()
         );
         assert_eq!(calls.get(), 2);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_passive_admission_reads_cardinality_without_demand() {
+        let (provider, calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::Logical,
+            VirtualLayoutBudget::new(4),
+        );
+        state.records[0].registration.semantic_cardinality =
+            Some(VirtualLayoutSemanticCardinality::new(0, 1));
+        state.synchronize_semantic_demand();
+        let containers = state.native_semantic_containers(&semantic_publication_snapshot());
+        assert_eq!(containers.len(), 1);
+        assert_eq!(containers[0].cardinality.logical_item_count, 0);
+        assert!(state.semantic_session.is_none());
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_passive_admission_vetoes_positive_without_range_provider() {
+        let mut registration = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("native-veto"),
+        );
+        registration.semantic_cardinality = Some(VirtualLayoutSemanticCardinality::new(2, 1));
+        let mut state = RuntimeVirtualLayoutState::default();
+        state.records.push(RuntimeVirtualLayoutRecord::new(
+            registration,
+            SEMANTIC_MOUNT_GENERATION,
+        ));
+        state.synchronize_semantic_demand();
+        assert!(
+            state
+                .native_semantic_containers(&semantic_publication_snapshot())
+                .is_empty()
+        );
+        assert!(state.semantic_session.is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_semantic_admission_rejects_custom_zero_before_provider_access() {
+        let zero = Some(VirtualLayoutSemanticCardinality::new(0, 1));
+        assert!(native_semantic_registration_is_admitted(
+            &VirtualLayoutCoordinateSpace::Logical,
+            zero,
+            false,
+        ));
+        assert!(!native_semantic_registration_is_admitted(
+            &VirtualLayoutCoordinateSpace::Custom(VirtualLayoutPolicyIdentity::new("custom")),
+            zero,
+            false,
+        ));
+    }
+
+    #[test]
+    fn semantic_session_contention_is_typed_without_eviction() {
+        let (provider, _calls, _) = semantic_range_provider(
+            VirtualLayoutSemanticRangeProviderOutcome::Found(valid_semantic_range_entries(0, 1)),
+        );
+        let mut state = semantic_range_state(
+            provider,
+            VirtualLayoutCoordinateSpace::Logical,
+            VirtualLayoutBudget::new(4),
+        );
+        let first = state
+            .open_semantic_automation_session(904)
+            .expect("the first session should own the lease");
+        assert_eq!(
+            state.open_semantic_automation_session(904),
+            Err(SemanticAutomationSessionError::SessionAlreadyActive)
+        );
+        assert_eq!(
+            state
+                .semantic_session
+                .as_ref()
+                .map(|session| session.handle),
+            Some(first)
+        );
     }
 
     #[test]
@@ -3393,6 +3750,174 @@ mod tests {
         assert_eq!(retry.status, SemanticAutomationRefreshStatus::Published);
         assert_eq!(retry.composition.normalized_sidecar().entries().len(), 1);
         assert_eq!(calls.get(), 2);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn exact_range_retry_reexecutes_only_one_member_and_preserves_atomic_selection() {
+        let (mut state, calls_a, calls_b, outcome_a, outcome_b) = two_range_state();
+        let session = state
+            .open_semantic_automation_session(905)
+            .expect("one session should open");
+        let containers = state
+            .semantic_automation_containers(905, session)
+            .expect("both mounted containers should enumerate");
+        let container_a = containers
+            .iter()
+            .find(|container| container.container_id == CONTAINER_ID)
+            .copied()
+            .expect("container A should be present");
+        let container_b = containers
+            .iter()
+            .find(|container| container.container_id == CONTAINER_ID + 1)
+            .copied()
+            .expect("container B should be present");
+        let ordinary = semantic_publication_snapshot_for(&[CONTAINER_ID, CONTAINER_ID + 1]);
+        let initial = state
+            .refresh_semantic_automation(
+                session.runtime_id,
+                session,
+                &[
+                    SemanticAutomationDemand::range(container_a, 0, 2),
+                    SemanticAutomationDemand::range(container_b, 2, 2),
+                ],
+                &ordinary,
+                (1, 2, 3),
+            )
+            .expect("the complete A+B refresh should publish");
+        assert_eq!(initial.status, SemanticAutomationRefreshStatus::Published);
+        assert_eq!(calls_a.get(), 1);
+        assert_eq!(calls_b.get(), 1);
+
+        let b_fence_before = state
+            .semantic_demand
+            .active_range_fence(container_b.container_id)
+            .expect("B range slot should be active");
+        let b_attempt_before = b_fence_before.attempt;
+
+        *outcome_a.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Found(
+            semantic_range_entries_with_prefix("a-retry", 0, 2),
+        );
+        let exact_retry = state
+            .retry_semantic_automation_range(
+                session.runtime_id,
+                session,
+                container_a,
+                0,
+                2,
+                &ordinary,
+                (1, 2, 3),
+            )
+            .expect("the exact A retry should publish the complete surface");
+        assert_eq!(
+            exact_retry.status,
+            SemanticAutomationRefreshStatus::Published
+        );
+        assert_eq!(calls_a.get(), 2);
+        assert_eq!(calls_b.get(), 1);
+
+        let b_fence_after = state
+            .semantic_demand
+            .active_range_fence(container_b.container_id)
+            .expect("B range slot should remain active");
+        assert_eq!(b_fence_after, b_fence_before);
+        assert_eq!(b_fence_after.attempt, b_attempt_before);
+        let a_anchor = exact_retry
+            .composition
+            .snapshot()
+            .root
+            .children
+            .iter()
+            .find(|node| node.id == AutomationNodeId::new(CONTAINER_ID.to_string()))
+            .expect("the A anchor should remain in the composed surface");
+        let b_anchor = exact_retry
+            .composition
+            .snapshot()
+            .root
+            .children
+            .iter()
+            .find(|node| node.id == AutomationNodeId::new((CONTAINER_ID + 1).to_string()))
+            .expect("the B anchor should remain in the composed surface");
+        assert!(
+            a_anchor
+                .children
+                .iter()
+                .any(|child| child.id == AutomationNodeId::new("a-retry-0"))
+        );
+        assert!(
+            b_anchor
+                .children
+                .iter()
+                .any(|child| child.id == AutomationNodeId::new("b-initial-2"))
+        );
+
+        let selected_before_rejection = state
+            .selected_semantic_automation(session.runtime_id, session, &ordinary, 3)
+            .expect("selected read should succeed")
+            .expect("the exact retry should remain selected");
+        assert!(matches!(
+            state.retry_semantic_automation_range(
+                session.runtime_id,
+                session,
+                container_a,
+                1,
+                2,
+                &ordinary,
+                (1, 2, 3),
+            ),
+            Err(SemanticAutomationSessionError::StaleContainerHandle)
+        ));
+        assert!(matches!(
+            state.retry_semantic_automation_range(
+                session.runtime_id,
+                session,
+                container_b,
+                0,
+                2,
+                &ordinary,
+                (1, 2, 3),
+            ),
+            Err(SemanticAutomationSessionError::StaleContainerHandle)
+        ));
+        let stale_session = SemanticAutomationSessionHandle {
+            runtime_id: session.runtime_id,
+            generation: session.generation + 1,
+        };
+        assert!(matches!(
+            state.retry_semantic_automation_range(
+                session.runtime_id,
+                stale_session,
+                container_a,
+                0,
+                2,
+                &ordinary,
+                (1, 2, 3),
+            ),
+            Err(SemanticAutomationSessionError::UnknownSession)
+        ));
+        assert_eq!(calls_a.get(), 2);
+        assert_eq!(calls_b.get(), 1);
+        let selected_after_rejection = state
+            .selected_semantic_automation(session.runtime_id, session, &ordinary, 3)
+            .expect("selected read after rejection should succeed")
+            .expect("the prior selection should remain selected");
+        assert_eq!(
+            selected_after_rejection.composition,
+            selected_before_rejection.composition
+        );
+
+        *outcome_b.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Found(
+            semantic_range_entries_with_prefix("b-whole", 2, 2),
+        );
+        let whole_retry = state
+            .retry_semantic_automation(session.runtime_id, session, &ordinary, (1, 2, 3))
+            .expect("the public whole-session retry should retain its behavior");
+        assert_eq!(
+            whole_retry.status,
+            SemanticAutomationRefreshStatus::Published
+        );
+        assert_eq!(calls_a.get(), 3);
+        assert_eq!(calls_b.get(), 2);
     }
 
     #[test]

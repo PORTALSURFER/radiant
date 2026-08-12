@@ -26,6 +26,12 @@ The generic architecture-sequence estimate remains about 97%; the private
 primary-window macOS/AppKit semantic accessibility consumer below is now
 implemented without changing the estimates. Live host/AppKit acceptance remains
 pending, so no estimate credit is awarded.
+The pre-admission stale or mismatched explicit-retry correction is also covered:
+it clears only the in-flight transport key and leaves semantic selection,
+projection, runtime demand, and native notification state unchanged. This is a
+correctness correction with no estimate credit; authoritative runtime-returned
+baseline or terminal outcomes continue to replace semantic projection with
+ordinary.
 The broad estimate remains intentionally `902 / 11` (~82.00%) and Public API
 remains 84% until shipped validation is complete; no design-only credit is
 awarded for this contract or implementation. Other native adapters,

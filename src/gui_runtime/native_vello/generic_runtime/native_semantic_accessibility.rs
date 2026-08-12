@@ -580,7 +580,7 @@ mod macos {
             && previous.window_generation == window_generation
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     struct NativeCallbackNode {
         object: Id,
         token: u64,
@@ -596,7 +596,7 @@ mod macos {
         logical_count: Option<usize>,
     }
 
-    #[derive(Clone, Debug, Default)]
+    #[derive(Clone, Debug, Default, PartialEq)]
     struct NativeCallbackProjection {
         nodes: Vec<NativeCallbackNode>,
         root_token: Option<u64>,
@@ -604,7 +604,10 @@ mod macos {
 
     struct NativeSemanticCallbackState {
         projection: NativeCallbackProjection,
+        #[cfg(not(test))]
         proxy: EventLoopProxy<RuntimeUserEvent>,
+        #[cfg(test)]
+        proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
         window_id: WindowId,
         generation: u64,
         view: Id,
@@ -622,7 +625,24 @@ mod macos {
         ) -> Self {
             Self {
                 projection: NativeCallbackProjection::default(),
+                #[cfg(not(test))]
                 proxy,
+                #[cfg(test)]
+                proxy: Some(proxy),
+                window_id,
+                generation,
+                view,
+                in_flight: Vec::new(),
+                deferred: Vec::new(),
+                last_unavailable: None,
+            }
+        }
+
+        #[cfg(test)]
+        fn new_for_test(window_id: WindowId, generation: u64, view: Id) -> Self {
+            Self {
+                projection: NativeCallbackProjection::default(),
+                proxy: None,
                 window_id,
                 generation,
                 view,
@@ -687,7 +707,14 @@ mod macos {
                     explicit_retry,
                 },
             };
-            if self.proxy.send_event(event).is_err() {
+            #[cfg(not(test))]
+            let sent = self.proxy.send_event(event).is_ok();
+            #[cfg(test)]
+            let sent = self
+                .proxy
+                .as_ref()
+                .is_some_and(|proxy| proxy.send_event(event).is_ok());
+            if !sent {
                 self.in_flight.retain(|pending| *pending != key);
             }
         }
@@ -936,7 +963,7 @@ mod macos {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     struct NativeItemToken {
         token: u64,
         container_id: u64,
@@ -948,7 +975,7 @@ mod macos {
         window_generation: u64,
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     struct NativeOrdinaryToken {
         token: u64,
         id: AutomationNodeId,
@@ -957,7 +984,7 @@ mod macos {
         window_generation: u64,
     }
 
-    #[derive(Clone, Debug, Default)]
+    #[derive(Clone, Debug, Default, PartialEq)]
     struct NativeTokenLedger {
         next: u64,
         root: Option<(u64, Option<SemanticAutomationSessionHandle>, u64)>,
@@ -1144,7 +1171,6 @@ mod macos {
                 active_range_matches_retry(&prior_ranges, key, &current_token, length),
             );
             if action == NativeSemanticQueryAction::RejectRetry {
-                self.publish_ordinary_projection(runtime);
                 self.finish_query(key, false);
                 return;
             }
@@ -2251,6 +2277,76 @@ mod macos {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::{
+            application::IntoView,
+            application::{VirtualLayoutParts, scroll, spacer, text, virtual_layout_from_parts},
+            gui::types::{Rect, Vector2},
+            layout::{
+                VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutExtentCandidate,
+                VirtualLayoutItemCandidate, VirtualLayoutItemKey, VirtualLayoutOverscan,
+                VirtualLayoutPolicy, VirtualLayoutPolicyDecision, VirtualLayoutPolicyIdentity,
+                VirtualLayoutQueryInput, VirtualLayoutQuerySink, VirtualLayoutVisibility,
+            },
+            runtime::{
+                RuntimeBridge, SurfaceRuntime, UiSurface, VirtualLayoutRevisions,
+                VirtualLayoutSemanticProviderOutcome, VirtualLayoutSemanticRangeProvider,
+                VirtualLayoutSemanticRangeRequest,
+            },
+        };
+        use std::{cell::Cell, rc::Rc, sync::Arc};
+
+        struct TestVirtualLayoutPolicy;
+
+        impl VirtualLayoutPolicy for TestVirtualLayoutPolicy {
+            fn query(
+                &self,
+                _input: &VirtualLayoutQueryInput,
+                sink: &mut VirtualLayoutQuerySink,
+            ) -> VirtualLayoutPolicyDecision {
+                sink.visit(VirtualLayoutItemCandidate::new(
+                    VirtualLayoutItemKey::new(1_u32),
+                    0,
+                    Rect::from_xy_size(0.0, 0.0, 100.0, 20.0),
+                    VirtualLayoutVisibility::Visible,
+                    VirtualLayoutBoundsConfidence::Exact,
+                ))
+                .expect("test virtual-layout policy should accept its item");
+                sink.set_extent(VirtualLayoutExtentCandidate::exact(Vector2::new(
+                    100.0, 20.0,
+                )))
+                .expect("test virtual-layout policy should accept its extent");
+                VirtualLayoutPolicyDecision::Ready
+            }
+        }
+
+        struct CountingRangeProvider {
+            calls: Cell<usize>,
+        }
+
+        impl VirtualLayoutSemanticRangeProvider for CountingRangeProvider {
+            fn lookup_range(
+                &self,
+                _request: &VirtualLayoutSemanticRangeRequest,
+            ) -> VirtualLayoutSemanticProviderOutcome<Vec<crate::runtime::VirtualLayoutSemanticEntry>>
+            {
+                self.calls.set(self.calls.get().saturating_add(1));
+                VirtualLayoutSemanticProviderOutcome::NotFound
+            }
+        }
+
+        struct TestBridge {
+            surface: UiSurface<()>,
+        }
+
+        impl RuntimeBridge<()> for TestBridge {
+            fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+                crate::runtime::test_arc_surface(self.surface.clone())
+            }
+
+            fn pull_surface(&mut self) -> UiSurface<()> {
+                self.surface.clone()
+            }
+        }
 
         fn test_container(container_id: u64) -> NativeContainerToken {
             NativeContainerToken {
@@ -2290,6 +2386,238 @@ mod macos {
                 container,
                 length,
             }
+        }
+
+        #[test]
+        fn mismatched_explicit_retry_is_inert_after_accepted_semantic_projection() {
+            let provider = Rc::new(CountingRangeProvider {
+                calls: Cell::new(0),
+            });
+            let parts = VirtualLayoutParts::new(
+                Rc::new(TestVirtualLayoutPolicy),
+                VirtualLayoutPolicyIdentity::new("native-semantic-retry-test"),
+                VirtualLayoutOverscan::new(0.0, 0.0).expect("finite test overscan"),
+                VirtualLayoutBudget::new(4),
+                VirtualLayoutRevisions::default(),
+                Rc::new(|| scroll(spacer::<()>())),
+                Rc::new(|_| text::<()>("semantic item")),
+                Rc::new(|_| VirtualLayoutPolicyIdentity::new("native-semantic-item")),
+            )
+            .with_semantic_range_provider(provider.clone())
+            .with_semantic_cardinality(
+                crate::application::virtual_layout::VirtualLayoutSemanticCardinality::new(4, 1),
+            );
+            let mut runtime = SurfaceRuntime::new(
+                TestBridge {
+                    surface: virtual_layout_from_parts(parts).into_surface(),
+                },
+                Vector2::new(160.0, 80.0),
+            );
+            let containers = runtime.native_semantic_containers();
+            assert_eq!(containers.len(), 1);
+            let current = containers[0];
+            let provider_calls = provider.calls.get();
+            let ordinary_before = runtime.automation_snapshot();
+
+            let session = SemanticAutomationSessionHandle {
+                runtime_id: 0xfeed,
+                generation: 7,
+            };
+            let container_token = NativeContainerToken {
+                token: 41,
+                container_id: current.container_id,
+                mount_generation: current.mount_generation,
+                registration_generation: current.registration_generation,
+                provider_generation: current.provider_generation,
+                cardinality: current.cardinality,
+                lease: Some(session),
+                window_generation: 5,
+            };
+            let item_tokens = [42_u64, 43_u64];
+            let projection = NativeCallbackProjection {
+                nodes: vec![
+                    NativeCallbackNode {
+                        object: 40_usize as Id,
+                        token: 40,
+                        kind: NativeNodeKind::Root,
+                        parent: None,
+                        children: vec![container_token.token],
+                        logical_children: Vec::new(),
+                        role: "AXGroup",
+                        frame: NSRect {
+                            origin: NSPoint { x: 0.0, y: 0.0 },
+                            size: NSSize {
+                                width: 160.0,
+                                height: 80.0,
+                            },
+                        },
+                        label: None,
+                        description: None,
+                        value: None,
+                        logical_count: None,
+                    },
+                    NativeCallbackNode {
+                        object: container_token.token as Id,
+                        token: container_token.token,
+                        kind: NativeNodeKind::Container,
+                        parent: Some(40),
+                        children: item_tokens.to_vec(),
+                        logical_children: item_tokens
+                            .iter()
+                            .enumerate()
+                            .map(|(index, token)| (index, *token))
+                            .collect(),
+                        role: "AXGroup",
+                        frame: NSRect {
+                            origin: NSPoint { x: 0.0, y: 0.0 },
+                            size: NSSize {
+                                width: 160.0,
+                                height: 80.0,
+                            },
+                        },
+                        label: Some(String::from("accepted semantic container")),
+                        description: None,
+                        value: None,
+                        logical_count: Some(current.cardinality.logical_item_count),
+                    },
+                    NativeCallbackNode {
+                        object: item_tokens[0] as Id,
+                        token: item_tokens[0],
+                        kind: NativeNodeKind::Item,
+                        parent: Some(container_token.token),
+                        children: Vec::new(),
+                        logical_children: Vec::new(),
+                        role: "AXGroup",
+                        frame: NSRect {
+                            origin: NSPoint { x: 0.0, y: 0.0 },
+                            size: NSSize {
+                                width: 100.0,
+                                height: 20.0,
+                            },
+                        },
+                        label: Some(String::from("item zero")),
+                        description: None,
+                        value: None,
+                        logical_count: None,
+                    },
+                    NativeCallbackNode {
+                        object: item_tokens[1] as Id,
+                        token: item_tokens[1],
+                        kind: NativeNodeKind::Item,
+                        parent: Some(container_token.token),
+                        children: Vec::new(),
+                        logical_children: Vec::new(),
+                        role: "AXGroup",
+                        frame: NSRect {
+                            origin: NSPoint { x: 0.0, y: 20.0 },
+                            size: NSSize {
+                                width: 100.0,
+                                height: 20.0,
+                            },
+                        },
+                        label: Some(String::from("item one")),
+                        description: None,
+                        value: None,
+                        logical_count: None,
+                    },
+                ],
+                root_token: Some(40),
+            };
+            let mut callback_state =
+                NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 1, null_mut());
+            let accepted_key = NativeQueryKey {
+                token: container_token.token,
+                start_index: 0,
+                max_count: 2,
+            };
+            let retry_key = NativeQueryKey {
+                max_count: 3,
+                ..accepted_key
+            };
+            callback_state.projection = projection;
+            callback_state.in_flight.push(retry_key);
+            let mut adapter = NativeSemanticAccessibilityAdapter {
+                view: null_mut(),
+                callback_state: Box::new(RefCell::new(callback_state)),
+                objects: Vec::new(),
+                tokens: NativeTokenLedger {
+                    next: item_tokens[1],
+                    root: Some((40, Some(session), 5)),
+                    ordinary: Vec::new(),
+                    containers: vec![container_token.clone()],
+                    items: item_tokens
+                        .iter()
+                        .enumerate()
+                        .map(|(index, token)| NativeItemToken {
+                            token: *token,
+                            container_id: current.container_id,
+                            mount_generation: current.mount_generation,
+                            logical_index: index,
+                            key: VirtualLayoutItemKey::new(index as u32),
+                            fences: crate::runtime::NormalizedSemanticPublicationFenceSet::default(
+                            ),
+                            lease: Some(session),
+                            window_generation: 5,
+                        })
+                        .collect(),
+                },
+                lease: Some(session),
+                generation: 1,
+                window_generation: 5,
+                transform: None,
+                current_containers: vec![current],
+                active_ranges: vec![NativeActiveRange {
+                    key: accepted_key,
+                    container: container_token,
+                    length: 2,
+                }],
+                attached: true,
+                layout_notifications: 9,
+            };
+
+            let tokens_before = adapter.tokens.clone();
+            let objects_before = adapter.objects.clone();
+            let lease_before = adapter.lease;
+            let active_ranges_before = adapter.active_ranges.clone();
+            let containers_before = adapter.current_containers.clone();
+            let attached_before = adapter.attached;
+            let layout_notifications_before = adapter.layout_notifications;
+            let state_before = adapter.callback_state.borrow();
+            let projection_before = state_before.projection.clone();
+            let deferred_before = state_before.deferred.clone();
+            let unavailable_before = state_before.last_unavailable;
+            drop(state_before);
+
+            adapter.handle_query(
+                &mut runtime,
+                NativeSemanticAccessibilityQuery::ChildrenRange {
+                    token: retry_key.token,
+                    start_index: retry_key.start_index,
+                    max_count: retry_key.max_count,
+                    explicit_retry: true,
+                },
+            );
+
+            assert_eq!(provider.calls.get(), provider_calls);
+            assert_eq!(runtime.automation_snapshot(), ordinary_before);
+            let opened = runtime
+                .open_semantic_automation_session()
+                .expect("the mismatched retry must not open a semantic session");
+            runtime
+                .close_semantic_automation_session(opened)
+                .expect("the probe session should close cleanly");
+            assert_eq!(adapter.tokens, tokens_before);
+            assert_eq!(adapter.objects, objects_before);
+            assert_eq!(adapter.lease, lease_before);
+            assert_eq!(adapter.active_ranges, active_ranges_before);
+            assert_eq!(adapter.current_containers, containers_before);
+            assert_eq!(adapter.attached, attached_before);
+            assert_eq!(adapter.layout_notifications, layout_notifications_before);
+            let state_after = adapter.callback_state.borrow();
+            assert_eq!(state_after.projection, projection_before);
+            assert!(state_after.in_flight.is_empty());
+            assert_eq!(state_after.deferred, deferred_before);
+            assert_eq!(state_after.last_unavailable, unavailable_before);
         }
 
         #[test]
@@ -2481,6 +2809,17 @@ mod macos {
                 active.key,
                 &changed_container,
                 active.length,
+            ));
+        }
+
+        #[test]
+        fn active_range_retry_rejects_an_exact_key_with_a_different_normalized_length() {
+            let active = test_active_range(1, 4, 3);
+            assert!(!active_range_matches_retry(
+                std::slice::from_ref(&active),
+                active.key,
+                &active.container,
+                active.length - 1,
             ));
         }
 

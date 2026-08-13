@@ -142,6 +142,17 @@ mod macos {
             cap: usize,
             len: *mut usize,
         ) -> ObjcBool;
+        fn radiant_native_convert_view_rect_to_screen(
+            view: Id,
+            window: Id,
+            source: *const NSRect,
+            out: *mut NSRect,
+        ) -> ObjcBool;
+        #[cfg(test)]
+        fn radiant_native_test_convert_view_rect_to_screen(
+            source: *const NSRect,
+            out: *mut NSRect,
+        ) -> ObjcBool;
         fn radiant_native_attribute_is(
             attribute: Id,
             expected: *const u8,
@@ -367,24 +378,6 @@ mod macos {
             let message: unsafe extern "C" fn(Id, Sel) -> NSRect =
                 unsafe { transmute(objc_msgSend as *const ()) };
             unsafe { message(receiver, selector) }
-        }
-    }
-
-    unsafe fn msg_rect_rect(receiver: Id, selector: Sel, rect: NSRect) -> NSRect {
-        #[cfg(target_arch = "x86_64")]
-        {
-            let message: unsafe extern "C" fn(*mut NSRect, Id, Sel, NSRect) =
-                unsafe { transmute(objc_msgSend_stret as *const ()) };
-            let mut result = MaybeUninit::<NSRect>::uninit();
-            unsafe { message(result.as_mut_ptr(), receiver, selector, rect) };
-            unsafe { result.assume_init() }
-        }
-
-        #[cfg(not(target_arch = "x86_64"))]
-        {
-            let message: unsafe extern "C" fn(Id, Sel, NSRect) -> NSRect =
-                unsafe { transmute(objc_msgSend as *const ()) };
-            unsafe { message(receiver, selector, rect) }
         }
     }
 
@@ -991,17 +984,43 @@ mod macos {
                     height: f64::from(bounds.height),
                 },
             };
-            let screen = unsafe { msg_rect_rect(self.view, sel(c"convertRectToScreen:"), source) };
-            if !rect_is_finite(screen)
-                || screen.size.width < 0.0
-                || screen.size.height < 0.0
-                || !self.scale_factor.is_finite()
-                || self.scale_factor <= 0.0
-            {
-                None
-            } else {
-                Some(screen)
-            }
+            let mut screen = NSRect {
+                origin: NSPoint {
+                    x: f64::NAN,
+                    y: f64::NAN,
+                },
+                size: NSSize {
+                    width: f64::NAN,
+                    height: f64::NAN,
+                },
+            };
+            let converted = unsafe {
+                radiant_native_convert_view_rect_to_screen(
+                    self.view,
+                    self.window,
+                    &source,
+                    &mut screen,
+                )
+            };
+            validated_screen_rect(converted, screen, self.scale_factor)
+        }
+    }
+
+    fn validated_screen_rect(
+        converted: ObjcBool,
+        screen: NSRect,
+        scale_factor: f64,
+    ) -> Option<NSRect> {
+        if converted != YES
+            || !rect_is_finite(screen)
+            || screen.size.width < 0.0
+            || screen.size.height < 0.0
+            || !scale_factor.is_finite()
+            || scale_factor <= 0.0
+        {
+            None
+        } else {
+            Some(screen)
         }
     }
 
@@ -3374,6 +3393,45 @@ mod macos {
             let object = unsafe { msg_id(allocated, sel(c"init")) };
             assert!(!object.is_null());
             object
+        }
+
+        #[test]
+        fn native_coordinate_conversion_helper_contains_objective_c_exceptions() {
+            let source = NSRect {
+                origin: NSPoint { x: 4.0, y: 8.0 },
+                size: NSSize {
+                    width: 12.0,
+                    height: 16.0,
+                },
+            };
+            let mut screen = source;
+            let converted =
+                unsafe { radiant_native_test_convert_view_rect_to_screen(&source, &mut screen) };
+
+            assert_eq!(converted, NO);
+            assert!(!rect_is_finite(screen));
+        }
+
+        #[test]
+        fn native_coordinate_conversion_failures_withhold_projection() {
+            let valid = NSRect {
+                origin: NSPoint { x: 10.0, y: 20.0 },
+                size: NSSize {
+                    width: 30.0,
+                    height: 40.0,
+                },
+            };
+            let invalid = NSRect {
+                size: NSSize {
+                    width: f64::NAN,
+                    ..valid.size
+                },
+                ..valid
+            };
+
+            assert!(validated_screen_rect(NO, valid, 1.0).is_none());
+            assert!(validated_screen_rect(YES, invalid, 1.0).is_none());
+            assert_eq!(validated_screen_rect(YES, valid, 1.0), Some(valid));
         }
 
         fn numeric_adapter_fixture(target: AutomationTarget) -> NativeSemanticAccessibilityAdapter {

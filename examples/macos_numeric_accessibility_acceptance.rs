@@ -172,16 +172,16 @@ type AcceptanceAccessibilityOutcome = NumericAccessibilityOutcome<f32, &'static 
 #[cfg(any(target_os = "macos", test))]
 #[derive(Debug)]
 enum AcceptanceMessage {
-    Interaction(AcceptanceInteractionBatch),
-    Accessibility(AcceptanceAccessibilityOutcome),
+    Interaction(Box<AcceptanceInteractionBatch>),
+    Accessibility(Box<AcceptanceAccessibilityOutcome>),
 }
 
 #[cfg(any(target_os = "macos", test))]
 fn project_surface(state: &AcceptanceState) -> View<AcceptanceMessage> {
     let control = match numeric_input(state.value, AcceptanceCodec, AcceptanceAdjustment) {
         Ok(builder) => builder.on_interaction_with_accessibility(
-            AcceptanceMessage::Interaction,
-            AcceptanceMessage::Accessibility,
+            |batch| AcceptanceMessage::Interaction(Box::new(batch)),
+            |outcome| AcceptanceMessage::Accessibility(Box::new(outcome)),
         ),
         Err(error) => text(format!("Numeric input construction failed: {error:?}")),
     };
@@ -233,7 +233,7 @@ fn update(state: &mut AcceptanceState, message: AcceptanceMessage) {
             state.status = String::from("Normal numeric interaction received");
         }
         AcceptanceMessage::Accessibility(outcome) => {
-            if let AcceptanceAccessibilityOutcome::Edit(edit) = &outcome
+            if let AcceptanceAccessibilityOutcome::Edit(edit) = outcome.as_ref()
                 && let Some(value) = edit_value(edit)
             {
                 state.value = value;
@@ -298,7 +298,7 @@ mod tests {
             .expect("the widget's validated batch shape should be accepted");
         update(
             &mut state,
-            AcceptanceMessage::Accessibility(AcceptanceAccessibilityOutcome::Edit(edit)),
+            AcceptanceMessage::Accessibility(Box::new(AcceptanceAccessibilityOutcome::Edit(edit))),
         );
 
         assert_eq!(state.value, 43.0);

@@ -510,11 +510,12 @@ runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
 authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
-`AXFocused` false/unclaimed, a non-settable value, and exactly `AXIncrement` and
+`AXFocused` false/unclaimed, a value that is settable only for an eligible current ordinary materialized target, and exactly `AXIncrement` and
 `AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
 increment/decrement selectors use `BOOL c@:` and the
 deprecated action selector uses `void v@:@`; only those exact action names are
-accepted. Each native action enqueues one bounded primary-window,
+accepted.
+The modern `accessibilityValue` getter uses `id @@:`, while modern and legacy AXValue setters use `v@:@` and `v@:@@`; only a bounded `NSString` (at most 1,024 UTF-16 units and 4,096 UTF-8 bytes) is accepted and translated to the existing neutral `SetValueText` path. Runtime fences, codec validation, atomic publication, and inert stale/failure behavior remain authoritative; no native focus or virtual/provider mutation is added. Each native action enqueues one bounded primary-window,
 adapter-generation, token, target, and neutral-action event. The running
 event-loop validates current window/generation/token/identity/authority and
 delegates to existing `SurfaceRuntime` admission once; that admission may
@@ -524,8 +525,8 @@ panic, and transport failures are inert and never retarget or mutate. A stable
 value-only
 change retains the native object, installs the new queryable value before one
 `AXValueChanged`, and posts no layout notification; unchanged, no-change,
-typed-failure, stale, and enqueue-failure paths post none. Native actions are
-not provider demand, materialization, SetValueText, AXValue mutation, slider,
+typed-failure, stale, and enqueue-failure paths post none. Native requests are
+not provider demand, materialization, virtual/provider mutation, slider,
 range, orientation, percentage, or scalar conversion. The adapter and lease are
 not public imperative provider-registration APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.

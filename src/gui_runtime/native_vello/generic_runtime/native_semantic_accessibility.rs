@@ -11,9 +11,9 @@
 mod macos {
     use crate::{
         gui::automation::{
-            AUTOMATION_ACTION_DECREMENT, AUTOMATION_ACTION_INCREMENT, AutomationBounds,
-            AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot, AutomationRole,
-            AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
+            AUTOMATION_ACTION_DECREMENT, AUTOMATION_ACTION_INCREMENT, AUTOMATION_ACTION_SET_TEXT,
+            AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+            AutomationRole, AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
         },
         gui_runtime::native_vello::runtime_event::{
             NativeNumericAccessibilityAction, NativeSemanticAccessibilityQuery, RuntimeUserEvent,
@@ -54,8 +54,14 @@ mod macos {
     const NS_UTF8_STRING_ENCODING: usize = 4;
     const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
     const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
+    const NS_ACCESSIBILITY_VALUE_ATTRIBUTE: &CStr = c"AXValue";
+    const MAX_NATIVE_VALUE_UTF16_UNITS: usize = 1_024;
+    const MAX_NATIVE_VALUE_UTF8_BYTES: usize = 4_096;
     const MODERN_ACTION_METHOD_TYPE: &CStr = c"c@:";
     const DEPRECATED_ACTION_METHOD_TYPE: &CStr = c"v@:@";
+    const MODERN_VALUE_METHOD_TYPE: &CStr = c"@@:";
+    const VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@";
+    const LEGACY_VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@@";
     const YES: ObjcBool = 1;
     const NO: ObjcBool = 0;
 
@@ -191,6 +197,11 @@ mod macos {
                     c"@@:@",
                 ),
                 (
+                    c"accessibilityValue",
+                    native_accessibility_value as *const c_void,
+                    MODERN_VALUE_METHOD_TYPE,
+                ),
+                (
                     c"accessibilityArrayAttributeCount:",
                     native_array_attribute_count as *const c_void,
                     c"Q@:@",
@@ -204,6 +215,16 @@ mod macos {
                     c"accessibilityIsAttributeSettable:",
                     native_attribute_settable as *const c_void,
                     c"c@:@",
+                ),
+                (
+                    c"setAccessibilityValue:",
+                    native_set_accessibility_value as *const c_void,
+                    VALUE_SETTER_METHOD_TYPE,
+                ),
+                (
+                    c"accessibilitySetValue:forAttribute:",
+                    native_set_accessibility_value_for_attribute as *const c_void,
+                    LEGACY_VALUE_SETTER_METHOD_TYPE,
                 ),
                 (
                     c"accessibilityActionNames",
@@ -280,6 +301,36 @@ mod macos {
 
     unsafe fn msg_bool(receiver: Id, selector: Sel) -> ObjcBool {
         let message: unsafe extern "C" fn(Id, Sel) -> ObjcBool =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector) }
+    }
+
+    unsafe fn msg_bool_id(receiver: Id, selector: Sel, argument: Id) -> ObjcBool {
+        let message: unsafe extern "C" fn(Id, Sel, Id) -> ObjcBool =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector, argument) }
+    }
+
+    unsafe fn msg_usize(receiver: Id, selector: Sel) -> usize {
+        let message: unsafe extern "C" fn(Id, Sel) -> usize =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector) }
+    }
+
+    unsafe fn msg_id_usize(receiver: Id, selector: Sel, argument: usize) -> Id {
+        let message: unsafe extern "C" fn(Id, Sel, usize) -> Id =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector, argument) }
+    }
+
+    unsafe fn msg_usize_usize(receiver: Id, selector: Sel, argument: usize) -> usize {
+        let message: unsafe extern "C" fn(Id, Sel, usize) -> usize =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector, argument) }
+    }
+
+    unsafe fn msg_const_ptr(receiver: Id, selector: Sel) -> *const c_void {
+        let message: unsafe extern "C" fn(Id, Sel) -> *const c_void =
             unsafe { transmute(objc_msgSend as *const ()) };
         unsafe { message(receiver, selector) }
     }
@@ -384,6 +435,58 @@ mod macos {
             return null_mut();
         }
         unsafe { msg_id(initialized, sel(c"autorelease")) }
+    }
+
+    /// Copy one AppKit NSString into Rust only after both bounded Foundation
+    /// length checks have passed.  `NSData` is used instead of `UTF8String` so
+    /// embedded NULs remain part of the exact payload.
+    unsafe fn bounded_ns_string_to_rust(value: Id) -> Option<String> {
+        if value.is_null() {
+            return None;
+        }
+        let class = unsafe { class_named(c"NSString") }.ok()?;
+        if unsafe { msg_bool_id(value, sel(c"isKindOfClass:"), class) } == NO {
+            return None;
+        }
+
+        let utf16_units = unsafe { msg_usize(value, sel(c"length")) };
+        if utf16_units > MAX_NATIVE_VALUE_UTF16_UNITS {
+            return None;
+        }
+        let utf8_bytes = unsafe {
+            msg_usize_usize(
+                value,
+                sel(c"lengthOfBytesUsingEncoding:"),
+                NS_UTF8_STRING_ENCODING,
+            )
+        };
+        if utf8_bytes > MAX_NATIVE_VALUE_UTF8_BYTES {
+            return None;
+        }
+
+        let data =
+            unsafe { msg_id_usize(value, sel(c"dataUsingEncoding:"), NS_UTF8_STRING_ENCODING) };
+        if data.is_null() {
+            return None;
+        }
+        let data_bytes = unsafe { msg_usize(data, sel(c"length")) };
+        if data_bytes != utf8_bytes || data_bytes > MAX_NATIVE_VALUE_UTF8_BYTES {
+            return None;
+        }
+
+        let mut bytes = [0_u8; MAX_NATIVE_VALUE_UTF8_BYTES];
+        if data_bytes != 0 {
+            let source = unsafe { msg_const_ptr(data, sel(c"bytes")) };
+            if source.is_null() {
+                return None;
+            }
+            unsafe {
+                std::ptr::copy_nonoverlapping(source.cast::<u8>(), bytes.as_mut_ptr(), data_bytes);
+            }
+        }
+        std::str::from_utf8(&bytes[..data_bytes])
+            .ok()
+            .map(|text| text.to_owned())
     }
 
     unsafe fn ns_array(values: &[Id]) -> Id {
@@ -1183,6 +1286,10 @@ mod macos {
                     .available_actions
                     .iter()
                     .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+                && target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_SET_TEXT)
         });
         let target = matches.next()?.clone();
         matches.next().is_none().then_some(target)
@@ -1200,17 +1307,20 @@ mod macos {
             .flatten()
     }
 
-    fn native_numeric_action_name(action: NativeNumericAccessibilityAction) -> &'static CStr {
+    fn native_numeric_action_name(
+        action: &NativeNumericAccessibilityAction,
+    ) -> Option<&'static CStr> {
         match action {
-            NativeNumericAccessibilityAction::Increment => NS_ACCESSIBILITY_INCREMENT_ACTION,
-            NativeNumericAccessibilityAction::Decrement => NS_ACCESSIBILITY_DECREMENT_ACTION,
+            NativeNumericAccessibilityAction::Increment => Some(NS_ACCESSIBILITY_INCREMENT_ACTION),
+            NativeNumericAccessibilityAction::Decrement => Some(NS_ACCESSIBILITY_DECREMENT_ACTION),
+            NativeNumericAccessibilityAction::SetValueText(_) => None,
         }
     }
 
-    fn native_numeric_action_text(action: NativeNumericAccessibilityAction) -> &'static str {
-        native_numeric_action_name(action)
-            .to_str()
-            .unwrap_or_default()
+    fn native_numeric_action_text(
+        action: &NativeNumericAccessibilityAction,
+    ) -> Option<&'static str> {
+        native_numeric_action_name(action).and_then(|name| name.to_str().ok())
     }
 
     fn native_numeric_action_from_name(name: &CStr) -> Option<NativeNumericAccessibilityAction> {
@@ -1428,6 +1538,9 @@ mod macos {
                 }
                 NativeNumericAccessibilityAction::Decrement => {
                     NumericAccessibilityAction::Decrement
+                }
+                NativeNumericAccessibilityAction::SetValueText(text) => {
+                    NumericAccessibilityAction::SetValueText(text)
                 }
             };
             Some(NumericAccessibilityRequest::new(target, action))
@@ -2547,6 +2660,59 @@ mod macos {
         Some(unsafe { &*(state.cast::<RefCell<NativeSemanticCallbackState>>()) })
     }
 
+    fn native_value_settable_target(node: &NativeCallbackNode) -> Option<(u64, AutomationTarget)> {
+        if node.kind != NativeNodeKind::Ordinary
+            || node.role != "AXIncrementor"
+            || node.value.is_none()
+        {
+            return None;
+        }
+        let target = node.action_target.as_ref()?;
+        if target.role != AutomationRole::TextInput
+            || !target.enabled
+            || !target.focusable
+            || target.value.as_deref() != node.value.as_deref()
+            || !target
+                .authority
+                .is_some_and(|authority| authority.materialized)
+            || !target
+                .available_actions
+                .iter()
+                .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+            || !target
+                .available_actions
+                .iter()
+                .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+            || !target
+                .available_actions
+                .iter()
+                .any(|action| action == AUTOMATION_ACTION_SET_TEXT)
+        {
+            return None;
+        }
+        Some((node.token, target.clone()))
+    }
+
+    unsafe fn objc_attribute_is(attribute: Id, expected: &CStr) -> bool {
+        if attribute.is_null() {
+            return false;
+        }
+        let Ok(class) = (unsafe { class_named(c"NSString") }) else {
+            return false;
+        };
+        if unsafe { msg_bool_id(attribute, sel(c"isKindOfClass:"), class) } == NO {
+            return false;
+        }
+        let name = unsafe { msg_id_ptr(attribute, sel(c"UTF8String")) };
+        !name.is_null() && unsafe { CStr::from_ptr(name) } == expected
+    }
+
+    fn native_value_from_node(node: &NativeCallbackNode) -> Id {
+        node.value
+            .as_deref()
+            .map_or(null_mut(), |value| unsafe { ns_string(value) })
+    }
+
     fn ffi_boundary<T>(fallback: T, callback: impl FnOnce() -> T) -> T {
         catch_unwind(AssertUnwindSafe(callback)).unwrap_or(fallback)
     }
@@ -2622,9 +2788,7 @@ mod macos {
                     .as_deref()
                     .map_or(null_mut(), |value| unsafe { ns_string(value) })
             } else if name == c"AXValue" {
-                node.value
-                    .as_deref()
-                    .map_or(null_mut(), |value| unsafe { ns_string(value) })
+                native_value_from_node(node)
             } else if name == c"AXEnabled" {
                 node.action_target
                     .as_ref()
@@ -2639,6 +2803,21 @@ mod macos {
             } else {
                 null_mut()
             }
+        })
+    }
+
+    extern "C" fn native_accessibility_value(receiver: Id, _: Sel) -> Id {
+        ffi_boundary(null_mut(), || {
+            let Some(state) = callback_state(receiver) else {
+                return null_mut();
+            };
+            let Ok(state) = state.try_borrow() else {
+                return null_mut();
+            };
+            let Some(node) = state.node_for_object(receiver) else {
+                return null_mut();
+            };
+            native_value_from_node(node)
         })
     }
 
@@ -2724,8 +2903,84 @@ mod macos {
         })
     }
 
-    extern "C" fn native_attribute_settable(_: Id, _: Sel, _: Id) -> ObjcBool {
-        ffi_boundary(NO, || NO)
+    extern "C" fn native_attribute_settable(receiver: Id, _: Sel, attribute: Id) -> ObjcBool {
+        ffi_boundary(NO, || {
+            if !unsafe { objc_attribute_is(attribute, NS_ACCESSIBILITY_VALUE_ATTRIBUTE) } {
+                return NO;
+            }
+            let Some(state) = callback_state(receiver) else {
+                return NO;
+            };
+            let Ok(state) = state.try_borrow() else {
+                return NO;
+            };
+            if state
+                .node_for_object(receiver)
+                .and_then(native_value_settable_target)
+                .is_some()
+            {
+                YES
+            } else {
+                NO
+            }
+        })
+    }
+
+    fn enqueue_native_value(receiver: Id, value: Id) {
+        let Some(state) = callback_state(receiver) else {
+            return;
+        };
+        let Ok(state) = state.try_borrow() else {
+            return;
+        };
+        let Some((token, target)) = state
+            .node_for_object(receiver)
+            .and_then(native_value_settable_target)
+        else {
+            return;
+        };
+        let Some(value) = (unsafe { bounded_ns_string_to_rust(value) }) else {
+            return;
+        };
+        drop(state);
+
+        let Some(state) = callback_state(receiver) else {
+            return;
+        };
+        let Ok(mut state) = state.try_borrow_mut() else {
+            return;
+        };
+        let Some(current) = state
+            .node_for_token(token)
+            .and_then(native_value_settable_target)
+        else {
+            return;
+        };
+        if !numeric_action_target_fence_matches(&target, &current.1) {
+            return;
+        }
+        let _ = state.enqueue_numeric_action(
+            token,
+            current.1,
+            NativeNumericAccessibilityAction::SetValueText(value),
+        );
+    }
+
+    extern "C" fn native_set_accessibility_value(receiver: Id, _: Sel, value: Id) {
+        ffi_boundary((), || enqueue_native_value(receiver, value));
+    }
+
+    extern "C" fn native_set_accessibility_value_for_attribute(
+        receiver: Id,
+        _: Sel,
+        value: Id,
+        attribute: Id,
+    ) {
+        ffi_boundary((), || {
+            if unsafe { objc_attribute_is(attribute, NS_ACCESSIBILITY_VALUE_ATTRIBUTE) } {
+                enqueue_native_value(receiver, value);
+            }
+        });
     }
 
     extern "C" fn native_action_names(receiver: Id, _: Sel) -> Id {
@@ -2744,7 +2999,9 @@ mod macos {
             }
             let values = numeric_action_names()
                 .into_iter()
-                .map(|action| unsafe { ns_string(native_numeric_action_text(action)) })
+                .filter_map(|action| {
+                    native_numeric_action_text(&action).map(|text| unsafe { ns_string(text) })
+                })
                 .collect::<Vec<_>>();
             if values.iter().any(|value| value.is_null()) {
                 null_mut()
@@ -4023,6 +4280,24 @@ mod macos {
                 .is_none()
             );
 
+            let mut without_set_text = target.clone();
+            without_set_text.available_actions.retain(|action| {
+                action == AUTOMATION_ACTION_INCREMENT || action == AUTOMATION_ACTION_DECREMENT
+            });
+            let without_set_text_targets = GuiAutomationTargetSnapshot {
+                targets: vec![without_set_text],
+                ..targets.clone()
+            };
+            assert!(
+                qualified_numeric_action_target(
+                    &without_set_text_targets,
+                    &node,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
             let mut unmaterialized = target.clone();
             unmaterialized.authority = Some(AutomationTargetAuthority {
                 runtime_generation: 9,
@@ -4075,12 +4350,18 @@ mod macos {
                 ]
             );
             assert_eq!(
-                native_numeric_action_name(NativeNumericAccessibilityAction::Increment),
-                c"AXIncrement"
+                native_numeric_action_name(&NativeNumericAccessibilityAction::Increment),
+                Some(c"AXIncrement")
             );
             assert_eq!(
-                native_numeric_action_name(NativeNumericAccessibilityAction::Decrement),
-                c"AXDecrement"
+                native_numeric_action_name(&NativeNumericAccessibilityAction::Decrement),
+                Some(c"AXDecrement")
+            );
+            assert_eq!(
+                native_numeric_action_name(&NativeNumericAccessibilityAction::SetValueText(
+                    String::from("8"),
+                )),
+                None
             );
             assert_eq!(
                 native_numeric_action_from_name(c"AXIncrement"),
@@ -4093,6 +4374,12 @@ mod macos {
             assert_eq!(native_numeric_action_from_name(c"AXSetValue"), None);
             assert_eq!(MODERN_ACTION_METHOD_TYPE.to_bytes_with_nul(), b"c@:\0");
             assert_eq!(DEPRECATED_ACTION_METHOD_TYPE.to_bytes_with_nul(), b"v@:@\0");
+            assert_eq!(MODERN_VALUE_METHOD_TYPE.to_bytes_with_nul(), b"@@:\0");
+            assert_eq!(VALUE_SETTER_METHOD_TYPE.to_bytes_with_nul(), b"v@:@\0");
+            assert_eq!(
+                LEGACY_VALUE_SETTER_METHOD_TYPE.to_bytes_with_nul(),
+                b"v@:@@\0"
+            );
             assert_eq!(
                 native_attribute_settable(null_mut(), null_mut(), null_mut()),
                 NO
@@ -4138,6 +4425,17 @@ mod macos {
                     )
                     .is_some()
             );
+            let set_value_request = adapter
+                .numeric_accessibility_request(
+                    91,
+                    target.clone(),
+                    NativeNumericAccessibilityAction::SetValueText(String::from("12")),
+                )
+                .expect("the current native target should admit AXValue text");
+            assert_eq!(
+                set_value_request.action,
+                NumericAccessibilityAction::SetValueText(String::from("12"))
+            );
             assert!(
                 adapter
                     .numeric_accessibility_request(
@@ -4172,6 +4470,72 @@ mod macos {
             );
             drop(state_borrow);
             adapter.finish_numeric_action();
+        }
+
+        #[test]
+        fn native_ax_value_setter_requires_the_complete_current_numeric_capability() {
+            let (_, target) = numeric_target_fixture();
+            let node = numeric_callback_node(target.clone(), "7");
+            assert_eq!(
+                native_value_settable_target(&node),
+                Some((91, target.clone()))
+            );
+
+            let mut without_set_text = node.clone();
+            without_set_text
+                .action_target
+                .as_mut()
+                .expect("numeric fixture has a target")
+                .available_actions
+                .retain(|action| {
+                    action == AUTOMATION_ACTION_INCREMENT || action == AUTOMATION_ACTION_DECREMENT
+                });
+            assert!(native_value_settable_target(&without_set_text).is_none());
+
+            let mut wrong_value = node.clone();
+            wrong_value
+                .action_target
+                .as_mut()
+                .expect("numeric fixture has a target")
+                .value = Some(String::from("8"));
+            assert!(native_value_settable_target(&wrong_value).is_none());
+
+            let mut stale_authority = node;
+            stale_authority
+                .action_target
+                .as_mut()
+                .expect("numeric fixture has a target")
+                .authority = Some(AutomationTargetAuthority {
+                runtime_generation: 9,
+                materialized: false,
+            });
+            assert!(native_value_settable_target(&stale_authority).is_none());
+        }
+
+        #[test]
+        fn bounded_native_value_extraction_rejects_wrong_types_and_overflow() {
+            let valid = unsafe { ns_string("12\0.5") };
+            assert_eq!(
+                unsafe { bounded_ns_string_to_rust(valid) }.as_deref(),
+                Some("12\0.5")
+            );
+            let empty = unsafe { ns_string("") };
+            assert_eq!(
+                unsafe { bounded_ns_string_to_rust(empty) }.as_deref(),
+                Some("")
+            );
+
+            let oversized_utf16 = "x".repeat(MAX_NATIVE_VALUE_UTF16_UNITS + 1);
+            let oversized_utf16 = unsafe { ns_string(&oversized_utf16) };
+            assert!(unsafe { bounded_ns_string_to_rust(oversized_utf16) }.is_none());
+
+            let oversized_utf8 = "€".repeat(MAX_NATIVE_VALUE_UTF8_BYTES / 3 + 1);
+            let oversized_utf8 = unsafe { ns_string(&oversized_utf8) };
+            assert!(unsafe { bounded_ns_string_to_rust(oversized_utf8) }.is_none());
+
+            let number = unsafe { ns_number_usize(12) };
+            assert!(unsafe { bounded_ns_string_to_rust(number) }.is_none());
+            assert!(unsafe { bounded_ns_string_to_rust(null_mut()) }.is_none());
         }
 
         #[test]

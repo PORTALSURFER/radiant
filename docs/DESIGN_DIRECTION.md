@@ -1483,19 +1483,23 @@ numeric action authority. For an ordinary runtime node only, the private
 adapter pairs the pure ordinary `automation_target_snapshot` with the native
 semantic tree and admits exactly an enabled, editable, focusable,
 `AutomationRole::TextInput` target with current `value_text`, materialized
-authority, and both neutral increment/decrement actions. The exact ordinary
+authority, and both neutral increment/decrement actions; it need not already be
+runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
 authority fence. A qualified node publishes `AXIncrementor`, the exact label
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
-focused false/unchanged, a non-settable value, and exactly `AXIncrement` and
-`AXDecrement`. Modern increment/decrement selectors use `BOOL c@:` and the
+`AXFocused` false/unclaimed, a non-settable value, and exactly `AXIncrement` and
+`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+increment/decrement selectors use `BOOL c@:` and the
 deprecated action selector uses `void v@:@`; only those exact action names are
 accepted. Each native action enqueues one bounded primary-window,
 adapter-generation, token, target, and neutral-action event. The running
 event-loop validates current window/generation/token/identity/authority and
-invokes the existing runtime dispatcher once; stale, unsupported, disabled,
-read-only, unfocused, incumbent-owned, recovery, close, borrow, panic, and
-transport failures are inert and never retarget or mutate. A stable value-only
+delegates to existing `SurfaceRuntime` admission once; that admission may
+perform the ordinary runtime focus transition. Non-focusable, focus-vetoed,
+blocked, stale, unsupported, disabled, read-only, recovery, close, borrow,
+panic, and transport failures are inert and never retarget or mutate. A stable
+value-only
 change retains the native object, installs the new queryable value before one
 `AXValueChanged`, and posts no layout notification; unchanged, no-change,
 typed-failure, stale, and enqueue-failure paths post none. Native actions are
@@ -1599,7 +1603,8 @@ multi-consumer, and public registry behavior.
 This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
-unchanged. Wayland, Windows, non-qualified/virtual native actions, focus, scrolling, product policy,
+unchanged. Wayland, Windows, non-qualified/virtual native actions, new native AX
+focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and
 renderer behavior remain excluded.
 
@@ -1665,7 +1670,7 @@ native-boundary, non-goal, and acceptance matrix is in
 attachment moves Public API to 85% and broad coverage to `903 / 11`
 (~82.09%); no Platform credit is awarded without live AppKit acceptance.
 
-Its non-goals are direct native custom-resolver invocation/reconstruction; native actions for virtual/provider targets; focus;
+Its non-goals are direct native custom-resolver invocation/reconstruction; native actions for virtual/provider targets; new native AX focus exposure or transfer beyond existing ordinary runtime admission;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
 hit-testing, or cache policy; product policy; multiple ranges per container;
 and prelude export.

@@ -1090,6 +1090,22 @@ mod macos {
             && captured.authority == current.authority
     }
 
+    fn numeric_action_target_continuity_matches(
+        previous: &AutomationTarget,
+        current: &AutomationTarget,
+    ) -> bool {
+        previous.id == current.id
+            && previous.path == current.path
+            && previous.role == current.role
+            && previous.enabled == current.enabled
+            && previous.focusable == current.focusable
+            && previous.available_actions == current.available_actions
+            && previous
+                .authority
+                .zip(current.authority)
+                .is_some_and(|(previous, current)| previous.materialized && current.materialized)
+    }
+
     fn qualified_numeric_action_target(
         targets: &GuiAutomationTargetSnapshot,
         node: &AutomationNodeSnapshot,
@@ -1207,14 +1223,14 @@ mod macos {
                 return None;
             }
 
-            let target_fence_matches = match (&node.action_target, &spec.action_target) {
+            let target_continuity_matches = match (&node.action_target, &spec.action_target) {
                 (None, None) => true,
                 (Some(previous), Some(current)) => {
-                    numeric_action_target_fence_matches(previous, current)
+                    numeric_action_target_continuity_matches(previous, current)
                 }
                 _ => false,
             };
-            if !target_fence_matches {
+            if !target_continuity_matches {
                 return None;
             }
             let value_changed = node.value != spec.semantics.value_text;
@@ -2744,6 +2760,10 @@ mod macos {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::widgets::{
+            NumericAccessibilityOutcome, NumericAdjustment, NumericCodec, NumericInputWidget,
+            NumericParseResult, NumericStep, NumericStepDirection, WidgetSizing,
+        };
         use crate::{
             application::IntoView,
             application::{
@@ -2760,9 +2780,10 @@ mod macos {
                 VirtualLayoutQueryInput, VirtualLayoutQuerySink, VirtualLayoutVisibility,
             },
             runtime::{
-                RuntimeBridge, SurfaceRuntime, UiSurface, VirtualLayoutRevisions,
-                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProviderOutcome,
-                VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
+                Command, RuntimeBridge, SurfaceNode, SurfaceRuntime, UiSurface,
+                VirtualLayoutRevisions, VirtualLayoutSemanticEntry,
+                VirtualLayoutSemanticProviderOutcome, VirtualLayoutSemanticRangeProvider,
+                VirtualLayoutSemanticRangeRequest, WidgetMessageMapper,
                 virtual_layout::{
                     VirtualLayoutSemanticCoordinateTransform,
                     VirtualLayoutSemanticCoordinateTransformOutcome,
@@ -2824,6 +2845,128 @@ mod macos {
             }
         }
 
+        #[derive(Clone, Debug)]
+        enum MappedNumericMessage {
+            Accessibility(NumericAccessibilityOutcome<f32, (), ()>),
+        }
+
+        #[derive(Clone, Copy)]
+        struct NativeNumericTestCodec;
+
+        impl NumericCodec<f32> for NativeNumericTestCodec {
+            type Error = ();
+
+            fn parse(&self, text: &str) -> NumericParseResult<f32> {
+                if text.is_empty() || text == "-" {
+                    return NumericParseResult::Incomplete;
+                }
+                text.parse::<f32>()
+                    .map(NumericParseResult::Valid)
+                    .unwrap_or(NumericParseResult::Invalid)
+            }
+
+            fn format_editable(
+                &self,
+                value: &f32,
+                output: &mut dyn std::fmt::Write,
+            ) -> Result<(), Self::Error> {
+                write!(output, "{value}").map_err(|_| ())
+            }
+        }
+
+        #[derive(Clone, Copy)]
+        struct NativeNumericTestAdjustment;
+
+        impl NumericAdjustment<f32> for NativeNumericTestAdjustment {
+            type Error = ();
+
+            fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+                Ok(normalized)
+            }
+
+            fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+
+            fn step(
+                &self,
+                value: &f32,
+                direction: NumericStepDirection,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value
+                    + match direction {
+                        NumericStepDirection::Increase => 1.0,
+                        NumericStepDirection::Decrease => -1.0,
+                    })
+            }
+
+            fn scrub(
+                &self,
+                value: &f32,
+                _normalized_delta: f32,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+
+            fn wheel(
+                &self,
+                value: &f32,
+                _delta: f32,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+        }
+
+        struct MappedNumericBridge {
+            value: Rc<Cell<f32>>,
+            mapped_actions: Rc<Cell<usize>>,
+        }
+
+        impl MappedNumericBridge {
+            fn new(value: f32) -> Self {
+                Self {
+                    value: Rc::new(Cell::new(value)),
+                    mapped_actions: Rc::new(Cell::new(0)),
+                }
+            }
+        }
+
+        impl RuntimeBridge<MappedNumericMessage> for MappedNumericBridge {
+            fn project_surface(&mut self) -> Arc<UiSurface<MappedNumericMessage>> {
+                let mut input = NumericInputWidget::try_new(
+                    self.value.get(),
+                    NativeNumericTestCodec,
+                    NativeNumericTestAdjustment,
+                    WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+                )
+                .expect("native numeric test input should construct");
+                input.set_accessibility_action_mode();
+                let mapped_actions = Rc::clone(&self.mapped_actions);
+                let mapper = WidgetMessageMapper::none().with_accessibility_action(
+                    move |outcome: NumericAccessibilityOutcome<f32, (), ()>| {
+                        mapped_actions.set(mapped_actions.get().saturating_add(1));
+                        MappedNumericMessage::Accessibility(outcome)
+                    },
+                );
+                crate::runtime::test_arc_surface(UiSurface::new(
+                    SurfaceNode::widget(input, mapper).with_id(42),
+                ))
+            }
+
+            fn update(&mut self, message: MappedNumericMessage) -> Command<MappedNumericMessage> {
+                let MappedNumericMessage::Accessibility(outcome) = message;
+                if let NumericAccessibilityOutcome::Edit(edit) = outcome
+                    && let Some(event) = edit.events().last()
+                {
+                    self.value.set(event.value);
+                }
+                Command::none()
+            }
+        }
+
         fn test_container(container_id: u64) -> NativeContainerToken {
             NativeContainerToken {
                 token: container_id,
@@ -2872,6 +3015,7 @@ mod macos {
                 .with_label("Gain")
                 .with_value_text("7");
             semantics.focusable = true;
+            semantics.focused = true;
             let mut node = AutomationNodeSnapshot::from_semantics(
                 node_id.clone(),
                 AutomationBounds {
@@ -2920,13 +3064,19 @@ mod macos {
 
         fn numeric_adapter_fixture(target: AutomationTarget) -> NativeSemanticAccessibilityAdapter {
             let node = numeric_callback_node(target, "7");
+            numeric_adapter_fixture_with_projection(NativeCallbackProjection {
+                nodes: vec![node],
+                root_token: Some(91),
+            })
+        }
+
+        fn numeric_adapter_fixture_with_projection(
+            projection: NativeCallbackProjection,
+        ) -> NativeSemanticAccessibilityAdapter {
             let callback_state =
                 NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 3, null_mut());
             let mut callback_state = callback_state;
-            callback_state.projection = NativeCallbackProjection {
-                nodes: vec![node],
-                root_token: Some(91),
-            };
+            callback_state.projection = projection;
             NativeSemanticAccessibilityAdapter {
                 view: null_mut(),
                 callback_state: Box::new(RefCell::new(callback_state)),
@@ -2942,6 +3092,73 @@ mod macos {
                 layout_notifications: 0,
                 value_notifications: 0,
             }
+        }
+
+        fn automation_node_for_id<'a>(
+            node: &'a AutomationNodeSnapshot,
+            id: &AutomationNodeId,
+        ) -> Option<&'a AutomationNodeSnapshot> {
+            if node.id == *id {
+                return Some(node);
+            }
+            node.children
+                .iter()
+                .find_map(|child| automation_node_for_id(child, id))
+        }
+
+        fn native_test_frame(bounds: AutomationBounds) -> NSRect {
+            NSRect {
+                origin: NSPoint {
+                    x: f64::from(bounds.x),
+                    y: f64::from(bounds.y),
+                },
+                size: NSSize {
+                    width: f64::from(bounds.width),
+                    height: f64::from(bounds.height),
+                },
+            }
+        }
+
+        fn runtime_numeric_callback_node(
+            node: &AutomationNodeSnapshot,
+            target: AutomationTarget,
+        ) -> NativeCallbackNode {
+            NativeCallbackNode {
+                object: 91_usize as Id,
+                token: 91,
+                kind: NativeNodeKind::Ordinary,
+                parent: None,
+                children: Vec::new(),
+                logical_children: Vec::new(),
+                role: native_role(NativeNodeKind::Ordinary, node.role, true),
+                frame: native_test_frame(node.bounds),
+                label: node.semantics.label.clone(),
+                description: node.semantics.description.clone(),
+                value: node.semantics.value_text.clone(),
+                action_target: Some(target),
+                logical_count: None,
+            }
+        }
+
+        fn runtime_numeric_spec(
+            node: &AutomationNodeSnapshot,
+            target: AutomationTarget,
+        ) -> (NativeNodeSpec, NSRect) {
+            let frame = native_test_frame(node.bounds);
+            (
+                NativeNodeSpec {
+                    token: 91,
+                    kind: NativeNodeKind::Ordinary,
+                    parent: None,
+                    children: Vec::new(),
+                    logical_children: Vec::new(),
+                    bounds: node.bounds,
+                    semantics: node.semantics.clone(),
+                    action_target: Some(target),
+                    logical_count: None,
+                },
+                frame,
+            )
         }
 
         fn numeric_spec_fixture(target: AutomationTarget, value: &str) -> (NativeNodeSpec, NSRect) {
@@ -3832,6 +4049,10 @@ mod macos {
                 &target,
                 &authority_changed
             ));
+            assert!(numeric_action_target_continuity_matches(
+                &target,
+                &authority_changed
+            ));
 
             let mut adapter = numeric_adapter_fixture(target.clone());
             assert!(
@@ -3880,6 +4101,139 @@ mod macos {
         }
 
         #[test]
+        fn native_numeric_action_connected_production_seam_updates_value_without_rebuilding_object()
+        {
+            let mut runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            assert!(runtime.focus_widget(42));
+            assert_eq!(runtime.focused_widget(), Some(42));
+
+            let initial_snapshot = runtime.automation_snapshot();
+            let initial_targets = runtime.automation_target_snapshot();
+            let initial_target = initial_targets
+                .targets
+                .iter()
+                .find(|target| {
+                    target.role == AutomationRole::TextInput
+                        && target
+                            .available_actions
+                            .iter()
+                            .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+                        && target
+                            .available_actions
+                            .iter()
+                            .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+                })
+                .cloned()
+                .expect("the production numeric target should be published");
+            let initial_node = automation_node_for_id(&initial_snapshot.root, &initial_target.id)
+                .cloned()
+                .expect("the production numeric node should be published");
+            let initial_authority = initial_target
+                .authority
+                .expect("the initial target should carry runtime authority");
+
+            let adapter = numeric_adapter_fixture_with_projection(NativeCallbackProjection {
+                nodes: vec![runtime_numeric_callback_node(
+                    &initial_node,
+                    initial_target.clone(),
+                )],
+                root_token: Some(91),
+            });
+            let request = adapter
+                .numeric_accessibility_request(
+                    91,
+                    initial_target.clone(),
+                    NativeNumericAccessibilityAction::Increment,
+                )
+                .expect("the seeded native projection should admit the initial target");
+            let result = runtime.dispatch_numeric_accessibility_action(request);
+            assert!(matches!(
+                result,
+                crate::runtime::NumericAccessibilityDispatchResult::Accepted { widget_id: 42, .. }
+            ));
+            assert_eq!(runtime.bridge().mapped_actions.get(), 1);
+            assert_eq!(runtime.bridge().value.get(), 8.0);
+
+            let refreshed_snapshot = runtime.automation_snapshot();
+            let refreshed_targets = runtime.automation_target_snapshot();
+            let refreshed_target = refreshed_targets
+                .targets
+                .iter()
+                .find(|target| target.id == initial_target.id)
+                .cloned()
+                .expect("the refreshed numeric target should be published");
+            let refreshed_node =
+                automation_node_for_id(&refreshed_snapshot.root, &refreshed_target.id)
+                    .cloned()
+                    .expect("the refreshed numeric node should be published");
+            let refreshed_authority = refreshed_target
+                .authority
+                .expect("the refreshed target should carry runtime authority");
+            assert!(
+                refreshed_authority.runtime_generation > initial_authority.runtime_generation,
+                "the runtime target authority should advance after the mapped action"
+            );
+
+            let (refreshed_spec, refreshed_frame) =
+                runtime_numeric_spec(&refreshed_node, refreshed_target.clone());
+            let updates = {
+                let state = adapter.callback_state.borrow();
+                collect_stable_value_projection_updates(
+                    &state.projection,
+                    &[refreshed_spec],
+                    &[refreshed_frame],
+                )
+                .expect("the production action should produce value-only native evidence")
+            };
+            assert_eq!(updates.len(), 1);
+            let value_notifications = {
+                let mut state = adapter.callback_state.borrow_mut();
+                apply_stable_value_projection_updates(&mut state.projection, &updates)
+                    .expect("stable value-only evidence should apply")
+            };
+            assert_eq!(value_notifications, vec![91_usize as Id]);
+            assert_eq!(adapter.layout_notifications, 0);
+            {
+                let state = adapter.callback_state.borrow();
+                let node = &state.projection.nodes[0];
+                assert_eq!(node.object, 91_usize as Id);
+                assert_eq!(node.value.as_deref(), Some("8"));
+                assert_eq!(node.action_target.as_ref(), Some(&refreshed_target));
+            }
+
+            let (same_spec, same_frame) =
+                runtime_numeric_spec(&refreshed_node, refreshed_target.clone());
+            let same_updates = {
+                let state = adapter.callback_state.borrow();
+                collect_stable_value_projection_updates(
+                    &state.projection,
+                    &[same_spec],
+                    &[same_frame],
+                )
+                .expect("unchanged production evidence should remain stable")
+            };
+            assert!(same_updates.is_empty());
+            let same_notifications = {
+                let mut state = adapter.callback_state.borrow_mut();
+                apply_stable_value_projection_updates(&mut state.projection, &same_updates)
+                    .expect("unchanged stable evidence should apply")
+            };
+            assert!(same_notifications.is_empty());
+
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        91,
+                        initial_target,
+                        NativeNumericAccessibilityAction::Increment,
+                    )
+                    .is_none(),
+                "the old pre-update target must fail the exact native stale fence"
+            );
+        }
+
+        #[test]
         fn stable_numeric_value_updates_retain_object_and_deduplicate_notifications() {
             let (_, target) = numeric_target_fixture();
             let current_node = numeric_callback_node(target.clone(), "7");
@@ -3921,7 +4275,7 @@ mod macos {
                     &[stale_spec],
                     &[stale_frame],
                 )
-                .is_none()
+                .is_some()
             );
         }
 

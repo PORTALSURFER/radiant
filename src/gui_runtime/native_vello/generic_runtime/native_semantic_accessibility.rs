@@ -19,10 +19,10 @@ mod macos {
         },
         layout::{VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutItemKey},
         runtime::{
-            NativeSemanticContainerSnapshot, RuntimeBridge, SemanticAutomationContainerHandle,
-            SemanticAutomationDemand, SemanticAutomationFallbackReason,
-            SemanticAutomationRefreshStatus, SemanticAutomationSessionError,
-            SemanticAutomationSessionHandle, SurfaceRuntime,
+            NativeSemanticContainerSnapshot, NativeSemanticCoordinateAuthority, RuntimeBridge,
+            SemanticAutomationContainerHandle, SemanticAutomationDemand,
+            SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
+            SemanticAutomationSessionError, SemanticAutomationSessionHandle, SurfaceRuntime,
         },
     };
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -575,6 +575,7 @@ mod macos {
             && previous.mount_generation == current.mount_generation
             && previous.registration_generation == current.registration_generation
             && previous.provider_generation == current.provider_generation
+            && previous.coordinate_authority == current.coordinate_authority
             && previous.cardinality == current.cardinality
             && previous.lease == lease
             && previous.window_generation == window_generation
@@ -853,6 +854,7 @@ mod macos {
         mount_generation: u64,
         registration_generation: u64,
         provider_generation: u64,
+        coordinate_authority: NativeSemanticCoordinateAuthority,
         cardinality: crate::application::virtual_layout::VirtualLayoutSemanticCardinality,
         lease: Option<SemanticAutomationSessionHandle>,
         window_generation: u64,
@@ -970,6 +972,7 @@ mod macos {
         mount_generation: u64,
         logical_index: usize,
         key: VirtualLayoutItemKey,
+        coordinate_authority: NativeSemanticCoordinateAuthority,
         fences: crate::runtime::NormalizedSemanticPublicationFenceSet,
         lease: Option<SemanticAutomationSessionHandle>,
         window_generation: u64,
@@ -1479,6 +1482,23 @@ mod macos {
             });
             let mut accepted = containers.to_vec();
             accepted.sort_by_key(|container| container.container_id);
+            if let Some(sidecar) = sidecar {
+                for entry in sidecar.entries() {
+                    let Some(container) = accepted
+                        .iter()
+                        .find(|container| container.container_id == entry.container_id())
+                    else {
+                        return Err(String::from(
+                            "native semantic sidecar referenced an unadmitted container",
+                        ));
+                    };
+                    if !entry.matches_native_coordinate_authority(&container.coordinate_authority) {
+                        return Err(String::from(
+                            "native semantic sidecar coordinate authority mismatch",
+                        ));
+                    }
+                }
+            }
             let mut anchor_ids = Vec::with_capacity(accepted.len());
             for container in &accepted {
                 anchor_ids.push(AutomationNodeId::new(container.container_id.to_string()));
@@ -1888,6 +1908,7 @@ mod macos {
                 mount_generation: current.mount_generation,
                 registration_generation: current.registration_generation,
                 provider_generation: current.provider_generation,
+                coordinate_authority: current.coordinate_authority.clone(),
                 cardinality: current.cardinality,
                 lease: self.lease,
                 window_generation: self.window_generation,
@@ -1906,6 +1927,7 @@ mod macos {
                     && previous.mount_generation == container.mount_generation
                     && previous.logical_index == entry.logical_index()
                     && previous.key.stable_equals(entry.key()) == Some(true)
+                    && previous.coordinate_authority == container.coordinate_authority
                     && previous.fences.same_exact(entry.publication_fences())
                     && previous.lease == self.lease
                     && previous.window_generation == self.window_generation
@@ -1923,6 +1945,7 @@ mod macos {
                 mount_generation: container.mount_generation,
                 logical_index: entry.logical_index(),
                 key: entry.key().clone(),
+                coordinate_authority: container.coordinate_authority.clone(),
                 fences: entry.publication_fences().clone(),
                 lease: self.lease,
                 window_generation: self.window_generation,
@@ -1962,6 +1985,9 @@ mod macos {
                                 == active.container.registration_generation
                             && container.provider_generation == active.container.provider_generation
                             && container.cardinality == active.container.cardinality
+                            && container.coordinate_authority
+                                == active.container.coordinate_authority
+                            && container.lease == active.container.lease
                             && container.window_generation == active.container.window_generation
                     })
                     .cloned()
@@ -2279,7 +2305,9 @@ mod macos {
         use super::*;
         use crate::{
             application::IntoView,
-            application::{VirtualLayoutParts, scroll, spacer, text, virtual_layout_from_parts},
+            application::{
+                VirtualLayoutParts, row, scroll, spacer, text, virtual_layout_from_parts,
+            },
             gui::types::{Rect, Vector2},
             layout::{
                 VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutExtentCandidate,
@@ -2289,8 +2317,12 @@ mod macos {
             },
             runtime::{
                 RuntimeBridge, SurfaceRuntime, UiSurface, VirtualLayoutRevisions,
-                VirtualLayoutSemanticProviderOutcome, VirtualLayoutSemanticRangeProvider,
-                VirtualLayoutSemanticRangeRequest,
+                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProviderOutcome,
+                VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
+                virtual_layout::{
+                    VirtualLayoutSemanticCoordinateTransform,
+                    VirtualLayoutSemanticCoordinateTransformOutcome,
+                },
             },
         };
         use std::{cell::Cell, rc::Rc, sync::Arc};
@@ -2355,6 +2387,7 @@ mod macos {
                 mount_generation: 1,
                 registration_generation: 2,
                 provider_generation: 3,
+                coordinate_authority: NativeSemanticCoordinateAuthority::Logical,
                 cardinality:
                     crate::application::virtual_layout::VirtualLayoutSemanticCardinality::new(8, 4),
                 lease: None,
@@ -2415,7 +2448,7 @@ mod macos {
             );
             let containers = runtime.native_semantic_containers();
             assert_eq!(containers.len(), 1);
-            let current = containers[0];
+            let current = containers[0].clone();
             let provider_calls = provider.calls.get();
             let ordinary_before = runtime.automation_snapshot();
 
@@ -2429,6 +2462,7 @@ mod macos {
                 mount_generation: current.mount_generation,
                 registration_generation: current.registration_generation,
                 provider_generation: current.provider_generation,
+                coordinate_authority: current.coordinate_authority.clone(),
                 cardinality: current.cardinality,
                 lease: Some(session),
                 window_generation: 5,
@@ -2554,6 +2588,7 @@ mod macos {
                             mount_generation: current.mount_generation,
                             logical_index: index,
                             key: VirtualLayoutItemKey::new(index as u32),
+                            coordinate_authority: current.coordinate_authority.clone(),
                             fences: crate::runtime::NormalizedSemanticPublicationFenceSet::default(
                             ),
                             lease: Some(session),
@@ -2642,6 +2677,7 @@ mod macos {
                 mount_generation: 1,
                 registration_generation: 1,
                 provider_generation: 1,
+                coordinate_authority: NativeSemanticCoordinateAuthority::Logical,
                 cardinality:
                     crate::application::virtual_layout::VirtualLayoutSemanticCardinality::new(1, 1),
                 has_range_provider: false,
@@ -2989,6 +3025,7 @@ mod macos {
                 mount_generation: 3,
                 registration_generation: 5,
                 provider_generation: 6,
+                coordinate_authority: NativeSemanticCoordinateAuthority::Logical,
                 cardinality,
                 has_range_provider: true,
                 max_entries: 8,
@@ -2999,6 +3036,7 @@ mod macos {
                 mount_generation: 3,
                 registration_generation: 5,
                 provider_generation: 6,
+                coordinate_authority: NativeSemanticCoordinateAuthority::Logical,
                 cardinality,
                 lease: None,
                 window_generation: 9,
@@ -3010,6 +3048,19 @@ mod macos {
             let mut changed = current;
             changed.cardinality.cardinality_revision = 8;
             assert!(!container_token_fence_matches(&previous, &changed, None, 9));
+            let mut coordinate_changed = changed.clone();
+            coordinate_changed.coordinate_authority = NativeSemanticCoordinateAuthority::Custom {
+                identity: crate::layout::VirtualLayoutPolicyIdentity::new("custom"),
+                transform_revision: 1,
+                transform_generation: 1,
+                resolver_token: 1,
+            };
+            assert!(!container_token_fence_matches(
+                &previous,
+                &coordinate_changed,
+                None,
+                9
+            ));
             let mut ledger = NativeTokenLedger::default();
             assert_eq!(ledger.issue(), Some(1));
             ledger.retire_all();
@@ -3038,6 +3089,178 @@ mod macos {
                 crate::layout::VirtualLayoutPolicyIdentity::new("custom".to_owned()),
             );
             assert_ne!(custom, crate::layout::VirtualLayoutCoordinateSpace::Logical);
+        }
+
+        #[test]
+        fn qualified_custom_native_consumption_is_passive_and_uses_normalized_bounds() {
+            let provider_calls = Rc::new(Cell::new(0_usize));
+            let transform_calls = Rc::new(Cell::new(0_usize));
+            let provider: Rc<dyn VirtualLayoutSemanticRangeProvider> = Rc::new({
+                let provider_calls = Rc::clone(&provider_calls);
+                move |_request: &VirtualLayoutSemanticRangeRequest| {
+                    provider_calls.set(provider_calls.get().saturating_add(1));
+                    VirtualLayoutSemanticProviderOutcome::Found(vec![
+                        VirtualLayoutSemanticEntry::new(
+                            VirtualLayoutItemKey::new(1_u32),
+                            0,
+                            Rect::from_xy_size(1.0, 2.0, 3.0, 4.0),
+                            AutomationNodeSemantics::new(AutomationRole::Row)
+                                .with_label("custom item"),
+                            AutomationNodeId::new("custom-native-item"),
+                        ),
+                    ])
+                }
+            });
+            let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> = Rc::new({
+                let transform_calls = Rc::clone(&transform_calls);
+                move |_request: &crate::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+                    transform_calls.set(transform_calls.get().saturating_add(1));
+                    VirtualLayoutSemanticCoordinateTransformOutcome::Found(
+                        Rect::from_xy_size(73.0, 19.0, 7.0, 11.0),
+                    )
+                }
+            });
+            let parts = VirtualLayoutParts::new(
+                Rc::new(TestVirtualLayoutPolicy),
+                VirtualLayoutPolicyIdentity::new("native-custom-policy"),
+                VirtualLayoutOverscan::new(0.0, 0.0).expect("finite test overscan"),
+                crate::layout::VirtualLayoutBudget::new(4),
+                VirtualLayoutRevisions::new(1, 2, 3, 4),
+                Rc::new(|| scroll(spacer::<()>().size(240.0, 100.0))),
+                Rc::new(|_| text::<()>("semantic item")),
+                Rc::new(|_| VirtualLayoutPolicyIdentity::new("native-custom-item")),
+            )
+            .with_semantic_range_provider(Rc::clone(&provider))
+            .with_semantic_cardinality(
+                crate::application::virtual_layout::VirtualLayoutSemanticCardinality::new(1, 1),
+            )
+            .with_semantic_coordinate_transform(
+                VirtualLayoutPolicyIdentity::new("native-custom-space"),
+                23,
+                Rc::clone(&transform),
+            );
+            let mut runtime = SurfaceRuntime::new(
+                TestBridge {
+                    surface: row([virtual_layout_from_parts(parts).fill()])
+                        .fill()
+                        .into_surface(),
+                },
+                Vector2::new(240.0, 100.0),
+            );
+
+            let containers = runtime.native_semantic_containers();
+            assert_eq!(containers.len(), 1);
+            assert!(matches!(
+                containers[0].coordinate_authority,
+                NativeSemanticCoordinateAuthority::Custom { .. }
+            ));
+            assert_eq!(provider_calls.get(), 0);
+            assert_eq!(transform_calls.get(), 0);
+
+            let callback_state =
+                NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 1, null_mut());
+            let mut adapter = NativeSemanticAccessibilityAdapter {
+                view: null_mut(),
+                callback_state: Box::new(RefCell::new(callback_state)),
+                objects: Vec::new(),
+                tokens: NativeTokenLedger::default(),
+                lease: None,
+                generation: 1,
+                window_generation: 1,
+                transform: None,
+                current_containers: Vec::new(),
+                active_ranges: Vec::new(),
+                attached: false,
+                layout_notifications: 0,
+            };
+            let passive_specs = adapter
+                .build_specs(&runtime.automation_snapshot(), &containers, None)
+                .expect("passive custom topology should build");
+            assert!(
+                passive_specs
+                    .iter()
+                    .all(|spec| spec.kind != NativeNodeKind::Item)
+            );
+
+            let session = runtime
+                .open_semantic_automation_session()
+                .expect("passive observation must not own the session");
+            let handles = runtime
+                .semantic_automation_containers(session)
+                .expect("the admitted custom container should have a session handle");
+            assert_eq!(handles.len(), 1);
+            let refresh = runtime
+                .refresh_semantic_automation_session(
+                    session,
+                    &[SemanticAutomationDemand::range(handles[0], 0, 1)],
+                )
+                .expect("explicit custom range refresh should publish");
+            assert_eq!(refresh.status, SemanticAutomationRefreshStatus::Published);
+            assert_eq!(provider_calls.get(), 1);
+            assert_eq!(transform_calls.get(), 1);
+            let (composition, status) = runtime
+                .native_semantic_automation_composition(session)
+                .expect("selected composition lookup succeeds")
+                .expect("the published composition is selected");
+            assert_eq!(status, SemanticAutomationRefreshStatus::Published);
+            assert_eq!(composition.normalized_sidecar().entries().len(), 1);
+            let specs = adapter
+                .build_specs(
+                    composition.snapshot(),
+                    &containers,
+                    Some(composition.normalized_sidecar()),
+                )
+                .expect("matching custom witness should be consumable");
+            assert_eq!(
+                specs
+                    .iter()
+                    .filter(|spec| spec.kind == NativeNodeKind::Container)
+                    .count(),
+                1,
+                "the composed snapshot should retain the virtual container"
+            );
+            let item = specs
+                .iter()
+                .find(|spec| spec.kind == NativeNodeKind::Item)
+                .expect("the explicit custom query should expose one item");
+            assert_eq!(
+                item.bounds,
+                AutomationBounds::from_rect(Rect::from_xy_size(73.0, 19.0, 7.0, 11.0))
+            );
+            assert_eq!(provider_calls.get(), 1);
+            assert_eq!(transform_calls.get(), 1);
+
+            let mut mismatched_containers = containers.clone();
+            let NativeSemanticCoordinateAuthority::Custom {
+                identity,
+                transform_revision,
+                transform_generation,
+                resolver_token,
+            } = mismatched_containers[0].coordinate_authority.clone()
+            else {
+                panic!("the fixture must be custom");
+            };
+            mismatched_containers[0].coordinate_authority =
+                NativeSemanticCoordinateAuthority::Custom {
+                    identity,
+                    transform_revision,
+                    transform_generation: transform_generation.saturating_add(1),
+                    resolver_token,
+                };
+            assert!(
+                adapter
+                    .build_specs(
+                        composition.snapshot(),
+                        &mismatched_containers,
+                        Some(composition.normalized_sidecar()),
+                    )
+                    .is_err()
+            );
+            assert_eq!(provider_calls.get(), 1);
+            assert_eq!(transform_calls.get(), 1);
+            runtime
+                .close_semantic_automation_session(session)
+                .expect("the explicit test session should close");
         }
     }
 }

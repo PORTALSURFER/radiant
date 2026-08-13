@@ -18,7 +18,7 @@ use super::{
 use crate::{
     application::virtual_layout::VirtualLayoutSemanticCardinality,
     gui::automation::{AutomationNodeId, AutomationNodeSnapshot},
-    runtime::automation::NativeSemanticContainerSnapshot,
+    runtime::automation::{NativeSemanticContainerSnapshot, NativeSemanticCoordinateAuthority},
 };
 use crate::{
     gui::layout_core::{
@@ -67,14 +67,49 @@ fn count_automation_nodes_with_id(
 }
 
 #[cfg(target_os = "macos")]
-fn native_semantic_registration_is_admitted(
-    coordinate_space: &VirtualLayoutCoordinateSpace,
+fn native_semantic_registration_is_admitted<Message>(
+    registration: &VirtualLayoutRegistration<Message>,
     cardinality: Option<VirtualLayoutSemanticCardinality>,
     has_range_provider: bool,
-) -> bool {
-    coordinate_space == &VirtualLayoutCoordinateSpace::Logical
-        && cardinality
-            .is_some_and(|cardinality| cardinality.logical_item_count == 0 || has_range_provider)
+    transform_generation: u64,
+) -> Option<NativeSemanticCoordinateAuthority> {
+    let coordinate_authority = match &registration.coordinate_space {
+        VirtualLayoutCoordinateSpace::Logical
+            if !registration.semantic_coordinate_transform_is_attached()
+                && registration
+                    .semantic_coordinate_transform_identity()
+                    .is_none()
+                && registration
+                    .semantic_coordinate_transform_revision()
+                    .is_none()
+                && registration.semantic_coordinate_transform_token().is_none() =>
+        {
+            NativeSemanticCoordinateAuthority::Logical
+        }
+        VirtualLayoutCoordinateSpace::Custom(identity)
+            if registration.semantic_coordinate_transform_is_attached()
+                && transform_generation != 0 =>
+        {
+            let attached_identity = registration.semantic_coordinate_transform_identity()?;
+            if attached_identity.stable_equals(identity) != Some(true) {
+                return None;
+            }
+            let transform_revision = registration.semantic_coordinate_transform_revision()?;
+            let resolver_token = registration
+                .semantic_coordinate_transform_token()
+                .filter(|token| *token != 0)?;
+            NativeSemanticCoordinateAuthority::Custom {
+                identity: identity.clone(),
+                transform_revision,
+                transform_generation,
+                resolver_token,
+            }
+        }
+        _ => return None,
+    };
+    cardinality
+        .filter(|cardinality| cardinality.logical_item_count == 0 || has_range_provider)
+        .map(|_| coordinate_authority)
 }
 
 #[derive(Default)]
@@ -838,21 +873,22 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 .registration
                 .semantic_range_provider_handle()
                 .is_some();
-            if !native_semantic_registration_is_admitted(
-                &record.registration.coordinate_space,
-                Some(cardinality),
-                has_range_provider,
-            ) {
-                continue;
-            }
             let anchor = AutomationNodeId::new(record.registration.container_id.to_string());
             if count_automation_nodes_with_id(&ordinary.root, &anchor) != 1 {
                 continue;
             }
-            let Some((registration_generation, provider_generation)) = self
+            let Some((registration_generation, provider_generation, transform_generation)) = self
                 .semantic_demand
                 .native_range_authority(record.registration.container_id)
             else {
+                continue;
+            };
+            let Some(coordinate_authority) = native_semantic_registration_is_admitted(
+                &record.registration,
+                Some(cardinality),
+                has_range_provider,
+                transform_generation,
+            ) else {
                 continue;
             };
             accepted.push(NativeSemanticContainerSnapshot {
@@ -860,6 +896,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
                 mount_generation: record.mount_generation,
                 registration_generation,
                 provider_generation,
+                coordinate_authority,
                 cardinality,
                 has_range_provider,
                 max_entries: record.registration.budget.max_entries(),
@@ -2805,6 +2842,8 @@ where
 mod tests {
     use super::*;
     #[cfg(target_os = "macos")]
+    use crate::application::VirtualLayoutParts;
+    #[cfg(target_os = "macos")]
     use crate::runtime::SemanticAutomationSessionHandle;
     use crate::runtime::controller::semantic_demand::{
         SemanticDemandAdmission, SemanticDemandAdmissionError, SemanticDemandCompletion,
@@ -2841,7 +2880,7 @@ mod tests {
             RuntimeBridge, SemanticAutomationDemand, SemanticAutomationDemandError,
             SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
             SemanticAutomationSessionError, SurfaceChild, SurfaceNode, UiSurface,
-            surface::VirtualLayoutRegistrationRevisions,
+            surface::{VirtualLayoutRegistration, VirtualLayoutRegistrationRevisions},
         },
         widgets::WidgetSizing,
     };
@@ -3683,18 +3722,61 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn native_semantic_admission_remains_logical_only() {
+    fn native_semantic_admission_requires_qualified_coordinate_authority() {
         let zero = Some(VirtualLayoutSemanticCardinality::new(0, 1));
-        assert!(native_semantic_registration_is_admitted(
-            &VirtualLayoutCoordinateSpace::Logical,
-            zero,
-            false,
+        let logical = registration(
+            Rc::new(ReadyPolicy {
+                calls: Rc::new(Cell::new(0)),
+                key: 1,
+            }),
+            VirtualLayoutPolicyIdentity::new("logical"),
+        );
+        assert!(matches!(
+            native_semantic_registration_is_admitted(&logical, zero, false, 0),
+            Some(NativeSemanticCoordinateAuthority::Logical)
         ));
-        assert!(!native_semantic_registration_is_admitted(
-            &VirtualLayoutCoordinateSpace::Custom(VirtualLayoutPolicyIdentity::new("custom")),
-            zero,
-            false,
-        ));
+
+        let custom_identity = VirtualLayoutPolicyIdentity::new("custom");
+        let custom = VirtualLayoutRegistration::from_public_parts(
+            CONTAINER_ID,
+            VirtualLayoutParts::new(
+                Rc::new(ReadyPolicy {
+                    calls: Rc::new(Cell::new(0)),
+                    key: 1,
+                }),
+                VirtualLayoutPolicyIdentity::new("custom-policy"),
+                VirtualLayoutOverscan::new(0.0, 0.0).expect("finite test overscan"),
+                VirtualLayoutBudget::new(4),
+                Default::default(),
+                Rc::new(|| scroll(spacer::<()>())),
+                Rc::new(|_| text::<()>("virtual item")),
+                Rc::new(|_| VirtualLayoutPolicyIdentity::new("item-kind")),
+            )
+            .with_semantic_coordinate_transform(
+                custom_identity.clone(),
+                9,
+                Rc::new(
+                    |_: &crate::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+                    crate::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformOutcome::Found(
+                        Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
+                    )
+                    },
+                ),
+            ),
+        );
+        let Some(NativeSemanticCoordinateAuthority::Custom {
+            identity,
+            transform_revision,
+            transform_generation,
+            resolver_token,
+        }) = native_semantic_registration_is_admitted(&custom, zero, false, 1)
+        else {
+            panic!("qualified custom registration should be admitted");
+        };
+        assert_eq!(identity, custom_identity);
+        assert_eq!(transform_revision, 9);
+        assert_eq!(transform_generation, 1);
+        assert_ne!(resolver_token, 0);
     }
 
     #[test]

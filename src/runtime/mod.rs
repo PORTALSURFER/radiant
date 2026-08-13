@@ -76,6 +76,7 @@ pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
 #[cfg(target_os = "macos")]
 pub(crate) use automation::NativeSemanticContainerSnapshot;
+pub(crate) use automation::NativeSemanticCoordinateAuthority;
 pub use automation::{
     NumericAccessibilityDispatchResult, NumericAccessibilityRequest,
     NumericAccessibilityUnavailableReason, SemanticAutomationContainerHandle,

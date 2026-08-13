@@ -1312,9 +1312,11 @@ materialization/projection authority, while
 authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider registration. The generic logical semantic
 automation session now ships the explicit public snapshot selection/visibility
-boundary. Custom-coordinate transformation, product consumer implementations,
-and other native adapters remain unshipped; the private primary-window
-macOS/AppKit native semantic accessibility query contract is implemented below.
+boundary. Runtime-owned custom-coordinate transformation and the bounded
+normalized custom native consumer are implemented; product consumer
+implementations and other native adapters remain separate. The private
+primary-window macOS/AppKit native semantic accessibility query contract is
+implemented below.
 Scheduler/backoff/fairness,
 multiple active ranges per container, and the focus, materialization, scrolling,
 and action authority remain unshipped.
@@ -1398,14 +1400,17 @@ revisions, and exact transform revision, then returns a conservative AABB
 directly. The runtime owns context validation, panic/reentry containment,
 clipping, exact witness continuity, retention, and invalidation; invocation is
 limited to explicit refresh/retry after complete provider validation and at
-most once per accepted entry. Native remains Logical-only and consumes only
-resolved logical bounds.
+most once per accepted entry. Native consumes `Logical` unchanged and
+qualified `Custom` only through the compositor's normalized logical bounds and
+matching sidecar witness/publication authority; it never invokes or reconstructs
+the custom resolver.
 
 This bounded implementation earns one public-API evidence point. The private
 kernel and generic semantic session are shipped; the public declarative
 provider and custom-coordinate attachment contract below is normative and
-shipped. Native/product custom conversion, scheduling, and other product
-consumer implementations remain separate; the private primary-window
+shipped. Direct native custom-resolver invocation/reconstruction, scheduling,
+and other product consumer implementations remain separate; the private
+primary-window
 macOS/AppKit native semantic accessibility query contract is implemented below.
 Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad
 coverage `903 / 11` (~82.09%). Existing pure ordinary snapshot APIs and
@@ -1456,12 +1461,17 @@ rejected, panic, malformed, collision, stale, or cancelled evidence uses the
 existing typed conservative baseline behavior; stale and cancelled completions
 are inert and MUST NOT mutate or publish native state.
 
-The first native consumer accepts provider semantics only in `Logical`. Native
-conversion MUST identify source surface space, destination window/screen
-accessibility space, DPI, window/display generation, orientation, clipping, and a
-finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. Custom declarations are not admitted by this native path; no resolver
-is invoked and no affine or identity fallback is permitted.
+The first native consumer accepts `Logical` registrations unchanged and admits
+`Custom(identity)` only with the matching current transform attachment, exact
+cardinality/provider/anchor evidence, and runtime-owned transform
+revision/generation/token. Native publication consumes only the compositor's
+complete normalized logical-window bounds plus the matching sidecar witness and
+publication fences. Native conversion MUST identify source surface space,
+destination window/screen accessibility space, DPI, window/display generation,
+orientation, clipping, and a finite non-inverted conversion. Stale, unsupported,
+missing, or mismatched authority withholds the complete custom projection; no
+resolver is invoked or reconstructed and no affine, corner-mapping, inversion,
+or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -1558,17 +1568,17 @@ This extension preserves the one-session bound, opaque private handles, explicit
 refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
-Logical-only conservative coordinates, and pure snapshots. It excludes focus,
+normalized logical conservative coordinates, and pure snapshots. It excludes focus,
 actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
-product, native custom-coordinate conversion, Wayland/Windows, auxiliary,
+product, direct native custom-resolver invocation/reconstruction, Wayland/Windows, auxiliary,
 multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
 unchanged. Wayland, Windows, native actions, focus, scrolling, product policy,
-native custom-coordinate conversion, scheduler, and renderer behavior remain
-excluded.
+direct native custom-resolver invocation/reconstruction, scheduler, and
+renderer behavior remain excluded.
 
 ### Public declarative provider attachment (normative; custom attachment bounded)
 
@@ -1632,7 +1642,7 @@ native-boundary, non-goal, and acceptance matrix is in
 attachment moves Public API to 85% and broad coverage to `903 / 11`
 (~82.09%); no Platform credit is awarded without live AppKit acceptance.
 
-Its non-goals are native custom-coordinate conversion; native accessibility action dispatch; focus;
+Its non-goals are direct native custom-resolver invocation/reconstruction; native accessibility action dispatch; focus;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
 hit-testing, or cache policy; product policy; multiple ranges per container;
 and prelude export.

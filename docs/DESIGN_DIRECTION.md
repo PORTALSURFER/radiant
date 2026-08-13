@@ -1486,7 +1486,7 @@ semantic tree and admits exactly an enabled, editable, focusable,
 authority, and both neutral increment/decrement actions; it need not already be
 runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
-authority fence. A qualified node publishes `AXIncrementor`, the exact label
+authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
 `AXFocused` false/unclaimed, a non-settable value, and exactly `AXIncrement` and
 `AXDecrement`; the adapter never exposes or transfers native AX focus. Modern

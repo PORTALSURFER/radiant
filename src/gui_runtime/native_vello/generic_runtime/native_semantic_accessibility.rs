@@ -804,6 +804,8 @@ mod macos {
         scale_factor: f64,
         backing_scale: f64,
         flipped: bool,
+        #[cfg(test)]
+        deterministic_test: bool,
     }
 
     impl NativeCoordinateTransform {
@@ -837,10 +839,50 @@ mod macos {
                 scale_factor,
                 backing_scale,
                 flipped,
+                #[cfg(test)]
+                deterministic_test: false,
             })
         }
 
+        #[cfg(test)]
+        fn for_test(view_bounds: NSRect) -> Self {
+            Self {
+                view: null_mut(),
+                window: null_mut(),
+                screen: null_mut(),
+                view_bounds,
+                scale_factor: 1.0,
+                backing_scale: 1.0,
+                flipped: true,
+                deterministic_test: true,
+            }
+        }
+
         fn convert(&self, bounds: AutomationBounds) -> Option<NSRect> {
+            #[cfg(test)]
+            if self.deterministic_test {
+                if !bounds_are_finite(bounds)
+                    || bounds.width < 0.0
+                    || bounds.height < 0.0
+                    || bounds.x < 0.0
+                    || bounds.y < 0.0
+                    || f64::from(bounds.x) + f64::from(bounds.width) > self.view_bounds.size.width
+                    || f64::from(bounds.y) + f64::from(bounds.height) > self.view_bounds.size.height
+                {
+                    return None;
+                }
+                return Some(NSRect {
+                    origin: NSPoint {
+                        x: self.view_bounds.origin.x + f64::from(bounds.x),
+                        y: self.view_bounds.origin.y + f64::from(bounds.y),
+                    },
+                    size: NSSize {
+                        width: f64::from(bounds.width),
+                        height: f64::from(bounds.height),
+                    },
+                });
+            }
+
             let current_window = unsafe { msg_id(self.view, sel(c"window")) };
             let current_screen = if current_window.is_null() {
                 null_mut()
@@ -2241,6 +2283,7 @@ mod macos {
         }
 
         fn post_value_changed(&mut self, object: Id) {
+            #[cfg(not(test))]
             unsafe {
                 let notification = ns_string("AXValueChanged");
                 if !notification.is_null() {
@@ -2249,6 +2292,7 @@ mod macos {
             }
             #[cfg(test)]
             {
+                let _ = object;
                 self.value_notifications = self.value_notifications.saturating_add(1);
             }
         }
@@ -2951,9 +2995,12 @@ mod macos {
                         MappedNumericMessage::Accessibility(outcome)
                     },
                 );
-                crate::runtime::test_arc_surface(UiSurface::new(
-                    SurfaceNode::widget(input, mapper).with_id(42),
-                ))
+                let numeric = SurfaceNode::widget(input, mapper).with_id(42);
+                crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+                    1,
+                    0.0,
+                    vec![crate::runtime::SurfaceChild::fill(numeric)],
+                )))
             }
 
             fn update(&mut self, message: MappedNumericMessage) -> Command<MappedNumericMessage> {
@@ -3094,6 +3141,75 @@ mod macos {
             }
         }
 
+        const TEST_ROOT_TOKEN: u64 = 1;
+        const TEST_NUMERIC_TOKEN: u64 = 2;
+
+        fn runtime_numeric_adapter_fixture(
+            snapshot: &GuiAutomationSnapshot,
+            numeric_node: &AutomationNodeSnapshot,
+            target: AutomationTarget,
+        ) -> NativeSemanticAccessibilityAdapter {
+            let root_bounds = AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: snapshot.viewport_width as f32,
+                height: snapshot.viewport_height as f32,
+            };
+            let projection = NativeCallbackProjection {
+                nodes: vec![
+                    NativeCallbackNode {
+                        object: 90_usize as Id,
+                        token: TEST_ROOT_TOKEN,
+                        kind: NativeNodeKind::Root,
+                        parent: None,
+                        children: vec![TEST_NUMERIC_TOKEN],
+                        logical_children: Vec::new(),
+                        role: native_role(NativeNodeKind::Root, AutomationRole::Root, false),
+                        frame: native_test_frame(root_bounds),
+                        label: None,
+                        description: None,
+                        value: None,
+                        action_target: None,
+                        logical_count: None,
+                    },
+                    NativeCallbackNode {
+                        object: 91_usize as Id,
+                        token: TEST_NUMERIC_TOKEN,
+                        kind: NativeNodeKind::Ordinary,
+                        parent: Some(TEST_ROOT_TOKEN),
+                        children: Vec::new(),
+                        logical_children: Vec::new(),
+                        role: native_role(NativeNodeKind::Ordinary, numeric_node.role, true),
+                        frame: native_test_frame(numeric_node.bounds),
+                        label: numeric_node.semantics.label.clone(),
+                        description: numeric_node.semantics.description.clone(),
+                        value: numeric_node.semantics.value_text.clone(),
+                        action_target: Some(target.clone()),
+                        logical_count: None,
+                    },
+                ],
+                root_token: Some(TEST_ROOT_TOKEN),
+            };
+            let mut adapter = numeric_adapter_fixture_with_projection(projection);
+            adapter.transform = Some(NativeCoordinateTransform::for_test(NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: f64::from(snapshot.viewport_width),
+                    height: f64::from(snapshot.viewport_height),
+                },
+            }));
+            adapter.tokens.next = TEST_NUMERIC_TOKEN;
+            adapter.tokens.root = Some((TEST_ROOT_TOKEN, adapter.lease, adapter.window_generation));
+            adapter.tokens.ordinary.push(NativeOrdinaryToken {
+                token: TEST_NUMERIC_TOKEN,
+                id: target.id.clone(),
+                parent: Some(TEST_ROOT_TOKEN),
+                lease: adapter.lease,
+                window_generation: adapter.window_generation,
+            });
+            adapter
+        }
+
         fn automation_node_for_id<'a>(
             node: &'a AutomationNodeSnapshot,
             id: &AutomationNodeId,
@@ -3117,48 +3233,6 @@ mod macos {
                     height: f64::from(bounds.height),
                 },
             }
-        }
-
-        fn runtime_numeric_callback_node(
-            node: &AutomationNodeSnapshot,
-            target: AutomationTarget,
-        ) -> NativeCallbackNode {
-            NativeCallbackNode {
-                object: 91_usize as Id,
-                token: 91,
-                kind: NativeNodeKind::Ordinary,
-                parent: None,
-                children: Vec::new(),
-                logical_children: Vec::new(),
-                role: native_role(NativeNodeKind::Ordinary, node.role, true),
-                frame: native_test_frame(node.bounds),
-                label: node.semantics.label.clone(),
-                description: node.semantics.description.clone(),
-                value: node.semantics.value_text.clone(),
-                action_target: Some(target),
-                logical_count: None,
-            }
-        }
-
-        fn runtime_numeric_spec(
-            node: &AutomationNodeSnapshot,
-            target: AutomationTarget,
-        ) -> (NativeNodeSpec, NSRect) {
-            let frame = native_test_frame(node.bounds);
-            (
-                NativeNodeSpec {
-                    token: 91,
-                    kind: NativeNodeKind::Ordinary,
-                    parent: None,
-                    children: Vec::new(),
-                    logical_children: Vec::new(),
-                    bounds: node.bounds,
-                    semantics: node.semantics.clone(),
-                    action_target: Some(target),
-                    logical_count: None,
-                },
-                frame,
-            )
         }
 
         fn numeric_spec_fixture(target: AutomationTarget, value: &str) -> (NativeNodeSpec, NSRect) {
@@ -4105,8 +4179,7 @@ mod macos {
         {
             let mut runtime =
                 SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
-            assert!(runtime.focus_widget(42));
-            assert_eq!(runtime.focused_widget(), Some(42));
+            assert_eq!(runtime.focused_widget(), None);
 
             let initial_snapshot = runtime.automation_snapshot();
             let initial_targets = runtime.automation_target_snapshot();
@@ -4126,6 +4199,30 @@ mod macos {
                 })
                 .cloned()
                 .expect("the production numeric target should be published");
+            assert!(!initial_target.focused);
+            assert_eq!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .filter(|action| {
+                        action.as_str() == AUTOMATION_ACTION_INCREMENT
+                            || action.as_str() == AUTOMATION_ACTION_DECREMENT
+                    })
+                    .count(),
+                2
+            );
+            assert!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+            );
+            assert!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+            );
             let initial_node = automation_node_for_id(&initial_snapshot.root, &initial_target.id)
                 .cloned()
                 .expect("the production numeric node should be published");
@@ -4133,16 +4230,27 @@ mod macos {
                 .authority
                 .expect("the initial target should carry runtime authority");
 
-            let adapter = numeric_adapter_fixture_with_projection(NativeCallbackProjection {
-                nodes: vec![runtime_numeric_callback_node(
-                    &initial_node,
-                    initial_target.clone(),
-                )],
-                root_token: Some(91),
-            });
+            let mut adapter = runtime_numeric_adapter_fixture(
+                &initial_snapshot,
+                &initial_node,
+                initial_target.clone(),
+            );
+            let initial_projection = adapter.callback_state.borrow().projection.clone();
+            let initial_objects = initial_projection
+                .nodes
+                .iter()
+                .map(|node| node.object)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                adapter.tokens.root,
+                Some((TEST_ROOT_TOKEN, adapter.lease, adapter.window_generation))
+            );
+            let seeded_node = &initial_projection.nodes[1];
+            assert_eq!(seeded_node.parent, Some(TEST_ROOT_TOKEN));
+            assert_eq!(seeded_node.action_target.as_ref(), Some(&initial_target));
             let request = adapter
                 .numeric_accessibility_request(
-                    91,
+                    TEST_NUMERIC_TOKEN,
                     initial_target.clone(),
                     NativeNumericAccessibilityAction::Increment,
                 )
@@ -4154,6 +4262,7 @@ mod macos {
             ));
             assert_eq!(runtime.bridge().mapped_actions.get(), 1);
             assert_eq!(runtime.bridge().value.get(), 8.0);
+            assert_eq!(runtime.focused_widget(), Some(42));
 
             let refreshed_snapshot = runtime.automation_snapshot();
             let refreshed_targets = runtime.automation_target_snapshot();
@@ -4163,10 +4272,6 @@ mod macos {
                 .find(|target| target.id == initial_target.id)
                 .cloned()
                 .expect("the refreshed numeric target should be published");
-            let refreshed_node =
-                automation_node_for_id(&refreshed_snapshot.root, &refreshed_target.id)
-                    .cloned()
-                    .expect("the refreshed numeric node should be published");
             let refreshed_authority = refreshed_target
                 .authority
                 .expect("the refreshed target should carry runtime authority");
@@ -4174,57 +4279,40 @@ mod macos {
                 refreshed_authority.runtime_generation > initial_authority.runtime_generation,
                 "the runtime target authority should advance after the mapped action"
             );
-
-            let (refreshed_spec, refreshed_frame) =
-                runtime_numeric_spec(&refreshed_node, refreshed_target.clone());
-            let updates = {
-                let state = adapter.callback_state.borrow();
-                collect_stable_value_projection_updates(
-                    &state.projection,
-                    &[refreshed_spec],
-                    &[refreshed_frame],
-                )
-                .expect("the production action should produce value-only native evidence")
-            };
-            assert_eq!(updates.len(), 1);
-            let value_notifications = {
-                let mut state = adapter.callback_state.borrow_mut();
-                apply_stable_value_projection_updates(&mut state.projection, &updates)
-                    .expect("stable value-only evidence should apply")
-            };
-            assert_eq!(value_notifications, vec![91_usize as Id]);
+            adapter
+                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .expect("the refreshed production projection should publish");
+            assert_eq!(adapter.value_notifications, 1);
             assert_eq!(adapter.layout_notifications, 0);
             {
                 let state = adapter.callback_state.borrow();
-                let node = &state.projection.nodes[0];
-                assert_eq!(node.object, 91_usize as Id);
+                let objects = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .map(|node| node.object)
+                    .collect::<Vec<_>>();
+                assert_eq!(objects, initial_objects);
+                assert_eq!(state.projection.root_token, initial_projection.root_token);
+                assert_eq!(state.projection.nodes[0].token, TEST_ROOT_TOKEN);
+                assert_eq!(state.projection.nodes[1].token, TEST_NUMERIC_TOKEN);
+                let node = &state.projection.nodes[1];
                 assert_eq!(node.value.as_deref(), Some("8"));
                 assert_eq!(node.action_target.as_ref(), Some(&refreshed_target));
             }
 
-            let (same_spec, same_frame) =
-                runtime_numeric_spec(&refreshed_node, refreshed_target.clone());
-            let same_updates = {
-                let state = adapter.callback_state.borrow();
-                collect_stable_value_projection_updates(
-                    &state.projection,
-                    &[same_spec],
-                    &[same_frame],
-                )
-                .expect("unchanged production evidence should remain stable")
-            };
-            assert!(same_updates.is_empty());
-            let same_notifications = {
-                let mut state = adapter.callback_state.borrow_mut();
-                apply_stable_value_projection_updates(&mut state.projection, &same_updates)
-                    .expect("unchanged stable evidence should apply")
-            };
-            assert!(same_notifications.is_empty());
+            let value_notifications_before = adapter.value_notifications;
+            let layout_notifications_before = adapter.layout_notifications;
+            adapter
+                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .expect("the unchanged production projection should remain published");
+            assert_eq!(adapter.value_notifications, value_notifications_before);
+            assert_eq!(adapter.layout_notifications, layout_notifications_before);
 
             assert!(
                 adapter
                     .numeric_accessibility_request(
-                        91,
+                        TEST_NUMERIC_TOKEN,
                         initial_target,
                         NativeNumericAccessibilityAction::Increment,
                     )

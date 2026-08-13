@@ -1587,6 +1587,19 @@ ambiguous, or sentinel-colliding evidence, borrow conflict, and panic all return
 allocates no storage proportional to declared count, and performs no
 provider/query/runtime/action/lease/notification mutation.
 
+The same dynamic native class registers exactly
+`accessibilityNotifiesWhenDestroyed` with Objective-C encoding `c@:`. Its
+crate-private Rust callback ABI returns `ObjcBool` and returns `YES`
+unconditionally for every instance, including when the callback-state ivar has
+already been cleared during retirement. It is contained by the existing
+`ffi_boundary`/unwind boundary but does not consult or borrow callback state,
+inspect projection/tokens/view/window, allocate, lock, access provider/runtime,
+enqueue events or notifications, or mutate anything. It does not post
+notifications. Existing retirement order clears callback state and each state
+ivar before posting exactly one `AXUIElementDestroyed` notification and
+releasing each object; repeated retirement is idempotent for already-retired
+objects.
+
 Root/container/non-text roles map to `NSAccessibilityGroupRole`; only `Text` and
 `Readout` map to `NSAccessibilityStaticTextRole`. Expose only role, exact
 parent/children, finite frame, label, description/help, and static-text value.

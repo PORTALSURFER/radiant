@@ -66,6 +66,7 @@ mod macos {
     const VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@";
     const LEGACY_VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@@";
     const INDEX_OF_CHILD_METHOD_TYPE: &CStr = c"Q@:@";
+    const ACCESSIBILITY_NOTIFIES_WHEN_DESTROYED_METHOD_TYPE: &CStr = c"c@:";
     const YES: ObjcBool = 1;
     const NO: ObjcBool = 0;
 
@@ -219,6 +220,11 @@ mod macos {
             }
             let methods = [
                 (c"dealloc", native_dealloc as *const c_void, c"v@:"),
+                (
+                    c"accessibilityNotifiesWhenDestroyed",
+                    native_accessibility_notifies_when_destroyed as *const c_void,
+                    ACCESSIBILITY_NOTIFIES_WHEN_DESTROYED_METHOD_TYPE,
+                ),
                 (
                     c"isAccessibilityElement",
                     native_is_accessibility_element as *const c_void,
@@ -1592,6 +1598,8 @@ mod macos {
         layout_notifications: usize,
         #[cfg(test)]
         value_notifications: usize,
+        #[cfg(test)]
+        destroyed_notifications: usize,
     }
 
     impl NativeSemanticAccessibilityAdapter {
@@ -1625,6 +1633,8 @@ mod macos {
                 layout_notifications: 0,
                 #[cfg(test)]
                 value_notifications: 0,
+                #[cfg(test)]
+                destroyed_notifications: 0,
             })
         }
 
@@ -2510,6 +2520,11 @@ mod macos {
                     let notification = ns_string("AXUIElementDestroyed");
                     if !notification.is_null() {
                         NSAccessibilityPostNotification(object, notification);
+                        #[cfg(test)]
+                        {
+                            self.destroyed_notifications =
+                                self.destroyed_notifications.saturating_add(1);
+                        }
                     }
                     msg_void(object, sel(c"release"));
                 }
@@ -2878,6 +2893,10 @@ mod macos {
 
     extern "C" fn native_is_accessibility_element(_: Id, _: Sel) -> ObjcBool {
         ffi_boundary(NO, || YES)
+    }
+
+    extern "C" fn native_accessibility_notifies_when_destroyed(_: Id, _: Sel) -> ObjcBool {
+        ffi_boundary(YES, || YES)
     }
 
     extern "C" fn native_attribute_value(receiver: Id, _: Sel, attribute: Id) -> Id {
@@ -3685,6 +3704,142 @@ mod macos {
             }
         }
 
+        fn native_destroyed_callback_adapter_fixture() -> NativeSemanticAccessibilityAdapter {
+            let class = native_class().expect("the native accessibility class should exist");
+            let allocated = unsafe { msg_id(class.class(), sel(c"alloc")) };
+            let receiver = unsafe { msg_id(allocated, sel(c"init")) };
+            assert!(!receiver.is_null());
+
+            let session = SemanticAutomationSessionHandle {
+                runtime_id: 7,
+                generation: 8,
+            };
+            let mut container = test_container(3);
+            container.lease = Some(session);
+            let projection = NativeCallbackProjection {
+                nodes: vec![index_test_node(
+                    receiver as usize,
+                    1,
+                    NativeNodeKind::Root,
+                    None,
+                    Vec::new(),
+                    Vec::new(),
+                    None,
+                )],
+                root_token: Some(1),
+            };
+            let pending_key = NativeQueryKey {
+                token: container.token,
+                start_index: 2,
+                max_count: 1,
+            };
+            let deferred_key = NativeQueryKey {
+                token: container.token,
+                start_index: 4,
+                max_count: 2,
+            };
+            let mut callback_state =
+                NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 17, 1_usize as Id);
+            callback_state.projection = projection;
+            callback_state.in_flight = vec![pending_key];
+            callback_state.deferred = vec![deferred_key];
+            callback_state.pending_numeric_actions = 3;
+            callback_state.last_unavailable =
+                Some(NativeSemanticUnavailableReason::SessionContended);
+            let callback_state = Box::new(RefCell::new(callback_state));
+            let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
+            unsafe { object_setIvar(receiver, class.state_ivar(), state_ptr) };
+
+            NativeSemanticAccessibilityAdapter {
+                view: null_mut(),
+                callback_state,
+                objects: vec![receiver],
+                tokens: NativeTokenLedger {
+                    next: 8,
+                    root: Some((1, Some(session), 5)),
+                    ordinary: vec![NativeOrdinaryToken {
+                        token: 2,
+                        id: AutomationNodeId::new("ordinary"),
+                        parent: Some(1),
+                        lease: Some(session),
+                        window_generation: 5,
+                    }],
+                    containers: vec![container.clone()],
+                    items: vec![NativeItemToken {
+                        token: 6,
+                        container_id: container.container_id,
+                        mount_generation: container.mount_generation,
+                        logical_index: 2,
+                        key: VirtualLayoutItemKey::new(6_u32),
+                        coordinate_authority: container.coordinate_authority.clone(),
+                        fences: crate::runtime::NormalizedSemanticPublicationFenceSet::default(),
+                        lease: Some(session),
+                        window_generation: 5,
+                    }],
+                },
+                lease: Some(session),
+                generation: 17,
+                window_generation: 5,
+                transform: None,
+                current_containers: Vec::new(),
+                active_ranges: vec![NativeActiveRange {
+                    key: pending_key,
+                    container,
+                    length: 1,
+                }],
+                attached: true,
+                layout_notifications: 11,
+                value_notifications: 13,
+                destroyed_notifications: 0,
+            }
+        }
+
+        #[derive(Debug, PartialEq)]
+        struct NativeDestroyedCallbackSnapshot {
+            projection: NativeCallbackProjection,
+            in_flight: Vec<NativeQueryKey>,
+            deferred: Vec<NativeQueryKey>,
+            pending_numeric_actions: usize,
+            state_generation: u64,
+            last_unavailable: Option<NativeSemanticUnavailableReason>,
+            active_ranges: Vec<NativeActiveRange>,
+            lease: Option<SemanticAutomationSessionHandle>,
+            generation: u64,
+            window_generation: u64,
+            tokens: NativeTokenLedger,
+            objects: Vec<Id>,
+            current_containers: Vec<NativeSemanticContainerSnapshot>,
+            attached: bool,
+            layout_notifications: usize,
+            value_notifications: usize,
+            destroyed_notifications: usize,
+        }
+
+        fn native_destroyed_callback_snapshot(
+            adapter: &NativeSemanticAccessibilityAdapter,
+        ) -> NativeDestroyedCallbackSnapshot {
+            let state = adapter.callback_state.borrow();
+            NativeDestroyedCallbackSnapshot {
+                projection: state.projection.clone(),
+                in_flight: state.in_flight.clone(),
+                deferred: state.deferred.clone(),
+                pending_numeric_actions: state.pending_numeric_actions,
+                state_generation: state.generation,
+                last_unavailable: state.last_unavailable,
+                active_ranges: adapter.active_ranges.clone(),
+                lease: adapter.lease,
+                generation: adapter.generation,
+                window_generation: adapter.window_generation,
+                tokens: adapter.tokens.clone(),
+                objects: adapter.objects.clone(),
+                current_containers: adapter.current_containers.clone(),
+                attached: adapter.attached,
+                layout_notifications: adapter.layout_notifications,
+                value_notifications: adapter.value_notifications,
+                destroyed_notifications: adapter.destroyed_notifications,
+            }
+        }
+
         fn throwing_foundation_object() -> Id {
             static CLASS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
             let class = *CLASS.get_or_init(|| unsafe {
@@ -3790,6 +3945,7 @@ mod macos {
                 attached: true,
                 layout_notifications: 0,
                 value_notifications: 0,
+                destroyed_notifications: 0,
             }
         }
 
@@ -4105,6 +4261,7 @@ mod macos {
                 attached: true,
                 layout_notifications: 9,
                 value_notifications: 0,
+                destroyed_notifications: 0,
             };
 
             let tokens_before = adapter.tokens.clone();
@@ -4519,6 +4676,106 @@ mod macos {
             unsafe { msg_void(throwing_child, sel(c"release")) };
             release_native_index_objects(&objects);
             drop(callback_state);
+        }
+
+        #[test]
+        fn native_accessibility_notifies_when_destroyed_is_registered_with_exact_abi() {
+            let class = native_class().expect("the native accessibility class should exist");
+            let selector = unsafe { sel(c"accessibilityNotifiesWhenDestroyed") };
+            let method = unsafe { class_getInstanceMethod(class.class(), selector) };
+            assert!(!method.is_null());
+            assert_eq!(
+                unsafe { method_getImplementation(method) },
+                native_accessibility_notifies_when_destroyed as *const c_void
+            );
+            let encoding = unsafe { method_getTypeEncoding(method) };
+            assert!(!encoding.is_null());
+            assert_eq!(
+                unsafe { CStr::from_ptr(encoding) },
+                ACCESSIBILITY_NOTIFIES_WHEN_DESTROYED_METHOD_TYPE
+            );
+            assert_eq!(
+                ACCESSIBILITY_NOTIFIES_WHEN_DESTROYED_METHOD_TYPE.to_bytes_with_nul(),
+                b"c@:\0"
+            );
+        }
+
+        #[test]
+        fn native_accessibility_notifies_when_destroyed_is_state_free_through_retirement() {
+            let mut adapter = native_destroyed_callback_adapter_fixture();
+            let class = native_class().expect("the native accessibility class should exist");
+            let selector = unsafe { sel(c"accessibilityNotifiesWhenDestroyed") };
+            let object = adapter.objects[0];
+
+            let before = native_destroyed_callback_snapshot(&adapter);
+            assert_eq!(unsafe { msg_bool(object, selector) }, YES);
+            assert_eq!(native_destroyed_callback_snapshot(&adapter), before);
+
+            let borrowed = adapter.callback_state.borrow_mut();
+            assert_eq!(unsafe { msg_bool(object, selector) }, YES);
+            drop(borrowed);
+            assert_eq!(native_destroyed_callback_snapshot(&adapter), before);
+
+            // Retirement clears the ivar before the object can synchronously
+            // invoke this selector; the callback must remain an unconditional
+            // YES even in that state.
+            unsafe { object_setIvar(object, class.state_ivar(), null_mut()) };
+            assert_eq!(unsafe { msg_bool(object, selector) }, YES);
+            assert_eq!(native_destroyed_callback_snapshot(&adapter), before);
+
+            adapter.retire_published_objects();
+            assert!(adapter.objects.is_empty());
+            assert_eq!(adapter.destroyed_notifications, 1);
+
+            let after_first_retirement = native_destroyed_callback_snapshot(&adapter);
+            adapter.retire_published_objects();
+            let after_second_retirement = native_destroyed_callback_snapshot(&adapter);
+            assert_eq!(
+                after_second_retirement.destroyed_notifications,
+                after_first_retirement.destroyed_notifications,
+                "a drained retirement must not post a second AXUIElementDestroyed notification"
+            );
+            assert_eq!(
+                after_second_retirement.objects,
+                after_first_retirement.objects
+            );
+            assert_eq!(
+                after_second_retirement.projection,
+                after_first_retirement.projection
+            );
+            assert_eq!(
+                after_second_retirement.in_flight,
+                after_first_retirement.in_flight
+            );
+            assert_eq!(
+                after_second_retirement.deferred,
+                after_first_retirement.deferred
+            );
+            assert_eq!(
+                after_second_retirement.pending_numeric_actions,
+                after_first_retirement.pending_numeric_actions
+            );
+            assert_eq!(
+                after_second_retirement.active_ranges,
+                after_first_retirement.active_ranges
+            );
+            assert_eq!(after_second_retirement.lease, after_first_retirement.lease);
+            assert_eq!(
+                after_second_retirement.tokens,
+                after_first_retirement.tokens
+            );
+            assert_eq!(
+                after_second_retirement.current_containers,
+                after_first_retirement.current_containers
+            );
+            assert_eq!(
+                after_second_retirement.layout_notifications,
+                after_first_retirement.layout_notifications
+            );
+            assert_eq!(
+                after_second_retirement.value_notifications,
+                after_first_retirement.value_notifications
+            );
         }
 
         #[test]
@@ -5585,6 +5842,7 @@ mod macos {
                 attached: false,
                 layout_notifications: 0,
                 value_notifications: 0,
+                destroyed_notifications: 0,
             };
             let targets = runtime.automation_target_snapshot();
             let passive_specs = adapter

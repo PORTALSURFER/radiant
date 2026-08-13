@@ -2601,6 +2601,7 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "block2 0.5.1",
+ "cc",
  "image",
  "kurbo",
  "lyon_tessellation",

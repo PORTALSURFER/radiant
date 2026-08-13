@@ -1,4 +1,5 @@
-//! macOS-only live acceptance harness for the ordinary native numeric-action contract.
+//! macOS-only live acceptance harness for ordinary native increment/decrement and
+//! bounded AXValue SetValueText.
 //!
 //! The native window is the acceptance surface: the numeric control is built
 //! through the public application builder and complete NumericInput policy.
@@ -151,7 +152,9 @@ impl AcceptanceState {
     fn initial() -> Self {
         Self {
             value: 42.0,
-            status: String::from("Ready for native AXIncrement and AXDecrement"),
+            status: String::from(
+                "Ready for native AXIncrement, AXDecrement, and bounded AXValue SetValueText",
+            ),
         }
     }
 }
@@ -187,11 +190,11 @@ fn project_surface(state: &AcceptanceState) -> View<AcceptanceMessage> {
     };
 
     column([
-        text("Ordinary native NumericInput action acceptance")
+        text("Ordinary native NumericInput action and bounded AXValue acceptance")
             .primary()
             .fill_width(),
         text(
-            "Use VoiceOver or an AX client to invoke only increment/decrement. The value below is application-owned and updates through the normal runtime dispatcher.",
+            "Use VoiceOver or an AX client to invoke increment/decrement and bounded AXValue SetValueText. The value below is application-owned and updates through the normal runtime dispatcher.",
         )
         .wrap()
         .fill_width(),
@@ -277,6 +280,12 @@ mod tests {
                 .available_actions
                 .iter()
                 .any(|action| action == "decrement")
+        );
+        assert!(
+            target
+                .available_actions
+                .iter()
+                .any(|action| action == "set_text")
         );
         assert!(
             target

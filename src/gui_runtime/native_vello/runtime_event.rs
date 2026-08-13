@@ -35,10 +35,11 @@ pub(in crate::gui_runtime::native_vello) enum NativeSemanticAccessibilityQuery {
 }
 
 #[cfg(target_os = "macos")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) enum NativeNumericAccessibilityAction {
     Increment,
     Decrement,
+    SetValueText(String),
 }
 
 #[derive(Clone, Debug)]

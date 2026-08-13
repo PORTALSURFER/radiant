@@ -95,13 +95,9 @@ signed char radiant_native_test_convert_view_rect_to_screen(
 
     @autoreleasepool {
         signed char converted = 0;
-        @try {
-            RadiantNativeCoordinateConversionTestObject *object =
-                [[RadiantNativeCoordinateConversionTestObject alloc] init];
-            converted = radiant_native_convert_view_rect_to_screen(object, object, source, out);
-        } @catch (...) {
-            converted = 0;
-        }
+        RadiantNativeCoordinateConversionTestObject *object =
+            [[RadiantNativeCoordinateConversionTestObject alloc] init];
+        converted = radiant_native_convert_view_rect_to_screen(object, object, source, out);
         if (converted == 0) {
             *out = NSMakeRect(NAN, NAN, NAN, NAN);
         }

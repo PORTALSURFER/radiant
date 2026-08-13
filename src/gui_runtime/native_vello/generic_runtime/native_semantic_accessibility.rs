@@ -774,7 +774,7 @@ mod macos {
                 window_id: self.window_id,
                 generation: self.generation,
                 token,
-                target,
+                target: Box::new(target),
                 action,
             };
             #[cfg(not(test))]

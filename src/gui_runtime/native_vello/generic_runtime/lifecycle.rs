@@ -383,7 +383,7 @@ where
                         .as_ref()
                         .is_some_and(|adapter| adapter.accepts_generation(generation))
                 {
-                    self.handle_native_numeric_accessibility_action(token, target, action);
+                    self.handle_native_numeric_accessibility_action(token, *target, action);
                 }
             }
         }

@@ -83,7 +83,7 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         window_id: WindowId,
         generation: u64,
         token: u64,
-        target: crate::gui::automation::AutomationTarget,
+        target: Box<crate::gui::automation::AutomationTarget>,
         action: NativeNumericAccessibilityAction,
     },
 }

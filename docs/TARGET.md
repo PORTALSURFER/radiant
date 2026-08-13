@@ -898,8 +898,11 @@ destination context, host revisions, and its exact transform revision, and
 returns a conservative logical-window AABB directly. The runtime owns exact
 admission, clipping, panic/reentry containment, retention, and publication;
 ordinary snapshots and passive paths remain resolver-free. The private primary-
-window AppKit consumer consumes resolved logical bounds only and does not invoke
-the custom resolver.
+window AppKit consumer admits only qualified current Custom attachments and
+consumes the compositor's normalized logical bounds plus exact sidecar
+witness/publication authority. It performs the existing logical-to-AppKit
+conversion and never invokes or reconstructs the custom resolver, assumes an
+affine mapping, maps corners, inverts, or uses identity fallback.
 
 ## Application Independence
 

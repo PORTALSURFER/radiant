@@ -14,6 +14,7 @@ use super::{
         VirtualLayoutSemanticClassificationOrigin,
     },
 };
+use crate::runtime::NativeSemanticCoordinateAuthority;
 use crate::{
     gui::{
         automation::{
@@ -104,6 +105,32 @@ impl VirtualLayoutNormalizedSemanticSidecarEntry {
         &self,
     ) -> Option<&crate::gui::layout_core::VirtualLayoutSemanticTransformWitness> {
         self.transform_witness.as_ref()
+    }
+
+    pub(crate) fn matches_native_coordinate_authority(
+        &self,
+        authority: &NativeSemanticCoordinateAuthority,
+    ) -> bool {
+        // The compositor has already validated the witness against the exact
+        // publication fence, including source/context bits. Native matches
+        // only the retained runtime authority here; it must not reconstruct
+        // or invoke the custom resolver.
+        match authority {
+            NativeSemanticCoordinateAuthority::Logical => self.transform_witness.is_none(),
+            NativeSemanticCoordinateAuthority::Custom {
+                identity,
+                transform_revision,
+                transform_generation,
+                resolver_token,
+            } => self.transform_witness.as_ref().is_some_and(|witness| {
+                witness.same_exact(
+                    identity,
+                    *transform_revision,
+                    *transform_generation,
+                    *resolver_token,
+                )
+            }),
+        }
     }
 }
 

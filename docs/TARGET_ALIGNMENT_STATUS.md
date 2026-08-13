@@ -34,8 +34,9 @@ baseline or terminal outcomes continue to replace semantic projection with
 ordinary.
 The broad estimate is now `903 / 11` (~82.09%) and Public API is 85% for the
 bounded custom-coordinate attachment evidence; no design-only credit is
-awarded for unvalidated work. Other native adapters,
-scheduler-, renderer-, and product-policy boundaries remain separate.
+awarded for unvalidated work. The private native consumer now has a bounded
+normalized-Custom path, but live host acceptance remains pending. Other native
+adapters, scheduler-, renderer-, and product-policy boundaries remain separate.
 Current values remain exactly: Public API 85; Declarative 71; Input 97; Layout
 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics
 66; Examples/docs 76; generic ~97%; broad `903 / 11` = 82.09%. The
@@ -45,8 +46,9 @@ provider-free; this production slice does not change any estimate. The
 compositor-owned complete normalized sidecar is now shipped from the exact
 staged union, with final paths, materialization origin, and source-qualified
 publication fences retained atomically by the selected composition. Estimates
-remain unchanged. Native cardinality queries/topology and native custom-coordinate
-transformation remain later gaps. The
+remain unchanged. Native cardinality queries/topology and the bounded normalized
+custom consumer are implemented; live AppKit acceptance remains the later gap.
+The
 partial native implementation in stash
 `radiant-native-semantic-consumer-partial-sol-audit` and the incomplete
 cardinality/sidecar attempt in stash
@@ -279,10 +281,10 @@ authorize materialization, scrolling, actions, focus, paint, hit testing,
 scheduling, rendering, or provider authority, and snapshot functions remain
 pure reads. The generic logical production consumer below now implements the
 public snapshot selection/visibility and session ownership boundary. The
-bounded public custom-coordinate attachment is now implemented below; broader
-production/native custom-coordinate conversion, product consumers,
-scheduler/backoff/fairness, and multiple active ranges per container remain
-separate gaps. The normative public declarative provider attachment contract is
+bounded public custom-coordinate attachment and normalized native consumer are
+implemented below; direct native resolver conversion/reconstruction, live host
+acceptance, product consumers, scheduler/backoff/fairness, and multiple active
+ranges per container remain separate gaps. The normative public declarative provider attachment contract is
 shipped at its qualified boundary and recorded in
 `docs/VIRTUAL_LAYOUT_DESIGN.md`. This implementation earns the Public API
 evidence point: generic ~97%, Declarative identity 71%, layout 97%, and broad
@@ -425,7 +427,7 @@ their own resolver. The private primary-window macOS/AppKit native
 semantic accessibility query contract below translates explicit platform queries only through the
 backend-neutral session model and is not a hidden provider owner. The full
 acceptance matrix and native contract are in `docs/VIRTUAL_LAYOUT_DESIGN.md`;
-native custom-coordinate conversion, native accessibility action dispatch, focus,
+direct native custom-resolver invocation/reconstruction, native accessibility action dispatch, focus,
 scrolling/materialization, scheduler/backoff/fairness, renderer/paint/
 hit-testing/cache policy, product policy, multiple ranges, and prelude export
 remain excluded.
@@ -480,12 +482,17 @@ rejected, panic, malformed, collision, stale, or cancelled evidence uses the
 existing typed conservative baseline behavior; stale and cancelled completions
 are inert and MUST NOT mutate or publish native state.
 
-The first native consumer accepts provider semantics only in `Logical`. Native
-conversion MUST identify source surface space, destination window/screen
-accessibility space, DPI, window/display generation, orientation, clipping, and a
-finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. Custom declarations are not admitted by this native path; no resolver
-is invoked and no affine or identity fallback is permitted.
+The first native consumer accepts `Logical` registrations unchanged and admits
+`Custom(identity)` only with the matching current transform attachment, exact
+cardinality/provider/anchor evidence, and runtime-owned transform
+revision/generation/token. Native publication consumes only the compositor's
+complete normalized logical-window bounds plus the matching sidecar witness and
+publication fences. Native conversion MUST identify source surface space,
+destination window/screen accessibility space, DPI, window/display generation,
+orientation, clipping, and a finite non-inverted conversion. Stale, unsupported,
+missing, or mismatched authority withholds the complete custom projection; no
+resolver is invoked or reconstructed and no affine, corner-mapping, inversion,
+or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -507,8 +514,9 @@ revision; an optional `VirtualLayoutParts` field and qualified
 the common prelude. The exact private registration/live-fence invalidation
 foundation, normalized sidecar, native topology, bounded AppKit cardinality
 query/child traversal, and the private primary-window platform consumer are
-implemented. Live host/AppKit acceptance remains pending; native custom-coordinate
-transformation also remains deferred. `None` is unknown/unsupported, exact zero is supported, cardinality
+implemented. Live host/AppKit acceptance remains pending; the bounded normalized
+custom consumer is implemented and receives no Platform credit until live
+acceptance. `None` is unknown/unsupported, exact zero is supported, cardinality
 is immutable declaration evidence rather than a callback or demand, is not capped
 at 1024, and does not allocate proportional storage. Count reads, updates,
 mount, and enumeration are provider-free. Unknown cardinality does not vend a
@@ -570,14 +578,16 @@ This documentation contract preserves the one-session bound, opaque private
 handles, explicit refresh/retry-only demand, one range plus one required-item
 slot, 64 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
-Logical-only native consumption of already-resolved bounds, and pure snapshots.
+normalized logical bounds for Logical and qualified Custom authority, and pure snapshots.
 It excludes focus, actions, selection mutation, scroll/materialize,
-scheduler/retry policy, render, product, native custom conversion,
+scheduler/retry policy, render, product, direct native custom-resolver
+invocation/reconstruction,
 Wayland/Windows, auxiliary, multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
-Wayland, Windows, native actions, focus, scrolling, product policy, native
-custom conversion, scheduler, and renderer behavior remain excluded. The
+Wayland, Windows, native actions, focus, scrolling, product policy, direct
+native custom-resolver invocation/reconstruction, scheduler, and renderer
+behavior remain excluded. The
 bounded generic custom-coordinate attachment is covered above; live AppKit
 acceptance does not receive Platform credit.
 

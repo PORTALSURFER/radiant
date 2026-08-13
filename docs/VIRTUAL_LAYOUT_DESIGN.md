@@ -9,7 +9,7 @@ bridge, the current-fence one-item semantic admission path, and its private
 semantic projection boundary are also shipped as crate-private/private runtime
 evidence. The crate-private semantic-demand owner/provider-attempt/retention
 kernel and private atomic whole-surface publication/composition kernel in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred)
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-bounded-custom-and-normalized-native-consumer-shipped)
 are shipped and implemented. Their shipped scope includes explicit admission,
 exact `SemanticProviderFence` and `SemanticPublicationFence` fields,
 generation/attempt/cancellation, typed outcomes and validation, exact fallback
@@ -20,9 +20,10 @@ is now shipped for the bounded generic consumer: its runtime-owned session
 owner, selected-publication boundary, explicit refresh/retry/close operations,
 conservative fallback, and qualified application-owned custom-coordinate
 attachment are live. Scheduler/cancellation transport, product provider
-consumer implementations, and native custom-coordinate conversion remain
-deferred. The later macOS/AppKit native
-semantic accessibility query contract below is normative for that consumer. The
+consumer implementations, and direct native custom-resolver invocation remain
+deferred. The bounded normalized Custom path of the later macOS/AppKit native
+semantic accessibility query contract below is implemented and normative for
+that consumer; live host/AppKit acceptance remains pending. The
 public declarative provider attachment contract below is normative and shipped
 as the bounded public-API evidence point; its custom resolver is generic and
 does not itself provide a native/product integration.
@@ -137,9 +138,9 @@ At this status:
    session and public selected-snapshot visibility are shipped through
    `SurfaceRuntime`; the public declarative provider and bounded custom
    attachment contract below is normative and shipped. Native/product provider consumer
-   implementations and native custom-coordinate conversion remain outside this
-   contract; the later macOS/AppKit native semantic accessibility query contract
-   is defined below.
+   implementations and direct native custom-resolver invocation/reconstruction
+   remain outside this contract; the later macOS/AppKit native semantic
+   accessibility query contract is defined below.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -184,8 +185,8 @@ This contract does not:
   host-owned `VirtualListWindow` path; or
 - define `split_pane` behavior, including its resize, collapse, persistence,
   interaction, or runtime consumer;
-- implement a native custom-coordinate conversion or a production/product consumer
-  implementation,
+- invoke or reconstruct a custom resolver from a native callback, or define a
+  production/product consumer implementation,
   scheduler/backoff/fairness policy, multiple active ranges per container, or a
   public imperative provider-registration API. The one public declarative
   provider-attachment contract, including the bounded custom transform, is
@@ -195,8 +196,9 @@ This contract does not:
   crate-private owner/provider-attempt/retention and atomic
   publication/composition kernels remain the only provider authority. The
   generic target slice admits `Custom` only with the exact application-owned
-  resolver and runtime destination context; native remains Logical-only with no
-  identity-transform fallback.
+  resolver and runtime destination context; the private native consumer admits
+  only qualified current Custom authority and consumes normalized logical
+  bounds, with no resolver, affine, or identity fallback.
 
 ## 2. Normative vocabulary and invariants
 
@@ -399,7 +401,7 @@ boundary. Ordinary layout querying and semantic demand/refresh are separate
 runtime turns. A query may carry already accepted semantic evidence for
 projection, but it cannot create a semantic demand, invoke a semantic provider,
 or publish a virtual semantic tree. The semantic-demand turn is specified in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred).
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-bounded-custom-and-normalized-native-consumer-shipped).
 
 The following pseudocode illustrates the ordinary query boundary:
 
@@ -1087,7 +1089,7 @@ provider refresh: a viewport-only or ordinary-projection refresh does not call
 the semantic provider unless it is part of explicit
 `refresh_semantic_automation_session` or `retry_semantic_automation_session`
 demand intent in
-[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-consumer-shipped-native-contract-defined-custom-deferred)
+[Semantic demand and refresh](#semantic-demand-and-refresh-generic-logical-bounded-custom-and-normalized-native-consumer-shipped)
 also changes.
 
 #### Projection, identity, and retained payload
@@ -1174,7 +1176,7 @@ accidental paint order. A semantic revision invalidates labels/roles/actions
 without necessarily invalidating geometry, but any result still requires an
 exact semantic fence at acceptance.
 
-### Semantic demand and refresh (generic logical and bounded custom consumer shipped; native contract defined)
+### Semantic demand and refresh (generic logical, bounded custom, and normalized native consumer shipped)
 
 This is the approved contract and implementation boundary for provider-backed
 virtual semantic demand, refresh, and private atomic publication. The
@@ -1186,8 +1188,10 @@ retention, retained-evidence reclassification, and all-or-nothing logical
 composition are current private runtime behavior. The generic logical runtime
 session consumer and public selected-snapshot boundary are also shipped;
 scheduler/cancellation transport, product provider consumer implementations, and
-native custom-coordinate conversion remain unshipped. The private primary-window macOS/AppKit
-native semantic accessibility query contract is implemented below. The private kernel
+direct native custom-resolver invocation/reconstruction remain deferred. The
+bounded normalized Custom path of the private primary-window macOS/AppKit native
+semantic accessibility query contract is implemented below; live host/AppKit
+acceptance remains pending. The private kernel
 does not add a public
 imperative provider-registration surface; the shipped qualified provider and
 custom-coordinate surface is
@@ -1251,8 +1255,11 @@ receives the finite complete source rectangle, ordinary anchor, effective
 destination clip, host revisions, and exact transform revision, and returns a
 conservative destination AABB directly. It does not receive runtime handles or
 mutable state and Radiant does not assume affine, inverse, point, hit-test, or
-materialization behavior. Native remains Logical-only; native custom conversion
-and identity fallback are not part of this slice.
+materialization behavior. Native consumes `Logical` unchanged and qualified
+`Custom` only through the compositor's normalized logical bounds and matching
+sidecar witness/publication authority; it never invokes or reconstructs the
+resolver, assumes affine mapping, maps corners, inverts, or uses identity
+fallback.
 
 #### Demand generations, attempts, and refresh
 
@@ -1485,7 +1492,9 @@ context change invalidate retained transformed publication. DataUnavailable or
 Deferred may retain it only under the complete exact fence; transform failure
 uses the ordinary baseline. Nested custom registrations require their own
 resolver and do not inherit or compose an ambiguous one. The private AppKit
-consumer remains Logical-only and consumes only resolved logical bounds.
+consumer consumes `Logical` unchanged and qualified `Custom` only through the
+compositor's normalized logical bounds and matching sidecar
+witness/publication authority; it never invokes or reconstructs the resolver.
 
 #### Contract definition of done
 
@@ -1493,8 +1502,9 @@ The alignment documents MUST agree on this contract and MUST continue to state
 that the private demand/publication kernel, generic logical/custom consumer, and
 private primary-window macOS/AppKit consumer are shipped. The public declarative
 provider plus bounded custom-coordinate attachment is normative and shipped as
-the public-API evidence point; native custom conversion, product provider
-consumer implementations, and scheduling remain deferred. The private native
+the public-API evidence point; direct native custom-resolver
+invocation/reconstruction, product provider consumer implementations, and
+scheduling remain deferred. The private native
 consumer has automated evidence in this cycle; live host/AppKit acceptance
 remains pending. Numeric estimates are generic ~97%, Declarative identity 71%,
 layout 97%, and broad coverage `903 / 11` (~82.09%), with Public API 85% and no
@@ -1550,12 +1560,17 @@ unsupported, rejected, panic, malformed, collision, stale, or cancelled evidence
 uses the existing typed conservative baseline behavior; stale and cancelled
 completions are inert and MUST NOT mutate or publish native state.
 
-The first native consumer accepts provider semantics only in `Logical`. Native
-conversion MUST identify source surface space, destination window/screen
-accessibility space, DPI, window/display generation, orientation, clipping, and a
-finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. Custom declarations are not admitted by this native path; no resolver
-is invoked and no affine or identity fallback is permitted.
+The first native consumer accepts `Logical` registrations unchanged and admits
+`Custom(identity)` only with the matching current transform attachment, exact
+cardinality/provider/anchor evidence, and runtime-owned transform
+revision/generation/token. Native publication consumes only the compositor's
+complete normalized logical-window bounds plus the matching sidecar witness and
+publication fences. Native conversion MUST identify source surface space,
+destination window/screen accessibility space, DPI, window/display generation,
+orientation, clipping, and a finite non-inverted conversion. Stale, unsupported,
+missing, or mismatched authority withholds the complete custom projection; no
+resolver is invoked or reconstructed and no affine, corner-mapping, inversion,
+or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -1670,14 +1685,16 @@ This extension preserves the one-session bound, opaque private handles, explicit
 refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
-Logical-only conservative coordinates, and pure snapshots. It excludes focus,
+normalized logical conservative coordinates, and pure snapshots. It excludes focus,
 actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
-product, custom, Wayland/Windows, auxiliary, multi-consumer, and public registry
+product, direct native custom-resolver invocation/reconstruction, Wayland/Windows,
+auxiliary, multi-consumer, and public registry
 behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
-Wayland, Windows, native actions, focus, scrolling, product policy, custom
-transforms, scheduler, and renderer behavior are excluded.
+Wayland, Windows, native actions, focus, scrolling, product policy, direct
+native custom-resolver invocation/reconstruction, scheduler, and renderer
+behavior are excluded.
 
 ### Public declarative provider attachment (normative; custom attachment bounded)
 
@@ -2176,8 +2193,8 @@ fallback retention, retained-evidence reclassification, and all-or-nothing
 logical composition. The generic logical production consumer above now ships
 public snapshot selection/visibility and the runtime semantic session;
 scheduler/cancellation transport, native/product provider consumer
-implementations, native custom-coordinate conversion, and the other listed non-goals remain
-outside the slice. The
+implementations, direct native custom-resolver invocation/reconstruction, and
+the other listed non-goals remain outside the slice. The
 shipped private kernel and session do not authorize materialization, scrolling,
 actions, focus, paint, hit testing, scheduling, rendering, public provider
 registration, or any other deferred authority.
@@ -2251,7 +2268,7 @@ public selected snapshot, and qualified declarative provider attachment.
 | Transform outcome | `Found`, `Unsupported`, `Singular`, or `Ambiguous`; panic/reentry; non-finite, inverted, overflowing, or fully clipped `Found` bounds | The resolver is synchronous and called at most once per accepted provider entry. Only a finite non-inverted `Found` envelope clipped to the exact destination context can continue; every other outcome falls back atomically to the ordinary baseline with no partial custom subtree. |
 | Transform witness | Resolved custom projection reaches the compositor or is retained after `DataUnavailable`/`Deferred` | A private witness carries exact identity, transform revision, runtime generation/token, source rectangle, ordinary anchor, and destination clip; compositor admission and retention require exact equality through provider, classification, composition, sidecar, selected publication, and native logical-consumer fences. |
 | Nested custom registration | Custom container inside another custom declaration, with or without a local resolver | Each custom registration must supply its own resolver and exact destination context; no inherited, guessed, implicitly composed, or ambiguous resolver is accepted. Ancestor clipping remains part of the current context. |
-| Native custom boundary | Private primary-window AppKit observes a custom declaration or selected custom evidence | Native admission remains Logical-only. The AppKit consumer consumes only resolved logical bounds from an accepted composition and never invokes or owns the custom resolver. |
+| Native custom boundary | Private primary-window AppKit observes a custom declaration or selected custom evidence | Native admits only a qualified current Custom attachment and consumes the compositor's normalized logical bounds plus matching sidecar witness/publication fences. It never invokes or reconstructs the custom resolver, assumes affine mapping, maps corners, inverts, or uses identity fallback. |
 | Generation/attempt allow | Explicit refresh versus explicit retry | Refresh atomically replaces the complete demand set and starts attempt one; explicit retry of unchanged demand advances only the attempt. A changed live fence invalidates old work but does not create demand outside either operation. |
 | Cancellation before supersession | In-flight attempt is superseded, its registration is replaced, its container unmounts, or its owner retires | The owner marks the attempt cancelled before the transition; cancellation is delivered through the private runtime work boundary where available, and no automatic retry occurs. |
 | Cancelled provider return | Structurally valid provider result returns after the attempt was cancelled | The result is stale regardless of structural validity or matching fields; it is ignored entirely and cannot retain, clear, diagnose, retry, classify, recompose, or publish. |

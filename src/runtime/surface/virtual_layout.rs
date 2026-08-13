@@ -339,6 +339,11 @@ impl<Message> VirtualLayoutRegistration<Message> {
         self.semantic_coordinate_transform.as_ref().map(Rc::clone)
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn semantic_coordinate_transform_is_attached(&self) -> bool {
+        self.semantic_coordinate_transform.is_some()
+    }
+
     pub(crate) fn semantic_coordinate_transform_identity(
         &self,
     ) -> Option<&VirtualLayoutPolicyIdentity> {

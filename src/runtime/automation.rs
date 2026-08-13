@@ -23,13 +23,26 @@ use crate::{
 /// adapter.  This is deliberately smaller than a public container handle: a
 /// native callback may observe cardinality and registration identity without
 /// opening a semantic session or creating demand.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum NativeSemanticCoordinateAuthority {
+    Logical,
+    Custom {
+        identity: crate::layout::VirtualLayoutPolicyIdentity,
+        transform_revision: u64,
+        transform_generation: u64,
+        resolver_token: usize,
+    },
+}
+
 #[cfg(target_os = "macos")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NativeSemanticContainerSnapshot {
     pub(crate) container_id: crate::layout::NodeId,
     pub(crate) mount_generation: u64,
     pub(crate) registration_generation: u64,
     pub(crate) provider_generation: u64,
+    pub(crate) coordinate_authority: NativeSemanticCoordinateAuthority,
     pub(crate) cardinality: VirtualLayoutSemanticCardinality,
     pub(crate) has_range_provider: bool,
     pub(crate) max_entries: usize,
@@ -297,9 +310,11 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     #[cfg(target_os = "macos")]
-    /// Return provider-free, current logical virtual-container admission
-    /// evidence for the private native primary-window consumer.  The view is
-    /// intentionally unavailable through the public automation API.
+    /// Return provider-free, current logical/custom virtual-container
+    /// admission evidence for the private native primary-window consumer. The
+    /// view is intentionally unavailable through the public automation API;
+    /// custom entries carry only runtime-owned authority for matching the
+    /// compositor's already-normalized sidecar.
     pub(crate) fn native_semantic_containers(&self) -> Vec<NativeSemanticContainerSnapshot> {
         let ordinary = self.automation_snapshot();
         self.virtual_layout.native_semantic_containers(&ordinary)

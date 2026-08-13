@@ -766,7 +766,7 @@ impl<Message> SemanticDemandOwner<Message> {
     /// Return the private range-provider authority generations for a passive
     /// native token fence.  This reads owner state only; it never starts or
     /// retries a demand.
-    pub(super) fn native_range_authority(&self, container_id: NodeId) -> Option<(u64, u64)> {
+    pub(super) fn native_range_authority(&self, container_id: NodeId) -> Option<(u64, u64, u64)> {
         self.records
             .iter()
             .find(|record| !record.retired && record.authority.container_id == container_id)
@@ -774,6 +774,7 @@ impl<Message> SemanticDemandOwner<Message> {
                 (
                     record.registration_generation,
                     record.semantic_range_provider_generation,
+                    record.semantic_coordinate_transform_generation,
                 )
             })
     }

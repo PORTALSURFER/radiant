@@ -368,6 +368,24 @@ where
                     self.handle_native_semantic_accessibility_query(query);
                 }
             }
+            #[cfg(target_os = "macos")]
+            RuntimeUserEvent::NativeNumericAccessibilityAction {
+                window_id,
+                generation,
+                token,
+                target,
+                action,
+            } => {
+                if self.is_running()
+                    && Some(window_id) == self.window.id
+                    && self
+                        .native_semantic_accessibility
+                        .as_ref()
+                        .is_some_and(|adapter| adapter.accepts_generation(generation))
+                {
+                    self.handle_native_numeric_accessibility_action(token, target, action);
+                }
+            }
         }
     }
 

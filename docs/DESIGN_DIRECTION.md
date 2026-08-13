@@ -1478,10 +1478,30 @@ explicit repeated query MAY retry. Deactivation, window retirement, recovery
 replacement, and close cancel and retire the lease before native objects drop.
 `materialized = false` remains authoritative: native semantics cannot materialize,
 scroll, focus, execute actions, paint, hit-test, schedule, render, or claim
-provider authority. Native tree publication and native action dispatch are
-separate contracts; this consumer does not connect numeric accessibility
-dispatch. The adapter and lease are not public imperative provider-registration
-APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+provider authority. Virtual/provider nodes therefore never acquire native
+numeric action authority. For an ordinary runtime node only, the private
+adapter pairs the pure ordinary `automation_target_snapshot` with the native
+semantic tree and admits exactly an enabled, editable, focusable,
+`AutomationRole::TextInput` target with current `value_text`, materialized
+authority, and both neutral increment/decrement actions. The exact ordinary
+ID/path/role/authority is captured with one native token; geometry is never an
+authority fence. A qualified node publishes `AXIncrementor`, the exact label
+and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
+focused false/unchanged, a non-settable value, and exactly `AXIncrement` and
+`AXDecrement`. Modern increment/decrement selectors use `BOOL c@:` and the
+deprecated action selector uses `void v@:@`; only those exact action names are
+accepted. Each native action enqueues one bounded primary-window,
+adapter-generation, token, target, and neutral-action event. The running
+event-loop validates current window/generation/token/identity/authority and
+invokes the existing runtime dispatcher once; stale, unsupported, disabled,
+read-only, unfocused, incumbent-owned, recovery, close, borrow, panic, and
+transport failures are inert and never retarget or mutate. A stable value-only
+change retains the native object, installs the new queryable value before one
+`AXValueChanged`, and posts no layout notification; unchanged, no-change,
+typed-failure, stale, and enqueue-failure paths post none. Native actions are
+not provider demand, materialization, SetValueText, AXValue mutation, slider,
+range, orientation, percentage, or scalar conversion. The adapter and lease are
+not public imperative provider-registration APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
 #### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
@@ -1545,9 +1565,12 @@ Root/container/non-text roles map to `NSAccessibilityGroupRole`; only `Text` and
 `Readout` map to `NSAccessibilityStaticTextRole`. Expose only role, exact
 parent/children, finite frame, label, description/help, and static-text value.
 Omit checked/selected/enabled/read-only/focusable/focused/tab/live/action
-metadata; focused is false, actions are empty/no-op, and buttons, toggles,
-sliders, tables, and text inputs never map to actionable roles. Defunct objects
-return conservative empty/zero values.
+metadata for this virtual/provider path; focused is false, actions are
+empty/no-op for virtual/provider objects, and buttons, toggles, sliders, tables,
+and text inputs in that path never map to actionable roles. Defunct objects
+return conservative empty/zero values. Ordinary materialized TextInput numeric
+nodes use the separate native action contract above and are never synthesized
+from virtual/provider evidence.
 
 AppKit callbacks are non-blocking and never call or mutate runtime/provider. A
 valid explicit item/range query enqueues/coalesces one owned runtime turn.
@@ -1569,14 +1592,14 @@ refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
 normalized logical conservative coordinates, and pure snapshots. It excludes focus,
-actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
+native actions for virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, direct native custom-resolver invocation/reconstruction, Wayland/Windows, auxiliary,
 multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
-unchanged. Wayland, Windows, native actions, focus, scrolling, product policy,
+unchanged. Wayland, Windows, non-qualified/virtual native actions, focus, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and
 renderer behavior remain excluded.
 
@@ -1642,7 +1665,7 @@ native-boundary, non-goal, and acceptance matrix is in
 attachment moves Public API to 85% and broad coverage to `903 / 11`
 (~82.09%); no Platform credit is awarded without live AppKit acceptance.
 
-Its non-goals are direct native custom-resolver invocation/reconstruction; native accessibility action dispatch; focus;
+Its non-goals are direct native custom-resolver invocation/reconstruction; native actions for virtual/provider targets; focus;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
 hit-testing, or cache policy; product policy; multiple ranges per container;
 and prelude export.
@@ -3421,7 +3444,7 @@ The deterministic fixture matrix for this shipped generic consumer is recorded
 in `docs/API.md`; it is part of the contract. Native unit/phase translation
 before the exact widget seam remains a separate platform boundary.
 
-### Target numeric accessibility action lifecycle (runtime dispatch shipped; native adapters remain separate)
+### Target numeric accessibility action lifecycle (runtime dispatch and first ordinary AppKit slice shipped)
 
 The target runtime lifecycle requires the shared incumbent-owner gate at both
 its pre-focus and post-focus checks. The shipped runtime consumer performs
@@ -3497,10 +3520,11 @@ enum NumericAccessibilityDispatchResult {
 ```
 
 `NumericAccessibilityAction` is the shipped complete neutral vocabulary:
-`Increment`, `Decrement`, and `SetValueText(String)`. A future native or
-platform adapter may map its platform request into one of these values, but it
-does not choose a native action name, handle, API, or payload representation
-for this generic contract. A request is a discrete action; platform timing
+`Increment`, `Decrement`, and `SetValueText(String)`. The private primary-window
+AppKit adapter currently maps only `AXIncrement`/`AXDecrement` to the first two
+neutral values for qualified ordinary materialized TextInput targets; it never
+maps SetValueText or virtual/provider actions. Other native adapters remain
+separate. A request is a discrete action; platform timing
 does not create repetition or continuity. `Accepted` is runtime admission and
 handler invocation; its `WidgetOutput` can be downcast by the numeric host to
 the typed `NumericAccessibilityOutcome<T, AdjustmentError, FormatError>` local
@@ -3512,8 +3536,10 @@ The application owns the durable `T` value and supplies `NumericCodec<T>` and
 `NumericAdjustment<T>`. The numeric input owns its draft, caret, selection,
 focus-local edit state, and edit lifecycle. The runtime owns the current
 stable numeric widget identity, authority/revision, focus transition,
-materialization status, and active edit-owner admission. A future adapter owns
-only the mapping from its external request into the neutral action vocabulary.
+materialization status, and active edit-owner admission. The private primary-
+window AppKit adapter owns only the bounded mapping from its external request
+into the neutral action vocabulary; virtual/provider and other native adapters
+remain separate.
 The automation snapshot and its flattened targets remain read-only evidence;
 they do not own dispatch or mutation.
 

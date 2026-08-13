@@ -468,6 +468,27 @@ where
     }
 
     #[cfg(target_os = "macos")]
+    pub(super) fn handle_native_numeric_accessibility_action(
+        &mut self,
+        token: u64,
+        target: crate::gui::automation::AutomationTarget,
+        action: super::super::runtime_event::NativeNumericAccessibilityAction,
+    ) {
+        let Some(adapter) = self.native_semantic_accessibility.as_mut() else {
+            return;
+        };
+        adapter.finish_numeric_action();
+        let Some(request) = adapter.numeric_accessibility_request(token, target, action) else {
+            return;
+        };
+        let _ = self
+            .core
+            .runtime
+            .dispatch_numeric_accessibility_action(request);
+        adapter.publish_passive(&self.core.runtime);
+    }
+
+    #[cfg(target_os = "macos")]
     pub(super) fn invalidate_native_semantic_accessibility_geometry(&mut self) {
         let Some(window) = self.window.window.as_ref().cloned() else {
             return;

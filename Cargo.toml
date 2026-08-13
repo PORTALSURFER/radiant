@@ -273,6 +273,10 @@ path = "examples/custom_shader_surface.rs"
 name = "render_canvas_stack_overlay"
 path = "examples/render_canvas_stack_overlay.rs"
 
+[[example]]
+name = "macos_numeric_accessibility_acceptance"
+path = "examples/macos_numeric_accessibility_acceptance.rs"
+
 [[bench]]
 name = "perf_harness"
 path = "benches/perf_harness.rs"

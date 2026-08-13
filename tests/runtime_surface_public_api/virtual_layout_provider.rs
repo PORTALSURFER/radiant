@@ -525,6 +525,135 @@ fn edge_touching_custom_transform_uses_ordinary_baseline_without_custom_target()
 }
 
 #[test]
+fn rejected_custom_transform_revokes_retention_before_unavailable_or_deferred_retry() {
+    let response = Rc::new(Cell::new(RangeResponse::Found));
+    let provider_calls = Rc::new(Cell::new(0));
+    let provider = controlled_range_provider(Rc::clone(&response), Rc::clone(&provider_calls));
+    let transform_calls = Rc::new(Cell::new(0));
+    let edge_contact = Rc::new(Cell::new(false));
+    let transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform> = Rc::new({
+        let edge_contact = Rc::clone(&edge_contact);
+        let transform_calls = Rc::clone(&transform_calls);
+        move |request: &radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+            transform_calls.set(transform_calls.get() + 1);
+            if edge_contact.get() {
+                let clip = request.destination_clip();
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(Rect::from_min_max(
+                    Point::new(clip.max.x, clip.min.y),
+                    Point::new(clip.max.x + 1.0, clip.max.y),
+                ))
+            } else {
+                VirtualLayoutSemanticCoordinateTransformOutcome::Found(request.destination_clip())
+            }
+        }
+    });
+    let bridge = declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| {
+            let parts = public_parts(Some(Rc::clone(&provider)))
+                .with_semantic_coordinate_transform(
+                    VirtualLayoutPolicyIdentity::new("retention-revocation-space"),
+                    29,
+                    Rc::clone(&transform),
+                );
+            arc_surface(virtual_layout_from_parts(parts).into_surface())
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    let ordinary = runtime.automation_snapshot();
+    let ordinary_targets = runtime.automation_target_snapshot();
+
+    let initial = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("initial custom publication succeeds");
+    assert_eq!(initial.status, SemanticAutomationRefreshStatus::Published);
+    assert!(
+        initial
+            .selected
+            .targets
+            .targets
+            .iter()
+            .any(|target| target.id.0 == "controlled-8")
+    );
+    assert_eq!(provider_calls.get(), 1);
+    assert_eq!(transform_calls.get(), 2);
+
+    edge_contact.set(true);
+    let rejected = runtime
+        .retry_semantic_automation_session(session)
+        .expect("edge-contact transform rejection returns the ordinary baseline");
+    assert_eq!(
+        rejected.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Rejected,
+        }
+    );
+    assert_eq!(rejected.selected.snapshot, ordinary);
+    assert_eq!(rejected.selected.targets, ordinary_targets);
+    assert!(
+        rejected
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("controlled-"))
+    );
+    assert_eq!(provider_calls.get(), 2);
+    assert_eq!(transform_calls.get(), 3);
+
+    response.set(RangeResponse::DataUnavailable);
+    let unavailable = runtime
+        .retry_semantic_automation_session(session)
+        .expect("data-unavailable retry returns the ordinary baseline");
+    assert_eq!(
+        unavailable.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::DataUnavailable,
+        }
+    );
+    assert_eq!(unavailable.selected.snapshot, ordinary);
+    assert_eq!(unavailable.selected.targets, ordinary_targets);
+    assert!(
+        unavailable
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("controlled-"))
+    );
+    assert_eq!(provider_calls.get(), 3);
+    assert_eq!(transform_calls.get(), 3);
+
+    response.set(RangeResponse::Deferred);
+    let deferred = runtime
+        .retry_semantic_automation_session(session)
+        .expect("deferred retry returns the ordinary baseline");
+    assert_eq!(
+        deferred.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Deferred,
+        }
+    );
+    assert_eq!(deferred.selected.snapshot, ordinary);
+    assert_eq!(deferred.selected.targets, ordinary_targets);
+    assert!(
+        deferred
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("controlled-"))
+    );
+    assert_eq!(provider_calls.get(), 4);
+    assert_eq!(transform_calls.get(), 3);
+}
+
+#[test]
 fn zero_area_surface_intersection_invalidates_prior_custom_publication() {
     let provider_calls = Rc::new(Cell::new(0));
     let transform_calls = Rc::new(Cell::new(0));

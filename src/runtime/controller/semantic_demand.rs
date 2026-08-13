@@ -2271,9 +2271,11 @@ impl<Message> SemanticDemandOwner<Message> {
             slot.executed = false;
             slot.completed = true;
             slot.evidence = None;
+            slot.retained = None;
             slot.withheld = true;
             slot.status = SemanticSlotStatus::Terminal;
         }
+        self.last_complete_candidate = None;
     }
 
     fn remove_slot(&mut self, index: usize, source: SemanticDemandSource) {
@@ -2933,7 +2935,9 @@ mod tests {
         let slot = owner.slot(0, source).expect("terminal demand membership");
         assert_eq!(slot.status, SemanticSlotStatus::Terminal);
         assert!(slot.evidence.is_none());
+        assert!(slot.retained.is_none());
         assert!(slot.withheld);
+        assert!(owner.last_complete_candidate.is_none());
     }
 
     fn complete_pin(
@@ -4300,6 +4304,52 @@ mod tests {
         ));
         assert_terminal_slot(&owner, SemanticDemandSource::Range);
         assert_eq!(range.calls.get(), 5);
+    }
+
+    #[test]
+    fn rejected_retry_revokes_retained_evidence_and_complete_candidate() {
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(1, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration("policy", 8, Default::default(), None, Some(range.clone())),
+        );
+
+        let first = started(owner.range(CONTAINER_ID, 0, 1).expect("range"));
+        assert!(matches!(
+            complete_range(&mut owner, first),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(50));
+        assert!(matches!(
+            owner.finish_publication(&ordinary, plan.clone(), &classifications_for_plan(&plan)),
+            SemanticPublicationOutcome::Published(_)
+        ));
+        assert!(owner.last_complete_candidate.is_some());
+        assert!(
+            owner.records[0]
+                .range
+                .as_ref()
+                .is_some_and(|slot| slot.retained.is_some())
+        );
+
+        *range.outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Rejected(
+            VirtualLayoutSemanticRejectedReason::ProviderRejected,
+        );
+        let retry = owner.retry_range(CONTAINER_ID).expect("rejected retry");
+        assert!(matches!(
+            complete_range(&mut owner, retry),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::ProviderRejected
+            )
+        ));
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
     }
 
     #[test]

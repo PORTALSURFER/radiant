@@ -2842,13 +2842,15 @@ where
 mod tests {
     use super::*;
     #[cfg(target_os = "macos")]
+    use crate::application::VirtualLayoutParts;
+    #[cfg(target_os = "macos")]
     use crate::runtime::SemanticAutomationSessionHandle;
     use crate::runtime::controller::semantic_demand::{
         SemanticDemandAdmission, SemanticDemandAdmissionError, SemanticDemandCompletion,
         SemanticProviderCompletion,
     };
     use crate::{
-        application::{View, VirtualLayoutParts, empty, scroll, spacer, text},
+        application::{View, empty, scroll, spacer, text},
         gui::{
             automation::{
                 AutomationBounds, AutomationNodeId, AutomationNodeSemantics,

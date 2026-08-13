@@ -56,6 +56,7 @@ mod macos {
     const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
     const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
     const NS_ACCESSIBILITY_VALUE_ATTRIBUTE: &CStr = c"AXValue";
+    const NS_NOT_FOUND: usize = isize::MAX as usize;
     #[cfg(test)]
     const MAX_NATIVE_VALUE_UTF16_UNITS: usize = 1_024;
     const MAX_NATIVE_VALUE_UTF8_BYTES: usize = 4_096;
@@ -64,6 +65,7 @@ mod macos {
     const MODERN_VALUE_METHOD_TYPE: &CStr = c"@@:";
     const VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@";
     const LEGACY_VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@@";
+    const INDEX_OF_CHILD_METHOD_TYPE: &CStr = c"Q@:@";
     const YES: ObjcBool = 1;
     const NO: ObjcBool = 0;
 
@@ -121,6 +123,8 @@ mod macos {
         fn class_getInstanceVariable(class: Id, name: *const c_char) -> Ivar;
         #[cfg(test)]
         fn class_getInstanceMethod(class: Id, name: Sel) -> Id;
+        #[cfg(test)]
+        fn method_getTypeEncoding(method: Id) -> *const c_char;
         fn class_addMethod(
             class: Id,
             name: Sel,
@@ -129,6 +133,7 @@ mod macos {
         ) -> ObjcBool;
         #[cfg(test)]
         fn method_getImplementation(method: Id) -> *const c_void;
+        fn object_getClass(object: Id) -> Id;
         fn object_getIvar(object: Id, ivar: Ivar) -> Id;
         fn object_setIvar(object: Id, ivar: Ivar, value: Id);
         fn sel_registerName(name: *const c_char) -> Sel;
@@ -235,6 +240,11 @@ mod macos {
                     c"Q@:@",
                 ),
                 (
+                    c"accessibilityIndexOfChild:",
+                    native_index_of_child as *const c_void,
+                    INDEX_OF_CHILD_METHOD_TYPE,
+                ),
+                (
                     c"accessibilityArrayAttributeValues:index:maxCount:",
                     native_array_attribute_values as *const c_void,
                     c"@@:@QQ",
@@ -319,6 +329,13 @@ mod macos {
         let message: unsafe extern "C" fn(Id, Sel) -> Id =
             unsafe { transmute(objc_msgSend as *const ()) };
         unsafe { message(receiver, selector) }
+    }
+
+    #[cfg(test)]
+    unsafe fn msg_usize_id(receiver: Id, selector: Sel, argument: Id) -> usize {
+        let message: unsafe extern "C" fn(Id, Sel, Id) -> usize =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector, argument) }
     }
 
     unsafe fn msg_id_ptr(receiver: Id, selector: Sel) -> *const c_char {
@@ -599,6 +616,163 @@ mod macos {
 
     fn accessibility_children_count(node: &NativeCallbackNode) -> usize {
         node.logical_count.unwrap_or(node.children.len())
+    }
+
+    fn unique_projection_node_for_object(
+        projection: &NativeCallbackProjection,
+        object: Id,
+    ) -> Option<&NativeCallbackNode> {
+        if object.is_null() {
+            return None;
+        }
+        let mut found = None;
+        for node in &projection.nodes {
+            if node.object == object {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(node);
+            }
+        }
+        found
+    }
+
+    fn unique_projection_node_for_token(
+        projection: &NativeCallbackProjection,
+        token: u64,
+    ) -> Option<&NativeCallbackNode> {
+        if token == 0 {
+            return None;
+        }
+        let mut found = None;
+        for node in &projection.nodes {
+            if node.token == token {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(node);
+            }
+        }
+        found
+    }
+
+    fn native_index_child_kind_is_valid(receiver: NativeNodeKind, child: NativeNodeKind) -> bool {
+        match receiver {
+            NativeNodeKind::Container => child == NativeNodeKind::Item,
+            NativeNodeKind::Root | NativeNodeKind::Ordinary | NativeNodeKind::Item => {
+                matches!(child, NativeNodeKind::Ordinary | NativeNodeKind::Container)
+            }
+        }
+    }
+
+    fn native_index_of_child_in_projection(
+        projection: &NativeCallbackProjection,
+        receiver: Id,
+        child: Id,
+    ) -> usize {
+        if receiver.is_null() || child.is_null() || receiver == child {
+            return NS_NOT_FOUND;
+        }
+        let Some(receiver_node) = unique_projection_node_for_object(projection, receiver) else {
+            return NS_NOT_FOUND;
+        };
+        let Some(child_node) = unique_projection_node_for_object(projection, child) else {
+            return NS_NOT_FOUND;
+        };
+        if receiver_node.token == 0
+            || child_node.token == 0
+            || unique_projection_node_for_token(projection, receiver_node.token).is_none()
+            || unique_projection_node_for_token(projection, child_node.token).is_none()
+            || child_node.parent != Some(receiver_node.token)
+        {
+            return NS_NOT_FOUND;
+        }
+        if receiver_node.kind == NativeNodeKind::Root
+            && (receiver_node.parent.is_some()
+                || projection.root_token != Some(receiver_node.token))
+        {
+            return NS_NOT_FOUND;
+        }
+
+        match receiver_node.kind {
+            NativeNodeKind::Container => {
+                if receiver_node.logical_count.is_none()
+                    || receiver_node.logical_children.len() > MAX_NATIVE_ITEMS
+                {
+                    return NS_NOT_FOUND;
+                }
+                let logical_count = receiver_node.logical_count.unwrap_or(0);
+                let mut previous_index = None;
+                let mut found = None;
+                for (position, (logical_index, token)) in
+                    receiver_node.logical_children.iter().enumerate()
+                {
+                    if *logical_index == NS_NOT_FOUND
+                        || *logical_index >= logical_count
+                        || *token == 0
+                        || previous_index.is_some_and(|previous| *logical_index <= previous)
+                        || receiver_node
+                            .logical_children
+                            .iter()
+                            .take(position)
+                            .any(|(_, previous_token)| previous_token == token)
+                    {
+                        return NS_NOT_FOUND;
+                    }
+                    let Some(mapped_child) = unique_projection_node_for_token(projection, *token)
+                    else {
+                        return NS_NOT_FOUND;
+                    };
+                    if mapped_child.parent != Some(receiver_node.token)
+                        || !native_index_child_kind_is_valid(receiver_node.kind, mapped_child.kind)
+                    {
+                        return NS_NOT_FOUND;
+                    }
+                    if mapped_child.object == child && found.replace(*logical_index).is_some() {
+                        return NS_NOT_FOUND;
+                    }
+                    previous_index = Some(*logical_index);
+                }
+                found
+                    .filter(|index| *index != NS_NOT_FOUND)
+                    .unwrap_or(NS_NOT_FOUND)
+            }
+            NativeNodeKind::Root | NativeNodeKind::Ordinary | NativeNodeKind::Item => {
+                if receiver_node.logical_count.is_some()
+                    || !receiver_node.logical_children.is_empty()
+                {
+                    return NS_NOT_FOUND;
+                }
+                let mut found = None;
+                for (position, token) in receiver_node.children.iter().enumerate() {
+                    if *token == 0
+                        || position == NS_NOT_FOUND
+                        || receiver_node
+                            .children
+                            .iter()
+                            .take(position)
+                            .any(|previous_token| previous_token == token)
+                    {
+                        return NS_NOT_FOUND;
+                    }
+                    let Some(mapped_child) = unique_projection_node_for_token(projection, *token)
+                    else {
+                        return NS_NOT_FOUND;
+                    };
+                    if mapped_child.parent != Some(receiver_node.token)
+                        || !native_index_child_kind_is_valid(receiver_node.kind, mapped_child.kind)
+                    {
+                        return NS_NOT_FOUND;
+                    }
+                    if mapped_child.object == child && found.replace(position).is_some() {
+                        return NS_NOT_FOUND;
+                    }
+                }
+                found
+                    .filter(|index| *index != NS_NOT_FOUND)
+                    .unwrap_or(NS_NOT_FOUND)
+            }
+        }
     }
 
     fn complete_virtual_child_tokens(node: &NativeCallbackNode) -> Option<Vec<u64>> {
@@ -2626,7 +2800,13 @@ mod macos {
     }
 
     fn callback_state(receiver: Id) -> Option<&'static RefCell<NativeSemanticCallbackState>> {
+        if receiver.is_null() {
+            return None;
+        }
         let class = native_class().ok()?;
+        if unsafe { object_getClass(receiver) } != class.class() {
+            return None;
+        }
         let state = unsafe { object_getIvar(receiver, class.state_ivar()) };
         if state.is_null() {
             return None;
@@ -2804,6 +2984,21 @@ mod macos {
                 return 0;
             }
             accessibility_children_count(node)
+        })
+    }
+
+    extern "C" fn native_index_of_child(receiver: Id, _: Sel, child: Id) -> usize {
+        ffi_boundary(NS_NOT_FOUND, || {
+            if receiver.is_null() || child.is_null() {
+                return NS_NOT_FOUND;
+            }
+            let Some(state) = callback_state(receiver) else {
+                return NS_NOT_FOUND;
+            };
+            let Ok(state) = state.try_borrow() else {
+                return NS_NOT_FOUND;
+            };
+            native_index_of_child_in_projection(&state.projection, receiver, child)
         })
     }
 
@@ -3356,6 +3551,138 @@ mod macos {
             let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
             unsafe { object_setIvar(receiver, class.state_ivar(), state_ptr) };
             (receiver, callback_state)
+        }
+
+        fn index_test_node(
+            object: usize,
+            token: u64,
+            kind: NativeNodeKind,
+            parent: Option<u64>,
+            children: Vec<u64>,
+            logical_children: Vec<(usize, u64)>,
+            logical_count: Option<usize>,
+        ) -> NativeCallbackNode {
+            NativeCallbackNode {
+                object: object as Id,
+                token,
+                kind,
+                parent,
+                children,
+                logical_children,
+                role: "AXGroup",
+                frame: NSRect {
+                    origin: NSPoint { x: 0.0, y: 0.0 },
+                    size: NSSize {
+                        width: 1.0,
+                        height: 1.0,
+                    },
+                },
+                label: None,
+                description: None,
+                value: None,
+                action_target: None,
+                logical_count,
+            }
+        }
+
+        fn index_topology_projection() -> NativeCallbackProjection {
+            NativeCallbackProjection {
+                nodes: vec![
+                    index_test_node(
+                        101,
+                        1,
+                        NativeNodeKind::Root,
+                        None,
+                        vec![2, 3],
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        102,
+                        2,
+                        NativeNodeKind::Ordinary,
+                        Some(1),
+                        vec![4],
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        103,
+                        3,
+                        NativeNodeKind::Container,
+                        Some(1),
+                        vec![6, 8],
+                        vec![(100, 6)],
+                        Some(110),
+                    ),
+                    index_test_node(
+                        104,
+                        4,
+                        NativeNodeKind::Ordinary,
+                        Some(2),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        106,
+                        6,
+                        NativeNodeKind::Item,
+                        Some(3),
+                        vec![7],
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        107,
+                        7,
+                        NativeNodeKind::Ordinary,
+                        Some(6),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        108,
+                        8,
+                        NativeNodeKind::Ordinary,
+                        Some(3),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    ),
+                ],
+                root_token: Some(1),
+            }
+        }
+
+        fn native_index_projection_fixture(
+            mut projection: NativeCallbackProjection,
+        ) -> (Vec<Id>, Box<RefCell<NativeSemanticCallbackState>>) {
+            let class = native_class().expect("the native accessibility class should exist");
+            let callback_state = Box::new(RefCell::new(NativeSemanticCallbackState::new_for_test(
+                WindowId::dummy(),
+                3,
+                null_mut(),
+            )));
+            let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
+            let mut objects = Vec::with_capacity(projection.nodes.len());
+            for node in &mut projection.nodes {
+                let allocated = unsafe { msg_id(class.class(), sel(c"alloc")) };
+                let object = unsafe { msg_id(allocated, sel(c"init")) };
+                assert!(!object.is_null());
+                node.object = object;
+                unsafe { object_setIvar(object, class.state_ivar(), state_ptr) };
+                objects.push(object);
+            }
+            callback_state.borrow_mut().projection = projection;
+            (objects, callback_state)
+        }
+
+        fn release_native_index_objects(objects: &[Id]) {
+            for object in objects {
+                unsafe { msg_void(*object, sel(c"release")) };
+            }
         }
 
         fn throwing_foundation_object() -> Id {
@@ -4135,6 +4462,317 @@ mod macos {
             node.logical_children = vec![(0, 10), (1, 11), (2, 12)];
             node.logical_count = Some(3);
             assert_eq!(complete_virtual_child_tokens(&node), None);
+        }
+
+        #[test]
+        fn native_index_of_child_is_registered_with_exact_abi_and_dispatches() {
+            let class = native_class().expect("the native accessibility class should exist");
+            let selector = unsafe { sel(c"accessibilityIndexOfChild:") };
+            let method = unsafe { class_getInstanceMethod(class.class(), selector) };
+            assert!(!method.is_null());
+            assert_eq!(
+                unsafe { method_getImplementation(method) },
+                native_index_of_child as *const c_void
+            );
+            let encoding = unsafe { method_getTypeEncoding(method) };
+            assert!(!encoding.is_null());
+            assert_eq!(
+                unsafe { CStr::from_ptr(encoding) },
+                INDEX_OF_CHILD_METHOD_TYPE
+            );
+            assert_eq!(INDEX_OF_CHILD_METHOD_TYPE.to_bytes_with_nul(), b"Q@:@\0");
+            assert_eq!(NS_NOT_FOUND, isize::MAX as usize);
+            assert_ne!(NS_NOT_FOUND, usize::MAX);
+
+            let projection = NativeCallbackProjection {
+                nodes: vec![
+                    index_test_node(
+                        101,
+                        1,
+                        NativeNodeKind::Root,
+                        None,
+                        vec![2],
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        102,
+                        2,
+                        NativeNodeKind::Ordinary,
+                        Some(1),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    ),
+                ],
+                root_token: Some(1),
+            };
+            let (objects, callback_state) = native_index_projection_fixture(projection);
+            assert_eq!(unsafe { msg_usize_id(objects[0], selector, objects[1]) }, 0);
+
+            let throwing_child = throwing_foundation_object();
+            assert_eq!(
+                unsafe { msg_usize_id(objects[0], selector, throwing_child) },
+                NS_NOT_FOUND,
+                "the child argument must remain an opaque identity"
+            );
+            unsafe { msg_void(throwing_child, sel(c"release")) };
+            release_native_index_objects(&objects);
+            drop(callback_state);
+        }
+
+        #[test]
+        fn native_index_of_child_uses_direct_positions_and_sparse_logical_indices() {
+            let projection = index_topology_projection();
+            let root = 101_usize as Id;
+            let ordinary = 102_usize as Id;
+            let container = 103_usize as Id;
+            let ordinary_child = 104_usize as Id;
+            let item = 106_usize as Id;
+            let item_child = 107_usize as Id;
+            let ordinary_container_child = 108_usize as Id;
+
+            assert_eq!(
+                native_index_of_child_in_projection(&projection, root, ordinary),
+                0
+            );
+            assert_eq!(
+                native_index_of_child_in_projection(&projection, root, container),
+                1
+            );
+            assert_eq!(
+                native_index_of_child_in_projection(&projection, ordinary, ordinary_child),
+                0
+            );
+            assert_eq!(
+                native_index_of_child_in_projection(&projection, item, item_child),
+                0
+            );
+            assert_eq!(
+                native_index_of_child_in_projection(&projection, container, item),
+                100,
+                "a container returns the retained sparse logical index"
+            );
+            assert_eq!(
+                native_index_of_child_in_projection(
+                    &projection,
+                    container,
+                    ordinary_container_child
+                ),
+                NS_NOT_FOUND,
+                "ordinary children are not a container logical mapping"
+            );
+        }
+
+        #[test]
+        fn native_index_of_child_rejects_invalid_or_ambiguous_topology_evidence() {
+            let projection = index_topology_projection();
+            let root = 101_usize as Id;
+            let ordinary = 102_usize as Id;
+            let ordinary_child = 104_usize as Id;
+            let container = 103_usize as Id;
+            let item = 106_usize as Id;
+            let item_child = 107_usize as Id;
+            let ordinary_container_child = 108_usize as Id;
+
+            for (receiver, child) in [
+                (null_mut(), item),
+                (root, null_mut()),
+                (root, 999_usize as Id),
+                (999_usize as Id, item),
+                (root, root),
+                (root, ordinary_child),
+                (ordinary, container),
+                (item, container),
+            ] {
+                assert_eq!(
+                    native_index_of_child_in_projection(&projection, receiver, child),
+                    NS_NOT_FOUND
+                );
+            }
+
+            let mut wrong_parent = projection.clone();
+            wrong_parent
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 7)
+                .expect("the item child should exist")
+                .parent = Some(2);
+            assert_eq!(
+                native_index_of_child_in_projection(&wrong_parent, item, item_child),
+                NS_NOT_FOUND
+            );
+
+            let mut wrong_kind = projection.clone();
+            wrong_kind
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 3)
+                .expect("the container should exist")
+                .logical_children = vec![(100, 8)];
+            assert_eq!(
+                native_index_of_child_in_projection(
+                    &wrong_kind,
+                    container,
+                    ordinary_container_child
+                ),
+                NS_NOT_FOUND
+            );
+
+            let mut out_of_count = projection.clone();
+            out_of_count
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 3)
+                .expect("the container should exist")
+                .logical_children = vec![(110, 6)];
+            assert_eq!(
+                native_index_of_child_in_projection(&out_of_count, container, item),
+                NS_NOT_FOUND
+            );
+
+            let mut missing_mapping = projection.clone();
+            missing_mapping
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 3)
+                .expect("the container should exist")
+                .logical_children = vec![(100, 999)];
+            assert_eq!(
+                native_index_of_child_in_projection(&missing_mapping, container, item),
+                NS_NOT_FOUND
+            );
+
+            let mut malformed = projection.clone();
+            malformed
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 3)
+                .expect("the container should exist")
+                .logical_children = vec![(101, 6), (100, 6)];
+            assert_eq!(
+                native_index_of_child_in_projection(&malformed, container, item),
+                NS_NOT_FOUND
+            );
+
+            let mut sentinel_collision = projection.clone();
+            sentinel_collision
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 3)
+                .expect("the container should exist")
+                .logical_children = vec![(NS_NOT_FOUND, 6)];
+            assert_eq!(
+                native_index_of_child_in_projection(&sentinel_collision, container, item),
+                NS_NOT_FOUND
+            );
+
+            let mut duplicate_direct_mapping = projection.clone();
+            duplicate_direct_mapping
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 1)
+                .expect("the root should exist")
+                .children = vec![2, 2];
+            assert_eq!(
+                native_index_of_child_in_projection(&duplicate_direct_mapping, root, ordinary),
+                NS_NOT_FOUND
+            );
+
+            let mut ambiguous_object = projection.clone();
+            let duplicate_object = ambiguous_object
+                .nodes
+                .iter()
+                .find(|node| node.token == 2)
+                .expect("the ordinary node should exist")
+                .object;
+            ambiguous_object
+                .nodes
+                .iter_mut()
+                .find(|node| node.token == 4)
+                .expect("the ordinary child should exist")
+                .object = duplicate_object;
+            assert_eq!(
+                native_index_of_child_in_projection(&ambiguous_object, root, ordinary),
+                NS_NOT_FOUND
+            );
+        }
+
+        #[test]
+        fn native_index_of_child_is_immutable_and_handles_borrow_retirement_and_stale_state() {
+            let projection = NativeCallbackProjection {
+                nodes: vec![
+                    index_test_node(
+                        101,
+                        1,
+                        NativeNodeKind::Root,
+                        None,
+                        vec![2],
+                        Vec::new(),
+                        None,
+                    ),
+                    index_test_node(
+                        102,
+                        2,
+                        NativeNodeKind::Ordinary,
+                        Some(1),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    ),
+                ],
+                root_token: Some(1),
+            };
+            let (objects, callback_state) = native_index_projection_fixture(projection);
+            let before = callback_state.borrow().projection.clone();
+            assert_eq!(
+                unsafe { msg_usize_id(objects[0], sel(c"accessibilityIndexOfChild:"), objects[1]) },
+                0
+            );
+            assert_eq!(callback_state.borrow().projection, before);
+
+            let borrowed = callback_state.borrow_mut();
+            assert_eq!(
+                unsafe { msg_usize_id(objects[0], sel(c"accessibilityIndexOfChild:"), objects[1]) },
+                NS_NOT_FOUND
+            );
+            drop(borrowed);
+
+            let class = native_class().expect("the native accessibility class should exist");
+            let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
+            let foreign_class = unsafe {
+                class_named(c"NSObject").expect("the Foundation NSObject class should exist")
+            };
+            let foreign = unsafe { msg_id(foreign_class, sel(c"alloc")) };
+            let foreign = unsafe { msg_id(foreign, sel(c"init")) };
+            assert_eq!(
+                native_index_of_child(foreign, null_mut(), objects[1]),
+                NS_NOT_FOUND
+            );
+            let stale = unsafe { msg_id(class.class(), sel(c"alloc")) };
+            let stale = unsafe { msg_id(stale, sel(c"init")) };
+            unsafe { object_setIvar(stale, class.state_ivar(), state_ptr) };
+            assert_eq!(
+                unsafe { msg_usize_id(stale, sel(c"accessibilityIndexOfChild:"), objects[1],) },
+                NS_NOT_FOUND
+            );
+            unsafe { object_setIvar(objects[0], class.state_ivar(), null_mut()) };
+            assert_eq!(
+                unsafe { msg_usize_id(objects[0], sel(c"accessibilityIndexOfChild:"), objects[1]) },
+                NS_NOT_FOUND
+            );
+            unsafe { msg_void(foreign, sel(c"release")) };
+            unsafe { msg_void(stale, sel(c"release")) };
+            release_native_index_objects(&objects);
+            drop(callback_state);
+        }
+
+        #[test]
+        fn native_index_of_child_ffi_boundary_uses_nsnotfound_for_panic() {
+            let result = ffi_boundary(NS_NOT_FOUND, || -> usize {
+                std::panic::resume_unwind(Box::new("index callback panic"));
+            });
+            assert_eq!(result, NS_NOT_FOUND);
         }
 
         #[test]

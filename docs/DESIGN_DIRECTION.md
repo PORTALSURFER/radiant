@@ -1569,6 +1569,24 @@ requires exact lease/container/mount/cardinality-fence/key equality, and a
 cardinality change retires tokens. Foreign, stale, retired, duplicate,
 ambiguous, or colliding tokens return `nil`/`NSNotFound` without a provider call.
 
+The existing dynamic native class registers exactly
+`accessibilityIndexOfChild:` with Objective-C encoding `Q@:@`; its callback ABI
+returns `usize`/`NSUInteger`. It returns `NSNotFound`, defined as
+`isize::MAX as usize` (never `usize::MAX`), for any index equal to that sentinel.
+The callback resolves receiver and child uniquely by opaque object identity in
+one current immutable native projection and requires exact direct-parent token
+equality. For `Root`, `Ordinary`, and `Item`, it searches only the receiver's
+ordered direct `children` vector and returns the unique compact zero-based
+position. For `Container`, it searches only `logical_children` against
+`logical_count` and returns the retained logical index itself, including
+sparse/nonzero indices such as 100; a child present only in ordinary `children`
+is absent. Nil, foreign, stale, retired, indirect, sibling, ancestor, self,
+wrong-parent, wrong-kind, out-of-count, missing, malformed, duplicate,
+ambiguous, or sentinel-colliding evidence, borrow conflict, and panic all return
+`NSNotFound`. The callback does not message or dereference the supplied child,
+allocates no storage proportional to declared count, and performs no
+provider/query/runtime/action/lease/notification mutation.
+
 Root/container/non-text roles map to `NSAccessibilityGroupRole`; only `Text` and
 `Readout` map to `NSAccessibilityStaticTextRole`. Expose only role, exact
 parent/children, finite frame, label, description/help, and static-text value.

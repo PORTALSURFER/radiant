@@ -23,6 +23,8 @@
 
 2026-08-13 implementation cycle: The private crate-private `accessibilityIndexOfChild:` callback now uses the current immutable native projection, exact direct-parent topology, compact ordinary positions, and retained sparse container logical indices, with focused selector/ABI and fallback coverage. All estimates remain unchanged: generic architecture ~97%; broad 903 / 11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. No credit is awarded for this private callback, its documentation, or its tests; live AppKit/VoiceOver acceptance remains separate.
 
+2026-08-13 implementation cycle: The private `accessibilityNotifiesWhenDestroyed` selector is registered with Objective-C encoding `c@:` and a crate-private `ObjcBool` callback that returns `YES` without state or notification side effects, including after the callback-state ivar is cleared during retirement. Estimates remain unchanged: generic ~97%; broad 903/11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. No credit is awarded for this private callback, its documentation, or its tests; live AppKit/VoiceOver acceptance remains separate.
+
 The broad estimate is the unweighted mean of the category rows:
 `(85 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.09%`,
 reported as approximately `82.09%`.

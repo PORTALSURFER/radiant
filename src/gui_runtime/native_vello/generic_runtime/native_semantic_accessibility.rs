@@ -2,7 +2,8 @@
 //!
 //! The adapter is deliberately a native boundary, not a public runtime
 //! capability.  AppKit calls below are made on the main thread and are
-//! wrapped in `catch_unwind` so no Rust panic can unwind through Objective-C.
+//! wrapped in Rust `catch_unwind` and narrow Objective-C exception boundaries
+//! so no Rust panic or Objective-C exception can escape through the callback.
 //! Callback state is callback-local and bounded; it never borrows or enters a
 //! `SurfaceRuntime`.  Runtime/provider work happens only after the event-loop
 //! turn owns `SurfaceRuntime`.
@@ -55,6 +56,7 @@ mod macos {
     const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
     const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
     const NS_ACCESSIBILITY_VALUE_ATTRIBUTE: &CStr = c"AXValue";
+    #[cfg(test)]
     const MAX_NATIVE_VALUE_UTF16_UNITS: usize = 1_024;
     const MAX_NATIVE_VALUE_UTF8_BYTES: usize = 4_096;
     const MODERN_ACTION_METHOD_TYPE: &CStr = c"c@:";
@@ -117,12 +119,16 @@ mod macos {
             types: *const c_char,
         ) -> ObjcBool;
         fn class_getInstanceVariable(class: Id, name: *const c_char) -> Ivar;
+        #[cfg(test)]
+        fn class_getInstanceMethod(class: Id, name: Sel) -> Id;
         fn class_addMethod(
             class: Id,
             name: Sel,
             imp: *const c_void,
             types: *const c_char,
         ) -> ObjcBool;
+        #[cfg(test)]
+        fn method_getImplementation(method: Id) -> *const c_void;
         fn object_getIvar(object: Id, ivar: Ivar) -> Id;
         fn object_setIvar(object: Id, ivar: Ivar, value: Id);
         fn sel_registerName(name: *const c_char) -> Sel;
@@ -130,6 +136,17 @@ mod macos {
         #[cfg(target_arch = "x86_64")]
         fn objc_msgSend_stret();
         fn objc_msgSendSuper();
+        fn radiant_native_bounded_ns_string_to_utf8(
+            value: Id,
+            out: *mut u8,
+            cap: usize,
+            len: *mut usize,
+        ) -> ObjcBool;
+        fn radiant_native_attribute_is(
+            attribute: Id,
+            expected: *const u8,
+            expected_len: usize,
+        ) -> ObjcBool;
     }
 
     #[link(name = "AppKit", kind = "framework")]
@@ -305,36 +322,6 @@ mod macos {
         unsafe { message(receiver, selector) }
     }
 
-    unsafe fn msg_bool_id(receiver: Id, selector: Sel, argument: Id) -> ObjcBool {
-        let message: unsafe extern "C" fn(Id, Sel, Id) -> ObjcBool =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector, argument) }
-    }
-
-    unsafe fn msg_usize(receiver: Id, selector: Sel) -> usize {
-        let message: unsafe extern "C" fn(Id, Sel) -> usize =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector) }
-    }
-
-    unsafe fn msg_id_usize(receiver: Id, selector: Sel, argument: usize) -> Id {
-        let message: unsafe extern "C" fn(Id, Sel, usize) -> Id =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector, argument) }
-    }
-
-    unsafe fn msg_usize_usize(receiver: Id, selector: Sel, argument: usize) -> usize {
-        let message: unsafe extern "C" fn(Id, Sel, usize) -> usize =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector, argument) }
-    }
-
-    unsafe fn msg_const_ptr(receiver: Id, selector: Sel) -> *const c_void {
-        let message: unsafe extern "C" fn(Id, Sel) -> *const c_void =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector) }
-    }
-
     unsafe fn msg_f64(receiver: Id, selector: Sel) -> f64 {
         let message: unsafe extern "C" fn(Id, Sel) -> f64 =
             unsafe { transmute(objc_msgSend as *const ()) };
@@ -441,50 +428,20 @@ mod macos {
     /// length checks have passed.  `NSData` is used instead of `UTF8String` so
     /// embedded NULs remain part of the exact payload.
     unsafe fn bounded_ns_string_to_rust(value: Id) -> Option<String> {
-        if value.is_null() {
-            return None;
-        }
-        let class = unsafe { class_named(c"NSString") }.ok()?;
-        if unsafe { msg_bool_id(value, sel(c"isKindOfClass:"), class) } == NO {
-            return None;
-        }
-
-        let utf16_units = unsafe { msg_usize(value, sel(c"length")) };
-        if utf16_units > MAX_NATIVE_VALUE_UTF16_UNITS {
-            return None;
-        }
-        let utf8_bytes = unsafe {
-            msg_usize_usize(
+        let mut bytes = [0_u8; MAX_NATIVE_VALUE_UTF8_BYTES];
+        let mut len = 0;
+        let accepted = unsafe {
+            radiant_native_bounded_ns_string_to_utf8(
                 value,
-                sel(c"lengthOfBytesUsingEncoding:"),
-                NS_UTF8_STRING_ENCODING,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &mut len,
             )
         };
-        if utf8_bytes > MAX_NATIVE_VALUE_UTF8_BYTES {
+        if accepted == NO || len > bytes.len() {
             return None;
         }
-
-        let data =
-            unsafe { msg_id_usize(value, sel(c"dataUsingEncoding:"), NS_UTF8_STRING_ENCODING) };
-        if data.is_null() {
-            return None;
-        }
-        let data_bytes = unsafe { msg_usize(data, sel(c"length")) };
-        if data_bytes != utf8_bytes || data_bytes > MAX_NATIVE_VALUE_UTF8_BYTES {
-            return None;
-        }
-
-        let mut bytes = [0_u8; MAX_NATIVE_VALUE_UTF8_BYTES];
-        if data_bytes != 0 {
-            let source = unsafe { msg_const_ptr(data, sel(c"bytes")) };
-            if source.is_null() {
-                return None;
-            }
-            unsafe {
-                std::ptr::copy_nonoverlapping(source.cast::<u8>(), bytes.as_mut_ptr(), data_bytes);
-            }
-        }
-        std::str::from_utf8(&bytes[..data_bytes])
+        std::str::from_utf8(&bytes[..len])
             .ok()
             .map(|text| text.to_owned())
     }
@@ -2694,17 +2651,8 @@ mod macos {
     }
 
     unsafe fn objc_attribute_is(attribute: Id, expected: &CStr) -> bool {
-        if attribute.is_null() {
-            return false;
-        }
-        let Ok(class) = (unsafe { class_named(c"NSString") }) else {
-            return false;
-        };
-        if unsafe { msg_bool_id(attribute, sel(c"isKindOfClass:"), class) } == NO {
-            return false;
-        }
-        let name = unsafe { msg_id_ptr(attribute, sel(c"UTF8String")) };
-        !name.is_null() && unsafe { CStr::from_ptr(name) } == expected
+        let expected = expected.to_bytes();
+        unsafe { radiant_native_attribute_is(attribute, expected.as_ptr(), expected.len()) == YES }
     }
 
     fn native_value_from_node(node: &NativeCallbackNode) -> Id {
@@ -2926,48 +2874,50 @@ mod macos {
         })
     }
 
-    fn enqueue_native_value(receiver: Id, value: Id) {
+    fn enqueue_native_value(receiver: Id, value: Id) -> bool {
         let Some(state) = callback_state(receiver) else {
-            return;
+            return false;
         };
         let Ok(state) = state.try_borrow() else {
-            return;
+            return false;
         };
         let Some((token, target)) = state
             .node_for_object(receiver)
             .and_then(native_value_settable_target)
         else {
-            return;
+            return false;
         };
         let Some(value) = (unsafe { bounded_ns_string_to_rust(value) }) else {
-            return;
+            return false;
         };
         drop(state);
 
         let Some(state) = callback_state(receiver) else {
-            return;
+            return false;
         };
         let Ok(mut state) = state.try_borrow_mut() else {
-            return;
+            return false;
         };
         let Some(current) = state
             .node_for_token(token)
             .and_then(native_value_settable_target)
         else {
-            return;
+            return false;
         };
         if !numeric_action_target_fence_matches(&target, &current.1) {
-            return;
+            return false;
         }
-        let _ = state.enqueue_numeric_action(
+        state.enqueue_numeric_action(
             token,
             current.1,
             NativeNumericAccessibilityAction::SetValueText(value),
-        );
+        )
     }
 
     extern "C" fn native_set_accessibility_value(receiver: Id, _: Sel, value: Id) {
-        ffi_boundary((), || enqueue_native_value(receiver, value));
+        ffi_boundary((), || {
+            let _ = enqueue_native_value(receiver, value);
+        });
     }
 
     extern "C" fn native_set_accessibility_value_for_attribute(
@@ -2978,7 +2928,7 @@ mod macos {
     ) {
         ffi_boundary((), || {
             if unsafe { objc_attribute_is(attribute, NS_ACCESSIBILITY_VALUE_ATTRIBUTE) } {
-                enqueue_native_value(receiver, value);
+                let _ = enqueue_native_value(receiver, value);
             }
         });
     }
@@ -3364,6 +3314,66 @@ mod macos {
                 action_target: Some(target),
                 logical_count: None,
             }
+        }
+
+        fn native_numeric_callback_receiver() -> (Id, Box<RefCell<NativeSemanticCallbackState>>) {
+            let class = native_class().expect("the native accessibility class should exist");
+            let allocated = unsafe { msg_id(class.class(), sel(c"alloc")) };
+            let receiver = unsafe { msg_id(allocated, sel(c"init")) };
+            assert!(!receiver.is_null());
+
+            let (_, target) = numeric_target_fixture();
+            let mut node = numeric_callback_node(target, "7");
+            node.object = receiver;
+            let callback_state = Box::new(RefCell::new(NativeSemanticCallbackState::new_for_test(
+                WindowId::dummy(),
+                3,
+                null_mut(),
+            )));
+            callback_state.borrow_mut().projection = NativeCallbackProjection {
+                nodes: vec![node],
+                root_token: Some(91),
+            };
+            let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
+            unsafe { object_setIvar(receiver, class.state_ivar(), state_ptr) };
+            (receiver, callback_state)
+        }
+
+        fn throwing_foundation_object() -> Id {
+            static CLASS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+            let class = *CLASS.get_or_init(|| unsafe {
+                let class = objc_getClass(c"RadiantNativeAXValueThrowingObject".as_ptr());
+                if !class.is_null() {
+                    return class as usize;
+                }
+                let superclass = objc_getClass(c"NSObject".as_ptr());
+                assert!(!superclass.is_null());
+                let class = objc_allocateClassPair(
+                    superclass,
+                    c"RadiantNativeAXValueThrowingObject".as_ptr(),
+                    0,
+                );
+                assert!(!class.is_null());
+                let method = class_getInstanceMethod(superclass, sel(c"doesNotRecognizeSelector:"));
+                assert!(!method.is_null());
+                let implementation = method_getImplementation(method);
+                assert!(!implementation.is_null());
+                assert_ne!(
+                    class_addMethod(
+                        class,
+                        sel(c"isKindOfClass:"),
+                        implementation,
+                        c"c@:@".as_ptr(),
+                    ),
+                    NO
+                );
+                objc_registerClassPair(class);
+                class as usize
+            }) as Id;
+            let allocated = unsafe { msg_id(class, sel(c"alloc")) };
+            let object = unsafe { msg_id(allocated, sel(c"init")) };
+            assert!(!object.is_null());
+            object
         }
 
         fn numeric_adapter_fixture(target: AutomationTarget) -> NativeSemanticAccessibilityAdapter {
@@ -4539,6 +4549,40 @@ mod macos {
         }
 
         #[test]
+        fn throwing_ax_value_objects_are_inert_and_do_not_enqueue_events() {
+            let (receiver, callback_state) = native_numeric_callback_receiver();
+            let throwing = throwing_foundation_object();
+
+            native_set_accessibility_value(receiver, null_mut(), throwing);
+            assert_eq!(callback_state.borrow().pending_numeric_actions, 0);
+            assert!(!enqueue_native_value(receiver, throwing));
+
+            let valid_value = unsafe { ns_string("12") };
+            native_set_accessibility_value_for_attribute(
+                receiver,
+                null_mut(),
+                valid_value,
+                throwing,
+            );
+            assert_eq!(callback_state.borrow().pending_numeric_actions, 0);
+
+            unsafe { msg_void(throwing, sel(c"release")) };
+            unsafe { msg_void(receiver, sel(c"release")) };
+        }
+
+        #[test]
+        fn legacy_ax_value_attribute_matching_rejects_embedded_nul_suffixes() {
+            let exact = unsafe { ns_string("AXValue") };
+            let malformed = unsafe { ns_string("AXValue\0suffix") };
+            assert!(unsafe { objc_attribute_is(exact, NS_ACCESSIBILITY_VALUE_ATTRIBUTE) });
+            assert!(!unsafe { objc_attribute_is(malformed, NS_ACCESSIBILITY_VALUE_ATTRIBUTE) });
+            assert_eq!(
+                unsafe { bounded_ns_string_to_rust(malformed) }.as_deref(),
+                Some("AXValue\0suffix")
+            );
+        }
+
+        #[test]
         fn native_numeric_action_connected_production_seam_updates_value_without_rebuilding_object()
         {
             let mut runtime =
@@ -4664,6 +4708,22 @@ mod macos {
                 assert_eq!(node.value.as_deref(), Some("8"));
                 assert_eq!(node.action_target.as_ref(), Some(&refreshed_target));
             }
+
+            let set_text_request = adapter
+                .numeric_accessibility_request(
+                    TEST_NUMERIC_TOKEN,
+                    refreshed_target.clone(),
+                    NativeNumericAccessibilityAction::SetValueText(String::from("12")),
+                )
+                .expect("the refreshed production target should admit AXValue text");
+            let set_text_result = runtime.dispatch_numeric_accessibility_action(set_text_request);
+            assert!(matches!(
+                set_text_result,
+                crate::runtime::NumericAccessibilityDispatchResult::Accepted { widget_id: 42, .. }
+            ));
+            assert_eq!(runtime.bridge().mapped_actions.get(), 2);
+            assert_eq!(runtime.bridge().value.get(), 12.0);
+            assert_eq!(runtime.focused_widget(), Some(42));
 
             let value_notifications_before = adapter.value_notifications;
             let layout_notifications_before = adapter.layout_notifications;

@@ -521,7 +521,10 @@ event-loop validates current window/generation/token/identity/authority and
 delegates to existing `SurfaceRuntime` admission once; that admission may
 perform the ordinary runtime focus transition. Non-focusable, focus-vetoed,
 blocked, stale, unsupported, disabled, read-only, recovery, close, borrow,
-panic, and transport failures are inert and never retarget or mutate. A stable
+panic, and transport failures are inert and never retarget or mutate. Foundation
+exceptions from callback-supplied native objects are caught inside the private
+Objective-C boundary and map to the same inert no-event result; they never cross
+into Rust. A stable
 value-only
 change retains the native object, installs the new queryable value before one
 `AXValueChanged`, and posts no layout notification; unchanged, no-change,

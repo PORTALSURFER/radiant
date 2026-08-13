@@ -19,6 +19,8 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
+2026-08-13 cycle update: Validation is complete for the macOS view-to-screen correction. Estimates remain unchanged because this is a host-stability/correctness repair, and live semantic acceptance is not estimate credit: generic architecture ~97%; broad 903 / 11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. The next dependency-correct slice is the private crate-private `accessibilityIndexOfChild:` topology callback.
+
 The broad estimate is the unweighted mean of the category rows:
 `(85 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.09%`,
 reported as approximately `82.09%`.

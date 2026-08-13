@@ -7,7 +7,9 @@
 #![allow(dead_code)]
 
 use super::{
-    semantic_coordinate::{SemanticCoordinateContext, SemanticCoordinateContextFence},
+    semantic_coordinate::{
+        SemanticCoordinateContext, SemanticCoordinateContextError, SemanticCoordinateContextFence,
+    },
     virtual_layout::VirtualLayoutSemanticClassificationInput,
 };
 use crate::{
@@ -213,6 +215,7 @@ enum SemanticSlotStatus {
     NotFound,
     Fallback,
     Withheld,
+    Invalidated,
     Terminal,
 }
 
@@ -671,6 +674,7 @@ pub(super) enum SemanticDemandAdmissionError {
     InvalidRange(VirtualLayoutSemanticRejectedReason),
     CustomCoordinate,
     CoordinateContextUnavailable,
+    DegenerateCoordinateContext,
     AggregateBudgetExceeded,
     CounterOverflow,
     NoActiveDemand,
@@ -1044,6 +1048,9 @@ impl<Message> SemanticDemandOwner<Message> {
                     .slot(index, demand.source())
                     .and_then(|slot| slot.request.demand().same_exact(demand))
                     != Some(true)
+                    || staged
+                        .slot(index, demand.source())
+                        .is_some_and(|slot| slot.status == SemanticSlotStatus::Invalidated)
                     || staged.slot(index, demand.source()).and_then(|slot| {
                         coordinate_fences
                             .iter()
@@ -1106,6 +1113,9 @@ impl<Message> SemanticDemandOwner<Message> {
                 .slot(index, source)
                 .and_then(|slot| slot.request.demand().same_exact(demand))
                 == Some(true)
+                && staged
+                    .slot(index, source)
+                    .is_none_or(|slot| slot.status != SemanticSlotStatus::Invalidated)
                 && coordinate_context_matches;
             if unchanged {
                 if let Some(slot) = staged.slot(index, source)
@@ -1125,7 +1135,8 @@ impl<Message> SemanticDemandOwner<Message> {
                 .iter()
                 .find(|(id, member_source, _)| *id == *container_id && *member_source == source)
                 .and_then(|(_, _, fence)| *fence);
-            tickets.push(staged.start_slot(index, request, None, coordinate_fence)?);
+            let ticket = staged.start_slot(index, request, None, coordinate_fence)?;
+            tickets.push(ticket);
         }
         staged.advance_demand_set_generation()?;
         *self = staged;
@@ -1172,6 +1183,37 @@ impl<Message> SemanticDemandOwner<Message> {
         }
         *self = staged;
         Ok(tickets)
+    }
+
+    pub(super) fn invalidate_custom_coordinate_context(&mut self) {
+        self.last_complete_candidate = None;
+        for index in 0..self.records.len() {
+            if is_logical_coordinate(&self.records[index].authority.coordinate_space) {
+                continue;
+            }
+            for source in [
+                SemanticDemandSource::Range,
+                SemanticDemandSource::RequiredItemPin,
+            ] {
+                let should_invalidate = self.slot(index, source).is_some_and(|slot| {
+                    slot.status != SemanticSlotStatus::Invalidated
+                        || slot.evidence.is_some()
+                        || slot.retained.is_some()
+                });
+                if !should_invalidate {
+                    continue;
+                }
+                if let Some(slot) = self.slot_mut(index, source) {
+                    slot.fence.cancelled = true;
+                    slot.executed = false;
+                    slot.completed = true;
+                    slot.evidence = None;
+                    slot.retained = None;
+                    slot.withheld = true;
+                    slot.status = SemanticSlotStatus::Invalidated;
+                }
+            }
+        }
     }
 
     /// Cancel all active demand membership while retaining live authorities.
@@ -1279,6 +1321,38 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         self.retry_source(container_id, SemanticDemandSource::Range)
+    }
+
+    pub(super) fn retry_range_with_context(
+        &mut self,
+        container_id: NodeId,
+        coordinate_context: &SemanticCoordinateContext,
+    ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+        let index = self.authority_index(container_id)?;
+        self.validate_intent_authority(index)?;
+        let coordinate_fence = self.coordinate_context_fence(index, coordinate_context)?;
+        let old = self
+            .slot(index, SemanticDemandSource::Range)
+            .cloned()
+            .ok_or(SemanticDemandAdmissionError::NoActiveDemand)?;
+        let attempt = old
+            .fence
+            .attempt
+            .checked_add(1)
+            .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
+        let ticket = self.replace_slot(
+            index,
+            SemanticDemandSource::Range,
+            old.request,
+            old.fence.demand_generation,
+            attempt,
+            old.retained,
+            coordinate_fence,
+        )?;
+        Ok(ticket)
     }
 
     /// Check the exact active logical range without changing owner state.
@@ -1588,9 +1662,9 @@ impl<Message> SemanticDemandOwner<Message> {
                         true,
                     )
                 }),
-            SemanticSlotStatus::Withheld | SemanticSlotStatus::Terminal => {
-                (slot.fence.clone(), None, false)
-            }
+            SemanticSlotStatus::Invalidated
+            | SemanticSlotStatus::Withheld
+            | SemanticSlotStatus::Terminal => (slot.fence.clone(), None, false),
         };
         let (evidence, evidence_resolved) = publication_evidence(evidence);
         SemanticPublicationMember {
@@ -1988,10 +2062,13 @@ impl<Message> SemanticDemandOwner<Message> {
         if is_logical_coordinate(&self.records[index].authority.coordinate_space) {
             return Ok(None);
         }
-        context
-            .fence_for(self.records[index].authority.container_id)
-            .map(Some)
-            .map_err(|_| SemanticDemandAdmissionError::CoordinateContextUnavailable)
+        match context.fence_for(self.records[index].authority.container_id) {
+            Ok(fence) => Ok(Some(fence)),
+            Err(SemanticCoordinateContextError::EmptyClip) => {
+                Err(SemanticDemandAdmissionError::DegenerateCoordinateContext)
+            }
+            Err(_) => Err(SemanticDemandAdmissionError::CoordinateContextUnavailable),
+        }
     }
 
     fn start_new_demand(

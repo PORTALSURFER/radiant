@@ -1551,6 +1551,30 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             .finish_publication(ordinary, plan, &classifications)
     }
 
+    fn ordinary_semantic_baseline(
+        &mut self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+        authorities: SemanticPublicationAuthorities,
+        reason: SemanticAutomationFallbackReason,
+    ) -> RuntimeSemanticAutomationPublication {
+        let status = SemanticAutomationRefreshStatus::Baseline { reason };
+        let composition =
+            super::automation_compositor::ordinary_virtual_layout_automation_snapshot(ordinary);
+        let publication = RuntimeSemanticAutomationPublication {
+            composition: composition.clone(),
+            status,
+        };
+        if let Some(session_state) = &mut self.semantic_session {
+            session_state.selection = Some(RuntimeSemanticAutomationSelection {
+                composition,
+                ordinary: ordinary.clone(),
+                runtime_projection_generation: authorities.ordinary_projection_generation,
+                status,
+            });
+        }
+        publication
+    }
+
     pub(crate) fn open_semantic_automation_session(
         &mut self,
         runtime_id: u64,
@@ -1616,10 +1640,33 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             requested.push(self.lower_semantic_automation_demand(runtime_id, session, demand)?);
         }
 
-        let tickets = self
+        let tickets = match self
             .semantic_demand
             .replace_demand_set(&requested, coordinate_context)
-            .map_err(map_semantic_demand_error)?;
+        {
+            Ok(tickets) => tickets,
+            Err(SemanticDemandAdmissionError::DegenerateCoordinateContext) => {
+                self.semantic_demand.invalidate_custom_coordinate_context();
+                let authorities = SemanticPublicationAuthorities {
+                    session_generation: session.generation,
+                    materialization_authority,
+                    classification_authority,
+                    ordinary_projection_generation,
+                };
+                return Ok(self.ordinary_semantic_baseline(
+                    ordinary,
+                    authorities,
+                    SemanticAutomationFallbackReason::Rejected,
+                ));
+            }
+            Err(error) => return Err(map_semantic_demand_error(error)),
+        };
+        let authorities = SemanticPublicationAuthorities {
+            session_generation: session.generation,
+            materialization_authority,
+            classification_authority,
+            ordinary_projection_generation,
+        };
         let mut failure_reason = None;
         for ticket in tickets {
             let completion = match self.semantic_demand.execute(ticket) {
@@ -1643,15 +1690,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             }
         }
 
-        let publication = self.compose_semantic_publication(
-            ordinary,
-            SemanticPublicationAuthorities {
-                session_generation: session.generation,
-                materialization_authority,
-                classification_authority,
-                ordinary_projection_generation,
-            },
-        );
+        let publication = self.compose_semantic_publication(ordinary, authorities);
         let (composition, status) = match publication {
             SemanticPublicationOutcome::Published(composition) => {
                 if requested.is_empty() {
@@ -1709,10 +1748,24 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
         self.synchronize_semantic_demand();
         let (materialization_authority, classification_authority, ordinary_projection_generation) =
             authorities;
-        let tickets = self
-            .semantic_demand
-            .retry_all(coordinate_context)
-            .map_err(map_semantic_demand_error)?;
+        let authorities = SemanticPublicationAuthorities {
+            session_generation: session.generation,
+            materialization_authority,
+            classification_authority,
+            ordinary_projection_generation,
+        };
+        let tickets = match self.semantic_demand.retry_all(coordinate_context) {
+            Ok(tickets) => tickets,
+            Err(SemanticDemandAdmissionError::DegenerateCoordinateContext) => {
+                self.semantic_demand.invalidate_custom_coordinate_context();
+                return Ok(self.ordinary_semantic_baseline(
+                    ordinary,
+                    authorities,
+                    SemanticAutomationFallbackReason::Rejected,
+                ));
+            }
+            Err(error) => return Err(map_semantic_demand_error(error)),
+        };
         let mut failure_reason = None;
         for ticket in tickets {
             let completion = match self.semantic_demand.execute(ticket) {
@@ -1736,15 +1789,7 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
             }
         }
 
-        let publication = self.compose_semantic_publication(
-            ordinary,
-            SemanticPublicationAuthorities {
-                session_generation: session.generation,
-                materialization_authority,
-                classification_authority,
-                ordinary_projection_generation,
-            },
-        );
+        let publication = self.compose_semantic_publication(ordinary, authorities);
         let (composition, status) = match publication {
             SemanticPublicationOutcome::Published(composition) => {
                 if let Some(reason) = failure_reason {
@@ -1808,10 +1853,26 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
 
         let (materialization_authority, classification_authority, ordinary_projection_generation) =
             authorities;
-        let ticket = self
+        let ticket = match self
             .semantic_demand
-            .retry_range(container_id)
-            .map_err(map_semantic_demand_error)?;
+            .retry_range_with_context(container_id, coordinate_context)
+        {
+            Ok(ticket) => ticket,
+            Err(SemanticDemandAdmissionError::DegenerateCoordinateContext) => {
+                self.semantic_demand.invalidate_custom_coordinate_context();
+                return Ok(self.ordinary_semantic_baseline(
+                    ordinary,
+                    SemanticPublicationAuthorities {
+                        session_generation: session.generation,
+                        materialization_authority,
+                        classification_authority,
+                        ordinary_projection_generation,
+                    },
+                    SemanticAutomationFallbackReason::Rejected,
+                ));
+            }
+            Err(error) => return Err(map_semantic_demand_error(error)),
+        };
         let mut failure_reason = None;
         let completion = match self.semantic_demand.execute(ticket) {
             Ok(completion) => completion,
@@ -2033,6 +2094,11 @@ fn map_semantic_demand_error(
             )
         }
         SemanticDemandAdmissionError::CoordinateContextUnavailable => {
+            SemanticAutomationSessionError::InvalidDemand(
+                SemanticAutomationDemandError::CustomCoordinateSpace,
+            )
+        }
+        SemanticDemandAdmissionError::DegenerateCoordinateContext => {
             SemanticAutomationSessionError::InvalidDemand(
                 SemanticAutomationDemandError::CustomCoordinateSpace,
             )

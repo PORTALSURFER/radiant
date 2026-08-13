@@ -1,7 +1,7 @@
 use super::*;
 use radiant::{
     application::{
-        VirtualLayoutParts, virtual_layout::VirtualLayoutSemanticCardinality,
+        ViewNode, VirtualLayoutParts, virtual_layout::VirtualLayoutSemanticCardinality,
         virtual_layout_from_parts,
     },
     gui::automation::{AutomationNodeId, AutomationNodeSemantics, AutomationRole},
@@ -91,6 +91,102 @@ fn public_parts(
         VirtualLayoutRevisions::new(1, 2, 3, 4),
         None,
         range_provider,
+    )
+}
+
+fn public_custom_parts(
+    shell: Rc<dyn Fn() -> ViewNode<()>>,
+    provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
+    transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+) -> VirtualLayoutParts<()> {
+    let mut parts = public_parts(Some(provider)).with_semantic_coordinate_transform(
+        VirtualLayoutPolicyIdentity::new("degenerate-clip-space"),
+        31,
+        transform,
+    );
+    parts.shell = shell;
+    parts
+}
+
+#[derive(Clone, Copy)]
+enum DegenerateClipKind {
+    OwnViewport,
+    Ancestor,
+}
+
+fn custom_surface_for_clip_kind(
+    kind: DegenerateClipKind,
+    provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
+    transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+) -> radiant::runtime::UiSurface<()> {
+    let shell = match kind {
+        DegenerateClipKind::OwnViewport => {
+            Rc::new(|| ui::scroll(ui::spacer::<()>().size(120.0, 24.0)).padding(120.0))
+                as Rc<dyn Fn() -> ViewNode<()>>
+        }
+        DegenerateClipKind::Ancestor => {
+            Rc::new(|| ui::scroll(ui::spacer::<()>().size(120.0, 24.0)))
+                as Rc<dyn Fn() -> ViewNode<()>>
+        }
+    };
+    let custom = virtual_layout_from_parts(public_custom_parts(shell, provider, transform));
+    match kind {
+        DegenerateClipKind::OwnViewport => custom.into_surface(),
+        DegenerateClipKind::Ancestor => ui::row([
+            ui::scroll(
+                ui::row([
+                    ui::spacer::<()>().width(120.0),
+                    custom.width(1.0).height(1.0),
+                ])
+                .spacing(0.0),
+            )
+            .width(120.0)
+            .height(100.0),
+            ui::spacer::<()>().fill_width(),
+        ])
+        .spacing(0.0)
+        .fill()
+        .into_surface(),
+    }
+}
+
+fn custom_surface_with_surface_intersection(
+    degenerate: bool,
+    provider: Rc<dyn VirtualLayoutSemanticRangeProvider>,
+    transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+) -> radiant::runtime::UiSurface<()> {
+    let shell = Rc::new(|| ui::scroll(ui::spacer::<()>().size(120.0, 24.0)))
+        as Rc<dyn Fn() -> ViewNode<()>>;
+    let custom = virtual_layout_from_parts(public_custom_parts(shell, provider, transform))
+        .width(1.0)
+        .height(1.0);
+    ui::row([
+        ui::spacer::<()>().width(if degenerate { 240.0 } else { 0.0 }),
+        custom,
+    ])
+    .spacing(0.0)
+    .fill()
+    .into_surface()
+}
+
+fn degenerate_clip_provider(calls: Rc<Cell<usize>>) -> Rc<dyn VirtualLayoutSemanticRangeProvider> {
+    Rc::new(move |_request: &VirtualLayoutSemanticRangeRequest| {
+        calls.set(calls.get() + 1);
+        VirtualLayoutSemanticProviderOutcome::Found(vec![
+            semantic_entry(7, 0, "degenerate-provider-7"),
+            semantic_entry(8, 1, "degenerate-provider-8"),
+        ])
+    })
+}
+
+fn degenerate_clip_transform(
+    calls: Rc<Cell<usize>>,
+) -> Rc<dyn VirtualLayoutSemanticCoordinateTransform> {
+    Rc::new(
+        move |request: &radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformRequest| {
+            calls.set(calls.get() + 1);
+            VirtualLayoutSemanticCoordinateTransformOutcome::Found(request.destination_clip())
+        },
     )
 }
 
@@ -425,6 +521,211 @@ fn edge_touching_custom_transform_uses_ordinary_baseline_without_custom_target()
             .targets
             .iter()
             .all(|target| !target.id.0.starts_with("edge-touching-provider-"))
+    );
+}
+
+#[test]
+fn zero_area_surface_intersection_invalidates_prior_custom_publication() {
+    let provider_calls = Rc::new(Cell::new(0));
+    let transform_calls = Rc::new(Cell::new(0));
+    let provider = degenerate_clip_provider(Rc::clone(&provider_calls));
+    let transform = degenerate_clip_transform(Rc::clone(&transform_calls));
+    let degenerate = Rc::new(Cell::new(false));
+    let bridge = declarative_runtime_bridge(
+        (),
+        {
+            let degenerate = Rc::clone(&degenerate);
+            let provider = Rc::clone(&provider);
+            let transform = Rc::clone(&transform);
+            move |_state: &mut ()| {
+                let surface = if degenerate.get() {
+                    custom_surface_with_surface_intersection(
+                        true,
+                        Rc::clone(&provider),
+                        Rc::clone(&transform),
+                    )
+                } else {
+                    custom_surface_with_surface_intersection(
+                        false,
+                        Rc::clone(&provider),
+                        Rc::clone(&transform),
+                    )
+                };
+                arc_surface(surface)
+            }
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    let initial = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("the initial non-degenerate custom publication succeeds");
+    assert_eq!(initial.status, SemanticAutomationRefreshStatus::Published);
+    assert_eq!(provider_calls.get(), 1);
+    assert_eq!(transform_calls.get(), 2);
+
+    degenerate.set(true);
+    runtime.refresh_with_scope(RepaintScope::Surface);
+    let ordinary = runtime.automation_snapshot();
+    let ordinary_targets = runtime.automation_target_snapshot();
+    let publication = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("a zero-area surface intersection publishes the ordinary baseline");
+
+    assert_eq!(
+        publication.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Rejected,
+        }
+    );
+    assert_eq!(
+        provider_calls.get(),
+        1,
+        "degenerate admission skips the provider"
+    );
+    assert_eq!(
+        transform_calls.get(),
+        2,
+        "degenerate admission skips the coordinate transform"
+    );
+    assert_eq!(publication.selected.snapshot, ordinary);
+    assert_eq!(publication.selected.targets, ordinary_targets);
+    assert!(
+        publication
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("degenerate-provider-"))
+    );
+    let selected = runtime
+        .selected_semantic_automation_snapshot(session)
+        .expect("selected reads remain passive after invalidation");
+    assert_eq!(selected.status, publication.status);
+    assert_eq!(selected.snapshot, ordinary);
+    assert_eq!(selected.targets, ordinary_targets);
+}
+
+#[test]
+fn zero_area_own_viewport_intersection_publishes_ordinary_baseline_without_calls() {
+    let provider_calls = Rc::new(Cell::new(0));
+    let transform_calls = Rc::new(Cell::new(0));
+    let bridge = declarative_runtime_bridge(
+        (),
+        {
+            let provider = degenerate_clip_provider(Rc::clone(&provider_calls));
+            let transform = degenerate_clip_transform(Rc::clone(&transform_calls));
+            move |_state: &mut ()| {
+                arc_surface(custom_surface_for_clip_kind(
+                    DegenerateClipKind::OwnViewport,
+                    Rc::clone(&provider),
+                    Rc::clone(&transform),
+                ))
+            }
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    let ordinary = runtime.automation_snapshot();
+    let ordinary_targets = runtime.automation_target_snapshot();
+    let publication = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("a zero-area own viewport publishes the ordinary baseline");
+
+    assert_eq!(
+        publication.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Rejected,
+        }
+    );
+    assert_eq!(
+        provider_calls.get(),
+        0,
+        "degenerate admission skips the provider"
+    );
+    assert_eq!(
+        transform_calls.get(),
+        0,
+        "degenerate admission skips the coordinate transform"
+    );
+    assert_eq!(publication.selected.snapshot, ordinary);
+    assert_eq!(publication.selected.targets, ordinary_targets);
+    assert!(
+        publication
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("degenerate-provider-"))
+    );
+}
+
+#[test]
+fn zero_area_ancestor_intersection_publishes_ordinary_baseline_without_calls() {
+    let provider_calls = Rc::new(Cell::new(0));
+    let transform_calls = Rc::new(Cell::new(0));
+    let bridge = declarative_runtime_bridge(
+        (),
+        {
+            let provider = degenerate_clip_provider(Rc::clone(&provider_calls));
+            let transform = degenerate_clip_transform(Rc::clone(&transform_calls));
+            move |_state: &mut ()| {
+                arc_surface(custom_surface_for_clip_kind(
+                    DegenerateClipKind::Ancestor,
+                    Rc::clone(&provider),
+                    Rc::clone(&transform),
+                ))
+            }
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 100.0));
+    let (session, container) = start_range_session(&mut runtime);
+    let ordinary = runtime.automation_snapshot();
+    let ordinary_targets = runtime.automation_target_snapshot();
+    let publication = runtime
+        .refresh_semantic_automation_session(
+            session,
+            &[SemanticAutomationDemand::range(container, 0, 2)],
+        )
+        .expect("a zero-area ancestor intersection publishes the ordinary baseline");
+
+    assert_eq!(
+        publication.status,
+        SemanticAutomationRefreshStatus::Baseline {
+            reason: SemanticAutomationFallbackReason::Rejected,
+        }
+    );
+    assert_eq!(
+        provider_calls.get(),
+        0,
+        "degenerate admission skips the provider"
+    );
+    assert_eq!(
+        transform_calls.get(),
+        0,
+        "degenerate admission skips the coordinate transform"
+    );
+    assert_eq!(publication.selected.snapshot, ordinary);
+    assert_eq!(publication.selected.targets, ordinary_targets);
+    assert!(
+        publication
+            .selected
+            .targets
+            .targets
+            .iter()
+            .all(|target| !target.id.0.starts_with("degenerate-provider-"))
     );
 }
 

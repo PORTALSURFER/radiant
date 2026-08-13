@@ -269,7 +269,8 @@ preserved `Unmaterialized` authority are normative. The private primary-window
 macOS/AppKit semantic accessibility consumer below translates explicit platform
 queries only through the backend-neutral session model; it is not a hidden
 provider owner. The contract's non-goals are direct native custom-resolver
-invocation/reconstruction, native accessibility action dispatch, focus,
+invocation/reconstruction, native actions for virtual/provider targets, new
+native AX focus exposure or transfer beyond existing ordinary runtime admission,
 scrolling/materialization, scheduler/backoff/fairness,
 renderer/paint/hit-testing/cache policy, product policy, multiple ranges, and
 prelude export. This bounded attachment is the public-API evidence point; no
@@ -337,10 +338,34 @@ explicit repeated query MAY retry. Deactivation, window retirement, recovery
 replacement, and close cancel and retire the lease before native objects drop.
 `materialized = false` remains authoritative: native semantics cannot materialize,
 scroll, focus, execute actions, paint, hit-test, schedule, render, or claim
-provider authority. Native tree publication and native action dispatch are
-separate contracts; this consumer does not connect numeric accessibility
-dispatch. The adapter and lease are not public imperative provider-registration
-APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
+provider authority. Virtual/provider nodes therefore never acquire native
+numeric action authority. For an ordinary runtime node only, the private
+adapter pairs the pure ordinary `automation_target_snapshot` with the native
+semantic tree and admits exactly an enabled, editable, focusable,
+`AutomationRole::TextInput` target with current `value_text`, materialized
+authority, and both neutral increment/decrement actions; it need not already be
+runtime-focused. The exact ordinary
+ID/path/role/authority is captured with one native token; geometry is never an
+authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
+and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
+`AXFocused` false/unclaimed, a non-settable value, and exactly `AXIncrement` and
+`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+increment/decrement selectors use `BOOL c@:` and the
+deprecated action selector uses `void v@:@`; only those exact action names are
+accepted. Each native action enqueues one bounded primary-window,
+adapter-generation, token, target, and neutral-action event. The running
+event-loop validates current window/generation/token/identity/authority and
+delegates to existing `SurfaceRuntime` admission once; that admission may
+perform the ordinary runtime focus transition. Non-focusable, focus-vetoed,
+blocked, stale, unsupported, disabled, read-only, recovery, close, borrow,
+panic, and transport failures are inert and never retarget or mutate. A stable
+value-only
+change retains the native object, installs the new queryable value before one
+`AXValueChanged`, and posts no layout notification; unchanged, no-change,
+typed-failure, stale, and enqueue-failure paths post none. Native actions are
+not provider demand, materialization, SetValueText, AXValue mutation, slider,
+range, orientation, percentage, or scalar conversion. The adapter and lease are
+not public imperative provider-registration APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
 
 The native adapter uses provider-free semantic cardinality as its only child
@@ -413,15 +438,15 @@ refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
 normalized logical conservative coordinates, and pure snapshots. It excludes focus,
-actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
+native actions for virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, direct native custom-resolver invocation/reconstruction, Wayland/Windows,
 auxiliary, multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
 Automated validation is recorded by the implementation handoff; live host/AppKit
 acceptance remains pending for this cycle, so alignment estimates remain
-unchanged. Wayland, Windows,
-native actions, focus, scrolling, product policy,
+unchanged. Wayland, Windows, non-qualified/virtual native actions, new native AX
+focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and renderer
 behavior remain excluded.
 
@@ -694,6 +719,11 @@ Current target-specific seams are intentionally narrow:
   live path owns one disposable temporary source, while its non-macOS fallback
   and tests remain buildable without creating a temporary source or claiming
   native Finder acceptance.
+- `examples/macos_numeric_accessibility_acceptance.rs` is a macOS-only native
+  acceptance harness for ordinary materialized NumericInput increment and
+  decrement actions through the public application builder. Its non-macOS
+  fallback and tests remain buildable without claiming live AppKit or VoiceOver
+  evidence.
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.

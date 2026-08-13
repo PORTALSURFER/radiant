@@ -34,6 +34,13 @@ pub(in crate::gui_runtime::native_vello) enum NativeSemanticAccessibilityQuery {
     },
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) enum NativeNumericAccessibilityAction {
+    Increment,
+    Decrement,
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
@@ -70,6 +77,14 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         window_id: WindowId,
         generation: u64,
         query: NativeSemanticAccessibilityQuery,
+    },
+    #[cfg(target_os = "macos")]
+    NativeNumericAccessibilityAction {
+        window_id: WindowId,
+        generation: u64,
+        token: u64,
+        target: Box<crate::gui::automation::AutomationTarget>,
+        action: NativeNumericAccessibilityAction,
     },
 }
 
@@ -156,6 +171,29 @@ impl PartialEq for RuntimeUserEvent {
                 left_window_id == right_window_id
                     && left_generation == right_generation
                     && left_query == right_query
+            }
+            #[cfg(target_os = "macos")]
+            (
+                Self::NativeNumericAccessibilityAction {
+                    window_id: left_window_id,
+                    generation: left_generation,
+                    token: left_token,
+                    target: left_target,
+                    action: left_action,
+                },
+                Self::NativeNumericAccessibilityAction {
+                    window_id: right_window_id,
+                    generation: right_generation,
+                    token: right_token,
+                    target: right_target,
+                    action: right_action,
+                },
+            ) => {
+                left_window_id == right_window_id
+                    && left_generation == right_generation
+                    && left_token == right_token
+                    && left_target == right_target
+                    && left_action == right_action
             }
             _ => false,
         }

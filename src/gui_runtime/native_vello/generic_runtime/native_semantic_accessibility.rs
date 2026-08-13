@@ -11,19 +11,22 @@
 mod macos {
     use crate::{
         gui::automation::{
-            AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
-            AutomationRole, GuiAutomationSnapshot,
+            AUTOMATION_ACTION_DECREMENT, AUTOMATION_ACTION_INCREMENT, AutomationBounds,
+            AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot, AutomationRole,
+            AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
         },
         gui_runtime::native_vello::runtime_event::{
-            NativeSemanticAccessibilityQuery, RuntimeUserEvent,
+            NativeNumericAccessibilityAction, NativeSemanticAccessibilityQuery, RuntimeUserEvent,
         },
         layout::{VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES, VirtualLayoutItemKey},
         runtime::{
-            NativeSemanticContainerSnapshot, NativeSemanticCoordinateAuthority, RuntimeBridge,
-            SemanticAutomationContainerHandle, SemanticAutomationDemand,
-            SemanticAutomationFallbackReason, SemanticAutomationRefreshStatus,
-            SemanticAutomationSessionError, SemanticAutomationSessionHandle, SurfaceRuntime,
+            NativeSemanticContainerSnapshot, NativeSemanticCoordinateAuthority,
+            NumericAccessibilityRequest, RuntimeBridge, SemanticAutomationContainerHandle,
+            SemanticAutomationDemand, SemanticAutomationFallbackReason,
+            SemanticAutomationRefreshStatus, SemanticAutomationSessionError,
+            SemanticAutomationSessionHandle, SurfaceRuntime,
         },
+        widgets::NumericAccessibilityAction,
     };
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use std::{
@@ -44,10 +47,15 @@ mod macos {
 
     const MAX_NATIVE_REGISTRATIONS: usize = 64;
     const MAX_NATIVE_ITEMS: usize = VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES;
+    const MAX_NATIVE_NUMERIC_ACTIONS: usize = 64;
     const NATIVE_STATE_IVAR_NAME: &CStr = c"radiantNativeSemanticState";
     const NATIVE_STATE_IVAR_TYPE: &CStr = c"^v";
     const NATIVE_CLASS_NAME: &CStr = c"RadiantNativeSemanticAccessibilityElement";
     const NS_UTF8_STRING_ENCODING: usize = 4;
+    const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
+    const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
+    const MODERN_ACTION_METHOD_TYPE: &CStr = c"c@:";
+    const DEPRECATED_ACTION_METHOD_TYPE: &CStr = c"v@:@";
     const YES: ObjcBool = 1;
     const NO: ObjcBool = 0;
 
@@ -205,7 +213,17 @@ mod macos {
                 (
                     c"accessibilityPerformAction:",
                     native_perform_action as *const c_void,
-                    c"c@:@",
+                    DEPRECATED_ACTION_METHOD_TYPE,
+                ),
+                (
+                    c"accessibilityPerformIncrement",
+                    native_perform_increment as *const c_void,
+                    MODERN_ACTION_METHOD_TYPE,
+                ),
+                (
+                    c"accessibilityPerformDecrement",
+                    native_perform_decrement as *const c_void,
+                    MODERN_ACTION_METHOD_TYPE,
                 ),
             ];
             for (name, implementation, types) in methods {
@@ -594,6 +612,7 @@ mod macos {
         label: Option<String>,
         description: Option<String>,
         value: Option<String>,
+        action_target: Option<AutomationTarget>,
         logical_count: Option<usize>,
     }
 
@@ -614,6 +633,7 @@ mod macos {
         view: Id,
         in_flight: Vec<NativeQueryKey>,
         deferred: Vec<NativeQueryKey>,
+        pending_numeric_actions: usize,
         last_unavailable: Option<NativeSemanticUnavailableReason>,
     }
 
@@ -635,6 +655,7 @@ mod macos {
                 view,
                 in_flight: Vec::new(),
                 deferred: Vec::new(),
+                pending_numeric_actions: 0,
                 last_unavailable: None,
             }
         }
@@ -649,6 +670,7 @@ mod macos {
                 view,
                 in_flight: Vec::new(),
                 deferred: Vec::new(),
+                pending_numeric_actions: 0,
                 last_unavailable: None,
             }
         }
@@ -737,6 +759,40 @@ mod macos {
                 self.deferred.push(key);
             }
         }
+
+        fn enqueue_numeric_action(
+            &mut self,
+            token: u64,
+            target: AutomationTarget,
+            action: NativeNumericAccessibilityAction,
+        ) -> bool {
+            if self.pending_numeric_actions >= MAX_NATIVE_NUMERIC_ACTIONS {
+                return false;
+            }
+            self.pending_numeric_actions = self.pending_numeric_actions.saturating_add(1);
+            let event = RuntimeUserEvent::NativeNumericAccessibilityAction {
+                window_id: self.window_id,
+                generation: self.generation,
+                token,
+                target: Box::new(target),
+                action,
+            };
+            #[cfg(not(test))]
+            let sent = self.proxy.send_event(event).is_ok();
+            #[cfg(test)]
+            let sent = self
+                .proxy
+                .as_ref()
+                .is_some_and(|proxy| proxy.send_event(event).is_ok());
+            if !sent {
+                self.pending_numeric_actions = self.pending_numeric_actions.saturating_sub(1);
+            }
+            sent
+        }
+
+        fn finish_numeric_action(&mut self) {
+            self.pending_numeric_actions = self.pending_numeric_actions.saturating_sub(1);
+        }
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -748,6 +804,8 @@ mod macos {
         scale_factor: f64,
         backing_scale: f64,
         flipped: bool,
+        #[cfg(test)]
+        deterministic_test: bool,
     }
 
     impl NativeCoordinateTransform {
@@ -781,10 +839,50 @@ mod macos {
                 scale_factor,
                 backing_scale,
                 flipped,
+                #[cfg(test)]
+                deterministic_test: false,
             })
         }
 
+        #[cfg(test)]
+        fn for_test(view_bounds: NSRect) -> Self {
+            Self {
+                view: null_mut(),
+                window: null_mut(),
+                screen: null_mut(),
+                view_bounds,
+                scale_factor: 1.0,
+                backing_scale: 1.0,
+                flipped: true,
+                deterministic_test: true,
+            }
+        }
+
         fn convert(&self, bounds: AutomationBounds) -> Option<NSRect> {
+            #[cfg(test)]
+            if self.deterministic_test {
+                if !bounds_are_finite(bounds)
+                    || bounds.width < 0.0
+                    || bounds.height < 0.0
+                    || bounds.x < 0.0
+                    || bounds.y < 0.0
+                    || f64::from(bounds.x) + f64::from(bounds.width) > self.view_bounds.size.width
+                    || f64::from(bounds.y) + f64::from(bounds.height) > self.view_bounds.size.height
+                {
+                    return None;
+                }
+                return Some(NSRect {
+                    origin: NSPoint {
+                        x: self.view_bounds.origin.x + f64::from(bounds.x),
+                        y: self.view_bounds.origin.y + f64::from(bounds.y),
+                    },
+                    size: NSSize {
+                        width: f64::from(bounds.width),
+                        height: f64::from(bounds.height),
+                    },
+                });
+            }
+
             let current_window = unsafe { msg_id(self.view, sel(c"window")) };
             let current_screen = if current_window.is_null() {
                 null_mut()
@@ -1020,7 +1118,199 @@ mod macos {
         logical_children: Vec<(usize, u64)>,
         bounds: AutomationBounds,
         semantics: AutomationNodeSemantics,
+        action_target: Option<AutomationTarget>,
         logical_count: Option<usize>,
+    }
+
+    fn numeric_action_target_fence_matches(
+        captured: &AutomationTarget,
+        current: &AutomationTarget,
+    ) -> bool {
+        captured.id == current.id
+            && captured.path == current.path
+            && captured.role == current.role
+            && captured.authority == current.authority
+    }
+
+    fn numeric_action_target_continuity_matches(
+        previous: &AutomationTarget,
+        current: &AutomationTarget,
+    ) -> bool {
+        previous.id == current.id
+            && previous.path == current.path
+            && previous.role == current.role
+            && previous.enabled == current.enabled
+            && previous.focusable == current.focusable
+            && previous.available_actions == current.available_actions
+            && previous
+                .authority
+                .zip(current.authority)
+                .is_some_and(|(previous, current)| previous.materialized && current.materialized)
+    }
+
+    fn qualified_numeric_action_target(
+        targets: &GuiAutomationTargetSnapshot,
+        node: &AutomationNodeSnapshot,
+        semantic_path: &[AutomationNodeId],
+        kind: NativeNodeKind,
+    ) -> Option<AutomationTarget> {
+        if kind != NativeNodeKind::Ordinary
+            || node.role != AutomationRole::TextInput
+            || !node.enabled
+            || node.semantics.disabled
+            || node.semantics.read_only
+            || !node.semantics.focusable
+            || node.semantics.value_text.is_none()
+        {
+            return None;
+        }
+
+        let mut matches = targets.targets.iter().filter(|target| {
+            target.id == node.id
+                && target.path == semantic_path
+                && target.role == AutomationRole::TextInput
+                && target.enabled
+                && target.focusable
+                && target
+                    .authority
+                    .is_some_and(|authority| authority.materialized)
+                && target.value.as_deref() == node.semantics.value_text.as_deref()
+                && target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+                && target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+        });
+        let target = matches.next()?.clone();
+        matches.next().is_none().then_some(target)
+    }
+
+    fn native_numeric_action_target(
+        targets: &GuiAutomationTargetSnapshot,
+        node: &AutomationNodeSnapshot,
+        semantic_path: &[AutomationNodeId],
+        kind: NativeNodeKind,
+        provider_descendant: bool,
+    ) -> Option<AutomationTarget> {
+        (!provider_descendant)
+            .then(|| qualified_numeric_action_target(targets, node, semantic_path, kind))
+            .flatten()
+    }
+
+    fn native_numeric_action_name(action: NativeNumericAccessibilityAction) -> &'static CStr {
+        match action {
+            NativeNumericAccessibilityAction::Increment => NS_ACCESSIBILITY_INCREMENT_ACTION,
+            NativeNumericAccessibilityAction::Decrement => NS_ACCESSIBILITY_DECREMENT_ACTION,
+        }
+    }
+
+    fn native_numeric_action_text(action: NativeNumericAccessibilityAction) -> &'static str {
+        native_numeric_action_name(action)
+            .to_str()
+            .unwrap_or_default()
+    }
+
+    fn native_numeric_action_from_name(name: &CStr) -> Option<NativeNumericAccessibilityAction> {
+        if name == NS_ACCESSIBILITY_INCREMENT_ACTION {
+            Some(NativeNumericAccessibilityAction::Increment)
+        } else if name == NS_ACCESSIBILITY_DECREMENT_ACTION {
+            Some(NativeNumericAccessibilityAction::Decrement)
+        } else {
+            None
+        }
+    }
+
+    fn numeric_action_names() -> [NativeNumericAccessibilityAction; 2] {
+        [
+            NativeNumericAccessibilityAction::Increment,
+            NativeNumericAccessibilityAction::Decrement,
+        ]
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct StableValueProjectionUpdate {
+        index: usize,
+        value: Option<String>,
+        action_target: Option<AutomationTarget>,
+        value_changed: bool,
+    }
+
+    fn collect_stable_value_projection_updates(
+        projection: &NativeCallbackProjection,
+        specs: &[NativeNodeSpec],
+        frames: &[NSRect],
+    ) -> Option<Vec<StableValueProjectionUpdate>> {
+        if specs.len() != projection.nodes.len() || specs.len() != frames.len() {
+            return None;
+        }
+        let mut updates = Vec::new();
+        for (index, ((spec, node), frame)) in
+            specs.iter().zip(&projection.nodes).zip(frames).enumerate()
+        {
+            let stable_native_evidence = node.token == spec.token
+                && node.kind == spec.kind
+                && node.parent == spec.parent
+                && node.children == spec.children
+                && node.logical_children == spec.logical_children
+                && node.frame == *frame
+                && node.role
+                    == native_role(spec.kind, spec.semantics.role, spec.action_target.is_some())
+                && node.label == spec.semantics.label
+                && node.description == spec.semantics.description
+                && node.logical_count == spec.logical_count;
+            if !stable_native_evidence {
+                return None;
+            }
+
+            let target_continuity_matches = match (&node.action_target, &spec.action_target) {
+                (None, None) => true,
+                (Some(previous), Some(current)) => {
+                    numeric_action_target_continuity_matches(previous, current)
+                }
+                _ => false,
+            };
+            if !target_continuity_matches {
+                return None;
+            }
+            let value_changed = node.value != spec.semantics.value_text;
+            if value_changed && spec.action_target.is_none() {
+                return None;
+            }
+            if value_changed || node.action_target != spec.action_target {
+                updates.push(StableValueProjectionUpdate {
+                    index,
+                    value: spec.semantics.value_text.clone(),
+                    action_target: spec.action_target.clone(),
+                    value_changed,
+                });
+            }
+        }
+        Some(updates)
+    }
+
+    fn apply_stable_value_projection_updates(
+        projection: &mut NativeCallbackProjection,
+        updates: &[StableValueProjectionUpdate],
+    ) -> Option<Vec<Id>> {
+        if updates
+            .iter()
+            .any(|update| update.index >= projection.nodes.len())
+        {
+            return None;
+        }
+        let mut value_notifications = Vec::new();
+        for update in updates {
+            let node = projection.nodes.get_mut(update.index)?;
+            node.value = update.value.clone();
+            node.action_target = update.action_target.clone();
+            if update.value_changed {
+                value_notifications.push(node.object);
+            }
+        }
+        Some(value_notifications)
     }
 
     /// One owned primary-window native semantic adapter.  It is intentionally
@@ -1040,6 +1330,8 @@ mod macos {
         attached: bool,
         #[cfg(test)]
         layout_notifications: usize,
+        #[cfg(test)]
+        value_notifications: usize,
     }
 
     impl NativeSemanticAccessibilityAdapter {
@@ -1071,6 +1363,8 @@ mod macos {
                 attached: false,
                 #[cfg(test)]
                 layout_notifications: 0,
+                #[cfg(test)]
+                value_notifications: 0,
             })
         }
 
@@ -1081,6 +1375,7 @@ mod macos {
             Bridge: RuntimeBridge<Message>,
         {
             let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
             let selected = self.lease.and_then(|session| {
                 match runtime.native_semantic_automation_composition(session) {
@@ -1091,7 +1386,7 @@ mod macos {
                     }
                 }
             });
-            let _ = self.publish_projection(&ordinary, &containers, selected);
+            let _ = self.publish_projection(&ordinary, &targets, &containers, selected);
         }
 
         fn publish_ordinary_projection<Bridge, Message>(
@@ -1101,12 +1396,47 @@ mod macos {
             Bridge: RuntimeBridge<Message>,
         {
             let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
-            let _ = self.publish_projection(&ordinary, &containers, None);
+            let _ = self.publish_projection(&ordinary, &targets, &containers, None);
         }
 
         pub(crate) fn accepts_generation(&self, generation: u64) -> bool {
             self.generation == generation
+        }
+
+        pub(crate) fn numeric_accessibility_request(
+            &self,
+            token: u64,
+            target: AutomationTarget,
+            action: NativeNumericAccessibilityAction,
+        ) -> Option<NumericAccessibilityRequest> {
+            let state = self.callback_state.try_borrow().ok()?;
+            let node = state.node_for_token(token)?;
+            let current = node.action_target.as_ref()?;
+            if !target
+                .authority
+                .as_ref()
+                .is_some_and(|authority| authority.materialized)
+                || !numeric_action_target_fence_matches(&target, current)
+            {
+                return None;
+            }
+            let action = match action {
+                NativeNumericAccessibilityAction::Increment => {
+                    NumericAccessibilityAction::Increment
+                }
+                NativeNumericAccessibilityAction::Decrement => {
+                    NumericAccessibilityAction::Decrement
+                }
+            };
+            Some(NumericAccessibilityRequest::new(target, action))
+        }
+
+        pub(crate) fn finish_numeric_action(&mut self) {
+            if let Ok(mut state) = self.callback_state.try_borrow_mut() {
+                state.finish_numeric_action();
+            }
         }
 
         pub(crate) fn handle_query<Bridge, Message>(
@@ -1282,8 +1612,9 @@ mod macos {
                 semantic_projection_is_eligible(status, Some(*selected_status))
             });
             let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
-            let _ = self.publish_projection(&ordinary, &containers, projection);
+            let _ = self.publish_projection(&ordinary, &targets, &containers, projection);
             let deferred = matches!(
                 status,
                 SemanticAutomationRefreshStatus::Baseline {
@@ -1321,7 +1652,6 @@ mod macos {
         }
 
         pub(crate) fn retire(&mut self) {
-            self.generation = self.generation.saturating_add(1);
             self.retire_published_objects();
             self.tokens.retire_all();
             self.active_ranges.clear();
@@ -1394,6 +1724,7 @@ mod macos {
         fn publish_projection(
             &mut self,
             ordinary: &GuiAutomationSnapshot,
+            targets: &GuiAutomationTargetSnapshot,
             containers: &[NativeSemanticContainerSnapshot],
             selected: Option<(
                 crate::runtime::VirtualLayoutAutomationComposition,
@@ -1403,7 +1734,7 @@ mod macos {
             let composition = selected.as_ref().map(|(composition, _)| composition);
             let snapshot = composition.map_or(ordinary, |composition| composition.snapshot());
             let sidecar = composition.map(|composition| composition.normalized_sidecar());
-            let specs = match self.build_specs(snapshot, containers, sidecar) {
+            let specs = match self.build_specs(snapshot, targets, containers, sidecar) {
                 Ok(specs) => specs,
                 Err(error) => {
                     self.tokens.retire_all();
@@ -1421,6 +1752,14 @@ mod macos {
                 self.attached = true;
                 if let Ok(mut state) = self.callback_state.try_borrow_mut() {
                     state.last_unavailable = None;
+                }
+                return Ok(());
+            }
+            if let Some(value_notifications) = self.update_stable_value_projection(&specs) {
+                self.current_containers = containers.to_vec();
+                self.attached = true;
+                for object in value_notifications {
+                    self.post_value_changed(object);
                 }
                 return Ok(());
             }
@@ -1448,6 +1787,7 @@ mod macos {
         fn build_specs(
             &mut self,
             snapshot: &GuiAutomationSnapshot,
+            targets: &GuiAutomationTargetSnapshot,
             containers: &[NativeSemanticContainerSnapshot],
             sidecar: Option<&crate::runtime::VirtualLayoutNormalizedSemanticSidecar>,
         ) -> Result<Vec<NativeNodeSpec>, String> {
@@ -1478,6 +1818,7 @@ mod macos {
                 logical_children: Vec::new(),
                 bounds: root_bounds,
                 semantics: AutomationNodeSemantics::new(AutomationRole::Root),
+                action_target: None,
                 logical_count: None,
             });
             let mut accepted = containers.to_vec();
@@ -1512,11 +1853,15 @@ mod macos {
             let mut child_tokens = Vec::new();
             for (index, child) in snapshot.root.children.iter().enumerate() {
                 let mut path = vec![index];
+                let mut semantic_path = vec![snapshot.root.id.clone(), child.id.clone()];
                 let token = self.build_snapshot_node(
                     snapshot,
                     child,
                     Some(root_token),
                     &mut path,
+                    &mut semantic_path,
+                    false,
+                    targets,
                     &accepted,
                     &anchor_ids,
                     sidecar,
@@ -1536,6 +1881,9 @@ mod macos {
             node: &AutomationNodeSnapshot,
             parent: Option<u64>,
             path: &mut Vec<usize>,
+            semantic_path: &mut Vec<AutomationNodeId>,
+            provider_descendant: bool,
+            targets: &GuiAutomationTargetSnapshot,
             containers: &[NativeSemanticContainerSnapshot],
             anchor_ids: &[AutomationNodeId],
             sidecar: Option<&crate::runtime::VirtualLayoutNormalizedSemanticSidecar>,
@@ -1552,6 +1900,13 @@ mod macos {
                 self.retain_or_issue_ordinary_token(&node.id, parent, specs)?
             };
             let kind = container.map_or(NativeNodeKind::Ordinary, |_| NativeNodeKind::Container);
+            let action_target = native_numeric_action_target(
+                targets,
+                node,
+                semantic_path,
+                kind,
+                provider_descendant,
+            );
             let spec_index = specs.len();
             specs.push(NativeNodeSpec {
                 token,
@@ -1561,6 +1916,7 @@ mod macos {
                 logical_children: Vec::new(),
                 bounds: node.bounds,
                 semantics: node.semantics.clone(),
+                action_target,
                 logical_count: container.map(|container| container.cardinality.logical_item_count),
             });
             let mut children = Vec::new();
@@ -1598,23 +1954,31 @@ mod macos {
                             logical_children: Vec::new(),
                             bounds: item_node.bounds,
                             semantics: item_node.semantics.clone(),
+                            action_target: None,
                             logical_count: None,
                         });
                         let mut nested = Vec::new();
                         let mut item_path = entry.normalized_path().to_vec();
+                        let mut item_semantic_path = semantic_path.clone();
+                        item_semantic_path.push(item_node.id.clone());
                         for (child_index, child) in item_node.children.iter().enumerate() {
                             item_path.push(child_index);
+                            item_semantic_path.push(child.id.clone());
                             let child_token = self.build_snapshot_node(
                                 snapshot,
                                 child,
                                 Some(item_token),
                                 &mut item_path,
+                                &mut item_semantic_path,
+                                true,
+                                targets,
                                 containers,
                                 anchor_ids,
                                 Some(sidecar),
                                 item_paths,
                                 specs,
                             )?;
+                            item_semantic_path.pop();
                             item_path.pop();
                             nested.push(child_token);
                         }
@@ -1626,6 +1990,7 @@ mod macos {
                 children.extend(virtual_children);
                 for (child_index, child) in node.children.iter().enumerate() {
                     path.push(child_index);
+                    semantic_path.push(child.id.clone());
                     let is_sidecar_path = item_paths.iter().any(|(_, item_path)| {
                         item_path.len() >= path.len() && item_path.starts_with(path)
                     });
@@ -1635,6 +2000,9 @@ mod macos {
                             child,
                             Some(token),
                             path,
+                            semantic_path,
+                            provider_descendant,
+                            targets,
                             containers,
                             anchor_ids,
                             sidecar,
@@ -1643,22 +2011,28 @@ mod macos {
                         )?;
                         children.push(child_token);
                     }
+                    semantic_path.pop();
                     path.pop();
                 }
             } else {
                 for (child_index, child) in node.children.iter().enumerate() {
                     path.push(child_index);
+                    semantic_path.push(child.id.clone());
                     let child_token = self.build_snapshot_node(
                         snapshot,
                         child,
                         Some(token),
                         path,
+                        semantic_path,
+                        provider_descendant,
+                        targets,
                         containers,
                         anchor_ids,
                         sidecar,
                         item_paths,
                         specs,
                     )?;
+                    semantic_path.pop();
                     path.pop();
                     children.push(child_token);
                 }
@@ -1666,6 +2040,24 @@ mod macos {
             specs[spec_index].children = children;
             specs[spec_index].logical_children = logical_children;
             Ok(token)
+        }
+
+        fn update_stable_value_projection(&mut self, specs: &[NativeNodeSpec]) -> Option<Vec<Id>> {
+            let transform = self.transform?;
+            let state = self.callback_state.try_borrow().ok()?;
+            let frames = specs
+                .iter()
+                .map(|spec| transform.convert(spec.bounds))
+                .collect::<Option<Vec<_>>>()?;
+            let updates =
+                collect_stable_value_projection_updates(&state.projection, specs, &frames)?;
+            drop(state);
+
+            if updates.is_empty() {
+                return None;
+            }
+            let mut state = self.callback_state.try_borrow_mut().ok()?;
+            apply_stable_value_projection_updates(&mut state.projection, &updates)
         }
 
         fn retain_or_issue_ordinary_token(
@@ -1716,10 +2108,16 @@ mod macos {
                                 && node.children == spec.children
                                 && node.logical_children == spec.logical_children
                                 && node.frame == frame
-                                && node.role == native_role(spec.kind, spec.semantics.role)
+                                && node.role
+                                    == native_role(
+                                        spec.kind,
+                                        spec.semantics.role,
+                                        spec.action_target.is_some(),
+                                    )
                                 && node.label == spec.semantics.label
                                 && node.description == spec.semantics.description
                                 && node.value == spec.semantics.value_text
+                                && node.action_target == spec.action_target
                                 && node.logical_count == spec.logical_count
                         })
                     })
@@ -1770,11 +2168,12 @@ mod macos {
                     parent: spec.parent,
                     children: spec.children,
                     logical_children: spec.logical_children,
-                    role: native_role(spec.kind, spec.semantics.role),
+                    role: native_role(spec.kind, spec.semantics.role, spec.action_target.is_some()),
                     frame,
                     label: spec.semantics.label,
                     description: spec.semantics.description,
                     value: spec.semantics.value_text,
+                    action_target: spec.action_target,
                     logical_count: spec.logical_count,
                 });
             }
@@ -1811,6 +2210,7 @@ mod macos {
         }
 
         fn retire_published_objects(&mut self) {
+            self.advance_generation();
             self.attached = false;
             self.clear_callback_state();
             let class = native_class().ok();
@@ -1858,7 +2258,15 @@ mod macos {
             state.projection = NativeCallbackProjection::default();
             state.in_flight.clear();
             state.deferred.clear();
+            state.pending_numeric_actions = 0;
             state.last_unavailable = None;
+        }
+
+        fn advance_generation(&mut self) {
+            self.generation = self.generation.saturating_add(1);
+            if let Ok(mut state) = self.callback_state.try_borrow_mut() {
+                state.generation = self.generation;
+            }
         }
 
         fn post_layout_changed(&mut self) {
@@ -1871,6 +2279,21 @@ mod macos {
             #[cfg(test)]
             {
                 self.layout_notifications = self.layout_notifications.saturating_add(1);
+            }
+        }
+
+        fn post_value_changed(&mut self, object: Id) {
+            #[cfg(not(test))]
+            unsafe {
+                let notification = ns_string("AXValueChanged");
+                if !notification.is_null() {
+                    NSAccessibilityPostNotification(object, notification);
+                }
+            }
+            #[cfg(test)]
+            {
+                let _ = object;
+                self.value_notifications = self.value_notifications.saturating_add(1);
             }
         }
 
@@ -2027,8 +2450,14 @@ mod macos {
         (!native_window.is_null()).then_some((native_window, view))
     }
 
-    fn native_role(_kind: NativeNodeKind, role: AutomationRole) -> &'static str {
-        if matches!(role, AutomationRole::Text | AutomationRole::Readout) {
+    fn native_role(
+        _kind: NativeNodeKind,
+        role: AutomationRole,
+        numeric_action_target: bool,
+    ) -> &'static str {
+        if numeric_action_target {
+            "AXIncrementor"
+        } else if matches!(role, AutomationRole::Text | AutomationRole::Readout) {
             "AXStaticText"
         } else {
             "AXGroup"
@@ -2070,6 +2499,7 @@ mod macos {
                         || previous.label != next.label
                         || previous.description != next.description
                         || previous.value != next.value
+                        || previous.action_target != next.action_target
                         || previous.logical_count != next.logical_count
                 })
     }
@@ -2195,6 +2625,12 @@ mod macos {
                 node.value
                     .as_deref()
                     .map_or(null_mut(), |value| unsafe { ns_string(value) })
+            } else if name == c"AXEnabled" {
+                node.action_target
+                    .as_ref()
+                    .map_or(null_mut(), |target| unsafe {
+                        ns_number_bool(target.enabled)
+                    })
             } else if name == c"AXRowCount" || name == c"AXCount" {
                 node.logical_count
                     .map_or(null_mut(), |count| unsafe { ns_number_usize(count) })
@@ -2292,23 +2728,95 @@ mod macos {
         ffi_boundary(NO, || NO)
     }
 
-    extern "C" fn native_action_names(_: Id, _: Sel) -> Id {
-        ffi_boundary(null_mut(), || unsafe { ns_array(&[]) })
+    extern "C" fn native_action_names(receiver: Id, _: Sel) -> Id {
+        ffi_boundary(null_mut(), || {
+            let Some(state) = callback_state(receiver) else {
+                return null_mut();
+            };
+            let Ok(state) = state.try_borrow() else {
+                return null_mut();
+            };
+            let Some(node) = state.node_for_object(receiver) else {
+                return null_mut();
+            };
+            if node.action_target.is_none() {
+                return unsafe { ns_array(&[]) };
+            }
+            let values = numeric_action_names()
+                .into_iter()
+                .map(|action| unsafe { ns_string(native_numeric_action_text(action)) })
+                .collect::<Vec<_>>();
+            if values.iter().any(|value| value.is_null()) {
+                null_mut()
+            } else {
+                unsafe { ns_array(&values) }
+            }
+        })
     }
 
-    extern "C" fn native_perform_action(_: Id, _: Sel, _: Id) -> ObjcBool {
-        ffi_boundary(NO, || NO)
+    fn perform_numeric_action(receiver: Id, action: NativeNumericAccessibilityAction) -> ObjcBool {
+        let Some(state) = callback_state(receiver) else {
+            return NO;
+        };
+        let Ok(mut state) = state.try_borrow_mut() else {
+            return NO;
+        };
+        let Some((token, target)) = state.node_for_object(receiver).and_then(|node| {
+            node.action_target
+                .clone()
+                .map(|target| (node.token, target))
+        }) else {
+            return NO;
+        };
+        if state.enqueue_numeric_action(token, target, action) {
+            YES
+        } else {
+            NO
+        }
+    }
+
+    extern "C" fn native_perform_increment(receiver: Id, _: Sel) -> ObjcBool {
+        ffi_boundary(NO, || {
+            perform_numeric_action(receiver, NativeNumericAccessibilityAction::Increment)
+        })
+    }
+
+    extern "C" fn native_perform_decrement(receiver: Id, _: Sel) -> ObjcBool {
+        ffi_boundary(NO, || {
+            perform_numeric_action(receiver, NativeNumericAccessibilityAction::Decrement)
+        })
+    }
+
+    extern "C" fn native_perform_action(receiver: Id, _: Sel, action: Id) {
+        ffi_boundary((), || {
+            let name = unsafe { msg_id_ptr(action, sel(c"UTF8String")) };
+            if name.is_null() {
+                return;
+            }
+            let Some(action) = native_numeric_action_from_name(unsafe { CStr::from_ptr(name) })
+            else {
+                return;
+            };
+            let _ = perform_numeric_action(receiver, action);
+        });
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::widgets::{
+            NumericAccessibilityOutcome, NumericAdjustment, NumericCodec, NumericInputWidget,
+            NumericParseResult, NumericStep, NumericStepDirection, WidgetSizing,
+        };
         use crate::{
             application::IntoView,
             application::{
                 VirtualLayoutParts, row, scroll, spacer, text, virtual_layout_from_parts,
             },
-            gui::types::{Rect, Vector2},
+            gui::{
+                automation::AutomationTargetAuthority,
+                types::{Rect, Vector2},
+            },
             layout::{
                 VirtualLayoutBoundsConfidence, VirtualLayoutBudget, VirtualLayoutExtentCandidate,
                 VirtualLayoutItemCandidate, VirtualLayoutItemKey, VirtualLayoutOverscan,
@@ -2316,9 +2824,10 @@ mod macos {
                 VirtualLayoutQueryInput, VirtualLayoutQuerySink, VirtualLayoutVisibility,
             },
             runtime::{
-                RuntimeBridge, SurfaceRuntime, UiSurface, VirtualLayoutRevisions,
-                VirtualLayoutSemanticEntry, VirtualLayoutSemanticProviderOutcome,
-                VirtualLayoutSemanticRangeProvider, VirtualLayoutSemanticRangeRequest,
+                Command, RuntimeBridge, SurfaceNode, SurfaceRuntime, UiSurface,
+                VirtualLayoutRevisions, VirtualLayoutSemanticEntry,
+                VirtualLayoutSemanticProviderOutcome, VirtualLayoutSemanticRangeProvider,
+                VirtualLayoutSemanticRangeRequest, WidgetMessageMapper,
                 virtual_layout::{
                     VirtualLayoutSemanticCoordinateTransform,
                     VirtualLayoutSemanticCoordinateTransformOutcome,
@@ -2380,6 +2889,131 @@ mod macos {
             }
         }
 
+        #[derive(Clone, Debug)]
+        enum MappedNumericMessage {
+            Accessibility(NumericAccessibilityOutcome<f32, (), ()>),
+        }
+
+        #[derive(Clone, Copy)]
+        struct NativeNumericTestCodec;
+
+        impl NumericCodec<f32> for NativeNumericTestCodec {
+            type Error = ();
+
+            fn parse(&self, text: &str) -> NumericParseResult<f32> {
+                if text.is_empty() || text == "-" {
+                    return NumericParseResult::Incomplete;
+                }
+                text.parse::<f32>()
+                    .map(NumericParseResult::Valid)
+                    .unwrap_or(NumericParseResult::Invalid)
+            }
+
+            fn format_editable(
+                &self,
+                value: &f32,
+                output: &mut dyn std::fmt::Write,
+            ) -> Result<(), Self::Error> {
+                write!(output, "{value}").map_err(|_| ())
+            }
+        }
+
+        #[derive(Clone, Copy)]
+        struct NativeNumericTestAdjustment;
+
+        impl NumericAdjustment<f32> for NativeNumericTestAdjustment {
+            type Error = ();
+
+            fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+                Ok(normalized)
+            }
+
+            fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+
+            fn step(
+                &self,
+                value: &f32,
+                direction: NumericStepDirection,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value
+                    + match direction {
+                        NumericStepDirection::Increase => 1.0,
+                        NumericStepDirection::Decrease => -1.0,
+                    })
+            }
+
+            fn scrub(
+                &self,
+                value: &f32,
+                _normalized_delta: f32,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+
+            fn wheel(
+                &self,
+                value: &f32,
+                _delta: f32,
+                _step: NumericStep,
+            ) -> Result<f32, Self::Error> {
+                Ok(*value)
+            }
+        }
+
+        struct MappedNumericBridge {
+            value: Rc<Cell<f32>>,
+            mapped_actions: Rc<Cell<usize>>,
+        }
+
+        impl MappedNumericBridge {
+            fn new(value: f32) -> Self {
+                Self {
+                    value: Rc::new(Cell::new(value)),
+                    mapped_actions: Rc::new(Cell::new(0)),
+                }
+            }
+        }
+
+        impl RuntimeBridge<MappedNumericMessage> for MappedNumericBridge {
+            fn project_surface(&mut self) -> Arc<UiSurface<MappedNumericMessage>> {
+                let mut input = NumericInputWidget::try_new(
+                    self.value.get(),
+                    NativeNumericTestCodec,
+                    NativeNumericTestAdjustment,
+                    WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+                )
+                .expect("native numeric test input should construct");
+                input.set_accessibility_action_mode();
+                let mapped_actions = Rc::clone(&self.mapped_actions);
+                let mapper = WidgetMessageMapper::none().with_accessibility_action(
+                    move |outcome: NumericAccessibilityOutcome<f32, (), ()>| {
+                        mapped_actions.set(mapped_actions.get().saturating_add(1));
+                        MappedNumericMessage::Accessibility(outcome)
+                    },
+                );
+                let numeric = SurfaceNode::widget(input, mapper).with_id(42);
+                crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+                    1,
+                    0.0,
+                    vec![crate::runtime::SurfaceChild::fill(numeric)],
+                )))
+            }
+
+            fn update(&mut self, message: MappedNumericMessage) -> Command<MappedNumericMessage> {
+                let MappedNumericMessage::Accessibility(outcome) = message;
+                if let NumericAccessibilityOutcome::Edit(edit) = outcome
+                    && let Some(event) = edit.events().last()
+                {
+                    self.value.set(event.value);
+                }
+                Command::none()
+            }
+        }
+
         fn test_container(container_id: u64) -> NativeContainerToken {
             NativeContainerToken {
                 token: container_id,
@@ -2419,6 +3053,212 @@ mod macos {
                 container,
                 length,
             }
+        }
+
+        fn numeric_target_fixture() -> (AutomationNodeSnapshot, AutomationTarget) {
+            let root_id = AutomationNodeId::new("root");
+            let node_id = AutomationNodeId::new("gain");
+            let mut semantics = AutomationNodeSemantics::new(AutomationRole::TextInput)
+                .with_label("Gain")
+                .with_value_text("7");
+            semantics.focusable = true;
+            semantics.focused = true;
+            let mut node = AutomationNodeSnapshot::from_semantics(
+                node_id.clone(),
+                AutomationBounds {
+                    x: 8.0,
+                    y: 12.0,
+                    width: 120.0,
+                    height: 24.0,
+                },
+                semantics,
+            );
+            node.available_actions = vec![
+                String::from("focus"),
+                String::from(AUTOMATION_ACTION_INCREMENT),
+                String::from(AUTOMATION_ACTION_DECREMENT),
+                String::from("set_text"),
+            ];
+            let path = vec![root_id, node_id];
+            let mut target = AutomationTarget::from_node(&node, 1, 1, path);
+            target.authority = Some(AutomationTargetAuthority::materialized(9));
+            (node, target)
+        }
+
+        fn numeric_callback_node(target: AutomationTarget, value: &str) -> NativeCallbackNode {
+            NativeCallbackNode {
+                object: 91_usize as Id,
+                token: 91,
+                kind: NativeNodeKind::Ordinary,
+                parent: Some(1),
+                children: Vec::new(),
+                logical_children: Vec::new(),
+                role: "AXIncrementor",
+                frame: NSRect {
+                    origin: NSPoint { x: 8.0, y: 12.0 },
+                    size: NSSize {
+                        width: 120.0,
+                        height: 24.0,
+                    },
+                },
+                label: Some(String::from("Gain")),
+                description: None,
+                value: Some(value.to_owned()),
+                action_target: Some(target),
+                logical_count: None,
+            }
+        }
+
+        fn numeric_adapter_fixture(target: AutomationTarget) -> NativeSemanticAccessibilityAdapter {
+            let node = numeric_callback_node(target, "7");
+            numeric_adapter_fixture_with_projection(NativeCallbackProjection {
+                nodes: vec![node],
+                root_token: Some(91),
+            })
+        }
+
+        fn numeric_adapter_fixture_with_projection(
+            projection: NativeCallbackProjection,
+        ) -> NativeSemanticAccessibilityAdapter {
+            let callback_state =
+                NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 3, null_mut());
+            let mut callback_state = callback_state;
+            callback_state.projection = projection;
+            NativeSemanticAccessibilityAdapter {
+                view: null_mut(),
+                callback_state: Box::new(RefCell::new(callback_state)),
+                objects: Vec::new(),
+                tokens: NativeTokenLedger::default(),
+                lease: None,
+                generation: 3,
+                window_generation: 1,
+                transform: None,
+                current_containers: Vec::new(),
+                active_ranges: Vec::new(),
+                attached: true,
+                layout_notifications: 0,
+                value_notifications: 0,
+            }
+        }
+
+        const TEST_ROOT_TOKEN: u64 = 1;
+        const TEST_NUMERIC_TOKEN: u64 = 2;
+
+        fn runtime_numeric_adapter_fixture(
+            snapshot: &GuiAutomationSnapshot,
+            numeric_node: &AutomationNodeSnapshot,
+            target: AutomationTarget,
+        ) -> NativeSemanticAccessibilityAdapter {
+            let root_bounds = AutomationBounds {
+                x: 0.0,
+                y: 0.0,
+                width: snapshot.viewport_width as f32,
+                height: snapshot.viewport_height as f32,
+            };
+            let projection = NativeCallbackProjection {
+                nodes: vec![
+                    NativeCallbackNode {
+                        object: 90_usize as Id,
+                        token: TEST_ROOT_TOKEN,
+                        kind: NativeNodeKind::Root,
+                        parent: None,
+                        children: vec![TEST_NUMERIC_TOKEN],
+                        logical_children: Vec::new(),
+                        role: native_role(NativeNodeKind::Root, AutomationRole::Root, false),
+                        frame: native_test_frame(root_bounds),
+                        label: None,
+                        description: None,
+                        value: None,
+                        action_target: None,
+                        logical_count: None,
+                    },
+                    NativeCallbackNode {
+                        object: 91_usize as Id,
+                        token: TEST_NUMERIC_TOKEN,
+                        kind: NativeNodeKind::Ordinary,
+                        parent: Some(TEST_ROOT_TOKEN),
+                        children: Vec::new(),
+                        logical_children: Vec::new(),
+                        role: native_role(NativeNodeKind::Ordinary, numeric_node.role, true),
+                        frame: native_test_frame(numeric_node.bounds),
+                        label: numeric_node.semantics.label.clone(),
+                        description: numeric_node.semantics.description.clone(),
+                        value: numeric_node.semantics.value_text.clone(),
+                        action_target: Some(target.clone()),
+                        logical_count: None,
+                    },
+                ],
+                root_token: Some(TEST_ROOT_TOKEN),
+            };
+            let mut adapter = numeric_adapter_fixture_with_projection(projection);
+            adapter.transform = Some(NativeCoordinateTransform::for_test(NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: f64::from(snapshot.viewport_width),
+                    height: f64::from(snapshot.viewport_height),
+                },
+            }));
+            adapter.tokens.next = TEST_NUMERIC_TOKEN;
+            adapter.tokens.root = Some((TEST_ROOT_TOKEN, adapter.lease, adapter.window_generation));
+            adapter.tokens.ordinary.push(NativeOrdinaryToken {
+                token: TEST_NUMERIC_TOKEN,
+                id: target.id.clone(),
+                parent: Some(TEST_ROOT_TOKEN),
+                lease: adapter.lease,
+                window_generation: adapter.window_generation,
+            });
+            adapter
+        }
+
+        fn automation_node_for_id<'a>(
+            node: &'a AutomationNodeSnapshot,
+            id: &AutomationNodeId,
+        ) -> Option<&'a AutomationNodeSnapshot> {
+            if node.id == *id {
+                return Some(node);
+            }
+            node.children
+                .iter()
+                .find_map(|child| automation_node_for_id(child, id))
+        }
+
+        fn native_test_frame(bounds: AutomationBounds) -> NSRect {
+            NSRect {
+                origin: NSPoint {
+                    x: f64::from(bounds.x),
+                    y: f64::from(bounds.y),
+                },
+                size: NSSize {
+                    width: f64::from(bounds.width),
+                    height: f64::from(bounds.height),
+                },
+            }
+        }
+
+        fn numeric_spec_fixture(target: AutomationTarget, value: &str) -> (NativeNodeSpec, NSRect) {
+            let (mut node, _) = numeric_target_fixture();
+            node.semantics.value_text = Some(value.to_owned());
+            node.value = Some(value.to_owned());
+            (
+                NativeNodeSpec {
+                    token: 91,
+                    kind: NativeNodeKind::Ordinary,
+                    parent: Some(1),
+                    children: Vec::new(),
+                    logical_children: Vec::new(),
+                    bounds: node.bounds,
+                    semantics: node.semantics,
+                    action_target: Some(target),
+                    logical_count: None,
+                },
+                NSRect {
+                    origin: NSPoint { x: 8.0, y: 12.0 },
+                    size: NSSize {
+                        width: 120.0,
+                        height: 24.0,
+                    },
+                },
+            )
         }
 
         #[test]
@@ -2488,6 +3328,7 @@ mod macos {
                         label: None,
                         description: None,
                         value: None,
+                        action_target: None,
                         logical_count: None,
                     },
                     NativeCallbackNode {
@@ -2512,6 +3353,7 @@ mod macos {
                         label: Some(String::from("accepted semantic container")),
                         description: None,
                         value: None,
+                        action_target: None,
                         logical_count: Some(current.cardinality.logical_item_count),
                     },
                     NativeCallbackNode {
@@ -2532,6 +3374,7 @@ mod macos {
                         label: Some(String::from("item zero")),
                         description: None,
                         value: None,
+                        action_target: None,
                         logical_count: None,
                     },
                     NativeCallbackNode {
@@ -2552,6 +3395,7 @@ mod macos {
                         label: Some(String::from("item one")),
                         description: None,
                         value: None,
+                        action_target: None,
                         logical_count: None,
                     },
                 ],
@@ -2608,6 +3452,7 @@ mod macos {
                 }],
                 attached: true,
                 layout_notifications: 9,
+                value_notifications: 0,
             };
 
             let tokens_before = adapter.tokens.clone();
@@ -2949,6 +3794,7 @@ mod macos {
                 label: None,
                 description: None,
                 value: None,
+                action_target: None,
                 logical_count: Some(3),
             };
             assert_eq!(complete_virtual_child_tokens(&node), Some(vec![10, 11, 12]));
@@ -2986,6 +3832,7 @@ mod macos {
                 label: None,
                 description: None,
                 value: None,
+                action_target: None,
                 logical_count: Some(10_000),
             };
             assert_eq!(accessibility_children_count(&node), 10_000);
@@ -3011,6 +3858,7 @@ mod macos {
                 label: None,
                 description: None,
                 value: None,
+                action_target: None,
                 logical_count: None,
             };
             assert_eq!(accessibility_children_count(&node), 9);
@@ -3073,6 +3921,450 @@ mod macos {
         fn unchanged_projection_does_not_emit_a_second_layout_notification() {
             let projection = NativeCallbackProjection::default();
             assert!(!callback_projection_changed(&projection, &projection));
+        }
+
+        #[test]
+        fn native_numeric_qualification_requires_current_ordinary_materialized_evidence() {
+            let (node, target) = numeric_target_fixture();
+            let path = target.path.clone();
+            let targets = GuiAutomationTargetSnapshot {
+                schema_version: 2,
+                viewport_width: 320,
+                viewport_height: 120,
+                targets: vec![target.clone()],
+            };
+            assert!(
+                qualified_numeric_action_target(&targets, &node, &path, NativeNodeKind::Ordinary,)
+                    .is_some()
+            );
+            assert!(
+                native_numeric_action_target(
+                    &targets,
+                    &node,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                    true,
+                )
+                .is_none()
+            );
+
+            let mut disabled = node.clone();
+            disabled.enabled = false;
+            disabled.semantics.disabled = true;
+            assert!(
+                qualified_numeric_action_target(
+                    &targets,
+                    &disabled,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            let mut read_only = node.clone();
+            read_only.semantics.read_only = true;
+            assert!(
+                qualified_numeric_action_target(
+                    &targets,
+                    &read_only,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            let mut unfocusable = node.clone();
+            unfocusable.semantics.focusable = false;
+            assert!(
+                qualified_numeric_action_target(
+                    &targets,
+                    &unfocusable,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            let mut no_value = node.clone();
+            no_value.semantics.value_text = None;
+            assert!(
+                qualified_numeric_action_target(
+                    &targets,
+                    &no_value,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            for kind in [
+                NativeNodeKind::Root,
+                NativeNodeKind::Container,
+                NativeNodeKind::Item,
+            ] {
+                assert!(qualified_numeric_action_target(&targets, &node, &path, kind).is_none());
+            }
+
+            let mut wrong_actions = target.clone();
+            wrong_actions
+                .available_actions
+                .retain(|action| action == AUTOMATION_ACTION_INCREMENT);
+            let wrong_action_targets = GuiAutomationTargetSnapshot {
+                targets: vec![wrong_actions],
+                ..targets.clone()
+            };
+            assert!(
+                qualified_numeric_action_target(
+                    &wrong_action_targets,
+                    &node,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            let mut unmaterialized = target.clone();
+            unmaterialized.authority = Some(AutomationTargetAuthority {
+                runtime_generation: 9,
+                materialized: false,
+            });
+            let unmaterialized_targets = GuiAutomationTargetSnapshot {
+                targets: vec![unmaterialized],
+                ..targets.clone()
+            };
+            assert!(
+                qualified_numeric_action_target(
+                    &unmaterialized_targets,
+                    &node,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+
+            let ambiguous_targets = GuiAutomationTargetSnapshot {
+                targets: vec![target.clone(), target],
+                ..targets
+            };
+            assert!(
+                qualified_numeric_action_target(
+                    &ambiguous_targets,
+                    &node,
+                    &path,
+                    NativeNodeKind::Ordinary,
+                )
+                .is_none()
+            );
+        }
+
+        #[test]
+        fn native_numeric_contract_maps_exact_role_actions_and_abi() {
+            assert_eq!(
+                native_role(NativeNodeKind::Ordinary, AutomationRole::TextInput, true),
+                "AXIncrementor"
+            );
+            assert_eq!(
+                native_role(NativeNodeKind::Ordinary, AutomationRole::TextInput, false),
+                "AXGroup"
+            );
+            assert_eq!(
+                numeric_action_names(),
+                [
+                    NativeNumericAccessibilityAction::Increment,
+                    NativeNumericAccessibilityAction::Decrement,
+                ]
+            );
+            assert_eq!(
+                native_numeric_action_name(NativeNumericAccessibilityAction::Increment),
+                c"AXIncrement"
+            );
+            assert_eq!(
+                native_numeric_action_name(NativeNumericAccessibilityAction::Decrement),
+                c"AXDecrement"
+            );
+            assert_eq!(
+                native_numeric_action_from_name(c"AXIncrement"),
+                Some(NativeNumericAccessibilityAction::Increment)
+            );
+            assert_eq!(
+                native_numeric_action_from_name(c"AXDecrement"),
+                Some(NativeNumericAccessibilityAction::Decrement)
+            );
+            assert_eq!(native_numeric_action_from_name(c"AXSetValue"), None);
+            assert_eq!(MODERN_ACTION_METHOD_TYPE.to_bytes_with_nul(), b"c@:\0");
+            assert_eq!(DEPRECATED_ACTION_METHOD_TYPE.to_bytes_with_nul(), b"v@:@\0");
+            assert_eq!(
+                native_attribute_settable(null_mut(), null_mut(), null_mut()),
+                NO
+            );
+            assert_eq!(native_perform_increment(null_mut(), null_mut()), NO);
+            assert_eq!(native_perform_decrement(null_mut(), null_mut()), NO);
+            assert!(native_action_names(null_mut(), null_mut()).is_null());
+            native_perform_action(null_mut(), null_mut(), null_mut());
+        }
+
+        #[test]
+        fn native_numeric_event_fence_ignores_geometry_and_requires_identity() {
+            let (_, target) = numeric_target_fixture();
+            let mut geometry_changed = target.clone();
+            geometry_changed.bounds.x += 100.0;
+            assert!(numeric_action_target_fence_matches(
+                &target,
+                &geometry_changed
+            ));
+
+            let mut path_changed = target.clone();
+            path_changed.path.push(AutomationNodeId::new("nested"));
+            assert!(!numeric_action_target_fence_matches(&target, &path_changed));
+
+            let mut authority_changed = target.clone();
+            authority_changed.authority = Some(AutomationTargetAuthority::materialized(10));
+            assert!(!numeric_action_target_fence_matches(
+                &target,
+                &authority_changed
+            ));
+            assert!(numeric_action_target_continuity_matches(
+                &target,
+                &authority_changed
+            ));
+
+            let mut adapter = numeric_adapter_fixture(target.clone());
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        91,
+                        target.clone(),
+                        NativeNumericAccessibilityAction::Increment,
+                    )
+                    .is_some()
+            );
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        90,
+                        target,
+                        NativeNumericAccessibilityAction::Increment,
+                    )
+                    .is_none()
+            );
+            let (_, changed_target) = numeric_target_fixture();
+            let mut changed_target = changed_target;
+            changed_target.path.push(AutomationNodeId::new("stale"));
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        91,
+                        changed_target,
+                        NativeNumericAccessibilityAction::Decrement,
+                    )
+                    .is_none()
+            );
+
+            let state_borrow = adapter.callback_state.borrow_mut();
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        91,
+                        numeric_target_fixture().1,
+                        NativeNumericAccessibilityAction::Increment,
+                    )
+                    .is_none()
+            );
+            drop(state_borrow);
+            adapter.finish_numeric_action();
+        }
+
+        #[test]
+        fn native_numeric_action_connected_production_seam_updates_value_without_rebuilding_object()
+        {
+            let mut runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            assert_eq!(runtime.focused_widget(), None);
+
+            let initial_snapshot = runtime.automation_snapshot();
+            let initial_targets = runtime.automation_target_snapshot();
+            let initial_target = initial_targets
+                .targets
+                .iter()
+                .find(|target| {
+                    target.role == AutomationRole::TextInput
+                        && target
+                            .available_actions
+                            .iter()
+                            .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+                        && target
+                            .available_actions
+                            .iter()
+                            .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+                })
+                .cloned()
+                .expect("the production numeric target should be published");
+            assert!(!initial_target.focused);
+            assert_eq!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .filter(|action| {
+                        action.as_str() == AUTOMATION_ACTION_INCREMENT
+                            || action.as_str() == AUTOMATION_ACTION_DECREMENT
+                    })
+                    .count(),
+                2
+            );
+            assert!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_INCREMENT)
+            );
+            assert!(
+                initial_target
+                    .available_actions
+                    .iter()
+                    .any(|action| action == AUTOMATION_ACTION_DECREMENT)
+            );
+            let initial_node = automation_node_for_id(&initial_snapshot.root, &initial_target.id)
+                .cloned()
+                .expect("the production numeric node should be published");
+            let initial_authority = initial_target
+                .authority
+                .expect("the initial target should carry runtime authority");
+
+            let mut adapter = runtime_numeric_adapter_fixture(
+                &initial_snapshot,
+                &initial_node,
+                initial_target.clone(),
+            );
+            let initial_projection = adapter.callback_state.borrow().projection.clone();
+            let initial_objects = initial_projection
+                .nodes
+                .iter()
+                .map(|node| node.object)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                adapter.tokens.root,
+                Some((TEST_ROOT_TOKEN, adapter.lease, adapter.window_generation))
+            );
+            let seeded_node = &initial_projection.nodes[1];
+            assert_eq!(seeded_node.parent, Some(TEST_ROOT_TOKEN));
+            assert_eq!(seeded_node.action_target.as_ref(), Some(&initial_target));
+            let request = adapter
+                .numeric_accessibility_request(
+                    TEST_NUMERIC_TOKEN,
+                    initial_target.clone(),
+                    NativeNumericAccessibilityAction::Increment,
+                )
+                .expect("the seeded native projection should admit the initial target");
+            let result = runtime.dispatch_numeric_accessibility_action(request);
+            assert!(matches!(
+                result,
+                crate::runtime::NumericAccessibilityDispatchResult::Accepted { widget_id: 42, .. }
+            ));
+            assert_eq!(runtime.bridge().mapped_actions.get(), 1);
+            assert_eq!(runtime.bridge().value.get(), 8.0);
+            assert_eq!(runtime.focused_widget(), Some(42));
+
+            let refreshed_snapshot = runtime.automation_snapshot();
+            let refreshed_targets = runtime.automation_target_snapshot();
+            let refreshed_target = refreshed_targets
+                .targets
+                .iter()
+                .find(|target| target.id == initial_target.id)
+                .cloned()
+                .expect("the refreshed numeric target should be published");
+            let refreshed_authority = refreshed_target
+                .authority
+                .expect("the refreshed target should carry runtime authority");
+            assert!(
+                refreshed_authority.runtime_generation > initial_authority.runtime_generation,
+                "the runtime target authority should advance after the mapped action"
+            );
+            adapter
+                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .expect("the refreshed production projection should publish");
+            assert_eq!(adapter.value_notifications, 1);
+            assert_eq!(adapter.layout_notifications, 0);
+            {
+                let state = adapter.callback_state.borrow();
+                let objects = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .map(|node| node.object)
+                    .collect::<Vec<_>>();
+                assert_eq!(objects, initial_objects);
+                assert_eq!(state.projection.root_token, initial_projection.root_token);
+                assert_eq!(state.projection.nodes[0].token, TEST_ROOT_TOKEN);
+                assert_eq!(state.projection.nodes[1].token, TEST_NUMERIC_TOKEN);
+                let node = &state.projection.nodes[1];
+                assert_eq!(node.value.as_deref(), Some("8"));
+                assert_eq!(node.action_target.as_ref(), Some(&refreshed_target));
+            }
+
+            let value_notifications_before = adapter.value_notifications;
+            let layout_notifications_before = adapter.layout_notifications;
+            adapter
+                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .expect("the unchanged production projection should remain published");
+            assert_eq!(adapter.value_notifications, value_notifications_before);
+            assert_eq!(adapter.layout_notifications, layout_notifications_before);
+
+            assert!(
+                adapter
+                    .numeric_accessibility_request(
+                        TEST_NUMERIC_TOKEN,
+                        initial_target,
+                        NativeNumericAccessibilityAction::Increment,
+                    )
+                    .is_none(),
+                "the old pre-update target must fail the exact native stale fence"
+            );
+        }
+
+        #[test]
+        fn stable_numeric_value_updates_retain_object_and_deduplicate_notifications() {
+            let (_, target) = numeric_target_fixture();
+            let current_node = numeric_callback_node(target.clone(), "7");
+            let projection = NativeCallbackProjection {
+                nodes: vec![current_node],
+                root_token: Some(91),
+            };
+            let mut value_target = target.clone();
+            value_target.value = Some(String::from("8"));
+            let (changed_spec, frame) = numeric_spec_fixture(value_target.clone(), "8");
+            let updates =
+                collect_stable_value_projection_updates(&projection, &[changed_spec], &[frame])
+                    .expect("the value-only native evidence should be stable");
+            assert_eq!(updates.len(), 1);
+            let object = projection.nodes[0].object;
+            let mut changed_projection = projection.clone();
+            assert_eq!(
+                apply_stable_value_projection_updates(&mut changed_projection, &updates),
+                Some(vec![object])
+            );
+            assert_eq!(changed_projection.nodes[0].object, object);
+            assert_eq!(changed_projection.nodes[0].value.as_deref(), Some("8"));
+
+            let (same_spec, same_frame) = numeric_spec_fixture(value_target, "8");
+            let same_updates = collect_stable_value_projection_updates(
+                &changed_projection,
+                &[same_spec],
+                &[same_frame],
+            )
+            .expect("the unchanged native evidence should remain stable");
+            assert!(same_updates.is_empty());
+
+            let mut changed_target = target;
+            changed_target.authority = Some(AutomationTargetAuthority::materialized(10));
+            let (stale_spec, stale_frame) = numeric_spec_fixture(changed_target, "9");
+            assert!(
+                collect_stable_value_projection_updates(
+                    &changed_projection,
+                    &[stale_spec],
+                    &[stale_frame],
+                )
+                .is_some()
+            );
         }
 
         #[test]
@@ -3172,9 +4464,11 @@ mod macos {
                 active_ranges: Vec::new(),
                 attached: false,
                 layout_notifications: 0,
+                value_notifications: 0,
             };
+            let targets = runtime.automation_target_snapshot();
             let passive_specs = adapter
-                .build_specs(&runtime.automation_snapshot(), &containers, None)
+                .build_specs(&runtime.automation_snapshot(), &targets, &containers, None)
                 .expect("passive custom topology should build");
             assert!(
                 passive_specs
@@ -3204,9 +4498,11 @@ mod macos {
                 .expect("the published composition is selected");
             assert_eq!(status, SemanticAutomationRefreshStatus::Published);
             assert_eq!(composition.normalized_sidecar().entries().len(), 1);
+            let targets = runtime.automation_target_snapshot();
             let specs = adapter
                 .build_specs(
                     composition.snapshot(),
+                    &targets,
                     &containers,
                     Some(composition.normalized_sidecar()),
                 )
@@ -3251,6 +4547,7 @@ mod macos {
                 adapter
                     .build_specs(
                         composition.snapshot(),
+                        &targets,
                         &mismatched_containers,
                         Some(composition.normalized_sidecar()),
                     )

@@ -1577,10 +1577,33 @@ explicit repeated query MAY retry. Deactivation, window retirement, recovery
 replacement, and close MUST cancel and retire the lease before native objects
 drop. `materialized = false` remains authoritative: native semantics cannot
 materialize, scroll, focus, execute actions, paint, hit-test, schedule, render,
-or claim provider authority.
-
-Native tree publication and native action dispatch are separate contracts. This
-consumer MUST NOT connect numeric accessibility dispatch. The adapter and lease
+or claim provider authority. Virtual/provider nodes therefore never acquire
+native numeric action authority. For an ordinary runtime node only, the private
+adapter pairs the pure ordinary `automation_target_snapshot` with the native
+semantic tree and admits exactly an enabled, editable, focusable,
+`AutomationRole::TextInput` target with current `value_text`, materialized
+authority, and both neutral increment/decrement actions; it need not already be
+runtime-focused. The exact ordinary
+ID/path/role/authority is captured with one native token; geometry is never an
+authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
+and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
+`AXFocused` false/unclaimed, a non-settable value, and exactly `AXIncrement` and
+`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+increment/decrement selectors use `BOOL c@:` and the
+deprecated action selector uses `void v@:@`; only those exact action names are
+accepted. Each native action enqueues one bounded primary-window,
+adapter-generation, token, target, and neutral-action event. The running
+event-loop validates current window/generation/token/identity/authority and
+delegates to existing `SurfaceRuntime` admission once; that admission may
+perform the ordinary runtime focus transition. Non-focusable, focus-vetoed,
+blocked, stale, unsupported, disabled, read-only, recovery, close, borrow,
+panic, and transport failures are inert and never retarget or mutate. A stable
+value-only
+change retains the native object, installs the new queryable value before one
+`AXValueChanged`, and posts no layout notification; unchanged, no-change,
+typed-failure, stale, and enqueue-failure paths post none. Native actions are
+not provider demand, materialization, SetValueText, AXValue mutation, slider,
+range, orientation, percentage, or scalar conversion. The adapter and lease
 remain private and do not create a public imperative provider registry.
 `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
@@ -1659,9 +1682,12 @@ The root, virtual containers, and all non-text roles map to
 `NSAccessibilityStaticTextRole`. The native surface exposes only role, exact
 parent/children, finite frame, label, description/help, and static-text value.
 Checked, selected, enabled, read-only, focusable, focused, tab, live, and action
-metadata are omitted; focused is false, actions are empty/no-op, and buttons,
-toggles, sliders, tables, and text inputs MUST NOT map to actionable roles.
-Defunct objects return conservative empty/zero values.
+metadata are omitted for this virtual/provider path; focused is false, actions
+are empty/no-op for virtual/provider objects, and buttons, toggles, sliders,
+tables, and text inputs in that path MUST NOT map to actionable roles. Defunct
+objects return conservative empty/zero values. Ordinary materialized TextInput
+numeric nodes use the separate native action contract above and are never
+synthesized from virtual/provider evidence.
 
 AppKit callbacks MUST be non-blocking and MUST NOT call or mutate the runtime or
 provider. A valid explicit item or range query enqueues/coalesces one owned
@@ -1686,13 +1712,13 @@ refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
 normalized logical conservative coordinates, and pure snapshots. It excludes focus,
-actions, selection mutation, scroll/materialize, scheduler/retry policy, render,
+native actions for virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, direct native custom-resolver invocation/reconstruction, Wayland/Windows,
 auxiliary, multi-consumer, and public registry
 behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
-Wayland, Windows, native actions, focus, scrolling, product policy, direct
+Wayland, Windows, non-qualified/virtual native actions, new native AX focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy, direct
 native custom-resolver invocation/reconstruction, scheduler, and renderer
 behavior are excluded.
 
@@ -1891,7 +1917,8 @@ contract is defined in [Native semantic accessibility query consumer](#native-se
 It is not the hidden owner of provider registration, demand, or publication.
 Native IME and other ordinary native events remain non-demand inputs. The public
 declarative attachment contract does not implement native tree publication or
-native action dispatch; those are separate contracts. Native custom-coordinate
+virtual/provider native action dispatch; qualified ordinary native numeric actions
+are implemented by the private AppKit consumer above. Native custom-coordinate
 conversion, focus, scrolling or materialization, scheduler/backoff/fairness,
 renderer, paint, hit-testing, cache policy, product policy, multiple ranges per
 container, and a prelude export remain excluded here. It also does not add a public imperative
@@ -2294,7 +2321,8 @@ public selected snapshot, and qualified declarative provider attachment.
 | Whole-surface publication reject | One active member fails, is unresolved, or has a mismatched publication fence | Prior eligible complete composition or ordinary-only baseline remains; no mixed old/new or partial virtual tree is published. |
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
-| Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves native actions separate. Automated evidence is shipped; live host/AppKit acceptance remains pending. |
+| Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves virtual/provider actions separate. Automated evidence is shipped; live host/AppKit acceptance remains pending. |
+| Ordinary native numeric action boundary | One current AppKit increment/decrement action on one published ordinary materialized TextInput | Passive publication pairs the pure ordinary target snapshot with the native tree and admits only enabled, editable, focusable `AutomationRole::TextInput` nodes with current value, materialized authority, both neutral increment/decrement actions, and exact materialized ID/path/role/authority; they need not already be runtime-focused. The node exposes AXIncrementor, exact NSString label when present and value, optional description/help, enabled true, `AXFocused` false/unclaimed, non-settable AXValue, and exactly AXIncrement/AXDecrement; the adapter never exposes or transfers native AX focus. Correct modern/deprecated Objective-C ABIs enqueue one bounded token/generation/target/neutral-action event; the runtime validates current window/generation/token/authority and delegates to existing `SurfaceRuntime` admission, which may perform ordinary runtime focus transition. Non-focusable, focus-vetoed, blocked, stale, virtual/provider/unmaterialized, SetValueText, scalar conversion, retry, and retarget requests are inert/vetoed. Stable value-only updates retain the object and post one AXValueChanged after queryability, with no layout notification; unchanged/failure/stale paths post none. Live AppKit/VoiceOver acceptance remains pending. |
 | Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, exact private registration/live-fence invalidation foundation, normalized sidecar, native topology, bounded AppKit query path, and private primary-window consumer are implemented outside the prelude. Live host/AppKit acceptance remains pending. |
 | Cardinality fence | Count or cardinality revision changes, provider replacement, unmount, recovery, native deactivation, or session close | Exact `(count, cardinality_revision)` equality is required together with registration identity/generation, container/mount, existing revisions, coordinate, budget, and provider generations. Count/revision changes invalidate semantic/native state provider-free; provider replacement preserves count but invalidates provider publication; lifecycle retirement clears all state. |
 | Cardinality availability | Unknown count, positive count without a range provider, exact zero, or positive count with a range provider | Unknown does not vend a virtual child container; positive-without-range-provider is unsupported and not vended; exact zero is representable without a provider; positive-with-range-provider may vend the private container. Count reads, updates, mount, and enumeration never create demand. |
@@ -2302,7 +2330,7 @@ public selected snapshot, and qualified declarative provider attachment.
 | Normalized sidecar authority | The compositor stages `entries_by_container` and produces `VirtualLayoutAutomationComposition` | One crate-private sidecar is produced from that same union and retains container/mount/registration authority, cardinality fence, logical index, stable key, provider `AutomationNodeId`, final normalized node/path, materialization authority, and publication fence. Raw range/pin members are not reconstructed by native code. |
 | Sidecar publication veto | Conflicting/ambiguous/duplicate/unstable/colliding/ordinary-ID/aggregate evidence or an exact same-key/index overlap | Same-key/index overlap coalesces only under existing full-evidence equality; every listed failure rejects the whole publication. The sidecar is atomically stored with `RuntimeSemanticAutomationSelection` composition/status/ordinary/projection; no parallel reconstruction or mixed native/public selection is allowed. |
 | Private native topology | One primary content view/window, accepted virtual anchors, normalized logical items, and repeated/stale native callbacks | One private root, one private read-only container per accepted anchor, and direct item children only; duplicate placement elsewhere is suppressed. Runtime-issued private container identities and monotonic item tokens are never derived from index, pointer, provider/serialized ID, or bounds. Exact lease/container/mount/cardinality-fence/key continuity is required; foreign/stale/retired/duplicate/ambiguous/colliding tokens return `nil`/`NSNotFound` with no provider call. |
-| Conservative native mapping | Root/container/non-text item, `Text`/`Readout`, actionable provider role, or defunct object | Group role is used for root/container/non-text; only `Text`/`Readout` use static text. Expose only role, exact parent/children, finite frame, label, description/help, and static value. Omit state/action metadata, force focused false and empty/no-op actions, never map buttons/toggles/sliders/tables/text inputs to actionable roles, and return empty/zero for defunct objects. |
+| Conservative native mapping | Root/container/non-text item, `Text`/`Readout`, actionable provider role, or defunct object | Group role is used for root/container/non-text; only `Text`/`Readout` use static text. Expose only role, exact parent/children, finite frame, label, description/help, and static value for virtual/provider nodes. Omit state/action metadata there, force focused false and empty/no-op actions, never map buttons/toggles/sliders/tables/text inputs to actionable roles, and return empty/zero for defunct objects. Ordinary materialized TextInput numeric nodes use the separate qualified action boundary. |
 | Native pending query | Valid explicit item/range query while an identical request is in flight or a prior result is `Deferred` | Non-blocking callbacks enqueue/coalesce one owned runtime turn without provider/runtime reentry. Count stays exact; item/range reads return exact eligible same-fence retention or empty/`nil`, never placeholders/mixed trees. Identical in-flight queries coalesce; explicit repeat after `Deferred` may retry; ordinary reads do not retry. |
 | Native publication and notification | Complete accepted projection, exact retention, terminal failure, pending/stale/cancelled/rejected work, or a retired custom object | Complete normalized projection installs atomically and retains only exact semantic/native coordinate/cardinality fences. DataUnavailable/Deferred without exact fallback is empty/baseline; terminal failures clear virtual publication; stale/cancelled are inert. A changed visible state posts exactly one `NSAccessibilityLayoutChangedNotification` after main-thread queryability; unchanged/pending/stale/cancelled/rejected post none; retired objects follow `UIElementDestroyed`. |
 

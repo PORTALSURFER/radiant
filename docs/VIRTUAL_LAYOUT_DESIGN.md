@@ -16,15 +16,16 @@ generation/attempt/cancellation, typed outcomes and validation, exact fallback
 retention, retained-evidence reclassification, and all-or-nothing logical
 composition. The next production consumer contract in
 [Next production consumer: semantic automation session](#next-production-consumer-semantic-automation-session-normative-generic-logical-implementation-shipped)
-is now shipped for the bounded generic logical consumer: its runtime-owned
-session owner, selected-publication boundary, explicit refresh/retry/close
-operations, and conservative fallback are live. Scheduler/cancellation
-transport, product provider consumer implementations, and
-custom-coordinate implementation remain deferred. The later macOS/AppKit native
+is now shipped for the bounded generic consumer: its runtime-owned session
+owner, selected-publication boundary, explicit refresh/retry/close operations,
+conservative fallback, and qualified application-owned custom-coordinate
+attachment are live. Scheduler/cancellation transport, product provider
+consumer implementations, and native custom-coordinate conversion remain
+deferred. The later macOS/AppKit native
 semantic accessibility query contract below is normative for that consumer. The
-public declarative Logical-only provider attachment contract below is normative
-and shipped as the first public-API evidence point; it does not itself provide a
-native/product integration.
+public declarative provider attachment contract below is normative and shipped
+as the bounded public-API evidence point; its custom resolver is generic and
+does not itself provide a native/product integration.
 
 This document freezes ownership, invariants, and observable behavior for a
 future implementation. It does not freeze Rust names, trait signatures, module
@@ -134,10 +135,11 @@ At this status:
    exact fallback retention, retained-evidence reclassification, and
    all-or-nothing logical composition. The generic logical semantic automation
    session and public selected-snapshot visibility are shipped through
-   `SurfaceRuntime`; the public declarative Logical-only provider attachment
-   contract below is normative and shipped. Native/product provider consumer
-   implementations and custom transforms remain outside this contract; the later
-   macOS/AppKit native semantic accessibility query contract is defined below.
+   `SurfaceRuntime`; the public declarative provider and bounded custom
+   attachment contract below is normative and shipped. Native/product provider consumer
+   implementations and native custom-coordinate conversion remain outside this
+   contract; the later macOS/AppKit native semantic accessibility query contract
+   is defined below.
 9. A future slice must name the subset of this contract it implements and must
    not imply that later slices already exist.
 
@@ -182,17 +184,19 @@ This contract does not:
   host-owned `VirtualListWindow` path; or
 - define `split_pane` behavior, including its resize, collapse, persistence,
   interaction, or runtime consumer;
-- implement custom-coordinate transformation or a production/native consumer
+- implement a native custom-coordinate conversion or a production/product consumer
   implementation,
   scheduler/backoff/fairness policy, multiple active ranges per container, or a
   public imperative provider-registration API. The one public declarative
-  Logical-only provider-attachment contract is defined below and is shipped.
+  provider-attachment contract, including the bounded custom transform, is
+  defined below and is shipped.
   The generic logical session and selected-publication runtime
   implementation are shipped below; the
   crate-private owner/provider-attempt/retention and atomic
   publication/composition kernels remain the only provider authority. The
-  logical-only target slice rejects `Custom` before provider invocation and has
-  no identity-transform fallback.
+  generic target slice admits `Custom` only with the exact application-owned
+  resolver and runtime destination context; native remains Logical-only with no
+  identity-transform fallback.
 
 ## 2. Normative vocabulary and invariants
 
@@ -1170,7 +1174,7 @@ accidental paint order. A semantic revision invalidates labels/roles/actions
 without necessarily invalidating geometry, but any result still requires an
 exact semantic fence at acceptance.
 
-### Semantic demand and refresh (generic logical consumer shipped; native contract defined; custom deferred)
+### Semantic demand and refresh (generic logical and bounded custom consumer shipped; native contract defined)
 
 This is the approved contract and implementation boundary for provider-backed
 virtual semantic demand, refresh, and private atomic publication. The
@@ -1182,12 +1186,13 @@ retention, retained-evidence reclassification, and all-or-nothing logical
 composition are current private runtime behavior. The generic logical runtime
 session consumer and public selected-snapshot boundary are also shipped;
 scheduler/cancellation transport, product provider consumer implementations, and
-custom transforms remain unshipped. The private primary-window macOS/AppKit
+native custom-coordinate conversion remain unshipped. The private primary-window macOS/AppKit
 native semantic accessibility query contract is implemented below. The private kernel
 does not add a public
-imperative provider-registration surface; the shipped qualified surface is
+imperative provider-registration surface; the shipped qualified provider and
+custom-coordinate surface is
 defined in
-[Public declarative logical provider attachment](#public-declarative-logical-provider-attachment-normative-shipped).
+[Public declarative provider attachment](#public-declarative-provider-attachment-normative-custom-attachment-bounded).
 
 #### Owner, sources, and logical scope
 
@@ -1235,15 +1240,19 @@ changes, ordinary layout or paint, hit testing, provider availability reads,
 item count, diagnostics, `automation_snapshot`/`automation_target_snapshot`
 reads, and IME/native events are not demand. `SurfaceRuntime` derives the live
 container/policy/registration identity, registration and mount generations,
-data/policy/measurement/semantic revisions, provider identity/generation, fixed
-`Logical` coordinate, and budget before a demand attempt.
+data/policy/measurement/semantic revisions, provider identity/generation,
+declared coordinate, custom transform identity/revision/generation/token when
+applicable, and budget before a demand attempt.
 
-The target provider path is logical-only. `Logical` coordinates may be
-validated and staged. `Custom` coordinates are unavailable/rejected before
-provider invocation; no identity-transform fallback is permitted. The public
-parts have no custom-coordinate field. Custom-coordinate transformation and the
-production/native provider consumer implementation remain deferred; the public
-provider implementation is shipped.
+The generic provider path preserves `Logical` unchanged and admits `Custom`
+only when the declaration carries one exact identity, transform revision,
+synchronous `Rc` resolver, and runtime resolver generation/token. The resolver
+receives the finite complete source rectangle, ordinary anchor, effective
+destination clip, host revisions, and exact transform revision, and returns a
+conservative destination AABB directly. It does not receive runtime handles or
+mutable state and Radiant does not assume affine, inverse, point, hit-test, or
+materialization behavior. Native remains Logical-only; native custom conversion
+and identity fallback are not part of this slice.
 
 #### Demand generations, attempts, and refresh
 
@@ -1342,14 +1351,15 @@ renderer work, or provider registration. The automation snapshot functions
 remain pure observational reads; demand/refresh is a separate mutating runtime
 turn with its own publication fence.
 
-### Next production consumer: semantic automation session (normative; generic logical implementation shipped)
+### Next production consumer: semantic automation session (normative; generic logical and bounded custom implementation shipped)
 
 The private semantic-demand/publication contract above is shipped. The first
 generic logical production consumer is now shipped as a bounded
 `SurfaceRuntime` session with runtime-issued opaque handles, explicit refresh,
 retry, close, atomic selected publication, and typed conservative status. It
-adds no public provider-registration API, scheduler, native/product consumer,
-or custom-coordinate transform.
+adds no public provider-registration API, scheduler, or native/product
+consumer; its qualified generic path includes the bounded custom-coordinate
+transform.
 
 #### Owner and authority
 
@@ -1411,11 +1421,13 @@ reattempt it.
 Every selected result and publication MUST carry the exact session generation,
 demand generation, attempt, request/range or pin, mount/container/policy
 identity, registration identity and generation, data/policy/measurement/semantic
-revisions, provider
-identity/generation, coordinate, budget, cancellation, materialization and
-classification authority, ordinary projection generation, and complete-demand-
-set generation. A result is accepted only when every required field matches the
-current fence exactly. A stale, superseded, or cancelled result is inert.
+revisions, provider identity/generation, coordinate, budget, cancellation,
+materialization and classification authority, ordinary projection generation,
+and complete-demand-set generation. For `Custom`, exact transform
+identity/revision, resolver generation/token, destination context, and a
+private transform witness are also required. A result is accepted only when
+every required field matches the current fence exactly. A stale, superseded, or
+cancelled result is inert.
 
 Provider attempts MUST be non-reentrant. A provider callback MUST NOT publish
 or mutate runtime state directly; it returns bounded evidence to the owning
@@ -1450,25 +1462,44 @@ paint, hit testing, scheduling, or renderer work.
 
 #### Coordinate admission
 
-The first consumer admits only `Logical` coordinates. `Custom` MUST be rejected
-before provider invocation, with no identity fallback. A separate future
-transform contract MUST define the owner, source and destination spaces, the
-supported coordinate class, its revision, finite non-inverted conversion,
-clipping and nesting behavior, and conservative behavior for singular, stale,
-unsupported, or ambiguous transforms before any custom coordinate is admitted.
+The generic consumer admits `Logical` unchanged. It admits `Custom(identity)`
+only when the declarative parts carry the exact identity, application transform
+revision, synchronous `Rc` resolver, and runtime resolver generation/token.
+`SurfaceRuntime` validates the finite surface viewport, the unique ordinary
+virtual-container anchor, the own scroll viewport where present, and the full
+current clip-ancestor chain before the provider turn. After complete provider
+output validation, it invokes the resolver at most once per accepted entry with
+the finite source rectangle, ordinary anchor, effective destination clip,
+`VirtualLayoutRevisions`, and exact transform revision. The resolver returns a
+conservative finite destination AABB directly; no affine matrix, inverse, point
+mapping, hit-test, or materialization assumption exists.
+
+The runtime clips the output against the exact destination context, rejects
+non-finite, inverted, overflowing, unsupported, singular, ambiguous, panic,
+reentrant, stale, or fully clipped results, and publishes no partial custom
+subtree. A private exact transform witness (identity, revision,
+generation/token, source rectangle, anchor, and destination clip) must match
+the provider/publication fence before the compositor admits custom bounds.
+Resolver replacement, revision/identity change, mount/recovery change, and
+context change invalidate retained transformed publication. DataUnavailable or
+Deferred may retain it only under the complete exact fence; transform failure
+uses the ordinary baseline. Nested custom registrations require their own
+resolver and do not inherit or compose an ambiguous one. The private AppKit
+consumer remains Logical-only and consumes only resolved logical bounds.
 
 #### Contract definition of done
 
-The four alignment documents MUST agree on this contract and MUST continue to
-state that the private demand/publication kernel, the generic logical consumer,
-and the private primary-window macOS/AppKit consumer are shipped. The public
-declarative Logical-only provider contract is normative and shipped as the first
-public-API evidence point; product provider consumer implementations, scheduling,
-and custom transforms remain deferred. The private native consumer has automated
-evidence in this cycle; live host/AppKit acceptance remains pending. Numeric
-estimates remain unchanged for this branch: generic ~97%, Declarative identity
-71%, layout 97%, and broad coverage `902 / 11` (82.00%). Existing pure
-public snapshot APIs and the existing non-goals remain explicit. Future slices
+The alignment documents MUST agree on this contract and MUST continue to state
+that the private demand/publication kernel, generic logical/custom consumer, and
+private primary-window macOS/AppKit consumer are shipped. The public declarative
+provider plus bounded custom-coordinate attachment is normative and shipped as
+the public-API evidence point; native custom conversion, product provider
+consumer implementations, and scheduling remain deferred. The private native
+consumer has automated evidence in this cycle; live host/AppKit acceptance
+remains pending. Numeric estimates are generic ~97%, Declarative identity 71%,
+layout 97%, and broad coverage `903 / 11` (~82.09%), with Public API 85% and no
+Platform credit. Existing pure public snapshot APIs and the existing non-goals
+remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
 
@@ -1519,11 +1550,12 @@ unsupported, rejected, panic, malformed, collision, stale, or cancelled evidence
 uses the existing typed conservative baseline behavior; stale and cancelled
 completions are inert and MUST NOT mutate or publish native state.
 
-The first consumer accepts provider semantics only in `Logical`. Native
+The first native consumer accepts provider semantics only in `Logical`. Native
 conversion MUST identify source surface space, destination window/screen
 accessibility space, DPI, window/display generation, orientation, clipping, and a
 finite non-inverted conversion. Stale or unsupported conversion withholds native
-bounds. `Custom` remains rejected; no affine or identity fallback is permitted.
+bounds. Custom declarations are not admitted by this native path; no resolver
+is invoked and no affine or identity fallback is permitted.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -1647,7 +1679,7 @@ This contract is limited to the private primary-window macOS/AppKit consumer.
 Wayland, Windows, native actions, focus, scrolling, product policy, custom
 transforms, scheduler, and renderer behavior are excluded.
 
-### Public declarative logical provider attachment (normative; shipped)
+### Public declarative provider attachment (normative; custom attachment bounded)
 
 The existing generic semantic automation session and its explicit
 `refresh_semantic_automation_session(session, demands)` and
@@ -1658,13 +1690,13 @@ rules underneath the qualified public API.
 
 #### Qualified public vocabulary
 
-There is exactly one public declarative capability for attaching
-semantic providers to a virtual layout:
+There is one public declarative capability for attaching semantic providers to a
+virtual layout, with a separate qualified custom-coordinate resolver:
 
 - `radiant::application::VirtualLayoutParts<Message>` carries the normal
   virtual-layout declaration and optional semantic item and range provider
-  capabilities. It has no custom-coordinate field and does not carry a mount or
-  registration generation.
+  capabilities. It may also carry the qualified custom-coordinate attachment
+  and does not carry a mount or registration generation.
 - `virtual_layout_from_parts` constructs the declarative view from those parts.
   It is a declaration, not a registration side effect or a provider call.
 - `radiant::runtime::VirtualLayoutRevisions` carries host-supplied data,
@@ -1679,14 +1711,28 @@ semantic providers to a virtual layout:
   operation, materialization authority, focus/action authority, or scheduler
   handle.
 - `VirtualLayoutSemanticEntry` carries the requested stable item key, logical
-  index, finite non-inverted `Logical` bounds, provider semantic fields, and a
-  provider-supplied stable serializable automation node ID. The runtime, not
-  the provider, owns `Unmaterialized`/`materialized = false` authority.
+  index, finite non-inverted source-space bounds, provider semantic fields, and
+  a provider-supplied stable serializable automation node ID. For `Logical`,
+  those bounds are already logical; for `Custom`, the runtime resolves the
+  complete source rectangle before publication. The runtime, not the provider,
+  owns `Unmaterialized`/`materialized = false` authority.
 - `VirtualLayoutSemanticProviderOutcome<T>` is the generic result shape:
   `Found(T)`, `NotFound`, `Unavailable(reason)`, `Deferred(reason)`, or
   `Rejected`. An item provider uses `T = VirtualLayoutSemanticEntry`; a range
   provider uses `T = Vec<VirtualLayoutSemanticEntry>` within the bounded query
   cap.
+- `radiant::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransform`
+  is a synchronous, object-safe, read-only `Rc` capability. Its request carries
+  only the finite complete source rectangle, the current ordinary container
+  anchor, effective logical destination clip, `VirtualLayoutRevisions`, and
+  exact application transform revision. Its typed outcome is `Found(Rect)` or
+  `Unsupported`, `Singular`, or `Ambiguous`. The callback receives no runtime,
+  provider, mount, or mutable-state handle and makes no `Send`/`Sync` promise.
+- `VirtualLayoutParts::with_semantic_coordinate_transform(identity, revision, Rc)`
+  declares `Custom(identity)`. Without that attachment the existing declaration
+  remains `Logical`; the transform is application-owned while runtime lifetime,
+  generation/token, admission, clipping, exact witness, invalidation, and
+  publication remain runtime-owned.
 - The shipped declaration exposes the qualified public value
   `radiant::application::virtual_layout::VirtualLayoutSemanticCardinality` as
   an optional field on `VirtualLayoutParts<Message>`, plus the qualified builder
@@ -1707,7 +1753,7 @@ semantic providers to a virtual layout:
   `SemanticPending`, and `Retry`.
 
 These names are qualified exports, are not in the prelude, and are limited to
-this shipped logical attachment boundary. The first boundary stores callbacks as synchronous
+this shipped generic attachment boundary. The first boundary stores callbacks as synchronous
 single-threaded `Rc` capabilities. It makes no `Send`, `Sync`, worker, or
 scheduler promise and does not define asynchronous provider completion.
 
@@ -1715,7 +1761,7 @@ scheduler promise and does not define asynchronous provider completion.
 
 `virtual_layout_from_parts` is the only public declarative attachment path.
 During mounting, `SurfaceRuntime` discovers the declaration, validates the
-logical-only capability, and creates the mounted registration. The runtime
+logical or exact custom capability, and creates the mounted registration. The runtime
 owns the opaque container identity, registration identity and generation,
 mount generation, source-specific provider generations, cancellation, and
 lifetime. There is no public imperative `register`, `remove`, or equivalent
@@ -1762,10 +1808,11 @@ work; it does not create a new demand outside an explicit refresh or retry.
 
 The per-source `SemanticProviderFence` requires exact equality of container and
 policy identity, registration identity and generation, mount generation,
-`VirtualLayoutRevisions` evidence, fixed `Logical` coordinate, budget, exact
-range or required-item demand, exact source ticket, provider identity and
-source-specific provider generation, demand generation, attempt, and
-cancellation. No field is inferred from a snapshot or compared with `>=`.
+`VirtualLayoutRevisions` evidence, declared coordinate, exact custom identity/
+revision/resolver generation/token when custom, budget, exact range or
+required-item demand, exact source ticket, provider identity and source-
+specific provider generation, demand generation, attempt, and cancellation. No
+field is inferred from a snapshot or compared with `>=`.
 The whole-surface `SemanticPublicationFence` adds session generation,
 materialization authority, classification authority, ordinary projection
 generation, and complete session demand-set generation. A result that lacks
@@ -1788,7 +1835,7 @@ complete whole-surface composition:
 - `Found` is accepted only when an item entry matches the requested key and
   exact logical index, or a range result has the exact requested count,
   contiguous ordered indices, stable unique keys, distinct provider IDs,
-  finite non-inverted logical bounds, valid semantic fields, and the complete
+  finite non-inverted source bounds, valid semantic fields, and the complete
   exact fence. Any mismatch, malformed value, unstable equality, or ID/key
   collision rejects the entire result atomically.
 - `NotFound` is authoritative empty evidence for the exact demand. It resolves
@@ -1827,10 +1874,10 @@ contract is defined in [Native semantic accessibility query consumer](#native-se
 It is not the hidden owner of provider registration, demand, or publication.
 Native IME and other ordinary native events remain non-demand inputs. The public
 declarative attachment contract does not implement native tree publication or
-native action dispatch; those are separate contracts. Custom transforms, focus,
-scrolling or materialization, scheduler/backoff/fairness, renderer, paint,
-hit-testing, cache policy, product policy, multiple ranges per container, and a
-prelude export remain excluded here. It also does not add a public imperative
+native action dispatch; those are separate contracts. Native custom-coordinate
+conversion, focus, scrolling or materialization, scheduler/backoff/fairness,
+renderer, paint, hit-testing, cache policy, product policy, multiple ranges per
+container, and a prelude export remain excluded here. It also does not add a public imperative
 registration API or promise any worker/threading model.
 
 ### Culling and paint
@@ -2074,14 +2121,16 @@ does not mutate pins, providers, materialization, refresh, layout, traversal,
 snapshots, focus, capture, lifecycle, or presentation state.
 
 This classification boundary does not itself add path insertion,
-coordinate-space resolution or custom transforms, final semantic ordering,
+coordinate-space resolution or resolver invocation, final semantic ordering,
 global ID/collision admission, cross-range deduplication, or semantic-tree
 construction; those responsibilities belong to the private compositor below.
 
 The private automation-tree compositor is now shipped as a staged, crate-private
-consumer of these classification batches. It admits only `Logical` coordinates
-and rejects `Custom` before insertion. It normalizes batches by exact container,
-registration fence, and logical index so caller order cannot affect the result.
+consumer of these classification batches. It admits `Logical` coordinates
+unchanged and admits `Custom` only when the exact private transform witness
+matches the publication fence; it never invokes the resolver. It normalizes
+batches by exact container, registration fence, and logical index so caller
+order cannot affect the result.
 Only exact same-key/index overlaps with identical semantic, geometry,
 provider-ID, origin, and fence evidence coalesce; conflicting overlap,
 key/index drift, duplicate payload roots, unstable equality, aggregate budget
@@ -2096,7 +2145,7 @@ descendant, container, provider, and cross-range IDs are one global namespace;
 only the exact generated wrapper being replaced may be displaced. A final ID
 audit and clone-after-preflight staging preserve all-or-nothing behavior and
 leave source/runtime state unchanged on failure. This slice performs no provider
-invocation, scheduling/demand ownership, custom transform, focus/action/product
+or resolver invocation, scheduling/demand ownership, focus/action/product
 wiring, public API change, or serialized-schema change. Estimates remain
 unchanged: generic architecture ~97%, Declarative identity 71%, layout 97%,
 and broad coverage `901 / 11` (~81.91%).
@@ -2127,7 +2176,7 @@ fallback retention, retained-evidence reclassification, and all-or-nothing
 logical composition. The generic logical production consumer above now ships
 public snapshot selection/visibility and the runtime semantic session;
 scheduler/cancellation transport, native/product provider consumer
-implementations, custom transforms, and the other listed non-goals remain
+implementations, native custom-coordinate conversion, and the other listed non-goals remain
 outside the slice. The
 shipped private kernel and session do not authorize materialization, scrolling,
 actions, focus, paint, hit testing, scheduling, rendering, public provider
@@ -2191,23 +2240,28 @@ public selected snapshot, and qualified declarative provider attachment.
 | Registration reject | More than 64 virtual-layout registrations or duplicate mounted registration scope | `MAX_VIRTUAL_LAYOUT_REGISTRATIONS` (64) is enforced before a slot or provider attempt exists; no public/application/native demand surface appears. |
 | Registration lifecycle | Admit a declaration, replace its scope or provider, or unmount its container while an attempt is pending | The runtime owns registration/mount/provider generations; scope replacement gets a fresh mount generation, provider replacement advances only its source generation, removal cancels and clears old authority, late work is stale, and none of these events invokes a provider or creates demand. |
 | Missing-provider synthesis | The selected item or range provider slot is absent when explicit session intent executes it | The runtime creates the exact `NoProvider` outcome for that source; registration/removal/provider replacement itself performs no callback and no automatic retry. |
-| Declarative API veto | Application attempts an imperative register/remove call or supplies a mount generation/custom-coordinate field | No such public operation or field exists in the capability; runtime ownership is unchanged and custom coordinates are rejected before provider invocation. |
+| Declarative API veto | Application attempts an imperative register/remove call or supplies a mount generation, runtime resolver generation, or worker handle | No such public operation or field exists in the capability; runtime ownership is unchanged. Custom is declared only through the qualified transform attachment, while mount/generation/lifetime evidence remains runtime-owned. |
 | Provider callback isolation | Synchronous `Rc` item/range callback receives its read-only request | Callback has no mutable runtime, materialization, focus/action, scheduler, or provider-registration authority; no `Send`/`Sync` or worker promise is made. |
 | Demand-source allow | Explicit session refresh with a semantic range request or required-item pin | Only those exact source tickets can call a provider; viewport, overscan, paint, hit-test, provider availability, item count, diagnostics, and snapshot reads produce no demand. |
 | Demand-source reject | Registration, opening, enumeration, closing, snapshot/target read, ordinary repaint, paint-only invalidation, unchanged refresh, provider-availability read, or IME/native event | No demand generation, attempt, slot mutation, provider invocation, or publication occurs. |
 | Range-slot allow | A valid contiguous logical range for a mounted container | One active range slot exists for the container, the independent one-item pin remains independent, and no range is merged or split. |
 | Range-bound reject | Zero length, overflow, per-registration maximum exceeded, length above `VIRTUAL_LAYOUT_MAX_QUERY_ENTRIES`, or aggregate active length above 1024 | Rejection occurs before provider invocation; no partial slot or publication is staged. |
-| Coordinate allow/reject | `Logical` versus `Custom` demand | `Logical` may proceed; `Custom` is rejected/unavailable before provider invocation with no identity-transform fallback. |
+| Coordinate allow/reject | `Logical` versus `Custom` demand | `Logical` remains unchanged. `Custom` may proceed only with exact identity, application transform revision, `Rc` resolver, runtime generation/token, validated anchor/clip context, complete provider output, one transform witness, and exact publication fences; missing/stale/ambiguous context rejects before invocation with no identity fallback. |
+| Transform request context | Finite source rectangle, unique ordinary anchor, surface/own-scroll/ancestor clip chain, host revisions, and exact transform revision | The runtime validates and freezes the complete context before the provider turn; missing, duplicate, invalid, or empty anchor/clip evidence rejects without invoking the provider or resolver. |
+| Transform outcome | `Found`, `Unsupported`, `Singular`, or `Ambiguous`; panic/reentry; non-finite, inverted, overflowing, or fully clipped `Found` bounds | The resolver is synchronous and called at most once per accepted provider entry. Only a finite non-inverted `Found` envelope clipped to the exact destination context can continue; every other outcome falls back atomically to the ordinary baseline with no partial custom subtree. |
+| Transform witness | Resolved custom projection reaches the compositor or is retained after `DataUnavailable`/`Deferred` | A private witness carries exact identity, transform revision, runtime generation/token, source rectangle, ordinary anchor, and destination clip; compositor admission and retention require exact equality through provider, classification, composition, sidecar, selected publication, and native logical-consumer fences. |
+| Nested custom registration | Custom container inside another custom declaration, with or without a local resolver | Each custom registration must supply its own resolver and exact destination context; no inherited, guessed, implicitly composed, or ambiguous resolver is accepted. Ancestor clipping remains part of the current context. |
+| Native custom boundary | Private primary-window AppKit observes a custom declaration or selected custom evidence | Native admission remains Logical-only. The AppKit consumer consumes only resolved logical bounds from an accepted composition and never invokes or owns the custom resolver. |
 | Generation/attempt allow | Explicit refresh versus explicit retry | Refresh atomically replaces the complete demand set and starts attempt one; explicit retry of unchanged demand advances only the attempt. A changed live fence invalidates old work but does not create demand outside either operation. |
 | Cancellation before supersession | In-flight attempt is superseded, its registration is replaced, its container unmounts, or its owner retires | The owner marks the attempt cancelled before the transition; cancellation is delivered through the private runtime work boundary where available, and no automatic retry occurs. |
 | Cancelled provider return | Structurally valid provider result returns after the attempt was cancelled | The result is stale regardless of structural validity or matching fields; it is ignored entirely and cannot retain, clear, diagnose, retry, classify, recompose, or publish. |
 | Refresh allow | Explicit `refresh_semantic_automation_session(session, demands)` or `retry_semantic_automation_session(session)` | A new exact provider attempt is created only by the explicit operation and carries the current runtime-owned fence. |
 | Refresh reject | Identity/mount/revision/provider/coordinate/budget change by itself; snapshot/read, ordinary repaint, paint-only change, unchanged refresh, or materialization/ordinary-projection change | No provider call or new demand; old evidence is invalidated or may only be reclassified/recomposed when its exact retention fence still permits it. |
-| Exact fence allow/reject | Compare a returned source ticket with the live authority and publication state | Acceptance requires exact container/policy/registration identity and generation, mount generation, revision evidence, fixed `Logical` coordinate, budget, exact demand/source ticket, provider identity/generation, demand generation, attempt, cancellation, and publication authorities; missing, partial, `>=`, or latest-known matches are rejected. |
+| Exact fence allow/reject | Compare a returned source ticket and optional transform witness with the live authority and publication state | Acceptance requires exact container/policy/registration identity and generation, mount generation, revision evidence, declared coordinate, custom identity/revision/resolver generation/token/context when applicable, budget, exact demand/source ticket, provider identity/generation, demand generation, attempt, cancellation, and publication authorities; missing, partial, `>=`, or latest-known matches are rejected. |
 | Provider-call bound | Reentrant callback or a second call for one container/attempt | At most one provider call occurs; callback reentry is rejected/coalesced and follow-up invalidation waits for a later runtime turn. |
 | Provider panic | Provider panics during the synchronous callback | The panic is contained and mapped to conservative rejection/panic; no unwind escapes, no partial result survives, and the ordinary baseline is selected. |
 | Provider reentry | Provider calls demand, publication, registration, or the same provider recursively | Reentry is rejected; no nested provider call, mutation, retry, or partial publication is allowed. |
-| Provider `Found` allow | Exact count, contiguous logical indices, stable unique keys/IDs, finite logical bounds, and exact fence | The complete result is validated and staged; no entry is published independently. |
+| Provider `Found` allow | Exact count, contiguous logical indices, stable unique keys/IDs, finite non-inverted source bounds, and exact fence | The complete result is validated before any custom resolver call; the complete resolved result is staged and no entry is published independently. |
 | Provider `Found` reject | Count/index/key/ID/geometry/provider/fence mismatch or malformed vector | The whole result is rejected atomically; no partial projection or fallback from malformed evidence is accepted. |
 | `NotFound` outcome | Provider reports no result for the exact demand | Exact demand becomes authoritative empty and its slot resolves; no index successor or synthesized item is substituted. |
 | Terminal unavailable | `Unavailable(NoProvider)` or `Unavailable(Unsupported)` | The new virtual publication fails terminally, the affected slot clears, and no automatic retry or alternate provider call occurs. |

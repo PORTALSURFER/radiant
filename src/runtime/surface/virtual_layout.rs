@@ -4,6 +4,7 @@
 //! a projected container only so `SurfaceRuntime` can discover one immutable
 //! policy/data snapshot before it performs the shell pass.
 
+use crate::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformInvoker;
 use crate::{
     application::{View, virtual_layout::VirtualLayoutSemanticCardinality},
     gui::layout_core::{
@@ -54,6 +55,10 @@ pub(crate) struct VirtualLayoutRegistration<Message> {
     semantic_provider: Option<Rc<dyn VirtualLayoutSemanticProvider>>,
     semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
     pub(crate) semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
+    semantic_coordinate_transform: Option<Rc<dyn VirtualLayoutSemanticCoordinateTransformInvoker>>,
+    semantic_coordinate_transform_identity: Option<VirtualLayoutPolicyIdentity>,
+    semantic_coordinate_transform_revision: Option<u64>,
+    semantic_coordinate_transform_token: Option<usize>,
     semantic_provider_token: Option<usize>,
     semantic_range_provider_token: Option<usize>,
     shell_lowerer: VirtualLayoutShellLowerer<Message>,
@@ -77,6 +82,15 @@ impl<Message> Clone for VirtualLayoutRegistration<Message> {
             semantic_provider: self.semantic_provider.as_ref().map(Rc::clone),
             semantic_range_provider: self.semantic_range_provider.as_ref().map(Rc::clone),
             semantic_cardinality: self.semantic_cardinality,
+            semantic_coordinate_transform: self
+                .semantic_coordinate_transform
+                .as_ref()
+                .map(Rc::clone),
+            semantic_coordinate_transform_identity: self
+                .semantic_coordinate_transform_identity
+                .clone(),
+            semantic_coordinate_transform_revision: self.semantic_coordinate_transform_revision,
+            semantic_coordinate_transform_token: self.semantic_coordinate_transform_token,
             semantic_provider_token: self.semantic_provider_token,
             semantic_range_provider_token: self.semantic_range_provider_token,
             shell_lowerer: Rc::clone(&self.shell_lowerer),
@@ -137,6 +151,10 @@ impl<Message> VirtualLayoutRegistration<Message> {
             semantic_provider: None,
             semantic_range_provider: None,
             semantic_cardinality: None,
+            semantic_coordinate_transform: None,
+            semantic_coordinate_transform_identity: None,
+            semantic_coordinate_transform_revision: None,
+            semantic_coordinate_transform_token: None,
             semantic_provider_token: None,
             semantic_range_provider_token: None,
             required_key: None,
@@ -165,11 +183,17 @@ impl<Message> VirtualLayoutRegistration<Message> {
             .as_ref()
             .map(crate::runtime::provider_identity);
         let semantic_cardinality = parts.semantic_cardinality;
+        let transform = parts.semantic_coordinate_transform;
+        let coordinate_space = transform
+            .as_ref()
+            .map_or_else(VirtualLayoutCoordinateSpace::logical, |transform| {
+                VirtualLayoutCoordinateSpace::custom(transform.identity.clone())
+            });
         let mut registration = Self::new(
             container_id,
             parts.policy_identity,
             parts.policy,
-            VirtualLayoutCoordinateSpace::logical(),
+            coordinate_space,
             parts.overscan,
             parts.budget,
             VirtualLayoutRegistrationRevisions {
@@ -191,6 +215,16 @@ impl<Message> VirtualLayoutRegistration<Message> {
             registration.semantic_range_provider =
                 Some(crate::runtime::adapt_range_provider(provider));
             registration.semantic_range_provider_token = range_provider_token;
+        }
+        if let Some(transform) = transform {
+            registration.semantic_coordinate_transform_token =
+                Some(crate::runtime::provider_identity(&transform.transform));
+            registration.semantic_coordinate_transform = Some(
+                crate::runtime::adapt_coordinate_transform(transform.transform),
+            );
+            registration.semantic_coordinate_transform_identity = Some(transform.identity);
+            registration.semantic_coordinate_transform_revision =
+                Some(transform.transform_revision);
         }
         registration.semantic_cardinality = semantic_cardinality;
         registration
@@ -297,6 +331,26 @@ impl<Message> VirtualLayoutRegistration<Message> {
             self.semantic_range_provider_token
                 .or(Some(Rc::as_ptr(provider) as *const () as usize))
         })
+    }
+
+    pub(crate) fn semantic_coordinate_transform_handle(
+        &self,
+    ) -> Option<Rc<dyn VirtualLayoutSemanticCoordinateTransformInvoker>> {
+        self.semantic_coordinate_transform.as_ref().map(Rc::clone)
+    }
+
+    pub(crate) fn semantic_coordinate_transform_identity(
+        &self,
+    ) -> Option<&VirtualLayoutPolicyIdentity> {
+        self.semantic_coordinate_transform_identity.as_ref()
+    }
+
+    pub(crate) const fn semantic_coordinate_transform_revision(&self) -> Option<u64> {
+        self.semantic_coordinate_transform_revision
+    }
+
+    pub(crate) const fn semantic_coordinate_transform_token(&self) -> Option<usize> {
+        self.semantic_coordinate_transform_token
     }
 
     pub(crate) const fn semantic_revision(&self) -> u64 {

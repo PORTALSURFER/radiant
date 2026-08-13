@@ -8,6 +8,7 @@ use crate::{
     },
     runtime::{
         VirtualLayoutRevisions, VirtualLayoutSemanticProvider, VirtualLayoutSemanticRangeProvider,
+        virtual_layout::VirtualLayoutSemanticCoordinateTransform,
     },
 };
 use std::rc::Rc;
@@ -71,6 +72,24 @@ pub struct VirtualLayoutParts<Message> {
     pub semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
     /// Optional exact provider-free logical cardinality declaration.
     pub semantic_cardinality: Option<VirtualLayoutSemanticCardinality>,
+    pub(crate) semantic_coordinate_transform:
+        Option<VirtualLayoutSemanticCoordinateTransformAttachment>,
+}
+
+pub(crate) struct VirtualLayoutSemanticCoordinateTransformAttachment {
+    pub(crate) identity: VirtualLayoutPolicyIdentity,
+    pub(crate) transform_revision: u64,
+    pub(crate) transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+}
+
+impl Clone for VirtualLayoutSemanticCoordinateTransformAttachment {
+    fn clone(&self) -> Self {
+        Self {
+            identity: self.identity.clone(),
+            transform_revision: self.transform_revision,
+            transform: Rc::clone(&self.transform),
+        }
+    }
 }
 
 impl<Message> VirtualLayoutParts<Message> {
@@ -101,6 +120,7 @@ impl<Message> VirtualLayoutParts<Message> {
             semantic_provider: None,
             semantic_range_provider: None,
             semantic_cardinality: None,
+            semantic_coordinate_transform: None,
         }
     }
 
@@ -131,6 +151,25 @@ impl<Message> VirtualLayoutParts<Message> {
         cardinality: VirtualLayoutSemanticCardinality,
     ) -> Self {
         self.semantic_cardinality = Some(cardinality);
+        self
+    }
+
+    /// Attach one application-owned custom-coordinate transform. The
+    /// attachment changes the declaration's semantic source coordinate space
+    /// to `Custom(identity)`; without it the declaration remains `Logical`.
+    #[must_use]
+    pub fn with_semantic_coordinate_transform(
+        mut self,
+        identity: VirtualLayoutPolicyIdentity,
+        transform_revision: u64,
+        transform: Rc<dyn VirtualLayoutSemanticCoordinateTransform>,
+    ) -> Self {
+        self.semantic_coordinate_transform =
+            Some(VirtualLayoutSemanticCoordinateTransformAttachment {
+                identity,
+                transform_revision,
+                transform,
+            });
         self
     }
 }

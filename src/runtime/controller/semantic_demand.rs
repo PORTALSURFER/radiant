@@ -6,7 +6,12 @@
 
 #![allow(dead_code)]
 
-use super::virtual_layout::VirtualLayoutSemanticClassificationInput;
+use super::{
+    semantic_coordinate::{
+        SemanticCoordinateContext, SemanticCoordinateContextError, SemanticCoordinateContextFence,
+    },
+    virtual_layout::VirtualLayoutSemanticClassificationInput,
+};
 use crate::{
     application::virtual_layout::VirtualLayoutSemanticCardinality,
     gui::automation::GuiAutomationSnapshot,
@@ -17,10 +22,14 @@ use crate::{
         VirtualLayoutSemanticRange, VirtualLayoutSemanticRangeProvider,
         VirtualLayoutSemanticRangeProviderOutcome, VirtualLayoutSemanticRangeQueryOutcome,
         VirtualLayoutSemanticRangeRequest, VirtualLayoutSemanticRejectedReason,
-        VirtualLayoutSemanticRequest, VirtualLayoutSemanticUnavailableReason,
+        VirtualLayoutSemanticRequest, VirtualLayoutSemanticTransformWitness,
+        VirtualLayoutSemanticUnavailableReason,
     },
     layout::{NodeId, VirtualLayoutBudget, VirtualLayoutCoordinateSpace, VirtualLayoutItemKey},
-    runtime::surface::{MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration},
+    runtime::{
+        VirtualLayoutRevisions,
+        surface::{MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration},
+    },
 };
 use std::{marker::PhantomData, rc::Rc};
 
@@ -116,6 +125,10 @@ pub(super) struct SemanticProviderFence {
     pub(super) source: SemanticDemandSource,
     pub(super) provider_identity: SemanticProviderIdentity,
     pub(super) provider_generation: u64,
+    pub(super) semantic_transform_revision: Option<u64>,
+    pub(super) semantic_transform_generation: u64,
+    pub(super) semantic_transform_token: Option<usize>,
+    pub(super) coordinate_context: Option<SemanticCoordinateContextFence>,
     pub(super) demand_generation: u64,
     pub(super) attempt: u64,
     pub(super) cancelled: bool,
@@ -142,6 +155,10 @@ impl SemanticProviderFence {
             && self.source == other.source
             && self.provider_identity == other.provider_identity
             && self.provider_generation == other.provider_generation
+            && self.semantic_transform_revision == other.semantic_transform_revision
+            && self.semantic_transform_generation == other.semantic_transform_generation
+            && self.semantic_transform_token == other.semantic_transform_token
+            && self.coordinate_context == other.coordinate_context
             && self.demand_generation == other.demand_generation
             && self.attempt == other.attempt
             && self.cancelled == other.cancelled
@@ -168,6 +185,10 @@ impl SemanticProviderFence {
             && self.source == other.source
             && self.provider_identity == other.provider_identity
             && self.provider_generation == other.provider_generation
+            && self.semantic_transform_revision == other.semantic_transform_revision
+            && self.semantic_transform_generation == other.semantic_transform_generation
+            && self.semantic_transform_token == other.semantic_transform_token
+            && self.coordinate_context == other.coordinate_context
             && !self.cancelled
             && !other.cancelled
     }
@@ -194,6 +215,7 @@ enum SemanticSlotStatus {
     NotFound,
     Fallback,
     Withheld,
+    Invalidated,
     Terminal,
 }
 
@@ -461,6 +483,12 @@ struct SemanticLiveAuthority {
     semantic_range_provider: Option<Rc<dyn VirtualLayoutSemanticRangeProvider>>,
     semantic_provider_token: Option<usize>,
     semantic_range_provider_token: Option<usize>,
+    semantic_coordinate_transform: Option<
+        Rc<dyn crate::runtime::virtual_layout::VirtualLayoutSemanticCoordinateTransformInvoker>,
+    >,
+    semantic_coordinate_transform_identity: Option<crate::layout::VirtualLayoutPolicyIdentity>,
+    semantic_coordinate_transform_revision: Option<u64>,
+    semantic_coordinate_transform_token: Option<usize>,
 }
 
 impl SemanticLiveAuthority {
@@ -483,6 +511,13 @@ impl SemanticLiveAuthority {
             semantic_range_provider: registration.semantic_range_provider_handle(),
             semantic_provider_token: registration.semantic_provider_token(),
             semantic_range_provider_token: registration.semantic_range_provider_token(),
+            semantic_coordinate_transform: registration.semantic_coordinate_transform_handle(),
+            semantic_coordinate_transform_identity: registration
+                .semantic_coordinate_transform_identity()
+                .cloned(),
+            semantic_coordinate_transform_revision: registration
+                .semantic_coordinate_transform_revision(),
+            semantic_coordinate_transform_token: registration.semantic_coordinate_transform_token(),
         }
     }
 
@@ -508,6 +543,7 @@ impl SemanticLiveAuthority {
                 &registration.coordinate_space,
             ) != Some(true)
             || self.budget != registration.budget
+            || !self.semantic_coordinate_transform_is_same(registration)
     }
 
     fn update_from<Message>(
@@ -565,6 +601,24 @@ impl SemanticLiveAuthority {
                 }),
         }
     }
+
+    fn semantic_coordinate_transform_is_same<Message>(
+        &self,
+        registration: &VirtualLayoutRegistration<Message>,
+    ) -> bool {
+        self.semantic_coordinate_transform_token
+            == registration.semantic_coordinate_transform_token()
+            && self.semantic_coordinate_transform_revision
+                == registration.semantic_coordinate_transform_revision()
+            && match (
+                &self.semantic_coordinate_transform_identity,
+                registration.semantic_coordinate_transform_identity(),
+            ) {
+                (None, None) => true,
+                (Some(left), Some(right)) => left.stable_equals(right) == Some(true),
+                _ => false,
+            }
+    }
 }
 
 #[derive(Clone)]
@@ -573,6 +627,7 @@ struct SemanticDemandRecord {
     registration_generation: u64,
     semantic_provider_generation: u64,
     semantic_range_provider_generation: u64,
+    semantic_coordinate_transform_generation: u64,
     range: Option<SemanticDemandSlot>,
     pin: Option<SemanticDemandSlot>,
     retired: bool,
@@ -603,6 +658,7 @@ impl SemanticDemandRecord {
 
 /// Typed result of explicit owner-level demand admission.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub(super) enum SemanticDemandAdmission {
     Started(SemanticAttemptTicket),
     Unchanged,
@@ -617,6 +673,8 @@ pub(super) enum SemanticDemandAdmissionError {
     InvalidKey,
     InvalidRange(VirtualLayoutSemanticRejectedReason),
     CustomCoordinate,
+    CoordinateContextUnavailable,
+    DegenerateCoordinateContext,
     AggregateBudgetExceeded,
     CounterOverflow,
     NoActiveDemand,
@@ -655,10 +713,12 @@ pub(super) struct SemanticDemandOwner<Message> {
     next_registration_generation: u64,
     next_semantic_provider_generation: u64,
     next_semantic_range_provider_generation: u64,
+    next_semantic_coordinate_transform_generation: u64,
     next_demand_generation: u64,
     next_demand_set_generation: u64,
     demand_set_generation: u64,
     provider_call_in_progress: bool,
+    coordinate_transform_call_in_progress: bool,
     last_complete_candidate: Option<SemanticCompleteCandidate>,
     _message: PhantomData<fn() -> Message>,
 }
@@ -670,10 +730,13 @@ impl<Message> Clone for SemanticDemandOwner<Message> {
             next_registration_generation: self.next_registration_generation,
             next_semantic_provider_generation: self.next_semantic_provider_generation,
             next_semantic_range_provider_generation: self.next_semantic_range_provider_generation,
+            next_semantic_coordinate_transform_generation: self
+                .next_semantic_coordinate_transform_generation,
             next_demand_generation: self.next_demand_generation,
             next_demand_set_generation: self.next_demand_set_generation,
             demand_set_generation: self.demand_set_generation,
             provider_call_in_progress: self.provider_call_in_progress,
+            coordinate_transform_call_in_progress: self.coordinate_transform_call_in_progress,
             last_complete_candidate: self.last_complete_candidate.clone(),
             _message: PhantomData,
         }
@@ -687,10 +750,12 @@ impl<Message> Default for SemanticDemandOwner<Message> {
             next_registration_generation: 0,
             next_semantic_provider_generation: 0,
             next_semantic_range_provider_generation: 0,
+            next_semantic_coordinate_transform_generation: 0,
             next_demand_generation: 0,
             next_demand_set_generation: 0,
             demand_set_generation: 0,
             provider_call_in_progress: false,
+            coordinate_transform_call_in_progress: false,
             last_complete_candidate: None,
             _message: PhantomData,
         }
@@ -806,8 +871,13 @@ impl<Message> SemanticDemandOwner<Message> {
                 .authority
                 .semantic_range_provider_token
                 != registration.semantic_range_provider_token();
-            let live_changed =
-                shared_live_changed || semantic_provider_changed || semantic_range_provider_changed;
+            let semantic_coordinate_transform_changed = !self.records[existing_index]
+                .authority
+                .semantic_coordinate_transform_is_same(registration);
+            let live_changed = shared_live_changed
+                || semantic_provider_changed
+                || semantic_range_provider_changed
+                || semantic_coordinate_transform_changed;
             if !live_changed {
                 self.records[existing_index]
                     .authority
@@ -840,6 +910,19 @@ impl<Message> SemanticDemandOwner<Message> {
                 self.retire_all();
                 return (true, Vec::new());
             }
+            let next_semantic_coordinate_transform_generation =
+                semantic_coordinate_transform_changed
+                    .then(|| {
+                        self.next_semantic_coordinate_transform_generation
+                            .checked_add(1)
+                    })
+                    .flatten();
+            if semantic_coordinate_transform_changed
+                && next_semantic_coordinate_transform_generation.is_none()
+            {
+                self.retire_all();
+                return (true, Vec::new());
+            }
 
             changed = true;
             self.next_registration_generation = next_registration_generation;
@@ -855,10 +938,14 @@ impl<Message> SemanticDemandOwner<Message> {
                 self.next_semantic_range_provider_generation = next;
                 self.records[existing_index].semantic_range_provider_generation = next;
             }
+            if let Some(next) = next_semantic_coordinate_transform_generation {
+                self.next_semantic_coordinate_transform_generation = next;
+                self.records[existing_index].semantic_coordinate_transform_generation = next;
+            }
 
-            // The owner is logical-only.  A live transition to a custom
-            // coordinate cancels existing attempts and clears the authority;
-            // it never gets an identity-transform fallback ticket.
+            // A changed custom declaration invalidates all prior transformed
+            // evidence. The next explicit refresh supplies a fresh context;
+            // synchronization itself never invokes a resolver.
             if !is_logical_coordinate(&self.records[existing_index].authority.coordinate_space) {
                 self.clear_record_slots(existing_index);
                 continue;
@@ -881,7 +968,7 @@ impl<Message> SemanticDemandOwner<Message> {
                 if self.slot(existing_index, source).is_none() {
                     continue;
                 }
-                match self.restart_slot(existing_index, source) {
+                match self.restart_slot(existing_index, source, None) {
                     Ok(ticket) => refresh_tickets.push(ticket),
                     Err(_) => self.clear_slot(existing_index, source),
                 }
@@ -906,18 +993,21 @@ impl<Message> SemanticDemandOwner<Message> {
     pub(super) fn replace_demand_set(
         &mut self,
         demands: &[(NodeId, SemanticDemand)],
+        coordinate_context: &SemanticCoordinateContext,
     ) -> Result<Vec<SemanticAttemptTicket>, SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
 
         let mut staged = self.clone();
         let mut seen = Vec::with_capacity(demands.len());
+        let mut coordinate_fences = Vec::with_capacity(demands.len());
         let mut aggregate_range_length = 0_usize;
         for (container_id, demand) in demands {
             let index = staged.authority_index(*container_id)?;
             staged.validate_intent_authority(index)?;
             let source = demand.source();
+            let coordinate_fence = staged.coordinate_context_fence(index, coordinate_context)?;
             if seen
                 .iter()
                 .any(|(id, previous)| *id == *container_id && *previous == source)
@@ -937,6 +1027,7 @@ impl<Message> SemanticDemandOwner<Message> {
                 return Err(SemanticDemandAdmissionError::InvalidKey);
             }
             seen.push((*container_id, source));
+            coordinate_fences.push((*container_id, source, coordinate_fence));
         }
         if aggregate_range_length > MAX_ACTIVE_RANGE_DEMAND_ENTRIES {
             return Err(SemanticDemandAdmissionError::AggregateBudgetExceeded);
@@ -957,6 +1048,17 @@ impl<Message> SemanticDemandOwner<Message> {
                     .slot(index, demand.source())
                     .and_then(|slot| slot.request.demand().same_exact(demand))
                     != Some(true)
+                    || staged
+                        .slot(index, demand.source())
+                        .is_some_and(|slot| slot.status == SemanticSlotStatus::Invalidated)
+                    || staged.slot(index, demand.source()).and_then(|slot| {
+                        coordinate_fences
+                            .iter()
+                            .find(|(id, source, _)| {
+                                *id == *container_id && *source == demand.source()
+                            })
+                            .map(|(_, _, fence)| slot.fence.coordinate_context == *fence)
+                    }) != Some(true)
             });
         }
 
@@ -999,10 +1101,22 @@ impl<Message> SemanticDemandOwner<Message> {
                 .record_index(*container_id)
                 .ok_or(SemanticDemandAdmissionError::UnknownContainer)?;
             let source = demand.source();
+            let coordinate_context_matches = coordinate_fences
+                .iter()
+                .find(|(id, member_source, _)| *id == *container_id && *member_source == source)
+                .is_some_and(|(_, _, fence)| {
+                    staged
+                        .slot(index, source)
+                        .is_some_and(|slot| slot.fence.coordinate_context == *fence)
+                });
             let unchanged = staged
                 .slot(index, source)
                 .and_then(|slot| slot.request.demand().same_exact(demand))
-                == Some(true);
+                == Some(true)
+                && staged
+                    .slot(index, source)
+                    .is_none_or(|slot| slot.status != SemanticSlotStatus::Invalidated)
+                && coordinate_context_matches;
             if unchanged {
                 if let Some(slot) = staged.slot(index, source)
                     && slot.status == SemanticSlotStatus::Pending
@@ -1017,7 +1131,12 @@ impl<Message> SemanticDemandOwner<Message> {
             let request = staged.records[index]
                 .authority
                 .request_for_demand(demand.clone());
-            tickets.push(staged.start_slot(index, request, None)?);
+            let coordinate_fence = coordinate_fences
+                .iter()
+                .find(|(id, member_source, _)| *id == *container_id && *member_source == source)
+                .and_then(|(_, _, fence)| *fence);
+            let ticket = staged.start_slot(index, request, None, coordinate_fence)?;
+            tickets.push(ticket);
         }
         staged.advance_demand_set_generation()?;
         *self = staged;
@@ -1029,8 +1148,9 @@ impl<Message> SemanticDemandOwner<Message> {
     /// and their retained evidence untouched.
     pub(super) fn retry_all(
         &mut self,
+        coordinate_context: &SemanticCoordinateContext,
     ) -> Result<Vec<SemanticAttemptTicket>, SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         let mut staged = self.clone();
@@ -1058,15 +1178,47 @@ impl<Message> SemanticDemandOwner<Message> {
 
         let mut tickets = Vec::with_capacity(active.len());
         for (index, source) in active {
-            tickets.push(staged.restart_slot(index, source)?);
+            let coordinate_fence = staged.coordinate_context_fence(index, coordinate_context)?;
+            tickets.push(staged.restart_slot(index, source, coordinate_fence)?);
         }
         *self = staged;
         Ok(tickets)
     }
 
+    pub(super) fn invalidate_custom_coordinate_context(&mut self) {
+        self.last_complete_candidate = None;
+        for index in 0..self.records.len() {
+            if is_logical_coordinate(&self.records[index].authority.coordinate_space) {
+                continue;
+            }
+            for source in [
+                SemanticDemandSource::Range,
+                SemanticDemandSource::RequiredItemPin,
+            ] {
+                let should_invalidate = self.slot(index, source).is_some_and(|slot| {
+                    slot.status != SemanticSlotStatus::Invalidated
+                        || slot.evidence.is_some()
+                        || slot.retained.is_some()
+                });
+                if !should_invalidate {
+                    continue;
+                }
+                if let Some(slot) = self.slot_mut(index, source) {
+                    slot.fence.cancelled = true;
+                    slot.executed = false;
+                    slot.completed = true;
+                    slot.evidence = None;
+                    slot.retained = None;
+                    slot.withheld = true;
+                    slot.status = SemanticSlotStatus::Invalidated;
+                }
+            }
+        }
+    }
+
     /// Cancel all active demand membership while retaining live authorities.
     pub(super) fn clear_demands(&mut self) -> Result<(), SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         let mut staged = self.clone();
@@ -1092,7 +1244,7 @@ impl<Message> SemanticDemandOwner<Message> {
         start_index: usize,
         length: usize,
     ) -> Result<SemanticDemandAdmission, SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         let range = VirtualLayoutSemanticRange::new(start_index, length)
@@ -1140,7 +1292,7 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
         key: VirtualLayoutItemKey,
     ) -> Result<SemanticDemandAdmission, SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         if key.stable_equals(&key) != Some(true) {
@@ -1169,6 +1321,38 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         self.retry_source(container_id, SemanticDemandSource::Range)
+    }
+
+    pub(super) fn retry_range_with_context(
+        &mut self,
+        container_id: NodeId,
+        coordinate_context: &SemanticCoordinateContext,
+    ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
+            return Err(SemanticDemandAdmissionError::Reentrant);
+        }
+        let index = self.authority_index(container_id)?;
+        self.validate_intent_authority(index)?;
+        let coordinate_fence = self.coordinate_context_fence(index, coordinate_context)?;
+        let old = self
+            .slot(index, SemanticDemandSource::Range)
+            .cloned()
+            .ok_or(SemanticDemandAdmissionError::NoActiveDemand)?;
+        let attempt = old
+            .fence
+            .attempt
+            .checked_add(1)
+            .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
+        let ticket = self.replace_slot(
+            index,
+            SemanticDemandSource::Range,
+            old.request,
+            old.fence.demand_generation,
+            attempt,
+            old.retained,
+            coordinate_fence,
+        )?;
+        Ok(ticket)
     }
 
     /// Check the exact active logical range without changing owner state.
@@ -1244,7 +1428,7 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
         source: SemanticDemandSource,
     ) -> Result<(), SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         let index = self.authority_index(container_id)?;
@@ -1269,7 +1453,7 @@ impl<Message> SemanticDemandOwner<Message> {
         if self.slot(index, source).is_some_and(|slot| slot.executed) {
             return Err(SemanticDemandExecutionError::AlreadyExecuted);
         }
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandExecutionError::Reentrant);
         }
         let Some(slot) = self.slot_mut(index, source) else {
@@ -1315,6 +1499,14 @@ impl<Message> SemanticDemandOwner<Message> {
         &mut self,
         completion: SemanticProviderCompletion,
     ) -> SemanticDemandCompletion {
+        self.complete_with_context(completion, None)
+    }
+
+    pub(super) fn complete_with_context(
+        &mut self,
+        completion: SemanticProviderCompletion,
+        coordinate_context: Option<&SemanticCoordinateContext>,
+    ) -> SemanticDemandCompletion {
         let (ticket, outcome, source) = match completion {
             SemanticProviderCompletion::RequiredItemPin { ticket, outcome } => (
                 ticket,
@@ -1342,12 +1534,12 @@ impl<Message> SemanticDemandOwner<Message> {
         }
 
         match outcome {
-            SemanticOutcome::Pin(outcome) => {
-                SemanticDemandCompletion::RequiredItemPin(self.complete_pin(index, ticket, outcome))
-            }
-            SemanticOutcome::Range(outcome) => {
-                SemanticDemandCompletion::Range(self.complete_range(index, ticket, outcome))
-            }
+            SemanticOutcome::Pin(outcome) => SemanticDemandCompletion::RequiredItemPin(
+                self.complete_pin(index, ticket, outcome, coordinate_context),
+            ),
+            SemanticOutcome::Range(outcome) => SemanticDemandCompletion::Range(
+                self.complete_range(index, ticket, outcome, coordinate_context),
+            ),
         }
     }
 
@@ -1470,9 +1662,9 @@ impl<Message> SemanticDemandOwner<Message> {
                         true,
                     )
                 }),
-            SemanticSlotStatus::Withheld | SemanticSlotStatus::Terminal => {
-                (slot.fence.clone(), None, false)
-            }
+            SemanticSlotStatus::Invalidated
+            | SemanticSlotStatus::Withheld
+            | SemanticSlotStatus::Terminal => (slot.fence.clone(), None, false),
         };
         let (evidence, evidence_resolved) = publication_evidence(evidence);
         SemanticPublicationMember {
@@ -1516,6 +1708,7 @@ impl<Message> SemanticDemandOwner<Message> {
         index: usize,
         ticket: SemanticAttemptTicket,
         outcome: VirtualLayoutSemanticQueryOutcome,
+        coordinate_context: Option<&SemanticCoordinateContext>,
     ) -> VirtualLayoutSemanticQueryOutcome {
         match outcome {
             VirtualLayoutSemanticQueryOutcome::Found(entry) => {
@@ -1533,15 +1726,34 @@ impl<Message> SemanticDemandOwner<Message> {
                         reason,
                     );
                 }
+                let source_entry = entry.as_ref().clone();
+                let (resolved_entry, transform_witness) = match self.transform_entry(
+                    index,
+                    &source_entry,
+                    &ticket.fence,
+                    coordinate_context,
+                ) {
+                    Ok(result) => result,
+                    Err(reason) => {
+                        return self.reject_and_clear(
+                            index,
+                            SemanticDemandSource::RequiredItemPin,
+                            reason,
+                        );
+                    }
+                };
                 let pin = crate::gui::layout_core::VirtualLayoutPin::new(
                     crate::gui::layout_core::VirtualLayoutPinReason::Semantic,
                     request.clone(),
-                    entry.as_ref().clone(),
+                    resolved_entry,
                 );
-                let Some(projection) = VirtualLayoutSemanticProjection::from_validated_semantic_pin(
-                    &pin,
-                    self.records[index].authority.coordinate_space.clone(),
-                ) else {
+                let Some(projection) =
+                    VirtualLayoutSemanticProjection::from_validated_semantic_pin_with_transform(
+                        &pin,
+                        self.records[index].authority.coordinate_space.clone(),
+                        transform_witness,
+                    )
+                else {
                     return self.reject_and_clear(
                         index,
                         SemanticDemandSource::RequiredItemPin,
@@ -1549,7 +1761,7 @@ impl<Message> SemanticDemandOwner<Message> {
                     );
                 };
                 let evidence = SemanticEvidence::Pin(Box::new(SemanticPinEvidence {
-                    entry: Some(entry.as_ref().clone()),
+                    entry: Some(source_entry),
                     projection: Some(projection),
                 }));
                 self.store_evidence(
@@ -1610,6 +1822,7 @@ impl<Message> SemanticDemandOwner<Message> {
         index: usize,
         ticket: SemanticAttemptTicket,
         outcome: VirtualLayoutSemanticRangeProviderOutcome,
+        coordinate_context: Option<&SemanticCoordinateContext>,
     ) -> VirtualLayoutSemanticRangeQueryOutcome {
         match outcome {
             VirtualLayoutSemanticRangeProviderOutcome::Found(entries) => {
@@ -1621,13 +1834,26 @@ impl<Message> SemanticDemandOwner<Message> {
                     return self.reject_range_and_clear(index, reason);
                 }
                 let coordinate_space = self.records[index].authority.coordinate_space.clone();
-                let Some(projections) = entries
+                let mut transformed_entries = Vec::with_capacity(entries.len());
+                let mut transform_witnesses = Vec::with_capacity(entries.len());
+                for entry in &entries {
+                    match self.transform_entry(index, entry, &ticket.fence, coordinate_context) {
+                        Ok((entry, witness)) => {
+                            transformed_entries.push(entry);
+                            transform_witnesses.push(witness);
+                        }
+                        Err(reason) => return self.reject_range_and_clear(index, reason),
+                    }
+                }
+                let Some(projections) = transformed_entries
                     .iter()
-                    .map(|entry| {
-                        VirtualLayoutSemanticProjection::from_validated_semantic_range_entry(
+                    .zip(transform_witnesses)
+                    .map(|(entry, witness)| {
+                        VirtualLayoutSemanticProjection::from_validated_semantic_range_entry_with_transform(
                             &request,
                             entry,
                             coordinate_space.clone(),
+                            witness,
                         )
                     })
                     .collect::<Option<Vec<_>>>()
@@ -1675,6 +1901,73 @@ impl<Message> SemanticDemandOwner<Message> {
                 VirtualLayoutSemanticRangeQueryOutcome::Rejected(reason)
             }
         }
+    }
+
+    fn transform_entry(
+        &mut self,
+        index: usize,
+        entry: &VirtualLayoutSemanticEntry,
+        fence: &SemanticProviderFence,
+        coordinate_context: Option<&SemanticCoordinateContext>,
+    ) -> Result<
+        (
+            VirtualLayoutSemanticEntry,
+            Option<VirtualLayoutSemanticTransformWitness>,
+        ),
+        VirtualLayoutSemanticRejectedReason,
+    > {
+        let coordinate_space = self.records[index].authority.coordinate_space.clone();
+        let VirtualLayoutCoordinateSpace::Custom(identity) = coordinate_space else {
+            return Ok((entry.clone(), None));
+        };
+        let context = coordinate_context
+            .ok_or(VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable)?;
+        let expected_context = context.fence_for(fence.container_id).map_err(|_| {
+            VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable
+        })?;
+        if fence.coordinate_context != Some(expected_context) {
+            return Err(VirtualLayoutSemanticRejectedReason::Stale);
+        }
+        let authority = &self.records[index].authority;
+        let resolver = authority
+            .semantic_coordinate_transform
+            .clone()
+            .ok_or(VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable)?;
+        let transform_revision = authority
+            .semantic_coordinate_transform_revision
+            .ok_or(VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable)?;
+        let resolver_token = authority
+            .semantic_coordinate_transform_token
+            .ok_or(VirtualLayoutSemanticRejectedReason::CoordinateTransformContextUnavailable)?;
+        let transform_generation = self.records[index].semantic_coordinate_transform_generation;
+        self.coordinate_transform_call_in_progress = true;
+        let result = context.resolve(
+            fence.container_id,
+            entry.bounds(),
+            VirtualLayoutRevisions::new(
+                fence.data_revision,
+                fence.policy_revision,
+                fence.measurement_revision,
+                fence.semantic_revision,
+            ),
+            &identity,
+            transform_revision,
+            transform_generation,
+            resolver_token,
+            &resolver,
+        );
+        self.coordinate_transform_call_in_progress = false;
+        let (bounds, witness) = result?;
+        Ok((
+            VirtualLayoutSemanticEntry::new(
+                entry.requested_key().clone(),
+                entry.logical_index(),
+                bounds,
+                entry.semantics().clone(),
+                entry.automation_node_id().clone(),
+            ),
+            Some(witness),
+        ))
     }
 
     fn store_evidence(
@@ -1739,10 +2032,43 @@ impl<Message> SemanticDemandOwner<Message> {
         {
             return Err(SemanticDemandAdmissionError::ScopeMismatch);
         }
-        if !is_logical_coordinate(&record.authority.coordinate_space) {
-            return Err(SemanticDemandAdmissionError::CustomCoordinate);
+        if let VirtualLayoutCoordinateSpace::Custom(identity) = &record.authority.coordinate_space {
+            let resolver_identity_matches = record
+                .authority
+                .semantic_coordinate_transform_identity
+                .as_ref()
+                .and_then(|resolver_identity| resolver_identity.stable_equals(identity))
+                == Some(true);
+            if !resolver_identity_matches
+                || record.authority.semantic_coordinate_transform.is_none()
+                || record
+                    .authority
+                    .semantic_coordinate_transform_token
+                    .is_none_or(|token| token == 0)
+                || record.semantic_coordinate_transform_generation == 0
+            {
+                return Err(SemanticDemandAdmissionError::CustomCoordinate);
+            }
         }
         Ok(())
+    }
+
+    fn coordinate_context_fence(
+        &self,
+        index: usize,
+        context: &SemanticCoordinateContext,
+    ) -> Result<Option<SemanticCoordinateContextFence>, SemanticDemandAdmissionError> {
+        self.validate_intent_authority(index)?;
+        if is_logical_coordinate(&self.records[index].authority.coordinate_space) {
+            return Ok(None);
+        }
+        match context.fence_for(self.records[index].authority.container_id) {
+            Ok(fence) => Ok(Some(fence)),
+            Err(SemanticCoordinateContextError::EmptyClip) => {
+                Err(SemanticDemandAdmissionError::DegenerateCoordinateContext)
+            }
+            Err(_) => Err(SemanticDemandAdmissionError::CoordinateContextUnavailable),
+        }
     }
 
     fn start_new_demand(
@@ -1759,7 +2085,7 @@ impl<Message> SemanticDemandOwner<Message> {
             return Ok(SemanticDemandAdmission::Unchanged);
         }
         self.ensure_demand_set_capacity()?;
-        let ticket = self.start_slot(index, request, None)?;
+        let ticket = self.start_slot(index, request, None, None)?;
         self.advance_demand_set_generation()?;
         Ok(SemanticDemandAdmission::Started(ticket))
     }
@@ -1769,7 +2095,7 @@ impl<Message> SemanticDemandOwner<Message> {
         container_id: NodeId,
         source: SemanticDemandSource,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
-        if self.provider_call_in_progress {
+        if self.provider_call_in_progress || self.coordinate_transform_call_in_progress {
             return Err(SemanticDemandAdmissionError::Reentrant);
         }
         let index = self.authority_index(container_id)?;
@@ -1791,6 +2117,7 @@ impl<Message> SemanticDemandOwner<Message> {
             demand_generation,
             attempt,
             old.retained,
+            old.fence.coordinate_context,
         )
     }
 
@@ -1799,6 +2126,7 @@ impl<Message> SemanticDemandOwner<Message> {
         index: usize,
         request: SemanticDemandRequest,
         retained: Option<SemanticRetainedEvidence>,
+        coordinate_context: Option<SemanticCoordinateContextFence>,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         let demand_generation = checked_next(&mut self.next_demand_generation)
             .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
@@ -1809,6 +2137,7 @@ impl<Message> SemanticDemandOwner<Message> {
             demand_generation,
             1,
             retained,
+            coordinate_context,
         )
     }
 
@@ -1816,6 +2145,7 @@ impl<Message> SemanticDemandOwner<Message> {
         &mut self,
         index: usize,
         source: SemanticDemandSource,
+        coordinate_context: Option<SemanticCoordinateContextFence>,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         let old = self
             .slot(index, source)
@@ -1830,9 +2160,18 @@ impl<Message> SemanticDemandOwner<Message> {
         let demand_generation = checked_next(&mut self.next_demand_generation)
             .ok_or(SemanticDemandAdmissionError::CounterOverflow)?;
         let request = self.records[index].authority.request_for_demand(demand);
-        self.replace_slot(index, source, request, demand_generation, 1, old.retained)
+        self.replace_slot(
+            index,
+            source,
+            request,
+            demand_generation,
+            1,
+            old.retained,
+            coordinate_context,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn replace_slot(
         &mut self,
         index: usize,
@@ -1841,6 +2180,7 @@ impl<Message> SemanticDemandOwner<Message> {
         demand_generation: u64,
         attempt: u64,
         retained: Option<SemanticRetainedEvidence>,
+        coordinate_context: Option<SemanticCoordinateContextFence>,
     ) -> Result<SemanticAttemptTicket, SemanticDemandAdmissionError> {
         let record = &self.records[index];
         let fence = SemanticProviderFence {
@@ -1859,6 +2199,10 @@ impl<Message> SemanticDemandOwner<Message> {
             source,
             provider_identity: record.authority.provider_identity(source),
             provider_generation: record.provider_generation(source),
+            semantic_transform_revision: record.authority.semantic_coordinate_transform_revision,
+            semantic_transform_generation: record.semantic_coordinate_transform_generation,
+            semantic_transform_token: record.authority.semantic_coordinate_transform_token,
+            coordinate_context,
             demand_generation,
             attempt,
             cancelled: false,
@@ -1927,9 +2271,11 @@ impl<Message> SemanticDemandOwner<Message> {
             slot.executed = false;
             slot.completed = true;
             slot.evidence = None;
+            slot.retained = None;
             slot.withheld = true;
             slot.status = SemanticSlotStatus::Terminal;
         }
+        self.last_complete_candidate = None;
     }
 
     fn remove_slot(&mut self, index: usize, source: SemanticDemandSource) {
@@ -1945,11 +2291,18 @@ impl<Message> SemanticDemandOwner<Message> {
             checked_next(&mut self.next_semantic_provider_generation)?;
         let semantic_range_provider_generation =
             checked_next(&mut self.next_semantic_range_provider_generation)?;
+        let semantic_coordinate_transform_generation =
+            if authority.semantic_coordinate_transform.is_some() {
+                checked_next(&mut self.next_semantic_coordinate_transform_generation)?
+            } else {
+                0
+            };
         Some(SemanticDemandRecord {
             authority,
             registration_generation,
             semantic_provider_generation,
             semantic_range_provider_generation,
+            semantic_coordinate_transform_generation,
             range: None,
             pin: None,
             retired: false,
@@ -2246,6 +2599,7 @@ fn same_semantic_projection(
         && left.semantics() == right.semantics()
         && left.automation_node_id() == right.automation_node_id()
         && left.authority() == right.authority()
+        && same_transform_witness(left.transform_witness(), right.transform_witness())
         && left.identity().key().stable_equals(right.identity().key()) == Some(true)
         && stable_coordinate_space_equals(left.coordinate_space(), right.coordinate_space())
             == Some(true)
@@ -2255,6 +2609,24 @@ fn same_semantic_projection(
             (Some(left), Some(right)) => same_semantic_range_request(left, right),
             _ => false,
         }
+}
+
+fn same_transform_witness(
+    left: Option<&VirtualLayoutSemanticTransformWitness>,
+    right: Option<&VirtualLayoutSemanticTransformWitness>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => {
+            left.same_exact(
+                right.identity(),
+                right.transform_revision(),
+                right.transform_generation(),
+                right.resolver_token(),
+            ) && left == right
+        }
+        _ => false,
+    }
 }
 
 impl<Message> Drop for SemanticDemandOwner<Message> {
@@ -2563,7 +2935,9 @@ mod tests {
         let slot = owner.slot(0, source).expect("terminal demand membership");
         assert_eq!(slot.status, SemanticSlotStatus::Terminal);
         assert!(slot.evidence.is_none());
+        assert!(slot.retained.is_none());
         assert!(slot.withheld);
+        assert!(owner.last_complete_candidate.is_none());
     }
 
     fn complete_pin(
@@ -3930,6 +4304,52 @@ mod tests {
         ));
         assert_terminal_slot(&owner, SemanticDemandSource::Range);
         assert_eq!(range.calls.get(), 5);
+    }
+
+    #[test]
+    fn rejected_retry_revokes_retained_evidence_and_complete_candidate() {
+        let range = Rc::new(RangeProvider {
+            calls: Cell::new(0),
+            outcome: RefCell::new(VirtualLayoutSemanticRangeProviderOutcome::Found(vec![
+                range_entry(1, 0),
+            ])),
+        });
+        let mut owner = SemanticDemandOwner::default();
+        sync(
+            &mut owner,
+            registration("policy", 8, Default::default(), None, Some(range.clone())),
+        );
+
+        let first = started(owner.range(CONTAINER_ID, 0, 1).expect("range"));
+        assert!(matches!(
+            complete_range(&mut owner, first),
+            VirtualLayoutSemanticRangeQueryOutcome::Found(_)
+        ));
+        let ordinary = ordinary_publication_snapshot();
+        let plan = owner.publication_plan(publication_authorities(50));
+        assert!(matches!(
+            owner.finish_publication(&ordinary, plan.clone(), &classifications_for_plan(&plan)),
+            SemanticPublicationOutcome::Published(_)
+        ));
+        assert!(owner.last_complete_candidate.is_some());
+        assert!(
+            owner.records[0]
+                .range
+                .as_ref()
+                .is_some_and(|slot| slot.retained.is_some())
+        );
+
+        *range.outcome.borrow_mut() = VirtualLayoutSemanticRangeProviderOutcome::Rejected(
+            VirtualLayoutSemanticRejectedReason::ProviderRejected,
+        );
+        let retry = owner.retry_range(CONTAINER_ID).expect("rejected retry");
+        assert!(matches!(
+            complete_range(&mut owner, retry),
+            VirtualLayoutSemanticRangeQueryOutcome::Rejected(
+                VirtualLayoutSemanticRejectedReason::ProviderRejected
+            )
+        ));
+        assert_terminal_slot(&owner, SemanticDemandSource::Range);
     }
 
     #[test]

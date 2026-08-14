@@ -4499,7 +4499,7 @@ mod macos {
 
         thread_local! {
             static ACCESSIBILITY_CHILDREN_TEST_HOST_GUARDS:
-                RefCell<Vec<(Id, MutexGuard<'static, ()>)>> = RefCell::new(Vec::new());
+                RefCell<Vec<(Id, MutexGuard<'static, ()>)>> = const { RefCell::new(Vec::new()) };
         }
 
         fn accessibility_children_test_host(kind: u8) -> Id {

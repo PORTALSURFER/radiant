@@ -146,21 +146,15 @@ impl SchedulerDemand {
     }
 }
 
-/// Bounded fairness bookkeeping for one parent event-loop scheduler.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Fairness bookkeeping for one parent event-loop scheduler.
+///
+/// Entries are retained only for keys in the current demand snapshot. The
+/// vector grows with the live demand cardinality and reuses its storage after
+/// the snapshot has stabilized.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct SchedulerFairnessLedger {
     epoch: u64,
-    overflow_deferrals: u64,
-    states: [Option<SchedulerFairnessState>; MAX_SCHEDULER_KEYS],
-}
-
-pub(super) const MAX_SCHEDULER_KEYS: usize = 16;
-
-/// Explicit result for a bounded fairness-ledger admission.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum SchedulerAdmissionResult {
-    Tracked,
-    OverflowDeferred,
+    states: Vec<SchedulerFairnessState>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -170,16 +164,6 @@ struct SchedulerFairnessState {
     missed_epochs: u8,
 }
 
-impl Default for SchedulerFairnessLedger {
-    fn default() -> Self {
-        Self {
-            epoch: 0,
-            overflow_deferrals: 0,
-            states: std::array::from_fn(|_| None),
-        }
-    }
-}
-
 impl SchedulerFairnessLedger {
     /// Return the current complete-epoch number.
     pub(super) const fn epoch(&self) -> u64 {
@@ -187,43 +171,19 @@ impl SchedulerFairnessLedger {
     }
 
     /// Record one complete stage bundle for the current epoch.
-    pub(super) fn record_admission(&mut self, key: &FrameScheduleKey) -> SchedulerAdmissionResult {
-        if let Some(state) = self.state_or_insert(key) {
-            state.admitted_this_epoch = true;
-            SchedulerAdmissionResult::Tracked
-        } else {
-            self.overflow_deferrals = self.overflow_deferrals.saturating_add(1);
-            SchedulerAdmissionResult::OverflowDeferred
-        }
+    pub(super) fn record_admission(&mut self, key: &FrameScheduleKey) {
+        self.state_or_insert(key).admitted_this_epoch = true;
     }
 
-    /// Number of admissions or epoch observations explicitly deferred because
-    /// the bounded key ledger was full.
-    pub(super) const fn overflow_deferrals(&self) -> u64 {
-        self.overflow_deferrals
-    }
-
-    /// Release a retired key's slot for a later stable-key admission.
+    /// Release a retired key's state for a later stable-key admission.
     pub(super) fn remove(&mut self, key: &FrameScheduleKey) {
-        if let Some(state) = self
-            .states
-            .iter_mut()
-            .find(|state| state.as_ref().is_some_and(|state| &state.key == key))
-        {
-            *state = None;
-        }
+        self.states.retain(|state| &state.key != key);
     }
 
     /// Retire stable keys that are absent from the current parent snapshot.
     pub(super) fn remove_absent(&mut self, demands: &[SchedulerDemand]) {
-        for state in &mut self.states {
-            if state
-                .as_ref()
-                .is_some_and(|state| !demands.iter().any(|demand| demand.key() == &state.key))
-            {
-                *state = None;
-            }
-        }
+        self.states
+            .retain(|state| demands.iter().any(|demand| demand.key() == &state.key));
     }
 
     /// Whether an eligible key has already received its one bundle this epoch.
@@ -233,17 +193,14 @@ impl SchedulerFairnessLedger {
         }
         match self.state(&demand.key) {
             Some(state) => !state.admitted_this_epoch,
-            None => self.has_capacity(),
+            None => true,
         }
     }
 
-    /// Close one complete epoch and update the bounded promotion counter.
+    /// Close one complete epoch and update the promotion counter.
     pub(super) fn complete_epoch(&mut self, demands: &[SchedulerDemand]) {
         for demand in demands {
-            let Some(state) = self.state_or_insert(&demand.key) else {
-                self.overflow_deferrals = self.overflow_deferrals.saturating_add(1);
-                continue;
-            };
+            let state = self.state_or_insert(&demand.key);
             if demand.eligibility.is_fairness_eligible() {
                 if state.admitted_this_epoch {
                     state.missed_epochs = 0;
@@ -282,17 +239,13 @@ impl SchedulerFairnessLedger {
     ) -> Option<FrameScheduleKey> {
         let unserved_priority = demands
             .iter()
-            .filter(|demand| {
-                demand.eligibility.is_fairness_eligible()
-                    && !self.is_overflow(demand)
-                    && self.can_admit(demand)
-            })
+            .filter(|demand| demand.eligibility.is_fairness_eligible() && self.can_admit(demand))
             .map(|demand| self.effective_class(demand).rank())
             .min();
         let mut best: Option<(usize, SchedulerWorkClass, Instant)> = None;
 
         for (index, demand) in demands.iter().enumerate() {
-            if !demand.eligibility.is_fairness_eligible() || self.is_overflow(demand) {
+            if !demand.eligibility.is_fairness_eligible() {
                 continue;
             }
             let class = self.effective_class(demand);
@@ -324,36 +277,20 @@ impl SchedulerFairnessLedger {
     }
 
     fn state(&self, key: &FrameScheduleKey) -> Option<&SchedulerFairnessState> {
-        self.states
-            .iter()
-            .find_map(|state| state.as_ref().filter(|state| &state.key == key))
+        self.states.iter().find(|state| &state.key == key)
     }
 
-    fn has_capacity(&self) -> bool {
-        self.states.iter().any(Option::is_none)
-    }
-
-    fn is_overflow(&self, demand: &SchedulerDemand) -> bool {
-        demand.eligibility.is_fairness_eligible()
-            && self.state(&demand.key).is_none()
-            && !self.has_capacity()
-    }
-
-    fn state_or_insert(&mut self, key: &FrameScheduleKey) -> Option<&mut SchedulerFairnessState> {
-        if let Some(index) = self
-            .states
-            .iter()
-            .position(|state| state.as_ref().is_some_and(|state| &state.key == key))
-        {
-            return self.states[index].as_mut();
+    fn state_or_insert(&mut self, key: &FrameScheduleKey) -> &mut SchedulerFairnessState {
+        if let Some(index) = self.states.iter().position(|state| &state.key == key) {
+            return &mut self.states[index];
         }
-        let index = self.states.iter().position(Option::is_none)?;
-        self.states[index] = Some(SchedulerFairnessState {
+        let index = self.states.len();
+        self.states.push(SchedulerFairnessState {
             key: key.clone(),
             admitted_this_epoch: false,
             missed_epochs: 0,
         });
-        self.states[index].as_mut()
+        &mut self.states[index]
     }
 }
 
@@ -717,39 +654,58 @@ mod tests {
     }
 
     #[test]
-    fn ledger_overflow_is_explicitly_deferred_and_retires_cleanly() {
+    fn ledger_tracks_all_current_keys_and_retires_stable_keys() {
         let mut ledger = SchedulerFairnessLedger::default();
-        let tracked: Vec<_> = (0..MAX_SCHEDULER_KEYS)
-            .map(|index| demand(&format!("tracked-{index}"), SchedulerWorkClass::Animation))
+        let demands: Vec<_> = (0..17)
+            .map(|index| {
+                demand(
+                    &format!("current-{index:02}"),
+                    SchedulerWorkClass::Animation,
+                )
+            })
             .collect();
+        ledger.remove_absent(&demands);
 
-        for demand in &tracked {
-            assert_eq!(
-                ledger.record_admission(demand.key()),
-                SchedulerAdmissionResult::Tracked
-            );
+        let mut selected = Vec::with_capacity(demands.len());
+        for demand in &demands {
+            assert!(ledger.can_admit(demand));
+            let key = ledger
+                .select_candidate(&demands, selected.last())
+                .expect("every current fairness-eligible key must be selectable");
+            ledger.record_admission(&key);
+            selected.push(key);
         }
+        let expected = demands
+            .iter()
+            .map(|demand| demand.key().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(selected, expected);
+        assert!(demands.iter().all(|demand| !ledger.can_admit(demand)));
 
-        let overflow = demand("overflow", SchedulerWorkClass::Animation);
-        assert!(!ledger.can_admit(&overflow));
-        assert_eq!(
-            ledger.record_admission(overflow.key()),
-            SchedulerAdmissionResult::OverflowDeferred
-        );
-        let before_epoch_observation = ledger.overflow_deferrals();
-        ledger.complete_epoch(std::slice::from_ref(&overflow));
-        assert_eq!(ledger.overflow_deferrals(), before_epoch_observation + 1);
-        assert!(
-            ledger
-                .select_candidate(std::slice::from_ref(&overflow), None)
-                .is_none()
-        );
+        ledger.complete_epoch(&demands);
+        assert!(demands.iter().all(|demand| ledger.can_admit(demand)));
 
-        ledger.remove(tracked[0].key());
-        assert_eq!(
-            ledger.record_admission(overflow.key()),
-            SchedulerAdmissionResult::Tracked
-        );
+        let retired = demands
+            .last()
+            .expect("test demand set is non-empty")
+            .clone();
+        ledger.remove_absent(&demands[..demands.len() - 1]);
+        assert_eq!(ledger.missed_epochs(retired.key()), 0);
+        assert!(ledger.can_admit(&retired));
+        ledger.record_admission(retired.key());
+        assert!(!ledger.can_admit(&retired));
+        ledger.remove(retired.key());
+        assert!(ledger.can_admit(&retired));
+    }
+
+    #[test]
+    fn empty_and_ineligible_demands_have_no_fallback_candidate() {
+        let mut ineligible = demand("blocked", SchedulerWorkClass::Animation);
+        ineligible.eligibility.blocked_by_admitted_lifecycle = true;
+        let ledger = SchedulerFairnessLedger::default();
+
+        assert_eq!(ledger.select_candidate(&[], None), None);
+        assert_eq!(ledger.select_candidate(&[ineligible], None), None);
     }
 
     #[test]

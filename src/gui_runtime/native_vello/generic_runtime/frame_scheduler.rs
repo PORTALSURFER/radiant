@@ -378,7 +378,7 @@ impl NativeFrameScheduler {
     }
 
     pub(super) fn record_admission(&mut self, key: FrameScheduleKey) {
-        let _ = self.fairness.record_admission(&key);
+        self.fairness.record_admission(&key);
         self.last_admitted = Some(key);
     }
 }
@@ -641,6 +641,63 @@ mod tests {
                 .filter(|demand| demand.has_due_work(now))
                 .count(),
             3
+        );
+    }
+
+    #[test]
+    fn production_scheduler_admits_all_current_eligible_windows_beyond_sixteen() {
+        let now = Instant::now();
+        let demands: Vec<_> = (0..17)
+            .map(|index| {
+                due_demand(
+                    FrameScheduleKey::Auxiliary(format!("auxiliary-{index:02}")),
+                    now,
+                )
+            })
+            .collect();
+        let expected = demands
+            .iter()
+            .map(|demand| demand.key().clone())
+            .collect::<Vec<_>>();
+        let mut scheduler = NativeFrameScheduler::default();
+        let mut selected = Vec::with_capacity(demands.len());
+
+        for _ in &demands {
+            let plan = scheduler.observe(now, &demands, FrameScheduleDeadlines::default());
+            let key = plan
+                .selected
+                .expect("every current fairness-eligible window must be selectable");
+            scheduler.record_admission(key.clone());
+            selected.push(key);
+        }
+
+        assert_eq!(selected, expected);
+    }
+
+    #[test]
+    fn empty_or_ineligible_demands_have_no_scheduler_fallback() {
+        let now = Instant::now();
+        let mut scheduler = NativeFrameScheduler::default();
+        assert!(
+            scheduler
+                .observe(now, &[], FrameScheduleDeadlines::default())
+                .selected
+                .is_none()
+        );
+
+        let idle = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Auxiliary("idle".into()),
+            TimedFrameCadence::Idle,
+            60,
+            RuntimeAnimationActivity::idle(),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        );
+        assert!(
+            scheduler
+                .observe(now, &[idle], FrameScheduleDeadlines::default())
+                .selected
+                .is_none()
         );
     }
 

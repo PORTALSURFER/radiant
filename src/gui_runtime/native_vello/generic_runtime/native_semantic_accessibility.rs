@@ -164,6 +164,24 @@ mod macos {
             expected: *const u8,
             expected_len: usize,
         ) -> ObjcBool;
+        fn radiant_native_configure_accessibility_element(
+            element: Id,
+            role: Id,
+            parent: Id,
+            children: Id,
+            frame: *const NSRect,
+            label: Id,
+            title: Id,
+            help: Id,
+            has_enabled: ObjcBool,
+            enabled: ObjcBool,
+        ) -> ObjcBool;
+        fn radiant_native_set_accessibility_children(host: Id, root: Id) -> ObjcBool;
+        fn radiant_native_clear_accessibility_children(host: Id) -> ObjcBool;
+        #[cfg(test)]
+        fn radiant_native_test_make_accessibility_element(kind: u8) -> Id;
+        #[cfg(test)]
+        fn radiant_native_test_make_accessibility_children_host(kind: u8) -> Id;
     }
 
     #[link(name = "AppKit", kind = "framework")]
@@ -344,6 +362,20 @@ mod macos {
         unsafe { message(receiver, selector, argument) }
     }
 
+    #[cfg(test)]
+    unsafe fn msg_usize(receiver: Id, selector: Sel) -> usize {
+        let message: unsafe extern "C" fn(Id, Sel) -> usize =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector) }
+    }
+
+    #[cfg(test)]
+    unsafe fn msg_id_usize(receiver: Id, selector: Sel, argument: usize) -> Id {
+        let message: unsafe extern "C" fn(Id, Sel, usize) -> Id =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector, argument) }
+    }
+
     unsafe fn msg_id_ptr(receiver: Id, selector: Sel) -> *const c_char {
         let message: unsafe extern "C" fn(Id, Sel) -> *const c_char =
             unsafe { transmute(objc_msgSend as *const ()) };
@@ -366,12 +398,6 @@ mod macos {
         let message: unsafe extern "C" fn(Id, Sel) =
             unsafe { transmute(objc_msgSend as *const ()) };
         unsafe { message(receiver, selector) };
-    }
-
-    unsafe fn msg_void_id_id(receiver: Id, selector: Sel, first: Id, second: Id) {
-        let message: unsafe extern "C" fn(Id, Sel, Id, Id) =
-            unsafe { transmute(objc_msgSend as *const ()) };
-        unsafe { message(receiver, selector, first, second) };
     }
 
     unsafe fn msg_id_usize_usize(receiver: Id, selector: Sel, first: usize, second: usize) -> Id {
@@ -1586,6 +1612,10 @@ mod macos {
         view: Id,
         callback_state: Box<RefCell<NativeSemanticCallbackState>>,
         objects: Vec<Id>,
+        // Only objects in this list have crossed the exact host-attachment
+        // commit point.  Allocated objects outside it are pre-commit and
+        // must never receive an AXUIElementDestroyed notification.
+        committed_objects: Vec<Id>,
         tokens: NativeTokenLedger,
         lease: Option<SemanticAutomationSessionHandle>,
         generation: u64,
@@ -1621,6 +1651,7 @@ mod macos {
                 view,
                 callback_state,
                 objects: Vec::new(),
+                committed_objects: Vec::new(),
                 tokens: NativeTokenLedger::default(),
                 lease: None,
                 generation,
@@ -1641,7 +1672,8 @@ mod macos {
         pub(crate) fn publish_passive<Bridge, Message>(
             &mut self,
             runtime: &SurfaceRuntime<Bridge, Message>,
-        ) where
+        ) -> Result<(), String>
+        where
             Bridge: RuntimeBridge<Message>,
         {
             let ordinary = runtime.automation_snapshot();
@@ -1656,23 +1688,28 @@ mod macos {
                     }
                 }
             });
-            let _ = self.publish_projection(&ordinary, &targets, &containers, selected);
+            self.publish_projection(&ordinary, &targets, &containers, selected)
         }
 
         fn publish_ordinary_projection<Bridge, Message>(
             &mut self,
             runtime: &SurfaceRuntime<Bridge, Message>,
-        ) where
+        ) -> Result<(), String>
+        where
             Bridge: RuntimeBridge<Message>,
         {
             let ordinary = runtime.automation_snapshot();
             let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
-            let _ = self.publish_projection(&ordinary, &targets, &containers, None);
+            self.publish_projection(&ordinary, &targets, &containers, None)
         }
 
         pub(crate) fn accepts_generation(&self, generation: u64) -> bool {
             self.generation == generation
+        }
+
+        pub(crate) const fn is_attached(&self) -> bool {
+            self.attached
         }
 
         pub(crate) fn numeric_accessibility_request(
@@ -1806,7 +1843,7 @@ mod macos {
                 Ok(handles) => handles,
                 Err(error) => {
                     self.handle_session_error(error);
-                    self.publish_ordinary_projection(runtime);
+                    let _ = self.publish_ordinary_projection(runtime);
                     self.finish_query(key, false);
                     return;
                 }
@@ -1824,7 +1861,7 @@ mod macos {
                         self.handle_session_error(
                             SemanticAutomationSessionError::StaleContainerHandle,
                         );
-                        self.publish_ordinary_projection(runtime);
+                        let _ = self.publish_ordinary_projection(runtime);
                         self.finish_query(key, false);
                         return;
                     };
@@ -1868,7 +1905,7 @@ mod macos {
                 }
                 Err(error) => {
                     self.handle_session_error(error);
-                    self.publish_ordinary_projection(runtime);
+                    let _ = self.publish_ordinary_projection(runtime);
                     self.finish_query(key, false);
                     return;
                 }
@@ -2020,23 +2057,33 @@ mod macos {
             };
             self.prune_token_ledger(&specs);
             self.reconcile_active_ranges_with_tokens();
-            if self.specs_match_projection(&specs) {
+            if self.attached && self.specs_match_projection(&specs) {
                 self.current_containers = containers.to_vec();
-                self.attached = true;
                 if let Ok(mut state) = self.callback_state.try_borrow_mut() {
                     state.last_unavailable = None;
                 }
                 return Ok(());
             }
-            if let Some(value_notifications) = self.update_stable_value_projection(&specs) {
+            if self.attached
+                && let Some(value_notifications) = self.update_stable_value_projection(&specs)
+            {
                 self.current_containers = containers.to_vec();
-                self.attached = true;
                 for object in value_notifications {
                     self.post_value_changed(object);
                 }
                 return Ok(());
             }
-            self.retire_published_objects();
+            let had_objects = !self.objects.is_empty();
+            if !self.retire_published_objects() && had_objects {
+                self.tokens.retire_all();
+                self.current_containers.clear();
+                self.active_ranges.clear();
+                self.attached = false;
+                return Err(String::from(
+                    "native semantic accessibility host children clear could not be verified",
+                ));
+            }
+            let object_start = self.objects.len();
             let projection = match self.instantiate_specs(specs) {
                 Ok(projection) => projection,
                 Err(error) => {
@@ -2048,7 +2095,18 @@ mod macos {
                     return Err(error);
                 }
             };
-            let changed = self.replace_callback_projection(projection);
+            let changed = match self.replace_callback_projection(projection) {
+                Ok(changed) => changed,
+                Err(error) => {
+                    self.tokens.retire_all();
+                    self.current_containers.clear();
+                    self.active_ranges.clear();
+                    self.attached = false;
+                    return Err(error);
+                }
+            };
+            self.committed_objects
+                .extend(self.objects[object_start..].iter().copied());
             self.current_containers = containers.to_vec();
             self.attached = true;
             if changed {
@@ -2451,38 +2509,159 @@ mod macos {
                 });
             }
             let root_token = nodes.first().map(|node| node.token);
-            Ok(NativeCallbackProjection { nodes, root_token })
+            let projection = NativeCallbackProjection { nodes, root_token };
+            self.configure_modern_projection(&projection)?;
+            Ok(projection)
         }
 
-        fn replace_callback_projection(&mut self, projection: NativeCallbackProjection) -> bool {
-            let changed =
-                callback_projection_changed(&self.callback_state.borrow().projection, &projection);
-            if let Ok(mut state) = self.callback_state.try_borrow_mut() {
-                state.projection = projection.clone();
-                state.last_unavailable = None;
-            }
-            let root = projection
-                .root_token
-                .and_then(|token| projection.nodes.iter().find(|node| node.token == token))
-                .map(|node| node.object);
-            if let Some(root) = root {
-                unsafe {
-                    let children = ns_array(&[root]);
-                    let attribute = ns_string("AXChildren");
-                    if !children.is_null() && !attribute.is_null() {
-                        msg_void_id_id(
-                            self.view,
-                            sel(c"accessibilitySetOverrideValue:forAttribute:"),
-                            children,
-                            attribute,
-                        );
+        fn configure_modern_projection(
+            &self,
+            projection: &NativeCallbackProjection,
+        ) -> Result<(), String> {
+            for node in &projection.nodes {
+                let parent = match node.parent {
+                    Some(parent_token) => projection
+                        .nodes
+                        .iter()
+                        .find(|candidate| candidate.token == parent_token)
+                        .map_or(null_mut(), |candidate| candidate.object),
+                    None if projection.root_token == Some(node.token) => self.view,
+                    None => null_mut(),
+                };
+                if parent.is_null() {
+                    return Err(String::from(
+                        "native semantic modern projection parent was unavailable",
+                    ));
+                }
+
+                let mut child_objects = Vec::with_capacity(node.children.len());
+                for child_token in &node.children {
+                    let Some(child) = projection
+                        .nodes
+                        .iter()
+                        .find(|candidate| candidate.token == *child_token)
+                        .map(|candidate| candidate.object)
+                    else {
+                        return Err(String::from(
+                            "native semantic modern projection child was unavailable",
+                        ));
+                    };
+                    if child.is_null() {
+                        return Err(String::from(
+                            "native semantic modern projection child object was nil",
+                        ));
                     }
+                    child_objects.push(child);
+                }
+
+                let role = unsafe { ns_string(node.role) };
+                let children = unsafe { ns_array(&child_objects) };
+                let label = node
+                    .label
+                    .as_deref()
+                    .map_or(null_mut(), |value| unsafe { ns_string(value) });
+                let title = node
+                    .label
+                    .as_deref()
+                    .map_or(null_mut(), |value| unsafe { ns_string(value) });
+                let help = node
+                    .description
+                    .as_deref()
+                    .map_or(null_mut(), |value| unsafe { ns_string(value) });
+                if role.is_null() || children.is_null() {
+                    return Err(String::from(
+                        "native semantic modern projection property allocation failed",
+                    ));
+                }
+                let has_enabled = if node.action_target.is_some() {
+                    YES
+                } else {
+                    NO
+                };
+                let enabled = if node
+                    .action_target
+                    .as_ref()
+                    .is_some_and(|target| target.enabled)
+                {
+                    YES
+                } else {
+                    NO
+                };
+                let configured = unsafe {
+                    radiant_native_configure_accessibility_element(
+                        node.object,
+                        role,
+                        parent,
+                        children,
+                        &node.frame,
+                        label,
+                        title,
+                        help,
+                        has_enabled,
+                        enabled,
+                    )
+                };
+                if configured != YES {
+                    return Err(String::from(
+                        "native semantic modern accessibility element configuration failed",
+                    ));
                 }
             }
-            changed
+            Ok(())
         }
 
-        fn retire_published_objects(&mut self) {
+        fn replace_callback_projection(
+            &mut self,
+            projection: NativeCallbackProjection,
+        ) -> Result<bool, String> {
+            let changed = self
+                .callback_state
+                .try_borrow()
+                .ok()
+                .map(|state| callback_projection_changed(&state.projection, &projection));
+            let Some(changed) = changed else {
+                self.retire_published_objects();
+                return Err(String::from(
+                    "native semantic callback state is borrowed during publication",
+                ));
+            };
+            let Ok(mut state) = self.callback_state.try_borrow_mut() else {
+                self.retire_published_objects();
+                return Err(String::from(
+                    "native semantic callback state cannot be published",
+                ));
+            };
+            state.projection = projection.clone();
+            state.last_unavailable = None;
+            drop(state);
+            let Some(root) = projection
+                .root_token
+                .and_then(|token| projection.nodes.iter().find(|node| node.token == token))
+                .map(|node| node.object)
+            else {
+                self.retire_published_objects();
+                return Err(String::from(
+                    "native semantic projection has no root object",
+                ));
+            };
+            if root.is_null() {
+                self.retire_published_objects();
+                return Err(String::from(
+                    "native semantic projection root object is nil",
+                ));
+            }
+            let installed =
+                unsafe { radiant_native_set_accessibility_children(self.view, root) == YES };
+            if !installed {
+                self.retire_published_objects();
+                return Err(String::from(
+                    "native semantic accessibility host rejected accessibilityChildren",
+                ));
+            }
+            Ok(changed)
+        }
+
+        fn retire_published_objects(&mut self) -> bool {
             self.advance_generation();
             self.attached = false;
             self.clear_callback_state();
@@ -2494,50 +2673,53 @@ mod macos {
                     unsafe { object_setIvar(*object, class.state_ivar(), null_mut()) };
                 }
             }
-            unsafe {
-                let attribute = ns_string("AXChildren");
-                if !attribute.is_null() {
-                    msg_void_id_id(
-                        self.view,
-                        sel(c"accessibilitySetOverrideValue:forAttribute:"),
-                        null_mut(),
-                        attribute,
-                    );
-                }
-            }
             let Some(class) = class else {
                 // The state has already been emptied where possible. Retain
                 // objects if Objective-C cannot expose their ivar, so no
                 // object is released while it may still point at live state.
-                return;
+                return false;
             };
+            let host_clear_verified = self.view.is_null()
+                || unsafe { radiant_native_clear_accessibility_children(self.view) == YES };
+            if !host_clear_verified {
+                // Keep every object quarantined when the host may still retain
+                // a stale root, including allocations from a failed
+                // pre-commit publication.  Their callback ivars are already
+                // inert, so dropping this adapter remains safe.
+                return false;
+            };
+            let committed_objects = std::mem::take(&mut self.committed_objects);
             for object in self.objects.drain(..) {
                 unsafe {
                     // Keep this immediately before notification/release as a
                     // final per-object lifecycle fence, including reentrant
                     // or partially borrowed callback-state cases.
                     object_setIvar(object, class.state_ivar(), null_mut());
-                    let notification = ns_string("AXUIElementDestroyed");
-                    if !notification.is_null() {
-                        NSAccessibilityPostNotification(object, notification);
-                        #[cfg(test)]
-                        {
-                            self.destroyed_notifications =
-                                self.destroyed_notifications.saturating_add(1);
+                    if committed_objects.contains(&object) {
+                        let notification = ns_string("AXUIElementDestroyed");
+                        if !notification.is_null() {
+                            NSAccessibilityPostNotification(object, notification);
+                            #[cfg(test)]
+                            {
+                                self.destroyed_notifications =
+                                    self.destroyed_notifications.saturating_add(1);
+                            }
                         }
                     }
                     msg_void(object, sel(c"release"));
                 }
             }
+            true
         }
 
         fn clear_callback_state(&mut self) {
-            let state = self.callback_state.get_mut();
-            state.projection = NativeCallbackProjection::default();
-            state.in_flight.clear();
-            state.deferred.clear();
-            state.pending_numeric_actions = 0;
-            state.last_unavailable = None;
+            if let Ok(mut state) = self.callback_state.try_borrow_mut() {
+                state.projection = NativeCallbackProjection::default();
+                state.in_flight.clear();
+                state.deferred.clear();
+                state.pending_numeric_actions = 0;
+                state.last_unavailable = None;
+            }
         }
 
         fn advance_generation(&mut self) {
@@ -2703,7 +2885,7 @@ mod macos {
 
     impl Drop for NativeSemanticAccessibilityAdapter {
         fn drop(&mut self) {
-            self.retire_published_objects();
+            let _ = self.retire_published_objects();
             self.tokens.retire_all();
         }
     }
@@ -3754,6 +3936,7 @@ mod macos {
                 view: null_mut(),
                 callback_state,
                 objects: vec![receiver],
+                committed_objects: vec![receiver],
                 tokens: NativeTokenLedger {
                     next: 8,
                     root: Some((1, Some(session), 5)),
@@ -3877,6 +4060,171 @@ mod macos {
             object
         }
 
+        const ACCESSIBILITY_CHILDREN_HOST_STANDARD: u8 = 0;
+        const ACCESSIBILITY_CHILDREN_HOST_UNSUPPORTED: u8 = 1;
+        const ACCESSIBILITY_CHILDREN_HOST_THROWING_SETTER: u8 = 2;
+        const ACCESSIBILITY_CHILDREN_HOST_THROWING_GETTER: u8 = 3;
+        const ACCESSIBILITY_CHILDREN_HOST_MISMATCHED: u8 = 4;
+        const ACCESSIBILITY_CHILDREN_HOST_IGNORING_CLEAR: u8 = 5;
+        const ACCESSIBILITY_CHILDREN_HOST_THROWING_CLEAR: u8 = 6;
+        const MODERN_ACCESSIBILITY_ELEMENT_STANDARD: u8 = 0;
+        const MODERN_ACCESSIBILITY_ELEMENT_THROWING_SETTER: u8 = 1;
+        const MODERN_ACCESSIBILITY_ELEMENT_THROWING_GETTER: u8 = 2;
+        const MODERN_ACCESSIBILITY_ELEMENT_MISMATCHED_PARENT: u8 = 3;
+        const MODERN_ACCESSIBILITY_ELEMENT_MISMATCHED_CHILDREN: u8 = 4;
+        const MODERN_ACCESSIBILITY_ELEMENT_FILTERED: u8 = 5;
+        const MODERN_ACCESSIBILITY_ELEMENT_UNSUPPORTED: u8 = 6;
+
+        fn accessibility_children_test_host(kind: u8) -> Id {
+            unsafe { radiant_native_test_make_accessibility_children_host(kind) }
+        }
+
+        fn release_accessibility_children_test_host(host: Id) {
+            if !host.is_null() {
+                unsafe { msg_void(host, sel(c"release")) };
+            }
+        }
+
+        fn modern_accessibility_element(kind: u8) -> Id {
+            unsafe { radiant_native_test_make_accessibility_element(kind) }
+        }
+
+        fn release_modern_accessibility_element(element: Id) {
+            if !element.is_null() {
+                unsafe { msg_void(element, sel(c"release")) };
+            }
+        }
+
+        fn modern_accessibility_children(element: Id) -> Vec<Id> {
+            if element.is_null() {
+                return Vec::new();
+            }
+            let children = unsafe { msg_id(element, sel(c"accessibilityChildren")) };
+            if children.is_null() {
+                return Vec::new();
+            }
+            let count = unsafe { msg_usize(children, sel(c"count")) };
+            (0..count)
+                .map(|index| unsafe { msg_id_usize(children, sel(c"objectAtIndex:"), index) })
+                .collect()
+        }
+
+        fn modern_accessibility_string(element: Id, selector: Sel) -> Option<String> {
+            let value = unsafe { msg_id(element, selector) };
+            if value.is_null() {
+                None
+            } else {
+                unsafe { bounded_ns_string_to_rust(value) }
+            }
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn configure_modern_accessibility_element_fixture(
+            element: Id,
+            role: &str,
+            parent: Id,
+            children: &[Id],
+            frame: NSRect,
+            label: Option<&str>,
+            title: Option<&str>,
+            help: Option<&str>,
+            enabled: Option<bool>,
+        ) -> ObjcBool {
+            let role = unsafe { ns_string(role) };
+            let children = unsafe { ns_array(children) };
+            let label = label.map_or(null_mut(), |value| unsafe { ns_string(value) });
+            let title = title.map_or(null_mut(), |value| unsafe { ns_string(value) });
+            let help = help.map_or(null_mut(), |value| unsafe { ns_string(value) });
+            unsafe {
+                radiant_native_configure_accessibility_element(
+                    element,
+                    role,
+                    parent,
+                    children,
+                    &frame,
+                    label,
+                    title,
+                    help,
+                    enabled.map_or(NO, |_| YES),
+                    enabled.map_or(NO, |value| if value { YES } else { NO }),
+                )
+            }
+        }
+
+        fn accessibility_children_readback(host: Id) -> (Id, usize) {
+            if host.is_null() {
+                return (null_mut(), 0);
+            }
+            let children = unsafe { msg_id(host, sel(c"accessibilityChildren")) };
+            if children.is_null() {
+                return (null_mut(), 0);
+            }
+            let count = unsafe { msg_usize(children, sel(c"count")) };
+            let first = if count == 1 {
+                unsafe { msg_id_usize(children, sel(c"objectAtIndex:"), 0) }
+            } else {
+                null_mut()
+            };
+            (first, count)
+        }
+
+        fn native_accessibility_root_fixture(
+            view: Id,
+        ) -> (Id, Box<RefCell<NativeSemanticCallbackState>>) {
+            let class = native_class().expect("the native accessibility class should exist");
+            let allocated = unsafe { msg_id(class.class(), sel(c"alloc")) };
+            let root = unsafe { msg_id(allocated, sel(c"init")) };
+            assert!(!root.is_null());
+            let callback_state = Box::new(RefCell::new(NativeSemanticCallbackState::new_for_test(
+                WindowId::dummy(),
+                1,
+                view,
+            )));
+            callback_state.borrow_mut().projection = NativeCallbackProjection {
+                nodes: vec![index_test_node(
+                    root as usize,
+                    TEST_ROOT_TOKEN,
+                    NativeNodeKind::Root,
+                    None,
+                    Vec::new(),
+                    Vec::new(),
+                    None,
+                )],
+                root_token: Some(TEST_ROOT_TOKEN),
+            };
+            let state_ptr = (&*callback_state as *const RefCell<NativeSemanticCallbackState>) as Id;
+            unsafe { object_setIvar(root, class.state_ivar(), state_ptr) };
+            (root, callback_state)
+        }
+
+        fn native_publication_adapter_fixture(view: Id) -> NativeSemanticAccessibilityAdapter {
+            let callback_state =
+                NativeSemanticCallbackState::new_for_test(WindowId::dummy(), 1, view);
+            NativeSemanticAccessibilityAdapter {
+                view,
+                callback_state: Box::new(RefCell::new(callback_state)),
+                objects: Vec::new(),
+                committed_objects: Vec::new(),
+                tokens: NativeTokenLedger::default(),
+                lease: None,
+                generation: 1,
+                window_generation: 1,
+                transform: Some(NativeCoordinateTransform::for_test(NSRect {
+                    origin: NSPoint { x: 0.0, y: 0.0 },
+                    size: NSSize {
+                        width: 240.0,
+                        height: 120.0,
+                    },
+                })),
+                current_containers: Vec::new(),
+                active_ranges: Vec::new(),
+                attached: false,
+                layout_notifications: 0,
+                value_notifications: 0,
+                destroyed_notifications: 0,
+            }
+        }
+
         #[test]
         fn native_coordinate_conversion_helper_contains_objective_c_exceptions() {
             let source = NSRect {
@@ -3916,6 +4264,560 @@ mod macos {
             assert_eq!(validated_screen_rect(YES, valid, 1.0), Some(valid));
         }
 
+        #[test]
+        fn accessibility_children_boundary_requires_exact_supported_root_attachment() {
+            let host_kinds = [
+                (ACCESSIBILITY_CHILDREN_HOST_STANDARD, YES),
+                (ACCESSIBILITY_CHILDREN_HOST_UNSUPPORTED, NO),
+                (ACCESSIBILITY_CHILDREN_HOST_THROWING_SETTER, NO),
+                (ACCESSIBILITY_CHILDREN_HOST_THROWING_GETTER, NO),
+                (ACCESSIBILITY_CHILDREN_HOST_MISMATCHED, NO),
+            ];
+            for (kind, expected_installation) in host_kinds {
+                let host = accessibility_children_test_host(kind);
+                assert!(!host.is_null());
+                let (root, callback_state) = native_accessibility_root_fixture(host);
+                assert_eq!(
+                    unsafe { radiant_native_set_accessibility_children(host, root) },
+                    expected_installation,
+                    "unexpected accessibilityChildren installation result for fixture {kind}"
+                );
+                if kind == ACCESSIBILITY_CHILDREN_HOST_STANDARD {
+                    let (readback, count) = accessibility_children_readback(host);
+                    assert_eq!(count, 1);
+                    assert_eq!(readback, root);
+                    assert_eq!(
+                        unsafe { radiant_native_set_accessibility_children(host, null_mut()) },
+                        NO
+                    );
+                    assert_eq!(
+                        unsafe { radiant_native_clear_accessibility_children(host) },
+                        YES
+                    );
+                    let (readback, count) = accessibility_children_readback(host);
+                    assert!(readback.is_null());
+                    assert_eq!(count, 0);
+                    assert_eq!(
+                        unsafe { radiant_native_clear_accessibility_children(host) },
+                        YES,
+                        "clearing an already empty host must be idempotent"
+                    );
+                }
+                let class = native_class().expect("the native accessibility class should exist");
+                unsafe { object_setIvar(root, class.state_ivar(), null_mut()) };
+                unsafe { msg_void(root, sel(c"release")) };
+                drop(callback_state);
+                release_accessibility_children_test_host(host);
+            }
+
+            let wrong_class =
+                unsafe { class_named(c"NSObject") }.expect("the Foundation class should exist");
+            let allocated = unsafe { msg_id(wrong_class, sel(c"alloc")) };
+            let wrong_host = unsafe { msg_id(allocated, sel(c"init")) };
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let (root, callback_state) = native_accessibility_root_fixture(host);
+            assert_eq!(
+                unsafe { radiant_native_set_accessibility_children(wrong_host, root) },
+                NO
+            );
+            assert_eq!(
+                unsafe { radiant_native_clear_accessibility_children(wrong_host) },
+                NO
+            );
+            assert_eq!(
+                unsafe { radiant_native_set_accessibility_children(host, null_mut()) },
+                NO
+            );
+            assert_eq!(
+                unsafe { radiant_native_set_accessibility_children(null_mut(), root) },
+                NO
+            );
+            assert_eq!(
+                unsafe { radiant_native_clear_accessibility_children(null_mut()) },
+                NO
+            );
+            let class = native_class().expect("the native accessibility class should exist");
+            unsafe { object_setIvar(root, class.state_ivar(), null_mut()) };
+            unsafe { msg_void(root, sel(c"release")) };
+            drop(callback_state);
+            release_accessibility_children_test_host(host);
+            unsafe { msg_void(wrong_host, sel(c"release")) };
+        }
+
+        #[test]
+        fn accessibility_children_boundary_preserves_content_view_parent_symmetry() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let (root, callback_state) = native_accessibility_root_fixture(host);
+            assert_eq!(
+                unsafe { radiant_native_set_accessibility_children(host, root) },
+                YES
+            );
+            let (readback, count) = accessibility_children_readback(host);
+            assert_eq!(count, 1);
+            assert_eq!(readback, root);
+            let parent_attribute = unsafe { ns_string("AXParent") };
+            assert_eq!(
+                native_attribute_value(root, null_mut(), parent_attribute),
+                host,
+                "the published root must report the same content view as its AXParent"
+            );
+            assert_eq!(
+                unsafe { radiant_native_clear_accessibility_children(host) },
+                YES
+            );
+            let (readback, count) = accessibility_children_readback(host);
+            assert!(readback.is_null());
+            assert_eq!(count, 0);
+            let class = native_class().expect("the native accessibility class should exist");
+            unsafe { object_setIvar(root, class.state_ivar(), null_mut()) };
+            unsafe { msg_void(root, sel(c"release")) };
+            drop(callback_state);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn modern_accessibility_configuration_is_bidirectional_and_reachable() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let root = modern_accessibility_element(MODERN_ACCESSIBILITY_ELEMENT_STANDARD);
+            let numeric = modern_accessibility_element(MODERN_ACCESSIBILITY_ELEMENT_STANDARD);
+            assert!(!host.is_null());
+            assert!(!root.is_null());
+            assert!(!numeric.is_null());
+            let root_frame = NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: 240.0,
+                    height: 120.0,
+                },
+            };
+            let numeric_frame = NSRect {
+                origin: NSPoint { x: 8.0, y: 12.0 },
+                size: NSSize {
+                    width: 120.0,
+                    height: 24.0,
+                },
+            };
+            assert_eq!(
+                configure_modern_accessibility_element_fixture(
+                    root,
+                    "AXGroup",
+                    host,
+                    &[numeric],
+                    root_frame,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+                YES
+            );
+            assert_eq!(
+                configure_modern_accessibility_element_fixture(
+                    numeric,
+                    "AXIncrementor",
+                    root,
+                    &[],
+                    numeric_frame,
+                    Some("Gain"),
+                    Some("Gain"),
+                    Some("Numeric gain"),
+                    Some(true),
+                ),
+                YES
+            );
+
+            assert_eq!(
+                modern_accessibility_string(root, unsafe { sel(c"accessibilityRole") }).as_deref(),
+                Some("AXGroup")
+            );
+            assert_eq!(
+                modern_accessibility_string(numeric, unsafe { sel(c"accessibilityRole") })
+                    .as_deref(),
+                Some("AXIncrementor")
+            );
+            assert_eq!(
+                unsafe { msg_id(root, sel(c"accessibilityParent")) },
+                host,
+                "the modern root parent must be the exact content-view host"
+            );
+            assert_eq!(
+                unsafe { msg_id(numeric, sel(c"accessibilityParent")) },
+                root
+            );
+            assert_eq!(modern_accessibility_children(root), vec![numeric]);
+            assert!(modern_accessibility_children(numeric).is_empty());
+            assert_eq!(
+                unsafe { msg_rect(root, sel(c"accessibilityFrame")) },
+                root_frame
+            );
+            assert_eq!(
+                unsafe { msg_rect(numeric, sel(c"accessibilityFrame")) },
+                numeric_frame
+            );
+            assert!(rect_is_finite(numeric_frame));
+            assert!(numeric_frame.size.width > 0.0);
+            assert!(numeric_frame.size.height > 0.0);
+            assert_eq!(
+                modern_accessibility_string(numeric, unsafe { sel(c"accessibilityLabel") })
+                    .as_deref(),
+                Some("Gain")
+            );
+            assert_eq!(
+                modern_accessibility_string(numeric, unsafe { sel(c"accessibilityTitle") })
+                    .as_deref(),
+                Some("Gain")
+            );
+            assert_eq!(
+                modern_accessibility_string(numeric, unsafe { sel(c"accessibilityHelp") })
+                    .as_deref(),
+                Some("Numeric gain")
+            );
+            assert_eq!(
+                unsafe { msg_bool(numeric, sel(c"isAccessibilityElement")) },
+                YES
+            );
+            assert_eq!(
+                unsafe { msg_bool(numeric, sel(c"isAccessibilityEnabled")) },
+                YES
+            );
+
+            assert_eq!(
+                unsafe { radiant_native_set_accessibility_children(host, root) },
+                YES
+            );
+            assert_eq!(modern_accessibility_children(host), vec![root]);
+            let (readback, count) = accessibility_children_readback(host);
+            assert_eq!((readback, count), (root, 1));
+            assert_eq!(
+                unsafe { radiant_native_clear_accessibility_children(host) },
+                YES
+            );
+            release_modern_accessibility_element(root);
+            release_modern_accessibility_element(numeric);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn modern_accessibility_configuration_failures_are_inert_before_host_attachment() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let frame = NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: 120.0,
+                    height: 24.0,
+                },
+            };
+            for kind in [
+                MODERN_ACCESSIBILITY_ELEMENT_THROWING_SETTER,
+                MODERN_ACCESSIBILITY_ELEMENT_THROWING_GETTER,
+                MODERN_ACCESSIBILITY_ELEMENT_MISMATCHED_PARENT,
+                MODERN_ACCESSIBILITY_ELEMENT_MISMATCHED_CHILDREN,
+                MODERN_ACCESSIBILITY_ELEMENT_FILTERED,
+                MODERN_ACCESSIBILITY_ELEMENT_UNSUPPORTED,
+            ] {
+                let element = modern_accessibility_element(kind);
+                assert_eq!(
+                    configure_modern_accessibility_element_fixture(
+                        element,
+                        "AXGroup",
+                        host,
+                        &[],
+                        frame,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ),
+                    NO,
+                    "modern fixture {kind} must remain precommit"
+                );
+                assert!(modern_accessibility_children(host).is_empty());
+                release_modern_accessibility_element(element);
+            }
+
+            let standard = modern_accessibility_element(MODERN_ACCESSIBILITY_ELEMENT_STANDARD);
+            assert_eq!(
+                configure_modern_accessibility_element_fixture(
+                    null_mut(),
+                    "AXGroup",
+                    host,
+                    &[],
+                    frame,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+                NO
+            );
+            assert_eq!(
+                configure_modern_accessibility_element_fixture(
+                    standard,
+                    "AXGroup",
+                    null_mut(),
+                    &[],
+                    frame,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+                NO
+            );
+            assert_eq!(
+                configure_modern_accessibility_element_fixture(
+                    host,
+                    "AXGroup",
+                    host,
+                    &[],
+                    frame,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+                NO,
+                "a non-NSAccessibilityElement must not be configured"
+            );
+            assert!(modern_accessibility_children(host).is_empty());
+            release_modern_accessibility_element(standard);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_publication_commits_attachment_and_layout_only_after_host_success() {
+            let runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
+            assert!(
+                adapter
+                    .publish_projection(&ordinary, &targets, &[], None)
+                    .is_ok()
+            );
+            assert!(adapter.attached);
+            assert_eq!(adapter.committed_objects, adapter.objects);
+            assert_eq!(adapter.layout_notifications, 1);
+            assert_eq!(adapter.value_notifications, 0);
+            let (readback, count) = accessibility_children_readback(host);
+            assert_eq!(count, 1);
+            assert_eq!(
+                readback,
+                adapter
+                    .callback_state
+                    .borrow()
+                    .projection
+                    .nodes
+                    .first()
+                    .map_or(null_mut(), |node| node.object)
+            );
+            let expected_destroyed_notifications = adapter.objects.len();
+            assert!(adapter.retire_published_objects());
+            assert_eq!(adapter.objects.len(), 0);
+            assert_eq!(
+                adapter.destroyed_notifications, expected_destroyed_notifications,
+                "committed objects receive one destruction notification after verified clear"
+            );
+            adapter.retire_published_objects();
+            assert_eq!(
+                adapter.destroyed_notifications,
+                expected_destroyed_notifications
+            );
+            drop(runtime);
+            drop(adapter);
+            let (readback, count) = accessibility_children_readback(host);
+            assert!(readback.is_null());
+            assert_eq!(count, 0);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_publication_uses_modern_numeric_value_and_retains_identity() {
+            let mut runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            let initial_snapshot = runtime.automation_snapshot();
+            let initial_targets = runtime.automation_target_snapshot();
+            adapter
+                .publish_projection(&initial_snapshot, &initial_targets, &[], None)
+                .expect("the modern native projection should publish");
+
+            let initial_projection = adapter.callback_state.borrow().projection.clone();
+            let initial_numeric = initial_projection
+                .nodes
+                .iter()
+                .find(|node| node.role == "AXIncrementor")
+                .cloned()
+                .expect("the production numeric node should be an AXIncrementor");
+            let root = initial_projection
+                .nodes
+                .iter()
+                .find(|node| node.kind == NativeNodeKind::Root)
+                .expect("the production root should be present");
+            assert_eq!(
+                unsafe { msg_id(initial_numeric.object, sel(c"accessibilityParent")) },
+                root.object
+            );
+            assert_eq!(
+                modern_accessibility_children(root.object),
+                vec![initial_numeric.object]
+            );
+            assert_eq!(
+                modern_accessibility_string(initial_numeric.object, unsafe {
+                    sel(c"accessibilityValue")
+                })
+                .as_deref(),
+                Some("7")
+            );
+            assert_eq!(
+                unsafe { msg_bool(initial_numeric.object, sel(c"isAccessibilityEnabled")) },
+                YES
+            );
+            let initial_frame =
+                unsafe { msg_rect(initial_numeric.object, sel(c"accessibilityFrame")) };
+            assert!(rect_is_finite(initial_frame));
+            assert!(initial_frame.size.width > 0.0);
+            assert!(initial_frame.size.height > 0.0);
+            let initial_object = initial_numeric.object;
+            let initial_target = initial_targets
+                .targets
+                .iter()
+                .find(|target| {
+                    target.id
+                        == initial_numeric
+                            .action_target
+                            .as_ref()
+                            .expect("the numeric node should carry an action target")
+                            .id
+                })
+                .cloned()
+                .expect("the numeric action target should remain in the target snapshot");
+            let request = adapter
+                .numeric_accessibility_request(
+                    initial_numeric.token,
+                    initial_target,
+                    NativeNumericAccessibilityAction::Increment,
+                )
+                .expect("the modern numeric node should admit increment");
+            assert!(matches!(
+                runtime.dispatch_numeric_accessibility_action(request),
+                crate::runtime::NumericAccessibilityDispatchResult::Accepted { .. }
+            ));
+
+            let refreshed_snapshot = runtime.automation_snapshot();
+            let refreshed_targets = runtime.automation_target_snapshot();
+            adapter
+                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .expect("a value-only numeric refresh should remain published");
+            let refreshed_numeric = adapter
+                .callback_state
+                .borrow()
+                .projection
+                .nodes
+                .iter()
+                .find(|node| node.token == initial_numeric.token)
+                .cloned()
+                .expect("the numeric object should remain in the refreshed projection");
+            assert_eq!(refreshed_numeric.object, initial_object);
+            assert_eq!(
+                modern_accessibility_string(refreshed_numeric.object, unsafe {
+                    sel(c"accessibilityValue")
+                })
+                .as_deref(),
+                Some("8")
+            );
+            assert_eq!(adapter.value_notifications, 1);
+            assert_eq!(adapter.layout_notifications, 1);
+            assert!(adapter.retire_published_objects());
+            drop(runtime);
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_publication_failure_is_inert_for_mismatched_and_throwing_hosts() {
+            let runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
+            for kind in [
+                ACCESSIBILITY_CHILDREN_HOST_MISMATCHED,
+                ACCESSIBILITY_CHILDREN_HOST_THROWING_SETTER,
+                ACCESSIBILITY_CHILDREN_HOST_THROWING_GETTER,
+            ] {
+                let host = accessibility_children_test_host(kind);
+                let mut adapter = native_publication_adapter_fixture(host);
+                assert!(
+                    adapter
+                        .publish_projection(&ordinary, &targets, &[], None)
+                        .is_err(),
+                    "host fixture {kind} must reject the publication"
+                );
+                assert!(!adapter.attached);
+                assert_eq!(adapter.layout_notifications, 0);
+                assert_eq!(adapter.value_notifications, 0);
+                assert_eq!(adapter.destroyed_notifications, 0);
+                assert!(adapter.committed_objects.is_empty());
+                assert!(adapter.callback_state.borrow().projection.nodes.is_empty());
+                let quarantined_objects = adapter.objects.clone();
+                drop(adapter);
+                release_accessibility_children_test_host(host);
+                if !quarantined_objects.is_empty() {
+                    release_native_index_objects(&quarantined_objects);
+                }
+            }
+        }
+
+        #[test]
+        fn native_retirement_quarantines_objects_when_host_clear_is_unverified() {
+            let runtime =
+                SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
+            let ordinary = runtime.automation_snapshot();
+            let targets = runtime.automation_target_snapshot();
+            for kind in [
+                ACCESSIBILITY_CHILDREN_HOST_IGNORING_CLEAR,
+                ACCESSIBILITY_CHILDREN_HOST_THROWING_CLEAR,
+            ] {
+                let host = accessibility_children_test_host(kind);
+                let mut adapter = native_publication_adapter_fixture(host);
+                assert!(
+                    adapter
+                        .publish_projection(&ordinary, &targets, &[], None)
+                        .is_ok(),
+                    "host fixture {kind} must accept the initial publication"
+                );
+                let root = adapter
+                    .callback_state
+                    .borrow()
+                    .projection
+                    .nodes
+                    .first()
+                    .map_or(null_mut(), |node| node.object);
+                let quarantined_objects = adapter.objects.clone();
+                let (readback, count) = accessibility_children_readback(host);
+                assert_eq!(count, 1);
+                assert_eq!(readback, root);
+
+                assert!(!adapter.retire_published_objects());
+                assert!(!adapter.attached);
+                assert_eq!(adapter.destroyed_notifications, 0);
+                assert_eq!(adapter.objects, quarantined_objects);
+                let (readback, count) = accessibility_children_readback(host);
+                assert_eq!(count, 1);
+                assert_eq!(readback, root);
+
+                assert!(!adapter.retire_published_objects());
+                assert_eq!(adapter.destroyed_notifications, 0);
+                assert_eq!(adapter.objects, quarantined_objects);
+                drop(adapter);
+                release_accessibility_children_test_host(host);
+                release_native_index_objects(&quarantined_objects);
+            }
+        }
+
         fn numeric_adapter_fixture(target: AutomationTarget) -> NativeSemanticAccessibilityAdapter {
             let node = numeric_callback_node(target, "7");
             numeric_adapter_fixture_with_projection(NativeCallbackProjection {
@@ -3935,6 +4837,7 @@ mod macos {
                 view: null_mut(),
                 callback_state: Box::new(RefCell::new(callback_state)),
                 objects: Vec::new(),
+                committed_objects: Vec::new(),
                 tokens: NativeTokenLedger::default(),
                 lease: None,
                 generation: 3,
@@ -4226,6 +5129,7 @@ mod macos {
                 view: null_mut(),
                 callback_state: Box::new(RefCell::new(callback_state)),
                 objects: Vec::new(),
+                committed_objects: Vec::new(),
                 tokens: NativeTokenLedger {
                     next: item_tokens[1],
                     root: Some((40, Some(session), 5)),
@@ -5832,6 +6736,7 @@ mod macos {
                 view: null_mut(),
                 callback_state: Box::new(RefCell::new(callback_state)),
                 objects: Vec::new(),
+                committed_objects: Vec::new(),
                 tokens: NativeTokenLedger::default(),
                 lease: None,
                 generation: 1,

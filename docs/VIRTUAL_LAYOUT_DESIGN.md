@@ -23,7 +23,13 @@ attachment are live. Scheduler/cancellation transport, product provider
 consumer implementations, and direct native custom-resolver invocation remain
 deferred. The bounded normalized Custom path of the later macOS/AppKit native
 semantic accessibility query contract below is implemented and normative for
-that consumer; live host/AppKit acceptance remains pending. The
+that consumer. Automated AppKit boundary evidence remains shipped; exact
+fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
+numeric action, bounded set-value, and restart acceptance for this bounded
+primary-window consumer. VoiceOver-specific acceptance remains unperformed;
+repeated negative-geometry AppKit runtime diagnostics remain a separate
+unverified follow-up if reproducible. Estimates remain unchanged and no estimate
+credit, including Platform credit, is awarded. The
 public declarative provider attachment contract below is normative and shipped
 as the bounded public-API evidence point; its custom resolver is generic and
 does not itself provide a native/product integration.
@@ -1190,8 +1196,14 @@ session consumer and public selected-snapshot boundary are also shipped;
 scheduler/cancellation transport, product provider consumer implementations, and
 direct native custom-resolver invocation/reconstruction remain deferred. The
 bounded normalized Custom path of the private primary-window macOS/AppKit native
-semantic accessibility query contract is implemented below; live host/AppKit
-acceptance remains pending. The private kernel
+semantic accessibility query contract is implemented below. Automated AppKit
+boundary evidence remains shipped; exact fresh-bundle activated Computer Use/
+AppKit evidence verifies discoverability and numeric action, bounded set-value,
+and restart acceptance for this bounded primary-window consumer. VoiceOver-
+specific acceptance remains unperformed; repeated negative-geometry AppKit
+runtime diagnostics remain a separate unverified follow-up if reproducible.
+Estimates remain unchanged and no estimate credit, including Platform credit, is
+awarded. The private kernel
 does not add a public
 imperative provider-registration surface; the shipped qualified provider and
 custom-coordinate surface is
@@ -1505,10 +1517,15 @@ provider plus bounded custom-coordinate attachment is normative and shipped as
 the public-API evidence point; direct native custom-resolver
 invocation/reconstruction, product provider consumer implementations, and
 scheduling remain deferred. The private native
-consumer has automated evidence in this cycle; live host/AppKit acceptance
-remains pending. Numeric estimates are generic ~97%, Declarative identity 71%,
-layout 97%, and broad coverage `903 / 11` (~82.09%), with Public API 85% and no
-Platform credit. Existing pure public snapshot APIs and the existing non-goals
+consumer has automated AppKit boundary evidence shipped; exact fresh-bundle
+activated Computer Use/AppKit evidence verifies discoverability and numeric
+action, bounded set-value, and restart acceptance for this bounded primary-window
+consumer. VoiceOver-specific acceptance remains unperformed; repeated
+negative-geometry AppKit runtime diagnostics remain a separate unverified
+follow-up if reproducible. Estimates remain unchanged and no estimate credit,
+including Platform credit, is awarded. Numeric estimates are generic ~97%,
+Declarative identity 71%, layout 97%, and broad coverage `903 / 11` (~82.09%),
+with Public API 85%. Existing pure public snapshot APIs and the existing non-goals
 remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
@@ -1559,6 +1576,30 @@ generations, or repair malformed or colliding evidence. `DataUnavailable` and
 unsupported, rejected, panic, malformed, collision, stale, or cancelled evidence
 uses the existing typed conservative baseline behavior; stale and cancelled
 completions are inert and MUST NOT mutate or publish native state.
+
+The root is attached to the primary content view only through AppKit's supported
+`accessibilityChildren`/`setAccessibilityChildren:` property, and installation
+is accepted only after a bounded exact one-root identity readback. A nil or
+wrong root/host, unsupported selector, Objective-C exception, or mismatched
+readback leaves the adapter unattached, posts no layout/value notification, and
+attempts to clear any attempted host state. Retirement releases pre-commit
+allocations silently only after nil/empty clear readback; if that readback
+cannot be verified, callback state and object ivars become inert but objects
+remain quarantined, with no release or destruction notification while the host
+may retain a stale root. Previously committed objects receive exactly one
+destruction notification only after verified clear. Replacement, recovery,
+close, and drop clear `accessibilityChildren` symmetrically before releasing
+committed native objects; the root reports the same content view as `AXParent`.
+Automated AppKit boundary evidence remains shipped. Exact fresh-bundle
+activated Computer Use/AppKit evidence verifies discoverability for this
+bounded primary-window consumer: the activated window exposed the Radiant
+container and a settable stepper at `42.00`; Increment and Decrement produced
+`43.00` and `42.00`, bounded `SetValueText` produced `55.50` and `57.25` with
+fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh
+restarted instance exposed the same tree. VoiceOver-specific acceptance remains
+unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a
+separate unverified follow-up if reproducible. Estimates remain unchanged and
+no estimate credit, including Platform credit, is awarded.
 
 The first native consumer accepts `Logical` registrations unchanged and admits
 `Custom(identity)` only with the matching current transform attachment, exact
@@ -1622,9 +1663,14 @@ qualified builder is
 `VirtualLayoutParts::with_semantic_cardinality(...)`. The field and builder ship
 outside the common prelude, and the exact private registration/live-fence
 invalidation foundation, normalized sidecar, native topology, bounded AppKit
-queries, and private primary-window platform consumer are implemented. Live
-host/AppKit acceptance remains pending; no public API is added and alignment
-estimates remain unchanged.
+queries, and private primary-window platform consumer are implemented.
+Automated AppKit boundary evidence remains shipped; exact fresh-bundle
+activated Computer Use/AppKit evidence verifies discoverability and numeric
+action, bounded set-value, and restart acceptance for this bounded primary-window
+consumer. VoiceOver-specific acceptance remains unperformed; repeated
+negative-geometry AppKit runtime diagnostics remain a separate unverified
+follow-up if reproducible. No public API is added; estimates remain unchanged
+and no estimate credit, including Platform credit, is awarded.
 
 Cardinality is immutable declaration evidence. It is not a callback, provider
 availability signal, or demand. `None` means unknown/unsupported; exact zero is
@@ -1822,8 +1868,14 @@ virtual layout, with a separate qualified custom-coordinate resolver:
   unknown/unsupported, exact zero is supported, the count is independent of
   the 1024 per-query/aggregate caps, and it must not allocate proportional
   storage. The normalized sidecar, native cardinality query/topology, and
-  private primary-window platform consumer are implemented outside the prelude;
-  live host/AppKit acceptance remains pending.
+private primary-window platform consumer are implemented outside the prelude.
+  Automated AppKit boundary evidence remains shipped; exact fresh-bundle
+  activated Computer Use/AppKit evidence verifies discoverability and numeric
+  action, bounded set-value, and restart acceptance for this bounded
+  primary-window consumer. VoiceOver-specific acceptance remains unperformed;
+  repeated negative-geometry AppKit runtime diagnostics remain a separate
+  unverified follow-up if reproducible. Estimates remain unchanged and no
+  estimate credit, including Platform credit, is awarded.
 - Provider-supplied `Unavailable` reasons are only `DataUnavailable` and
   `Unsupported`. `NoProvider` is not provider-supplied: it is synthesized by
   the runtime when the relevant optional slot is absent. Provider `Deferred`
@@ -2356,9 +2408,9 @@ public selected snapshot, and qualified declarative provider attachment.
 | Whole-surface publication reject | One active member fails, is unresolved, or has a mismatched publication fence | Prior eligible complete composition or ordinary-only baseline remains; no mixed old/new or partial virtual tree is published. |
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
-| Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves virtual/provider actions separate. Automated evidence is shipped; live host/AppKit acceptance remains pending. |
-| Ordinary native numeric action boundary | One current AppKit increment/decrement action on one published ordinary materialized TextInput | Passive publication pairs the pure ordinary target snapshot with the native tree and admits only enabled, editable, focusable `AutomationRole::TextInput` nodes with current value, materialized authority, both neutral increment/decrement actions, and exact materialized ID/path/role/authority; they need not already be runtime-focused. The node exposes AXIncrementor, exact NSString label when present and value, optional description/help, enabled true, `AXFocused` false/unclaimed, settable AXValue only for the eligible current ordinary target, and exactly AXIncrement/AXDecrement; the adapter never exposes or transfers native AX focus. Correct modern/deprecated Objective-C ABIs enqueue one bounded token/generation/target/neutral-action event; the runtime validates current window/generation/token/authority and delegates to existing `SurfaceRuntime` admission, which may perform ordinary runtime focus transition. Non-focusable, focus-vetoed, blocked, invalid, stale, virtual/provider, scalar conversion, retry, and retarget requests are inert/vetoed. Stable value-only updates retain the object and post one AXValueChanged after queryability, with no layout notification; unchanged/failure/stale paths post none. Bounded NSString AXValue setters use the existing SetValueText runtime path; Live AppKit/VoiceOver acceptance remains pending. |
-| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, exact private registration/live-fence invalidation foundation, normalized sidecar, native topology, bounded AppKit query path, and private primary-window consumer are implemented outside the prelude. Live host/AppKit acceptance remains pending. |
+| Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves virtual/provider actions separate. Supported `accessibilityChildren`/`setAccessibilityChildren:` attachment requires exact-root readback; failed installation is inert, and retirement verifies nil/empty clear readback before release, retaining inert objects without destruction notification when verification fails. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
+| Ordinary native numeric action boundary | One current AppKit increment/decrement action on one published ordinary materialized TextInput | Passive publication pairs the pure ordinary target snapshot with the native tree and admits only enabled, editable, focusable `AutomationRole::TextInput` nodes with current value, materialized authority, both neutral increment/decrement actions, and exact materialized ID/path/role/authority; they need not already be runtime-focused. The node exposes AXIncrementor, exact NSString label when present and value, optional description/help, enabled true, `AXFocused` false/unclaimed, settable AXValue only for the eligible current ordinary target, and exactly AXIncrement/AXDecrement; the adapter never exposes or transfers native AX focus. Correct modern/deprecated Objective-C ABIs enqueue one bounded token/generation/target/neutral-action event; the runtime validates current window/generation/token/authority and delegates to existing `SurfaceRuntime` admission, which may perform ordinary runtime focus transition. Non-focusable, focus-vetoed, blocked, invalid, stale, virtual/provider, scalar conversion, retry, and retarget requests are inert/vetoed. Stable value-only updates retain the object and post one AXValueChanged after queryability, with no layout notification; unchanged/failure/stale paths post none. Bounded NSString AXValue setters use the existing SetValueText runtime path. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
+| Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, exact private registration/live-fence invalidation foundation, normalized sidecar, native topology, bounded AppKit query path, and private primary-window consumer are implemented outside the prelude. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
 | Cardinality fence | Count or cardinality revision changes, provider replacement, unmount, recovery, native deactivation, or session close | Exact `(count, cardinality_revision)` equality is required together with registration identity/generation, container/mount, existing revisions, coordinate, budget, and provider generations. Count/revision changes invalidate semantic/native state provider-free; provider replacement preserves count but invalidates provider publication; lifecycle retirement clears all state. |
 | Cardinality availability | Unknown count, positive count without a range provider, exact zero, or positive count with a range provider | Unknown does not vend a virtual child container; positive-without-range-provider is unsupported and not vended; exact zero is representable without a provider; positive-with-range-provider may vend the private container. Count reads, updates, mount, and enumeration never create demand. |
 | Native cardinality query | AppKit asks for a count or a bounded range `(index, maxCount)` | Count returns the exact declared count. Range normalization uses checked subtraction from count, handles zero and out-of-range inputs, rejects overflow, applies declared budget, 1024 per-query cap, and remaining aggregate budget, and never synthesizes a key from the index. |

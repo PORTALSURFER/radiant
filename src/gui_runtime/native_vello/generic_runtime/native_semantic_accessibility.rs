@@ -3309,11 +3309,14 @@ mod macos {
             let Ok(state) = state.try_borrow() else {
                 return NO;
             };
-            state
+            if state
                 .node_for_object(receiver)
                 .is_some_and(|node| state.focused_token == Some(node.token))
-                .then_some(YES)
-                .unwrap_or(NO)
+            {
+                YES
+            } else {
+                NO
+            }
         })
     }
 

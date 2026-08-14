@@ -177,14 +177,23 @@ pub(super) fn handle_primary_release(
     widget.common.state.pressed = false;
     let release_beat = geometry.beat_at(position);
     let drag = widget.drag.take();
-    match (drag, release_beat) {
-        (
-            Some(TimelineDrag::Selecting {
-                anchor_beat, lane, ..
-            }),
-            Some(end),
-        ) => {
-            let range = BeatRange::normalized(anchor_beat, end);
+    match drag {
+        Some(TimelineDrag::Selecting {
+            anchor_beat,
+            lane,
+            current_range,
+            ..
+        }) => {
+            let (range, seek_beat) = if let Some(end) = release_beat {
+                (BeatRange::normalized(anchor_beat, end), end)
+            } else {
+                let seek_beat = if current_range.start == anchor_beat {
+                    current_range.end
+                } else {
+                    current_range.start
+                };
+                (current_range, seek_beat)
+            };
             if range.duration() >= MIN_CLIP_BEATS {
                 Some(WidgetOutput::typed(TimelineSurfaceMessage::CreateClip {
                     lane,
@@ -192,36 +201,30 @@ pub(super) fn handle_primary_release(
                 }))
             } else {
                 Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
-                    beat: end,
+                    beat: seek_beat,
                 }))
             }
         }
-        (
-            Some(TimelineDrag::MovingClip {
-                clip_id,
-                source_lane,
-                initial_start,
-                current_lane,
-                current_start,
-                ..
-            }),
-            _,
-        ) if source_lane != current_lane || initial_start != current_start => {
+        Some(TimelineDrag::MovingClip {
+            clip_id,
+            source_lane,
+            initial_start,
+            current_lane,
+            current_start,
+            ..
+        }) if source_lane != current_lane || initial_start != current_start => {
             Some(WidgetOutput::typed(TimelineSurfaceMessage::MoveClip {
                 clip_id,
                 lane: current_lane,
                 start: current_start,
             }))
         }
-        (
-            Some(TimelineDrag::ResizingClip {
-                clip_id,
-                initial_range,
-                current_range,
-                ..
-            }),
-            _,
-        ) if initial_range != current_range => {
+        Some(TimelineDrag::ResizingClip {
+            clip_id,
+            initial_range,
+            current_range,
+            ..
+        }) if initial_range != current_range => {
             Some(WidgetOutput::typed(TimelineSurfaceMessage::ResizeClip {
                 clip_id,
                 range: current_range,

@@ -118,8 +118,27 @@ impl Widget for ArrangementTimelineWidget {
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            let projected_selection = self.selection;
+            let projected_selected_clip = self.selected_clip;
             self.common.state = previous.common.state;
-            self.drag = previous.drag;
+            match previous.drag {
+                Some(TimelineDrag::Selecting {
+                    lane,
+                    anchor_beat,
+                    current_range,
+                    ..
+                }) => {
+                    self.drag = Some(TimelineDrag::Selecting {
+                        lane,
+                        anchor_beat,
+                        current_range,
+                        previous_selection: projected_selection,
+                        previous_selected_clip: projected_selected_clip,
+                    });
+                    self.selection = Some(current_range);
+                }
+                drag => self.drag = drag,
+            }
             self.cursor = previous.cursor;
             self.hover_clip_id = previous.hover_clip_id;
         }

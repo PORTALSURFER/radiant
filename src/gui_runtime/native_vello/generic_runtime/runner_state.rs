@@ -560,6 +560,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
+    pub(super) native_window_focused: bool,
     pub(super) native_focus_lost: bool,
     pub(super) monitor_fingerprint: Option<MonitorFingerprint>,
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,

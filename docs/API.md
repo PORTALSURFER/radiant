@@ -824,8 +824,10 @@ runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
 authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
-`AXFocused` false/unclaimed, a value that is settable only for an eligible current ordinary materialized target, and exactly `AXIncrement` and
-`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+`AXFocused` and modern `isAccessibilityFocused` agree for the current
+ordinary focus contract; a value is settable only for an eligible current
+ordinary materialized target, and exactly `AXIncrement` and `AXDecrement` are
+accepted. Modern
 increment/decrement selectors use `BOOL c@:` and the
 deprecated action selector uses `void v@:@`; only those exact action names are
 accepted.
@@ -847,6 +849,29 @@ not provider demand, materialization, virtual/provider mutation, slider,
 range, orientation, percentage, or scalar conversion. The adapter and lease are
 not public imperative provider-registration APIs. `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+Read-only ordinary focus exposure is shipped in this slice under a separate
+ownership contract. `SurfaceRuntime` and its controller remain the sole
+logical-focus authority; the current focused state of the primary Winit window
+is the platform eligibility fence; and the AppKit adapter is only a consumer.
+At most one ordinary, enabled, focusable, materialized node in the current
+runtime/window generation is focused when exactly one controller-owned target
+matches the current ID, path, role, and focus evidence. Missing, stale,
+ambiguous, mismatched, provider/virtual, unmaterialized, or inactive-window
+evidence exposes no native focus. The root's legacy `AXFocusedUIElement` and
+modern `accessibilityFocusedUIElement` return the same object or nil. Stable
+A-to-B changes retain both native objects and post one
+`AXFocusedUIElementChanged` notification on B after it is queryable; unchanged
+and clearing transitions post no gained-focus notification, and focus-only
+changes post no layout, value, or destruction notification. Focus publication
+and update are provider-free and invoke no providers. The adapter never
+implements `setAccessibilityFocused`, transfers native focus, or publishes
+auxiliary-window/virtual focus. Explicit virtual item/range queries retain the
+provider-demand exception described above.
+
+This focus slice has automated Rust/Objective-C boundary coverage only. No live
+VoiceOver or live AppKit focus acceptance was performed for it; prior numeric
+action and host-attachment evidence is a separate acceptance boundary.
 
 #### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
 
@@ -986,8 +1011,9 @@ This extension preserves the one-session bound, opaque private handles, explicit
 refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
-normalized logical conservative coordinates, and pure snapshots. It excludes focus,
-native actions for virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
+normalized logical conservative coordinates, and pure snapshots. It excludes
+native focus transfer and virtual/provider focus exposure, native actions for
+virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, direct native custom-resolver invocation/reconstruction, Wayland/Windows, auxiliary,
 multi-consumer, and public registry behavior.
 
@@ -1000,8 +1026,9 @@ restart acceptance for this bounded primary-window consumer. VoiceOver-specific
 acceptance remains unperformed. Repeated negative-geometry AppKit runtime
 diagnostics remain a separate unverified follow-up if reproducible. Alignment
 estimates remain unchanged and no estimate credit, including Platform credit, is
-awarded. Wayland, Windows, non-qualified/virtual native actions, new native AX
-focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy,
+awarded. Wayland, Windows, non-qualified/virtual native actions, native focus
+setter/transfer or focus exposure beyond the ordinary materialized-target
+contract, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and
 renderer behavior remain excluded.
 

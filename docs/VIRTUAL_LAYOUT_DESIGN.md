@@ -1628,8 +1628,10 @@ runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
 authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
-`AXFocused` false/unclaimed, a value that is settable only for an eligible current ordinary materialized target, and exactly `AXIncrement` and
-`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+`AXFocused` and modern `isAccessibilityFocused` agree for the current
+ordinary focus contract; a value is settable only for an eligible current
+ordinary materialized target, and exactly `AXIncrement` and `AXDecrement` are
+accepted. Modern
 increment/decrement selectors use `BOOL c@:` and the
 deprecated action selector uses `void v@:@`; only those exact action names are
 accepted.
@@ -1652,6 +1654,27 @@ range, orientation, percentage, or scalar conversion. The adapter and lease
 remain private and do not create a public imperative provider registry.
 `automation_snapshot(&self)`, `automation_target_snapshot(&self)`, and
 `selected_semantic_automation_snapshot(&self)` remain pure reads.
+
+Read-only ordinary focus exposure is shipped in this slice under a separate
+ownership contract. `SurfaceRuntime` and its controller remain the sole
+logical-focus authority; the current focused state of the primary Winit window
+is the platform eligibility fence; and the AppKit adapter is only a consumer.
+At most one ordinary, enabled, focusable, materialized node in the current
+runtime/window generation is focused when exactly one controller-owned target
+matches the current ID, path, role, and focus evidence. Missing, stale,
+ambiguous, mismatched, provider/virtual, unmaterialized, or inactive-window
+evidence exposes no native focus. The root's legacy `AXFocusedUIElement` and
+modern `accessibilityFocusedUIElement` return the same object or nil. Stable
+A-to-B changes retain both native objects and post one
+`AXFocusedUIElementChanged` notification on B after it is queryable; unchanged
+and clearing transitions post no gained-focus notification, and focus-only
+changes post no layout, value, or destruction notification. The adapter never
+implements `setAccessibilityFocused`, transfers native focus, calls providers,
+or publishes auxiliary-window/virtual focus.
+
+This focus slice has automated Rust/Objective-C boundary coverage only. No live
+VoiceOver or live AppKit focus acceptance was performed for it; prior numeric
+action and host-attachment evidence is a separate acceptance boundary.
 
 #### Provider-free semantic cardinality (qualified, shipped declaration foundation; native consumer shipped privately)
 
@@ -1792,14 +1815,17 @@ This extension preserves the one-session bound, opaque private handles, explicit
 refresh/retry-only demand, one range plus one required-item slot, 64
 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
-normalized logical conservative coordinates, and pure snapshots. It excludes focus,
-native actions for virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
+normalized logical conservative coordinates, and pure snapshots. It excludes
+native focus transfer and virtual/provider focus exposure, native actions for
+virtual/provider targets, selection mutation, scroll/materialize, scheduler/retry policy, render,
 product, direct native custom-resolver invocation/reconstruction, Wayland/Windows,
 auxiliary, multi-consumer, and public registry
 behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
-Wayland, Windows, non-qualified/virtual native actions, new native AX focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy, direct
+Wayland, Windows, non-qualified/virtual native actions, native focus
+setter/transfer or focus exposure beyond the ordinary materialized-target
+contract, scrolling, product policy, direct
 native custom-resolver invocation/reconstruction, scheduler, and renderer
 behavior are excluded.
 
@@ -2409,7 +2435,7 @@ public selected snapshot, and qualified declarative provider attachment.
 | Semantic authority guard | Provider result contains an unmaterialized item or is read by automation snapshots | `Unmaterialized`/`materialized = false` remains authoritative; semantics cannot materialize, scroll, act, focus, paint, hit-test, schedule, render, or register a provider. |
 | Snapshot purity/reentry | Snapshot read during a demand turn or provider callback requests follow-up work | `automation_snapshot` and `automation_target_snapshot` remain observational; the mutating demand turn is separate and follow-up invalidation is coalesced. |
 | Native semantic accessibility boundary | A private primary-window macOS/AppKit adapter translates one explicit bounded item or contiguous child-range query | One runtime-issued lease and current container handle plus one stable key or finite logical range are required; contention is one typed `Unavailable(SessionContended)` result; translation uses only the explicit session refresh/retry operations, never direct or duplicate provider calls. Native publication is complete-fence-only, retains only exact eligible fallback, withholds stale/unsupported converted bounds, preserves `materialized = false`, and leaves virtual/provider actions separate. Supported `accessibilityChildren`/`setAccessibilityChildren:` attachment requires exact-root readback; failed installation is inert, and retirement verifies nil/empty clear readback before release, retaining inert objects without destruction notification when verification fails. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
-| Ordinary native numeric action boundary | One current AppKit increment/decrement action on one published ordinary materialized TextInput | Passive publication pairs the pure ordinary target snapshot with the native tree and admits only enabled, editable, focusable `AutomationRole::TextInput` nodes with current value, materialized authority, both neutral increment/decrement actions, and exact materialized ID/path/role/authority; they need not already be runtime-focused. The node exposes AXIncrementor, exact NSString label when present and value, optional description/help, enabled true, `AXFocused` false/unclaimed, settable AXValue only for the eligible current ordinary target, and exactly AXIncrement/AXDecrement; the adapter never exposes or transfers native AX focus. Correct modern/deprecated Objective-C ABIs enqueue one bounded token/generation/target/neutral-action event; the runtime validates current window/generation/token/authority and delegates to existing `SurfaceRuntime` admission, which may perform ordinary runtime focus transition. Non-focusable, focus-vetoed, blocked, invalid, stale, virtual/provider, scalar conversion, retry, and retarget requests are inert/vetoed. Stable value-only updates retain the object and post one AXValueChanged after queryability, with no layout notification; unchanged/failure/stale paths post none. Bounded NSString AXValue setters use the existing SetValueText runtime path. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
+| Ordinary native numeric action and focus boundary | One current AppKit increment/decrement action or read-only focus publication on one ordinary materialized target | Passive publication pairs the pure ordinary target snapshot with the native tree and admits only enabled, editable, focusable `AutomationRole::TextInput` nodes with current value, materialized authority, both neutral increment/decrement actions, and exact materialized ID/path/role/authority; focus exposure additionally requires exactly one controller-owned focused target, the current primary Winit window focus, and the current runtime/window generation. The node exposes `AXIncrementor`, exact NSString label/value, optional description/help, and matching legacy/modern focus state; the root focused-element queries return the same object or nil. A stable A-to-B transition retains both objects and posts one `AXFocusedUIElementChanged` on B after queryability; clearing, unchanged, stale, ambiguous, inactive-window, provider/virtual, and unmaterialized evidence exposes no native focus. Correct modern/deprecated Objective-C ABIs enqueue one bounded token/generation/target/neutral-action event; the runtime validates current window/generation/token/authority and delegates to existing `SurfaceRuntime` admission, which may perform ordinary runtime focus transition. Non-focusable, focus-vetoed, blocked, invalid, stale, virtual/provider, scalar conversion, retry, and retarget requests are inert/vetoed. Stable value-only updates retain the object and post one `AXValueChanged` after queryability, with no layout notification; focus-only updates post no layout/value/destruction notifications. The adapter never sets/transfers native focus or calls providers. Automated boundary tests cover this contract; no live VoiceOver or live AppKit focus acceptance was performed for this focus slice. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
 | Cardinality declaration | A `VirtualLayoutParts<Message>` declaration includes `Some(VirtualLayoutSemanticCardinality { logical_item_count, cardinality_revision })`, `None`, or exact zero | The value is immutable qualified declaration evidence, not a callback or demand; `None` is unknown/unsupported, zero is supported, the count is not capped at 1024, and no storage proportional to the count is allocated. The field and qualified builder, exact private registration/live-fence invalidation foundation, normalized sidecar, native topology, bounded AppKit query path, and private primary-window consumer are implemented outside the prelude. Automated AppKit boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer. VoiceOver-specific acceptance remains unperformed; repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded. |
 | Cardinality fence | Count or cardinality revision changes, provider replacement, unmount, recovery, native deactivation, or session close | Exact `(count, cardinality_revision)` equality is required together with registration identity/generation, container/mount, existing revisions, coordinate, budget, and provider generations. Count/revision changes invalidate semantic/native state provider-free; provider replacement preserves count but invalidates provider publication; lifecycle retirement clears all state. |
 | Cardinality availability | Unknown count, positive count without a range provider, exact zero, or positive count with a range provider | Unknown does not vend a virtual child container; positive-without-range-provider is unsupported and not vended; exact zero is representable without a provider; positive-with-range-provider may vend the private container. Count reads, updates, mount, and enumeration never create demand. |

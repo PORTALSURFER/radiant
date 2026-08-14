@@ -19,6 +19,24 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
+2026-08-14 implementation cycle: The approved private macOS/AppKit focus slice
+is now shipped for ordinary materialized Radiant nodes. `SurfaceRuntime` and
+the controller remain the sole logical-focus authority; the current primary
+Winit window focus is the platform eligibility fence; and the AppKit adapter is
+only a consumer. At most one ordinary, enabled, focusable, materialized target
+in the current runtime/window generation is exposed when exactly one
+controller-owned target matches its ID, path, role, and focus evidence.
+Missing, stale, ambiguous, mismatched, provider/virtual, unmaterialized, and
+inactive-window evidence exposes no native focus. Legacy/modern focus queries
+agree, root focused-element lookup returns the same object or nil, and stable
+A-to-B transitions retain identity and post one focus-change notification on B
+after queryability. Clearing and unchanged focus post no gained-focus
+notification; focus-only changes post no layout/value/destruction notifications
+and invoke no providers. No native focus setter/transfer, auxiliary-window
+focus, or public API is added. Focused Rust/Objective-C boundary coverage is
+automated only; live VoiceOver and live AppKit focus acceptance remain
+unperformed. Estimates remain unchanged and no estimate credit is awarded.
+
 2026-08-13 cycle update: Validation is complete for the macOS view-to-screen correction. Estimates remain unchanged because this is a host-stability/correctness repair, and live semantic acceptance is not estimate credit: generic architecture ~97%; broad 903 / 11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. The next dependency-correct slice is the private crate-private `accessibilityIndexOfChild:` topology callback.
 
 2026-08-13 implementation cycle: The private crate-private `accessibilityIndexOfChild:` callback now uses the current immutable native projection, exact direct-parent topology, compact ordinary positions, and retained sparse container logical indices, with focused selector/ABI and fallback coverage. All estimates remain unchanged: generic architecture ~97%; broad 903 / 11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. No credit is awarded for this private callback, its documentation, or its tests; live AppKit/VoiceOver acceptance remains separate.
@@ -459,7 +477,7 @@ their own resolver. The private primary-window macOS/AppKit native
 semantic accessibility query contract below translates explicit platform queries only through the
 backend-neutral session model and is not a hidden provider owner. The full
 acceptance matrix and native contract are in `docs/VIRTUAL_LAYOUT_DESIGN.md`;
-direct native custom-resolver invocation/reconstruction, native actions for virtual/provider targets, new native AX focus exposure or transfer beyond existing ordinary runtime admission,
+direct native custom-resolver invocation/reconstruction, native actions for virtual/provider targets, native focus setter/transfer or focus exposure beyond the ordinary materialized-target contract,
 scrolling/materialization, scheduler/backoff/fairness, renderer/paint/
 hit-testing/cache policy, product policy, multiple ranges, and prelude export
 remain excluded.
@@ -546,8 +564,10 @@ runtime-focused. The exact ordinary
 ID/path/role/authority is captured with one native token; geometry is never an
 authority fence. A qualified node publishes `AXIncrementor`, the exact label when present
 and NSString value, `AXDescription`/`AXHelp` when present, enabled true,
-`AXFocused` false/unclaimed, a value that is settable only for an eligible current ordinary materialized target, and exactly `AXIncrement` and
-`AXDecrement`; the adapter never exposes or transfers native AX focus. Modern
+`AXFocused` and modern `isAccessibilityFocused` agree for the current ordinary
+focus contract; a value is settable only for an eligible current ordinary
+materialized target, and exactly `AXIncrement` and `AXDecrement` are accepted.
+Modern
 increment/decrement selectors use `BOOL c@:` and the
 deprecated action selector uses `void v@:@`; only those exact action names are
 accepted.
@@ -649,13 +669,13 @@ handles, explicit refresh/retry-only demand, one range plus one required-item
 slot, 64 registrations, 1024 per-query and aggregate caps, one provider call per
 container/attempt, exact publication/fallback, `materialized = false`,
 normalized logical bounds for Logical and qualified Custom authority, and pure snapshots.
-It excludes new native AX focus exposure or transfer beyond existing ordinary runtime admission, native actions for virtual/provider targets, selection mutation, scroll/materialize,
+It excludes native focus setter/transfer or focus exposure beyond the ordinary materialized-target contract, native actions for virtual/provider targets, selection mutation, scroll/materialize,
 scheduler/retry policy, render, product, direct native custom-resolver
 invocation/reconstruction,
 Wayland/Windows, auxiliary, multi-consumer, and public registry behavior.
 
 This contract is limited to the private primary-window macOS/AppKit consumer.
-Wayland, Windows, non-qualified/virtual native actions, new native AX focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy, direct
+Wayland, Windows, non-qualified/virtual native actions, native focus setter/transfer or focus exposure beyond the ordinary materialized-target contract, scrolling, product policy, direct
 native custom-resolver invocation/reconstruction, scheduler, and renderer
 behavior remain excluded. The
 bounded generic custom-coordinate attachment is covered above. Automated AppKit

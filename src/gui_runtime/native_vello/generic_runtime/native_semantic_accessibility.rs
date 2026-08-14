@@ -56,11 +56,16 @@ mod macos {
     const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
     const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
     const NS_ACCESSIBILITY_VALUE_ATTRIBUTE: &CStr = c"AXValue";
+    const NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_ATTRIBUTE: &CStr = c"AXFocusedUIElement";
+    const NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION: &CStr =
+        c"AXFocusedUIElementChanged";
     const NS_NOT_FOUND: usize = isize::MAX as usize;
     #[cfg(test)]
     const MAX_NATIVE_VALUE_UTF16_UNITS: usize = 1_024;
     const MAX_NATIVE_VALUE_UTF8_BYTES: usize = 4_096;
     const MODERN_ACTION_METHOD_TYPE: &CStr = c"c@:";
+    const MODERN_FOCUSED_METHOD_TYPE: &CStr = c"c@:";
+    const MODERN_FOCUSED_UI_ELEMENT_METHOD_TYPE: &CStr = c"@@:";
     const DEPRECATED_ACTION_METHOD_TYPE: &CStr = c"v@:@";
     const MODERN_VALUE_METHOD_TYPE: &CStr = c"@@:";
     const VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@";
@@ -247,6 +252,16 @@ mod macos {
                     c"isAccessibilityElement",
                     native_is_accessibility_element as *const c_void,
                     c"c@:",
+                ),
+                (
+                    c"isAccessibilityFocused",
+                    native_is_accessibility_focused as *const c_void,
+                    MODERN_FOCUSED_METHOD_TYPE,
+                ),
+                (
+                    c"accessibilityFocusedUIElement",
+                    native_accessibility_focused_ui_element as *const c_void,
+                    MODERN_FOCUSED_UI_ELEMENT_METHOD_TYPE,
                 ),
                 (
                     c"accessibilityAttributeValue:",
@@ -883,6 +898,7 @@ mod macos {
 
     struct NativeSemanticCallbackState {
         projection: NativeCallbackProjection,
+        focused_token: Option<u64>,
         #[cfg(not(test))]
         proxy: EventLoopProxy<RuntimeUserEvent>,
         #[cfg(test)]
@@ -905,6 +921,7 @@ mod macos {
         ) -> Self {
             Self {
                 projection: NativeCallbackProjection::default(),
+                focused_token: None,
                 #[cfg(not(test))]
                 proxy,
                 #[cfg(test)]
@@ -923,6 +940,7 @@ mod macos {
         fn new_for_test(window_id: WindowId, generation: u64, view: Id) -> Self {
             Self {
                 projection: NativeCallbackProjection::default(),
+                focused_token: None,
                 proxy: None,
                 window_id,
                 generation,
@@ -1405,6 +1423,7 @@ mod macos {
         semantics: AutomationNodeSemantics,
         action_target: Option<AutomationTarget>,
         logical_count: Option<usize>,
+        focused: bool,
     }
 
     fn numeric_action_target_fence_matches(
@@ -1522,20 +1541,79 @@ mod macos {
         ]
     }
 
+    fn controller_focused_target(
+        targets: &GuiAutomationTargetSnapshot,
+    ) -> Option<AutomationTarget> {
+        let mut focused = targets.targets.iter().filter(|target| target.focused);
+        let target = focused.next()?.clone();
+        focused.next().is_none().then_some(target)
+    }
+
+    fn native_focus_target_matches(
+        target: &AutomationTarget,
+        node: &AutomationNodeSnapshot,
+        semantic_path: &[AutomationNodeId],
+        kind: NativeNodeKind,
+        provider_descendant: bool,
+        runtime_projection_generation: u64,
+    ) -> bool {
+        kind == NativeNodeKind::Ordinary
+            && !provider_descendant
+            && node.enabled
+            && !node.semantics.disabled
+            && node.semantics.focusable
+            && target.focused
+            && target.id == node.id
+            && target.path == semantic_path
+            && target.role == node.role
+            && target.enabled
+            && target.focusable
+            && node.semantics.focused
+            && target.authority.is_some_and(|authority| {
+                authority.materialized
+                    && authority.runtime_generation == runtime_projection_generation
+            })
+    }
+
+    fn focused_token_for_specs(specs: &[NativeNodeSpec]) -> Option<u64> {
+        let mut focused = specs.iter().filter(|spec| spec.focused);
+        let token = focused.next()?.token;
+        focused.next().is_none().then_some(token)
+    }
+
     #[derive(Clone, Debug, PartialEq)]
     struct StableValueProjectionUpdate {
         index: usize,
         value: Option<String>,
         action_target: Option<AutomationTarget>,
         value_changed: bool,
+        focused: bool,
+        focus_changed: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct StableValueProjectionPlan {
+        updates: Vec<StableValueProjectionUpdate>,
+        focused_token: Option<u64>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct StableProjectionNotifications {
+        value_changed: Vec<Id>,
+        focused: Option<Id>,
     }
 
     fn collect_stable_value_projection_updates(
         projection: &NativeCallbackProjection,
+        current_focused_token: Option<u64>,
         specs: &[NativeNodeSpec],
         frames: &[NSRect],
-    ) -> Option<Vec<StableValueProjectionUpdate>> {
+    ) -> Option<StableValueProjectionPlan> {
         if specs.len() != projection.nodes.len() || specs.len() != frames.len() {
+            return None;
+        }
+        let focused_token = focused_token_for_specs(specs);
+        if specs.iter().filter(|spec| spec.focused).count() > 1 {
             return None;
         }
         let mut updates = Vec::new();
@@ -1571,22 +1649,32 @@ mod macos {
             if value_changed && spec.action_target.is_none() {
                 return None;
             }
-            if value_changed || node.action_target != spec.action_target {
+            let focused = focused_token == Some(spec.token);
+            let focus_changed = (current_focused_token == Some(node.token)) != focused;
+            if value_changed || node.action_target != spec.action_target || focus_changed {
                 updates.push(StableValueProjectionUpdate {
                     index,
                     value: spec.semantics.value_text.clone(),
                     action_target: spec.action_target.clone(),
                     value_changed,
+                    focused,
+                    focus_changed,
                 });
             }
         }
-        Some(updates)
+        Some(StableValueProjectionPlan {
+            updates,
+            focused_token,
+        })
     }
 
     fn apply_stable_value_projection_updates(
         projection: &mut NativeCallbackProjection,
-        updates: &[StableValueProjectionUpdate],
-    ) -> Option<Vec<Id>> {
+        focused_token: &mut Option<u64>,
+        plan: &StableValueProjectionPlan,
+    ) -> Option<StableProjectionNotifications> {
+        let previous_focused_token = *focused_token;
+        let updates = &plan.updates;
         if updates
             .iter()
             .any(|update| update.index >= projection.nodes.len())
@@ -1594,6 +1682,7 @@ mod macos {
             return None;
         }
         let mut value_notifications = Vec::new();
+        let mut focus_notifications = Vec::new();
         for update in updates {
             let node = projection.nodes.get_mut(update.index)?;
             node.value = update.value.clone();
@@ -1601,8 +1690,24 @@ mod macos {
             if update.value_changed {
                 value_notifications.push(node.object);
             }
+            if update.focus_changed && update.focused {
+                focus_notifications.push(node.object);
+            }
         }
-        Some(value_notifications)
+        if focus_notifications.len() > 1 {
+            return None;
+        }
+        *focused_token = plan.focused_token;
+        if previous_focused_token != plan.focused_token
+            && plan.focused_token.is_some()
+            && focus_notifications.is_empty()
+        {
+            return None;
+        }
+        Some(StableProjectionNotifications {
+            value_changed: value_notifications,
+            focused: focus_notifications.pop(),
+        })
     }
 
     /// One owned primary-window native semantic adapter.  It is intentionally
@@ -1623,11 +1728,14 @@ mod macos {
         transform: Option<NativeCoordinateTransform>,
         current_containers: Vec<NativeSemanticContainerSnapshot>,
         active_ranges: Vec<NativeActiveRange>,
+        window_focused: bool,
         attached: bool,
         #[cfg(test)]
         layout_notifications: usize,
         #[cfg(test)]
         value_notifications: usize,
+        #[cfg(test)]
+        focused_notifications: Vec<Id>,
         #[cfg(test)]
         destroyed_notifications: usize,
     }
@@ -1659,11 +1767,14 @@ mod macos {
                 transform: NativeCoordinateTransform::read(window),
                 current_containers: Vec::new(),
                 active_ranges: Vec::new(),
+                window_focused: false,
                 attached: false,
                 #[cfg(test)]
                 layout_notifications: 0,
                 #[cfg(test)]
                 value_notifications: 0,
+                #[cfg(test)]
+                focused_notifications: Vec::new(),
                 #[cfg(test)]
                 destroyed_notifications: 0,
             })
@@ -1672,13 +1783,16 @@ mod macos {
         pub(crate) fn publish_passive<Bridge, Message>(
             &mut self,
             runtime: &SurfaceRuntime<Bridge, Message>,
+            window_focused: bool,
         ) -> Result<(), String>
         where
             Bridge: RuntimeBridge<Message>,
         {
+            self.window_focused = window_focused;
             let ordinary = runtime.automation_snapshot();
             let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
+            let runtime_projection_generation = runtime.refresh_counters().runtime_projection;
             let selected = self.lease.and_then(|session| {
                 match runtime.native_semantic_automation_composition(session) {
                     Ok(selected) => selected,
@@ -1688,7 +1802,13 @@ mod macos {
                     }
                 }
             });
-            self.publish_projection(&ordinary, &targets, &containers, selected)
+            self.publish_projection(
+                &ordinary,
+                &targets,
+                &containers,
+                selected,
+                runtime_projection_generation,
+            )
         }
 
         fn publish_ordinary_projection<Bridge, Message>(
@@ -1701,7 +1821,14 @@ mod macos {
             let ordinary = runtime.automation_snapshot();
             let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
-            self.publish_projection(&ordinary, &targets, &containers, None)
+            let runtime_projection_generation = runtime.refresh_counters().runtime_projection;
+            self.publish_projection(
+                &ordinary,
+                &targets,
+                &containers,
+                None,
+                runtime_projection_generation,
+            )
         }
 
         pub(crate) fn accepts_generation(&self, generation: u64) -> bool {
@@ -1924,7 +2051,14 @@ mod macos {
             let ordinary = runtime.automation_snapshot();
             let targets = runtime.automation_target_snapshot();
             let containers = runtime.native_semantic_containers();
-            let _ = self.publish_projection(&ordinary, &targets, &containers, projection);
+            let runtime_projection_generation = runtime.refresh_counters().runtime_projection;
+            let _ = self.publish_projection(
+                &ordinary,
+                &targets,
+                &containers,
+                projection,
+                runtime_projection_generation,
+            );
             let deferred = matches!(
                 status,
                 SemanticAutomationRefreshStatus::Baseline {
@@ -2040,11 +2174,18 @@ mod macos {
                 crate::runtime::VirtualLayoutAutomationComposition,
                 SemanticAutomationRefreshStatus,
             )>,
+            runtime_projection_generation: u64,
         ) -> Result<(), String> {
             let composition = selected.as_ref().map(|(composition, _)| composition);
             let snapshot = composition.map_or(ordinary, |composition| composition.snapshot());
             let sidecar = composition.map(|composition| composition.normalized_sidecar());
-            let specs = match self.build_specs(snapshot, targets, containers, sidecar) {
+            let specs = match self.build_specs(
+                snapshot,
+                targets,
+                containers,
+                sidecar,
+                runtime_projection_generation,
+            ) {
                 Ok(specs) => specs,
                 Err(error) => {
                     self.tokens.retire_all();
@@ -2068,8 +2209,11 @@ mod macos {
                 && let Some(value_notifications) = self.update_stable_value_projection(&specs)
             {
                 self.current_containers = containers.to_vec();
-                for object in value_notifications {
+                for object in value_notifications.value_changed {
                     self.post_value_changed(object);
+                }
+                if let Some(object) = value_notifications.focused {
+                    self.post_focused_element_changed(object);
                 }
                 return Ok(());
             }
@@ -2084,6 +2228,7 @@ mod macos {
                 ));
             }
             let object_start = self.objects.len();
+            let focused_token = focused_token_for_specs(&specs);
             let projection = match self.instantiate_specs(specs) {
                 Ok(projection) => projection,
                 Err(error) => {
@@ -2095,7 +2240,7 @@ mod macos {
                     return Err(error);
                 }
             };
-            let changed = match self.replace_callback_projection(projection) {
+            let changed = match self.replace_callback_projection(projection, focused_token) {
                 Ok(changed) => changed,
                 Err(error) => {
                     self.tokens.retire_all();
@@ -2121,6 +2266,7 @@ mod macos {
             targets: &GuiAutomationTargetSnapshot,
             containers: &[NativeSemanticContainerSnapshot],
             sidecar: Option<&crate::runtime::VirtualLayoutNormalizedSemanticSidecar>,
+            runtime_projection_generation: u64,
         ) -> Result<Vec<NativeNodeSpec>, String> {
             if containers.len() > MAX_NATIVE_REGISTRATIONS {
                 return Err(String::from("native semantic registration cap exceeded"));
@@ -2151,6 +2297,7 @@ mod macos {
                 semantics: AutomationNodeSemantics::new(AutomationRole::Root),
                 action_target: None,
                 logical_count: None,
+                focused: false,
             });
             let mut accepted = containers.to_vec();
             accepted.sort_by_key(|container| container.container_id);
@@ -2181,6 +2328,11 @@ mod macos {
                     item_paths.push((entry.container_id(), entry.normalized_path().to_vec()));
                 }
             }
+            let focused_target = self
+                .window_focused
+                .then(|| controller_focused_target(targets))
+                .flatten();
+            let mut focused_matches = 0_usize;
             let mut child_tokens = Vec::new();
             for (index, child) in snapshot.root.children.iter().enumerate() {
                 let mut path = vec![index];
@@ -2197,11 +2349,19 @@ mod macos {
                     &anchor_ids,
                     sidecar,
                     &item_paths,
+                    focused_target.as_ref(),
+                    runtime_projection_generation,
+                    &mut focused_matches,
                     &mut specs,
                 )?;
                 child_tokens.push(token);
             }
             specs[0].children = child_tokens;
+            if focused_matches != 1 {
+                for spec in &mut specs {
+                    spec.focused = false;
+                }
+            }
             Ok(specs)
         }
 
@@ -2219,6 +2379,9 @@ mod macos {
             anchor_ids: &[AutomationNodeId],
             sidecar: Option<&crate::runtime::VirtualLayoutNormalizedSemanticSidecar>,
             item_paths: &[(u64, Vec<usize>)],
+            focused_target: Option<&AutomationTarget>,
+            runtime_projection_generation: u64,
+            focused_matches: &mut usize,
             specs: &mut Vec<NativeNodeSpec>,
         ) -> Result<u64, String> {
             let container = anchor_ids
@@ -2238,6 +2401,19 @@ mod macos {
                 kind,
                 provider_descendant,
             );
+            let focused = focused_target.is_some_and(|target| {
+                native_focus_target_matches(
+                    target,
+                    node,
+                    semantic_path,
+                    kind,
+                    provider_descendant,
+                    runtime_projection_generation,
+                )
+            });
+            if focused {
+                *focused_matches = (*focused_matches).saturating_add(1);
+            }
             let spec_index = specs.len();
             specs.push(NativeNodeSpec {
                 token,
@@ -2249,6 +2425,7 @@ mod macos {
                 semantics: node.semantics.clone(),
                 action_target,
                 logical_count: container.map(|container| container.cardinality.logical_item_count),
+                focused,
             });
             let mut children = Vec::new();
             let mut logical_children = Vec::new();
@@ -2287,6 +2464,7 @@ mod macos {
                             semantics: item_node.semantics.clone(),
                             action_target: None,
                             logical_count: None,
+                            focused: false,
                         });
                         let mut nested = Vec::new();
                         let mut item_path = entry.normalized_path().to_vec();
@@ -2307,6 +2485,9 @@ mod macos {
                                 anchor_ids,
                                 Some(sidecar),
                                 item_paths,
+                                focused_target,
+                                runtime_projection_generation,
+                                focused_matches,
                                 specs,
                             )?;
                             item_semantic_path.pop();
@@ -2338,6 +2519,9 @@ mod macos {
                             anchor_ids,
                             sidecar,
                             item_paths,
+                            focused_target,
+                            runtime_projection_generation,
+                            focused_matches,
                             specs,
                         )?;
                         children.push(child_token);
@@ -2361,6 +2545,9 @@ mod macos {
                         anchor_ids,
                         sidecar,
                         item_paths,
+                        focused_target,
+                        runtime_projection_generation,
+                        focused_matches,
                         specs,
                     )?;
                     semantic_path.pop();
@@ -2373,22 +2560,36 @@ mod macos {
             Ok(token)
         }
 
-        fn update_stable_value_projection(&mut self, specs: &[NativeNodeSpec]) -> Option<Vec<Id>> {
+        fn update_stable_value_projection(
+            &mut self,
+            specs: &[NativeNodeSpec],
+        ) -> Option<StableProjectionNotifications> {
             let transform = self.transform?;
             let state = self.callback_state.try_borrow().ok()?;
             let frames = specs
                 .iter()
                 .map(|spec| transform.convert(spec.bounds))
                 .collect::<Option<Vec<_>>>()?;
-            let updates =
-                collect_stable_value_projection_updates(&state.projection, specs, &frames)?;
+            let plan = collect_stable_value_projection_updates(
+                &state.projection,
+                state.focused_token,
+                specs,
+                &frames,
+            )?;
             drop(state);
 
-            if updates.is_empty() {
+            if plan.updates.is_empty() {
                 return None;
             }
             let mut state = self.callback_state.try_borrow_mut().ok()?;
-            apply_stable_value_projection_updates(&mut state.projection, &updates)
+            let mut focused_token = state.focused_token;
+            let notifications = apply_stable_value_projection_updates(
+                &mut state.projection,
+                &mut focused_token,
+                &plan,
+            )?;
+            state.focused_token = focused_token;
+            Some(notifications)
         }
 
         fn retain_or_issue_ordinary_token(
@@ -2427,7 +2628,8 @@ mod macos {
             let Ok(state) = self.callback_state.try_borrow() else {
                 return false;
             };
-            specs.len() == state.projection.nodes.len()
+            state.focused_token == focused_token_for_specs(specs)
+                && specs.len() == state.projection.nodes.len()
                 && specs
                     .iter()
                     .zip(&state.projection.nodes)
@@ -2613,6 +2815,7 @@ mod macos {
         fn replace_callback_projection(
             &mut self,
             projection: NativeCallbackProjection,
+            focused_token: Option<u64>,
         ) -> Result<bool, String> {
             let changed = self
                 .callback_state
@@ -2632,6 +2835,7 @@ mod macos {
                 ));
             };
             state.projection = projection.clone();
+            state.focused_token = focused_token;
             state.last_unavailable = None;
             drop(state);
             let Some(root) = projection
@@ -2715,6 +2919,7 @@ mod macos {
         fn clear_callback_state(&mut self) {
             if let Ok(mut state) = self.callback_state.try_borrow_mut() {
                 state.projection = NativeCallbackProjection::default();
+                state.focused_token = None;
                 state.in_flight.clear();
                 state.deferred.clear();
                 state.pending_numeric_actions = 0;
@@ -2754,6 +2959,25 @@ mod macos {
             {
                 let _ = object;
                 self.value_notifications = self.value_notifications.saturating_add(1);
+            }
+        }
+
+        fn post_focused_element_changed(&mut self, object: Id) {
+            #[cfg(not(test))]
+            unsafe {
+                let notification = ns_string(
+                    NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION
+                        .to_str()
+                        .unwrap_or("AXFocusedUIElementChanged"),
+                );
+                if !notification.is_null() {
+                    NSAccessibilityPostNotification(object, notification);
+                }
+            }
+            #[cfg(test)]
+            {
+                let _ = NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION;
+                self.focused_notifications.push(object);
             }
         }
 
@@ -3077,6 +3301,43 @@ mod macos {
         ffi_boundary(NO, || YES)
     }
 
+    extern "C" fn native_is_accessibility_focused(receiver: Id, _: Sel) -> ObjcBool {
+        ffi_boundary(NO, || {
+            let Some(state) = callback_state(receiver) else {
+                return NO;
+            };
+            let Ok(state) = state.try_borrow() else {
+                return NO;
+            };
+            state
+                .node_for_object(receiver)
+                .is_some_and(|node| state.focused_token == Some(node.token))
+                .then_some(YES)
+                .unwrap_or(NO)
+        })
+    }
+
+    extern "C" fn native_accessibility_focused_ui_element(receiver: Id, _: Sel) -> Id {
+        ffi_boundary(null_mut(), || {
+            let Some(state) = callback_state(receiver) else {
+                return null_mut();
+            };
+            let Ok(state) = state.try_borrow() else {
+                return null_mut();
+            };
+            let Some(node) = state.node_for_object(receiver) else {
+                return null_mut();
+            };
+            if node.kind != NativeNodeKind::Root {
+                return null_mut();
+            }
+            state
+                .focused_token
+                .and_then(|token| state.node_for_token(token))
+                .map_or(null_mut(), |node| node.object)
+        })
+    }
+
     extern "C" fn native_accessibility_notifies_when_destroyed(_: Id, _: Sel) -> ObjcBool {
         ffi_boundary(YES, || YES)
     }
@@ -3147,7 +3408,15 @@ mod macos {
                 node.logical_count
                     .map_or(null_mut(), |count| unsafe { ns_number_usize(count) })
             } else if name == c"AXFocused" {
-                unsafe { ns_number_bool(false) }
+                unsafe { ns_number_bool(state.focused_token == Some(node.token)) }
+            } else if name == NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_ATTRIBUTE {
+                if node.kind != NativeNodeKind::Root {
+                    return null_mut();
+                }
+                state
+                    .focused_token
+                    .and_then(|token| state.node_for_token(token))
+                    .map_or(null_mut(), |node| node.object)
             } else {
                 null_mut()
             }
@@ -3677,6 +3946,18 @@ mod macos {
             }
         }
 
+        fn target_runtime_generation(targets: &GuiAutomationTargetSnapshot) -> u64 {
+            targets
+                .targets
+                .iter()
+                .find_map(|target| {
+                    target
+                        .authority
+                        .map(|authority| authority.runtime_generation)
+                })
+                .unwrap_or(1)
+        }
+
         fn numeric_target_fixture() -> (AutomationNodeSnapshot, AutomationTarget) {
             let root_id = AutomationNodeId::new("root");
             let node_id = AutomationNodeId::new("gain");
@@ -3705,6 +3986,65 @@ mod macos {
             let mut target = AutomationTarget::from_node(&node, 1, 1, path);
             target.authority = Some(AutomationTargetAuthority::materialized(9));
             (node, target)
+        }
+
+        fn native_focus_snapshot(
+            focused_id: Option<&str>,
+        ) -> (GuiAutomationSnapshot, GuiAutomationTargetSnapshot) {
+            let root_id = AutomationNodeId::new("root");
+            let node = |id: &str, label: &str, x: f32| {
+                let mut semantics =
+                    AutomationNodeSemantics::new(AutomationRole::Button).with_label(label);
+                semantics.focusable = true;
+                semantics.focused = focused_id == Some(id);
+                AutomationNodeSnapshot::from_semantics(
+                    AutomationNodeId::new(id),
+                    AutomationBounds {
+                        x,
+                        y: 16.0,
+                        width: 72.0,
+                        height: 28.0,
+                    },
+                    semantics,
+                )
+            };
+            let snapshot = GuiAutomationSnapshot {
+                schema_version: 1,
+                viewport_width: 240,
+                viewport_height: 120,
+                root: AutomationNodeSnapshot::from_semantics(
+                    root_id,
+                    AutomationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 240.0,
+                        height: 120.0,
+                    },
+                    AutomationNodeSemantics::new(AutomationRole::Root),
+                )
+                .with_children(vec![node("a", "A", 8.0), node("b", "B", 96.0)]),
+            };
+            let mut targets = snapshot.target_snapshot();
+            for target in &mut targets.targets {
+                target.authority = Some(AutomationTargetAuthority::materialized(1));
+            }
+            targets.schema_version = 2;
+            (snapshot, targets)
+        }
+
+        fn native_focus_attribute_bool(receiver: Id) -> ObjcBool {
+            let attribute = unsafe { ns_string("AXFocused") };
+            let value = native_attribute_value(receiver, null_mut(), attribute);
+            if value.is_null() {
+                NO
+            } else {
+                unsafe { msg_bool(value, sel(c"boolValue")) }
+            }
+        }
+
+        fn native_focused_ui_element_attribute(root: Id) -> Id {
+            let attribute = unsafe { ns_string("AXFocusedUIElement") };
+            native_attribute_value(root, null_mut(), attribute)
         }
 
         fn numeric_callback_node(target: AutomationTarget, value: &str) -> NativeCallbackNode {
@@ -3970,9 +4310,11 @@ mod macos {
                     container,
                     length: 1,
                 }],
+                window_focused: false,
                 attached: true,
                 layout_notifications: 11,
                 value_notifications: 13,
+                focused_notifications: Vec::new(),
                 destroyed_notifications: 0,
             }
         }
@@ -4218,9 +4560,11 @@ mod macos {
                 })),
                 current_containers: Vec::new(),
                 active_ranges: Vec::new(),
+                window_focused: false,
                 attached: false,
                 layout_notifications: 0,
                 value_notifications: 0,
+                focused_notifications: Vec::new(),
                 destroyed_notifications: 0,
             }
         }
@@ -4585,6 +4929,327 @@ mod macos {
         }
 
         #[test]
+        fn native_focus_selectors_are_registered_with_exact_abi() {
+            let class = native_class().expect("the native accessibility class should exist");
+            let methods = [
+                (
+                    c"isAccessibilityFocused",
+                    native_is_accessibility_focused as *const c_void,
+                    MODERN_FOCUSED_METHOD_TYPE,
+                    b"c@:\0" as &[u8],
+                ),
+                (
+                    c"accessibilityFocusedUIElement",
+                    native_accessibility_focused_ui_element as *const c_void,
+                    MODERN_FOCUSED_UI_ELEMENT_METHOD_TYPE,
+                    b"@@:\0" as &[u8],
+                ),
+            ];
+            for (selector, implementation, expected_encoding, bytes) in methods {
+                let method = unsafe { class_getInstanceMethod(class.class(), sel(selector)) };
+                assert!(!method.is_null());
+                assert_eq!(unsafe { method_getImplementation(method) }, implementation);
+                let encoding = unsafe { method_getTypeEncoding(method) };
+                assert!(!encoding.is_null());
+                assert_eq!(unsafe { CStr::from_ptr(encoding) }, expected_encoding);
+                assert_eq!(expected_encoding.to_bytes_with_nul(), bytes);
+            }
+            assert_eq!(
+                NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_ATTRIBUTE.to_bytes_with_nul(),
+                b"AXFocusedUIElement\0"
+            );
+            assert_eq!(
+                NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION.to_bytes_with_nul(),
+                b"AXFocusedUIElementChanged\0"
+            );
+        }
+
+        #[test]
+        fn native_focus_projection_preserves_identity_parity_and_notification_deduplication() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter.window_focused = true;
+
+            let (none_snapshot, none_targets) = native_focus_snapshot(None);
+            adapter
+                .publish_projection(
+                    &none_snapshot,
+                    &none_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&none_targets),
+                )
+                .expect("the unfocused projection should publish");
+            assert_eq!(adapter.layout_notifications, 1);
+            assert!(adapter.focused_notifications.is_empty());
+
+            let (a_snapshot, a_targets) = native_focus_snapshot(Some("a"));
+            adapter
+                .publish_projection(
+                    &a_snapshot,
+                    &a_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&a_targets),
+                )
+                .expect("the first focused projection should publish");
+            let (root, a, b) = {
+                let state = adapter.callback_state.borrow();
+                let root = state
+                    .node_for_token(state.projection.root_token.expect("root token"))
+                    .expect("root node")
+                    .object;
+                let a = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.label.as_deref() == Some("A"))
+                    .expect("A object")
+                    .object;
+                let b = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.label.as_deref() == Some("B"))
+                    .expect("B object")
+                    .object;
+                (root, a, b)
+            };
+            assert_eq!(adapter.focused_notifications, vec![a]);
+            assert_eq!(adapter.layout_notifications, 1);
+            assert_eq!(adapter.value_notifications, 0);
+            assert_eq!(native_focus_attribute_bool(a), YES);
+            assert_eq!(native_focus_attribute_bool(b), NO);
+            assert_eq!(unsafe { msg_bool(a, sel(c"isAccessibilityFocused")) }, YES);
+            assert_eq!(unsafe { msg_bool(b, sel(c"isAccessibilityFocused")) }, NO);
+            assert_eq!(native_is_accessibility_focused(a, null_mut()), YES);
+            assert_eq!(native_is_accessibility_focused(b, null_mut()), NO);
+            assert_eq!(native_focused_ui_element_attribute(root), a);
+            assert_eq!(
+                unsafe { msg_id(root, sel(c"accessibilityFocusedUIElement")) },
+                a
+            );
+
+            let objects_before = adapter
+                .callback_state
+                .borrow()
+                .projection
+                .nodes
+                .iter()
+                .map(|node| node.object)
+                .collect::<Vec<_>>();
+            adapter
+                .publish_projection(
+                    &a_snapshot,
+                    &a_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&a_targets),
+                )
+                .expect("an unchanged focused projection should remain published");
+            assert_eq!(adapter.focused_notifications, vec![a]);
+            assert_eq!(adapter.layout_notifications, 1);
+
+            let (b_snapshot, b_targets) = native_focus_snapshot(Some("b"));
+            adapter
+                .publish_projection(
+                    &b_snapshot,
+                    &b_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&b_targets),
+                )
+                .expect("the focus transition should remain stable");
+            let objects_after = adapter
+                .callback_state
+                .borrow()
+                .projection
+                .nodes
+                .iter()
+                .map(|node| node.object)
+                .collect::<Vec<_>>();
+            assert_eq!(objects_after, objects_before);
+            assert_eq!(adapter.focused_notifications, vec![a, b]);
+            assert_eq!(adapter.layout_notifications, 1);
+            assert_eq!(adapter.value_notifications, 0);
+            assert_eq!(native_focus_attribute_bool(a), NO);
+            assert_eq!(native_focus_attribute_bool(b), YES);
+            assert_eq!(unsafe { msg_bool(a, sel(c"isAccessibilityFocused")) }, NO);
+            assert_eq!(unsafe { msg_bool(b, sel(c"isAccessibilityFocused")) }, YES);
+            assert_eq!(native_focused_ui_element_attribute(root), b);
+            assert_eq!(
+                unsafe { msg_id(root, sel(c"accessibilityFocusedUIElement")) },
+                b
+            );
+
+            adapter
+                .publish_projection(
+                    &b_snapshot,
+                    &b_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&b_targets),
+                )
+                .expect("a repeated focus projection should remain stable");
+            assert_eq!(adapter.focused_notifications, vec![a, b]);
+
+            let (none_again_snapshot, none_again_targets) = native_focus_snapshot(None);
+            adapter
+                .publish_projection(
+                    &none_again_snapshot,
+                    &none_again_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&none_again_targets),
+                )
+                .expect("clearing focus should remain stable");
+            assert_eq!(adapter.focused_notifications, vec![a, b]);
+            assert_eq!(native_focus_attribute_bool(a), NO);
+            assert_eq!(native_focus_attribute_bool(b), NO);
+            assert!(native_focused_ui_element_attribute(root).is_null());
+            assert!(unsafe { msg_id(root, sel(c"accessibilityFocusedUIElement")) }.is_null());
+
+            adapter.window_focused = false;
+            adapter
+                .publish_projection(
+                    &b_snapshot,
+                    &b_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&b_targets),
+                )
+                .expect("an inactive window should still publish its ordinary tree");
+            assert!(native_focused_ui_element_attribute(root).is_null());
+            assert_eq!(adapter.focused_notifications, vec![a, b]);
+
+            adapter.window_focused = true;
+            adapter
+                .publish_projection(
+                    &b_snapshot,
+                    &b_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&b_targets),
+                )
+                .expect("focus should republish when the window becomes active");
+            assert_eq!(adapter.focused_notifications, vec![a, b, b]);
+            assert_eq!(native_focused_ui_element_attribute(root), b);
+
+            assert!(adapter.retire_published_objects());
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_focus_withholds_stale_ambiguous_and_nonordinary_evidence() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter.window_focused = true;
+
+            let (snapshot, mut stale_targets) = native_focus_snapshot(Some("a"));
+            let stale = stale_targets
+                .targets
+                .iter_mut()
+                .find(|target| target.id == AutomationNodeId::new("a"))
+                .expect("stale focused target");
+            stale.authority = Some(AutomationTargetAuthority::materialized(2));
+            adapter
+                .publish_projection(&snapshot, &stale_targets, &[], None, 1)
+                .expect("stale focus evidence should not block ordinary publication");
+            let root = {
+                let state = adapter.callback_state.borrow();
+                state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.kind == NativeNodeKind::Root)
+                    .expect("published root")
+                    .object
+            };
+            assert!(native_focused_ui_element_attribute(root).is_null());
+            assert!(adapter.focused_notifications.is_empty());
+
+            let (mut ambiguous_snapshot, _) = native_focus_snapshot(Some("a"));
+            ambiguous_snapshot.root.children[1].semantics.focused = true;
+            let mut ambiguous_targets = ambiguous_snapshot.target_snapshot();
+            for target in &mut ambiguous_targets.targets {
+                target.authority = Some(AutomationTargetAuthority::materialized(1));
+            }
+            adapter
+                .publish_projection(
+                    &ambiguous_snapshot,
+                    &ambiguous_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&ambiguous_targets),
+                )
+                .expect("ambiguous focus evidence should not block publication");
+            assert!(native_focused_ui_element_attribute(root).is_null());
+            assert!(adapter.focused_notifications.is_empty());
+
+            let (node, target) = numeric_target_fixture();
+            assert!(native_focus_target_matches(
+                &target,
+                &node,
+                &target.path,
+                NativeNodeKind::Ordinary,
+                false,
+                9,
+            ));
+            assert!(!native_focus_target_matches(
+                &target,
+                &node,
+                &target.path,
+                NativeNodeKind::Ordinary,
+                true,
+                9,
+            ));
+            assert!(!native_focus_target_matches(
+                &target,
+                &node,
+                &target.path,
+                NativeNodeKind::Container,
+                false,
+                9,
+            ));
+            assert!(!native_focus_target_matches(
+                &target,
+                &node,
+                &target.path,
+                NativeNodeKind::Item,
+                true,
+                9,
+            ));
+            let mut unmaterialized = target.clone();
+            unmaterialized.authority = Some(AutomationTargetAuthority {
+                runtime_generation: 9,
+                materialized: false,
+            });
+            assert!(!native_focus_target_matches(
+                &unmaterialized,
+                &node,
+                &target.path,
+                NativeNodeKind::Ordinary,
+                false,
+                9,
+            ));
+            let mut mismatched = target.clone();
+            mismatched.role = AutomationRole::Text;
+            assert!(!native_focus_target_matches(
+                &mismatched,
+                &node,
+                &target.path,
+                NativeNodeKind::Ordinary,
+                false,
+                9,
+            ));
+
+            assert!(adapter.retire_published_objects());
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
         fn native_publication_commits_attachment_and_layout_only_after_host_success() {
             let runtime =
                 SurfaceRuntime::new(MappedNumericBridge::new(7.0), Vector2::new(240.0, 120.0));
@@ -4594,7 +5259,13 @@ mod macos {
             let targets = runtime.automation_target_snapshot();
             assert!(
                 adapter
-                    .publish_projection(&ordinary, &targets, &[], None)
+                    .publish_projection(
+                        &ordinary,
+                        &targets,
+                        &[],
+                        None,
+                        target_runtime_generation(&targets),
+                    )
                     .is_ok()
             );
             assert!(adapter.attached);
@@ -4642,7 +5313,13 @@ mod macos {
             let initial_snapshot = runtime.automation_snapshot();
             let initial_targets = runtime.automation_target_snapshot();
             adapter
-                .publish_projection(&initial_snapshot, &initial_targets, &[], None)
+                .publish_projection(
+                    &initial_snapshot,
+                    &initial_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&initial_targets),
+                )
                 .expect("the modern native projection should publish");
 
             let initial_projection = adapter.callback_state.borrow().projection.clone();
@@ -4710,7 +5387,13 @@ mod macos {
             let refreshed_snapshot = runtime.automation_snapshot();
             let refreshed_targets = runtime.automation_target_snapshot();
             adapter
-                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .publish_projection(
+                    &refreshed_snapshot,
+                    &refreshed_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&refreshed_targets),
+                )
                 .expect("a value-only numeric refresh should remain published");
             let refreshed_numeric = adapter
                 .callback_state
@@ -4752,7 +5435,13 @@ mod macos {
                 let mut adapter = native_publication_adapter_fixture(host);
                 assert!(
                     adapter
-                        .publish_projection(&ordinary, &targets, &[], None)
+                        .publish_projection(
+                            &ordinary,
+                            &targets,
+                            &[],
+                            None,
+                            target_runtime_generation(&targets),
+                        )
                         .is_err(),
                     "host fixture {kind} must reject the publication"
                 );
@@ -4785,7 +5474,13 @@ mod macos {
                 let mut adapter = native_publication_adapter_fixture(host);
                 assert!(
                     adapter
-                        .publish_projection(&ordinary, &targets, &[], None)
+                        .publish_projection(
+                            &ordinary,
+                            &targets,
+                            &[],
+                            None,
+                            target_runtime_generation(&targets),
+                        )
                         .is_ok(),
                     "host fixture {kind} must accept the initial publication"
                 );
@@ -4845,9 +5540,11 @@ mod macos {
                 transform: None,
                 current_containers: Vec::new(),
                 active_ranges: Vec::new(),
+                window_focused: false,
                 attached: true,
                 layout_notifications: 0,
                 value_notifications: 0,
+                focused_notifications: Vec::new(),
                 destroyed_notifications: 0,
             }
         }
@@ -4961,6 +5658,7 @@ mod macos {
                     semantics: node.semantics,
                     action_target: Some(target),
                     logical_count: None,
+                    focused: false,
                 },
                 NSRect {
                     origin: NSPoint { x: 8.0, y: 12.0 },
@@ -5162,9 +5860,11 @@ mod macos {
                     container: container_token,
                     length: 2,
                 }],
+                window_focused: false,
                 attached: true,
                 layout_notifications: 9,
                 value_notifications: 0,
+                focused_notifications: Vec::new(),
                 destroyed_notifications: 0,
             };
 
@@ -6500,6 +7200,7 @@ mod macos {
                 &initial_node,
                 initial_target.clone(),
             );
+            adapter.window_focused = true;
             let initial_projection = adapter.callback_state.borrow().projection.clone();
             let initial_objects = initial_projection
                 .nodes
@@ -6545,10 +7246,22 @@ mod macos {
                 "the runtime target authority should advance after the mapped action"
             );
             adapter
-                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .publish_projection(
+                    &refreshed_snapshot,
+                    &refreshed_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&refreshed_targets),
+                )
                 .expect("the refreshed production projection should publish");
             assert_eq!(adapter.value_notifications, 1);
             assert_eq!(adapter.layout_notifications, 0);
+            assert_eq!(
+                adapter.callback_state.borrow().focused_token,
+                Some(TEST_NUMERIC_TOKEN),
+                "passive republication should expose action-induced logical focus"
+            );
+            assert_eq!(adapter.focused_notifications, vec![91_usize as Id]);
             {
                 let state = adapter.callback_state.borrow();
                 let objects = state
@@ -6585,7 +7298,13 @@ mod macos {
             let value_notifications_before = adapter.value_notifications;
             let layout_notifications_before = adapter.layout_notifications;
             adapter
-                .publish_projection(&refreshed_snapshot, &refreshed_targets, &[], None)
+                .publish_projection(
+                    &refreshed_snapshot,
+                    &refreshed_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&refreshed_targets),
+                )
                 .expect("the unchanged production projection should remain published");
             assert_eq!(adapter.value_notifications, value_notifications_before);
             assert_eq!(adapter.layout_notifications, layout_notifications_before);
@@ -6613,15 +7332,27 @@ mod macos {
             let mut value_target = target.clone();
             value_target.value = Some(String::from("8"));
             let (changed_spec, frame) = numeric_spec_fixture(value_target.clone(), "8");
-            let updates =
-                collect_stable_value_projection_updates(&projection, &[changed_spec], &[frame])
-                    .expect("the value-only native evidence should be stable");
-            assert_eq!(updates.len(), 1);
+            let updates = collect_stable_value_projection_updates(
+                &projection,
+                None,
+                &[changed_spec],
+                &[frame],
+            )
+            .expect("the value-only native evidence should be stable");
+            assert_eq!(updates.updates.len(), 1);
             let object = projection.nodes[0].object;
             let mut changed_projection = projection.clone();
+            let mut focused_token = None;
             assert_eq!(
-                apply_stable_value_projection_updates(&mut changed_projection, &updates),
-                Some(vec![object])
+                apply_stable_value_projection_updates(
+                    &mut changed_projection,
+                    &mut focused_token,
+                    &updates,
+                ),
+                Some(StableProjectionNotifications {
+                    value_changed: vec![object],
+                    focused: None,
+                })
             );
             assert_eq!(changed_projection.nodes[0].object, object);
             assert_eq!(changed_projection.nodes[0].value.as_deref(), Some("8"));
@@ -6629,11 +7360,12 @@ mod macos {
             let (same_spec, same_frame) = numeric_spec_fixture(value_target, "8");
             let same_updates = collect_stable_value_projection_updates(
                 &changed_projection,
+                focused_token,
                 &[same_spec],
                 &[same_frame],
             )
             .expect("the unchanged native evidence should remain stable");
-            assert!(same_updates.is_empty());
+            assert!(same_updates.updates.is_empty());
 
             let mut changed_target = target;
             changed_target.authority = Some(AutomationTargetAuthority::materialized(10));
@@ -6641,6 +7373,7 @@ mod macos {
             assert!(
                 collect_stable_value_projection_updates(
                     &changed_projection,
+                    focused_token,
                     &[stale_spec],
                     &[stale_frame],
                 )
@@ -6744,19 +7477,31 @@ mod macos {
                 transform: None,
                 current_containers: Vec::new(),
                 active_ranges: Vec::new(),
+                window_focused: false,
                 attached: false,
                 layout_notifications: 0,
                 value_notifications: 0,
+                focused_notifications: Vec::new(),
                 destroyed_notifications: 0,
             };
             let targets = runtime.automation_target_snapshot();
             let passive_specs = adapter
-                .build_specs(&runtime.automation_snapshot(), &targets, &containers, None)
+                .build_specs(
+                    &runtime.automation_snapshot(),
+                    &targets,
+                    &containers,
+                    None,
+                    target_runtime_generation(&targets),
+                )
                 .expect("passive custom topology should build");
             assert!(
                 passive_specs
                     .iter()
                     .all(|spec| spec.kind != NativeNodeKind::Item)
+            );
+            assert!(
+                passive_specs.iter().all(|spec| !spec.focused),
+                "passive native focus selection must not admit virtual/provider nodes"
             );
 
             let session = runtime
@@ -6788,6 +7533,7 @@ mod macos {
                     &targets,
                     &containers,
                     Some(composition.normalized_sidecar()),
+                    target_runtime_generation(&targets),
                 )
                 .expect("matching custom witness should be consumable");
             assert_eq!(
@@ -6833,6 +7579,7 @@ mod macos {
                         &targets,
                         &mismatched_containers,
                         Some(composition.normalized_sidecar()),
+                        target_runtime_generation(&targets),
                     )
                     .is_err()
             );

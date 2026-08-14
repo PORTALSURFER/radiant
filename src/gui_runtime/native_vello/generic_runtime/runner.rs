@@ -248,11 +248,11 @@ where
     }
 
     #[cfg(target_os = "macos")]
-    fn republish_native_semantic_accessibility_passively(&mut self) {
+    pub(super) fn republish_native_semantic_accessibility_passively(&mut self) {
         let Some(mut adapter) = self.native_semantic_accessibility.take() else {
             return;
         };
-        match adapter.publish_passive(&self.core.runtime) {
+        match adapter.publish_passive(&self.core.runtime, self.window.native_window_focused) {
             Ok(()) => self.native_semantic_accessibility = Some(adapter),
             Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
         }
@@ -468,7 +468,9 @@ where
             return;
         };
         match NativeSemanticAccessibilityAdapter::attach(&window, proxy) {
-            Ok(mut adapter) => match adapter.publish_passive(&self.core.runtime) {
+            Ok(mut adapter) => match adapter
+                .publish_passive(&self.core.runtime, self.window.native_window_focused)
+            {
                 Ok(()) => self.native_semantic_accessibility = Some(adapter),
                 Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
             },
@@ -532,7 +534,7 @@ where
         {
             adapter.invalidate_window_generation(&window);
         }
-        match adapter.publish_passive(&self.core.runtime) {
+        match adapter.publish_passive(&self.core.runtime, self.window.native_window_focused) {
             Ok(()) => self.native_semantic_accessibility = Some(adapter),
             Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
         }

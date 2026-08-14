@@ -201,16 +201,22 @@ where
             }
             WindowEvent::ThemeChanged(theme) => self.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
+                self.window.native_window_focused = false;
                 let routed = self.handle_focus_lost_before_external_drag();
                 self.handle_route_outcome(event_loop, routed);
                 if self.core.runtime.external_drag_armed() {
                     let outcome = self.launch_external_drag_if_armed();
                     self.handle_route_outcome(event_loop, outcome);
                 }
+                #[cfg(target_os = "macos")]
+                self.republish_native_semantic_accessibility_passively();
             }
             WindowEvent::Focused(true) => {
+                self.window.native_window_focused = true;
                 let routed = self.handle_focus_regained_after_native_modal_loop();
                 self.handle_route_outcome(event_loop, routed);
+                #[cfg(target_os = "macos")]
+                self.republish_native_semantic_accessibility_passively();
             }
             WindowEvent::CursorEntered { .. } => self.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => {

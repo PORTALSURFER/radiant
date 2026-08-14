@@ -5,7 +5,7 @@ use crate::{
     gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
     runtime::{
         MAX_PAINT_SEGMENTS, PaintPrimitive, PaintSegmentObservation, PaintSegmentSpan,
-        RuntimeBridge, RuntimeRetainedSurfaceCapability,
+        RuntimeBridge, RuntimeRetainedSurfaceCapability, SurfacePaintPlan,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -71,6 +71,25 @@ pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;
 use text_runs::flush_text_runs;
 
 use super::retained_paint_segments::NativePaintSegmentEligibilityPlan;
+
+pub(super) fn focused_text_input_caret_area(
+    plan: &SurfacePaintPlan,
+    text_renderer: &mut NativeTextRenderer,
+) -> Option<Rect> {
+    let mut focused_input = None;
+    for primitive in &plan.primitives {
+        let PaintPrimitive::TextInput(input) = primitive else {
+            continue;
+        };
+        if !input.focused {
+            continue;
+        }
+        if focused_input.replace(input).is_some() {
+            return None;
+        }
+    }
+    focused_input.and_then(|input| text_input::focused_text_input_caret_rect(input, text_renderer))
+}
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
@@ -485,4 +504,62 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Br
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut SceneTextRunBuffer,
     pub animation_time: Duration,
+}
+
+#[cfg(test)]
+mod focused_text_input_tests {
+    use super::focused_text_input_caret_area;
+    use crate::{
+        gui::types::{Point, Rect, Rgba8},
+        gui_runtime::native_vello::NativeTextRenderer,
+        runtime::{PaintPrimitive, PaintTextInput, SurfacePaintPlan},
+        widgets::TextInputState,
+    };
+
+    #[test]
+    fn focused_text_input_caret_area_requires_exactly_one_focused_input() {
+        let mut text_renderer = NativeTextRenderer::new();
+        let unfocused = text_input(1, false);
+        let focused = text_input(2, true);
+
+        assert_eq!(caret_area(&mut text_renderer, []), None);
+        assert_eq!(caret_area(&mut text_renderer, [unfocused.clone()]), None);
+        assert!(caret_area(&mut text_renderer, [focused.clone()]).is_some());
+        assert!(caret_area(&mut text_renderer, [unfocused, focused.clone()]).is_some());
+        assert_eq!(
+            caret_area(&mut text_renderer, [focused.clone(), focused]),
+            None
+        );
+    }
+
+    fn caret_area<const N: usize>(
+        text_renderer: &mut NativeTextRenderer,
+        inputs: [PaintTextInput; N],
+    ) -> Option<Rect> {
+        focused_text_input_caret_area(
+            &SurfacePaintPlan {
+                clear_color: Rgba8::default(),
+                primitives: inputs.into_iter().map(PaintPrimitive::TextInput).collect(),
+            },
+            text_renderer,
+        )
+    }
+
+    fn text_input(widget_id: u64, focused: bool) -> PaintTextInput {
+        PaintTextInput {
+            widget_id,
+            rect: Rect::from_min_max(Point::new(8.0, 10.0), Point::new(160.0, 38.0)),
+            placeholder: None,
+            completion_suffix: None,
+            state: TextInputState::from_value(String::from("candidate")),
+            font_size: 14.0,
+            baseline: None,
+            color: Rgba8::default(),
+            placeholder_color: Rgba8::default(),
+            completion_color: Rgba8::default(),
+            selection_color: Rgba8::default(),
+            caret_color: Rgba8::default(),
+            focused,
+        }
+    }
 }

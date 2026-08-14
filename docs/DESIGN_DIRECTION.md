@@ -308,10 +308,12 @@ commit, and cancellation events. The single-line `TextInputWidget` consumes
 these backend-neutral samples while keeping pre-edit state local and emitting
 one ordinary text change only on commit. Platform adapters own
 candidate-window and host-specific IME behavior; the backend-neutral text
-model owns the logical composition range. Other native adapters,
-candidate-window placement, and matching-key suppression remain separate
-boundaries; `NumericInputWidget` now consumes the generic composition lifecycle,
-and a numeric codec never emits typed values
+model owns the logical composition range. The shared Winit Vello adapter now
+ships bounded logical candidate-area publication for the exactly focused text
+input, while other native adapters and matching-key suppression remain separate
+boundaries; native Japanese/Chinese IME acceptance is unperformed.
+`NumericInputWidget` now consumes the generic composition lifecycle, and a
+numeric codec never emits typed values
 from pre-edit text.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
@@ -2538,9 +2540,11 @@ timestamp here, so samples keep `None` and fabricate no sequence metadata.
 preedit updates stay local and do not parse or publish; valid committed text is
 sanitized and parsed once to emit one `[Begin, Commit]` batch; invalid or
 incomplete commits remain correctable as text editing, and Cancel or focus loss
-restores the captured edit state. Candidate-window placement and matching-key
-suppression remain deferred boundaries, as do multiline editing and product
-integration. Other platform adapters remain separate. All ranges exposed by
+restores the captured edit state. The shared Winit Vello adapter ships bounded
+candidate-area publication from the focused text input; native Japanese/Chinese
+IME acceptance is unperformed. Matching-key suppression, candidate behavior
+beyond that bounded publication, multiline editing, and product integration
+remain deferred boundaries. Other platform adapters remain separate. All ranges exposed by
 this generic contract are Unicode-scalar ranges; a native adapter owns any
 platform-specific offset translation.
 

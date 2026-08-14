@@ -1810,11 +1810,15 @@ active owner, or retains/cancels without mutation when no owner can be admitted.
 Winit IME events carry no native timestamp here, so normalized samples retain
 `None` and fabricate no sequence metadata.
 
-Candidate-window placement and matching-key suppression remain deferred
-boundaries. The shipped adapter routes native IME events through the focused
-composition owner and leaves existing ordinary keyboard/character routing
-unchanged; it does not add candidate placement, matching-key policy, multiline
-editing, or product integration. Other platform adapters remain separate.
+The bounded native Winit candidate-area publication is shipped: the adapter
+projects a finite logical caret area from exactly one focused `PaintTextInput`
+and publishes it through the actual per-window Winit cursor-area call, with
+conservative invalid/ambiguous evidence and repeat suppression fenced by
+`WindowId`, `NativeTargetGeneration`, and the actual native `DpiScale`.
+Native Japanese/Chinese IME acceptance remains unperformed. Matching-key
+suppression, candidate behavior beyond this bounded
+caret-area publication, multiline editing, product integration, and other
+platform adapters remain separate boundaries.
 
 `NumericInputWidget` consumes the same lifecycle through the shared owner gate:
 preedit updates remain local and do not parse or publish; valid committed text

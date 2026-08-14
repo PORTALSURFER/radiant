@@ -29,6 +29,8 @@
 
 2026-08-14 implementation cycle: The private parent-event-loop fairness ledger now retains current-demand stable-key state in reusable `Vec` storage, prunes absent keys at the existing `remove_absent` boundary, and admits every current fairness-eligible live window beyond the former 16-key capacity. Direct policy and `NativeFrameScheduler` tests cover more than 16 current keys, permutation-independent stable ordering, priority/deadline selection, two-epoch promotion, lifecycle/discrete vetoes, retirement/reinsertion, and empty/ineligible fallback. Validation: `cargo test --locked --lib gui_runtime::native_vello::generic_runtime::frame_scheduler_policy::tests` (15 passed) and `cargo test --locked --lib gui_runtime::native_vello::generic_runtime::frame_scheduler::tests` (13 passed). Estimates remain unchanged: generic ~97%; broad 903/11 (~82.09%); Public 85, Declarative 71, Input 97, Layout 97, Text 74, Numeric 92, Runtime 96, Rendering 78, Platform 71, Diagnostics 66, Examples/docs/CI 76. No estimate credit is awarded for this correction.
 
+2026-08-14 implementation cycle: The crate-private native Winit candidate-area publisher now scans the authoritative `SurfacePaintPlan` for exactly one focused `PaintTextInput`, reuses the existing text-field layout and selection/caret projection, rejects malformed, zero, ambiguous, or fallback geometry, and publishes finite logical caret areas through the actual per-runner `Window::set_ime_cursor_area` before retained-scene reuse in both primary and auxiliary Vello loops. `NativeImeCursorAreaCache` suppression is fenced by `WindowId`, `NativeTargetGeneration`, the actual native `DpiScale`, and uninterrupted valid-candidate evidence; it records only after the Winit call, and invalid evidence forces a later identical valid area to republish. Focused coverage includes empty, Unicode, selected, hidden-alpha, long/clamped, malformed, duplicate-focus, unchanged, moved, invalid-to-valid, native-scale transition, target-generation transition, and window-replacement cases. Native Japanese/Chinese IME acceptance is unperformed. Estimates remain unchanged and no estimate credit is awarded.
+
 The broad estimate is the unweighted mean of the category rows:
 `(85 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.09%`,
 reported as approximately `82.09%`.
@@ -143,8 +145,10 @@ changing the four-variant public `CompositionSample` vocabulary, and malformed
 evidence cancels conservatively. Built-in hidden preedits retain actual focus,
 clear stale visible selection/caret adornments with zero-alpha existing
 colors, and the native encoder skips that geometry; the legacy hook fallback
-conservatively cancels. Matching-key suppression, candidate windows, other
-native IME adapters, and product behavior remain unshipped. Complete-mode
+conservatively cancels. The bounded native Winit candidate-area publication is
+shipped for primary and auxiliary Vello loops; native Japanese/Chinese IME
+acceptance is unperformed. Matching-key suppression, other native IME adapters,
+and product behavior remain unshipped. Complete-mode
 NumericInput
 PointerScrub consumption is now shipped for the explicitly configured
 primary-plus-Alt/Option path, including managed capture, bounded output, typed
@@ -674,10 +678,10 @@ restart acceptance for this bounded primary-window consumer. VoiceOver-specific
 acceptance remains unperformed; repeated negative-geometry AppKit runtime
 diagnostics remain a separate unverified follow-up if reproducible. Estimates
 remain unchanged and no estimate credit, including Platform credit, is awarded.
-The generic composition foundation, the single-line text consumer,
-the NumericInput consumer, and the primary/auxiliary Winit consumer remain
-distinct from the deferred matching-key, candidate-window, other native-adapter,
-and product-policy boundaries.
+The generic composition foundation, the single-line text consumer, the
+NumericInput consumer, and the primary/auxiliary Winit consumer with its
+bounded candidate-area publication remain distinct from deferred matching-key
+suppression, other native-adapter, and product-policy boundaries.
 The public `KeyboardModifier`/`NumericStepModifiers` selector and
 `NumericInputBuilder::step_modifiers(...)` attachment are now the explicit
 complete-mode keyboard consumer policy. The selector evaluates lossless

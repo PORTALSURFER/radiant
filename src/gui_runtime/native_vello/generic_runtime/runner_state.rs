@@ -11,8 +11,8 @@ use super::{
     RuntimeUserEvent,
 };
 use crate::gui::input::{InputSequence, InputSequenceRange};
-use crate::gui::types::Point;
 use crate::gui::types::Vector2;
+use crate::gui::types::{Point, Rect as UiRect};
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
 use crate::runtime::NativeWindowDiagnosticIdentity;
 use crate::widgets::WidgetCursor;
@@ -493,6 +493,64 @@ fn retire_native_resource_entries<T>(
     active.is_none() && quarantine.is_empty()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct NativeImeCursorAreaPublication {
+    window_id: WindowId,
+    native_scale_generation: NativeTargetGeneration,
+    native_dpi_scale: crate::theme::DpiScale,
+    area: UiRect,
+}
+
+#[derive(Default)]
+pub(super) struct NativeImeCursorAreaCache {
+    publication: Option<NativeImeCursorAreaPublication>,
+}
+
+impl NativeImeCursorAreaCache {
+    pub(super) fn candidate_to_publish(
+        &mut self,
+        window_id: WindowId,
+        native_scale_generation: NativeTargetGeneration,
+        native_dpi_scale: crate::theme::DpiScale,
+        candidate: Option<UiRect>,
+    ) -> Option<UiRect> {
+        let Some(area) = candidate.filter(|area| area.has_finite_positive_area()) else {
+            self.invalidate();
+            return None;
+        };
+        if !native_scale_generation.is_known() {
+            self.invalidate();
+            return None;
+        }
+        let publication = NativeImeCursorAreaPublication {
+            window_id,
+            native_scale_generation,
+            native_dpi_scale,
+            area,
+        };
+        (self.publication != Some(publication)).then_some(area)
+    }
+
+    pub(super) fn record(
+        &mut self,
+        window_id: WindowId,
+        native_scale_generation: NativeTargetGeneration,
+        native_dpi_scale: crate::theme::DpiScale,
+        area: UiRect,
+    ) {
+        self.publication = Some(NativeImeCursorAreaPublication {
+            window_id,
+            native_scale_generation,
+            native_dpi_scale,
+            area,
+        });
+    }
+
+    pub(super) fn invalidate(&mut self) {
+        self.publication = None;
+    }
+}
+
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
     pub(super) id: Option<WindowId>,
@@ -509,6 +567,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) target_generation: NativeTargetGeneration,
     pub(super) native_surface_target_fenced: bool,
     pub(super) surface_recovery: NativeSurfaceRecoveryState,
+    pub(super) ime_cursor_area_cache: NativeImeCursorAreaCache,
 }
 
 impl NativeRunnerWindowState {
@@ -774,12 +833,14 @@ impl NativeRunnerTimingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeInputSequenceAllocator, NativeResourceMaintenanceTurn, NativeResourceQuarantine,
-        NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-        NativeSurfaceRecoveryState, NativeTargetGeneration,
+        NativeImeCursorAreaCache, NativeInputSequenceAllocator, NativeResourceMaintenanceTurn,
+        NativeResourceQuarantine, NativeRunnerInputState, NativeRunnerTimingState,
+        NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration,
         NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuResources,
     };
+    use crate::gui::types::{Point, Rect};
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
+    use crate::theme::DpiScale;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -817,6 +878,165 @@ mod tests {
         assert!(state.isolate_native_resources());
         assert!(state.native_resources.is_none());
         assert!(state.quarantined_native_resources.is_empty());
+    }
+
+    #[test]
+    fn ime_cursor_area_cache_suppresses_repeats_only_after_recording_a_call() {
+        let mut cache = NativeImeCursorAreaCache::default();
+        let window_id = winit::window::WindowId::from(1);
+        let generation = NativeTargetGeneration::from_test_serial(1);
+        let first_area = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(16.0, 24.0));
+
+        assert_eq!(
+            cache.candidate_to_publish(window_id, generation, DpiScale::ONE, Some(first_area)),
+            Some(first_area)
+        );
+        // A candidate observation cannot suppress itself before the actual
+        // Winit call has happened and been recorded.
+        assert_eq!(
+            cache.candidate_to_publish(window_id, generation, DpiScale::ONE, Some(first_area)),
+            Some(first_area)
+        );
+        cache.record(window_id, generation, DpiScale::ONE, first_area);
+        assert_eq!(
+            cache.candidate_to_publish(window_id, generation, DpiScale::ONE, Some(first_area)),
+            None
+        );
+    }
+
+    #[test]
+    fn ime_cursor_area_cache_republishes_when_native_dpi_changes_under_fixed_target_generation() {
+        let mut cache = NativeImeCursorAreaCache::default();
+        let window_id = winit::window::WindowId::from(1);
+        let target_generation = NativeTargetGeneration::from_test_serial(1);
+        let first_native_dpi_scale = DpiScale::new(1.0);
+        let next_native_dpi_scale = DpiScale::new(2.0);
+        let area = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(16.0, 24.0));
+
+        assert_eq!(
+            cache.candidate_to_publish(
+                window_id,
+                target_generation,
+                first_native_dpi_scale,
+                Some(area),
+            ),
+            Some(area)
+        );
+        cache.record(window_id, target_generation, first_native_dpi_scale, area);
+        assert_eq!(
+            cache.candidate_to_publish(
+                window_id,
+                target_generation,
+                first_native_dpi_scale,
+                Some(area),
+            ),
+            None
+        );
+
+        // A fixed application override can keep the target generation and
+        // logical caret area unchanged while the native monitor scale changes.
+        assert_eq!(
+            cache.candidate_to_publish(
+                window_id,
+                target_generation,
+                next_native_dpi_scale,
+                Some(area),
+            ),
+            Some(area)
+        );
+    }
+
+    #[test]
+    fn ime_cursor_area_cache_republishes_after_movement_invalidity_and_identity_changes() {
+        let mut cache = NativeImeCursorAreaCache::default();
+        let first_window = winit::window::WindowId::from(1);
+        let replacement_window = winit::window::WindowId::from(2);
+        let first_generation = NativeTargetGeneration::from_test_serial(1);
+        let next_generation = NativeTargetGeneration::from_test_serial(2);
+        let first_area = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(16.0, 24.0));
+        let moved_area = Rect::from_min_max(Point::new(20.0, 10.0), Point::new(28.0, 24.0));
+
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                first_generation,
+                DpiScale::ONE,
+                Some(first_area)
+            ),
+            Some(first_area)
+        );
+        cache.record(first_window, first_generation, DpiScale::ONE, first_area);
+
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                first_generation,
+                DpiScale::ONE,
+                Some(moved_area)
+            ),
+            Some(moved_area)
+        );
+        cache.record(first_window, first_generation, DpiScale::ONE, moved_area);
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                first_generation,
+                DpiScale::ONE,
+                Some(moved_area)
+            ),
+            None
+        );
+
+        // None/invalid evidence clears the suppression authority, even when
+        // the next valid candidate is unchanged.
+        assert_eq!(
+            cache.candidate_to_publish(first_window, first_generation, DpiScale::ONE, None),
+            None
+        );
+        let invalid_area = Rect::from_min_max(Point::new(20.0, 10.0), Point::new(20.0, 24.0));
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                first_generation,
+                DpiScale::ONE,
+                Some(invalid_area),
+            ),
+            None
+        );
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                first_generation,
+                DpiScale::ONE,
+                Some(moved_area)
+            ),
+            Some(moved_area)
+        );
+        cache.record(first_window, first_generation, DpiScale::ONE, moved_area);
+
+        // A changed target generation republishes the same logical area.
+        assert_eq!(
+            cache.candidate_to_publish(
+                first_window,
+                next_generation,
+                DpiScale::ONE,
+                Some(moved_area)
+            ),
+            Some(moved_area)
+        );
+        cache.record(first_window, next_generation, DpiScale::ONE, moved_area);
+
+        // A different native WindowId starts a fresh publication generation,
+        // even when its first valid area happens to be identical.
+        assert_eq!(
+            cache.candidate_to_publish(
+                replacement_window,
+                next_generation,
+                DpiScale::ONE,
+                Some(moved_area),
+            ),
+            Some(moved_area)
+        );
     }
 
     #[test]

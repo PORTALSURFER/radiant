@@ -4,7 +4,7 @@ mod boundary;
 mod layout;
 mod state;
 
-pub(super) use layout::build_text_field_layout;
+pub(super) use layout::{TextFieldLayoutState, build_text_field_layout};
 pub(super) use state::SingleLineTextEditorState;
 
 #[cfg(test)]

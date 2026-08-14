@@ -1813,9 +1813,10 @@ Winit IME events carry no native timestamp here, so normalized samples retain
 The bounded native Winit candidate-area publication is shipped: the adapter
 projects a finite logical caret area from exactly one focused `PaintTextInput`
 and publishes it through the actual per-window Winit cursor-area call, with
-conservative invalid/ambiguous evidence and repeat suppression fenced by window
-and native scale/DPI generation. Native Japanese/Chinese IME acceptance remains
-unperformed. Matching-key suppression, candidate behavior beyond this bounded
+conservative invalid/ambiguous evidence and repeat suppression fenced by
+`WindowId`, `NativeTargetGeneration`, and the actual native `DpiScale`.
+Native Japanese/Chinese IME acceptance remains unperformed. Matching-key
+suppression, candidate behavior beyond this bounded
 caret-area publication, multiline editing, product integration, and other
 platform adapters remain separate boundaries.
 

@@ -1780,9 +1780,11 @@ where
         };
         let window_id = window.id();
         let native_scale_generation = self.window.target_generation;
+        let native_dpi_scale = self.window.native_dpi_scale;
         let Some(area) = self.window.ime_cursor_area_cache.candidate_to_publish(
             window_id,
             native_scale_generation,
+            native_dpi_scale,
             candidate,
         ) else {
             return;
@@ -1791,9 +1793,12 @@ where
             LogicalPosition::new(area.min.x as f64, area.min.y as f64),
             LogicalSize::new(area.width() as f64, area.height() as f64),
         );
-        self.window
-            .ime_cursor_area_cache
-            .record(window_id, native_scale_generation, area);
+        self.window.ime_cursor_area_cache.record(
+            window_id,
+            native_scale_generation,
+            native_dpi_scale,
+            area,
+        );
     }
 
     pub(super) fn handle_route_outcome_without_timed_frame(

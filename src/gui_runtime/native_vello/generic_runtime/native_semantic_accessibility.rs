@@ -3799,7 +3799,11 @@ mod macos {
                 },
             },
         };
-        use std::{cell::Cell, rc::Rc, sync::Arc};
+        use std::{
+            cell::Cell,
+            rc::Rc,
+            sync::{Arc, Mutex, MutexGuard},
+        };
 
         struct TestVirtualLayoutPolicy;
 
@@ -4491,13 +4495,41 @@ mod macos {
         const MODERN_ACCESSIBILITY_ELEMENT_FILTERED: u8 = 5;
         const MODERN_ACCESSIBILITY_ELEMENT_UNSUPPORTED: u8 = 6;
 
+        static ACCESSIBILITY_CHILDREN_TEST_HOST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+        thread_local! {
+            static ACCESSIBILITY_CHILDREN_TEST_HOST_GUARDS:
+                RefCell<Vec<(Id, MutexGuard<'static, ()>)>> = RefCell::new(Vec::new());
+        }
+
         fn accessibility_children_test_host(kind: u8) -> Id {
-            unsafe { radiant_native_test_make_accessibility_children_host(kind) }
+            let guard = ACCESSIBILITY_CHILDREN_TEST_HOST_LOCK
+                .get_or_init(|| Mutex::new(()))
+                .lock()
+                .expect("the accessibility children test host lock should not be poisoned");
+            let host = unsafe { radiant_native_test_make_accessibility_children_host(kind) };
+            if host.is_null() {
+                drop(guard);
+            } else {
+                ACCESSIBILITY_CHILDREN_TEST_HOST_GUARDS.with(|guards| {
+                    guards.borrow_mut().push((host, guard));
+                });
+            }
+            host
         }
 
         fn release_accessibility_children_test_host(host: Id) {
             if !host.is_null() {
                 unsafe { msg_void(host, sel(c"release")) };
+                let guard = ACCESSIBILITY_CHILDREN_TEST_HOST_GUARDS.with(|guards| {
+                    let mut guards = guards.borrow_mut();
+                    let index = guards
+                        .iter()
+                        .position(|(held_host, _)| *held_host == host)
+                        .expect("the accessibility children test host should have a guard");
+                    guards.swap_remove(index).1
+                });
+                drop(guard);
             }
         }
 

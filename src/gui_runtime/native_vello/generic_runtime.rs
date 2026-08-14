@@ -37,6 +37,7 @@ mod frame_diagnostics_publication;
 mod frame_prepare;
 mod frame_scheduler;
 mod frame_scheduler_policy;
+mod frame_stage_admission;
 mod frame_state;
 mod gpu_surface;
 mod gpu_surface_cursor;

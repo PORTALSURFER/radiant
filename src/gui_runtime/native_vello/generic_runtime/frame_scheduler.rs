@@ -6,8 +6,10 @@
 //! admission and presentation.
 
 use super::frame_scheduler_policy::{
-    SchedulerDemand, SchedulerFairnessEligibility, SchedulerFairnessLedger, SchedulerWorkClass,
+    SchedulerDemand, SchedulerFairnessEligibility, SchedulerFairnessLedger, SchedulerStage,
+    SchedulerWorkClass,
 };
+use super::frame_stage_admission::{FrameStageIdentity, NextReadyStage, TimedFrame};
 use super::{
     CpuFramePendingRedrawAge, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
     GenericRouteOutcome, SceneRebuildMode, TimedFrameCadence, animation_frame_interval,
@@ -428,6 +430,108 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    fn admit_primary_timed_frame_deadline(
+        &mut self,
+        now: Instant,
+        due_at: Instant,
+        animation_activity: RuntimeAnimationActivity,
+        needs_text_caret_animation: bool,
+    ) -> FrameScheduleAdmission {
+        let fallback = |runner: &mut Self| {
+            let actual_drain_at = Instant::now();
+            let outcome = runner.drain_timed_frame_now(
+                actual_drain_at,
+                animation_activity,
+                needs_text_caret_animation,
+            );
+            FrameScheduleAdmission {
+                outcome,
+                route_outcome: true,
+                did_work: true,
+            }
+        };
+        let pre_begin_fallback = |runner: &mut Self| {
+            if runner.frame_stage_owner.has_in_flight() {
+                return FrameScheduleAdmission {
+                    did_work: true,
+                    ..FrameScheduleAdmission::default()
+                };
+            }
+            runner.frame_stage_owner.invalidate();
+            fallback(runner)
+        };
+        let selected_payload =
+            TimedFrame::new(due_at, animation_activity, needs_text_caret_animation);
+
+        let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(super::GenericNativeAdapterOwner::capture_generation)
+        else {
+            return pre_begin_fallback(self);
+        };
+        let target_generation = self.window.target_generation;
+        if !target_generation.is_known()
+            || !self.frame_stage_owner.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::Deadline,
+            )
+        {
+            return pre_begin_fallback(self);
+        }
+        let Some(revision) = self.frame_stage_owner.next_revision() else {
+            return pre_begin_fallback(self);
+        };
+        let identity = FrameStageIdentity::new(
+            FrameScheduleKey::Primary,
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            self.frame_stage_owner.owner_generation(),
+            revision,
+        );
+        if self.frame_stage_owner.stale(&identity) {
+            return pre_begin_fallback(self);
+        }
+        if !self
+            .frame_stage_owner
+            .queue(identity.clone(), selected_payload)
+        {
+            return pre_begin_fallback(self);
+        }
+        if self.frame_stage_owner.next_ready_stage(now) != NextReadyStage::Deadline {
+            return pre_begin_fallback(self);
+        }
+        let Some(payload) = self.frame_stage_owner.begin(&identity, now) else {
+            return pre_begin_fallback(self);
+        };
+        let actual_drain_at = Instant::now();
+        let outcome = self.drain_timed_frame_now(
+            actual_drain_at,
+            payload.animation_activity(),
+            payload.needs_text_caret_animation(),
+        );
+        let completed_at = Instant::now();
+        if !self
+            .frame_stage_owner
+            .complete(&identity, actual_drain_at, completed_at)
+        {
+            // The drain already happened after begin. A failed completion must
+            // not fall back to a second direct drain.
+            return FrameScheduleAdmission {
+                outcome,
+                route_outcome: true,
+                did_work: true,
+            };
+        }
+        FrameScheduleAdmission {
+            outcome,
+            route_outcome: true,
+            did_work: true,
+        }
+    }
+
     /// Apply one already-selected window's existing timed-frame policy.
     ///
     /// This function only advances runtime-local state and requests the normal
@@ -453,6 +557,19 @@ where
         if work.reissue_pending_redraw {
             self.request_redraw_for_frame_work(FrameWork::None);
         }
+        if matches!(demand.key(), FrameScheduleKey::Primary)
+            && work.drain_timed_frame
+            && !work.advance_timed_repaint
+            && !work.reissue_pending_redraw
+            && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
+        {
+            return self.admit_primary_timed_frame_deadline(
+                now,
+                due_at,
+                demand.animation_activity(),
+                demand.needs_text_caret_animation(),
+            );
+        }
         let should_route =
             work.drain_timed_frame && !self.should_defer_timed_frame_drain_for_pending_redraw(now);
         let outcome = if should_route {
@@ -474,8 +591,44 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::{
+        DeviceLossRegistration, GenericNativeAdapterOwner, NativeAdapterGeneration,
+    };
     use super::*;
-    use crate::runtime::RuntimeAnimationActivity;
+    use crate::{
+        application::empty,
+        gui::types::Vector2,
+        gui_runtime::NativeRunOptions,
+        prelude::IntoView,
+        runtime::{RuntimeAnimationHost, RuntimeHostCapabilities, UiSurface},
+    };
+    use std::{cell::Cell, sync::Arc};
+
+    #[derive(Default)]
+    struct CountingFrameBridge {
+        queue_calls: Cell<usize>,
+    }
+
+    impl RuntimeBridge<()> for CountingFrameBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_animation()
+        }
+    }
+
+    impl RuntimeAnimationHost for CountingFrameBridge {
+        fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+            RuntimeAnimationActivity::frame_messages()
+        }
+
+        fn queue_animation_frame(&mut self) -> bool {
+            self.queue_calls.set(self.queue_calls.get() + 1);
+            true
+        }
+    }
 
     fn due_demand(key: FrameScheduleKey, now: Instant) -> FrameScheduleDemand {
         due_demand_with_cadence(
@@ -499,6 +652,189 @@ mod tests {
             false,
             FrameScheduleRedrawEvidence::default(),
         )
+    }
+
+    #[test]
+    fn selected_primary_demand_uses_exact_owner_payload_and_does_not_merge_again() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+        runner.window.target_generation.advance();
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let scheduler_now = Instant::now() - Duration::from_millis(50);
+        let due_at = scheduler_now - Duration::from_millis(50);
+        let demand = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Primary,
+            TimedFrameCadence::DrainNow {
+                due_at,
+                next_wake: scheduler_now + Duration::from_millis(16),
+            },
+            60,
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+            FrameScheduleRedrawEvidence::default(),
+        );
+
+        let admission = runner.admit_frame_schedule_work(scheduler_now, &demand);
+        assert!(admission.did_work);
+        assert!(admission.route_outcome);
+        let drained_at = runner.timing.last_timed_frame_drain;
+        assert!(
+            drained_at > scheduler_now,
+            "the drain must use the actual execution timestamp rather than scheduler observation"
+        );
+        assert!(matches!(
+            admission.outcome.frame_work(),
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::TextCaretAnimation,
+                ..
+            }
+        ));
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "the owner payload must cause one frame-message drain"
+        );
+
+        runner.apply_route_outcome_with_timed_frame(admission.outcome, false);
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "the selected scheduled outcome must not invoke route-time merge"
+        );
+        assert_eq!(runner.timing.last_timed_frame_drain, drained_at);
+    }
+
+    #[test]
+    fn in_flight_completion_vetoes_never_fallback_or_clear_owner() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+        runner.window.target_generation.advance();
+        let target_generation = runner.window.target_generation;
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let now = Instant::now();
+        assert!(runner.frame_stage_owner.prepare_fence(
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+        ));
+        let revision = runner
+            .frame_stage_owner
+            .next_revision()
+            .expect("first revision");
+        let identity = FrameStageIdentity::new(
+            FrameScheduleKey::Primary,
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            runner.frame_stage_owner.owner_generation(),
+            revision,
+        );
+        assert!(runner.frame_stage_owner.queue(
+            identity.clone(),
+            TimedFrame::new(now, RuntimeAnimationActivity::frame_messages(), false),
+        ));
+        assert!(runner.frame_stage_owner.begin(&identity, now).is_some());
+        runner.drain_timed_frame_now(now, RuntimeAnimationActivity::frame_messages(), false);
+
+        let wrong_completion = FrameStageIdentity::new(
+            FrameScheduleKey::Primary,
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            identity.owner_generation(),
+            identity.revision() + 1,
+        );
+        assert!(
+            !runner
+                .frame_stage_owner
+                .complete(&wrong_completion, now, Instant::now())
+        );
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+
+        let demand = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Primary,
+            TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + Duration::from_millis(16),
+            },
+            60,
+            RuntimeAnimationActivity::frame_messages(),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        );
+
+        runner.adapter = None;
+        let admission = runner.admit_frame_schedule_work(Instant::now(), &demand);
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "adapter-missing veto must not drain a begun frame again"
+        );
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let mut next_adapter_generation = adapter_generation;
+        assert!(next_adapter_generation.advance());
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            next_adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let admission = runner.admit_frame_schedule_work(Instant::now(), &demand);
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "known-adapter transition must not drain a begun frame again"
+        );
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        assert!(runner.window.target_generation.advance());
+        let admission = runner.admit_frame_schedule_work(Instant::now(), &demand);
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "known-target transition must not drain a begun frame again"
+        );
+
+        runner.window.target_generation.invalidate_unknown();
+        let admission = runner.admit_frame_schedule_work(Instant::now(), &demand);
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "unknown-target veto must not drain a begun frame again"
+        );
     }
 
     fn eligible() -> AuxiliaryScheduleEligibility {

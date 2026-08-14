@@ -1,5 +1,6 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
+use super::frame_stage_admission::WindowStageOwner;
 #[cfg(target_os = "macos")]
 use super::native_semantic_accessibility::NativeSemanticAccessibilityAdapter;
 use super::recovery::{
@@ -76,6 +77,7 @@ where
     pub(super) timing: NativeRunnerTimingState,
     pub(super) native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
     pub(super) frame_scheduler: NativeFrameScheduler,
+    pub(super) frame_stage_owner: WindowStageOwner,
     pub(super) cpu_frame_fairness: Option<CpuFrameFairnessLedger>,
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
@@ -225,6 +227,7 @@ where
             timing: NativeRunnerTimingState::new(native_window_diagnostic_identity),
             native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
+            frame_stage_owner: WindowStageOwner::new(FrameScheduleKey::Primary),
             cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
             cpu_frame_observation: frame_diagnostics_enabled
                 .then(CpuFrameObservationLedger::default)
@@ -1833,7 +1836,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        self.handle_route_outcome_inner(event_loop, outcome, None, None, true, false);
+        self.handle_route_outcome_inner(event_loop, outcome, None, None, false, false);
     }
 
     fn handle_route_outcome_inner(

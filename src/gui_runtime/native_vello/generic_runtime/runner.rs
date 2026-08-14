@@ -246,9 +246,27 @@ where
 
     #[cfg(target_os = "macos")]
     fn republish_native_semantic_accessibility_passively(&mut self) {
-        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
-            adapter.publish_passive(&self.core.runtime);
+        let Some(mut adapter) = self.native_semantic_accessibility.take() else {
+            return;
+        };
+        match adapter.publish_passive(&self.core.runtime) {
+            Ok(()) => self.native_semantic_accessibility = Some(adapter),
+            Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn discard_failed_native_semantic_accessibility(
+        &mut self,
+        mut adapter: NativeSemanticAccessibilityAdapter,
+        error: String,
+    ) {
+        adapter.close_lease(&mut self.core.runtime);
+        adapter.retire();
+        warn!(
+            error = %error,
+            "radiant native semantic accessibility adapter retired after host publication failure"
+        );
     }
 
     pub(super) fn mark_as_auxiliary(&mut self) {
@@ -447,10 +465,10 @@ where
             return;
         };
         match NativeSemanticAccessibilityAdapter::attach(&window, proxy) {
-            Ok(mut adapter) => {
-                adapter.publish_passive(&self.core.runtime);
-                self.native_semantic_accessibility = Some(adapter);
-            }
+            Ok(mut adapter) => match adapter.publish_passive(&self.core.runtime) {
+                Ok(()) => self.native_semantic_accessibility = Some(adapter),
+                Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
+            },
             Err(error) => {
                 warn!(error = %error, "radiant native semantic accessibility attachment withheld");
             }
@@ -462,8 +480,17 @@ where
         &mut self,
         query: super::super::runtime_event::NativeSemanticAccessibilityQuery,
     ) {
-        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
-            adapter.handle_query(&mut self.core.runtime, query);
+        let Some(mut adapter) = self.native_semantic_accessibility.take() else {
+            return;
+        };
+        adapter.handle_query(&mut self.core.runtime, query);
+        if adapter.is_attached() {
+            self.native_semantic_accessibility = Some(adapter);
+        } else {
+            self.discard_failed_native_semantic_accessibility(
+                adapter,
+                String::from("native semantic query publication failed"),
+            );
         }
     }
 
@@ -474,18 +501,21 @@ where
         target: crate::gui::automation::AutomationTarget,
         action: super::super::runtime_event::NativeNumericAccessibilityAction,
     ) {
-        let Some(adapter) = self.native_semantic_accessibility.as_mut() else {
-            return;
+        let request = {
+            let Some(adapter) = self.native_semantic_accessibility.as_mut() else {
+                return;
+            };
+            adapter.finish_numeric_action();
+            adapter.numeric_accessibility_request(token, target, action)
         };
-        adapter.finish_numeric_action();
-        let Some(request) = adapter.numeric_accessibility_request(token, target, action) else {
+        let Some(request) = request else {
             return;
         };
         let _ = self
             .core
             .runtime
             .dispatch_numeric_accessibility_action(request);
-        adapter.publish_passive(&self.core.runtime);
+        self.republish_native_semantic_accessibility_passively();
     }
 
     #[cfg(target_os = "macos")]
@@ -493,9 +523,15 @@ where
         let Some(window) = self.window.window.as_ref().cloned() else {
             return;
         };
-        if let Some(adapter) = self.native_semantic_accessibility.as_mut() {
+        let Some(mut adapter) = self.native_semantic_accessibility.take() else {
+            return;
+        };
+        {
             adapter.invalidate_window_generation(&window);
-            adapter.publish_passive(&self.core.runtime);
+        }
+        match adapter.publish_passive(&self.core.runtime) {
+            Ok(()) => self.native_semantic_accessibility = Some(adapter),
+            Err(error) => self.discard_failed_native_semantic_accessibility(adapter, error),
         }
     }
 

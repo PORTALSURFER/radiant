@@ -10,6 +10,8 @@ mod activation;
 mod generation_binding;
 #[path = "native_vello/gpu_surface.rs"]
 mod gpu_surface;
+#[path = "native_vello/native_semantic_accessibility.rs"]
+mod native_semantic_accessibility;
 #[path = "native_vello/public_api_svg.rs"]
 mod public_api_svg;
 #[path = "native_vello/runtime_input.rs"]

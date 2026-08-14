@@ -25,13 +25,20 @@
 
 2026-08-13 implementation cycle: The private `accessibilityNotifiesWhenDestroyed` selector is registered with Objective-C encoding `c@:` and a crate-private `ObjcBool` callback that returns `YES` without state or notification side effects, including after the callback-state ivar is cleared during retirement. Estimates remain unchanged: generic ~97%; broad 903/11 (~82.09%); Public 85; Declarative 71; Input 97; Layout 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics 66; Examples/docs/CI 76. No credit is awarded for this private callback, its documentation, or its tests; live AppKit/VoiceOver acceptance remains separate.
 
+2026-08-14 implementation cycle: The private primary-window host boundary now attaches the constructed root only through supported AppKit `accessibilityChildren`/`setAccessibilityChildren:` with bounded exact-root identity readback. Nil/wrong roots or hosts, unsupported selectors, Objective-C exceptions, and mismatched readback are inert: no attachment or layout/value notification is committed, attempted host state is cleared when verified, and pre-commit allocations never receive destruction notifications. Retirement verifies nil/empty clear readback before release; if verification fails, callback state and object ivars become inert while objects remain quarantined and no release/destruction notification follows a possibly stale host root. Previously committed objects retain exactly-once destruction notification after verified clear; root-to-content-view `AXParent` symmetry and unchanged/value-only object continuity remain. Automated AppKit boundary evidence remains shipped. Exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and numeric action, bounded set-value, and restart acceptance for this bounded primary-window consumer: the activated window exposed the Radiant container and a settable stepper at `42.00`; Increment and Decrement produced `43.00` and `42.00`, bounded `SetValueText` produced `55.50` and `57.25` with fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh restarted instance exposed the same tree. VoiceOver-specific acceptance remains unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a separate unverified follow-up if reproducible. Estimates remain unchanged and no estimate credit, including Platform credit, is awarded.
+
 The broad estimate is the unweighted mean of the category rows:
 `(85 + 71 + 97 + 97 + 74 + 92 + 96 + 78 + 71 + 66 + 76) / 11 = 82.09%`,
 reported as approximately `82.09%`.
 The generic architecture-sequence estimate remains about 97%; the private
 primary-window macOS/AppKit semantic accessibility consumer below is now
-implemented without changing the estimates. Live host/AppKit acceptance remains
-pending, so no estimate credit is awarded.
+implemented without changing the estimates. Automated AppKit boundary evidence
+remains shipped; exact fresh-bundle activated Computer Use/AppKit evidence
+verifies discoverability and numeric action, bounded set-value, and restart
+acceptance for this bounded primary-window consumer. VoiceOver-specific
+acceptance remains unperformed; repeated negative-geometry AppKit runtime
+diagnostics remain a separate unverified follow-up if reproducible. Estimates
+remain unchanged and no estimate credit, including Platform credit, is awarded.
 The pre-admission stale or mismatched explicit-retry correction is also covered:
 it clears only the in-flight transport key and leaves semantic selection,
 projection, runtime demand, and native notification state unchanged. This is a
@@ -41,8 +48,14 @@ ordinary.
 The broad estimate is now `903 / 11` (~82.09%) and Public API is 85% for the
 bounded custom-coordinate attachment evidence; no design-only credit is
 awarded for unvalidated work. The private native consumer now has a bounded
-normalized-Custom path, but live host acceptance remains pending. Other native
-adapters, scheduler-, renderer-, and product-policy boundaries remain separate.
+normalized-Custom path. Automated AppKit boundary evidence remains shipped; exact
+fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
+numeric action, bounded set-value, and restart acceptance for this bounded
+primary-window consumer. VoiceOver-specific acceptance remains unperformed;
+repeated negative-geometry AppKit runtime diagnostics remain a separate
+unverified follow-up if reproducible. Estimates remain unchanged and no estimate
+credit, including Platform credit, is awarded. Other native adapters, scheduler-,
+renderer-, and product-policy boundaries remain separate.
 Current values remain exactly: Public API 85; Declarative 71; Input 97; Layout
 97; Text 74; Numeric 92; Runtime 96; Rendering 78; Platform 71; Diagnostics
 66; Examples/docs 76; generic ~97%; broad `903 / 11` = 82.09%. The
@@ -53,7 +66,13 @@ compositor-owned complete normalized sidecar is now shipped from the exact
 staged union, with final paths, materialization origin, and source-qualified
 publication fences retained atomically by the selected composition. Estimates
 remain unchanged. Native cardinality queries/topology and the bounded normalized
-custom consumer are implemented; live AppKit acceptance remains the later gap.
+custom consumer are implemented. Automated AppKit boundary evidence remains
+shipped; exact fresh-bundle activated Computer Use/AppKit evidence verifies
+discoverability and numeric action, bounded set-value, and restart acceptance
+for this bounded primary-window consumer. VoiceOver-specific acceptance remains
+unperformed; repeated negative-geometry AppKit runtime diagnostics remain a
+separate unverified follow-up if reproducible. No estimate credit, including
+Platform credit, is awarded.
 The
 partial native implementation in stash
 `radiant-native-semantic-consumer-partial-sol-audit` and the incomplete
@@ -441,8 +460,13 @@ remain excluded.
 
 This contract is normative and shipped. It is the bounded custom-coordinate
 public-API evidence point; estimates are Public API 85% and broad coverage
-`903 / 11` (~82.09%). No Platform credit is awarded because live AppKit
-acceptance remains pending.
+`903 / 11` (~82.09%). Automated AppKit boundary evidence remains shipped; exact
+fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
+numeric action, bounded set-value, and restart acceptance for this bounded
+primary-window consumer. VoiceOver-specific acceptance remains unperformed;
+repeated negative-geometry AppKit runtime diagnostics remain a separate
+unverified follow-up if reproducible. Estimates remain unchanged and no estimate
+credit, including Platform credit, is awarded.
 
 ## Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -549,9 +573,14 @@ revision; an optional `VirtualLayoutParts` field and qualified
 the common prelude. The exact private registration/live-fence invalidation
 foundation, normalized sidecar, native topology, bounded AppKit cardinality
 query/child traversal, and the private primary-window platform consumer are
-implemented. Live host/AppKit acceptance remains pending; the bounded normalized
-custom consumer is implemented and receives no Platform credit until live
-acceptance. `None` is unknown/unsupported, exact zero is supported, cardinality
+implemented. Automated AppKit boundary evidence remains shipped; exact
+fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
+numeric action, bounded set-value, and restart acceptance for this bounded
+primary-window consumer. VoiceOver-specific acceptance remains unperformed;
+repeated negative-geometry AppKit runtime diagnostics remain a separate
+unverified follow-up if reproducible. The bounded normalized custom consumer is
+implemented; no estimate credit, including Platform credit, is awarded. `None`
+is unknown/unsupported, exact zero is supported, cardinality
 is immutable declaration evidence rather than a callback or demand, is not capped
 at 1024, and does not allocate proportional storage. Count reads, updates,
 mount, and enumeration are provider-free. Unknown cardinality does not vend a
@@ -623,8 +652,13 @@ This contract is limited to the private primary-window macOS/AppKit consumer.
 Wayland, Windows, non-qualified/virtual native actions, new native AX focus exposure or transfer beyond existing ordinary runtime admission, scrolling, product policy, direct
 native custom-resolver invocation/reconstruction, scheduler, and renderer
 behavior remain excluded. The
-bounded generic custom-coordinate attachment is covered above; live AppKit
-acceptance does not receive Platform credit.
+bounded generic custom-coordinate attachment is covered above. Automated AppKit
+boundary evidence remains shipped; exact fresh-bundle activated Computer Use/AppKit
+evidence verifies discoverability and numeric action, bounded set-value, and
+restart acceptance for this bounded primary-window consumer. VoiceOver-specific
+acceptance remains unperformed; repeated negative-geometry AppKit runtime
+diagnostics remain a separate unverified follow-up if reproducible. Estimates
+remain unchanged and no estimate credit, including Platform credit, is awarded.
 
 For the public provider-attachment evidence point, Slider/Knob, scheduler,
 renderer, and product policy remain out of scope; the native contract above is
@@ -632,8 +666,12 @@ the private primary-window macOS/AppKit boundary.
 The Input evidence moves from 96% to 97%, Numeric controls from 87% to 92%,
 and Text moves from 73% to 74% for runtime focus/selection admission.
 The evidence-backed total for this alignment sequence is now `903 / 11`
-(~82.09%), with Public API 85%. This bounded generic evidence does not award
-Platform credit until live host/AppKit acceptance is demonstrated.
+(~82.09%), with Public API 85%. Exact fresh-bundle activated Computer Use/AppKit
+evidence verifies discoverability and numeric action, bounded set-value, and
+restart acceptance for this bounded primary-window consumer. VoiceOver-specific
+acceptance remains unperformed; repeated negative-geometry AppKit runtime
+diagnostics remain a separate unverified follow-up if reproducible. Estimates
+remain unchanged and no estimate credit, including Platform credit, is awarded.
 The generic composition foundation, the single-line text consumer,
 the NumericInput consumer, and the primary/auxiliary Winit consumer remain
 distinct from the deferred matching-key, candidate-window, other native-adapter,

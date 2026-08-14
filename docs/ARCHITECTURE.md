@@ -424,9 +424,11 @@ modern `accessibilityFocusedUIElement` return the same object or nil. Stable
 A-to-B changes retain both native objects and post one
 `AXFocusedUIElementChanged` notification on B after it is queryable; unchanged
 and clearing transitions post no gained-focus notification, and focus-only
-changes post no layout, value, or destruction notification. The adapter never
-implements `setAccessibilityFocused`, transfers native focus, calls providers,
-or publishes auxiliary-window/virtual focus.
+changes post no layout, value, or destruction notification. Focus publication
+and update are provider-free and invoke no providers. The adapter never
+implements `setAccessibilityFocused`, transfers native focus, or publishes
+auxiliary-window/virtual focus. Explicit virtual item/range queries retain the
+provider-demand exception described above.
 
 This focus slice has automated Rust/Objective-C boundary coverage only. No live
 VoiceOver or live AppKit focus acceptance was performed for it; prior numeric

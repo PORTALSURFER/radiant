@@ -1549,6 +1549,46 @@ mod macos {
         focused.next().is_none().then_some(target)
     }
 
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct SemanticFocusWitness {
+        id: AutomationNodeId,
+        role: AutomationRole,
+        path: Vec<AutomationNodeId>,
+    }
+
+    fn unique_semantic_focus_witness(
+        snapshot: &GuiAutomationSnapshot,
+    ) -> Option<SemanticFocusWitness> {
+        let mut path = Vec::new();
+        let mut count = 0_usize;
+        let mut witness = None;
+        collect_semantic_focus_witnesses(&snapshot.root, &mut path, &mut count, &mut witness);
+        (count == 1).then_some(witness).flatten()
+    }
+
+    fn collect_semantic_focus_witnesses(
+        node: &AutomationNodeSnapshot,
+        path: &mut Vec<AutomationNodeId>,
+        count: &mut usize,
+        witness: &mut Option<SemanticFocusWitness>,
+    ) {
+        path.push(node.id.clone());
+        if node.semantics.focused {
+            *count = count.saturating_add(1);
+            if *count == 1 {
+                *witness = Some(SemanticFocusWitness {
+                    id: node.id.clone(),
+                    role: node.role,
+                    path: path.clone(),
+                });
+            }
+        }
+        for child in &node.children {
+            collect_semantic_focus_witnesses(child, path, count, witness);
+        }
+        path.pop();
+    }
+
     fn native_focus_target_matches(
         target: &AutomationTarget,
         node: &AutomationNodeSnapshot,
@@ -1573,6 +1613,28 @@ mod macos {
                 authority.materialized
                     && authority.runtime_generation == runtime_projection_generation
             })
+    }
+
+    fn native_focus_witness_matches(
+        witness: &SemanticFocusWitness,
+        target: &AutomationTarget,
+        node: &AutomationNodeSnapshot,
+        semantic_path: &[AutomationNodeId],
+        kind: NativeNodeKind,
+        provider_descendant: bool,
+        runtime_projection_generation: u64,
+    ) -> bool {
+        witness.id == node.id
+            && witness.role == node.role
+            && witness.path == semantic_path
+            && native_focus_target_matches(
+                target,
+                node,
+                semantic_path,
+                kind,
+                provider_descendant,
+                runtime_projection_generation,
+            )
     }
 
     fn focused_token_for_specs(specs: &[NativeNodeSpec]) -> Option<u64> {
@@ -2332,6 +2394,7 @@ mod macos {
                 .window_focused
                 .then(|| controller_focused_target(targets))
                 .flatten();
+            let focused_witness = unique_semantic_focus_witness(snapshot);
             let mut focused_matches = 0_usize;
             let mut child_tokens = Vec::new();
             for (index, child) in snapshot.root.children.iter().enumerate() {
@@ -2350,6 +2413,7 @@ mod macos {
                     sidecar,
                     &item_paths,
                     focused_target.as_ref(),
+                    focused_witness.as_ref(),
                     runtime_projection_generation,
                     &mut focused_matches,
                     &mut specs,
@@ -2380,6 +2444,7 @@ mod macos {
             sidecar: Option<&crate::runtime::VirtualLayoutNormalizedSemanticSidecar>,
             item_paths: &[(u64, Vec<usize>)],
             focused_target: Option<&AutomationTarget>,
+            focused_witness: Option<&SemanticFocusWitness>,
             runtime_projection_generation: u64,
             focused_matches: &mut usize,
             specs: &mut Vec<NativeNodeSpec>,
@@ -2402,14 +2467,17 @@ mod macos {
                 provider_descendant,
             );
             let focused = focused_target.is_some_and(|target| {
-                native_focus_target_matches(
-                    target,
-                    node,
-                    semantic_path,
-                    kind,
-                    provider_descendant,
-                    runtime_projection_generation,
-                )
+                focused_witness.is_some_and(|witness| {
+                    native_focus_witness_matches(
+                        witness,
+                        target,
+                        node,
+                        semantic_path,
+                        kind,
+                        provider_descendant,
+                        runtime_projection_generation,
+                    )
+                })
             });
             if focused {
                 *focused_matches = (*focused_matches).saturating_add(1);
@@ -2486,6 +2554,7 @@ mod macos {
                                 Some(sidecar),
                                 item_paths,
                                 focused_target,
+                                focused_witness,
                                 runtime_projection_generation,
                                 focused_matches,
                                 specs,
@@ -2520,6 +2589,7 @@ mod macos {
                             sidecar,
                             item_paths,
                             focused_target,
+                            focused_witness,
                             runtime_projection_generation,
                             focused_matches,
                             specs,
@@ -2546,6 +2616,7 @@ mod macos {
                         sidecar,
                         item_paths,
                         focused_target,
+                        focused_witness,
                         runtime_projection_generation,
                         focused_matches,
                         specs,
@@ -5144,6 +5215,42 @@ mod macos {
         }
 
         #[test]
+        fn native_focus_withholds_divergent_scene_and_controller_witnesses() {
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter.window_focused = true;
+
+            let (mut scene_snapshot, controller_targets) = native_focus_snapshot(Some("b"));
+            scene_snapshot.root.children[0].semantics.focused = true;
+            adapter
+                .publish_projection(
+                    &scene_snapshot,
+                    &controller_targets,
+                    &[],
+                    None,
+                    target_runtime_generation(&controller_targets),
+                )
+                .expect("the ambiguous ordinary focus projection should still publish");
+
+            let root = {
+                let state = adapter.callback_state.borrow();
+                state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.kind == NativeNodeKind::Root)
+                    .expect("published root")
+                    .object
+            };
+            assert!(native_focused_ui_element_attribute(root).is_null());
+            assert!(adapter.focused_notifications.is_empty());
+
+            assert!(adapter.retire_published_objects());
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
         fn native_focus_withholds_stale_ambiguous_and_nonordinary_evidence() {
             let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
             let mut adapter = native_publication_adapter_fixture(host);
@@ -5631,6 +5738,18 @@ mod macos {
             node.children
                 .iter()
                 .find_map(|child| automation_node_for_id(child, id))
+        }
+
+        fn automation_node_for_id_mut<'a>(
+            node: &'a mut AutomationNodeSnapshot,
+            id: &AutomationNodeId,
+        ) -> Option<&'a mut AutomationNodeSnapshot> {
+            if node.id == *id {
+                return Some(node);
+            }
+            node.children
+                .iter_mut()
+                .find_map(|child| automation_node_for_id_mut(child, id))
         }
 
         fn native_test_frame(bounds: AutomationBounds) -> NSRect {
@@ -7557,6 +7676,50 @@ mod macos {
             );
             assert_eq!(provider_calls.get(), 1);
             assert_eq!(transform_calls.get(), 1);
+
+            let mut conflicting_snapshot = composition.snapshot().clone();
+            let provider_id = AutomationNodeId::new("custom-native-item");
+            let provider_node =
+                automation_node_for_id_mut(&mut conflicting_snapshot.root, &provider_id)
+                    .expect("the composed provider witness should be present");
+            provider_node.semantics.focusable = true;
+            provider_node.semantics.focused = true;
+
+            let mut conflicting_targets = targets.clone();
+            let anchor_id = AutomationNodeId::new(containers[0].container_id.to_string());
+            let (ordinary_id, ordinary_role) = {
+                let target = conflicting_targets
+                    .targets
+                    .iter_mut()
+                    .find(|target| target.depth > 0 && target.id != anchor_id)
+                    .expect("the ordinary snapshot should have a focus candidate");
+                target.enabled = true;
+                target.focusable = true;
+                target.focused = true;
+                (target.id.clone(), target.role)
+            };
+            let ordinary_node =
+                automation_node_for_id_mut(&mut conflicting_snapshot.root, &ordinary_id)
+                    .expect("the ordinary focus candidate should be in the composed snapshot");
+            ordinary_node.semantics.focusable = true;
+            ordinary_node.semantics.focused = true;
+            assert_eq!(ordinary_node.role, ordinary_role);
+            assert!(unique_semantic_focus_witness(&conflicting_snapshot).is_none());
+
+            adapter.window_focused = true;
+            let conflicting_specs = adapter
+                .build_specs(
+                    &conflicting_snapshot,
+                    &conflicting_targets,
+                    &containers,
+                    Some(composition.normalized_sidecar()),
+                    target_runtime_generation(&conflicting_targets),
+                )
+                .expect("conflicting provider focus should remain publishable as a tree");
+            assert!(
+                conflicting_specs.iter().all(|spec| !spec.focused),
+                "a provider focus witness must suppress ordinary native focus"
+            );
 
             let mut mismatched_containers = containers.clone();
             let NativeSemanticCoordinateAuthority::Custom {

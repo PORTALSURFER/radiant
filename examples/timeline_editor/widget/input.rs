@@ -30,6 +30,9 @@ pub(super) fn handle_timeline_input(
         } => pointer::handle_primary_release(widget, geometry, position),
         WidgetInput::FocusChanged(focused) => {
             widget.common.state.focused = focused;
+            if !focused {
+                handle_pointer_capture_cancelled(widget);
+            }
             None
         }
         WidgetInput::KeyPress {
@@ -48,4 +51,8 @@ pub(super) fn handle_timeline_input(
         }
         _ => None,
     }
+}
+
+pub(super) fn handle_pointer_capture_cancelled(widget: &mut ArrangementTimelineWidget) {
+    pointer::discard_drag_preview(widget);
 }

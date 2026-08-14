@@ -35,6 +35,9 @@ pub(super) enum TimelineDrag {
     Selecting {
         lane: usize,
         anchor_beat: u32,
+        current_range: BeatRange,
+        previous_selection: Option<BeatRange>,
+        previous_selected_clip: Option<u32>,
     },
     MovingClip {
         clip_id: u32,
@@ -42,6 +45,7 @@ pub(super) enum TimelineDrag {
         source_lane: usize,
         pointer_offset: u32,
         duration: u32,
+        initial_start: u32,
         current_lane: usize,
         current_start: u32,
     },
@@ -51,6 +55,7 @@ pub(super) enum TimelineDrag {
         source_lane: usize,
         edge: ResizeEdge,
         fixed_beat: u32,
+        initial_range: BeatRange,
         current_range: BeatRange,
     },
 }
@@ -95,6 +100,12 @@ impl Widget for ArrangementTimelineWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         input::handle_timeline_input(self, bounds, input)
+    }
+
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(self);
+        self.common.state.focused = false;
+        None
     }
 
     fn accepts_pointer_move(&self) -> bool {

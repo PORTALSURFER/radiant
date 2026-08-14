@@ -578,15 +578,15 @@ overlay/keyed-node cancellation exists.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
-boundary; product-facing owner selection/cancellation remains deferred:
+boundary; the bounded explicit timer consumer is shipped; broader product-facing demand/refresh/provider ownership and cancellation remain deferred:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible
-   overlay and keyed-node candidates and compatibility context, but it must not
-   change the public `ViewNode`, `SurfaceNode`, `Command`,
-   `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`, or effect
-   payload contracts. A dynamic unkeyed node cannot supply durable owner
-   identity and therefore cannot be an implicit cancellation target.
+   overlay and keyed-node candidates and compatibility context. The bounded
+   public `DeclarativeEffectOwner` marker and `UiUpdateContext` owner-timer
+   methods are now exposed, while runtime origin and effect payloads remain
+   private. A dynamic unkeyed node cannot supply durable owner identity and
+   therefore cannot be an implicit cancellation target.
 2. The accepted declarative projection projects those candidates to the
    controller. A source location remains only an eligible context; explicit
    owner selection is required. Overlay and keyed-node candidates have no
@@ -600,12 +600,17 @@ boundary; product-facing owner selection/cancellation remains deferred:
    remain isolated. If removal and effect emission occur in one accepted update,
    owner-scoped work is rejected before registration, while explicitly
    application-owned/outlive work may continue.
-4. Controller dispatch carries the explicitly selected origin through the
-   shipped worker, timer, platform-completion, and chained-command paths. The
-   existing registries remain the admission and mapping points; they do not
-   acquire separate per-owner queues or a second lifecycle authority. Recovery
-   and cached hiding preserve a retained live generation unless an explicit
-   close/removal or incompatible replacement retires it.
+
+Owner-scoped timer admission refreshes the accepted surface before registration
+and rejects absent, ambiguous, ineligible, stale, or retired handles without
+fallback.
+
+4. The existing timer registry carries the explicitly selected owner origin for
+   the bounded owner-timer consumer; worker/platform/chained/product wiring
+   remains deferred. The existing registries remain the admission and mapping
+   points; they do not acquire separate per-owner queues or a second lifecycle
+   authority. Recovery and cached hiding preserve a retained live generation
+   unless an explicit close/removal or incompatible replacement retires it.
 5. Matching registrations are retired at their owning registry, and every late
    completion, wake, result, or chained command is rejected before its mapper
    runs and before message reduction. Exact retirement must not cancel sibling,

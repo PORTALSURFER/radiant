@@ -3,8 +3,8 @@
 use super::{LayerKind, SurfaceNode};
 use crate::{
     application::{
-        DeclarativeIdentityOrigin, DeclarativeOverlaySource, DeclarativeSourceContext,
-        SourceIdentitySeed,
+        DeclarativeEffectOwner, DeclarativeIdentityOrigin, DeclarativeOverlaySource,
+        DeclarativeSourceContext, SourceIdentitySeed,
     },
     layout::NodeId,
 };
@@ -89,6 +89,7 @@ pub(crate) struct OverlayIdentity {
 pub(crate) struct OverlayEvidence {
     pub(crate) identity: OverlayIdentity,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
 impl From<DeclarativeOverlaySource> for OverlayEvidence {
@@ -98,6 +99,7 @@ impl From<DeclarativeOverlaySource> for OverlayEvidence {
                 structural_scope: source.identity_scope,
             },
             layer_kind: source.layer_kind,
+            effect_owner: source.effect_owner,
         }
     }
 }
@@ -109,6 +111,7 @@ impl From<DeclarativeOverlaySource> for OverlayEvidence {
 pub(crate) struct KeyedNodeEvidence {
     identity: Cell<SourceIdentity>,
     compatibility: Cell<SourceCompatibility>,
+    effect_owner: Cell<Option<DeclarativeEffectOwner>>,
 }
 
 impl KeyedNodeEvidence {
@@ -116,6 +119,7 @@ impl KeyedNodeEvidence {
         Self {
             identity: Cell::new(seed.into()),
             compatibility: Cell::new(SourceCompatibility::unknown()),
+            effect_owner: Cell::new(seed.effect_owner),
         }
     }
 
@@ -133,6 +137,10 @@ impl KeyedNodeEvidence {
 
     pub(crate) fn set_compatibility(&self, compatibility: SourceCompatibility) {
         self.compatibility.set(compatibility);
+    }
+
+    pub(crate) fn effect_owner(&self) -> Option<DeclarativeEffectOwner> {
+        self.effect_owner.get()
     }
 }
 
@@ -261,7 +269,8 @@ mod tests {
     use super::*;
     use crate::{
         application::{
-            IntoView, Layer, column, for_each_by, lower_virtual_layout_item, overlays, scene, text,
+            DeclarativeEffectOwner, IntoView, Layer, column, for_each_by,
+            lower_virtual_layout_item, overlays, scene, text,
         },
         layout::ContainerPolicy,
         runtime::{EventMapper, SurfaceNode, UiSurface},
@@ -386,6 +395,60 @@ mod tests {
             direct_runtime.identity.origin,
             DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot
         );
+    }
+
+    #[test]
+    fn explicit_effect_owner_markers_follow_keyed_and_overlay_topology_only() {
+        let keyed_owner = DeclarativeEffectOwner::new();
+        let overlay_owner = DeclarativeEffectOwner::new();
+        let ineligible_owner = DeclarativeEffectOwner::new();
+        let surface = scene(
+            text::<()>("keyed")
+                .key("keyed")
+                .effect_owner(keyed_owner)
+                .overlays(
+                    overlays().layer(Layer::modal(text("overlay")).effect_owner(overlay_owner)),
+                ),
+        )
+        .into_view()
+        .into_surface();
+
+        let records = metadata(&surface);
+        let keyed = records
+            .iter()
+            .find(|record| record.identity.origin.is_keyed())
+            .expect("keyed source metadata");
+        assert_eq!(keyed.topology.keyed_nodes.len(), 1);
+        assert_eq!(
+            keyed.topology.keyed_nodes[0].effect_owner(),
+            Some(keyed_owner)
+        );
+        let overlay = records
+            .iter()
+            .find(|record| {
+                record
+                    .topology
+                    .overlays
+                    .iter()
+                    .any(|candidate| candidate.effect_owner == Some(overlay_owner))
+            })
+            .expect("overlay source metadata");
+        assert_eq!(overlay.topology.overlays.len(), 1);
+        assert_eq!(
+            overlay.topology.overlays[0].effect_owner,
+            Some(overlay_owner)
+        );
+
+        let unkeyed = text::<()>("unkeyed")
+            .effect_owner(ineligible_owner)
+            .into_surface();
+        assert!(metadata(&unkeyed).iter().all(|record| {
+            record
+                .topology
+                .keyed_nodes
+                .iter()
+                .all(|candidate| candidate.effect_owner() != Some(ineligible_owner))
+        }));
     }
 
     #[test]

@@ -10,7 +10,10 @@ use std::{
     any::type_name,
     fmt,
     hash::{Hash, Hasher},
+    sync::atomic::{AtomicU64, Ordering},
 };
+
+static NEXT_DECLARATIVE_EFFECT_OWNER: AtomicU64 = AtomicU64::new(1);
 
 /// Typed identity metadata attached to a root produced by a keyed collection.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -33,6 +36,29 @@ pub(crate) enum DeclarativeIdentityOrigin {
     UnreidentifiedDirectRuntimeRoot,
 }
 
+/// Opaque application-owned identity for one declarative delayed-work owner.
+///
+/// The handle is intentionally independent of a runtime instance and carries
+/// no view-tree, traversal, callback, or controller state. Keep it in
+/// application state and attach the same value to the corresponding keyed view
+/// or overlay declaration.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
+pub struct DeclarativeEffectOwner(u64);
+
+impl DeclarativeEffectOwner {
+    /// Allocate one process-unique declarative effect-owner handle.
+    pub fn new() -> Self {
+        Self(NEXT_DECLARATIVE_EFFECT_OWNER.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+impl Default for DeclarativeEffectOwner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DeclarativeIdentityOrigin {
     pub(crate) const fn is_keyed(self) -> bool {
         matches!(
@@ -53,6 +79,7 @@ pub(crate) struct SourceIdentitySeed {
     pub(crate) resolved_id: NodeId,
     pub(crate) structural_scope: NodeId,
     pub(crate) origin: DeclarativeIdentityOrigin,
+    pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
 /// One stable identity for a declarative overlay declaration.
@@ -63,6 +90,7 @@ pub(crate) struct SourceIdentitySeed {
 pub(crate) struct DeclarativeOverlaySource {
     pub(crate) identity_scope: NodeId,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
 /// Source ancestry retained while the application tree is being lowered.
@@ -638,6 +666,7 @@ impl<Message> ViewNode<Message> {
             resolved_id,
             structural_scope,
             origin,
+            effect_owner: self.effect_owner,
         }
     }
 

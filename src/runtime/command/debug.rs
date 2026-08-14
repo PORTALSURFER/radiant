@@ -22,6 +22,7 @@ where
                 .debug_struct("Timer")
                 .field("delay", &effect.delay)
                 .field("transaction", &effect.transaction.is_some())
+                .field("owner", &effect.owner)
                 .finish(),
             Self::PerformWorker(effect) => f
                 .debug_struct("PerformWorker")

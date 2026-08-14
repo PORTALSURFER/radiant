@@ -341,11 +341,13 @@ through that node. The conceptual owner kinds are:
 | Overlay | A stable overlay identity within its owning window and compatible overlay kind. The overlay is only an eligible source candidate until ownership is explicitly selected. |
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
-These owner kinds, identities, and selection rules are target-only conceptual
-policy, not public names or a promise to add a new public effect API. The
-private declarative origin plumbing now exists only after explicit request
-resolution, while public APIs and declarative lowering do not expose that
-selection.
+This is a bounded public timer consumer, not the complete target effect model.
+It adds only the qualified DeclarativeEffectOwner handle, explicit ViewNode/Layer
+markers, and UiUpdateContext owner-timer methods; runtime EffectOrigin, ledger,
+and timer registration remain crate-private. It does not define general effect
+ownership, demand/refresh/provider budgets, scheduler budgets/fairness/queue
+capacity/wake ordering, custom-coordinate transforms, platform/renderer/product
+wiring, or other effect payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
 primary-surface work application-owned. An overlay or keyed node may provide a

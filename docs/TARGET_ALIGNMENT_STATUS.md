@@ -19,6 +19,8 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
+2026-08-14 implementation cycle: the bounded explicit declarative effect-owner timer consumer is now wired through qualified DeclarativeEffectOwner handles, explicit durable keyed ViewNode/overlay Layer markers, and UiUpdateContext::after_for_owner/after_latest_for_owner; ordinary after/after_latest remain application-owned; accepted-surface refresh, exact unique-handle admission, owner-generation/lifecycle/latest fences, and fail-closed no-fallback rejection are covered by the implementation. Validation passed: cargo fmt --all -- --check, git diff --check, cargo check --locked --all-targets --all-features, cargo clippy --locked --all-targets --all-features -- -D warnings, and cargo test --locked --lib --tests -j 1 --quiet (2,997 library tests passed, all integration suites passed, one test ignored); live product acceptance is not applicable to this library-only slice. Broader semantic demand/refresh/provider budgets and custom-coordinate transformation remain deferred. Estimates remain unchanged at generic ~97%, broad 903/11 (~82.09%), and the existing category rows; no design-only credit.
+
 2026-08-14 implementation cycle: The approved private macOS/AppKit focus slice
 is now shipped for ordinary materialized Radiant nodes. `SurfaceRuntime` and
 the controller remain the sole logical-focus authority; the current primary

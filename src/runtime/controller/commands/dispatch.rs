@@ -26,9 +26,29 @@ where
 
     fn schedule_timer_effect(
         &mut self,
-        effect: crate::runtime::command::TimerEffect<Message>,
+        mut effect: crate::runtime::command::TimerEffect<Message>,
         origin: EffectOrigin,
     ) -> bool {
+        let origin = match effect.owner.take() {
+            Some(handle) => {
+                let Some(origin) = self.declarative_owner_origin_for_handle(handle) else {
+                    if let Some(transaction) = effect.transaction.as_ref() {
+                        transaction.reject();
+                    }
+                    return false;
+                };
+                origin
+            }
+            // An unmarked timer keeps an auxiliary dispatch origin so its
+            // wake and any chained command remain fenced by that generation.
+            // Declarative dispatch does not implicitly own an unmarked timer.
+            None => match origin {
+                EffectOrigin::Auxiliary(owner) => EffectOrigin::Auxiliary(owner),
+                EffectOrigin::Application | EffectOrigin::Declarative(_) => {
+                    EffectOrigin::Application
+                }
+            },
+        };
         let capability = self.host_capabilities.tasks.as_ref();
         let bridge = &mut self.bridge;
         self.timer_effects.schedule(effect, origin, |delay, wake| {

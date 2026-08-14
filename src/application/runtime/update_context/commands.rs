@@ -1,5 +1,5 @@
 use crate::{
-    application::LatestTask,
+    application::{DeclarativeEffectOwner, LatestTask},
     layout::Vector2,
     runtime::{Command, RepaintScope},
     theme::DpiScale,
@@ -41,6 +41,20 @@ impl<Message> UiUpdateContext<Message> {
         self.queue_command(Command::after(delay, message));
     }
 
+    /// Dispatch a delayed message only while the explicitly named declarative
+    /// owner remains one current eligible source. Rejection is fail-closed;
+    /// this method never falls back to application ownership.
+    pub fn after_for_owner(
+        &mut self,
+        owner: DeclarativeEffectOwner,
+        delay: std::time::Duration,
+        message: Message,
+    ) where
+        Message: 'static,
+    {
+        self.queue_command(Command::after_for_owner(owner, delay, message));
+    }
+
     /// Dispatch a delayed message tagged with a latest-task ticket.
     ///
     /// Calling this method replaces the pending delay for `latest`. The UI
@@ -58,6 +72,29 @@ impl<Message> UiUpdateContext<Message> {
         let transaction = latest.begin_timer_replacement();
         let ticket = transaction.replacement();
         self.queue_command(Command::after_latest(delay, ticket, transaction, map));
+    }
+
+    /// Dispatch a replaceable delayed message only while the explicitly named
+    /// declarative owner remains one current eligible source. Rejected owner
+    /// admission rolls back the latest-task transaction and invokes no mapper.
+    pub fn after_latest_for_owner(
+        &mut self,
+        owner: DeclarativeEffectOwner,
+        latest: &mut LatestTask,
+        delay: std::time::Duration,
+        map: impl FnOnce(crate::application::TaskTicket) -> Message + 'static,
+    ) where
+        Message: 'static,
+    {
+        let transaction = latest.begin_timer_replacement();
+        let ticket = transaction.replacement();
+        self.queue_command(Command::after_latest_for_owner(
+            owner,
+            delay,
+            ticket,
+            transaction,
+            map,
+        ));
     }
 
     /// Request runtime exit.

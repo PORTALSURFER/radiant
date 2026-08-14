@@ -118,6 +118,13 @@ impl EffectOrigin {
             }
         }
     }
+
+    pub(super) fn declarative_generation(&self) -> Option<u64> {
+        match self {
+            Self::Declarative(owner) => Some(owner.generation()),
+            Self::Application | Self::Auxiliary(_) => None,
+        }
+    }
 }
 
 impl PartialEq for EffectOrigin {

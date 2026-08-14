@@ -8,6 +8,7 @@
 
 use super::{SurfaceRuntime, owner::EffectOrigin};
 use crate::{
+    application::DeclarativeEffectOwner,
     layout::NodeId,
     runtime::{
         LayerKind, RuntimeBridge,
@@ -51,10 +52,12 @@ pub(crate) enum DeclarativeOwnerIdentity {
 pub(crate) enum DeclarativeOwnerCompatibility {
     Overlay {
         layer_kind: LayerKind,
+        effect_owner: Option<DeclarativeEffectOwner>,
     },
     KeyedNode {
         origin: crate::application::DeclarativeIdentityOrigin,
         compatibility: SourceCompatibility,
+        effect_owner: Option<DeclarativeEffectOwner>,
     },
 }
 
@@ -143,6 +146,7 @@ impl DeclarativeOwnerRecord {
 pub(crate) struct DeclarativeOverlayCandidate {
     pub(crate) structural_scope: NodeId,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
     local_only: LocalOnly,
 }
 
@@ -151,8 +155,14 @@ impl DeclarativeOverlayCandidate {
         Self {
             structural_scope,
             layer_kind,
+            effect_owner: None,
             local_only: local_only(),
         }
+    }
+
+    fn with_effect_owner(mut self, effect_owner: Option<DeclarativeEffectOwner>) -> Self {
+        self.effect_owner = effect_owner;
+        self
     }
 
     fn owner_identity(self) -> DeclarativeOwnerIdentity {
@@ -164,6 +174,7 @@ impl DeclarativeOverlayCandidate {
     fn owner_compatibility(self) -> DeclarativeOwnerCompatibility {
         DeclarativeOwnerCompatibility::Overlay {
             layer_kind: self.layer_kind,
+            effect_owner: self.effect_owner,
         }
     }
 }
@@ -178,6 +189,7 @@ impl DeclarativeOverlayCandidate {
 pub(crate) struct DeclarativeKeyedNodeCandidate {
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
+    pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
     local_only: LocalOnly,
 }
 
@@ -186,8 +198,14 @@ impl DeclarativeKeyedNodeCandidate {
         Self {
             identity,
             compatibility,
+            effect_owner: None,
             local_only: local_only(),
         }
+    }
+
+    fn with_effect_owner(mut self, effect_owner: Option<DeclarativeEffectOwner>) -> Self {
+        self.effect_owner = effect_owner;
+        self
     }
 
     fn structural_scope(self) -> NodeId {
@@ -204,6 +222,7 @@ impl DeclarativeKeyedNodeCandidate {
         DeclarativeOwnerCompatibility::KeyedNode {
             origin: self.identity.origin,
             compatibility: self.compatibility,
+            effect_owner: self.effect_owner,
         }
     }
 }
@@ -262,6 +281,8 @@ pub(crate) enum DeclarativeOwnerRequest {
     Overlay(DeclarativeOverlayCandidate),
     /// Select exactly this keyed-node candidate.
     KeyedNode(DeclarativeKeyedNodeCandidate),
+    /// Select the one current accepted candidate carrying this public handle.
+    Handle(DeclarativeEffectOwner),
 }
 
 /// Typed rejection for a scoped owner request.
@@ -361,7 +382,8 @@ impl DeclarativeOwnerProjection {
             if let Some(metadata) = &record.metadata {
                 for keyed in &metadata.topology.keyed_nodes {
                     let candidate =
-                        DeclarativeKeyedNodeCandidate::new(keyed.identity(), keyed.compatibility());
+                        DeclarativeKeyedNodeCandidate::new(keyed.identity(), keyed.compatibility())
+                            .with_effect_owner(keyed.effect_owner());
                     push_unique(
                         &mut self.captured_keyed_nodes,
                         keyed_start,
@@ -379,7 +401,8 @@ impl DeclarativeOwnerProjection {
                     let candidate = DeclarativeOverlayCandidate::new(
                         overlay.identity.structural_scope,
                         overlay.layer_kind,
-                    );
+                    )
+                    .with_effect_owner(overlay.effect_owner);
                     push_unique(
                         &mut self.captured_overlays,
                         overlay_start,
@@ -458,6 +481,68 @@ impl DeclarativeOwnerProjection {
         )
     }
 
+    /// Resolve one public handle against exactly one current accepted
+    /// candidate.  The accepted projection is authoritative: captured source
+    /// context, ancestry, traversal order, and source precedence are not
+    /// consulted here.
+    pub(crate) fn resolve_handle_candidates(
+        &self,
+        handle: DeclarativeEffectOwner,
+    ) -> DeclarativeOwnerCandidateOutcome {
+        let mut matches = Vec::new();
+        for candidate in self
+            .accepted_keyed_nodes
+            .iter()
+            .copied()
+            .filter(|candidate| candidate.effect_owner == Some(handle))
+        {
+            matches.push(DeclarativeOwnerCandidateOutcome::KeyedNode(candidate));
+        }
+        for candidate in self
+            .accepted_overlays
+            .iter()
+            .copied()
+            .filter(|candidate| candidate.effect_owner == Some(handle))
+        {
+            matches.push(DeclarativeOwnerCandidateOutcome::Overlay(candidate));
+        }
+
+        match matches.as_slice() {
+            [candidate] => *candidate,
+            [] => DeclarativeOwnerCandidateOutcome::Rejected(
+                DeclarativeOwnerRejection::AbsentCandidate,
+            ),
+            _ => DeclarativeOwnerCandidateOutcome::Rejected(
+                DeclarativeOwnerRejection::AmbiguousCandidate,
+            ),
+        }
+    }
+
+    /// Bind one public handle to the current live owner generation.
+    pub(crate) fn resolve_handle(
+        &self,
+        handle: DeclarativeEffectOwner,
+        ledger: &DeclarativeOwnerLedger,
+    ) -> DeclarativeOwnerResolution {
+        match self.resolve_handle_candidates(handle) {
+            DeclarativeOwnerCandidateOutcome::Overlay(candidate) => ledger
+                .resolve_live(candidate.owner_identity(), candidate.owner_compatibility())
+                .map(DeclarativeOwnerResolution::Overlay)
+                .unwrap_or_else(DeclarativeOwnerResolution::Rejected),
+            DeclarativeOwnerCandidateOutcome::KeyedNode(candidate) => ledger
+                .resolve_live(candidate.owner_identity(), candidate.owner_compatibility())
+                .map(DeclarativeOwnerResolution::KeyedNode)
+                .unwrap_or_else(DeclarativeOwnerResolution::Rejected),
+            DeclarativeOwnerCandidateOutcome::Rejected(rejection) => {
+                DeclarativeOwnerResolution::Rejected(rejection)
+            }
+            DeclarativeOwnerCandidateOutcome::Application
+            | DeclarativeOwnerCandidateOutcome::ApplicationOutlive => {
+                DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::IneligibleCandidate)
+            }
+        }
+    }
+
     /// Resolve one request against captured source context and the current
     /// accepted projection.  Every scoped request is exact and typed: a
     /// failure never becomes application-owned and never searches an ancestor.
@@ -500,6 +585,7 @@ impl DeclarativeOwnerProjection {
                     Err(rejection) => DeclarativeOwnerCandidateOutcome::Rejected(rejection),
                 }
             }
+            DeclarativeOwnerRequest::Handle(handle) => self.resolve_handle_candidates(handle),
         }
     }
 
@@ -542,7 +628,9 @@ impl DeclarativeOwnerProjection {
     ) -> DeclarativeOwnerCandidateOutcome {
         if matches!(
             request,
-            DeclarativeOwnerRequest::Default | DeclarativeOwnerRequest::ApplicationOutlive
+            DeclarativeOwnerRequest::Default
+                | DeclarativeOwnerRequest::ApplicationOutlive
+                | DeclarativeOwnerRequest::Handle(_)
         ) {
             return self.resolve_candidates(request, None);
         }
@@ -576,9 +664,9 @@ impl DeclarativeOwnerProjection {
         ledger: &DeclarativeOwnerLedger,
     ) -> DeclarativeOwnerResolution {
         match request {
-            DeclarativeOwnerRequest::Default | DeclarativeOwnerRequest::ApplicationOutlive => {
-                self.resolve(request, None, ledger)
-            }
+            DeclarativeOwnerRequest::Default
+            | DeclarativeOwnerRequest::ApplicationOutlive
+            | DeclarativeOwnerRequest::Handle(_) => self.resolve(request, None, ledger),
             _ => {
                 let mut matches = self
                     .captured_sources
@@ -894,21 +982,33 @@ fn compatibility_order(
 ) -> CmpOrdering {
     match (first, second) {
         (
-            DeclarativeOwnerCompatibility::Overlay { layer_kind: first },
-            DeclarativeOwnerCompatibility::Overlay { layer_kind: second },
-        ) => first.z_order().cmp(&second.z_order()),
+            DeclarativeOwnerCompatibility::Overlay {
+                layer_kind: first_layer,
+                effect_owner: first_owner,
+            },
+            DeclarativeOwnerCompatibility::Overlay {
+                layer_kind: second_layer,
+                effect_owner: second_owner,
+            },
+        ) => first_layer
+            .z_order()
+            .cmp(&second_layer.z_order())
+            .then_with(|| first_owner.cmp(second_owner)),
         (
             DeclarativeOwnerCompatibility::KeyedNode {
                 origin: first_origin,
                 compatibility: first_compatibility,
+                effect_owner: first_owner,
             },
             DeclarativeOwnerCompatibility::KeyedNode {
                 origin: second_origin,
                 compatibility: second_compatibility,
+                effect_owner: second_owner,
             },
         ) => origin_order(*first_origin)
             .cmp(&origin_order(*second_origin))
-            .then_with(|| source_compatibility_order(first_compatibility, second_compatibility)),
+            .then_with(|| source_compatibility_order(first_compatibility, second_compatibility))
+            .then_with(|| first_owner.cmp(second_owner)),
         _ => CmpOrdering::Equal,
     }
 }
@@ -1024,7 +1124,9 @@ fn overlay_candidates_compatible(
     first: DeclarativeOverlayCandidate,
     second: DeclarativeOverlayCandidate,
 ) -> bool {
-    first.structural_scope == second.structural_scope && first.layer_kind == second.layer_kind
+    first.structural_scope == second.structural_scope
+        && first.layer_kind == second.layer_kind
+        && first.effect_owner == second.effect_owner
 }
 
 fn keyed_candidates_compatible(
@@ -1034,6 +1136,7 @@ fn keyed_candidates_compatible(
     first.identity.structural_scope == second.identity.structural_scope
         && first.identity.origin == second.identity.origin
         && first.compatibility == second.compatibility
+        && first.effect_owner == second.effect_owner
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -1072,6 +1175,18 @@ where
     ) -> Option<EffectOrigin> {
         self.declarative_owner
             .resolve_for_source(request, source_node, &self.declarative_owner_ledger)
+            .effect_origin()
+    }
+
+    pub(super) fn declarative_owner_origin_for_handle(
+        &self,
+        handle: DeclarativeEffectOwner,
+    ) -> Option<EffectOrigin> {
+        if !self.lifecycle_accepts_work() {
+            return None;
+        }
+        self.declarative_owner
+            .resolve_handle(handle, &self.declarative_owner_ledger)
             .effect_origin()
     }
 }
@@ -1231,6 +1346,68 @@ mod tests {
             },
             compatibility,
         )
+    }
+
+    #[test]
+    fn handle_resolution_rejects_absent_ambiguous_and_unkeyed_candidates() {
+        let handle = DeclarativeEffectOwner::new();
+        let other_handle = DeclarativeEffectOwner::new();
+        let source = source_from_surface(
+            column([
+                text::<()>("first").key("first").effect_owner(handle),
+                text::<()>("second")
+                    .key("second")
+                    .effect_owner(other_handle),
+            ])
+            .into_surface(),
+        );
+        let mut projection = DeclarativeOwnerProjection::default();
+        projection.install_from_source(&source);
+        let mut ledger = DeclarativeOwnerLedger::default();
+        ledger.reconcile(&projection);
+
+        assert!(matches!(
+            projection.resolve_handle(handle, &ledger),
+            DeclarativeOwnerResolution::KeyedNode(_)
+        ));
+        assert_eq!(
+            projection.resolve_handle(DeclarativeEffectOwner::new(), &ledger),
+            DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::AbsentCandidate)
+        );
+
+        let shared_handle = DeclarativeEffectOwner::new();
+        let source = source_from_surface(
+            column([
+                text::<()>("first").key("first").effect_owner(shared_handle),
+                text::<()>("second")
+                    .key("second")
+                    .effect_owner(shared_handle),
+            ])
+            .into_surface(),
+        );
+        let mut projection = DeclarativeOwnerProjection::default();
+        projection.install_from_source(&source);
+        let mut ledger = DeclarativeOwnerLedger::default();
+        ledger.reconcile(&projection);
+
+        assert_eq!(
+            projection.resolve_handle(shared_handle, &ledger),
+            DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::AmbiguousCandidate)
+        );
+
+        let unkeyed_handle = DeclarativeEffectOwner::new();
+        let source = source_from_surface(
+            column([text::<()>("unkeyed").effect_owner(unkeyed_handle)]).into_surface(),
+        );
+        let mut projection = DeclarativeOwnerProjection::default();
+        projection.install_from_source(&source);
+        let mut ledger = DeclarativeOwnerLedger::default();
+        ledger.reconcile(&projection);
+
+        assert_eq!(
+            projection.resolve_handle(unkeyed_handle, &ledger),
+            DeclarativeOwnerResolution::Rejected(DeclarativeOwnerRejection::AbsentCandidate)
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@
 use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
-use crate::application::LatestTaskTransaction;
+use crate::application::{DeclarativeEffectOwner, LatestTaskTransaction};
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
 use std::time::Duration;
 use std::{any::Any, sync::Arc};
@@ -156,6 +156,7 @@ pub enum Command<Message> {
 pub struct TimerEffect<Message> {
     pub(crate) delay: Duration,
     pub(crate) transaction: Option<LatestTaskTransaction>,
+    pub(crate) owner: Option<DeclarativeEffectOwner>,
     pub(crate) map: Box<dyn FnOnce() -> Message + 'static>,
 }
 

@@ -11,6 +11,7 @@ mod slot;
 #[path = "view_node/virtual_layout.rs"]
 mod virtual_layout;
 
+pub use identity::DeclarativeEffectOwner;
 pub(in crate::application) use identity::KeyedIdentity;
 pub use identity::{ContinuityKey, preserve_state};
 pub(crate) use identity::{
@@ -44,6 +45,7 @@ pub struct Layer<Message> {
     pub(in crate::application) input_policy: LayerInputPolicy,
     pub(in crate::application) input: Option<ViewNode<Message>>,
     pub(in crate::application) view: ViewNode<Message>,
+    pub(in crate::application) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
 impl<Message> Layer<Message> {
@@ -53,6 +55,7 @@ impl<Message> Layer<Message> {
             input_policy: LayerInputPolicy::PassThrough,
             input: None,
             view,
+            effect_owner: None,
         }
     }
 }
@@ -110,6 +113,7 @@ pub struct ViewNode<Message> {
     accepts_native_file_drop: bool,
     native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
     overlay_layers: Vec<Layer<Message>>,
+    effect_owner: Option<DeclarativeEffectOwner>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -181,6 +185,7 @@ impl<Message> ViewNode<Message> {
             accepts_native_file_drop: false,
             native_file_drop: None,
             overlay_layers: Vec::new(),
+            effect_owner: None,
         }
     }
 
@@ -233,6 +238,15 @@ impl<Message> ViewNode<Message> {
         for layer in overlays.into_layers() {
             self = self.overlay_layer(layer);
         }
+        self
+    }
+
+    /// Attach an explicit delayed-work owner marker to this view declaration.
+    ///
+    /// The marker is eligible only when this node also has a durable keyed
+    /// identity. Dynamic and unkeyed nodes remain ineligible owner sources.
+    pub fn effect_owner(mut self, owner: DeclarativeEffectOwner) -> Self {
+        self.effect_owner = Some(owner);
         self
     }
 
@@ -307,6 +321,7 @@ impl<Message> ViewNode<Message> {
                     crate::application::ids::StructuralRole::SceneLayer(index),
                 ),
                 layer_kind: layer.kind,
+                effect_owner: layer.effect_owner,
             });
             let input = layer.input.map(|input| {
                 Self::extract_layer_root(

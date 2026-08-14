@@ -4445,28 +4445,20 @@ the work and resulting domain messages.
 
 ### Declarative effect-owner boundary
 
-The shipped application API does not expose declarative effect-owner selection.
-`UiUpdateContext`, `Command`, `RuntimeBridge`, `ViewNode`, `SurfaceNode`,
-`RuntimeUpdateSnapshot`, and the shipped effect payloads do not promise an
-overlay- or keyed-node owner field. The private controller now consumes an
-explicitly selected private declarative origin from the accepted source
-projection/live-generation boundary and carries it through existing worker,
-timer, platform-completion, and chained-command paths. The shipped application
-API and declarative lowering still do not expose owner selection, while private
-matching registry retirement is now performed at the accepted projection
-boundary. Product-facing selection/cancellation remains unshipped.
+One bounded timer consumer is now public. It exposes a qualified opaque
+`DeclarativeEffectOwner`, explicit `ViewNode::effect_owner` and
+`Layer::effect_owner` markers, and
+`UiUpdateContext::after_for_owner(...)` /
+`UiUpdateContext::after_latest_for_owner(...)`. Markers are eligible only for
+durable keyed nodes or overlays; ownership is never inferred from traversal or
+visibility. Ordinary `UiUpdateContext::after(...)` and
+`UiUpdateContext::after_latest(...)` remain application-owned. Owner admission
+refreshes the accepted surface and rejects absent, ambiguous, ineligible,
+stale, or retired handles with no fallback. Late owner wakes are fenced before
+mapping. No general effect ownership, semantic demand/refresh/provider budget,
+scheduler, custom-coordinate, platform, or product wiring API is promised.
 
-The target-only contract is described in
-[the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation).
-Its source context is only a set of eligible candidates: overlay and keyed-node
-candidates are independent, neither has implicit precedence, and a source
-location never selects ownership automatically. Ordinary primary-surface work
-continues to default to application ownership. The private controller admits
-overlay- or keyed-node-owned work only after explicit owner selection, while a
-future product-facing integration may supply that policy or use the explicit
-application-owned/outlive choice when the work must survive source removal.
-That choice is the target detach policy: the work
-outlives the source owner but remains subject to application shutdown.
+The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). This shipped consumer selects only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers remain application-owned, and an invalid selection is rejected without fallback. The complete target still covers broader effects, application-outlive policy, worker/platform/chained ownership, and shared-resource semantics that are not exposed here.
 
 That target contract also requires stable owner identity and exact generations
 across reprojection and keyed reorder, retirement on removal or incompatible
@@ -4481,10 +4473,7 @@ Dynamic unkeyed nodes cannot provide the durable identity required for
 owner-scoped cancellation, so they remain on the application-owned path unless
 a later contract supplies an explicit stable identity.
 
-This is a target boundary, not a new public name or API table entry. It does not
-change `Command`, `UiUpdateContext`, `RuntimeUpdateSnapshot`, `RuntimeBridge`,
-`ViewNode`, `SurfaceNode`, or effect payload compatibility, and it makes no
-claim about scheduler budgets, fairness, queue capacity, or wake ordering.
+This is a bounded public timer consumer, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, and the two UiUpdateContext owner-timer methods; Command internals, EffectOrigin, the ledger, and timer registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, custom-coordinate transforms, platform, renderer, or product wiring.
 Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
 priority, wake ordering, and stage ordering to the separately normative [`Next
 scheduler policy contract`](DESIGN_DIRECTION.md#next-scheduler-policy-contract);

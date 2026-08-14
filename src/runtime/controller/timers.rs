@@ -8,6 +8,7 @@ struct Registered<Message> {
     transaction: Option<LatestTimerTransaction>,
     map: Option<Box<dyn FnOnce() -> Message + 'static>>,
     lifecycle: LifecycleDescriptor,
+    owner_generation: Option<u64>,
     origin: EffectOrigin,
 }
 
@@ -50,9 +51,13 @@ impl<Message> TimerEffects<Message> {
         self.next_id = self.next_id.saturating_add(1);
         let transaction = effect.transaction;
         let slot = transaction.as_ref().map(LatestTimerTransaction::slot);
+        // Keep the wake generation's existing latest-ticket meaning. The
+        // declarative generation is retained separately in the registration
+        // and fenced by the exact private origin witness.
         let generation = transaction
             .as_ref()
             .map_or(0, LatestTimerTransaction::generation);
+        let owner_generation = origin.declarative_generation();
         let cancellation = transaction
             .as_ref()
             .map(LatestTimerTransaction::cancellation_probe);
@@ -74,6 +79,7 @@ impl<Message> TimerEffects<Message> {
                     generation,
                     cancellation,
                 ),
+                owner_generation,
                 origin,
             },
         );
@@ -128,6 +134,7 @@ impl<Message> TimerEffects<Message> {
         let current = wake.epoch == self.epoch
             && latest_slot_current
             && transaction_current
+            && registered.owner_generation == registered.origin.declarative_generation()
             && registered.origin.is_live()
             && registered.lifecycle.admits(
                 &self.owner,
@@ -297,6 +304,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(transaction1),
+                owner: None,
                 map: Box::new(move || {
                     first_calls.fetch_add(1, Ordering::SeqCst);
                     1
@@ -313,6 +321,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(transaction2),
+                owner: None,
                 map: Box::new(move || {
                     second_calls.fetch_add(1, Ordering::SeqCst);
                     2
@@ -345,6 +354,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(first_transaction),
+                owner: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Application,
@@ -358,6 +368,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(replacement_transaction),
+                owner: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Application,
@@ -376,6 +387,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Application,
@@ -398,6 +410,7 @@ mod tests {
                 TimerEffect {
                     delay: Duration::ZERO,
                     transaction: None,
+                    owner: None,
                     map: Box::new(move || value),
                 },
                 EffectOrigin::Application,
@@ -435,6 +448,7 @@ mod tests {
                 TimerEffect {
                     delay: Duration::ZERO,
                     transaction: Some(transaction),
+                    owner: None,
                     map: Box::new(move || {
                         let _sentinel = sentinel;
                         1
@@ -466,6 +480,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 7),
             },
             origin.clone(),
@@ -502,6 +517,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 7),
             },
             origin.clone(),
@@ -521,6 +537,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(move || {
                     calls_for_mapper.fetch_add(1, Ordering::SeqCst);
                     8
@@ -553,6 +570,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
+                owner: None,
                 map: Box::new(move || {
                     let _sentinel = retired_sentinel;
                     1
@@ -569,6 +587,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Auxiliary(sibling.clone()),
@@ -582,6 +601,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 3),
             },
             EffectOrigin::Application,
@@ -620,6 +640,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
+                owner: None,
                 map: Box::new(move || {
                     let _sentinel = retired_sentinel;
                     1
@@ -636,6 +657,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 2),
             },
             sibling_origin,
@@ -649,6 +671,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 3),
             },
             EffectOrigin::Application,
@@ -662,6 +685,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 4),
             },
             new_origin,
@@ -697,6 +721,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Auxiliary(old_owner.clone()),
@@ -712,6 +737,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: None,
+                owner: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Auxiliary(new_owner.clone()),
@@ -739,6 +765,7 @@ mod tests {
             TimerEffect {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
+                owner: None,
                 map: Box::new(move || {
                     calls_for_mapper.fetch_add(1, Ordering::SeqCst);
                     1

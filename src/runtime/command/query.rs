@@ -76,6 +76,7 @@ impl<Message> Command<Message> {
 
     pub(in crate::runtime) fn requires_fresh_surface_before_dispatch(&self) -> bool {
         match self {
+            Self::Timer(effect) if effect.owner.is_some() => true,
             Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }

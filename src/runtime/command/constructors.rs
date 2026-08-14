@@ -107,6 +107,23 @@ impl<Message> Command<Message> {
         Self::Timer(TimerEffect {
             delay,
             transaction: None,
+            owner: None,
+            map: Box::new(move || message),
+        })
+    }
+
+    pub(crate) fn after_for_owner(
+        owner: crate::application::DeclarativeEffectOwner,
+        delay: Duration,
+        message: Message,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        Self::Timer(TimerEffect {
+            delay,
+            transaction: None,
+            owner: Some(owner),
             map: Box::new(move || message),
         })
     }
@@ -123,6 +140,25 @@ impl<Message> Command<Message> {
         Self::Timer(TimerEffect {
             delay,
             transaction: Some(transaction),
+            owner: None,
+            map: Box::new(move || map(ticket)),
+        })
+    }
+
+    pub(crate) fn after_latest_for_owner(
+        owner: crate::application::DeclarativeEffectOwner,
+        delay: Duration,
+        ticket: crate::application::TaskTicket,
+        transaction: crate::application::LatestTimerTransaction,
+        map: impl FnOnce(crate::application::TaskTicket) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        Self::Timer(TimerEffect {
+            delay,
+            transaction: Some(transaction),
+            owner: Some(owner),
             map: Box::new(move || map(ticket)),
         })
     }

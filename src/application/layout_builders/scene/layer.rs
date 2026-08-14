@@ -1,10 +1,16 @@
 use crate::{
-    application::{Layer, LayerInputPolicy, ViewNode, pointer_shield},
+    application::{DeclarativeEffectOwner, Layer, LayerInputPolicy, ViewNode, pointer_shield},
     runtime::LayerKind,
     widgets::PointerShieldMessage,
 };
 
 impl<Message> Layer<Message> {
+    /// Attach an explicit delayed-work owner marker to this overlay.
+    pub fn effect_owner(mut self, owner: DeclarativeEffectOwner) -> Self {
+        self.effect_owner = Some(owner);
+        self
+    }
+
     /// Build a generic floating layer above base content.
     pub fn floating(view: ViewNode<Message>) -> Self {
         Self::new(LayerKind::Floating, view)

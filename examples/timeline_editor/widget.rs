@@ -35,6 +35,9 @@ pub(super) enum TimelineDrag {
     Selecting {
         lane: usize,
         anchor_beat: u32,
+        current_range: BeatRange,
+        previous_selection: Option<BeatRange>,
+        previous_selected_clip: Option<u32>,
     },
     MovingClip {
         clip_id: u32,
@@ -42,6 +45,7 @@ pub(super) enum TimelineDrag {
         source_lane: usize,
         pointer_offset: u32,
         duration: u32,
+        initial_start: u32,
         current_lane: usize,
         current_start: u32,
     },
@@ -51,6 +55,7 @@ pub(super) enum TimelineDrag {
         source_lane: usize,
         edge: ResizeEdge,
         fixed_beat: u32,
+        initial_range: BeatRange,
         current_range: BeatRange,
     },
 }
@@ -97,6 +102,12 @@ impl Widget for ArrangementTimelineWidget {
         input::handle_timeline_input(self, bounds, input)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(self);
+        self.common.state.focused = false;
+        None
+    }
+
     fn accepts_pointer_move(&self) -> bool {
         true
     }
@@ -107,8 +118,27 @@ impl Widget for ArrangementTimelineWidget {
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            let projected_selection = self.selection;
+            let projected_selected_clip = self.selected_clip;
             self.common.state = previous.common.state;
-            self.drag = previous.drag;
+            match previous.drag {
+                Some(TimelineDrag::Selecting {
+                    lane,
+                    anchor_beat,
+                    current_range,
+                    ..
+                }) => {
+                    self.drag = Some(TimelineDrag::Selecting {
+                        lane,
+                        anchor_beat,
+                        current_range,
+                        previous_selection: projected_selection,
+                        previous_selected_clip: projected_selected_clip,
+                    });
+                    self.selection = Some(current_range);
+                }
+                drag => self.drag = drag,
+            }
             self.cursor = previous.cursor;
             self.hover_clip_id = previous.hover_clip_id;
         }

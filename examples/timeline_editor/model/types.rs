@@ -160,9 +160,6 @@ pub(crate) enum TimelineSurfaceMessage {
         clip_id: u32,
         range: BeatRange,
     },
-    SelectRange {
-        range: BeatRange,
-    },
     CreateClip {
         lane: usize,
         range: BeatRange,

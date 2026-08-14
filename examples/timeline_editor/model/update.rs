@@ -107,12 +107,6 @@ pub(crate) fn update_surface(state: &mut TimelineEditorState, message: TimelineS
                 cut_overlapping_clips(state, Some(clip_id), lane, range);
             }
         }
-        TimelineSurfaceMessage::SelectRange { range } => {
-            state.edit.selection = Some(range);
-            state.edit.selected_clip = None;
-            state.feedback.status = format!("selected beats {}-{}", range.start, range.end);
-            state.feedback.revision += 1;
-        }
         TimelineSurfaceMessage::CreateClip { lane, range } => {
             create_clip(state, lane, range);
         }

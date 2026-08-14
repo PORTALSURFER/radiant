@@ -22,17 +22,25 @@ pub(super) fn handle_pointer_move(
     match (widget.drag, beat) {
         (
             Some(TimelineDrag::Selecting {
-                lane: _,
+                lane,
                 anchor_beat,
+                previous_selection,
+                previous_selected_clip,
+                ..
             }),
             Some(current),
         ) => {
             widget.hover_clip_id = None;
             let range = BeatRange::normalized(anchor_beat, current);
             widget.selection = Some(range);
-            Some(WidgetOutput::typed(TimelineSurfaceMessage::SelectRange {
-                range,
-            }))
+            widget.drag = Some(TimelineDrag::Selecting {
+                lane,
+                anchor_beat,
+                current_range: range,
+                previous_selection,
+                previous_selected_clip,
+            });
+            None
         }
         (
             Some(TimelineDrag::MovingClip {
@@ -41,6 +49,7 @@ pub(super) fn handle_pointer_move(
                 source_lane,
                 pointer_offset,
                 duration,
+                initial_start,
                 ..
             }),
             Some(current),
@@ -59,14 +68,11 @@ pub(super) fn handle_pointer_move(
                 source_lane,
                 pointer_offset,
                 duration,
+                initial_start,
                 current_lane: lane,
                 current_start: start,
             });
-            Some(WidgetOutput::typed(TimelineSurfaceMessage::MoveClip {
-                clip_id,
-                lane,
-                start,
-            }))
+            None
         }
         (
             Some(TimelineDrag::ResizingClip {
@@ -75,6 +81,7 @@ pub(super) fn handle_pointer_move(
                 source_lane,
                 edge,
                 fixed_beat,
+                initial_range,
                 ..
             }),
             Some(current),
@@ -88,12 +95,10 @@ pub(super) fn handle_pointer_move(
                 source_lane,
                 edge,
                 fixed_beat,
+                initial_range,
                 current_range: range,
             });
-            Some(WidgetOutput::typed(TimelineSurfaceMessage::ResizeClip {
-                clip_id,
-                range,
-            }))
+            None
         }
         _ => None,
     }
@@ -118,6 +123,10 @@ pub(super) fn handle_primary_press(
                     ResizeEdge::Start => handle.clip_end,
                     ResizeEdge::End => handle.clip_start,
                 },
+                initial_range: BeatRange {
+                    start: handle.clip_start,
+                    end: handle.clip_end,
+                },
                 current_range: BeatRange {
                     start: handle.clip_start,
                     end: handle.clip_end,
@@ -130,6 +139,7 @@ pub(super) fn handle_primary_press(
                 source_lane: handle.clip_lane,
                 pointer_offset: beat.saturating_sub(handle.clip_start),
                 duration: handle.duration,
+                initial_start: handle.clip_start,
                 current_lane: handle.clip_lane,
                 current_start: handle.clip_start,
             })
@@ -144,6 +154,12 @@ pub(super) fn handle_primary_press(
         widget.drag = Some(TimelineDrag::Selecting {
             lane,
             anchor_beat: beat,
+            current_range: BeatRange {
+                start: beat,
+                end: beat,
+            },
+            previous_selection: widget.selection,
+            previous_selected_clip: widget.selected_clip,
         });
         widget.selection = Some(BeatRange {
             start: beat,
@@ -159,10 +175,25 @@ pub(super) fn handle_primary_release(
     position: Point,
 ) -> Option<WidgetOutput> {
     widget.common.state.pressed = false;
+    let release_beat = geometry.beat_at(position);
     let drag = widget.drag.take();
-    match (drag, geometry.beat_at(position)) {
-        (Some(TimelineDrag::Selecting { lane, anchor_beat }), Some(end)) => {
-            let range = BeatRange::normalized(anchor_beat, end);
+    match drag {
+        Some(TimelineDrag::Selecting {
+            anchor_beat,
+            lane,
+            current_range,
+            ..
+        }) => {
+            let (range, seek_beat) = if let Some(end) = release_beat {
+                (BeatRange::normalized(anchor_beat, end), end)
+            } else {
+                let seek_beat = if current_range.start == anchor_beat {
+                    current_range.end
+                } else {
+                    current_range.start
+                };
+                (current_range, seek_beat)
+            };
             if range.duration() >= MIN_CLIP_BEATS {
                 Some(WidgetOutput::typed(TimelineSurfaceMessage::CreateClip {
                     lane,
@@ -170,11 +201,68 @@ pub(super) fn handle_primary_release(
                 }))
             } else {
                 Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
-                    beat: end,
+                    beat: seek_beat,
                 }))
             }
         }
+        Some(TimelineDrag::MovingClip {
+            clip_id,
+            source_lane,
+            initial_start,
+            current_lane,
+            current_start,
+            ..
+        }) if source_lane != current_lane || initial_start != current_start => {
+            Some(WidgetOutput::typed(TimelineSurfaceMessage::MoveClip {
+                clip_id,
+                lane: current_lane,
+                start: current_start,
+            }))
+        }
+        Some(TimelineDrag::ResizingClip {
+            clip_id,
+            initial_range,
+            current_range,
+            ..
+        }) if initial_range != current_range => {
+            Some(WidgetOutput::typed(TimelineSurfaceMessage::ResizeClip {
+                clip_id,
+                range: current_range,
+            }))
+        }
         _ => None,
+    }
+}
+
+pub(super) fn discard_drag_preview(widget: &mut ArrangementTimelineWidget) {
+    let drag = widget.drag.take();
+    widget.common.state.pressed = false;
+    widget.hover_clip_id = None;
+    match drag {
+        Some(TimelineDrag::Selecting {
+            previous_selection,
+            previous_selected_clip,
+            ..
+        }) => {
+            widget.selection = previous_selection;
+            widget.selected_clip = previous_selected_clip;
+        }
+        Some(TimelineDrag::MovingClip {
+            clip_id,
+            initial_start,
+            duration,
+            ..
+        }) => {
+            widget.selected_clip = Some(clip_id);
+            widget.selection = Some(BeatRange {
+                start: initial_start,
+                end: initial_start + duration,
+            });
+        }
+        Some(TimelineDrag::ResizingClip { initial_range, .. }) => {
+            widget.selection = Some(initial_range);
+        }
+        None => {}
     }
 }
 

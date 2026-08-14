@@ -23,7 +23,7 @@ use super::{
     scene::{
         NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
         NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyInput,
-        NativePaintSegmentAssemblyVetoReason,
+        NativePaintSegmentAssemblyVetoReason, focused_text_input_caret_area,
     },
 };
 use crate::runtime::BasePaintPlanContext;
@@ -512,6 +512,10 @@ impl NativeVelloFrameState {
     pub(super) fn mark_scene_content_dirty(&mut self) {
         self.scaled_scene_dirty = true;
         self.mark_scene_texture_dirty();
+    }
+
+    pub(super) fn native_ime_cursor_area(&mut self) -> Option<UiRect> {
+        focused_text_input_caret_area(&self.last_paint_plan, &mut self.text_renderer)
     }
 
     pub(super) fn mark_composited_base_dirty(&mut self) {

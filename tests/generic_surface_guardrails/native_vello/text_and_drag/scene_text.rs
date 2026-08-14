@@ -111,7 +111,7 @@ fn native_vello_text_input_geometry_stays_focused() {
     assert!(
         text_input.contains("mod geometry;")
             && text_input.contains(
-                "use geometry::{caret_size, selection_rect, text_input_geometry_is_renderable};"
+                "use geometry::{caret_rect, selection_rect, text_input_geometry_is_renderable};"
             )
             && text_input.contains("fn encode_text_input")
             && text_input.contains("fn draw_text_input_text")

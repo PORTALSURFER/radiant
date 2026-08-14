@@ -21,6 +21,7 @@ where
         let (paint_plan_decision, elapsed) =
             profile.measure(|| self.core.paint_plan_into(&mut self.frame.last_paint_plan));
         profile.paint_plan = elapsed;
+        self.publish_native_ime_cursor_area();
 
         self.frame.mark_scene_texture_dirty();
         if matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt) {

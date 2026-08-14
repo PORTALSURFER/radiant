@@ -50,7 +50,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 use vello::Scene;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::{
+    dpi::{LogicalPosition, LogicalSize},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
+};
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
 where
@@ -1408,6 +1411,7 @@ where
         self.frame.reset_scene_build_outcome();
         let _ = self.apply_pending_viewport_resize_if_needed();
         let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
+        self.publish_native_ime_cursor_area();
         let viewport = self.core.runtime.viewport();
         let scene_validity = self.frame.native_scene_validity_fingerprint(
             self.core.base_paint_plan_context(),
@@ -1766,6 +1770,30 @@ where
         if let Some(window) = self.window.window.as_ref() {
             window.set_ime_allowed(self.core.has_focused_text_input());
         }
+    }
+
+    pub(super) fn publish_native_ime_cursor_area(&mut self) {
+        let candidate = self.frame.native_ime_cursor_area();
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            self.window.ime_cursor_area_cache.invalidate();
+            return;
+        };
+        let window_id = window.id();
+        let native_scale_generation = self.window.target_generation;
+        let Some(area) = self.window.ime_cursor_area_cache.candidate_to_publish(
+            window_id,
+            native_scale_generation,
+            candidate,
+        ) else {
+            return;
+        };
+        window.set_ime_cursor_area(
+            LogicalPosition::new(area.min.x as f64, area.min.y as f64),
+            LogicalSize::new(area.width() as f64, area.height() as f64),
+        );
+        self.window
+            .ime_cursor_area_cache
+            .record(window_id, native_scale_generation, area);
     }
 
     pub(super) fn handle_route_outcome_without_timed_frame(

@@ -18,6 +18,23 @@ pub(super) fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
     Some((caret_width, caret_height))
 }
 
+pub(super) fn caret_rect(input: &PaintTextInput, x: f32) -> Option<UiRect> {
+    if !x.is_finite() {
+        return None;
+    }
+    let (caret_width, caret_height) = caret_size(input)?;
+    let caret_y = input.rect.min.y + (input.rect.height() - caret_height) * 0.5;
+    let caret_x = x.clamp(
+        input.rect.min.x,
+        (input.rect.max.x - caret_width).max(input.rect.min.x),
+    );
+    let rect = UiRect::from_min_max(
+        Point::new(caret_x, caret_y),
+        Point::new(caret_x + caret_width, caret_y + caret_height),
+    );
+    rect.has_finite_positive_area().then_some(rect)
+}
+
 pub(super) fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect> {
     if !text_input_geometry_is_renderable(input)
         || !start.is_finite()
@@ -43,7 +60,7 @@ pub(super) fn text_input_geometry_is_renderable(input: &PaintTextInput) -> bool 
 
 #[cfg(test)]
 mod tests {
-    use super::{caret_size, selection_rect, text_input_geometry_is_renderable};
+    use super::{caret_rect, caret_size, selection_rect, text_input_geometry_is_renderable};
     use crate::{
         gui::types::{Point, Rect, Rgba8},
         runtime::PaintTextInput,
@@ -73,6 +90,26 @@ mod tests {
         assert_eq!(rect.min.y, input.rect.min.y);
         assert_eq!(rect.max.y, input.rect.max.y);
         assert!(rect.width() > 0.0);
+    }
+
+    #[test]
+    fn caret_rect_is_clamped_inside_cramped_text_input_bounds() {
+        let input = cramped_text_input();
+
+        let rect = caret_rect(&input, 100.0).expect("finite caret rect");
+
+        assert_eq!(rect.max.x, input.rect.max.x);
+        assert!(rect.min.x >= input.rect.min.x);
+        assert!(rect.min.y >= input.rect.min.y);
+        assert!(rect.max.y <= input.rect.max.y);
+    }
+
+    #[test]
+    fn caret_rect_ignores_hidden_caret_color() {
+        let mut input = cramped_text_input();
+        input.caret_color.a = 0;
+
+        assert!(caret_rect(&input, input.rect.min.x).is_some());
     }
 
     #[test]

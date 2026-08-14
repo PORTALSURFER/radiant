@@ -162,7 +162,8 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
             && runner.contains("RuntimeBridge")
             && runner.contains("NativeRunOptions")
             && runner.contains("use std::time::{Duration, Instant};")
-            && runner.contains("use winit::event_loop::{ActiveEventLoop")
+            && runner.contains("event_loop::{")
+            && runner.contains("ActiveEventLoop")
             && !runner.starts_with("use super::*;"),
         "native runner should name runtime state, frame state, route outcome, scene rebuild, timed-frame, text renderer, runtime, timing, and event-loop dependencies"
     );
@@ -171,7 +172,8 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
             && state.contains("struct NativeRunnerInputState")
             && state.contains("struct NativeRunnerTimingState")
             && state.contains("use super::PendingGpuSurfaceWheel;")
-            && state.contains("use crate::gui::types::Point;")
+            && state.contains("use crate::gui::types::{Point,")
+            && state.contains("Rect as UiRect")
             && state.contains("use vello::{")
             && state.contains("use winit::{")
             && !state.starts_with("use super::*;"),

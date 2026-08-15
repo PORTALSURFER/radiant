@@ -489,6 +489,20 @@ where
             .map(WidgetOutput::typed)
     }
 
+    fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+        let successor =
+            successor.and_then(|successor| successor.as_any().downcast_ref::<Self>())?;
+        if !successor.knob.common.state.disabled && !successor.knob.common.state.read_only {
+            return None;
+        }
+        self.active_edit.as_ref()?;
+        self.cancel_active(
+            KnobDomainCancellationReason::DisabledOrReadOnly,
+            pointer_provenance_empty(),
+        )
+        .map(WidgetOutput::typed)
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;

@@ -77,9 +77,11 @@ pub use interaction::{
     CustomWidgetOutput, DecimalSeparator, DragHandleMessage, DragHandleMetadata, DragHandlePhase,
     EditEvent, EditPhase, EditTransaction, GpuSurfaceMessage, InteractionProvenance,
     InteractionSource, InteractiveRowMessage, InteractiveRowMetadata, KeyboardModifier,
-    KeyboardModifiers, KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture,
-    KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata,
-    ListItemMessage, NumericAccessibilityAction, NumericAccessibilityBlockOwner,
+    KeyboardModifiers, KnobAutomationEvent, KnobDomainAutomationEvent,
+    KnobDomainCancellationReason, KnobDomainError, KnobDomainKeyboardGesture,
+    KnobDomainMappingAttempt, KnobDomainMessage, KnobDomainWheelGesture, KnobEditBatch,
+    KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture,
+    KnobWheelMetadata, ListItemMessage, NumericAccessibilityAction, NumericAccessibilityBlockOwner,
     NumericAccessibilityOutcome, NumericAccessibilityRejectedReason, NumericAdjustment,
     NumericCodec, NumericEditSession, NumericInputConstructionError, NumericInputEditBatch,
     NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
@@ -117,6 +119,7 @@ pub use primitives::{
     ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
 pub(crate) use primitives::{
-    RetainedKnobWidget, RetainedSliderDomainWidget, RetainedSliderWidget, initial_normalized,
+    RetainedKnobDomainWidget, RetainedKnobWidget, RetainedSliderDomainWidget, RetainedSliderWidget,
+    domain_initial_normalized, initial_normalized,
 };
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};

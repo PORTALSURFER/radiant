@@ -1493,6 +1493,50 @@ fn numeric_adjustment_is_qualified_generic_and_supports_non_clone_domain_values(
 }
 
 #[test]
+fn knob_domain_contract_is_qualified_fixed_array_and_keeps_error_clone_conditional() {
+    #[derive(Clone)]
+    struct CloneableDomainError;
+
+    fn assert_clone<T: Clone>() {}
+    assert_clone::<radiant::widgets::KnobDomainError<CloneableDomainError>>();
+    assert_clone::<radiant::widgets::KnobDomainMessage<CloneableDomainError>>();
+    assert_clone::<radiant::widgets::KnobDomainKeyboardGesture>();
+    assert_clone::<radiant::widgets::KnobDomainWheelGesture>();
+
+    let _: Option<radiant::widgets::KnobDomainError<NumericAdjustmentTestError>> = None;
+    let _: Option<radiant::widgets::KnobDomainMessage<NumericAdjustmentTestError>> = None;
+    let _: radiant::widgets::KnobDomainMappingAttempt =
+        radiant::widgets::KnobDomainMappingAttempt::PointerUpdate;
+    let _: radiant::widgets::KnobDomainCancellationReason =
+        radiant::widgets::KnobDomainCancellationReason::PointerCaptureLoss;
+
+    let keyboard = radiant::widgets::interaction::KnobDomainKeyboardGesture::new(1.0, 2.0);
+    assert_eq!(keyboard.events.len(), 3);
+    assert_eq!(
+        keyboard.input_metadata(),
+        radiant::widgets::KnobKeyboardMetadata::default()
+    );
+
+    let wheel = radiant::widgets::KnobDomainWheelGesture::new(1.0, 2.0);
+    assert_eq!(wheel.events.len(), 3);
+    assert_eq!(
+        wheel.input_metadata(),
+        radiant::widgets::KnobWheelMetadata::default()
+    );
+
+    let prelude_controls = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/application/controls.rs"
+    ));
+    let prelude_widgets = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/prelude/widgets.rs"
+    ));
+    assert!(!prelude_controls.contains("KnobDomain"));
+    assert!(!prelude_widgets.contains("KnobDomain"));
+}
+
+#[test]
 fn keyboard_modifier_payload_is_qualified_and_not_in_prelude() {
     let qualified = radiant::widgets::interaction::KeyboardModifiers {
         command: true,

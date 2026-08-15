@@ -1,5 +1,6 @@
 mod activation;
 mod drag;
+mod knob_domain;
 mod pointer;
 mod range;
 mod selection;
@@ -10,6 +11,10 @@ pub use activation::{
     BadgeMessage, ButtonMessage, InteractiveRowMessage, InteractiveRowMetadata, ListItemMessage,
 };
 pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
+pub use knob_domain::{
+    KnobDomainAutomationEvent, KnobDomainCancellationReason, KnobDomainError,
+    KnobDomainKeyboardGesture, KnobDomainMappingAttempt, KnobDomainMessage, KnobDomainWheelGesture,
+};
 pub use pointer::PointerShieldMessage;
 pub use range::{
     KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,

@@ -78,11 +78,12 @@ mod tests {
             surface::{ViewDeltaCause, ViewDeltaEffect},
         },
         widgets::{
-            ButtonWidget, EditPhase, InteractionProvenance, NumericAdjustment, NumericCodec,
+            ButtonWidget, EditPhase, InteractionProvenance, KnobDomainCancellationReason,
+            KnobDomainMessage, KnobPointerMetadata, KnobWidget, NumericAdjustment, NumericCodec,
             NumericInputEditBatch, NumericInputInteraction, NumericInputInteractionBatch,
             NumericInputWidget, NumericParseResult, NumericStep, NumericStepDirection,
-            ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget, Widget, WidgetCommon,
-            WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+            RetainedKnobDomainWidget, ScrollbarAxis, ScrollbarWidget, TextEditCommand, TextWidget,
+            Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
         },
     };
     use std::{
@@ -1032,6 +1033,194 @@ mod tests {
         );
         assert!(!successor.preempts_host_shortcut_key(WidgetKey::Escape));
         assert_eq!(runtime.focused_widget(), None);
+    }
+
+    struct RefreshKnobDomainAdjustment;
+
+    impl NumericAdjustment<f32> for RefreshKnobDomainAdjustment {
+        type Error = ();
+
+        fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+            Ok(normalized * 100.0)
+        }
+
+        fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+            Ok(*value / 100.0)
+        }
+
+        fn step(
+            &self,
+            value: &f32,
+            _direction: NumericStepDirection,
+            _step: NumericStep,
+        ) -> Result<f32, Self::Error> {
+            Ok(*value)
+        }
+
+        fn scrub(
+            &self,
+            value: &f32,
+            _normalized_delta: f32,
+            _step: NumericStep,
+        ) -> Result<f32, Self::Error> {
+            Ok(*value)
+        }
+
+        fn wheel(&self, value: &f32, _delta: f32, _step: NumericStep) -> Result<f32, Self::Error> {
+            Ok(*value)
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum KnobDomainRefreshMode {
+        Editable,
+        Disabled,
+        ReadOnly,
+    }
+
+    struct KnobDomainRefreshBridge {
+        value: f32,
+        mode: KnobDomainRefreshMode,
+        reduced: Vec<KnobDomainMessage<()>>,
+    }
+
+    impl KnobDomainRefreshBridge {
+        fn surface(&self) -> UiSurface<KnobDomainMessage<()>> {
+            let mut knob = KnobWidget::new(20, self.value / 100.0)
+                .with_default_value(0.2)
+                .with_sensitivity(0.01);
+            knob.common.state.disabled = self.mode == KnobDomainRefreshMode::Disabled;
+            knob.common.state.read_only = self.mode == KnobDomainRefreshMode::ReadOnly;
+            let widget = RetainedKnobDomainWidget::new(
+                knob,
+                Rc::new(RefreshKnobDomainAdjustment),
+                self.value,
+                20.0,
+                0.2,
+            );
+            UiSurface::new(SurfaceNode::widget(
+                widget,
+                WidgetMessageMapper::typed(|message: KnobDomainMessage<()>| message),
+            ))
+        }
+    }
+
+    impl RuntimeBridge<KnobDomainMessage<()>> for KnobDomainRefreshBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<KnobDomainMessage<()>>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn reduce_message(&mut self, message: KnobDomainMessage<()>) {
+            match &message {
+                KnobDomainMessage::ValueChanged { value, .. }
+                | KnobDomainMessage::GestureEnded { value, .. }
+                | KnobDomainMessage::Reset { value, .. } => self.value = *value,
+                KnobDomainMessage::GestureCancelled { start_value, .. } => {
+                    self.value = *start_value
+                }
+                _ => {}
+            }
+            self.reduced.push(message);
+        }
+    }
+
+    fn exercise_knob_domain_authority_loss(mode: KnobDomainRefreshMode) {
+        let mut runtime = SurfaceRuntime::new(
+            KnobDomainRefreshBridge {
+                value: 20.0,
+                mode: KnobDomainRefreshMode::Editable,
+                reduced: Vec::new(),
+            },
+            Vector2::new(40.0, 40.0),
+        );
+        runtime.refresh();
+
+        let start = Point::new(20.0, 20.0);
+        let moved = Point::new(20.0, 10.0);
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_press(start)),
+            Some(20)
+        );
+        assert_eq!(runtime.pointer_capture(), Some(20));
+        assert_eq!(runtime.focused_widget(), Some(20));
+        assert_eq!(runtime.dispatch_event(Event::pointer_move(moved)), Some(20));
+        assert_eq!(runtime.pointer_capture(), Some(20));
+        assert!((runtime.bridge().value - 30.0).abs() < 0.0001);
+
+        runtime.bridge_mut().mode = mode;
+        runtime.refresh();
+
+        let cancellations = runtime
+            .bridge()
+            .reduced
+            .iter()
+            .filter_map(|message| match message {
+                KnobDomainMessage::GestureCancelled {
+                    start_value,
+                    previous_value,
+                    reason,
+                    metadata,
+                } => Some((*start_value, *previous_value, *reason, *metadata)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(cancellations.len(), 1);
+        let (start_value, previous_value, reason, metadata) = cancellations[0];
+        assert!((start_value - 20.0).abs() < 0.0001);
+        assert!((previous_value - 30.0).abs() < 0.0001);
+        assert_eq!(reason, KnobDomainCancellationReason::DisabledOrReadOnly);
+        assert_eq!(metadata, KnobPointerMetadata::empty());
+        assert!((runtime.bridge().value - 20.0).abs() < 0.0001);
+        assert_eq!(runtime.pointer_capture(), None);
+        assert_eq!(runtime.focused_widget(), None);
+
+        let successor = runtime
+            .surface
+            .find_widget(20)
+            .expect("domain successor should remain installed")
+            .widget()
+            .as_any()
+            .downcast_ref::<RetainedKnobDomainWidget<RefreshKnobDomainAdjustment>>()
+            .expect("domain successor should retain its concrete wrapper");
+        assert!(
+            (successor.domain_value - 20.0).abs() < 0.0001,
+            "successor domain value was {} while durable value is {}",
+            successor.domain_value,
+            runtime.bridge().value
+        );
+        assert!((successor.knob.state.value - 0.2).abs() < 0.0001);
+        assert_eq!(
+            successor.knob.common.state.disabled,
+            mode == KnobDomainRefreshMode::Disabled
+        );
+        assert_eq!(
+            successor.knob.common.state.read_only,
+            mode == KnobDomainRefreshMode::ReadOnly
+        );
+
+        runtime.refresh();
+        let _ = runtime.dispatch_event(Event::primary_release(moved));
+        assert_eq!(
+            runtime
+                .bridge()
+                .reduced
+                .iter()
+                .filter(|message| matches!(message, KnobDomainMessage::GestureCancelled { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(runtime.pointer_capture(), None);
+        assert_eq!(runtime.focused_widget(), None);
+    }
+
+    #[test]
+    fn knob_domain_disabled_reprojection_cancels_active_gesture_once() {
+        exercise_knob_domain_authority_loss(KnobDomainRefreshMode::Disabled);
+    }
+
+    #[test]
+    fn knob_domain_read_only_reprojection_cancels_active_gesture_once() {
+        exercise_knob_domain_authority_loss(KnobDomainRefreshMode::ReadOnly);
     }
 
     #[derive(Clone, Copy)]

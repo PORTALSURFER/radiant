@@ -7,9 +7,10 @@ use crate::{
     },
     runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
-        ButtonWidget, EditPhase, KnobMessage, KnobPointerMetadata, KnobWidget, PointerButton,
-        PointerModifiers, ScrollbarAxis, ScrollbarWidget, Widget, WidgetCommon, WidgetInput,
-        WidgetOutput, WidgetRevision, WidgetSizing,
+        ButtonWidget, EditPhase, KnobDomainCancellationReason, KnobDomainMessage, KnobMessage,
+        KnobPointerMetadata, KnobWidget, NumericAdjustment, NumericStep, NumericStepDirection,
+        PointerButton, PointerModifiers, RetainedKnobDomainWidget, ScrollbarAxis, ScrollbarWidget,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetSizing,
     },
 };
 use std::collections::HashMap;
@@ -51,6 +52,124 @@ fn mapped_knob(value: f32, disabled: bool) -> SurfaceNode<KnobMessage> {
         knob,
         WidgetMessageMapper::typed(|message: KnobMessage| message),
     )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeDomainError {
+    Policy,
+}
+
+#[derive(Clone, Copy)]
+struct RuntimeDomainAdjustment;
+
+impl NumericAdjustment<f32> for RuntimeDomainAdjustment {
+    type Error = RuntimeDomainError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+        Ok(10.0 + normalized * 100.0)
+    }
+
+    fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+        Ok((*value - 10.0) / 100.0)
+    }
+
+    fn step(
+        &self,
+        _value: &f32,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        Err(RuntimeDomainError::Policy)
+    }
+
+    fn scrub(
+        &self,
+        _value: &f32,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        Err(RuntimeDomainError::Policy)
+    }
+
+    fn wheel(&self, _value: &f32, _delta: f32, _step: NumericStep) -> Result<f32, Self::Error> {
+        Err(RuntimeDomainError::Policy)
+    }
+}
+
+fn mapped_domain_knob() -> SurfaceNode<KnobDomainMessage<RuntimeDomainError>> {
+    let adjustment = RuntimeDomainAdjustment;
+    let domain_value = 20.0;
+    let default_domain_value = 10.0;
+    let normalized_value = crate::widgets::domain_initial_normalized(domain_value, &adjustment)
+        .expect("runtime current inverse should succeed");
+    let default_normalized_value =
+        crate::widgets::domain_initial_normalized(default_domain_value, &adjustment)
+            .expect("runtime default inverse should succeed");
+    let knob = KnobWidget::new(34, normalized_value)
+        .with_default_value(default_normalized_value)
+        .with_sensitivity(0.01);
+    SurfaceNode::widget(
+        RetainedKnobDomainWidget::new(
+            knob,
+            Rc::new(adjustment),
+            domain_value,
+            default_domain_value,
+            default_normalized_value,
+        ),
+        WidgetMessageMapper::typed(|message: KnobDomainMessage<RuntimeDomainError>| message),
+    )
+}
+
+#[test]
+fn domain_knob_surface_routes_explicit_pointer_capture_cancellation() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let mut root = mapped_domain_knob();
+    assert!(matches!(
+        root.dispatch_input_at_path(
+            34,
+            &[],
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        ),
+        Some(WidgetDispatchResult::Message(
+            KnobDomainMessage::GestureStarted { value: 20.0, .. }
+        ))
+    ));
+    assert!(matches!(
+        root.dispatch_input_at_path(
+            34,
+            &[],
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0))
+        ),
+        Some(WidgetDispatchResult::Message(
+            KnobDomainMessage::ValueChanged { value, .. }
+        )) if (value - 30.0).abs() < 0.0001
+    ));
+
+    let Some(WidgetDispatchResult::Message(cancel)) =
+        root.dispatch_pointer_capture_cancelled_at_path(34, &[], bounds)
+    else {
+        panic!("domain Knob should route an explicit capture cancellation");
+    };
+    assert!(matches!(
+        cancel,
+        KnobDomainMessage::GestureCancelled {
+            start_value,
+            previous_value,
+            reason: KnobDomainCancellationReason::PointerCaptureLoss,
+            ..
+        } if (start_value - 20.0).abs() < 0.0001 && (previous_value - 30.0).abs() < 0.0001
+    ));
+    let widget = root
+        .find_widget_at_path(&[])
+        .expect("domain Knob exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<RetainedKnobDomainWidget<RuntimeDomainAdjustment>>()
+        .expect("domain Knob type is retained");
+    assert_eq!(widget.domain_value, 20.0);
+    assert!(!widget.knob.common.state.pressed);
 }
 
 #[test]

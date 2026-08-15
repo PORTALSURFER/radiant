@@ -45,8 +45,8 @@ pub use interactive_row::{
     InteractiveRowPointerMotion, InteractiveRowProps, InteractiveRowVisualStateParts,
     InteractiveRowWidget, InteractiveRowWidgetParts,
 };
-pub(crate) use knob::RetainedKnobWidget;
 pub use knob::{KnobProps, KnobState, KnobWidget, KnobWidgetParts};
+pub(crate) use knob::{RetainedKnobDomainWidget, RetainedKnobWidget, domain_initial_normalized};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
 pub use marker_run::{
     ColorMarkerRunProps, ColorMarkerRunWidget, ColorMarkerRunWidgetParts, MarkerRunAlign,

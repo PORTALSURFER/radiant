@@ -48,7 +48,7 @@ pub use interactive_row::{
     InteractiveRowUnderlayBuilder, interactive_row, interactive_row_underlay, row_actions,
     row_actions_local,
 };
-pub use knob::{KnobBuilder, knob, knob_edit_mapped, knob_mapped};
+pub use knob::{KnobBuilder, KnobDomainBuilder, knob, knob_domain, knob_edit_mapped, knob_mapped};
 pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
 pub use numeric_input::{NumericInputBuilder, numeric_input};
 pub use pointer_shield::{

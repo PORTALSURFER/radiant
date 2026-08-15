@@ -1,9 +1,13 @@
 //! Reusable radial knob primitive with explicit host-automation gestures.
 
 mod builders;
+mod domain;
 mod input;
 mod retained;
 
+pub(crate) use domain::{
+    RetainedKnobDomainWidget, initial_normalized as domain_initial_normalized,
+};
 pub(crate) use retained::RetainedKnobWidget;
 
 use std::f32::consts::TAU;

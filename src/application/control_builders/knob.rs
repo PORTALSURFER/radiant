@@ -1,9 +1,12 @@
+use std::rc::Rc;
+
 use crate::{
     application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{
-        KnobEditBatch, KnobMessage, KnobWidget, RetainedKnobWidget, ValueFormat, WidgetProminence,
-        WidgetSizing, WidgetStyle,
+        KnobDomainError, KnobDomainMessage, KnobEditBatch, KnobMessage, KnobWidget,
+        NumericAdjustment, RetainedKnobDomainWidget, RetainedKnobWidget, ValueFormat,
+        WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -91,8 +94,8 @@ impl KnobBuilder {
         self.finish(WidgetMessageMapper::knob_edits(map))
     }
 
-    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
-        let mut knob = KnobWidget::new(0, self.value);
+    fn knob_widget(&self, value: f32) -> KnobWidget {
+        let mut knob = KnobWidget::new(0, value);
         if let Some(default_value) = self.default_value {
             knob = knob.with_default_value(default_value);
         }
@@ -104,11 +107,125 @@ impl KnobBuilder {
         }
         knob.common.state.disabled = !self.enabled;
         knob.common.state.automation_active = self.automation_active;
+        knob
+    }
+
+    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
+        let knob = self.knob_widget(self.value);
         let mut node = view_node_from_widget(MappedWidget::new(
             RetainedKnobWidget::new(knob).with_value_format(self.value_format),
             messages,
         ));
         node.style = self.style;
+        node
+    }
+}
+
+/// Builder for a radial knob whose interaction is projected into an
+/// application-owned `f32` domain.
+pub struct KnobDomainBuilder<A> {
+    normalized_value: f32,
+    domain_value: f32,
+    normalized_default_value: f32,
+    default_domain_value: f32,
+    adjustment: Rc<A>,
+    knob: KnobBuilder,
+}
+
+impl<A> KnobDomainBuilder<A> {
+    /// Apply an explicit widget style.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.knob = self.knob.style(style);
+        self
+    }
+
+    /// Use the accent tone and strong prominence.
+    pub fn primary(self) -> Self {
+        self.style(primary_style())
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        self.knob = self.knob.subtle();
+        self
+    }
+
+    /// Set and validate the cached domain value restored by reset gestures.
+    pub fn default_value(self, value: f32) -> Result<Self, KnobDomainError<A::Error>>
+    where
+        A: NumericAdjustment<f32>,
+    {
+        let normalized_value =
+            crate::widgets::domain_initial_normalized(value, self.adjustment.as_ref())?;
+        Ok(Self {
+            normalized_default_value: normalized_value,
+            default_domain_value: value,
+            ..self
+        })
+    }
+
+    /// Set vertical pointer sensitivity.
+    pub fn sensitivity(mut self, sensitivity: f32) -> Self {
+        self.knob = self.knob.sensitivity(sensitivity);
+        self
+    }
+
+    /// Set a compact fixed diameter.
+    pub fn diameter(mut self, diameter: f32) -> Self {
+        self.knob = self.knob.diameter(diameter);
+        self
+    }
+
+    /// Enable or disable interaction.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.knob = self.knob.enabled(enabled);
+        self
+    }
+
+    /// Paint the host-automation cue on the control.
+    pub fn automation_active(mut self, active: bool) -> Self {
+        self.knob = self.knob.automation_active(active);
+        self
+    }
+
+    /// Attach a display-only policy for the mapped domain value text.
+    pub fn format(mut self, format: ValueFormat) -> Self {
+        self.knob = self.knob.format(format);
+        self
+    }
+
+    /// Emit typed domain lifecycle messages.
+    pub fn message<Message: 'static>(
+        self,
+        map: impl Fn(KnobDomainMessage<A::Error>) -> Message + 'static,
+    ) -> ViewNode<Message>
+    where
+        A: NumericAdjustment<f32> + 'static,
+        A::Error: Clone + 'static,
+    {
+        let Self {
+            normalized_value,
+            domain_value,
+            normalized_default_value,
+            default_domain_value,
+            adjustment,
+            mut knob,
+        } = self;
+        knob.default_value = Some(normalized_default_value);
+        let value_format = knob.value_format;
+        let style = knob.style;
+        let knob = knob.knob_widget(normalized_value);
+        let widget = RetainedKnobDomainWidget::new(
+            knob,
+            adjustment,
+            domain_value,
+            default_domain_value,
+            normalized_default_value,
+        )
+        .with_value_format(value_format);
+        let mut node =
+            view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)));
+        node.style = style;
         node
     }
 }
@@ -125,6 +242,26 @@ pub fn knob(value: f32) -> KnobBuilder {
         automation_active: false,
         value_format: None,
     }
+}
+
+/// Build a radial knob whose input values are mapped through an application-
+/// owned `f32` adjustment.
+pub fn knob_domain<A>(
+    value: f32,
+    adjustment: A,
+) -> Result<KnobDomainBuilder<A>, KnobDomainError<A::Error>>
+where
+    A: NumericAdjustment<f32>,
+{
+    let normalized_value = crate::widgets::domain_initial_normalized(value, &adjustment)?;
+    Ok(KnobDomainBuilder {
+        normalized_value,
+        domain_value: value,
+        normalized_default_value: normalized_value,
+        default_domain_value: value,
+        adjustment: Rc::new(adjustment),
+        knob: knob(normalized_value),
+    })
 }
 
 /// Build a radial knob that maps all gesture lifecycle outputs.

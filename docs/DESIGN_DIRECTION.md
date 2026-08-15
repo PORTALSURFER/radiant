@@ -2760,7 +2760,48 @@ unchanged.
 
 This slice has explicit non-goals: no domain edit batch or `on_edit` API, no
 text consumer, no `NumericAdjustment` step/scrub/wheel routing, and no domain
-mapping for `Knob`. Knob domain mapping remains a separate future slice.
+mapping for `Knob`. The separate Knob domain consumer is defined below.
+
+### Additive Knob domain mapping
+
+The qualified `radiant::application::knob_domain(value, adjustment)` consumer
+is now executable for the shipped Knob primitive:
+
+```rust
+use radiant::application::{knob_domain, KnobDomainBuilder};
+use radiant::widgets::{KnobDomainMessage, NumericAdjustment, ValueFormat};
+
+let knob: KnobDomainBuilder<DomainAdjustment> =
+    knob_domain(state.cutoff, DomainAdjustment::new())?.default_value(20.0)?;
+let view = knob
+    .format(ValueFormat::frequency())
+    .message(|message: KnobDomainMessage<AdjustmentError>| Message::CutoffDomain(message));
+```
+
+`knob_domain(value: f32, adjustment: A)` returns
+`Result<KnobDomainBuilder<A>, KnobDomainError<A::Error>>` for
+`A: NumericAdjustment<f32>`. The builder and constructor are qualified
+application exports. `KnobDomainMessage`, `KnobDomainError`,
+`KnobDomainMappingAttempt`, and `KnobDomainCancellationReason` are qualified
+interaction exports with matching `radiant::widgets` re-exports; none are in
+the common prelude. Construction and `default_value(...)` perform one finite,
+checked inverse mapping each, cache their domain/normalized pairs, and never
+clamp an invalid inverse result. Only `message(...)` adds
+`A: 'static, A::Error: Clone + 'static`.
+
+The domain path preserves pointer start/update/end, explicit focus-loss,
+pointer-capture-loss, and disabled/read-only cancellation in domain space.
+Keyboard and wheel changes are atomic fixed-array three-event domain gestures
+with the existing Knob keyboard, wheel, and pointer metadata types. Reset
+emits once, including for a no-op, and uses its cached domain default without
+remapping. Accepted pointer, keyboard, and wheel candidates are checked for a
+finite normalized value in `0.0..=1.0` before exactly one forward adjustment
+call. A typed `MappingFailed` output retains the prior domain value and no
+partial gesture; nonterminal pointer and atomic keyboard/wheel failures restore
+the full pre-input state, while terminal cleanup is never resurrected.
+Formatting remains display-only domain formatting. The slice adds no domain
+edit batch or `on_edit` API, text codec, or adjustment step/scrub/wheel policy,
+and leaves normalized Knob, Slider, and common-prelude APIs source-compatible.
 
 `NumericEditSession<T>` is the shipped, parser-agnostic foundation for numeric
 editing buffers. It retains caller-provided draft text verbatim and one
@@ -2868,9 +2909,9 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   supplied until a named consumer requires them.
 - Slider and Knob remain separate controls. Their existing normalized `f32`
   APIs stay source-compatible; Slider's additive domain mapping uses the
-  shared adjustment contract in the bounded slice above, while Knob domain
-  mapping remains a separate later slice. Numeric text codecs are not
-  retrofitted into either control.
+  shared adjustment contract in the bounded slice above, and Knob's additive
+  domain mapping uses the same contract in its qualified consumer. Numeric
+  text codecs are not retrofitted into either control.
 
 The target `numeric_input` example is illustrative; `FrequencyCodec` and
 `FrequencyAdjustment` are application-provided policy names:
@@ -3893,8 +3934,8 @@ transaction start without committing. Official retained Knob lowering also
 delivers typed `Cancel` for both interruption reasons, including no-op active
 gestures; its legacy projections keep focus-loss `GestureEnded` with the last
 value and suppress pointer-capture cancellation. Numeric text editing remains
-a separate consumer; Slider and Knob domain mapping are separate adoption
-slices. Knob is also shipped, and PanelResizeState is the next shipped
+a separate consumer; Slider and Knob domain mapping are separate qualified
+consumers. Knob is also shipped, and PanelResizeState is the next shipped
 shared-edit consumer; the generic `LayoutInteraction` capability and runtime
 `split_pane` construction remain future work.
 The target API will allow applications to provide a custom mapping only when it
@@ -3923,21 +3964,16 @@ presentation opportunity, while preserving accumulated deltas where relevant.
 Capture loss, focus loss, or an interrupted gesture produces cancellation
 deterministically.
 
-The following `Knob` snippet illustrates the eventual domain-control API.
-`Knob` is shipped, and its builder-level `.format(ValueFormat::frequency())`
-display attachment is shipped; its domain mapping remains a separate adoption
-slice after the generic numeric contract.
+The additive Knob domain consumer is shipped alongside the normalized Knob
+control. Its builder-level `.format(ValueFormat::frequency())` attachment is
+display-only, and its domain mapping remains independent of numeric text and
+adjustment step/scrub/wheel policy.
 
 ```rust
-knob(state.cutoff, 20.0..=20_000.0)
+knob_domain(state.cutoff, FrequencyAdjustment::new())?
+    .default_value(20.0)?
     .format(ValueFormat::frequency())
-    .on_edit(Message::CutoffEdit);
-
-fn reduce(state: &mut AppState, event: EditEvent<f32>) -> Effects<Message> {
-    state.undo.apply_edit(event.transaction, event.phase, event.value);
-    state.controls.apply(event);
-    Effects::none()
-}
+    .message(|message: KnobDomainMessage<AdjustmentError>| Message::CutoffDomain(message));
 ```
 
 The application chooses undo grouping, realtime publication, and whether a

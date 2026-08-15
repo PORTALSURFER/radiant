@@ -1,6 +1,7 @@
 //! Container-specific layout policy values.
 
 use super::{CrossAlign, Insets, MainAlign, OverflowPolicy, VirtualizationPolicy};
+use crate::gui::panel::SplitPaneAxis;
 use crate::gui::types::{Point, Vector2};
 
 /// Grid-specific policy values.
@@ -62,6 +63,33 @@ impl Default for FloatingLayerPolicy {
             size: Vector2::new(0.0, 0.0),
             horizontal_overflow: FloatingLayerHorizontalOverflow::Fixed,
             vertical_overflow: FloatingLayerVerticalOverflow::Fixed,
+        }
+    }
+}
+
+/// Static two-pane split policy values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SplitPanePolicy {
+    /// Axis along which the first and second panes are ordered.
+    pub axis: SplitPaneAxis,
+    /// Requested normalized extent of the first pane.
+    pub initial_ratio: f32,
+    /// Requested divider extent along the split axis.
+    pub divider_extent: f32,
+    /// Requested minimum extent for the first pane.
+    pub first_min_extent: f32,
+    /// Requested minimum extent for the second pane.
+    pub second_min_extent: f32,
+}
+
+impl Default for SplitPanePolicy {
+    fn default() -> Self {
+        Self {
+            axis: SplitPaneAxis::Horizontal,
+            initial_ratio: 0.5,
+            divider_extent: 0.0,
+            first_min_extent: 0.0,
+            second_min_extent: 0.0,
         }
     }
 }
@@ -137,6 +165,8 @@ pub enum ContainerKind {
     SwitchLayout,
     /// Place one child at explicit floating coordinates without contributing intrinsic size.
     FloatingLayer,
+    /// Lay out exactly two ordered panes along one axis with a static divider position.
+    SplitPane,
 }
 
 /// Shared policy configuration for container nodes.
@@ -160,6 +190,8 @@ pub struct ContainerPolicy {
     pub wrap: WrapPolicy,
     /// Floating-layer-specific child placement.
     pub floating: FloatingLayerPolicy,
+    /// Static split-pane placement values.
+    pub split_pane: SplitPanePolicy,
     /// Aspect ratio used by `AspectBox` (width / height).
     pub aspect_ratio: Option<f32>,
     /// Branch selection ranges for `SwitchLayout`.
@@ -180,6 +212,7 @@ impl Default for ContainerPolicy {
             grid: GridPolicy::default(),
             wrap: WrapPolicy::default(),
             floating: FloatingLayerPolicy::default(),
+            split_pane: SplitPanePolicy::default(),
             aspect_ratio: None,
             switch_breakpoints: Vec::new(),
             virtualization: None,

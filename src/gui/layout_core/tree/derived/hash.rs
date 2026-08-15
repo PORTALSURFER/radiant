@@ -27,6 +27,11 @@ pub(super) fn policy_hash(policy: &ContainerPolicy, hasher: &mut impl Hasher) {
     hash_f32(policy.floating.size.y, hasher);
     floating_horizontal_overflow_code(policy.floating.horizontal_overflow).hash(hasher);
     floating_vertical_overflow_code(policy.floating.vertical_overflow).hash(hasher);
+    split_pane_axis_code(policy.split_pane.axis).hash(hasher);
+    hash_f32(policy.split_pane.initial_ratio, hasher);
+    hash_f32(policy.split_pane.first_min_extent, hasher);
+    hash_f32(policy.split_pane.second_min_extent, hasher);
+    hash_f32(policy.split_pane.divider_extent, hasher);
     policy.aspect_ratio.map(f32::to_bits).hash(hasher);
     for breakpoint in &policy.switch_breakpoints {
         hash_f32(breakpoint.min_width, hasher);
@@ -72,6 +77,14 @@ fn container_kind_code(value: ContainerKind) -> u8 {
         ContainerKind::Wrap => 8,
         ContainerKind::SwitchLayout => 9,
         ContainerKind::FloatingLayer => 10,
+        ContainerKind::SplitPane => 11,
+    }
+}
+
+fn split_pane_axis_code(value: crate::gui::panel::SplitPaneAxis) -> u8 {
+    match value {
+        crate::gui::panel::SplitPaneAxis::Horizontal => 0,
+        crate::gui::panel::SplitPaneAxis::Vertical => 1,
     }
 }
 

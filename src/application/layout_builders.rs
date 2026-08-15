@@ -10,6 +10,7 @@ mod scene;
 mod scroll;
 mod shell;
 mod slots;
+mod split_pane;
 mod toolbar;
 
 pub use collection::{Children, Keyed, children, for_each, for_each_by};
@@ -41,4 +42,5 @@ pub use scene::{Overlays, Scene, overlays, scene};
 pub use scroll::{scroll, virtual_scroll};
 pub use shell::{WorkspaceShellBuilder, workspace_shell};
 pub use slots::{fixed_slot_if, fixed_slot_opt};
+pub use split_pane::{SplitPaneBuilder, split_pane};
 pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};

@@ -88,6 +88,19 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     ),
     ("list", &["list(", "list_row(", ".fill_height()"]),
     (
+        "split_pane_static",
+        &[
+            "use radiant::prelude as ui;",
+            "split_pane(",
+            ".axis(SplitPaneAxis::Horizontal)",
+            ".initial_ratio(0.35)",
+            ".min_first(32.0)",
+            ".min_second(64.0)",
+            ".divider_extent(8.0)",
+            "static_split_layout",
+        ],
+    ),
+    (
         "logical_provider_attachment",
         &[
             "use radiant::prelude as ui;",

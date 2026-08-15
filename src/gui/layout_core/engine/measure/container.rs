@@ -4,6 +4,7 @@ mod boxes;
 mod grid;
 mod linear;
 mod scroll;
+mod split_pane;
 mod wrap;
 
 use super::super::LayoutContext;
@@ -41,6 +42,7 @@ pub(super) fn measure_container(
         ContainerKind::Wrap => wrap::measure_wrap(container, inner, context),
         ContainerKind::SwitchLayout => boxes::measure_switch_layout(container, inner, context),
         ContainerKind::FloatingLayer => boxes::measure_floating_layer(container, context),
+        ContainerKind::SplitPane => split_pane::measure_split_pane(container, inner, context),
     };
 
     Vector2::new(

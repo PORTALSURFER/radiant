@@ -22,6 +22,10 @@ pub enum LayoutDiagnosticCode {
     VirtualizationAlignmentFallback,
     /// Virtualization fell back because span resolution could not be trusted.
     VirtualizationSpanResolutionFallback,
+    /// A split-pane container did not receive exactly two children.
+    SplitPaneChildCountMismatch,
+    /// A split-pane container could not satisfy both requested pane minima.
+    SplitPaneMinimumsUnsatisfied,
 }
 
 /// Layout diagnostic emitted when invalid states are normalized.

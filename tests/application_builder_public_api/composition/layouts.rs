@@ -2,6 +2,65 @@ use super::super::*;
 use radiant::application as app;
 
 #[test]
+fn application_split_pane_is_a_static_two_child_builder_with_identity_continuity() {
+    use radiant::{layout::SplitPaneAxis, prelude as ui, prelude::IntoView};
+
+    let builder: app::SplitPaneBuilder<()> =
+        app::split_pane(ui::text("First").id(101), ui::text("Second").id(102))
+            .axis(SplitPaneAxis::Vertical)
+            .initial_ratio(0.25)
+            .divider_extent(8.0)
+            .min_first(24.0)
+            .min_second(32.0);
+    let view: ui::View<()> = builder.into_view();
+    let surface = view.into_surface();
+    let layout_node = surface.layout_node();
+    let radiant::layout::LayoutNode::Container(container) = &layout_node else {
+        panic!("split_pane should lower to a dedicated container");
+    };
+
+    assert_eq!(
+        container.policy.kind,
+        radiant::layout::ContainerKind::SplitPane
+    );
+    assert_eq!(container.children.len(), 2);
+    assert_eq!(container.children[0].child.id(), 101);
+    assert_eq!(container.children[1].child.id(), 102);
+
+    let layout = layout_tree(
+        &layout_node,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 160.0)),
+    );
+    assert_eq!(layout.rects[&101].height(), 38.0);
+    assert_eq!(layout.rects[&102].min.y, 46.0);
+    assert_eq!(layout.rects[&102].height(), 114.0);
+    assert!(surface.find_widget(101).is_some());
+    assert!(surface.find_widget(102).is_some());
+}
+
+#[test]
+fn application_split_pane_defaults_match_the_shared_geometry_contract() {
+    use radiant::{layout::ContainerKind, prelude as ui, prelude::IntoView};
+
+    let view: ui::View<()> = ui::split_pane(ui::text("First"), ui::text("Second")).into_view();
+    let layout_node = view.into_surface().layout_node();
+    let radiant::layout::LayoutNode::Container(container) = layout_node else {
+        panic!("split_pane should lower to a dedicated container");
+    };
+
+    assert_eq!(container.policy.kind, ContainerKind::SplitPane);
+    assert_eq!(container.children.len(), 2);
+    assert_eq!(
+        container.policy.split_pane.axis,
+        radiant::layout::SplitPaneAxis::Horizontal
+    );
+    assert_eq!(container.policy.split_pane.initial_ratio, 0.5);
+    assert_eq!(container.policy.split_pane.divider_extent, 0.0);
+    assert_eq!(container.policy.split_pane.first_min_extent, 0.0);
+    assert_eq!(container.policy.split_pane.second_min_extent, 0.0);
+}
+
+#[test]
 fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     use radiant::prelude::{self as ui, IntoView};
 

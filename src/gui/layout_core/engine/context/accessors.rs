@@ -1,4 +1,5 @@
 use super::LayoutContext;
+use crate::gui::layout_core::MountedContainerStateRead;
 use crate::gui::layout_core::engine::cache::{
     CachedVirtualMetrics, LinearVirtualMetrics, MeasureCacheKey, ResolvedLinearWindow,
     VirtualizationCacheKey,
@@ -97,6 +98,14 @@ impl<'a> LayoutContext<'a> {
 
     pub(crate) fn scroll_offset(&self, node_id: NodeId) -> Vector2 {
         self.state.scroll_offset(node_id)
+    }
+
+    pub(crate) fn container_state_read(
+        &self,
+        container_id: NodeId,
+    ) -> Option<MountedContainerStateRead<'_>> {
+        self.container_state_source
+            .and_then(|source| source.read_container_state(container_id))
     }
 
     fn records_measured_bounds(&self) -> bool {

@@ -10,6 +10,7 @@ mod accessors;
 mod clamp;
 mod diagnostics;
 
+use super::LayoutContainerStateReadSource;
 use super::cache::{
     CachedVirtualMetrics, MeasureCacheKey, ResolvedLinearWindow, VirtualizationCacheKey,
 };
@@ -50,6 +51,7 @@ pub(super) struct LayoutContext<'a> {
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
     debug_node_filter: Option<&'a HashSet<NodeId>>,
+    container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
     pub(super) output: &'a mut LayoutOutput,
 }
 
@@ -62,6 +64,7 @@ pub(super) struct LayoutContextParts<'a> {
     pub(super) state: &'a LayoutState,
     pub(super) debug_options: LayoutDebugOptions,
     pub(super) debug_node_filter: Option<&'a HashSet<NodeId>>,
+    pub(super) container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
 }
 
 impl<'a> LayoutContext<'a> {
@@ -92,6 +95,7 @@ impl<'a> LayoutContext<'a> {
             state: parts.state,
             debug_options: parts.debug_options,
             debug_node_filter: parts.debug_node_filter,
+            container_state_source: parts.container_state_source,
             output: parts.output,
         }
     }

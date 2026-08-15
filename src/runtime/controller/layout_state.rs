@@ -1,7 +1,9 @@
 //! Runtime-owned bounded state for state-aware layout interactions.
 
 use crate::{
-    gui::layout_core::{MountedContainerStateId, MountedContainerStateRead},
+    gui::layout_core::{
+        LayoutContainerStateReadSource, MountedContainerStateId, MountedContainerStateRead,
+    },
     layout::{ContainerStateDeclaration, ContainerStateId, LayoutContainerStateContext, NodeId},
 };
 use std::any::Any;
@@ -122,6 +124,39 @@ pub(super) struct RuntimeLayoutContainerStateCandidate {
     diagnostics: SurfaceLayoutStateDiagnostics,
 }
 
+impl RuntimeLayoutContainerStateCandidate {
+    fn read_exact<'a>(
+        &'a self,
+        accepted: &'a RuntimeLayoutContainerStateStore,
+        container_id: NodeId,
+        mounted_id: MountedContainerStateId,
+    ) -> Option<MountedContainerStateRead<'a>> {
+        let slot = self
+            .slots
+            .iter()
+            .find(|slot| slot.id.container_id() == container_id)?;
+        if slot.mounted_id != mounted_id {
+            return None;
+        }
+        if let Some(value) = slot.value.as_ref() {
+            return Some(MountedContainerStateRead::new(
+                slot.mounted_id,
+                value.as_ref(),
+            ));
+        }
+        accepted.lookup_current_state_view(slot.mounted_id)
+    }
+}
+
+/// Immutable source combining one provisional candidate with the exact
+/// accepted values it retains. Candidate entries are authoritative: when a
+/// container is replaced, its staged value is visible and the retiring value
+/// is deliberately not a fallback.
+pub(super) struct RuntimeLayoutContainerStateReadSource<'a> {
+    candidate: &'a RuntimeLayoutContainerStateCandidate,
+    accepted: &'a RuntimeLayoutContainerStateStore,
+}
+
 pub(super) struct RuntimeLayoutContainerStateStore {
     slots: Vec<RuntimeLayoutContainerStateSlot>,
     next_mount_generation: u64,
@@ -170,7 +205,6 @@ impl RuntimeLayoutContainerStateStore {
             .map(|slot| slot.value.as_mut())
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(super) fn lookup_current_state_view(
         &self,
         mounted_id: MountedContainerStateId,
@@ -182,6 +216,16 @@ impl RuntimeLayoutContainerStateStore {
                     && slot.mounted_id.generation() == mounted_id.generation()
             })
             .map(|slot| MountedContainerStateRead::new(slot.mounted_id, slot.value.as_ref()))
+    }
+
+    pub(super) fn read_source<'a>(
+        &'a self,
+        candidate: &'a RuntimeLayoutContainerStateCandidate,
+    ) -> RuntimeLayoutContainerStateReadSource<'a> {
+        RuntimeLayoutContainerStateReadSource {
+            candidate,
+            accepted: self,
+        }
     }
 
     pub(super) fn prepare(
@@ -350,6 +394,19 @@ impl RuntimeLayoutContainerStateStore {
     #[cfg(test)]
     pub(super) fn next_mount_generation_for_test(&self) -> u64 {
         self.next_mount_generation
+    }
+}
+
+impl LayoutContainerStateReadSource for RuntimeLayoutContainerStateReadSource<'_> {
+    fn read_container_state(&self, container_id: NodeId) -> Option<MountedContainerStateRead<'_>> {
+        let mounted_id = self
+            .candidate
+            .slots
+            .iter()
+            .find(|slot| slot.id.container_id() == container_id)
+            .map(|slot| slot.mounted_id)?;
+        self.candidate
+            .read_exact(self.accepted, container_id, mounted_id)
     }
 }
 
@@ -861,6 +918,86 @@ mod tests {
         let foreign_token = MountedContainerStateId::new(foreign_id, current_token.generation());
 
         assert!(store.lookup_current_state_view(foreign_token).is_none());
+    }
+
+    #[test]
+    fn candidate_source_reads_fresh_state_with_candidate_mount_generation() {
+        let declaration = ContainerStateDeclaration::new::<u32, _>(16, 1, || 11);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        let candidate = store.prepare(std::slice::from_ref(&declaration));
+        let mounted_id = candidate.slots[0].mounted_id;
+        {
+            let source = store.read_source(&candidate);
+            let read = source
+                .read_container_state(declaration.container_id())
+                .expect("fresh candidate state");
+            assert_eq!(read.mounted_id(), mounted_id);
+            assert_eq!(read.get::<u32>().copied(), Some(11));
+        }
+
+        assert!(store.lookup_current_state_view(mounted_id).is_none());
+    }
+
+    #[test]
+    fn candidate_source_reads_retained_state_with_accepted_mount_generation() {
+        let declaration = ContainerStateDeclaration::new::<u32, _>(17, 1, || 3);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&declaration));
+        let mounted_id = store
+            .current_mounted_state_id(declaration.id())
+            .expect("accepted mount generation");
+        store
+            .context(17, Some(declaration.id()))
+            .state_mut::<u32>()
+            .expect("accepted state")
+            .clone_from(&9);
+
+        let candidate = store.prepare(std::slice::from_ref(&declaration));
+        assert!(candidate.slots[0].value.is_none());
+        let source = store.read_source(&candidate);
+        let read = source
+            .read_container_state(declaration.container_id())
+            .expect("retained accepted state");
+
+        assert_eq!(read.mounted_id(), mounted_id);
+        assert_eq!(read.get::<u32>().copied(), Some(9));
+    }
+
+    #[test]
+    fn candidate_source_reads_replacement_state_instead_of_retiring_generation() {
+        let old = ContainerStateDeclaration::new::<u32, _>(18, 1, || 7);
+        let replacement = ContainerStateDeclaration::new::<u32, _>(18, 2, || 13);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&old));
+        let old_mounted_id = store
+            .current_mounted_state_id(old.id())
+            .expect("retiring mount generation");
+        store
+            .context(18, Some(old.id()))
+            .state_mut::<u32>()
+            .expect("retiring state")
+            .clone_from(&19);
+
+        let candidate = store.prepare(std::slice::from_ref(&replacement));
+        let replacement_mounted_id = candidate.slots[0].mounted_id;
+        assert_ne!(old_mounted_id, replacement_mounted_id);
+        {
+            let source = store.read_source(&candidate);
+            let read = source
+                .read_container_state(replacement.container_id())
+                .expect("replacement candidate state");
+
+            assert_eq!(read.mounted_id(), replacement_mounted_id);
+            assert_eq!(read.get::<u32>().copied(), Some(13));
+        }
+        assert_eq!(
+            store
+                .lookup_current_state_view(old_mounted_id)
+                .expect("retiring accepted state remains until commit")
+                .get::<u32>()
+                .copied(),
+            Some(19)
+        );
     }
 
     #[test]

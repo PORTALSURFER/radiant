@@ -159,6 +159,46 @@ impl MountedContainerStateId {
     }
 }
 
+/// Immutable borrowed view of one exact mounted container-state slot.
+///
+/// The mounted identity travels with the view so a read remains associated
+/// with the exact generation that admitted it. The underlying state remains
+/// runtime-local and may be a non-`Send` value.
+#[cfg_attr(not(test), expect(dead_code))]
+#[derive(Clone, Copy)]
+pub(crate) struct MountedContainerStateRead<'a> {
+    mounted_id: MountedContainerStateId,
+    state: &'a dyn Any,
+}
+
+#[cfg_attr(not(test), expect(dead_code))]
+impl<'a> MountedContainerStateRead<'a> {
+    pub(crate) const fn new(mounted_id: MountedContainerStateId, state: &'a dyn Any) -> Self {
+        Self { mounted_id, state }
+    }
+
+    /// Return the exact mounted identity that admitted this view.
+    pub(crate) const fn mounted_id(self) -> MountedContainerStateId {
+        self.mounted_id
+    }
+
+    /// Borrow the state as the requested concrete type.
+    pub(crate) fn downcast_ref<T>(&self) -> Option<&T>
+    where
+        T: 'static,
+    {
+        self.state.downcast_ref::<T>()
+    }
+
+    /// Alias for [`Self::downcast_ref`] for collection-style typed access.
+    pub(crate) fn get<T>(&self) -> Option<&T>
+    where
+        T: 'static,
+    {
+        self.downcast_ref::<T>()
+    }
+}
+
 /// Explicit initializer and typed identity for one layout interaction state.
 ///
 /// The initializer is UI-local and may return values that are not `Send`, such

@@ -2,8 +2,8 @@ use super::super::super::{
     LayoutDiagnosticCode, LayoutEngine, LayoutState, LayoutStats, layout_tree,
 };
 use crate::gui::layout_core::{
-    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, LayoutNode, SizeModeCross,
-    SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
+    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, Insets, LayoutNode,
+    SizeModeCross, SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
@@ -48,6 +48,76 @@ fn child(id: u64, intrinsic: Vector2) -> SlotChild {
 
 fn root_rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
     Rect::from_min_size(Point::new(x, y), Vector2::new(width, height))
+}
+
+fn assert_quantized_tiling(
+    outer: Rect,
+    first: Rect,
+    second: Rect,
+    axis: SplitPaneAxis,
+    expected_first_extent: f32,
+    expected_divider_extent: f32,
+    expected_second_extent: f32,
+) {
+    let (first_end, second_start) = match axis {
+        SplitPaneAxis::Horizontal => (first.max.x, second.min.x),
+        SplitPaneAxis::Vertical => (first.max.y, second.min.y),
+    };
+    assert!(first_end <= second_start);
+    let divider = match axis {
+        SplitPaneAxis::Horizontal => Rect::from_min_max(
+            Point::new(first_end, outer.min.y),
+            Point::new(second_start, outer.max.y),
+        ),
+        SplitPaneAxis::Vertical => Rect::from_min_max(
+            Point::new(outer.min.x, first_end),
+            Point::new(outer.max.x, second_start),
+        ),
+    };
+
+    assert_eq!(
+        match axis {
+            SplitPaneAxis::Horizontal => first.width(),
+            SplitPaneAxis::Vertical => first.height(),
+        },
+        expected_first_extent
+    );
+    assert_eq!(
+        match axis {
+            SplitPaneAxis::Horizontal => divider.width(),
+            SplitPaneAxis::Vertical => divider.height(),
+        },
+        expected_divider_extent
+    );
+    assert_eq!(
+        match axis {
+            SplitPaneAxis::Horizontal => second.width(),
+            SplitPaneAxis::Vertical => second.height(),
+        },
+        expected_second_extent
+    );
+
+    let panes = [first, divider, second];
+    for pane in panes {
+        assert!(pane.min.x >= outer.min.x);
+        assert!(pane.min.y >= outer.min.y);
+        assert!(pane.max.x <= outer.max.x);
+        assert!(pane.max.y <= outer.max.y);
+        match axis {
+            SplitPaneAxis::Horizontal => {
+                assert_eq!(pane.min.y, outer.min.y);
+                assert_eq!(pane.max.y, outer.max.y);
+            }
+            SplitPaneAxis::Vertical => {
+                assert_eq!(pane.min.x, outer.min.x);
+                assert_eq!(pane.max.x, outer.max.x);
+            }
+        }
+    }
+    assert!(!first.overlaps(divider));
+    assert!(!divider.overlaps(second));
+    assert!(!first.overlaps(second));
+    assert_eq!(first.union(divider).union(second), outer);
 }
 
 #[test]
@@ -100,6 +170,71 @@ fn vertical_split_places_first_pane_above_second_pane() {
         Rect::from_min_max(Point::new(20.0, 90.0), Point::new(220.0, 150.0))
     );
     assert!(output.diagnostics.is_empty());
+}
+
+#[test]
+fn horizontal_fractional_split_uses_cumulative_rounded_boundaries() {
+    let root = split_node(
+        split_policy(SplitPaneAxis::Horizontal, 0.525, 0.2, 0.0, 0.0),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+    );
+    let output = layout_tree(&root, root_rect(0.0, 0.0, 9.0, 20.0));
+
+    assert_eq!(output.rects[&1], root_rect(0.0, 0.0, 9.0, 20.0));
+    assert_eq!(output.rects[&2], root_rect(0.0, 0.0, 5.0, 20.0));
+    assert_eq!(output.rects[&3], root_rect(6.0, 0.0, 3.0, 20.0));
+}
+
+#[test]
+fn vertical_fractional_split_uses_cumulative_rounded_boundaries() {
+    let root = split_node(
+        split_policy(SplitPaneAxis::Vertical, 0.53, 0.2, 0.0, 0.0),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+    );
+    let output = layout_tree(&root, root_rect(2.0, 10.0, 20.0, 7.0));
+
+    assert_eq!(output.rects[&1], root_rect(2.0, 10.0, 20.0, 7.0));
+    assert_eq!(output.rects[&2], root_rect(2.0, 10.0, 20.0, 4.0));
+    assert_eq!(output.rects[&3], root_rect(2.0, 15.0, 20.0, 2.0));
+}
+
+#[test]
+fn split_rounds_fractional_content_before_preserving_saturated_divider() {
+    let mut policy = split_policy(SplitPaneAxis::Horizontal, 0.5, 4.5, 0.0, 0.0);
+    policy.padding = Insets::all(0.25);
+    let root = split_node(
+        policy,
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+    );
+    let output = layout_tree(&root, root_rect(0.0, 0.0, 5.0, 2.0));
+    let outer = output.rects[&1];
+    let first = output.rects[&2];
+    let second = output.rects[&3];
+
+    for rect in [first, second] {
+        assert_eq!(rect.min.x, rect.min.x.round());
+        assert_eq!(rect.min.y, rect.min.y.round());
+        assert_eq!(rect.max.x, rect.max.x.round());
+        assert_eq!(rect.max.y, rect.max.y.round());
+    }
+    assert_quantized_tiling(
+        outer,
+        first,
+        second,
+        SplitPaneAxis::Horizontal,
+        0.0,
+        5.0,
+        0.0,
+    );
 }
 
 #[test]
@@ -212,6 +347,105 @@ fn split_saturates_divider_and_handles_zero_size_without_invalid_rectangles() {
             && rect.max.x.is_finite()
             && rect.max.y.is_finite()
     }));
+}
+
+#[test]
+fn split_quantization_handles_divider_boundaries_and_is_deterministic() {
+    for (
+        axis,
+        bounds,
+        ratio,
+        divider_extent,
+        expected_first_extent,
+        expected_divider_extent,
+        expected_second_extent,
+    ) in [
+        (
+            SplitPaneAxis::Horizontal,
+            root_rect(10.0, 20.0, 9.0, 8.0),
+            0.525,
+            0.0,
+            5.0,
+            0.0,
+            4.0,
+        ),
+        (
+            SplitPaneAxis::Horizontal,
+            root_rect(10.0, 20.0, 9.0, 8.0),
+            0.525,
+            0.2,
+            5.0,
+            1.0,
+            3.0,
+        ),
+        (
+            SplitPaneAxis::Horizontal,
+            root_rect(10.0, 20.0, 9.0, 8.0),
+            0.525,
+            100.0,
+            0.0,
+            9.0,
+            0.0,
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            root_rect(10.0, 20.0, 8.0, 7.0),
+            0.53,
+            0.0,
+            4.0,
+            0.0,
+            3.0,
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            root_rect(10.0, 20.0, 8.0, 7.0),
+            0.53,
+            0.2,
+            4.0,
+            1.0,
+            2.0,
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            root_rect(10.0, 20.0, 8.0, 7.0),
+            0.53,
+            100.0,
+            0.0,
+            7.0,
+            0.0,
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            root_rect(10.0, 20.0, 8.0, 0.0),
+            0.53,
+            0.2,
+            0.0,
+            0.0,
+            0.0,
+        ),
+    ] {
+        let root = split_node(
+            split_policy(axis, ratio, divider_extent, 0.0, 0.0),
+            vec![
+                child(2, Vector2::new(10.0, 20.0)),
+                child(3, Vector2::new(20.0, 30.0)),
+            ],
+        );
+        let output = layout_tree(&root, bounds);
+        let repeated = layout_tree(&root, bounds);
+        assert_eq!(output, repeated);
+        assert!(output.diagnostics.is_empty());
+
+        assert_quantized_tiling(
+            output.rects[&1],
+            output.rects[&2],
+            output.rects[&3],
+            axis,
+            expected_first_extent,
+            expected_divider_extent,
+            expected_second_extent,
+        );
+    }
 }
 
 #[test]

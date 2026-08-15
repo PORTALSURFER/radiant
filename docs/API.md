@@ -1456,6 +1456,73 @@ crate-private retained adapter that owns the active transaction; a bare public
 contract and does not carry typed lifecycle state. `Knob` is also a shipped
 shared-edit adopter, and `PanelResizeState` is the next shipped shared-edit
 consumer.
+
+### Additive Slider domain mapping
+
+The executable additive domain consumer is the qualified
+`radiant::application::slider_domain(value, adjustment)` constructor:
+
+```rust
+use radiant::application::{slider_domain, SliderDomainBuilder};
+use radiant::widgets::{
+    NumericAdjustment, SliderDomainError, SliderDomainMessage, ValueFormat,
+};
+
+// `DomainAdjustment` and `AdjustmentError` are application-owned.
+let slider: SliderDomainBuilder<DomainAdjustment> =
+    slider_domain(state.volume, DomainAdjustment::new())?;
+let view = slider
+    .format(ValueFormat::decimal(1))
+    .message(|message: SliderDomainMessage<AdjustmentError>| Message::VolumeDomain(message));
+```
+
+The full generic signature is
+`slider_domain(value: f32, adjustment: A) ->
+Result<SliderDomainBuilder<A>, SliderDomainError<A::Error>>` where
+`A: NumericAdjustment<f32>`. `SliderDomainBuilder` and `slider_domain` are
+qualified exports from `radiant::application`; `SliderDomainMessage` and
+`SliderDomainError` are qualified exports from
+`radiant::widgets::interaction` and are also re-exported from
+`radiant::widgets`. None of these domain-specific names are in the common
+prelude. `SliderDomainBuilder::message(...)` additionally requires
+`A: 'static` and `A::Error: Clone + 'static`; the `slider_domain(...)`
+constructor remains available with only the weaker `A: NumericAdjustment<f32>`
+bound.
+
+Construction is checked and finite. The supplied domain value must be finite;
+the adjustment's `value_to_normalized` inverse must succeed and return a finite
+normalized value in `0.0..=1.0`. The constructor returns
+`SliderDomainError::ValueToNormalized`, `NonFiniteValue`,
+`NonFiniteNormalized`, or `NormalizedOutOfRange` as applicable. It never
+silently clamps an invalid inverse result.
+
+The retained Slider still performs its existing normalized interaction
+lifecycle. An accepted normalized candidate is then checked and passed once to
+`NumericAdjustment::normalized_to_value`. A successful finite result emits
+`SliderDomainMessage::ValueChanged { value }`. An adjustment error, a
+nonfinite domain result, or an invalid normalized candidate emits
+`SliderDomainMessage::MappingFailed { normalized, error }` with the distinct
+`SliderDomainError::NormalizedToValue`, `NonFiniteValue`,
+`NonFiniteNormalized`, or `NormalizedOutOfRange` error. Mapping failure restores
+the previous normalized value and leaves the `domain_value` unchanged for every
+input. For nonterminal input it also restores the prior retained interaction
+state and active edit. For terminal `PointerRelease` and `FocusChanged(false)`
+(including capture cancellation), it retains the normalized handler's cleanup
+instead of resurrecting `pressed` or the active edit. The failed candidate is
+not committed or clamped.
+
+`SliderDomainBuilder::format(ValueFormat)` is display-only and formats the
+mapped domain value. It never formats or exposes the normalized fraction, and
+it does not parse text or change interaction policy. The existing normalized
+`slider(...)`, `slider_mapped(...)`, `slider_edit_mapped(...)`,
+`SliderMessage`, and `SliderEditBatch` contracts remain source-compatible and
+unchanged.
+
+This bounded consumer intentionally does not add a domain edit batch or
+`on_edit` path, numeric text editing, `NumericAdjustment` step/scrub/wheel
+dispatch, or domain mapping for `Knob`. Those are separate non-goals rather
+than implicit behavior of `slider_domain`.
+
 `KnobWidget` follows the same contract through the
 qualified `KnobEditBatch` message. It carries one to four ordered
 `EditEvent<f32>` values in fixed-capacity copy-only storage and exposes the

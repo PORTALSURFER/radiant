@@ -1,14 +1,15 @@
-use crate::widgets::RetainedSliderWidget;
+use crate::widgets::{RetainedSliderDomainWidget, RetainedSliderWidget};
 use crate::{
     application::{
         MappedWidget, ViewNode, default_slider_sizing, primary_style, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        SliderEditBatch, SliderMessage, SliderWidget, ValueFormat, WidgetProminence, WidgetSizing,
-        WidgetStyle,
+        NumericAdjustment, SliderDomainError, SliderDomainMessage, SliderEditBatch, SliderMessage,
+        SliderWidget, ValueFormat, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
+use std::rc::Rc;
 
 /// Builder for horizontal sliders that emit explicit host messages.
 pub struct SliderBuilder {
@@ -89,10 +90,10 @@ impl SliderBuilder {
         self.finish(WidgetMessageMapper::slider_edits(map))
     }
 
-    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
+    fn slider_widget(&self, value: f32) -> SliderWidget {
         let mut slider = SliderWidget::new(
             0,
-            self.value,
+            value,
             self.sizing
                 .map(WidgetSizing::fixed)
                 .unwrap_or_else(default_slider_sizing),
@@ -103,12 +104,101 @@ impl SliderBuilder {
         if let Some(track_height) = self.track_height {
             slider = slider.with_track_height(track_height);
         }
-        slider = slider.with_track_border(self.paints_track_border);
+        slider.with_track_border(self.paints_track_border)
+    }
+
+    fn finish<Message: 'static>(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
+        let slider = self.slider_widget(self.value);
         let mut node = view_node_from_widget(MappedWidget::new(
             RetainedSliderWidget::new(slider).with_value_format(self.value_format),
             messages,
         ));
         node.style = self.style;
+        node
+    }
+}
+
+/// Builder for a horizontal slider with an application-owned `f32` domain.
+pub struct SliderDomainBuilder<A> {
+    normalized_value: f32,
+    domain_value: f32,
+    adjustment: Rc<A>,
+    slider: SliderBuilder,
+}
+
+impl<A> SliderDomainBuilder<A> {
+    /// Apply an explicit widget style before binding this slider.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.slider = self.slider.style(style);
+        self
+    }
+
+    /// Use the accent tone and strong prominence.
+    pub fn primary(self) -> Self {
+        self.style(primary_style())
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        self.slider = self.slider.subtle();
+        self
+    }
+
+    /// Use compact toolbar-friendly slider sizing.
+    pub fn compact(mut self) -> Self {
+        self.slider = self.slider.compact();
+        self
+    }
+
+    /// Control whether this slider paints focus affordances.
+    pub fn paint_focus(mut self, paint: bool) -> Self {
+        self.slider = self.slider.paint_focus(paint);
+        self
+    }
+
+    /// Use an explicit centered track height in logical pixels.
+    pub fn track_height(mut self, height: f32) -> Self {
+        self.slider = self.slider.track_height(height);
+        self
+    }
+
+    /// Paint a passive one-pixel outline around the track.
+    pub fn track_border(mut self) -> Self {
+        self.slider = self.slider.track_border();
+        self
+    }
+
+    /// Attach a display-only policy for the mapped domain value text.
+    pub fn format(mut self, format: ValueFormat) -> Self {
+        self.slider = self.slider.format(format);
+        self
+    }
+
+    /// Emit a host message for accepted domain changes or typed mapping
+    /// failures.
+    pub fn message<Message: 'static>(
+        self,
+        map: impl Fn(SliderDomainMessage<A::Error>) -> Message + 'static,
+    ) -> ViewNode<Message>
+    where
+        A: NumericAdjustment<f32> + 'static,
+        A::Error: Clone + 'static,
+    {
+        let Self {
+            normalized_value,
+            domain_value,
+            adjustment,
+            slider,
+        } = self;
+        let widget = RetainedSliderDomainWidget::new(
+            slider.slider_widget(normalized_value),
+            adjustment,
+            domain_value,
+        )
+        .with_value_format(slider.value_format);
+        let mut node =
+            view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)));
+        node.style = slider.style;
         node
     }
 }
@@ -124,6 +214,24 @@ pub fn slider(value: f32) -> SliderBuilder {
         paints_track_border: false,
         value_format: None,
     }
+}
+
+/// Build a horizontal slider whose input values are mapped through an
+/// application-owned `f32` adjustment.
+pub fn slider_domain<A>(
+    value: f32,
+    adjustment: A,
+) -> Result<SliderDomainBuilder<A>, SliderDomainError<A::Error>>
+where
+    A: NumericAdjustment<f32>,
+{
+    let normalized_value = crate::widgets::initial_normalized(value, &adjustment)?;
+    Ok(SliderDomainBuilder {
+        normalized_value,
+        domain_value: value,
+        adjustment: Rc::new(adjustment),
+        slider: slider(normalized_value),
+    })
 }
 
 /// Build a horizontal normalized slider that maps value changes.

@@ -16,10 +16,11 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
-        InteractionSource, InteractiveRowWidget, KeyboardModifiers, PointerButton,
-        PointerModifiers, PointerPressAdmission, PointerShieldMessage, PointerShieldWidget,
-        SliderEditBatch, TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSizing,
+        InteractionSource, InteractiveRowWidget, KeyboardModifiers, NumericAdjustment, NumericStep,
+        NumericStepDirection, PointerButton, PointerModifiers, PointerPressAdmission,
+        PointerShieldMessage, PointerShieldWidget, RetainedSliderDomainWidget, SliderDomainError,
+        SliderDomainMessage, SliderEditBatch, SliderWidget, TextInputWidget, TextWidget, Widget,
+        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -355,6 +356,102 @@ impl RuntimeBridge<SliderEditBatch> for SliderCaptureBridge {
 
     fn reduce_message(&mut self, message: SliderEditBatch) {
         self.batches.push(message);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DomainAdjustmentError {
+    Forward,
+}
+
+#[derive(Clone)]
+struct FailingReleaseAdjustment {
+    forward_calls: Rc<Cell<usize>>,
+}
+
+impl NumericAdjustment<f32> for FailingReleaseAdjustment {
+    type Error = DomainAdjustmentError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+        let call = self.forward_calls.get() + 1;
+        self.forward_calls.set(call);
+        if call > 1 {
+            Err(DomainAdjustmentError::Forward)
+        } else {
+            Ok(10.0 + normalized * 100.0)
+        }
+    }
+
+    fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+        Ok((*value - 10.0) / 100.0)
+    }
+
+    fn step(
+        &self,
+        _value: &f32,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        panic!("domain slider test must not invoke adjustment steps")
+    }
+
+    fn scrub(
+        &self,
+        _value: &f32,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        panic!("domain slider test must not invoke adjustment scrubbing")
+    }
+
+    fn wheel(&self, _value: &f32, _delta: f32, _step: NumericStep) -> Result<f32, Self::Error> {
+        panic!("domain slider test must not invoke adjustment wheel changes")
+    }
+}
+
+struct FailingDomainSliderBridge {
+    messages: Vec<SliderDomainMessage<DomainAdjustmentError>>,
+    domain_value: f32,
+    forward_calls: Rc<Cell<usize>>,
+}
+
+impl FailingDomainSliderBridge {
+    fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            domain_value: 10.0,
+            forward_calls: Rc::new(Cell::new(0)),
+        }
+    }
+}
+
+impl RuntimeBridge<SliderDomainMessage<DomainAdjustmentError>> for FailingDomainSliderBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<SliderDomainMessage<DomainAdjustmentError>>> {
+        let normalized_value = (self.domain_value - 10.0) / 100.0;
+        let slider = RetainedSliderDomainWidget::new(
+            SliderWidget::new(
+                31,
+                normalized_value,
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            ),
+            Rc::new(FailingReleaseAdjustment {
+                forward_calls: Rc::clone(&self.forward_calls),
+            }),
+            self.domain_value,
+        );
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            slider,
+            WidgetMessageMapper::typed(|message: SliderDomainMessage<DomainAdjustmentError>| {
+                message
+            }),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: SliderDomainMessage<DomainAdjustmentError>) {
+        if let SliderDomainMessage::ValueChanged { value } = &message {
+            self.domain_value = *value;
+        }
+        self.messages.push(message);
     }
 }
 
@@ -2923,6 +3020,72 @@ fn cancel_pointer_capture_delivers_slider_cancel_before_clearing_capture() {
         .expect("slider exists")
         .widget();
     assert!(!slider.common().state.pressed);
+}
+
+#[test]
+fn failed_domain_slider_release_keeps_capture_cleanup_and_does_not_reopen_on_move() {
+    let mut runtime =
+        SurfaceRuntime::new(FailingDomainSliderBridge::new(), Vector2::new(120.0, 28.0));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(60.0, 14.0))),
+        Some(31)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(31));
+    assert_eq!(runtime.bridge().forward_calls.get(), 1);
+    assert!(matches!(
+        runtime.bridge().messages.as_slice(),
+        [SliderDomainMessage::ValueChanged { value }] if *value == 60.0
+    ));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(31)
+            .expect("domain slider exists")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(72.0, 14.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        Some(31)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().forward_calls.get(), 2);
+    assert!(matches!(
+        runtime.bridge().messages.as_slice(),
+        [
+            SliderDomainMessage::ValueChanged { value: 60.0 },
+            SliderDomainMessage::MappingFailed {
+                normalized: 0.6,
+                error: SliderDomainError::NormalizedToValue {
+                    error: DomainAdjustmentError::Forward,
+                },
+            },
+        ]
+    ));
+    let slider = runtime
+        .surface()
+        .find_widget(31)
+        .expect("domain slider exists after failed release")
+        .widget();
+    assert!(!slider.common().state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    let move_outcome = runtime.dispatch_pointer_move_with_outcome(Point::new(96.0, 14.0));
+    assert_eq!(move_outcome.target, Some(31));
+    assert!(!move_outcome.pointer_captured);
+    assert_eq!(runtime.bridge().messages.len(), 2);
+    assert_eq!(runtime.bridge().forward_calls.get(), 2);
 }
 
 #[test]

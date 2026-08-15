@@ -4,13 +4,55 @@ use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, DragHandleMetadata, EditEvent, EditPhase,
     FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance,
-    InteractionSource, KnobEditBatch, MarkerRunWidget, PaintBounds, PointerModifiers,
-    SelectableWidget, SliderEditBatch, SliderMessage, TextInputWidget, TextWidget, ToggleMessage,
-    ToggleWidget, ValueFormat, WidgetInput, WidgetOutput, WidgetProminence, WidgetStyle,
-    WidgetTone,
+    InteractionSource, KnobEditBatch, MarkerRunWidget, NumericAdjustment, NumericStep,
+    NumericStepDirection, PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch,
+    SliderMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, ValueFormat,
+    WidgetInput, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DomainAdjustmentError {
+    UnsupportedAction,
+}
+
+#[derive(Clone, Copy)]
+struct LinearDomainAdjustment;
+
+impl NumericAdjustment<f32> for LinearDomainAdjustment {
+    type Error = DomainAdjustmentError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+        Ok(10.0 + normalized * 100.0)
+    }
+
+    fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+        Ok((*value - 10.0) / 100.0)
+    }
+
+    fn step(
+        &self,
+        _value: &f32,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        Err(DomainAdjustmentError::UnsupportedAction)
+    }
+
+    fn scrub(
+        &self,
+        _value: &f32,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        Err(DomainAdjustmentError::UnsupportedAction)
+    }
+
+    fn wheel(&self, _value: &f32, _delta: f32, _step: NumericStep) -> Result<f32, Self::Error> {
+        Err(DomainAdjustmentError::UnsupportedAction)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum ToggleMappedMessage {
@@ -582,6 +624,60 @@ fn official_numeric_builder_formats_are_display_only_and_default_text_is_stable(
     assert_eq!(
         project_events(&formatted_knob_events),
         project_events(&plain_knob_events)
+    );
+}
+
+#[test]
+fn qualified_slider_domain_builder_maps_outputs_and_formats_domain_values() {
+    use radiant::prelude::IntoView;
+
+    type DomainMessage = radiant::widgets::interaction::SliderDomainMessage<DomainAdjustmentError>;
+
+    let mut surface: UiSurface<DomainMessage> =
+        radiant::application::slider_domain(10.0, LinearDomainAdjustment)
+            .expect("finite inverse should construct the domain slider")
+            .format(ValueFormat::decimal(1))
+            .message(|message| message)
+            .id(54)
+            .into_surface();
+
+    assert_eq!(
+        surface
+            .find_widget(54)
+            .expect("domain slider should be projected")
+            .widget()
+            .automation_semantics()
+            .value_text
+            .as_deref(),
+        Some("10.0")
+    );
+
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(120.0, 28.0));
+    let output = surface
+        .dispatch_widget_input(
+            54,
+            bounds,
+            WidgetInput::primary_press(Point::new(60.0, 14.0)),
+        )
+        .expect("domain slider should emit a mapped output");
+    assert!(output.typed_ref::<SliderEditBatch>().is_none());
+    assert_eq!(
+        output.typed_cloned::<DomainMessage>(),
+        Some(DomainMessage::ValueChanged { value: 60.0 })
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(54, output),
+        Some(DomainMessage::ValueChanged { value: 60.0 })
+    );
+    assert_eq!(
+        surface
+            .find_widget(54)
+            .expect("domain slider should remain projected")
+            .widget()
+            .automation_semantics()
+            .value_text
+            .as_deref(),
+        Some("60.0")
     );
 }
 

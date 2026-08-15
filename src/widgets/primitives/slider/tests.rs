@@ -7,12 +7,13 @@ use crate::{
     theme::ThemeTokens,
     widgets::contract::Widget,
     widgets::interaction::{
-        EditEvent, EditPhase, InteractionProvenance, KeyboardModifiers, PointerButton,
-        PointerModifiers, SliderEditBatch, SliderMessage, ValueFormat, WidgetInput, WidgetKey,
+        EditEvent, EditPhase, InteractionProvenance, KeyboardModifiers, NumericAdjustment,
+        NumericStep, NumericStepDirection, PointerButton, PointerModifiers, SliderDomainError,
+        SliderDomainMessage, SliderEditBatch, SliderMessage, ValueFormat, WidgetInput, WidgetKey,
         WidgetOutput,
     },
 };
-use std::fmt::Debug;
+use std::{cell::Cell, fmt::Debug, rc::Rc};
 
 fn bounds() -> Rect {
     Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0))
@@ -40,6 +41,301 @@ fn retained_slider(id: u64, value: f32) -> RetainedSliderWidget {
         value,
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
     ))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DomainAdjustmentError {
+    Inverse,
+    Forward,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DomainAdjustmentMode {
+    Linear,
+    InverseError,
+    InverseNonFinite,
+    InverseOutOfRange,
+    ForwardError,
+    ForwardErrorAfterFirst,
+    ForwardNonFinite,
+}
+
+#[derive(Clone)]
+struct TestDomainAdjustment {
+    mode: DomainAdjustmentMode,
+    inverse_calls: Rc<Cell<usize>>,
+    forward_calls: Rc<Cell<usize>>,
+}
+
+impl TestDomainAdjustment {
+    fn new(mode: DomainAdjustmentMode) -> (Self, Rc<Cell<usize>>, Rc<Cell<usize>>) {
+        let inverse_calls = Rc::new(Cell::new(0));
+        let forward_calls = Rc::new(Cell::new(0));
+        (
+            Self {
+                mode,
+                inverse_calls: Rc::clone(&inverse_calls),
+                forward_calls: Rc::clone(&forward_calls),
+            },
+            inverse_calls,
+            forward_calls,
+        )
+    }
+}
+
+impl NumericAdjustment<f32> for TestDomainAdjustment {
+    type Error = DomainAdjustmentError;
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
+        let call = self.forward_calls.get() + 1;
+        self.forward_calls.set(call);
+        match self.mode {
+            DomainAdjustmentMode::ForwardError => Err(DomainAdjustmentError::Forward),
+            DomainAdjustmentMode::ForwardErrorAfterFirst if call > 1 => {
+                Err(DomainAdjustmentError::Forward)
+            }
+            DomainAdjustmentMode::ForwardNonFinite => Ok(f32::NAN),
+            _ => Ok(10.0 + normalized * 100.0),
+        }
+    }
+
+    fn value_to_normalized(&self, value: &f32) -> Result<f32, Self::Error> {
+        self.inverse_calls.set(self.inverse_calls.get() + 1);
+        match self.mode {
+            DomainAdjustmentMode::InverseError => Err(DomainAdjustmentError::Inverse),
+            DomainAdjustmentMode::InverseNonFinite => Ok(f32::NAN),
+            DomainAdjustmentMode::InverseOutOfRange => Ok(2.0),
+            _ => Ok((*value - 10.0) / 100.0),
+        }
+    }
+
+    fn step(
+        &self,
+        _value: &f32,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        panic!("domain slider must not invoke adjustment steps")
+    }
+
+    fn scrub(
+        &self,
+        _value: &f32,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<f32, Self::Error> {
+        panic!("domain slider must not invoke adjustment scrubbing")
+    }
+
+    fn wheel(&self, _value: &f32, _delta: f32, _step: NumericStep) -> Result<f32, Self::Error> {
+        panic!("domain slider must not invoke adjustment wheel changes")
+    }
+}
+
+fn retained_domain_slider(
+    adjustment: TestDomainAdjustment,
+    domain_value: f32,
+) -> RetainedSliderDomainWidget<TestDomainAdjustment> {
+    let normalized = initial_normalized(domain_value, &adjustment).expect("valid domain value");
+    RetainedSliderDomainWidget::new(
+        SliderWidget::new(
+            140,
+            normalized,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        ),
+        Rc::new(adjustment),
+        domain_value,
+    )
+}
+
+#[test]
+fn slider_domain_maps_endpoints_and_midpoint_once_without_adjustment_actions() {
+    let (adjustment, inverse_calls, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::Linear);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+    assert_eq!(inverse_calls.get(), 1);
+
+    let Some(SliderDomainMessage::ValueChanged { value }) =
+        slider.handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)))
+    else {
+        panic!("midpoint should map to a domain value");
+    };
+    assert_eq!(value, 60.0);
+    assert_eq!(forward_calls.get(), 1);
+
+    let _ = slider.handle_domain_input(
+        bounds(),
+        WidgetInput::primary_release(Point::new(60.0, 14.0)),
+    );
+    let Some(SliderDomainMessage::ValueChanged { value }) = slider.handle_domain_input(
+        bounds(),
+        WidgetInput::primary_press(Point::new(120.0, 14.0)),
+    ) else {
+        panic!("upper endpoint should map to a domain value");
+    };
+    assert_eq!(value, 110.0);
+    assert_eq!(forward_calls.get(), 2);
+}
+
+#[test]
+fn slider_domain_inverse_results_are_checked_without_clamping() {
+    let (adjustment, inverse_calls, _) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::InverseError);
+    assert_eq!(
+        initial_normalized(10.0, &adjustment),
+        Err(SliderDomainError::ValueToNormalized {
+            error: DomainAdjustmentError::Inverse,
+        })
+    );
+    assert_eq!(inverse_calls.get(), 1);
+
+    let (adjustment, inverse_calls, _) = TestDomainAdjustment::new(DomainAdjustmentMode::Linear);
+    assert!(matches!(
+        initial_normalized(f32::NAN, &adjustment),
+        Err(SliderDomainError::NonFiniteValue { value }) if value.is_nan()
+    ));
+    assert_eq!(inverse_calls.get(), 0);
+
+    let (adjustment, inverse_calls, _) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::InverseNonFinite);
+    assert!(matches!(
+        initial_normalized(10.0, &adjustment),
+        Err(SliderDomainError::NonFiniteNormalized { normalized }) if normalized.is_nan()
+    ));
+    assert_eq!(inverse_calls.get(), 1);
+
+    let (adjustment, inverse_calls, _) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::InverseOutOfRange);
+    assert_eq!(
+        initial_normalized(10.0, &adjustment),
+        Err(SliderDomainError::NormalizedOutOfRange { normalized: 2.0 })
+    );
+    assert_eq!(inverse_calls.get(), 1);
+}
+
+#[test]
+fn slider_domain_forward_failures_do_not_advance_normalized_or_displayed_value() {
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardError);
+    let mut slider =
+        retained_domain_slider(adjustment, 10.0).with_value_format(Some(ValueFormat::decimal(1)));
+    let before = slider.slider.slider.state.value;
+    assert_eq!(
+        slider
+            .handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)),)
+            .expect("mapping failure should be typed"),
+        SliderDomainMessage::MappingFailed {
+            normalized: 0.5,
+            error: SliderDomainError::NormalizedToValue {
+                error: DomainAdjustmentError::Forward,
+            },
+        }
+    );
+    assert_eq!(forward_calls.get(), 1);
+    assert_eq!(slider.slider.slider.state.value, before);
+    assert!(!slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("10.0")
+    );
+
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardNonFinite);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+    assert!(matches!(
+        slider
+            .handle_domain_input(
+                bounds(),
+                WidgetInput::primary_press(Point::new(60.0, 14.0)),
+            )
+            .expect("mapping failure should be typed"),
+        SliderDomainMessage::MappingFailed {
+            normalized: 0.5,
+            error: SliderDomainError::NonFiniteValue { value }
+        } if value.is_nan()
+    ));
+    assert_eq!(forward_calls.get(), 1);
+    assert_eq!(slider.slider.slider.state.value, 0.0);
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 1);
+}
+
+#[test]
+fn slider_domain_terminal_release_failure_preserves_value_but_finishes_edit() {
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardErrorAfterFirst);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)),),
+        Some(SliderDomainMessage::ValueChanged { value: 60.0 })
+    );
+    assert_eq!(forward_calls.get(), 1);
+    assert!(slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert!(matches!(
+        slider.handle_domain_input(
+            bounds(),
+            WidgetInput::primary_release(Point::new(72.0, 14.0)),
+        ),
+        Some(SliderDomainMessage::MappingFailed {
+            normalized: 0.6,
+            error: SliderDomainError::NormalizedToValue {
+                error: DomainAdjustmentError::Forward,
+            },
+        })
+    ));
+    assert_eq!(forward_calls.get(), 2);
+    assert_eq!(slider.slider.slider.state.value, 0.5);
+    assert!(!slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 2);
+}
+
+#[test]
+fn slider_domain_terminal_capture_failure_keeps_focus_cleanup() {
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardErrorAfterFirst);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+
+    assert!(matches!(
+        slider.handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)),),
+        Some(SliderDomainMessage::ValueChanged { value: 60.0 })
+    ));
+    assert!(slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert!(Widget::handle_pointer_capture_cancelled(&mut slider, bounds()).is_some());
+    assert_eq!(forward_calls.get(), 2);
+    assert_eq!(slider.slider.slider.state.value, 0.5);
+    assert!(!slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 2);
 }
 
 #[test]

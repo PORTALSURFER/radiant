@@ -2724,7 +2724,9 @@ qualified exports from `radiant::application`. `SliderDomainMessage` and
 `SliderDomainError` are qualified exports from
 `radiant::widgets::interaction`, with matching re-exports from
 `radiant::widgets`; the domain API is intentionally absent from the common
-prelude.
+prelude. `SliderDomainBuilder::message(...)` additionally requires
+`A: 'static` and `A::Error: Clone + 'static`; the constructor retains the
+weaker `A: NumericAdjustment<f32>` bound.
 
 The constructor admits only checked finite state. It rejects a nonfinite
 domain value, propagates an inverse error from
@@ -2741,9 +2743,13 @@ emits `SliderDomainMessage::ValueChanged { value }`. A forward adjustment
 error, nonfinite domain result, or invalid normalized candidate emits
 `SliderDomainMessage::MappingFailed { normalized, error }` with the distinct
 `NormalizedToValue`, `NonFiniteValue`, `NonFiniteNormalized`, or
-`NormalizedOutOfRange` error. The failed candidate is not clamped or
-committed: the prior normalized value, retained interaction state, and active
-edit are restored.
+`NormalizedOutOfRange` error. Mapping failure unconditionally restores the
+prior normalized value and leaves the `domain_value` unchanged. For
+nonterminal input, the prior retained interaction state and active edit are
+also restored. For terminal `PointerRelease` and `FocusChanged(false)`
+(including capture cancellation), the normalized handler's terminal cleanup
+is retained, so `pressed` and the active edit are not resurrected. The failed
+candidate is not clamped or committed.
 
 `SliderDomainBuilder::format(ValueFormat)` formats only the mapped domain
 value for automation display. It never displays the normalized fraction, does

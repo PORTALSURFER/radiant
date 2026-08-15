@@ -6,8 +6,8 @@ use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{Widget, WidgetCapabilities, WidgetSemantics};
 use crate::widgets::interaction::{
-    EditEvent, NumericAdjustment, SliderDomainError, SliderDomainMessage, SliderEditBatch,
-    ValueFormat, WidgetInput, WidgetOutput,
+    EditEvent, NumericAdjustment, PointerButton, SliderDomainError, SliderDomainMessage,
+    SliderEditBatch, ValueFormat, WidgetInput, WidgetOutput,
 };
 use std::rc::Rc;
 
@@ -89,6 +89,13 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<SliderDomainMessage<A::Error>> {
+        let terminal_input = matches!(
+            &input,
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } | WidgetInput::FocusChanged(false)
+        );
         let previous_value = self.slider.slider.state.value;
         let previous_state = self.slider.slider.common.state;
         let previous_active_edit = self.slider.active_edit;
@@ -102,8 +109,10 @@ where
             }
             Err(error) => {
                 self.slider.slider.state.value = previous_value;
-                self.slider.slider.common.state = previous_state;
-                self.slider.active_edit = previous_active_edit;
+                if !terminal_input {
+                    self.slider.slider.common.state = previous_state;
+                    self.slider.active_edit = previous_active_edit;
+                }
                 Some(SliderDomainMessage::MappingFailed { normalized, error })
             }
         }

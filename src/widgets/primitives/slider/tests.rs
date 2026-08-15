@@ -56,6 +56,7 @@ enum DomainAdjustmentMode {
     InverseNonFinite,
     InverseOutOfRange,
     ForwardError,
+    ForwardErrorAfterFirst,
     ForwardNonFinite,
 }
 
@@ -86,9 +87,13 @@ impl NumericAdjustment<f32> for TestDomainAdjustment {
     type Error = DomainAdjustmentError;
 
     fn normalized_to_value(&self, normalized: f32) -> Result<f32, Self::Error> {
-        self.forward_calls.set(self.forward_calls.get() + 1);
+        let call = self.forward_calls.get() + 1;
+        self.forward_calls.set(call);
         match self.mode {
             DomainAdjustmentMode::ForwardError => Err(DomainAdjustmentError::Forward),
+            DomainAdjustmentMode::ForwardErrorAfterFirst if call > 1 => {
+                Err(DomainAdjustmentError::Forward)
+            }
             DomainAdjustmentMode::ForwardNonFinite => Ok(f32::NAN),
             _ => Ok(10.0 + normalized * 100.0),
         }
@@ -228,6 +233,7 @@ fn slider_domain_forward_failures_do_not_advance_normalized_or_displayed_value()
     );
     assert_eq!(forward_calls.get(), 1);
     assert_eq!(slider.slider.slider.state.value, before);
+    assert!(!slider.slider.slider.common.state.pressed);
     assert_eq!(
         slider.automation_semantics().value_text.as_deref(),
         Some("10.0")
@@ -250,6 +256,86 @@ fn slider_domain_forward_failures_do_not_advance_normalized_or_displayed_value()
     ));
     assert_eq!(forward_calls.get(), 1);
     assert_eq!(slider.slider.slider.state.value, 0.0);
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 1);
+}
+
+#[test]
+fn slider_domain_terminal_release_failure_preserves_value_but_finishes_edit() {
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardErrorAfterFirst);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)),),
+        Some(SliderDomainMessage::ValueChanged { value: 60.0 })
+    );
+    assert_eq!(forward_calls.get(), 1);
+    assert!(slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert!(matches!(
+        slider.handle_domain_input(
+            bounds(),
+            WidgetInput::primary_release(Point::new(72.0, 14.0)),
+        ),
+        Some(SliderDomainMessage::MappingFailed {
+            normalized: 0.6,
+            error: SliderDomainError::NormalizedToValue {
+                error: DomainAdjustmentError::Forward,
+            },
+        })
+    ));
+    assert_eq!(forward_calls.get(), 2);
+    assert_eq!(slider.slider.slider.state.value, 0.5);
+    assert!(!slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 2);
+}
+
+#[test]
+fn slider_domain_terminal_capture_failure_keeps_focus_cleanup() {
+    let (adjustment, _, forward_calls) =
+        TestDomainAdjustment::new(DomainAdjustmentMode::ForwardErrorAfterFirst);
+    let mut slider = retained_domain_slider(adjustment, 10.0);
+
+    assert!(matches!(
+        slider.handle_domain_input(bounds(), WidgetInput::primary_press(Point::new(60.0, 14.0)),),
+        Some(SliderDomainMessage::ValueChanged { value: 60.0 })
+    ));
+    assert!(slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+
+    assert!(Widget::handle_pointer_capture_cancelled(&mut slider, bounds()).is_some());
+    assert_eq!(forward_calls.get(), 2);
+    assert_eq!(slider.slider.slider.state.value, 0.5);
+    assert!(!slider.slider.slider.common.state.pressed);
+    assert_eq!(
+        slider.automation_semantics().value_text.as_deref(),
+        Some("60.000")
+    );
+    assert_eq!(
+        slider.handle_domain_input(bounds(), WidgetInput::pointer_move(Point::new(96.0, 14.0)),),
+        None
+    );
+    assert_eq!(forward_calls.get(), 2);
 }
 
 #[test]

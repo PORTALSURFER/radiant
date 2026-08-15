@@ -1,4 +1,5 @@
 use crate::{
+    gui::layout_core::SplitPaneRuntimeStateInput,
     layout::{ContainerStateDeclaration, LayoutInteraction, LayoutInteractionRevision, NodeId},
     widgets::WidgetId,
 };
@@ -24,6 +25,7 @@ pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
     pub(in crate::runtime) scroll_content: Option<NodeId>,
     pub(in crate::runtime) styled_hoverable: bool,
     pub(in crate::runtime) layout_interaction: Option<SurfaceLayoutInteractionRecord<Message>>,
+    pub(in crate::runtime) split_pane_runtime: Option<SplitPaneRuntimeStateInput>,
     pub(in crate::runtime) virtual_layout:
         Option<super::super::super::VirtualLayoutRegistration<Message>>,
 }

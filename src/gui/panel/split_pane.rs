@@ -13,6 +13,7 @@ mod tree_panel;
 pub use assigned_row::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
 };
+pub(crate) use geometry::sanitized_split_pane_ratio;
 pub use geometry::{SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts};
 pub use sidebar_state::{
     SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,

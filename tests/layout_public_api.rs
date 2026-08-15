@@ -2,12 +2,21 @@
 
 use radiant::layout::{
     Constraints, ConstraintsParts, ContainerKind, ContainerNodeParts, ContainerPolicy,
-    ContainerStateDeclaration, ContainerStateId, CrossAlign, Insets, LayoutContainerStateContext,
-    LayoutEngine, LayoutEventContext, LayoutInput, LayoutInteraction, LayoutNode, LayoutState,
-    NodeId, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts, SlotParams,
-    SplitPaneAxis, SplitPanePolicy, Vector2, WidgetNodeParts, layout_tree,
+    ContainerStateDeclaration, ContainerStateId, Controlled, CrossAlign, Insets,
+    LayoutContainerStateContext, LayoutEngine, LayoutEventContext, LayoutInput, LayoutInteraction,
+    LayoutNode, LayoutState, NodeId, Point, Rect, SizeModeCross, SizeModeMain, SlotChild,
+    SlotChildParts, SlotParams, SplitPaneAxis, SplitPanePolicy, Vector2, WidgetNodeParts,
+    layout_tree,
 };
 use std::{cell::Cell, rc::Rc};
+
+#[test]
+fn public_layout_module_exposes_qualified_controlled_values() {
+    let controlled = Controlled::new(0.35_f32, 12);
+
+    assert_eq!(controlled.value(), &0.35);
+    assert_eq!(controlled.generation(), 12);
+}
 
 #[test]
 fn public_layout_module_supports_generic_tree_construction() {

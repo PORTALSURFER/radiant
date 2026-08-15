@@ -14,6 +14,7 @@ pub use resize::{
     CollapsiblePanelResizeConstraints, PanelResizeConstraints, PanelResizeDrag, PanelResizeEdge,
     PanelResizeState, update_collapsible_panel_resize_drag, update_panel_resize_drag,
 };
+pub(crate) use split_pane::sanitized_split_pane_ratio;
 pub use split_pane::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
     SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts, SplitPaneSidebarChrome,

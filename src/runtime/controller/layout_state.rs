@@ -3,6 +3,7 @@
 use crate::{
     gui::layout_core::{
         LayoutContainerStateReadSource, MountedContainerStateId, MountedContainerStateRead,
+        SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
     },
     layout::{ContainerStateDeclaration, ContainerStateId, LayoutContainerStateContext, NodeId},
 };
@@ -122,6 +123,7 @@ struct RuntimeLayoutContainerStateCandidateSlot {
 pub(super) struct RuntimeLayoutContainerStateCandidate {
     slots: Vec<RuntimeLayoutContainerStateCandidateSlot>,
     diagnostics: SurfaceLayoutStateDiagnostics,
+    next_mount_generation: u64,
 }
 
 impl RuntimeLayoutContainerStateCandidate {
@@ -145,6 +147,42 @@ impl RuntimeLayoutContainerStateCandidate {
             ));
         }
         accepted.lookup_current_state_view(slot.mounted_id)
+    }
+
+    pub(super) fn apply_split_pane_runtime(
+        &mut self,
+        accepted: &RuntimeLayoutContainerStateStore,
+        inputs: &[SplitPaneRuntimeStateInput],
+    ) {
+        for input in inputs {
+            let state_id = input.state_id();
+            let Some((slot_index, mounted_id)) = self
+                .slots
+                .iter()
+                .enumerate()
+                .find(|(_, slot)| slot.id == state_id)
+                .map(|(index, slot)| (index, slot.mounted_id))
+            else {
+                continue;
+            };
+            let current = self
+                .read_exact(accepted, input.container_id, mounted_id)
+                .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied());
+            let Some(current) = current else {
+                continue;
+            };
+            let Some(next) = current.reconcile(*input) else {
+                continue;
+            };
+            let Some(value) = self.slots[slot_index].value.as_mut() else {
+                self.slots[slot_index].value = Some(Box::new(next));
+                continue;
+            };
+            let Some(value) = value.downcast_mut::<SplitPaneRuntimeState>() else {
+                continue;
+            };
+            *value = next;
+        }
     }
 }
 
@@ -173,12 +211,12 @@ impl Default for RuntimeLayoutContainerStateStore {
 
 impl RuntimeLayoutContainerStateStore {
     fn allocate_mounted_state_id(
-        &mut self,
+        next_mount_generation: &mut u64,
         state_id: ContainerStateId,
     ) -> Option<MountedContainerStateId> {
-        let generation = NonZeroU64::new(self.next_mount_generation)?;
-        let next_mount_generation = self.next_mount_generation.checked_add(1)?;
-        self.next_mount_generation = next_mount_generation;
+        let generation = NonZeroU64::new(*next_mount_generation)?;
+        let next = next_mount_generation.checked_add(1)?;
+        *next_mount_generation = next;
         Some(MountedContainerStateId::new(state_id, generation))
     }
 
@@ -229,12 +267,13 @@ impl RuntimeLayoutContainerStateStore {
     }
 
     pub(super) fn prepare(
-        &mut self,
+        &self,
         declarations: &[ContainerStateDeclaration],
     ) -> RuntimeLayoutContainerStateCandidate {
         let mut candidate = RuntimeLayoutContainerStateCandidate {
             slots: Vec::with_capacity(declarations.len().min(MAX_LAYOUT_CONTAINER_STATE_SLOTS)),
             diagnostics: SurfaceLayoutStateDiagnostics::default(),
+            next_mount_generation: self.next_mount_generation,
         };
         let mut mounted = Vec::with_capacity(declarations.len());
 
@@ -298,7 +337,9 @@ impl RuntimeLayoutContainerStateStore {
                 continue;
             }
 
-            let Some(mounted_id) = self.allocate_mounted_state_id(id) else {
+            let Some(mounted_id) =
+                Self::allocate_mounted_state_id(&mut candidate.next_mount_generation, id)
+            else {
                 candidate.diagnostics.generation_exhaustion_count = candidate
                     .diagnostics
                     .generation_exhaustion_count
@@ -327,6 +368,7 @@ impl RuntimeLayoutContainerStateStore {
         let RuntimeLayoutContainerStateCandidate {
             slots: candidate_slots,
             diagnostics,
+            next_mount_generation,
         } = candidate;
         let mut accepted_slots = std::mem::take(&mut self.slots);
         let mut committed_slots = Vec::with_capacity(candidate_slots.len());
@@ -358,6 +400,7 @@ impl RuntimeLayoutContainerStateStore {
             drop(slot);
         }
         self.slots = committed_slots;
+        self.next_mount_generation = next_mount_generation;
         diagnostics
     }
 
@@ -423,7 +466,23 @@ where
             .iter()
             .filter_map(|interaction| interaction.state.clone())
             .collect::<Vec<_>>();
+        let mut declarations = declarations;
+        let split_declarations = traversal
+            .split_pane_runtime
+            .iter()
+            .filter(|input| {
+                !declarations
+                    .iter()
+                    .any(|declaration| declaration.container_id() == input.container_id)
+            })
+            .map(|input| input.declaration())
+            .collect::<Vec<_>>();
+        declarations.extend(split_declarations);
         let mut candidate = self.interaction.layout_state.prepare(&declarations);
+        candidate.apply_split_pane_runtime(
+            &self.interaction.layout_state,
+            &traversal.split_pane_runtime,
+        );
         for interaction in &traversal.layout_interactions {
             if interaction.foreign_state_declaration {
                 candidate.diagnostics.record_foreign_declaration();
@@ -458,6 +517,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::layout_core::{Controlled, SplitPaneRuntimeMode};
     use std::cell::Cell;
     use std::rc::Rc;
 
@@ -923,7 +983,7 @@ mod tests {
     #[test]
     fn candidate_source_reads_fresh_state_with_candidate_mount_generation() {
         let declaration = ContainerStateDeclaration::new::<u32, _>(16, 1, || 11);
-        let mut store = RuntimeLayoutContainerStateStore::default();
+        let store = RuntimeLayoutContainerStateStore::default();
         let candidate = store.prepare(std::slice::from_ref(&declaration));
         let mounted_id = candidate.slots[0].mounted_id;
         {
@@ -1089,5 +1149,241 @@ mod tests {
             NonZeroU64::new(u64::MAX).expect("exhausted generation"),
         );
         assert!(store.lookup_current_state_view(exhausted_token).is_none());
+    }
+
+    fn split_input(mode: SplitPaneRuntimeMode, initial_ratio: f32) -> SplitPaneRuntimeStateInput {
+        SplitPaneRuntimeStateInput {
+            container_id: 42,
+            initial_ratio,
+            mode,
+        }
+    }
+
+    fn accepted_split_state(store: &RuntimeLayoutContainerStateStore) -> SplitPaneRuntimeState {
+        let id = ContainerStateId::new::<SplitPaneRuntimeState>(42, 1);
+        let mounted_id = store
+            .current_mounted_state_id(id)
+            .expect("accepted split mount");
+        store
+            .lookup_current_state_view(mounted_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("accepted split state")
+    }
+
+    fn candidate_split_state(
+        store: &RuntimeLayoutContainerStateStore,
+        candidate: &RuntimeLayoutContainerStateCandidate,
+    ) -> Option<SplitPaneRuntimeState> {
+        candidate_split_state_at(store, candidate, 42)
+    }
+
+    fn candidate_split_state_at(
+        store: &RuntimeLayoutContainerStateStore,
+        candidate: &RuntimeLayoutContainerStateCandidate,
+        container_id: NodeId,
+    ) -> Option<SplitPaneRuntimeState> {
+        let source = store.read_source(candidate);
+        source
+            .read_container_state(container_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+    }
+
+    #[test]
+    fn split_runtime_state_seeds_once_and_accepts_only_newer_controlled_generations() {
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        let runtime = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.25);
+        let runtime_declaration = runtime.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&runtime_declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&runtime));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.25
+        );
+        store.commit(candidate);
+        let first_token = store
+            .current_mounted_state_id(runtime.state_id())
+            .expect("runtime-owned mount");
+
+        let changed_seed = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.9);
+        let changed_seed_declaration = changed_seed.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&changed_seed_declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&changed_seed));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.25
+        );
+        store.commit(candidate);
+        assert_eq!(accepted_split_state(&store).ratio, 0.25);
+        assert_eq!(
+            store.current_mounted_state_id(runtime.state_id()),
+            Some(first_token)
+        );
+
+        let controlled = split_input(
+            SplitPaneRuntimeMode::Controlled(Controlled::new(0.7, 4)),
+            0.25,
+        );
+        let controlled_declaration = controlled.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&controlled_declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&controlled));
+        assert_eq!(accepted_split_state(&store).ratio, 0.25);
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.7
+        );
+        store.commit(candidate);
+        assert_eq!(accepted_split_state(&store).ratio, 0.7);
+        assert_eq!(
+            accepted_split_state(&store).accepted_controlled_generation,
+            Some(4)
+        );
+        assert_eq!(
+            store.current_mounted_state_id(controlled.state_id()),
+            Some(first_token)
+        );
+
+        for ignored in [
+            split_input(
+                SplitPaneRuntimeMode::Controlled(Controlled::new(0.1, 4)),
+                0.25,
+            ),
+            split_input(
+                SplitPaneRuntimeMode::Controlled(Controlled::new(0.2, 3)),
+                0.25,
+            ),
+        ] {
+            let declaration = ignored.declaration();
+            let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+            candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&ignored));
+            assert_eq!(
+                candidate_split_state(&store, &candidate).unwrap().ratio,
+                0.7
+            );
+            store.commit(candidate);
+            assert_eq!(accepted_split_state(&store).ratio, 0.7);
+        }
+
+        let newer = split_input(
+            SplitPaneRuntimeMode::Controlled(Controlled::new(0.6, 5)),
+            0.25,
+        );
+        let declaration = newer.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&newer));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.6
+        );
+        store.commit(candidate);
+        assert_eq!(accepted_split_state(&store).ratio, 0.6);
+        assert_eq!(
+            accepted_split_state(&store).accepted_controlled_generation,
+            Some(5)
+        );
+
+        let runtime_transition = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.15);
+        let declaration = runtime_transition.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&runtime_transition));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.15
+        );
+        store.commit(candidate);
+        assert_eq!(accepted_split_state(&store).ratio, 0.15);
+        assert_eq!(
+            accepted_split_state(&store).accepted_controlled_generation,
+            None
+        );
+
+        let controlled_transition = split_input(
+            SplitPaneRuntimeMode::Controlled(Controlled::new(0.8, 1)),
+            0.15,
+        );
+        let declaration = controlled_transition.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&controlled_transition));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.8
+        );
+        store.commit(candidate);
+        assert_eq!(accepted_split_state(&store).ratio, 0.8);
+        assert_eq!(
+            accepted_split_state(&store).accepted_controlled_generation,
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn split_runtime_candidate_is_atomic_and_fail_closed_for_wrong_capacity_and_mount_paths() {
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.set_next_mount_generation_for_test(41);
+        let input = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.3);
+        let declaration = input.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&input));
+        assert_eq!(
+            candidate_split_state(&store, &candidate).unwrap().ratio,
+            0.3
+        );
+        assert_eq!(store.slot_count(), 0);
+        assert_eq!(store.next_mount_generation_for_test(), 41);
+        drop(candidate);
+        assert_eq!(store.slot_count(), 0);
+        assert_eq!(store.next_mount_generation_for_test(), 41);
+
+        let wrong = ContainerStateDeclaration::new::<u32, _>(42, 9, || 17);
+        store.reconcile(std::slice::from_ref(&wrong));
+        let split_declaration = input.declaration();
+        let mut candidate = store.prepare(&[wrong.clone(), split_declaration]);
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&input));
+        assert!(candidate_split_state(&store, &candidate).is_none());
+        store.commit(candidate);
+
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        let declarations = (0..MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64)
+            .map(|container_id| ContainerStateDeclaration::new::<u32, _>(container_id, 1, || 0))
+            .collect::<Vec<_>>();
+        store.reconcile(&declarations);
+        let capacity_input = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.3);
+        let capacity_input = SplitPaneRuntimeStateInput {
+            container_id: 100,
+            ..capacity_input
+        };
+        let capacity_declaration = capacity_input.declaration();
+        let mut combined = declarations.clone();
+        combined.push(capacity_declaration);
+        let mut candidate = store.prepare(&combined);
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&capacity_input));
+        assert!(candidate_split_state_at(&store, &candidate, 100).is_none());
+        assert_eq!(candidate.diagnostics.capacity_exceeded_count, 1);
+
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.set_next_mount_generation_for_test(u64::MAX);
+        let mut candidate = store.prepare(std::slice::from_ref(&input.declaration()));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&input));
+        assert!(candidate_split_state(&store, &candidate).is_none());
+        assert_eq!(candidate.diagnostics.generation_exhaustion_count, 1);
+
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        let declaration = input.declaration();
+        store.reconcile(std::slice::from_ref(&declaration));
+        let old_token = store
+            .current_mounted_state_id(input.state_id())
+            .expect("initial split mount");
+        let candidate = store.prepare(&[]);
+        assert!(candidate_split_state(&store, &candidate).is_none());
+        store.commit(candidate);
+        assert_eq!(store.slot_count(), 0);
+
+        let declaration = input.declaration();
+        let mut candidate = store.prepare(std::slice::from_ref(&declaration));
+        candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&input));
+        store.commit(candidate);
+        let reinserted_token = store
+            .current_mounted_state_id(input.state_id())
+            .expect("reinserted split mount");
+        assert_ne!(old_token, reinserted_token);
     }
 }

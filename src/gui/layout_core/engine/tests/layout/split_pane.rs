@@ -3,9 +3,10 @@ use super::super::super::{
     LayoutOutput, LayoutState, LayoutStats, layout_tree,
 };
 use crate::gui::layout_core::{
-    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, ContainerStateId, Insets,
-    LayoutNode, MountedContainerStateId, MountedContainerStateRead, NodeId, SizeModeCross,
-    SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
+    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, ContainerStateId, Controlled,
+    DebugPrimitiveKind, Insets, LayoutNode, MountedContainerStateId, MountedContainerStateRead,
+    NodeId, SizeModeCross, SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
+    SplitPaneRuntimeMode, SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 use std::cell::RefCell;
@@ -39,6 +40,20 @@ impl LayoutContainerStateReadSource for RecordingSource {
     }
 }
 
+struct SplitRuntimeSource {
+    mounted_id: MountedContainerStateId,
+    state: SplitPaneRuntimeState,
+    reads: RefCell<Vec<NodeId>>,
+}
+
+impl LayoutContainerStateReadSource for SplitRuntimeSource {
+    fn read_container_state(&self, container_id: NodeId) -> Option<MountedContainerStateRead<'_>> {
+        self.reads.borrow_mut().push(container_id);
+        (container_id == SPLIT_ID)
+            .then(|| MountedContainerStateRead::new(self.mounted_id, &self.state))
+    }
+}
+
 fn split_policy(
     axis: SplitPaneAxis,
     initial_ratio: f32,
@@ -61,6 +76,31 @@ fn split_policy(
 
 fn split_node(policy: ContainerPolicy, children: Vec<SlotChild>) -> LayoutNode {
     LayoutNode::container(1, policy, children)
+}
+
+fn runtime_split_node(
+    policy: ContainerPolicy,
+    children: Vec<SlotChild>,
+    mode: SplitPaneRuntimeMode,
+) -> LayoutNode {
+    LayoutNode::container_with_split_pane_runtime_mode(1, policy, children, Some(mode))
+}
+
+fn split_runtime_state(mode: SplitPaneRuntimeMode, initial_ratio: f32) -> SplitPaneRuntimeState {
+    SplitPaneRuntimeState::from_input(SplitPaneRuntimeStateInput {
+        container_id: SPLIT_ID,
+        initial_ratio,
+        mode,
+    })
+}
+
+fn measured_debug_primitives(output: &LayoutOutput) -> Vec<(NodeId, Rect)> {
+    output
+        .debug_primitives
+        .iter()
+        .filter(|primitive| primitive.kind == DebugPrimitiveKind::MeasuredBounds)
+        .map(|primitive| (primitive.node_id, primitive.rect))
+        .collect()
 }
 
 fn child(id: u64, intrinsic: Vector2) -> SlotChild {
@@ -607,7 +647,7 @@ fn split_pane_source_is_observed_cold_and_placement_only_when_warm() {
     assert_eq!(output, expected);
     assert_eq!(
         cold_source.reads.borrow().as_slice(),
-        &[(SPLIT_ID, 17, mounted_id), (SPLIT_ID, 17, mounted_id)]
+        &[(SPLIT_ID, 17, mounted_id)]
     );
     assert_eq!(
         output.stats,
@@ -643,6 +683,197 @@ fn split_pane_source_is_observed_cold_and_placement_only_when_warm() {
             materialized_nodes: 3,
         }
     );
+}
+
+#[test]
+fn stateful_split_ratio_changes_placement_without_changing_measurement() {
+    let policy = split_policy(SplitPaneAxis::Horizontal, 0.25, 0.0, 0.0, 0.0);
+    let root = runtime_split_node(
+        policy.clone(),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+        SplitPaneRuntimeMode::RuntimeOwned,
+    );
+    let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
+    let mounted_id = MountedContainerStateId::new(
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        NonZeroU64::new(1).expect("non-zero generation"),
+    );
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    let first_source = SplitRuntimeSource {
+        mounted_id,
+        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.75),
+        reads: RefCell::new(Vec::new()),
+    };
+
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+        Some(&first_source),
+        &mut output,
+    );
+    assert_eq!(output.rects[&2].width(), 75.0);
+    let first_measured_sizes = measured_debug_primitives(&output)
+        .into_iter()
+        .map(|(id, rect)| (id, rect.width(), rect.height()))
+        .collect::<Vec<_>>();
+    assert_eq!(output.stats.measured_nodes, 3);
+    assert_eq!(first_source.reads.borrow().as_slice(), &[SPLIT_ID]);
+
+    let fresh_second_source = SplitRuntimeSource {
+        mounted_id,
+        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.2),
+        reads: RefCell::new(Vec::new()),
+    };
+    let mut fresh_engine = LayoutEngine::default();
+    let mut fresh_output = LayoutOutput::default();
+    fresh_engine.layout_with_state_and_source_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+        Some(&fresh_second_source),
+        &mut fresh_output,
+    );
+    let fresh_second_measured_sizes = measured_debug_primitives(&fresh_output)
+        .into_iter()
+        .map(|(id, rect)| (id, rect.width(), rect.height()))
+        .collect::<Vec<_>>();
+    assert_eq!(fresh_second_measured_sizes, first_measured_sizes);
+
+    let second_source = SplitRuntimeSource {
+        mounted_id,
+        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.2),
+        reads: RefCell::new(Vec::new()),
+    };
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+        Some(&second_source),
+        &mut output,
+    );
+    assert_eq!(output.rects[&2].width(), 20.0);
+    let second_measured_sizes = measured_debug_primitives(&output)
+        .into_iter()
+        .map(|(id, rect)| (id, rect.width(), rect.height()))
+        .collect::<Vec<_>>();
+    assert_eq!(second_measured_sizes, vec![first_measured_sizes[0]]);
+    assert_eq!(output.stats.measured_nodes, 0);
+    assert_eq!(second_source.reads.borrow().as_slice(), &[SPLIT_ID]);
+}
+
+#[test]
+fn controlled_split_uses_controlled_slot_and_falls_back_on_ownership_mismatch() {
+    let policy = split_policy(SplitPaneAxis::Horizontal, 0.25, 0.0, 0.0, 0.0);
+    let mode = SplitPaneRuntimeMode::Controlled(Controlled::new(0.6, 7));
+    let root = runtime_split_node(
+        policy.clone(),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+        mode,
+    );
+    let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
+    let mounted_id = MountedContainerStateId::new(
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        NonZeroU64::new(1).expect("non-zero generation"),
+    );
+    let matching = SplitRuntimeSource {
+        mounted_id,
+        state: split_runtime_state(
+            SplitPaneRuntimeMode::Controlled(Controlled::new(0.6, 7)),
+            policy.split_pane.initial_ratio,
+        ),
+        reads: RefCell::new(Vec::new()),
+    };
+    let matching_output = layout_with_optional_source(&root, viewport, Some(&matching));
+    assert_eq!(matching_output.rects[&2].width(), 60.0);
+
+    let mismatched = SplitRuntimeSource {
+        mounted_id,
+        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.9),
+        reads: RefCell::new(Vec::new()),
+    };
+    let fallback = layout_with_optional_source(&root, viewport, Some(&mismatched));
+    assert_eq!(fallback.rects[&2].width(), 25.0);
+}
+
+#[test]
+fn stateful_split_missing_wrong_and_invalid_state_fail_closed_to_policy_ratio() {
+    let policy = split_policy(SplitPaneAxis::Horizontal, 0.25, 0.0, 0.0, 0.0);
+    let root = runtime_split_node(
+        policy.clone(),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+        SplitPaneRuntimeMode::RuntimeOwned,
+    );
+    let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
+    let fallback = layout_tree(&split_node(policy, root_children(&root)), viewport);
+    let mounted_id = MountedContainerStateId::new(
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        NonZeroU64::new(1).expect("non-zero generation"),
+    );
+
+    let missing = layout_with_optional_source(&root, viewport, None);
+    assert_eq!(missing.rects[&2], fallback.rects[&2]);
+    assert_eq!(missing.rects[&3], fallback.rects[&3]);
+
+    let mut invalid_state = split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.25);
+    invalid_state.ratio = f32::NAN;
+    let invalid_source = SplitRuntimeSource {
+        mounted_id,
+        state: invalid_state,
+        reads: RefCell::new(Vec::new()),
+    };
+    let invalid = layout_with_optional_source(&root, viewport, Some(&invalid_source));
+    assert_eq!(invalid.rects[&2], fallback.rects[&2]);
+    assert_eq!(invalid.rects[&3], fallback.rects[&3]);
+
+    let wrong_source = RecordingSource::new(
+        MountedContainerStateId::new(
+            ContainerStateId::new::<u32>(SPLIT_ID, 1),
+            NonZeroU64::new(1).expect("non-zero generation"),
+        ),
+        1,
+    );
+    let wrong = layout_with_optional_source(&root, viewport, Some(&wrong_source));
+    assert_eq!(wrong.rects[&2], fallback.rects[&2]);
+    assert_eq!(wrong.rects[&3], fallback.rects[&3]);
+}
+
+fn root_children(root: &LayoutNode) -> Vec<SlotChild> {
+    let LayoutNode::Container(container) = root else {
+        unreachable!("runtime split helper builds a container")
+    };
+    container.children.clone()
+}
+
+fn layout_with_optional_source(
+    root: &LayoutNode,
+    viewport: Rect,
+    source: Option<&dyn LayoutContainerStateReadSource>,
+) -> LayoutOutput {
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    engine.layout_with_state_and_source_into(
+        root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+        source,
+        &mut output,
+    );
+    output
 }
 
 #[test]

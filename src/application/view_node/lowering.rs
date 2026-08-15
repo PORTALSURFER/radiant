@@ -179,6 +179,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let previous_context = std::mem::replace(&mut self.source_context, node_context);
         let style = node.style;
         let hoverable = node.hoverable;
+        let split_pane_runtime = node.split_pane_runtime;
         let scroll_message = node.scroll_message;
         let accepts_native_file_drop = node.accepts_native_file_drop;
         let native_file_drop = node.native_file_drop.clone();
@@ -192,6 +193,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 if let Some(scroll_message) = scroll_message.clone() {
                     container = container.with_scroll_message_local(scroll_message);
                 }
+                container = container.with_split_pane_runtime_mode(split_pane_runtime);
                 container
             };
 

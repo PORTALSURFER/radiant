@@ -2,6 +2,7 @@
 
 use crate::{
     application::{IntoView, ViewNode, ViewNodeKind},
+    gui::layout_core::{Controlled, SplitPaneRuntimeMode},
     gui::panel::SplitPaneAxis,
     layout::{ContainerKind, ContainerPolicy, SplitPanePolicy},
 };
@@ -11,6 +12,7 @@ pub struct SplitPaneBuilder<Message> {
     first: ViewNode<Message>,
     second: ViewNode<Message>,
     policy: SplitPanePolicy,
+    runtime_ratio: Option<SplitPaneRuntimeMode>,
 }
 
 impl<Message> SplitPaneBuilder<Message> {
@@ -56,6 +58,20 @@ impl<Message> SplitPaneBuilder<Message> {
         self
     }
 
+    /// Let the mounted split-pane state own the live ratio, seeded once from
+    /// [`Self::initial_ratio`].
+    pub fn runtime_owned_ratio(mut self) -> Self {
+        self.runtime_ratio = Some(SplitPaneRuntimeMode::RuntimeOwned);
+        self
+    }
+
+    /// Accept a controlled ratio on mount and only from strictly newer
+    /// generations thereafter.
+    pub fn controlled_ratio(mut self, controlled: Controlled<f32>) -> Self {
+        self.runtime_ratio = Some(SplitPaneRuntimeMode::Controlled(controlled));
+        self
+    }
+
     /// Lower this builder into an ordinary declarative view node.
     pub fn into_view(self) -> ViewNode<Message> {
         let has_reserved_descendant_identity = self.first.has_reserved_identity_in_subtree()
@@ -68,6 +84,7 @@ impl<Message> SplitPaneBuilder<Message> {
             },
             children: vec![self.first, self.second],
         })
+        .with_split_pane_runtime_mode(self.runtime_ratio)
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
     }
 }
@@ -81,6 +98,7 @@ pub fn split_pane<Message>(
         first,
         second,
         policy: SplitPanePolicy::default(),
+        runtime_ratio: None,
     }
 }
 

@@ -72,7 +72,7 @@ pub mod prelude;
 pub mod layout {
     pub use crate::gui::layout_core::{
         Constraints, ConstraintsParts, ContainerKind, ContainerNode, ContainerNodeParts,
-        ContainerPolicy, ContainerStateDeclaration, ContainerStateId, CrossAlign,
+        ContainerPolicy, ContainerStateDeclaration, ContainerStateId, Controlled, CrossAlign,
         DebugPrimitiveKind, FloatingLayerHorizontalOverflow, FloatingLayerPolicy,
         FloatingLayerVerticalOverflow, GridPolicy, Insets, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
         LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION,

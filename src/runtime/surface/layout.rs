@@ -89,7 +89,12 @@ impl<Message> SurfaceNode<Message> {
             Self::Scene(scene) => scene_layout_node(scene, |_, child| child.layout_node()),
             Self::Container(container) => {
                 let children = container_layout_children(container, |_, child| child.layout_node());
-                LayoutNode::container(container.id, container.policy.clone(), children)
+                LayoutNode::container_with_split_pane_runtime_mode(
+                    container.id,
+                    container.policy.clone(),
+                    children,
+                    container.split_pane_runtime,
+                )
             }
             Self::Widget(widget) => widget.layout_node(),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
@@ -132,7 +137,12 @@ impl<Message> SurfaceNode<Message> {
                     layout
                 });
                 end_container_runtime(is_scroll, scroll_stack);
-                LayoutNode::container(container.id, container.policy.clone(), children)
+                LayoutNode::container_with_split_pane_runtime_mode(
+                    container.id,
+                    container.policy.clone(),
+                    children,
+                    container.split_pane_runtime,
+                )
             }
             Self::Widget(widget) => {
                 record_widget_runtime(widget, scroll_stack, child_path, traversal);
@@ -367,6 +377,17 @@ fn begin_container_runtime<Message>(
                     }
                 })
             }),
+        split_pane_runtime: (container.policy.kind == ContainerKind::SplitPane)
+            .then(|| {
+                container.split_pane_runtime.map(|mode| {
+                    crate::gui::layout_core::SplitPaneRuntimeStateInput {
+                        container_id: container.id,
+                        initial_ratio: container.policy.split_pane.initial_ratio,
+                        mode,
+                    }
+                })
+            })
+            .flatten(),
         virtual_layout: container.virtual_layout.clone(),
     });
     if is_scroll {

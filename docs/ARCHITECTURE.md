@@ -141,7 +141,10 @@ new focused export leaf or a module split, not a formatting workaround.
   lifecycle behind one private validated transition authority and exposes only
   bounded controller-owned evidence through `RuntimeDiagnostics`; this does not
   transfer native recovery, effect ownership, or scheduler policy to the
-  generic runtime.
+  generic runtime. `src/runtime/controller` also owns the bounded typed
+  mounted-container state kernel and candidate-safe lifecycle reconciliation;
+  the split-pane runtime/controlled ratio projection consumes that slot without
+  broadening global capability or interaction semantics.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

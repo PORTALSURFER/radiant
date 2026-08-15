@@ -8,6 +8,7 @@
 use super::widget::{
     MapperDescriptor, MapperRelation, SurfaceWidgetRevisionEvidence, WidgetCapabilityEvidence,
 };
+use crate::gui::layout_core::SplitPaneRuntimeMode;
 use crate::gui::types::Rect;
 use crate::layout::{
     ContainerPolicy, LayoutCapabilities, LayoutInteractionRevision, LayoutOutput, NodeId,
@@ -29,6 +30,7 @@ pub(crate) struct SurfaceChildRevision<'a, Message> {
 /// Borrowed revision inputs for one surface container.
 pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) policy: &'a ContainerPolicy,
+    pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     pub(crate) style: Option<&'a WidgetStyle>,
     pub(crate) hoverable: bool,
     pub(crate) layout_capabilities: Option<&'a LayoutCapabilities<Message>>,
@@ -53,6 +55,10 @@ pub(crate) struct SurfaceSceneRevision<'a, Message> {
 impl<'a, Message> SurfaceContainerRevision<'a, Message> {
     fn policy_changed(&self, other: &Self) -> bool {
         self.policy != other.policy
+    }
+
+    fn split_pane_runtime_changed(&self, other: &Self) -> bool {
+        self.split_pane_runtime != other.split_pane_runtime
     }
 
     fn style_changed(&self, other: &Self) -> bool {
@@ -134,6 +140,7 @@ impl<Message> super::SurfaceContainer<Message> {
     pub(crate) fn revision(&self) -> SurfaceContainerRevision<'_, Message> {
         SurfaceContainerRevision {
             policy: &self.policy,
+            split_pane_runtime: self.split_pane_runtime,
             style: self.style.as_ref(),
             hoverable: self.hoverable,
             layout_capabilities: self.layout_capabilities.as_ref(),
@@ -336,6 +343,7 @@ pub(crate) enum ViewDeltaCause {
     OpaqueWidgetMapper,
     WidgetRevision,
     ContainerPolicy,
+    SplitPaneRuntimeMode,
     ChildSlot,
     ContainerStyle,
     ContainerHover,
@@ -805,6 +813,7 @@ fn mismatch_for_event(
             return None;
         }
         ViewDeltaCause::ContainerPolicy
+        | ViewDeltaCause::SplitPaneRuntimeMode
         | ViewDeltaCause::ChildSlot
         | ViewDeltaCause::OverlayRect => ReconciliationMismatch::GeometryEvidence,
         ViewDeltaCause::ContainerStyle
@@ -1460,6 +1469,13 @@ fn compare_container<Message>(
             path.path,
         );
     }
+    if previous_revision.split_pane_runtime_changed(&current_revision) {
+        delta.record(
+            ViewDeltaEffect::Geometry,
+            ViewDeltaCause::SplitPaneRuntimeMode,
+            path.path,
+        );
+    }
     if previous_revision.style_changed(&current_revision) {
         delta.record(
             ViewDeltaEffect::Paint,
@@ -2008,6 +2024,7 @@ mod view_delta_tests {
         classify_widget_revision,
     };
     use crate::{
+        gui::layout_core::{Controlled, SplitPaneRuntimeMode},
         gui::types::{Point, Rect, Vector2},
         layout::{
             ContainerKind, ContainerPolicy, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
@@ -2056,6 +2073,38 @@ mod view_delta_tests {
 
     fn layout_capabilities(revision: LayoutInteractionRevision) -> LayoutCapabilities<()> {
         LayoutCapabilities::new().interaction_local(TestLayoutInteraction { revision })
+    }
+
+    #[test]
+    fn split_runtime_generation_is_geometry_without_capability_revision() {
+        let policy = ContainerPolicy {
+            kind: ContainerKind::SplitPane,
+            ..ContainerPolicy::default()
+        };
+        let make_surface = |generation| {
+            surface(
+                SurfaceNode::container(1, policy.clone(), Vec::new()).with_split_pane_runtime_mode(
+                    Some(SplitPaneRuntimeMode::Controlled(Controlled::new(
+                        0.35, generation,
+                    ))),
+                ),
+            )
+        };
+        let previous = make_surface(1);
+        let current = make_surface(2);
+        let delta = classify_view_delta(&previous, &current);
+
+        assert_eq!(delta.effect, ViewDeltaEffect::Geometry);
+        assert!(has_cause(&delta, ViewDeltaCause::SplitPaneRuntimeMode));
+        assert!(!has_cause(&delta, ViewDeltaCause::LayoutCapabilities));
+        assert!(
+            delta
+                .reconciliation_plan()
+                .mismatches
+                .iter()
+                .flatten()
+                .any(|mismatch| *mismatch == ReconciliationMismatch::GeometryEvidence)
+        );
     }
 
     fn classify_view_delta(previous: &UiSurface<()>, current: &UiSurface<()>) -> super::ViewDelta {

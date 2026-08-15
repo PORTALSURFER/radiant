@@ -61,6 +61,144 @@ fn application_split_pane_defaults_match_the_shared_geometry_contract() {
 }
 
 #[test]
+fn application_split_pane_runtime_ratio_opt_ins_keep_static_policy_and_fallback_geometry() {
+    use radiant::{layout::Controlled, prelude as ui, prelude::IntoView};
+
+    for view in [
+        ui::split_pane::<()>(ui::text("First"), ui::text("Second"))
+            .initial_ratio(0.25)
+            .runtime_owned_ratio()
+            .into_view(),
+        ui::split_pane::<()>(ui::text("First"), ui::text("Second"))
+            .initial_ratio(0.25)
+            .controlled_ratio(Controlled::new(0.75, 4))
+            .into_view(),
+    ] {
+        let surface = view.into_surface();
+        let layout_node = surface.layout_node();
+        let radiant::layout::LayoutNode::Container(container) = &layout_node else {
+            panic!("split_pane should lower to a dedicated container");
+        };
+        assert_eq!(container.policy.split_pane.initial_ratio, 0.25);
+        let container_id = container.id;
+
+        let layout = radiant::layout::layout_tree(
+            &layout_node,
+            radiant::layout::Rect::from_min_size(
+                radiant::layout::Point::new(0.0, 0.0),
+                radiant::layout::Vector2::new(100.0, 40.0),
+            ),
+        );
+        assert_eq!(layout.rects[&container_id].width(), 100.0);
+        assert_eq!(
+            layout.rects[&container.children[0].child.id()].width(),
+            25.0
+        );
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RuntimeRatioMode {
+    Static,
+    RuntimeOwned,
+    Controlled,
+}
+
+struct RuntimeRatioState {
+    mode: RuntimeRatioMode,
+    initial_ratio: f32,
+    ratio: f32,
+    generation: u64,
+}
+
+#[derive(Clone, Copy)]
+enum RuntimeRatioMessage {
+    Static,
+    RuntimeOwned(f32),
+    Controlled(f32, u64),
+}
+
+fn runtime_ratio_view(state: &RuntimeRatioState) -> radiant::prelude::View<RuntimeRatioMessage> {
+    use radiant::layout::Controlled;
+    use radiant::prelude as ui;
+
+    let builder =
+        ui::split_pane::<RuntimeRatioMessage>(ui::text("First").id(11), ui::text("Second").id(12))
+            .initial_ratio(state.initial_ratio);
+    match state.mode {
+        RuntimeRatioMode::Static => builder.into_view(),
+        RuntimeRatioMode::RuntimeOwned => builder.runtime_owned_ratio().into_view(),
+        RuntimeRatioMode::Controlled => builder
+            .controlled_ratio(Controlled::new(state.ratio, state.generation))
+            .into_view(),
+    }
+}
+
+fn runtime_ratio_bridge() -> impl radiant::runtime::RuntimeBridge<RuntimeRatioMessage> {
+    use radiant::prelude as ui;
+
+    ui::app(RuntimeRatioState {
+        mode: RuntimeRatioMode::Static,
+        initial_ratio: 0.25,
+        ratio: 0.4,
+        generation: 1,
+    })
+    .view(runtime_ratio_view)
+    .handle_message(|state, message, _| match message {
+        RuntimeRatioMessage::Static => state.mode = RuntimeRatioMode::Static,
+        RuntimeRatioMessage::RuntimeOwned(initial_ratio) => {
+            state.mode = RuntimeRatioMode::RuntimeOwned;
+            state.initial_ratio = initial_ratio;
+        }
+        RuntimeRatioMessage::Controlled(ratio, generation) => {
+            state.mode = RuntimeRatioMode::Controlled;
+            state.ratio = ratio;
+            state.generation = generation;
+        }
+    })
+    .into_bridge()
+}
+
+fn runtime_ratio_first_width<Bridge>(
+    runtime: &radiant::runtime::SurfaceRuntime<Bridge, RuntimeRatioMessage>,
+) -> f32
+where
+    Bridge: radiant::runtime::RuntimeBridge<RuntimeRatioMessage>,
+{
+    let radiant::layout::LayoutNode::Container(container) = runtime.surface().layout_node() else {
+        panic!("runtime ratio view should lower to a split container");
+    };
+    runtime.layout().rects[&container.children[0].child.id()].width()
+}
+
+#[test]
+fn runtime_ratio_modes_reconcile_through_one_mounted_slot() {
+    use radiant::{layout::Vector2, runtime::SurfaceRuntime};
+
+    let mut runtime = SurfaceRuntime::new(runtime_ratio_bridge(), Vector2::new(100.0, 40.0));
+    assert_eq!(runtime_ratio_first_width(&runtime), 25.0);
+
+    runtime.dispatch_message(RuntimeRatioMessage::Controlled(0.4, 1));
+    assert_eq!(runtime_ratio_first_width(&runtime), 40.0);
+    runtime.dispatch_message(RuntimeRatioMessage::Controlled(0.8, 1));
+    assert_eq!(runtime_ratio_first_width(&runtime), 40.0);
+    runtime.dispatch_message(RuntimeRatioMessage::Controlled(0.8, 2));
+    assert_eq!(runtime_ratio_first_width(&runtime), 80.0);
+
+    runtime.dispatch_message(RuntimeRatioMessage::RuntimeOwned(0.1));
+    assert_eq!(runtime_ratio_first_width(&runtime), 10.0);
+    runtime.dispatch_message(RuntimeRatioMessage::RuntimeOwned(0.9));
+    assert_eq!(runtime_ratio_first_width(&runtime), 10.0);
+
+    runtime.dispatch_message(RuntimeRatioMessage::Controlled(0.3, 1));
+    assert_eq!(runtime_ratio_first_width(&runtime), 30.0);
+    runtime.dispatch_message(RuntimeRatioMessage::Static);
+    assert_eq!(runtime_ratio_first_width(&runtime), 90.0);
+    runtime.dispatch_message(RuntimeRatioMessage::Controlled(0.2, 99));
+    assert_eq!(runtime_ratio_first_width(&runtime), 20.0);
+}
+
+#[test]
 fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     use radiant::prelude::{self as ui, IntoView};
 

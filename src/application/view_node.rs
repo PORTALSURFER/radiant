@@ -25,6 +25,7 @@ pub(crate) use virtual_layout::{
 
 use slot::SlotBehavior;
 
+use crate::gui::layout_core::SplitPaneRuntimeMode;
 use crate::{
     application::{Overlays, PointerTarget, TextContent, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
@@ -102,6 +103,7 @@ pub struct ViewNode<Message> {
     align_cross: Option<CrossAlign>,
     pub(in crate::application) style: Option<WidgetStyle>,
     hoverable: bool,
+    pub(in crate::application) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     input_only: bool,
     text_wrap: Option<TextWrap>,
     text_align: Option<TextAlign>,
@@ -174,6 +176,7 @@ impl<Message> ViewNode<Message> {
             align_cross: None,
             style: None,
             hoverable: false,
+            split_pane_runtime: None,
             input_only: false,
             text_wrap: None,
             text_align: None,
@@ -194,6 +197,14 @@ impl<Message> ViewNode<Message> {
         has_reserved_descendant_identity: bool,
     ) -> Self {
         self.has_reserved_descendant_identity = has_reserved_descendant_identity;
+        self
+    }
+
+    pub(in crate::application) fn with_split_pane_runtime_mode(
+        mut self,
+        mode: Option<SplitPaneRuntimeMode>,
+    ) -> Self {
+        self.split_pane_runtime = mode;
         self
     }
 

@@ -83,7 +83,7 @@ impl SplitPaneLayout {
     /// Resolve split-pane geometry from named inputs.
     pub fn from_parts(parts: SplitPaneLayoutParts) -> Self {
         let bounds = normalized_rect(parts.bounds);
-        let ratio = sanitize_ratio(parts.ratio);
+        let ratio = sanitized_split_pane_ratio(parts.ratio);
         let divider_extent = sanitize_nonnegative(parts.divider_extent);
         let first_min_extent = sanitize_nonnegative(parts.first_min_extent);
         let second_min_extent = sanitize_nonnegative(parts.second_min_extent);
@@ -226,7 +226,8 @@ fn axis_extent(rect: Rect, axis: SplitPaneAxis) -> f32 {
     }
 }
 
-fn sanitize_ratio(value: f32) -> f32 {
+/// Sanitize a split-pane ratio using the static geometry contract.
+pub(crate) fn sanitized_split_pane_ratio(value: f32) -> f32 {
     if value.is_finite() {
         value.clamp(0.0, 1.0)
     } else {

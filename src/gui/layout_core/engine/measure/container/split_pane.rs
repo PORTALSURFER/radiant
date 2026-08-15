@@ -12,10 +12,6 @@ pub(super) fn measure_split_pane(
     constraints: Constraints,
     context: &mut LayoutContext,
 ) -> Vector2 {
-    // SplitPane is the current product-neutral observation boundary. The
-    // state value is intentionally ignored until a later contract gives it a
-    // geometry consumer.
-    let _ = context.container_state_read(container.id);
     if container.children.len() != 2 {
         return measure_malformed_children(container, constraints, context);
     }

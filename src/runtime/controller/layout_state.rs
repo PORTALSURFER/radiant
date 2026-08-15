@@ -8,7 +8,7 @@ use std::any::Any;
 use std::num::NonZeroU64;
 
 use super::SurfaceRuntime;
-use crate::runtime::RuntimeBridge;
+use crate::runtime::{RuntimeBridge, SurfaceTraversalIndex};
 
 /// Maximum number of mounted layout-interaction state slots in one window.
 pub(super) const MAX_LAYOUT_CONTAINER_STATE_SLOTS: usize = 64;
@@ -108,6 +108,20 @@ struct RuntimeLayoutContainerStateSlot {
     value: Box<dyn Any>,
 }
 
+struct RuntimeLayoutContainerStateCandidateSlot {
+    id: ContainerStateId,
+    mounted_id: MountedContainerStateId,
+    value: Option<Box<dyn Any>>,
+}
+
+/// Provisional mounted layout-container state prepared for one candidate
+/// traversal. A `None` value retains the exact accepted slot; a `Some` value
+/// is owned by the candidate until commit or abandonment.
+pub(super) struct RuntimeLayoutContainerStateCandidate {
+    slots: Vec<RuntimeLayoutContainerStateCandidateSlot>,
+    diagnostics: SurfaceLayoutStateDiagnostics,
+}
+
 pub(super) struct RuntimeLayoutContainerStateStore {
     slots: Vec<RuntimeLayoutContainerStateSlot>,
     next_mount_generation: u64,
@@ -170,24 +184,24 @@ impl RuntimeLayoutContainerStateStore {
             .map(|slot| MountedContainerStateRead::new(slot.mounted_id, slot.value.as_ref()))
     }
 
-    pub(super) fn reconcile(
+    pub(super) fn prepare(
         &mut self,
         declarations: &[ContainerStateDeclaration],
-    ) -> SurfaceLayoutStateDiagnostics {
-        let mut diagnostics = SurfaceLayoutStateDiagnostics::default();
+    ) -> RuntimeLayoutContainerStateCandidate {
+        let mut candidate = RuntimeLayoutContainerStateCandidate {
+            slots: Vec::with_capacity(declarations.len().min(MAX_LAYOUT_CONTAINER_STATE_SLOTS)),
+            diagnostics: SurfaceLayoutStateDiagnostics::default(),
+        };
         let mut mounted = Vec::with_capacity(declarations.len());
 
-        let mut index = 0;
-        while index < self.slots.len() {
-            if declarations.iter().any(|declaration| {
-                declaration.container_id() == self.slots[index].id.container_id()
-            }) {
-                index += 1;
-                continue;
+        for slot in &self.slots {
+            if !declarations
+                .iter()
+                .any(|declaration| declaration.container_id() == slot.id.container_id())
+            {
+                candidate.diagnostics.dropped_count =
+                    candidate.diagnostics.dropped_count.saturating_add(1);
             }
-            let removed = self.slots.remove(index);
-            drop(removed);
-            diagnostics.dropped_count = diagnostics.dropped_count.saturating_add(1);
         }
 
         for declaration in declarations {
@@ -197,44 +211,119 @@ impl RuntimeLayoutContainerStateStore {
             }
             mounted.push(id);
 
-            if self.slots.iter().any(|slot| slot.id == id) {
+            if candidate.slots.iter().any(|slot| slot.id == id) {
                 continue;
             }
 
-            if let Some(index) = self
+            if candidate
                 .slots
                 .iter()
-                .position(|slot| slot.id.same_container(id))
+                .any(|slot| slot.id.same_container(id))
             {
-                let previous = self.slots.remove(index);
-                let previous_id = previous.id;
-                drop(previous);
-                diagnostics.push_replacement(SurfaceLayoutStateReplacement {
-                    container_id: id.container_id(),
-                    previous: previous_id,
-                    current: id,
-                });
-            } else if self.slots.len() >= MAX_LAYOUT_CONTAINER_STATE_SLOTS {
-                diagnostics.capacity_exceeded_count =
-                    diagnostics.capacity_exceeded_count.saturating_add(1);
+                continue;
+            }
+
+            if let Some(previous) = self.slots.iter().find(|slot| slot.id.same_container(id))
+                && previous.id != id
+            {
+                candidate
+                    .diagnostics
+                    .push_replacement(SurfaceLayoutStateReplacement {
+                        container_id: id.container_id(),
+                        previous: previous.id,
+                        current: id,
+                    });
+            }
+
+            if let Some(previous) = self.slots.iter().find(|slot| slot.id == id) {
+                candidate
+                    .slots
+                    .push(RuntimeLayoutContainerStateCandidateSlot {
+                        id,
+                        mounted_id: previous.mounted_id,
+                        value: None,
+                    });
+                continue;
+            }
+
+            if candidate.slots.len() >= MAX_LAYOUT_CONTAINER_STATE_SLOTS {
+                candidate.diagnostics.capacity_exceeded_count = candidate
+                    .diagnostics
+                    .capacity_exceeded_count
+                    .saturating_add(1);
                 continue;
             }
 
             let Some(mounted_id) = self.allocate_mounted_state_id(id) else {
-                diagnostics.generation_exhaustion_count =
-                    diagnostics.generation_exhaustion_count.saturating_add(1);
+                candidate.diagnostics.generation_exhaustion_count = candidate
+                    .diagnostics
+                    .generation_exhaustion_count
+                    .saturating_add(1);
                 continue;
             };
 
-            self.slots.push(RuntimeLayoutContainerStateSlot {
-                id,
-                mounted_id,
-                value: declaration.initialize(),
-            });
-            diagnostics.initialized_count = diagnostics.initialized_count.saturating_add(1);
+            candidate
+                .slots
+                .push(RuntimeLayoutContainerStateCandidateSlot {
+                    id,
+                    mounted_id,
+                    value: Some(declaration.initialize()),
+                });
+            candidate.diagnostics.initialized_count =
+                candidate.diagnostics.initialized_count.saturating_add(1);
         }
 
+        candidate
+    }
+
+    pub(super) fn commit(
+        &mut self,
+        candidate: RuntimeLayoutContainerStateCandidate,
+    ) -> SurfaceLayoutStateDiagnostics {
+        let RuntimeLayoutContainerStateCandidate {
+            slots: candidate_slots,
+            diagnostics,
+        } = candidate;
+        let mut accepted_slots = std::mem::take(&mut self.slots);
+        let mut committed_slots = Vec::with_capacity(candidate_slots.len());
+
+        for candidate_slot in candidate_slots {
+            let RuntimeLayoutContainerStateCandidateSlot {
+                id,
+                mounted_id,
+                value,
+            } = candidate_slot;
+            if let Some(value) = value {
+                if let Some(index) = accepted_slots
+                    .iter()
+                    .position(|slot| slot.id.same_container(id))
+                {
+                    drop(accepted_slots.remove(index));
+                }
+                committed_slots.push(RuntimeLayoutContainerStateSlot {
+                    id,
+                    mounted_id,
+                    value,
+                });
+            } else if let Some(index) = accepted_slots.iter().position(|slot| slot.id == id) {
+                committed_slots.push(accepted_slots.remove(index));
+            }
+        }
+
+        for slot in accepted_slots {
+            drop(slot);
+        }
+        self.slots = committed_slots;
         diagnostics
+    }
+
+    #[cfg(test)]
+    pub(super) fn reconcile(
+        &mut self,
+        declarations: &[ContainerStateDeclaration],
+    ) -> SurfaceLayoutStateDiagnostics {
+        let candidate = self.prepare(declarations);
+        self.commit(candidate)
     }
 
     pub(super) fn context<'a>(
@@ -268,21 +357,29 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn reconcile_layout_container_state(&mut self) {
-        let declarations = self
-            .traversal
-            .containers
+    pub(super) fn prepare_layout_container_state_candidate(
+        &mut self,
+        traversal: &SurfaceTraversalIndex<Message>,
+    ) -> RuntimeLayoutContainerStateCandidate {
+        let declarations = traversal
             .layout_interactions
             .iter()
             .filter_map(|interaction| interaction.state.clone())
             .collect::<Vec<_>>();
-        let mut diagnostics = self.interaction.layout_state.reconcile(&declarations);
-        for interaction in &self.traversal.containers.layout_interactions {
+        let mut candidate = self.interaction.layout_state.prepare(&declarations);
+        for interaction in &traversal.layout_interactions {
             if interaction.foreign_state_declaration {
-                diagnostics.record_foreign_declaration();
+                candidate.diagnostics.record_foreign_declaration();
             }
         }
-        self.last_layout_state_diagnostics = diagnostics;
+        candidate
+    }
+
+    pub(super) fn commit_layout_container_state_candidate(
+        &mut self,
+        candidate: RuntimeLayoutContainerStateCandidate,
+    ) {
+        self.last_layout_state_diagnostics = self.interaction.layout_state.commit(candidate);
     }
 
     pub(super) fn layout_container_state_context<'a>(
@@ -306,6 +403,230 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use std::rc::Rc;
+
+    struct DropProbe {
+        drops: Rc<Cell<usize>>,
+        marker: u8,
+    }
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+
+    #[test]
+    fn prepare_without_commit_preserves_accepted_state_and_drops_staged_values() {
+        let old_drops = Rc::new(Cell::new(0));
+        let new_drops = Rc::new(Cell::new(0));
+        let new_initializations = Rc::new(Cell::new(0));
+        let old = ContainerStateDeclaration::new::<DropProbe, _>(6, 1, {
+            let drops = Rc::clone(&old_drops);
+            move || DropProbe {
+                drops: Rc::clone(&drops),
+                marker: 1,
+            }
+        });
+        let new = ContainerStateDeclaration::new::<DropProbe, _>(6, 2, {
+            let drops = Rc::clone(&new_drops);
+            let initializations = Rc::clone(&new_initializations);
+            move || {
+                initializations.set(initializations.get() + 1);
+                DropProbe {
+                    drops: Rc::clone(&drops),
+                    marker: 2,
+                }
+            }
+        });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&old));
+        let old_token = store
+            .current_mounted_state_id(old.id())
+            .expect("accepted old token");
+        store
+            .context(6, Some(old.id()))
+            .state_mut::<DropProbe>()
+            .expect("accepted old value")
+            .marker = 7;
+
+        let candidate = store.prepare(std::slice::from_ref(&new));
+        assert_eq!(candidate.diagnostics.replacement_count, 1);
+        assert_eq!(candidate.diagnostics.initialized_count, 1);
+        assert_eq!(store.current_mounted_state_id(old.id()), Some(old_token));
+        assert_eq!(
+            store
+                .lookup_current_state_view(old_token)
+                .expect("old value remains accepted")
+                .downcast_ref::<DropProbe>()
+                .expect("old value type")
+                .marker,
+            7
+        );
+        assert_eq!(old_drops.get(), 0);
+        assert_eq!(new_initializations.get(), 1);
+
+        drop(candidate);
+        assert_eq!(old_drops.get(), 0);
+        assert_eq!(new_drops.get(), 1);
+        assert_eq!(store.current_mounted_state_id(new.id()), None);
+    }
+
+    #[test]
+    fn compatible_candidate_retains_exact_token_and_accepted_value() {
+        let initialized = Rc::new(Cell::new(0));
+        let declaration = ContainerStateDeclaration::new::<Rc<Cell<u32>>, _>(8, 1, {
+            let initialized = Rc::clone(&initialized);
+            move || {
+                initialized.set(initialized.get() + 1);
+                Rc::new(Cell::new(3))
+            }
+        });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&declaration));
+        let token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("accepted token");
+        store
+            .context(8, Some(declaration.id()))
+            .state_mut::<Rc<Cell<u32>>>()
+            .expect("accepted value")
+            .set(9);
+
+        let candidate = store.prepare(std::slice::from_ref(&declaration));
+        assert_eq!(
+            candidate.diagnostics,
+            SurfaceLayoutStateDiagnostics::default()
+        );
+        assert_eq!(initialized.get(), 1);
+        assert_eq!(
+            store
+                .lookup_current_state_view(token)
+                .expect("accepted value before commit")
+                .get::<Rc<Cell<u32>>>()
+                .map(|value| value.get()),
+            Some(9)
+        );
+        let diagnostics = store.commit(candidate);
+        assert_eq!(diagnostics, SurfaceLayoutStateDiagnostics::default());
+        assert_eq!(
+            store.current_mounted_state_id(declaration.id()),
+            Some(token)
+        );
+        assert_eq!(initialized.get(), 1);
+        assert_eq!(
+            store
+                .lookup_current_state_view(token)
+                .expect("accepted value after commit")
+                .get::<Rc<Cell<u32>>>()
+                .map(|value| value.get()),
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn replacement_and_unmount_drop_values_only_at_commit_once() {
+        let old_drops = Rc::new(Cell::new(0));
+        let replacement_drops = Rc::new(Cell::new(0));
+        let old = ContainerStateDeclaration::new::<DropProbe, _>(10, 1, {
+            let drops = Rc::clone(&old_drops);
+            move || DropProbe {
+                drops: Rc::clone(&drops),
+                marker: 1,
+            }
+        });
+        let replacement = ContainerStateDeclaration::new::<DropProbe, _>(10, 2, {
+            let drops = Rc::clone(&replacement_drops);
+            move || DropProbe {
+                drops: Rc::clone(&drops),
+                marker: 2,
+            }
+        });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&old));
+        let old_token = store.current_mounted_state_id(old.id()).expect("old token");
+
+        let candidate = store.prepare(std::slice::from_ref(&replacement));
+        assert_eq!(old_drops.get(), 0);
+        assert_eq!(replacement_drops.get(), 0);
+        let diagnostics = store.commit(candidate);
+        assert_eq!(diagnostics.replacement_count, 1);
+        assert_eq!(old_drops.get(), 1);
+        assert_eq!(replacement_drops.get(), 0);
+        let replacement_token = store
+            .current_mounted_state_id(replacement.id())
+            .expect("replacement token");
+        assert_ne!(old_token, replacement_token);
+        assert!(store.lookup_current_state_view(old_token).is_none());
+
+        let candidate = store.prepare(&[]);
+        assert_eq!(replacement_drops.get(), 0);
+        let diagnostics = store.commit(candidate);
+        assert_eq!(diagnostics.dropped_count, 1);
+        assert_eq!(replacement_drops.get(), 1);
+        assert_eq!(store.slot_count(), 0);
+
+        let candidate = store.prepare(std::slice::from_ref(&replacement));
+        let diagnostics = store.commit(candidate);
+        assert_eq!(diagnostics.initialized_count, 1);
+        let reinserted_token = store
+            .current_mounted_state_id(replacement.id())
+            .expect("reinserted token");
+        assert_ne!(replacement_token, reinserted_token);
+        assert_eq!(reinserted_token.generation().get(), 3);
+    }
+
+    #[test]
+    fn prepared_capacity_and_generation_denials_fail_closed() {
+        let initialized = Rc::new(Cell::new(0));
+        let declarations = (0..MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64)
+            .map(|container_id| {
+                let initialized = Rc::clone(&initialized);
+                ContainerStateDeclaration::new::<u32, _>(container_id, 1, move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                })
+            })
+            .collect::<Vec<_>>();
+        let denied =
+            ContainerStateDeclaration::new::<u32, _>(MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64, 1, {
+                let initialized = Rc::clone(&initialized);
+                move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                }
+            });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(&declarations);
+        let next_generation = store.next_mount_generation_for_test();
+        let mut combined = declarations.clone();
+        combined.push(denied.clone());
+        let candidate = store.prepare(&combined);
+        assert_eq!(candidate.slots.len(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+        assert_eq!(candidate.diagnostics.capacity_exceeded_count, 1);
+        assert_eq!(candidate.diagnostics.initialized_count, 0);
+        assert_eq!(initialized.get(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+        assert_eq!(store.current_mounted_state_id(denied.id()), None);
+        assert!(!candidate.slots.iter().any(|slot| slot.id == denied.id()));
+        drop(candidate);
+        assert_eq!(store.next_mount_generation_for_test(), next_generation);
+
+        let exhausted = ContainerStateDeclaration::new::<u32, _>(99, 1, {
+            let initialized = Rc::clone(&initialized);
+            move || {
+                initialized.set(initialized.get() + 1);
+                0
+            }
+        });
+        store.set_next_mount_generation_for_test(u64::MAX);
+        let candidate = store.prepare(std::slice::from_ref(&exhausted));
+        assert!(candidate.slots.is_empty());
+        assert_eq!(candidate.diagnostics.generation_exhaustion_count, 1);
+        assert_eq!(initialized.get(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+        assert_eq!(store.current_mounted_state_id(exhausted.id()), None);
+        let diagnostics = store.commit(candidate);
+        assert_eq!(diagnostics.generation_exhaustion_count, 1);
+        assert_eq!(store.next_mount_generation_for_test(), u64::MAX);
+    }
 
     #[test]
     fn matching_identity_reuses_a_non_send_slot() {

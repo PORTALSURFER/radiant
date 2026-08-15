@@ -1,11 +1,43 @@
 use super::super::super::{
-    LayoutDiagnosticCode, LayoutEngine, LayoutState, LayoutStats, layout_tree,
+    LayoutContainerStateReadSource, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine,
+    LayoutOutput, LayoutState, LayoutStats, layout_tree,
 };
 use crate::gui::layout_core::{
-    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, Insets, LayoutNode,
-    SizeModeCross, SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
+    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, ContainerStateId, Insets,
+    LayoutNode, MountedContainerStateId, MountedContainerStateRead, NodeId, SizeModeCross,
+    SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
 };
 use crate::gui::types::{Point, Rect, Vector2};
+use std::cell::RefCell;
+use std::num::NonZeroU64;
+
+const SPLIT_ID: NodeId = 1;
+
+struct RecordingSource {
+    mounted_id: MountedContainerStateId,
+    value: u32,
+    reads: RefCell<Vec<(NodeId, u32, MountedContainerStateId)>>,
+}
+
+impl RecordingSource {
+    fn new(mounted_id: MountedContainerStateId, value: u32) -> Self {
+        Self {
+            mounted_id,
+            value,
+            reads: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl LayoutContainerStateReadSource for RecordingSource {
+    fn read_container_state(&self, container_id: NodeId) -> Option<MountedContainerStateRead<'_>> {
+        self.reads
+            .borrow_mut()
+            .push((container_id, self.value, self.mounted_id));
+        (container_id == SPLIT_ID)
+            .then(|| MountedContainerStateRead::new(self.mounted_id, &self.value))
+    }
+}
 
 fn split_policy(
     axis: SplitPaneAxis,
@@ -542,4 +574,105 @@ fn malformed_split_arity_is_diagnosed_and_lays_out_all_children_without_stale_re
             _ => unreachable!(),
         }
     }
+}
+
+#[test]
+fn split_pane_source_is_observed_cold_and_placement_only_when_warm() {
+    let root = split_node(
+        split_policy(SplitPaneAxis::Horizontal, 0.4, 6.0, 0.0, 0.0),
+        vec![
+            child(2, Vector2::new(10.0, 20.0)),
+            child(3, Vector2::new(20.0, 30.0)),
+        ],
+    );
+    let viewport = root_rect(3.0, 5.0, 120.0, 60.0);
+    let expected = layout_tree(&root, viewport);
+    let mounted_id = MountedContainerStateId::new(
+        ContainerStateId::new::<u32>(SPLIT_ID, 1),
+        NonZeroU64::new(1).expect("non-zero generation"),
+    );
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    let cold_source = RecordingSource::new(mounted_id, 17);
+
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+        Some(&cold_source),
+        &mut output,
+    );
+
+    assert_eq!(output, expected);
+    assert_eq!(
+        cold_source.reads.borrow().as_slice(),
+        &[(SPLIT_ID, 17, mounted_id), (SPLIT_ID, 17, mounted_id)]
+    );
+    assert_eq!(
+        output.stats,
+        LayoutStats {
+            measured_nodes: 3,
+            laid_out_nodes: 3,
+            materialized_nodes: 3,
+        }
+    );
+
+    let warm_source = RecordingSource::new(mounted_id, 91);
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+        Some(&warm_source),
+        &mut output,
+    );
+
+    let mut expected_warm = expected.clone();
+    expected_warm.stats = output.stats;
+    assert_eq!(output, expected_warm);
+    assert_eq!(
+        warm_source.reads.borrow().as_slice(),
+        &[(SPLIT_ID, 91, mounted_id)]
+    );
+    assert_eq!(
+        output.stats,
+        LayoutStats {
+            measured_nodes: 0,
+            laid_out_nodes: 3,
+            materialized_nodes: 3,
+        }
+    );
+}
+
+#[test]
+fn ordinary_container_does_not_query_a_container_state_source() {
+    let root = LayoutNode::container(
+        10,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            ..ContainerPolicy::default()
+        },
+        vec![child(11, Vector2::new(20.0, 12.0))],
+    );
+    let source = RecordingSource::new(
+        MountedContainerStateId::new(
+            ContainerStateId::new::<u32>(10, 1),
+            NonZeroU64::new(1).expect("non-zero generation"),
+        ),
+        23,
+    );
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+
+    engine.layout_with_state_and_source_into(
+        &root,
+        root_rect(0.0, 0.0, 80.0, 40.0),
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+        Some(&source),
+        &mut output,
+    );
+
+    assert!(source.reads.borrow().is_empty());
 }

@@ -105,6 +105,7 @@ pub(crate) use capabilities::{
     supports_layout_input_contract, supports_layout_state_input_contract,
 };
 pub use constraints::{Constraints, ConstraintsParts};
+pub(crate) use engine::LayoutContainerStateReadSource;
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutEngine, LayoutOutput, LayoutState, LayoutStats, OverflowInfo,

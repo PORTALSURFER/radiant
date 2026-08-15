@@ -9,6 +9,7 @@ mod layout;
 mod measure;
 mod types;
 
+use super::MountedContainerStateRead;
 use super::constraints::Constraints;
 use super::tree::{LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
@@ -23,6 +24,12 @@ pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, VirtualWindowInfo,
 };
+
+/// Crate-private immutable source for one complete mounted-container layout
+/// evaluation.
+pub(crate) trait LayoutContainerStateReadSource {
+    fn read_container_state(&self, container_id: NodeId) -> Option<MountedContainerStateRead<'_>>;
+}
 
 /// Reusable stateful layout engine with measurement and virtualization caches.
 #[derive(Default)]
@@ -122,6 +129,24 @@ impl LayoutEngine {
         debug: LayoutDebugOptions,
         output: &mut LayoutOutput,
     ) {
+        self.layout_with_state_and_source_into(root, root_rect, state, debug, None, output);
+    }
+
+    /// Compute layout with one immutable runtime-owned mounted-state source.
+    ///
+    /// This is crate-private so the public layout entry points remain
+    /// source-compatible. The source is borrowed by the shared context for
+    /// both bottom-up measurement and top-down placement; it is not part of
+    /// cache identity or geometry policy.
+    pub(crate) fn layout_with_state_and_source_into(
+        &mut self,
+        root: &LayoutNode,
+        root_rect: Rect,
+        state: &LayoutState,
+        debug: LayoutDebugOptions,
+        container_state_source: Option<&dyn LayoutContainerStateReadSource>,
+        output: &mut LayoutOutput,
+    ) {
         let constraints = Constraints {
             min_w: 0.0,
             max_w: root_rect.width().max(0.0),
@@ -144,6 +169,7 @@ impl LayoutEngine {
                 state,
                 debug_options: debug,
                 debug_node_filter,
+                container_state_source,
             });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);

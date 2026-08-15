@@ -12,6 +12,9 @@ pub(super) fn layout_split_pane(
     content: Rect,
     context: &mut LayoutContext,
 ) {
+    // Keep the same observational boundary in the top-down pass. The value
+    // must not influence placement, diagnostics, invalidation, or caching.
+    let _ = context.container_state_read(container.id);
     if container.children.len() != 2 {
         context.push_diagnostic(
             container.id,

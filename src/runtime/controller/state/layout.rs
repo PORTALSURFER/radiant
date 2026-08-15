@@ -38,11 +38,13 @@ where
         traversal: SurfaceTraversalIndex<Message>,
     ) {
         let candidate = self.prepare_layout_container_state_candidate(&traversal);
-        self.layout_engine.layout_with_state_into(
+        let container_state_source = self.interaction.layout_state.read_source(&candidate);
+        self.layout_engine.layout_with_state_and_source_into(
             &self.layout_root,
             self.viewport,
             &self.layout_state,
             self.layout_debug_options,
+            Some(&container_state_source),
             &mut self.layout,
         );
         self.install_traversal_with_candidate(traversal, candidate);

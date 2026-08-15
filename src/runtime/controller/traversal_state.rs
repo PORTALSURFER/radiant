@@ -84,6 +84,7 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) clip_ancestors: HashMap<NodeId, ClipAncestors>,
     pub(super) scroll_content_by_container: HashMap<NodeId, NodeId>,
     pub(super) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
+    pub(super) split_pane_runtime: Vec<crate::gui::layout_core::SplitPaneRuntimeStateInput>,
     pub(super) virtual_layout_registrations:
         Vec<crate::runtime::surface::VirtualLayoutRegistration<Message>>,
     pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
@@ -107,6 +108,7 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             clip_ancestors: HashMap::new(),
             scroll_content_by_container: HashMap::new(),
             layout_interactions: Vec::new(),
+            split_pane_runtime: Vec::new(),
             virtual_layout_registrations: Vec::new(),
             layout_targets: Vec::new(),
             layout_hit_region_diagnostics: LayoutHitRegionDiagnostics::default(),

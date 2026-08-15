@@ -6473,9 +6473,21 @@ or minimum extents use `0.0`, and the result reports whether both pane minima
 were satisfied. The static application builder
 `radiant::application::split_pane(first, second)` and its common-prelude
 export accept `.axis(...)`, `.initial_ratio(...)`, `.min_first(...)`,
-`.min_second(...)`, and `.divider_extent(...)`. It lowers exactly two ordered
-children through a dedicated `ContainerKind::SplitPane` policy and owns no
-runtime ratio, pointer, focus, hit-region, capability, or semantic state.
+`.min_second(...)`, and `.divider_extent(...)`, plus the additive
+`.runtime_owned_ratio()` and
+`.controlled_ratio(radiant::layout::Controlled::new(value, generation))`
+opt-ins. It lowers exactly two ordered children through a dedicated
+`ContainerKind::SplitPane` policy and keeps the existing `SplitPanePolicy`
+fields and defaults source-compatible. The static form owns no runtime ratio,
+pointer, focus, hit-region, capability, or semantic state. Runtime-owned mode
+seeds a mounted ratio once from the sanitized `initial_ratio`; controlled mode
+accepts its mount value and only strictly newer generations. A
+runtime-owned/controlled transition is an explicit state reset, while a
+compatible same-identity projection preserves the mounted slot. Missing,
+incompatible, unavailable, capacity-exhausted, or retired state falls back to
+the declarative ratio. Accepted state affects only top-down placement;
+measurement and measurement-cache identity remain independent of the runtime
+ratio.
 The qualified `radiant::layout::{LayoutCapabilities,
 LayoutInteraction, LayoutInteractionRevision}` contract provides
 backend-neutral UI-local capability registration, exact/conservative revision
@@ -6485,9 +6497,8 @@ for generic surface containers. Version 4 additionally provides the optional
 typed `ContainerStateDeclaration` / `LayoutContainerStateContext` seam with
 bounded UI-local state; version 2 remains projection/query-only.
 `SurfaceRuntime::layout_hit_target_at(...)` is a read-only query over those
-projected targets. The shipped split builder is static geometry only; controlled
-ratio state, divider interaction, semantic/keyboard behavior, and
-`VirtualLayoutPolicy` remain future work.
+projected targets. Split ratio interaction, settled callbacks,
+semantic/keyboard behavior, and `VirtualLayoutPolicy` remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

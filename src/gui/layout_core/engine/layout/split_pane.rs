@@ -4,6 +4,7 @@ use super::super::{LayoutContext, round_rect};
 use super::layout_node;
 use crate::gui::layout_core::engine::LayoutDiagnosticCode;
 use crate::gui::layout_core::tree::ContainerNode;
+use crate::gui::layout_core::{SplitPaneRuntimeState, sanitize_runtime_ratio};
 use crate::gui::panel::{SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts};
 use crate::gui::types::{Point, Rect};
 
@@ -12,9 +13,7 @@ pub(super) fn layout_split_pane(
     content: Rect,
     context: &mut LayoutContext,
 ) {
-    // Keep the same observational boundary in the top-down pass. The value
-    // must not influence placement, diagnostics, invalidation, or caching.
-    let _ = context.container_state_read(container.id);
+    let state = context.container_state_read(container.id);
     if container.children.len() != 2 {
         context.push_diagnostic(
             container.id,
@@ -28,10 +27,29 @@ pub(super) fn layout_split_pane(
     }
 
     let policy = container.policy.split_pane;
-    let resolved = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+    let declarative = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
         bounds: content,
         axis: policy.axis,
         ratio: policy.initial_ratio,
+        divider_extent: policy.divider_extent,
+        first_min_extent: policy.first_min_extent,
+        second_min_extent: policy.second_min_extent,
+    });
+    let ratio = container
+        .split_pane_runtime
+        .and_then(|mode| {
+            let ownership = mode.ownership();
+            state
+                .as_ref()
+                .and_then(|state| state.downcast_ref::<SplitPaneRuntimeState>())
+                .filter(|state| state.ownership == ownership)
+                .map(|state| sanitize_runtime_ratio(state.ratio, declarative.ratio))
+        })
+        .unwrap_or(declarative.ratio);
+    let resolved = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds: content,
+        axis: policy.axis,
+        ratio,
         divider_extent: policy.divider_extent,
         first_min_extent: policy.first_min_extent,
         second_min_extent: policy.second_min_extent,

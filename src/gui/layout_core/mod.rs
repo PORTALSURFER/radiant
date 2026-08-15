@@ -84,9 +84,11 @@
 
 mod capabilities;
 mod constraints;
+mod controlled;
 mod engine;
 mod model;
 mod row_helpers;
+mod split_pane_state;
 mod tree;
 mod virtual_layout;
 
@@ -105,6 +107,7 @@ pub(crate) use capabilities::{
     supports_layout_input_contract, supports_layout_state_input_contract,
 };
 pub use constraints::{Constraints, ConstraintsParts};
+pub use controlled::Controlled;
 pub(crate) use engine::LayoutContainerStateReadSource;
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
@@ -124,6 +127,9 @@ pub use row_helpers::{
     grouped_fixed_width_row_width, stacked_row_rects, stacked_row_rects_from_parts,
     stacked_row_rects_into, stacked_row_rects_into_from_parts, visible_suffix_widths,
     visible_suffix_widths_into,
+};
+pub(crate) use split_pane_state::{
+    SplitPaneRuntimeMode, SplitPaneRuntimeState, SplitPaneRuntimeStateInput, sanitize_runtime_ratio,
 };
 pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,

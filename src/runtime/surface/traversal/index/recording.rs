@@ -24,6 +24,9 @@ impl<Message> SurfaceTraversalIndex<Message> {
         if let Some(interaction) = record.layout_interaction {
             self.layout_interactions.push(interaction);
         }
+        if let Some(split_pane_runtime) = record.split_pane_runtime {
+            self.split_pane_runtime.push(split_pane_runtime);
+        }
         if let Some(registration) = record.virtual_layout {
             self.virtual_layout_registrations.push(registration);
         }

@@ -60,6 +60,8 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
     pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
+    pub(in crate::runtime::surface) split_pane_runtime:
+        Option<crate::gui::layout_core::SplitPaneRuntimeMode>,
     pub(in crate::runtime::surface) virtual_layout:
         Option<super::super::VirtualLayoutRegistration<Message>>,
     pub(in crate::runtime::surface) scroll_message:
@@ -89,6 +91,7 @@ impl<Message> SurfaceContainer<Message> {
             style: None,
             hoverable: false,
             layout_capabilities: parts.layout_capabilities,
+            split_pane_runtime: None,
             virtual_layout: None,
             scroll_message: None,
             children: parts.children,
@@ -194,6 +197,19 @@ pub enum SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(crate) fn with_split_pane_runtime_mode(
+        self,
+        mode: Option<crate::gui::layout_core::SplitPaneRuntimeMode>,
+    ) -> Self {
+        match self {
+            Self::Container(mut container) => {
+                container.split_pane_runtime = mode;
+                Self::Container(container)
+            }
+            node => node,
+        }
+    }
+
     pub(in crate::runtime) fn with_virtual_layout_registration(
         self,
         registration: super::super::VirtualLayoutRegistration<Message>,

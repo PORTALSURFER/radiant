@@ -2,7 +2,10 @@
 
 mod derived;
 
-use super::model::{ContainerPolicy, SlotParams};
+use super::{
+    SplitPaneRuntimeMode,
+    model::{ContainerPolicy, SlotParams},
+};
 use crate::gui::types::Vector2;
 use derived::container_derived_state;
 use std::hash::{Hash, Hasher};
@@ -52,6 +55,7 @@ pub struct ContainerNode {
     pub policy: ContainerPolicy,
     /// Ordered slot children.
     pub children: Vec<SlotChild>,
+    pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     /// Version used by persistent layout caches.
     pub(crate) state_version: u64,
     /// Precomputed horizontal row/column extent when every child has a direct known main size.
@@ -83,6 +87,7 @@ impl ContainerNode {
             id: parts.id,
             policy: parts.policy,
             children: parts.children,
+            split_pane_runtime: None,
             state_version: derived.state_version,
             known_main_extent_horizontal: derived.horizontal_metrics.extent,
             known_main_extent_vertical: derived.vertical_metrics.extent,
@@ -193,5 +198,21 @@ impl LayoutNode {
     /// Convenience constructor for a container node from named parts.
     pub fn container_from_parts(parts: ContainerNodeParts) -> Self {
         Self::Container(ContainerNode::from_parts(parts))
+    }
+
+    /// Construct a container with an internal runtime-owned split-pane mode.
+    pub(crate) fn container_with_split_pane_runtime_mode(
+        id: NodeId,
+        policy: ContainerPolicy,
+        children: Vec<SlotChild>,
+        split_pane_runtime: Option<SplitPaneRuntimeMode>,
+    ) -> Self {
+        let mut container = ContainerNode::from_parts(ContainerNodeParts {
+            id,
+            policy,
+            children,
+        });
+        container.split_pane_runtime = split_pane_runtime;
+        Self::Container(container)
     }
 }

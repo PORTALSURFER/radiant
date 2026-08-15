@@ -19,22 +19,25 @@ where
     }
 
     pub(in crate::runtime::controller) fn relayout_current_surface(&mut self) {
-        self.layout_engine.layout_with_state_into(
-            &self.layout_root,
-            self.viewport,
-            &self.layout_state,
-            self.layout_debug_options,
-            &mut self.layout,
-        );
+        let traversal = self.take_reusable_traversal_index(true);
+        self.relayout_with_traversal(traversal);
+    }
+
+    pub(in crate::runtime::controller) fn install_traversal_with_candidate(
+        &mut self,
+        traversal: SurfaceTraversalIndex<Message>,
+        candidate: super::super::layout_state::RuntimeLayoutContainerStateCandidate,
+    ) {
+        self.install_traversal_index(traversal);
         self.refresh_visible_traversal_orders();
-        self.sync_scroll_offsets();
-        self.record_completed_layout();
+        self.commit_layout_container_state_candidate(candidate);
     }
 
     pub(in crate::runtime::controller) fn relayout_with_traversal(
         &mut self,
         traversal: SurfaceTraversalIndex<Message>,
     ) {
+        let candidate = self.prepare_layout_container_state_candidate(&traversal);
         self.layout_engine.layout_with_state_into(
             &self.layout_root,
             self.viewport,
@@ -42,7 +45,7 @@ where
             self.layout_debug_options,
             &mut self.layout,
         );
-        self.install_traversal_index(traversal);
+        self.install_traversal_with_candidate(traversal, candidate);
         self.sync_scroll_offsets();
         self.record_completed_layout();
     }

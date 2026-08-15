@@ -3397,7 +3397,8 @@ where
             self.refresh_counters.layout = self.refresh_counters.layout.saturating_add(1);
             layout_started.elapsed()
         } else {
-            self.install_traversal_index(traversal);
+            let candidate = self.prepare_layout_container_state_candidate(&traversal);
+            self.install_traversal_with_candidate(traversal, candidate);
             Duration::ZERO
         };
         self.validate_managed_pointer_capture_authority();

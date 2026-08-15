@@ -53,7 +53,6 @@ where
         self.traversal.containers.layout_interactions = traversal.layout_interactions;
         self.traversal.containers.virtual_layout_registrations =
             traversal.virtual_layout_registrations;
-        self.refresh_visible_traversal_orders();
     }
 
     pub(in crate::runtime::controller) fn refresh_visible_traversal_orders(&mut self) {
@@ -79,7 +78,6 @@ where
             .containers
             .project_layout_targets(&self.layout);
         self.reconcile_layout_pointer_capture();
-        self.reconcile_layout_container_state();
     }
 
     pub(in crate::runtime::controller) fn take_reusable_traversal_index(

@@ -150,6 +150,10 @@ name = "layout_diagnostics"
 path = "examples/layout_diagnostics.rs"
 
 [[example]]
+name = "split_pane_static"
+path = "examples/split_pane_static.rs"
+
+[[example]]
 name = "rendering_benchmark"
 path = "examples/rendering_benchmark.rs"
 

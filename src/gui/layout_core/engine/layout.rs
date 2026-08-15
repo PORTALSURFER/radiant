@@ -7,6 +7,7 @@ mod scroll;
 mod scroll_cache;
 mod scroll_helpers;
 mod scroll_linear;
+mod split_pane;
 mod wrap;
 
 use super::helpers::content_rect;
@@ -38,5 +39,6 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::Wrap => wrap::layout_wrap(container, content, context),
         ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),
         ContainerKind::FloatingLayer => boxes::layout_floating_layer(container, content, context),
+        ContainerKind::SplitPane => split_pane::layout_split_pane(container, content, context),
     }
 }

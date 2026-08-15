@@ -8,7 +8,7 @@ mod virtualization;
 pub use alignment::{CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain};
 pub use container::{
     ContainerKind, ContainerPolicy, FloatingLayerHorizontalOverflow, FloatingLayerPolicy,
-    FloatingLayerVerticalOverflow, GridPolicy, SwitchBreakpoint, WrapPolicy,
+    FloatingLayerVerticalOverflow, GridPolicy, SplitPanePolicy, SwitchBreakpoint, WrapPolicy,
 };
 pub use slot::{Insets, SlotParams};
 pub use virtualization::{VirtualizationAxis, VirtualizationPolicy};

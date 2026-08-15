@@ -2067,24 +2067,31 @@ style.
 
 `split_pane` is the ordinary resizable-layout container for sidebars, detail
 views, inspectors, and editor regions; workspace docking remains the separate
-multi-panel composition layer. Its divider is a narrow `LayoutInteraction`, not
-a widget. The default owns its live ratio locally; applications may seed an
-`initial_ratio`, persist `on_ratio_settled`, or use a generation-bearing
-`controlled_ratio` for undo, collaboration, or external layout authority.
+multi-panel composition layer. The shipped first slice is a static, product-
+neutral two-child geometry builder: its divider reserves normalized layout
+space, while the default is horizontal with a `0.5` initial ratio and zero
+minima/divider extent. Applications can configure the static builder with
+`axis`, `initial_ratio`, `min_first`, `min_second`, and `divider_extent`.
+Runtime-local ratio ownership, divider `LayoutInteraction`, persistence, and
+controlled ratios remain later slices.
 
 ```rust
 split_pane(library_panel(state), detail_panel(state))
-    .axis(Axis::Horizontal)
+    .axis(SplitPaneAxis::Horizontal)
     .initial_ratio(state.library_split)
     .min_first(180)
     .min_second(320)
-    .on_ratio_settled(Message::SaveLibrarySplit)
-    .keyboard_resize(KeyboardResize::enabled());
+    .divider_extent(8)
+    .into_view();
 ```
 
-This target builder and its generic `LayoutInteraction` runtime capability are
-future work. The shipped slice stops at the host-facing `PanelResizeState`
-model: its qualified `resize_edit(...)` and
+The static builder lowers through the ordinary declarative container path and
+uses the shared `SplitPaneLayout` normalization for exact horizontal/vertical
+placement, minima, and deterministic undersized fallback. It creates no
+`LayoutInteraction`, runtime state, hit region, message, focus, or semantic
+node. The later target builder and its generic `LayoutInteraction` runtime
+capability remain future work. The shipped `PanelResizeState` model still
+provides the host-facing resize path: its qualified `resize_edit(...)` and
 `resize_collapsible_edit(...)` methods deliver one typed `EditEvent<f32>` per
 accepted drag boundary, while the concise resize methods remain compatible
 size projections. An interrupted drag restores its transaction start and

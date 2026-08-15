@@ -9,11 +9,11 @@ use std::{
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
-const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 479;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 481;
 const MIN_COMMON_PRELUDE_HEADROOM_PERCENT: usize = 10;
 
 const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
-    ("application", 245),
+    ("application", 247),
     ("gui", 102),
     ("layout", 1),
     ("runtime", 32),

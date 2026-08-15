@@ -267,8 +267,14 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 let children = if policy.kind == ContainerKind::Stack {
                     self.lower_fill_children(children, child_scope)
                 } else {
-                    let parent_horizontal =
-                        matches!(policy.kind, ContainerKind::Row | ContainerKind::Wrap);
+                    let parent_horizontal = match policy.kind {
+                        ContainerKind::Row | ContainerKind::Wrap => true,
+                        ContainerKind::SplitPane => matches!(
+                            policy.split_pane.axis,
+                            crate::gui::panel::SplitPaneAxis::Horizontal
+                        ),
+                        _ => false,
+                    };
                     self.lower_slot_children(children, child_scope, parent_horizontal)
                 };
                 styled_container(self, policy, children)

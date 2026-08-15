@@ -1610,8 +1610,8 @@ The concise `resize(...)` and `resize_collapsible(...)` methods remain the
 compatibility projections: changed cancellation returns the restored size,
 no-op cancellation remains lifecycle-only, and collapsible double activation
 stays a discrete collapse/restore command outside the edit stream while
-clearing active state. These APIs do not add `numeric_input` or runtime
-`split_pane` construction. The qualified layout capability registration,
+clearing active state. These APIs do not add `numeric_input` or interactive
+`split_pane` runtime behavior. The qualified layout capability registration,
 revision, and read-only normalized hit-region declaration/projection contract
 is available separately. Version-3 capabilities may receive typed pointer
 input and request runtime-owned layout capture; version 2 remains query-only.
@@ -5921,7 +5921,7 @@ manual validation:
 | --- | --- |
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
-| Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `split_pane_static`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -6266,6 +6266,8 @@ labels and optional trailing progress/action content but should not rebuild the
 status-row chrome locally.
 Run `cargo run --example layout_rows_columns` for a compact row/column layout
 sandbox with padding and fill sizing.
+Run `cargo run --example split_pane_static` for a product-neutral static
+two-pane geometry sandbox that inspects the public `split_pane(...)` builder.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example tree_and_details` for tree-list and sortable details
@@ -6468,7 +6470,13 @@ hosts that only need size projection. Use `SplitPaneLayout::from_parts(...)`
 to resolve backend-neutral first, divider, and second rectangles along a
 horizontal or vertical axis; non-finite ratios use `0.5`, non-finite divider
 or minimum extents use `0.0`, and the result reports whether both pane minima
-were satisfied. The qualified `radiant::layout::{LayoutCapabilities,
+were satisfied. The static application builder
+`radiant::application::split_pane(first, second)` and its common-prelude
+export accept `.axis(...)`, `.initial_ratio(...)`, `.min_first(...)`,
+`.min_second(...)`, and `.divider_extent(...)`. It lowers exactly two ordered
+children through a dedicated `ContainerKind::SplitPane` policy and owns no
+runtime ratio, pointer, focus, hit-region, capability, or semantic state.
+The qualified `radiant::layout::{LayoutCapabilities,
 LayoutInteraction, LayoutInteractionRevision}` contract provides
 backend-neutral UI-local capability registration, exact/conservative revision
 evidence, validated normalized hit-region declaration/projection, and (for
@@ -6477,9 +6485,9 @@ for generic surface containers. Version 4 additionally provides the optional
 typed `ContainerStateDeclaration` / `LayoutContainerStateContext` seam with
 bounded UI-local state; version 2 remains projection/query-only.
 `SurfaceRuntime::layout_hit_target_at(...)` is a read-only query over those
-projected targets. This slice does not construct the target `split_pane`
-runtime builder or provide semantic/keyboard behavior or `VirtualLayoutPolicy`;
-those remain future work.
+projected targets. The shipped split builder is static geometry only; controlled
+ratio state, divider interaction, semantic/keyboard behavior, and
+`VirtualLayoutPolicy` remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

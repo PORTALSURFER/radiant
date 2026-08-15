@@ -5,7 +5,7 @@ use radiant::layout::{
     ContainerStateDeclaration, ContainerStateId, CrossAlign, Insets, LayoutContainerStateContext,
     LayoutEngine, LayoutEventContext, LayoutInput, LayoutInteraction, LayoutNode, LayoutState,
     NodeId, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts, SlotParams,
-    Vector2, WidgetNodeParts, layout_tree,
+    SplitPaneAxis, SplitPanePolicy, Vector2, WidgetNodeParts, layout_tree,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -101,6 +101,45 @@ fn public_layout_tree_nodes_support_named_parts_construction() {
 
     assert!(output.rects.contains_key(&11));
     assert!(output.rects.contains_key(&12));
+}
+
+#[test]
+fn public_layout_module_exposes_exact_static_split_geometry() {
+    let root = LayoutNode::container(
+        20,
+        ContainerPolicy {
+            kind: ContainerKind::SplitPane,
+            split_pane: SplitPanePolicy {
+                axis: SplitPaneAxis::Horizontal,
+                initial_ratio: 0.25,
+                divider_extent: 8.0,
+                first_min_extent: 24.0,
+                second_min_extent: 32.0,
+            },
+            ..ContainerPolicy::default()
+        },
+        vec![
+            SlotChild::new(
+                SlotParams::fill(),
+                LayoutNode::widget(21, Vector2::new(8.0, 8.0)),
+            ),
+            SlotChild::new(
+                SlotParams::fill(),
+                LayoutNode::widget(22, Vector2::new(8.0, 8.0)),
+            ),
+        ],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(120.0, 40.0)),
+    );
+
+    assert_eq!(output.rects[&21].width(), 28.0);
+    assert_eq!(output.rects[&21].max.x, 32.0);
+    assert_eq!(output.rects[&22].min.x, 40.0);
+    assert_eq!(output.rects[&22].width(), 84.0);
+    assert!(output.diagnostics.iter().all(|diagnostic| diagnostic.code
+        != radiant::layout::LayoutDiagnosticCode::SplitPaneChildCountMismatch));
 }
 
 struct LocalStateInteraction {

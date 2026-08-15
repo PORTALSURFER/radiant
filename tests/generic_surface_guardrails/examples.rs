@@ -164,6 +164,7 @@ fn api_docs_map_examples_to_target_areas() {
         "scroll",
         "sizing",
         "virtualized_list",
+        "split_pane_static",
         "styling",
         "theme_playground",
         "widget_gallery",

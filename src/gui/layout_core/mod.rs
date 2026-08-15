@@ -25,6 +25,7 @@
 //! - [`ContainerKind::Wrap`](crate::layout::ContainerKind::Wrap)
 //! - [`ContainerKind::SwitchLayout`](crate::layout::ContainerKind::SwitchLayout)
 //! - [`ContainerKind::FloatingLayer`](crate::layout::ContainerKind::FloatingLayer)
+//! - [`ContainerKind::SplitPane`](crate::layout::ContainerKind::SplitPane)
 //!
 //! Qualified [`LayoutCapabilities`](crate::layout::LayoutCapabilities) and
 //! [`LayoutInteraction`](crate::layout::LayoutInteraction) registration is
@@ -35,8 +36,9 @@
 //! optional runtime-owned typed container state; the runtime owns routing and
 //! capture for both. State slots are UI-local and bounded, and are distinct
 //! from [`LayoutState`](crate::layout::LayoutState) scroll offsets.
-//! Semantic/keyboard behavior, `split_pane` runtime construction, and the
-//! target `VirtualLayoutPolicy` remain future runtime work.
+//! Static `split_pane` construction is available through the application
+//! builders. Semantic/keyboard behavior, ratio interaction, and the target
+//! `VirtualLayoutPolicy` remain future runtime work.
 //!
 //! # Example
 //!
@@ -88,6 +90,7 @@ mod row_helpers;
 mod tree;
 mod virtual_layout;
 
+pub use crate::gui::panel::SplitPaneAxis;
 pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
     ContainerStateDeclaration, ContainerStateId, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
@@ -110,8 +113,8 @@ pub use engine::{
 pub use model::{
     ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerHorizontalOverflow,
     FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SwitchBreakpoint, VirtualizationAxis,
-    VirtualizationPolicy, WrapPolicy,
+    OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SplitPanePolicy, SwitchBreakpoint,
+    VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
 };
 pub use row_helpers::{
     StackedLayoutCursor, StackedLayoutItem, StackedRowRectsParts, fixed_width_group_width,

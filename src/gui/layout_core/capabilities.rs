@@ -9,6 +9,7 @@
 use std::{
     any::{Any, TypeId},
     fmt,
+    num::NonZeroU64,
     rc::Rc,
 };
 
@@ -131,6 +132,30 @@ impl fmt::Debug for ContainerStateId {
             .field("container_id", &self.container_id)
             .field("schema_version", &self.schema_version)
             .finish_non_exhaustive()
+    }
+}
+
+/// Runtime-owned identity for one exact mounted container-state slot.
+///
+/// The generation is issued only by the runtime-owned state store. Keeping it
+/// separate from [`ContainerStateId`] lets the store reject identities from a
+/// retired mount even when the declaration's type and schema are unchanged.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct MountedContainerStateId {
+    state_id: ContainerStateId,
+    generation: NonZeroU64,
+}
+
+impl MountedContainerStateId {
+    pub(crate) const fn new(state_id: ContainerStateId, generation: NonZeroU64) -> Self {
+        Self {
+            state_id,
+            generation,
+        }
+    }
+
+    pub(crate) const fn generation(self) -> NonZeroU64 {
+        self.generation
     }
 }
 

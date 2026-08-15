@@ -101,7 +101,7 @@ pub use capabilities::{
     LayoutTargetIdentity,
 };
 pub(crate) use capabilities::{
-    supports_layout_capabilities_contract, supports_layout_input_contract,
+    MountedContainerStateId, supports_layout_capabilities_contract, supports_layout_input_contract,
     supports_layout_state_input_contract,
 };
 pub use constraints::{Constraints, ConstraintsParts};

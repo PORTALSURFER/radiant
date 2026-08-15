@@ -1,9 +1,11 @@
 //! Runtime-owned bounded state for state-aware layout interactions.
 
-use crate::layout::{
-    ContainerStateDeclaration, ContainerStateId, LayoutContainerStateContext, NodeId,
+use crate::{
+    gui::layout_core::MountedContainerStateId,
+    layout::{ContainerStateDeclaration, ContainerStateId, LayoutContainerStateContext, NodeId},
 };
 use std::any::Any;
+use std::num::NonZeroU64;
 
 use super::SurfaceRuntime;
 use crate::runtime::RuntimeBridge;
@@ -41,6 +43,8 @@ pub struct SurfaceLayoutStateDiagnostics {
     pub capacity_exceeded_count: u32,
     /// Number of v4 declarations rejected because they named another container.
     pub foreign_declaration_count: u32,
+    /// Number of declarations that could not receive a mount generation.
+    pub generation_exhaustion_count: u32,
 }
 
 impl SurfaceLayoutStateDiagnostics {
@@ -52,6 +56,7 @@ impl SurfaceLayoutStateDiagnostics {
             initialized_count: 0,
             capacity_exceeded_count: 0,
             foreign_declaration_count: 0,
+            generation_exhaustion_count: 0,
         }
     }
 
@@ -87,6 +92,9 @@ impl SurfaceLayoutStateDiagnostics {
         self.foreign_declaration_count = self
             .foreign_declaration_count
             .saturating_add(other.foreign_declaration_count);
+        self.generation_exhaustion_count = self
+            .generation_exhaustion_count
+            .saturating_add(other.generation_exhaustion_count);
     }
 
     pub(crate) fn record_foreign_declaration(&mut self) {
@@ -96,15 +104,58 @@ impl SurfaceLayoutStateDiagnostics {
 
 struct RuntimeLayoutContainerStateSlot {
     id: ContainerStateId,
+    mounted_id: MountedContainerStateId,
     value: Box<dyn Any>,
 }
 
-#[derive(Default)]
 pub(super) struct RuntimeLayoutContainerStateStore {
     slots: Vec<RuntimeLayoutContainerStateSlot>,
+    next_mount_generation: u64,
+}
+
+impl Default for RuntimeLayoutContainerStateStore {
+    fn default() -> Self {
+        Self {
+            slots: Vec::new(),
+            next_mount_generation: 1,
+        }
+    }
 }
 
 impl RuntimeLayoutContainerStateStore {
+    fn allocate_mounted_state_id(
+        &mut self,
+        state_id: ContainerStateId,
+    ) -> Option<MountedContainerStateId> {
+        let generation = NonZeroU64::new(self.next_mount_generation)?;
+        let next_mount_generation = self.next_mount_generation.checked_add(1)?;
+        self.next_mount_generation = next_mount_generation;
+        Some(MountedContainerStateId::new(state_id, generation))
+    }
+
+    fn current_mounted_state_id(
+        &self,
+        state_id: ContainerStateId,
+    ) -> Option<MountedContainerStateId> {
+        self.slots
+            .iter()
+            .find(|slot| slot.id == state_id)
+            .map(|slot| slot.mounted_id)
+    }
+
+    fn lookup_current_state(
+        &mut self,
+        mounted_id: MountedContainerStateId,
+    ) -> Option<&mut dyn Any> {
+        self.slots
+            .iter_mut()
+            .find(|slot| {
+                slot.mounted_id == mounted_id
+                    && slot.mounted_id.generation() == mounted_id.generation()
+            })
+            .map(|slot| slot.value.as_mut())
+    }
+
     pub(super) fn reconcile(
         &mut self,
         declarations: &[ContainerStateDeclaration],
@@ -155,8 +206,15 @@ impl RuntimeLayoutContainerStateStore {
                 continue;
             }
 
+            let Some(mounted_id) = self.allocate_mounted_state_id(id) else {
+                diagnostics.generation_exhaustion_count =
+                    diagnostics.generation_exhaustion_count.saturating_add(1);
+                continue;
+            };
+
             self.slots.push(RuntimeLayoutContainerStateSlot {
                 id,
+                mounted_id,
                 value: declaration.initialize(),
             });
             diagnostics.initialized_count = diagnostics.initialized_count.saturating_add(1);
@@ -170,18 +228,25 @@ impl RuntimeLayoutContainerStateStore {
         container_id: NodeId,
         state_id: Option<ContainerStateId>,
     ) -> LayoutContainerStateContext<'a> {
-        let state = state_id.and_then(|id| {
-            self.slots
-                .iter_mut()
-                .find(|slot| slot.id == id)
-                .map(|slot| slot.value.as_mut())
-        });
+        let state = state_id
+            .and_then(|id| self.current_mounted_state_id(id))
+            .and_then(|mounted_id| self.lookup_current_state(mounted_id));
         LayoutContainerStateContext::from_runtime(container_id, state_id, state)
     }
 
     #[cfg(test)]
     pub(super) fn slot_count(&self) -> usize {
         self.slots.len()
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_next_mount_generation_for_test(&mut self, generation: u64) {
+        self.next_mount_generation = generation;
+    }
+
+    #[cfg(test)]
+    pub(super) fn next_mount_generation_for_test(&self) -> u64 {
+        self.next_mount_generation
     }
 }
 
@@ -241,10 +306,18 @@ mod tests {
         let mut store = RuntimeLayoutContainerStateStore::default();
 
         let first = store.reconcile(std::slice::from_ref(&declaration));
+        let first_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("first mount token");
         let second = store.reconcile(std::slice::from_ref(&declaration));
+        let second_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("matching mount token");
         assert_eq!(initialized.get(), 1);
         assert_eq!(first.initialized_count, 1);
         assert_eq!(second.initialized_count, 0);
+        assert_eq!(first_token, second_token);
+        assert_eq!(first_token.generation().get(), 1);
 
         let mut context = store.context(7, Some(declaration.id()));
         context
@@ -280,10 +353,19 @@ mod tests {
         });
         let mut store = RuntimeLayoutContainerStateStore::default();
         let _ = store.reconcile(std::slice::from_ref(&old));
+        let old_token = store
+            .current_mounted_state_id(old.id())
+            .expect("old mount token");
         let replacement = store.reconcile(std::slice::from_ref(&new));
+        let new_token = store
+            .current_mounted_state_id(new.id())
+            .expect("new mount token");
         assert_eq!(replacement.replacement_count, 1);
         assert_eq!(replacement.initialized_count, 1);
         assert_eq!(drops.get(), 1);
+        assert_ne!(old_token, new_token);
+        assert!(store.lookup_current_state(old_token).is_none());
+        assert!(store.lookup_current_state(new_token).is_some());
 
         let dropped = store.reconcile(&[]);
         assert_eq!(dropped.dropped_count, 1);
@@ -362,5 +444,121 @@ mod tests {
             initialized.get(),
             (MAX_LAYOUT_CONTAINER_STATE_SLOTS * 3) as u32
         );
+    }
+
+    #[test]
+    fn unmount_and_reinsert_gets_a_fresh_mount_token() {
+        let declaration = ContainerStateDeclaration::new::<u32, _>(11, 1, || 0);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+
+        store.reconcile(std::slice::from_ref(&declaration));
+        let first_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("first mount token");
+        store.reconcile(&[]);
+        assert!(store.lookup_current_state(first_token).is_none());
+
+        store.reconcile(std::slice::from_ref(&declaration));
+        let second_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("reinserted mount token");
+        assert_ne!(first_token, second_token);
+        assert_eq!(second_token.generation().get(), 2);
+    }
+
+    #[test]
+    fn stale_mount_token_cannot_resolve_after_unmount() {
+        let declaration = ContainerStateDeclaration::new::<u32, _>(12, 1, || 0);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+
+        store.reconcile(std::slice::from_ref(&declaration));
+        let stale_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("mount token");
+        store.reconcile(&[]);
+
+        assert!(store.lookup_current_state(stale_token).is_none());
+        assert_eq!(store.slot_count(), 0);
+    }
+
+    #[test]
+    fn duplicate_declaration_creates_one_mount_token() {
+        let initialized = Rc::new(Cell::new(0));
+        let declaration = ContainerStateDeclaration::new::<u32, _>(13, 1, {
+            let initialized = Rc::clone(&initialized);
+            move || {
+                initialized.set(initialized.get() + 1);
+                0
+            }
+        });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+
+        let diagnostics = store.reconcile(&[declaration.clone(), declaration.clone()]);
+
+        assert_eq!(diagnostics.initialized_count, 1);
+        assert_eq!(initialized.get(), 1);
+        assert_eq!(store.slot_count(), 1);
+        assert_eq!(store.next_mount_generation_for_test(), 2);
+    }
+
+    #[test]
+    fn capacity_denial_does_not_allocate_a_mount_token_or_initialize() {
+        let initialized = Rc::new(Cell::new(0));
+        let declarations = (0..MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64)
+            .map(|container_id| {
+                let initialized = Rc::clone(&initialized);
+                ContainerStateDeclaration::new::<u32, _>(container_id, 1, move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                })
+            })
+            .collect::<Vec<_>>();
+        let denied =
+            ContainerStateDeclaration::new::<u32, _>(MAX_LAYOUT_CONTAINER_STATE_SLOTS as u64, 1, {
+                let initialized = Rc::clone(&initialized);
+                move || {
+                    initialized.set(initialized.get() + 1);
+                    0
+                }
+            });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(&declarations);
+        let next_generation = store.next_mount_generation_for_test();
+
+        let mut combined = declarations.clone();
+        combined.push(denied.clone());
+        let diagnostics = store.reconcile(&combined);
+
+        assert_eq!(diagnostics.capacity_exceeded_count, 1);
+        assert_eq!(diagnostics.generation_exhaustion_count, 0);
+        assert_eq!(diagnostics.initialized_count, 0);
+        assert_eq!(initialized.get(), MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32);
+        assert_eq!(store.next_mount_generation_for_test(), next_generation);
+        assert!(store.current_mounted_state_id(denied.id()).is_none());
+        assert_eq!(store.slot_count(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
+    }
+
+    #[test]
+    fn generation_exhaustion_is_bounded_without_token_or_initializer() {
+        let initialized = Rc::new(Cell::new(0));
+        let declaration = ContainerStateDeclaration::new::<u32, _>(14, 1, {
+            let initialized = Rc::clone(&initialized);
+            move || {
+                initialized.set(initialized.get() + 1);
+                0
+            }
+        });
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.set_next_mount_generation_for_test(u64::MAX);
+
+        let first = store.reconcile(std::slice::from_ref(&declaration));
+        let second = store.reconcile(std::slice::from_ref(&declaration));
+
+        assert_eq!(first.generation_exhaustion_count, 1);
+        assert_eq!(second.generation_exhaustion_count, 1);
+        assert_eq!(initialized.get(), 0);
+        assert_eq!(store.slot_count(), 0);
+        assert_eq!(store.next_mount_generation_for_test(), u64::MAX);
+        assert!(store.current_mounted_state_id(declaration.id()).is_none());
     }
 }

@@ -1,7 +1,7 @@
 //! Runtime-owned bounded state for state-aware layout interactions.
 
 use crate::{
-    gui::layout_core::MountedContainerStateId,
+    gui::layout_core::{MountedContainerStateId, MountedContainerStateRead},
     layout::{ContainerStateDeclaration, ContainerStateId, LayoutContainerStateContext, NodeId},
 };
 use std::any::Any;
@@ -154,6 +154,20 @@ impl RuntimeLayoutContainerStateStore {
                     && slot.mounted_id.generation() == mounted_id.generation()
             })
             .map(|slot| slot.value.as_mut())
+    }
+
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(super) fn lookup_current_state_view(
+        &self,
+        mounted_id: MountedContainerStateId,
+    ) -> Option<MountedContainerStateRead<'_>> {
+        self.slots
+            .iter()
+            .find(|slot| {
+                slot.mounted_id == mounted_id
+                    && slot.mounted_id.generation() == mounted_id.generation()
+            })
+            .map(|slot| MountedContainerStateRead::new(slot.mounted_id, slot.value.as_ref()))
     }
 
     pub(super) fn reconcile(
@@ -331,6 +345,21 @@ mod tests {
                 .get(),
             9
         );
+
+        let view = store
+            .lookup_current_state_view(first_token)
+            .expect("matching immutable mount view");
+        assert_eq!(view.mounted_id(), first_token);
+        assert_eq!(
+            view.downcast_ref::<Rc<Cell<u32>>>()
+                .map(|value| value.get()),
+            Some(9)
+        );
+        assert_eq!(
+            view.get::<Rc<Cell<u32>>>().map(|value| value.get()),
+            Some(9)
+        );
+        assert!(view.get::<u32>().is_none());
     }
 
     #[test]
@@ -366,11 +395,20 @@ mod tests {
         assert_ne!(old_token, new_token);
         assert!(store.lookup_current_state(old_token).is_none());
         assert!(store.lookup_current_state(new_token).is_some());
+        assert!(store.lookup_current_state_view(old_token).is_none());
+        assert_eq!(
+            store
+                .lookup_current_state_view(new_token)
+                .expect("replacement immutable mount view")
+                .mounted_id(),
+            new_token
+        );
 
         let dropped = store.reconcile(&[]);
         assert_eq!(dropped.dropped_count, 1);
         assert_eq!(drops.get(), 2);
         assert_eq!(store.slot_count(), 0);
+        assert!(store.lookup_current_state_view(new_token).is_none());
     }
 
     #[test]
@@ -457,6 +495,7 @@ mod tests {
             .expect("first mount token");
         store.reconcile(&[]);
         assert!(store.lookup_current_state(first_token).is_none());
+        assert!(store.lookup_current_state_view(first_token).is_none());
 
         store.reconcile(std::slice::from_ref(&declaration));
         let second_token = store
@@ -464,6 +503,13 @@ mod tests {
             .expect("reinserted mount token");
         assert_ne!(first_token, second_token);
         assert_eq!(second_token.generation().get(), 2);
+        assert_eq!(
+            store
+                .lookup_current_state_view(second_token)
+                .expect("reinserted immutable mount view")
+                .mounted_id(),
+            second_token
+        );
     }
 
     #[test]
@@ -478,7 +524,22 @@ mod tests {
         store.reconcile(&[]);
 
         assert!(store.lookup_current_state(stale_token).is_none());
+        assert!(store.lookup_current_state_view(stale_token).is_none());
         assert_eq!(store.slot_count(), 0);
+    }
+
+    #[test]
+    fn foreign_mount_token_cannot_resolve_in_the_current_store() {
+        let declaration = ContainerStateDeclaration::new::<u32, _>(15, 1, || 3);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&declaration));
+        let current_token = store
+            .current_mounted_state_id(declaration.id())
+            .expect("mount token");
+        let foreign_id = ContainerStateId::new::<u32>(16, declaration.schema_version());
+        let foreign_token = MountedContainerStateId::new(foreign_id, current_token.generation());
+
+        assert!(store.lookup_current_state_view(foreign_token).is_none());
     }
 
     #[test]
@@ -535,6 +596,11 @@ mod tests {
         assert_eq!(initialized.get(), MAX_LAYOUT_CONTAINER_STATE_SLOTS as u32);
         assert_eq!(store.next_mount_generation_for_test(), next_generation);
         assert!(store.current_mounted_state_id(denied.id()).is_none());
+        let denied_token = MountedContainerStateId::new(
+            denied.id(),
+            NonZeroU64::new(next_generation).expect("capacity denial generation"),
+        );
+        assert!(store.lookup_current_state_view(denied_token).is_none());
         assert_eq!(store.slot_count(), MAX_LAYOUT_CONTAINER_STATE_SLOTS);
     }
 
@@ -560,5 +626,10 @@ mod tests {
         assert_eq!(store.slot_count(), 0);
         assert_eq!(store.next_mount_generation_for_test(), u64::MAX);
         assert!(store.current_mounted_state_id(declaration.id()).is_none());
+        let exhausted_token = MountedContainerStateId::new(
+            declaration.id(),
+            NonZeroU64::new(u64::MAX).expect("exhausted generation"),
+        );
+        assert!(store.lookup_current_state_view(exhausted_token).is_none());
     }
 }

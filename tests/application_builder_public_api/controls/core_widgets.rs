@@ -682,6 +682,87 @@ fn qualified_slider_domain_builder_maps_outputs_and_formats_domain_values() {
 }
 
 #[test]
+fn qualified_knob_domain_builder_maps_lifecycle_and_cached_domain_default() {
+    use radiant::prelude::IntoView;
+
+    type DomainMessage = radiant::widgets::interaction::KnobDomainMessage<DomainAdjustmentError>;
+
+    let mut surface: UiSurface<DomainMessage> =
+        radiant::application::knob_domain(10.0, LinearDomainAdjustment)
+            .expect("finite inverse should construct the domain knob")
+            .default_value(20.0)
+            .expect("finite default inverse should be accepted")
+            .format(ValueFormat::decimal(1))
+            .message(|message| message)
+            .id(55)
+            .into_surface();
+
+    assert_eq!(
+        surface
+            .find_widget(55)
+            .expect("domain knob should be projected")
+            .widget()
+            .automation_semantics()
+            .value_text
+            .as_deref(),
+        Some("10.0")
+    );
+
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(40.0, 40.0));
+    let press = surface
+        .dispatch_widget_input(
+            55,
+            bounds,
+            WidgetInput::primary_press(Point::new(20.0, 20.0)),
+        )
+        .expect("domain knob should emit its pointer start");
+    assert!(matches!(
+        press.typed_cloned::<DomainMessage>(),
+        Some(DomainMessage::GestureStarted { value: 10.0, .. })
+    ));
+
+    let move_output = surface
+        .dispatch_widget_input(
+            55,
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+        )
+        .expect("domain knob should emit its mapped pointer update");
+    assert!(matches!(
+        move_output.typed_cloned::<DomainMessage>(),
+        Some(DomainMessage::ValueChanged { value, .. }) if (value - 16.0).abs() < 0.0001
+    ));
+
+    let release = surface
+        .dispatch_widget_input(
+            55,
+            bounds,
+            WidgetInput::primary_release(Point::new(20.0, 10.0)),
+        )
+        .expect("domain knob should emit its pointer end");
+    assert!(matches!(
+        release.typed_cloned::<DomainMessage>(),
+        Some(DomainMessage::GestureEnded { value, .. }) if (value - 16.0).abs() < 0.0001
+    ));
+
+    let reset = surface
+        .dispatch_widget_input(
+            55,
+            bounds,
+            WidgetInput::primary_double_click(Point::new(20.0, 20.0)),
+        )
+        .expect("domain knob should emit its cached reset");
+    assert!(matches!(
+        reset.typed_cloned::<DomainMessage>(),
+        Some(DomainMessage::Reset {
+            previous_value,
+            value: 20.0,
+            ..
+        }) if (previous_value - 16.0).abs() < 0.0001
+    ));
+}
+
+#[test]
 fn qualified_slider_edit_builders_forward_complete_batches() {
     use radiant::prelude::{self as ui, IntoView};
 

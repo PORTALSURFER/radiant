@@ -35,11 +35,13 @@ pub use input::{
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, InteractiveRowMetadata,
-    KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
-    KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
-    PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
-    SliderDomainError, SliderDomainMessage, SliderEditBatch, SliderMessage, TextInputMessage,
-    TextInputMessageKind, TextInputMessageParts, ToggleMessage,
+    KnobAutomationEvent, KnobDomainAutomationEvent, KnobDomainCancellationReason, KnobDomainError,
+    KnobDomainKeyboardGesture, KnobDomainMappingAttempt, KnobDomainMessage, KnobDomainWheelGesture,
+    KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata,
+    KnobWheelGesture, KnobWheelMetadata, ListItemMessage, PointerShieldMessage,
+    RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderDomainError,
+    SliderDomainMessage, SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind,
+    TextInputMessageParts, ToggleMessage,
 };
 pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirection};
 pub use numeric_edit::NumericEditSession;

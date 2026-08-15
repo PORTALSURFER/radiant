@@ -1523,6 +1523,61 @@ This bounded consumer intentionally does not add a domain edit batch or
 dispatch, or domain mapping for `Knob`. Those are separate non-goals rather
 than implicit behavior of `slider_domain`.
 
+### Additive Knob domain mapping
+
+The executable additive domain consumer for radial knobs is the qualified
+`radiant::application::knob_domain(value, adjustment)` constructor:
+
+```rust
+use radiant::application::{knob_domain, KnobDomainBuilder};
+use radiant::widgets::{KnobDomainMessage, NumericAdjustment, ValueFormat};
+
+let knob: KnobDomainBuilder<DomainAdjustment> =
+    knob_domain(state.cutoff, DomainAdjustment::new())?
+        .default_value(20.0)?;
+let view = knob
+    .format(ValueFormat::frequency())
+    .message(|message: KnobDomainMessage<AdjustmentError>| Message::CutoffDomain(message));
+```
+
+The full generic signature is
+`knob_domain(value: f32, adjustment: A) ->
+Result<KnobDomainBuilder<A>, KnobDomainError<A::Error>>` where
+`A: NumericAdjustment<f32>`. `KnobDomainBuilder` and `knob_domain` are
+qualified exports from `radiant::application`; `KnobDomainMessage`,
+`KnobDomainError`, `KnobDomainMappingAttempt`, and
+`KnobDomainCancellationReason` are qualified exports from
+`radiant::widgets::interaction` and are also re-exported from
+`radiant::widgets`. These names are not in the common prelude.
+Construction and `default_value(...)` each validate a finite domain value and
+call the checked inverse exactly once. They reject an inverse error, a
+nonfinite normalized result, or a normalized result outside `0.0..=1.0` with
+the corresponding typed `KnobDomainError`; neither path silently clamps.
+`KnobDomainBuilder::message(...)` additionally requires `A: 'static` and
+`A::Error: Clone + 'static`, while construction and `default_value(...)` keep
+the weaker `A: NumericAdjustment<f32>` bound.
+
+The domain adapter caches both current and reset domain/normalized pairs. It
+projects the full pointer lifecycle through `KnobDomainMessage`: start,
+accepted update, end, and explicit `GestureCancelled` boundaries for focus
+loss, pointer-capture loss, or disabled/read-only state. Keyboard and wheel
+changes are atomic three-event `KnobDomainKeyboardGesture` and
+`KnobDomainWheelGesture` values using the existing Knob metadata types. Reset
+emits one `Reset` message even when it is a no-op and uses its cached default
+without interaction-time remapping.
+
+Each accepted pointer, keyboard, or wheel candidate is finite and in range
+before one call to `NumericAdjustment::normalized_to_value`. A forward error,
+nonfinite domain result, or invalid normalized candidate emits one typed
+`MappingFailed` message with its attempt, normalized candidate, retained
+domain value, and full `InteractionProvenance`; it emits no partial gesture.
+Nonterminal pointer failures and atomic keyboard/wheel failures restore the
+complete pre-input state, while terminal cleanup is never resurrected.
+`format(ValueFormat)` is display-only and formats the mapped domain value. The
+builder has no domain `on_edit`, edit-batch, numeric-text, or adjustment
+step/scrub/wheel path. Existing normalized Knob, Slider, and common-prelude
+APIs remain source-compatible and unchanged.
+
 `KnobWidget` follows the same contract through the
 qualified `KnobEditBatch` message. It carries one to four ordered
 `EditEvent<f32>` values in fixed-capacity copy-only storage and exposes the

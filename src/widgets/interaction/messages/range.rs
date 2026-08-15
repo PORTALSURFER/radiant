@@ -23,6 +23,91 @@ pub enum SliderMessage {
     },
 }
 
+/// A typed failure while translating a slider value between normalized and
+/// domain space.
+///
+/// The error is also used by [`crate::application::slider_domain`] when the
+/// initial domain value cannot be admitted. Mapping failures never clamp or
+/// replace the supplied evidence.
+#[derive(Debug, PartialEq)]
+pub enum SliderDomainError<E> {
+    /// The adjustment rejected the initial domain-to-normalized inverse.
+    ValueToNormalized {
+        /// Adjustment-provided inverse-mapping failure.
+        error: E,
+    },
+    /// The adjustment rejected a normalized-to-domain candidate.
+    NormalizedToValue {
+        /// Adjustment-provided forward-mapping failure.
+        error: E,
+    },
+    /// A domain value supplied to or returned from the adjustment was not finite.
+    NonFiniteValue {
+        /// The nonfinite domain value.
+        value: f32,
+    },
+    /// An adjustment returned a nonfinite normalized value.
+    NonFiniteNormalized {
+        /// The nonfinite normalized value.
+        normalized: f32,
+    },
+    /// An adjustment returned a normalized value outside `0.0..=1.0`.
+    NormalizedOutOfRange {
+        /// The out-of-range normalized value.
+        normalized: f32,
+    },
+}
+
+impl<E: Clone> Clone for SliderDomainError<E> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::ValueToNormalized { error } => Self::ValueToNormalized {
+                error: error.clone(),
+            },
+            Self::NormalizedToValue { error } => Self::NormalizedToValue {
+                error: error.clone(),
+            },
+            Self::NonFiniteValue { value } => Self::NonFiniteValue { value: *value },
+            Self::NonFiniteNormalized { normalized } => Self::NonFiniteNormalized {
+                normalized: *normalized,
+            },
+            Self::NormalizedOutOfRange { normalized } => Self::NormalizedOutOfRange {
+                normalized: *normalized,
+            },
+        }
+    }
+}
+
+/// Message emitted by a retained slider with an application-owned `f32`
+/// domain adjustment.
+#[derive(Debug, PartialEq)]
+pub enum SliderDomainMessage<E> {
+    /// A normalized slider candidate was mapped to the domain successfully.
+    ValueChanged {
+        /// The accepted mapped domain value.
+        value: f32,
+    },
+    /// A normalized candidate could not be mapped to the domain.
+    MappingFailed {
+        /// The normalized candidate supplied to the mapping boundary.
+        normalized: f32,
+        /// The typed mapping failure.
+        error: SliderDomainError<E>,
+    },
+}
+
+impl<E: Clone> Clone for SliderDomainMessage<E> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::ValueChanged { value } => Self::ValueChanged { value: *value },
+            Self::MappingFailed { normalized, error } => Self::MappingFailed {
+                normalized: *normalized,
+                error: error.clone(),
+            },
+        }
+    }
+}
+
 /// One bounded, ordered batch of shared edit events emitted by a slider.
 ///
 /// A batch contains between one and three events and never allocates.  The

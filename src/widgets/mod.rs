@@ -86,12 +86,12 @@ pub use interaction::{
     NumericScrubActivation, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
     NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
     NumericWheelPolicy, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
-    ScrollbarMessage, SelectableMessage, SliderEditBatch, SliderMessage, TextEditCommand,
-    TextInputMessage, TextInputMessageKind, TextInputMessageParts, TextInputRevision,
-    ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError,
-    ValueMappingKind, WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase,
-    WheelSample, WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    handle_activation_input,
+    ScrollbarMessage, SelectableMessage, SliderDomainError, SliderDomainMessage, SliderEditBatch,
+    SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
+    TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping,
+    ValueMappingError, ValueMappingKind, WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta,
+    WheelDeltaError, WheelPhase, WheelSample, WheelSampleError, WidgetCursor, WidgetInput,
+    WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{
@@ -116,5 +116,7 @@ pub use primitives::{
     TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap, ToggleProps, ToggleState,
     ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
-pub(crate) use primitives::{RetainedKnobWidget, RetainedSliderWidget};
+pub(crate) use primitives::{
+    RetainedKnobWidget, RetainedSliderDomainWidget, RetainedSliderWidget, initial_normalized,
+};
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};

@@ -2675,9 +2675,11 @@ Unicode-scalar convention above.
 controls includes a value, a range, optional formatting, and a change message;
 the `.format(ValueFormat::percent(0))` attachment is now shipped for the
 official application `slider(...)` and `knob(...)` builders. It affects only
-retained automation value text; the range, step, domain mapping, and typed
-change API shown below remain illustrative target APIs. The qualified
-`ValueFormat` policy foundation used by that example is shipped separately.
+retained automation value text. The existing normalized Slider API remains
+source-compatible, while the additive `slider_domain(...)` domain mapping
+consumer below is executable. The range, step, and typed change API shown in
+the example remain illustrative target APIs. The qualified `ValueFormat`
+policy foundation used by that example is shipped separately.
 Their layout is still owned by the enclosing container.
 
 ```rust
@@ -2694,6 +2696,65 @@ row([
 
 Numeric controls separate the stored domain value from its interaction and
 display mapping.
+
+### Additive Slider domain mapping
+
+The first executable domain-control slice is the qualified application
+constructor
+`radiant::application::slider_domain(value, NumericAdjustment<f32>)`:
+
+```rust
+use radiant::application::{slider_domain, SliderDomainBuilder};
+use radiant::widgets::{
+    NumericAdjustment, SliderDomainError, SliderDomainMessage, ValueFormat,
+};
+
+let slider: SliderDomainBuilder<DomainAdjustment> =
+    slider_domain(state.volume, DomainAdjustment::new())?;
+let view = slider
+    .format(ValueFormat::decimal(1))
+    .message(|message: SliderDomainMessage<AdjustmentError>| Message::VolumeDomain(message));
+```
+
+Its full generic signature is
+`slider_domain(value: f32, adjustment: A) ->
+Result<SliderDomainBuilder<A>, SliderDomainError<A::Error>>` for
+`A: NumericAdjustment<f32>`. `slider_domain` and `SliderDomainBuilder` are
+qualified exports from `radiant::application`. `SliderDomainMessage` and
+`SliderDomainError` are qualified exports from
+`radiant::widgets::interaction`, with matching re-exports from
+`radiant::widgets`; the domain API is intentionally absent from the common
+prelude.
+
+The constructor admits only checked finite state. It rejects a nonfinite
+domain value, propagates an inverse error from
+`NumericAdjustment::value_to_normalized`, and rejects an inverse result that is
+nonfinite or outside `0.0..=1.0`. These cases use the distinct
+`SliderDomainError::NonFiniteValue`, `ValueToNormalized`,
+`NonFiniteNormalized`, or `NormalizedOutOfRange` variants. There is no silent
+initial clamp.
+
+After the existing normalized Slider interaction lifecycle produces a
+candidate, the domain adapter validates the normalized candidate and calls
+`NumericAdjustment::normalized_to_value` once. A finite successful mapping
+emits `SliderDomainMessage::ValueChanged { value }`. A forward adjustment
+error, nonfinite domain result, or invalid normalized candidate emits
+`SliderDomainMessage::MappingFailed { normalized, error }` with the distinct
+`NormalizedToValue`, `NonFiniteValue`, `NonFiniteNormalized`, or
+`NormalizedOutOfRange` error. The failed candidate is not clamped or
+committed: the prior normalized value, retained interaction state, and active
+edit are restored.
+
+`SliderDomainBuilder::format(ValueFormat)` formats only the mapped domain
+value for automation display. It never displays the normalized fraction, does
+not parse text, and does not add numeric editing. Existing normalized
+`slider(...)`, `slider_mapped(...)`, `slider_edit_mapped(...)`,
+`SliderMessage`, and `SliderEditBatch` APIs remain source-compatible and are
+unchanged.
+
+This slice has explicit non-goals: no domain edit batch or `on_edit` API, no
+text consumer, no `NumericAdjustment` step/scrub/wheel routing, and no domain
+mapping for `Knob`. Knob domain mapping remains a separate future slice.
 
 `NumericEditSession<T>` is the shipped, parser-agnostic foundation for numeric
 editing buffers. It retains caller-provided draft text verbatim and one
@@ -2800,9 +2861,10 @@ fractional digits; percent scales by 100 and frequency appends ` Hz`.
   arbitrary-unit, and product-specific locale codecs remain application-
   supplied until a named consumer requires them.
 - Slider and Knob remain separate controls. Their existing normalized `f32`
-  APIs stay source-compatible; domain mapping adopts the shared adjustment
-  contract in separate bounded slices, Slider first and Knob second. Numeric
-  text codecs are not retrofitted into either control.
+  APIs stay source-compatible; Slider's additive domain mapping uses the
+  shared adjustment contract in the bounded slice above, while Knob domain
+  mapping remains a separate later slice. Numeric text codecs are not
+  retrofitted into either control.
 
 The target `numeric_input` example is illustrative; `FrequencyCodec` and
 `FrequencyAdjustment` are application-provided policy names:

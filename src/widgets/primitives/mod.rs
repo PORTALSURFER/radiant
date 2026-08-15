@@ -62,7 +62,7 @@ pub use scrollbar::{
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
 };
 pub use selectable::{SelectableProps, SelectableWidget, SelectableWidgetParts};
-pub(crate) use slider::RetainedSliderWidget;
+pub(crate) use slider::{RetainedSliderDomainWidget, RetainedSliderWidget, initial_normalized};
 pub use slider::{SliderProps, SliderState, SliderWidget, SliderWidgetParts};
 pub use support::WidgetCommon;
 pub use text::{

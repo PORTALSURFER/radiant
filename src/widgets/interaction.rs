@@ -38,8 +38,8 @@ pub use messages::{
     KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ListItemMessage,
     PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage, SelectableMessage,
-    SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
-    ToggleMessage,
+    SliderDomainError, SliderDomainMessage, SliderEditBatch, SliderMessage, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, ToggleMessage,
 };
 pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirection};
 pub use numeric_edit::NumericEditSession;

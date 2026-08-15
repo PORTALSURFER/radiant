@@ -13,8 +13,8 @@ pub use drag::{DragHandleMessage, DragHandleMetadata, DragHandlePhase};
 pub use pointer::PointerShieldMessage;
 pub use range::{
     KnobAutomationEvent, KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage,
-    KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ScrollbarMessage, SliderEditBatch,
-    SliderMessage,
+    KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ScrollbarMessage, SliderDomainError,
+    SliderDomainMessage, SliderEditBatch, SliderMessage,
 };
 pub use selection::{SelectableMessage, ToggleMessage};
 pub use surface::{CanvasMessage, GpuSurfaceMessage, RenderCanvasMessage};

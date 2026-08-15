@@ -7,7 +7,7 @@ mod model;
 mod paint;
 mod retained;
 
-pub(crate) use retained::RetainedSliderWidget;
+pub(crate) use retained::{RetainedSliderDomainWidget, RetainedSliderWidget, initial_normalized};
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;

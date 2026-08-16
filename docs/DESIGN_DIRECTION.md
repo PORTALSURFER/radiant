@@ -2077,8 +2077,12 @@ mounted identity; controlled mode consumes its mount value and only strictly
 newer generations. Runtime-owned to controlled initializes from the controlled
 projection, controlled to runtime-owned resets from the current sanitized
 initial ratio, and static/stateful transitions create or drop the mounted slot.
-Divider `LayoutInteraction`, settled persistence, and product-specific behavior
-remain later slices.
+Runtime-owned mode projects one clipped built-in divider `LayoutHitTarget` from
+final quantized child geometry when the resolved divider is positive. Its
+primary pointer path uses controller-owned capture and the shared
+`PanelResizeState` edit lifecycle; static and controlled-ratio modes remain
+inert. Settled persistence, semantic/keyboard behavior, and other
+product-specific behavior remain later slices.
 
 ```rust
 split_pane(library_panel(state), detail_panel(state))
@@ -2099,8 +2103,8 @@ fails closed to the declarative ratio when that slot is missing, incompatible,
 or unavailable. Ratio state is consumed only by top-down placement, so
 bottom-up measurement and its cache identity remain unchanged. The existing
 generic `LayoutInteraction` runtime capability remains available independently;
-the later interactive split-pane builder and divider attachment remain future
-work. The shipped `PanelResizeState` model still
+runtime-owned split-pane mode now attaches its private divider capability and
+uses the shipped controller capture/edit path. The shipped `PanelResizeState` model still
 provides the host-facing resize path: its qualified `resize_edit(...)` and
 `resize_collapsible_edit(...)` methods deliver one typed `EditEvent<f32>` per
 accepted drag boundary, while the concise resize methods remain compatible
@@ -2206,8 +2210,9 @@ column id after any moved width has been projected, while an orphaned resize
 cancellation produces no update. Reorder cancellation still clears its transient
 drag without producing a durable reorder. The generic version-4 state-aware
 `LayoutInteraction` admission and runtime-owned capture contract is shipped;
-the `split_pane` runtime/controlled ratio projection is also shipped, while
-divider interaction and virtual-collection proof remain future work.
+the `split_pane` runtime/controlled ratio projection and runtime-owned divider
+interaction are also shipped, while virtual-collection proof remains future
+work.
 
 `virtual_list` and `virtual_grid` share this contract but use their respective
 placement policies. Collection sorting, filtering, and domain membership remain
@@ -3953,10 +3958,10 @@ delivers typed `Cancel` for both interruption reasons, including no-op active
 gestures; its legacy projections keep focus-loss `GestureEnded` with the last
 value and suppress pointer-capture cancellation. Numeric text editing remains
 a separate consumer; Slider and Knob domain mapping are separate qualified
-consumers. Knob is also shipped, and PanelResizeState is the next shipped
-shared-edit consumer; the generic `LayoutInteraction` capability and runtime
-`split_pane` ratio projection are shipped, while divider interaction and
-settled callbacks remain future work.
+consumers. Knob is also shipped, and PanelResizeState is the shared-edit
+consumer for the runtime-owned split-pane divider; the generic
+`LayoutInteraction` capability and runtime `split_pane` ratio projection are
+shipped, while settled callbacks remain future work.
 The target API will allow applications to provide a custom mapping only when it
 is total, finite, and monotonic over the declared range; the target runtime will
 reject ambiguous inverse mappings rather than allowing a displayed value and

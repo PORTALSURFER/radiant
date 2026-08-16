@@ -97,6 +97,41 @@ fn application_split_pane_runtime_ratio_opt_ins_keep_static_policy_and_fallback_
     }
 }
 
+#[test]
+fn application_runtime_owned_split_lowers_the_private_divider_target() {
+    use radiant::{
+        layout::Point,
+        prelude as ui,
+        prelude::IntoView,
+        runtime::{Event, SurfaceRuntime, declarative_runtime_bridge},
+    };
+
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_state: &mut ()| {
+            crate::arc_surface(
+                ui::split_pane::<()>(ui::text("First"), ui::text("Second"))
+                    .initial_ratio(0.25)
+                    .divider_extent(8.0)
+                    .runtime_owned_ratio()
+                    .into_surface(),
+            )
+        },
+        |_state: &mut (), _message: ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+
+    let target = runtime
+        .layout_target_at(Point::new(52.0, 40.0))
+        .expect("runtime-owned application split should expose its divider target");
+    assert_eq!(target.bounds, Rect::from_xy_size(48.0, 0.0, 8.0, 80.0));
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0))),
+        None
+    );
+    assert!(runtime.layout_pointer_capture().is_some());
+}
+
 #[derive(Clone, Copy)]
 enum RuntimeRatioMode {
     Static,

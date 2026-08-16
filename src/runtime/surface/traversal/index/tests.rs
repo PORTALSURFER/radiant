@@ -20,6 +20,7 @@ fn traversal_records_route_to_expected_buckets() {
         styled_hoverable: true,
         layout_interaction: None,
         split_pane_runtime: None,
+        split_pane_divider: None,
         virtual_layout: None,
     });
     index.record_widget(SurfaceWidgetTraversalRecord {

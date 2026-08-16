@@ -1350,8 +1350,11 @@ supports UI-local values such as `Rc<Cell<_>>`; it does not expose `Any` or
 Version 3 continues to delegate through the unchanged
 `handle_layout_input` entrypoint. `SurfaceRuntime::layout_hit_target_at(...)`
 continues to expose the resulting read-only container/region target and
-projected bounds. These generic contracts do not claim product-specific
-`split_pane` behavior or virtualization completion.
+projected bounds. The qualified runtime-owned split-pane consumer adds one
+clipped built-in divider target from final child geometry and keeps static and
+controlled-ratio splits inert; this generic capability contract remains
+product-neutral outside that consumer and does not claim virtualization
+completion.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
@@ -1610,10 +1613,14 @@ The concise `resize(...)` and `resize_collapsible(...)` methods remain the
 compatibility projections: changed cancellation returns the restored size,
 no-op cancellation remains lifecycle-only, and collapsible double activation
 stays a discrete collapse/restore command outside the edit stream while
-clearing active state. These APIs do not add `numeric_input` or interactive
-`split_pane` runtime behavior. The qualified layout capability registration,
-revision, and read-only normalized hit-region declaration/projection contract
-is available separately. Version-3 capabilities may receive typed pointer
+clearing active state. These APIs do not add `numeric_input` or controlled-ratio
+`split_pane` runtime behavior. Runtime-owned split ratios use the qualified
+layout capability registration and the same controller-owned capture/edit
+lifecycle: a valid divider press begins one `PanelResizeState` edit, effective
+captured motion updates the mounted ratio with a bounded current-surface
+relayout, and release commits while interruption rolls back once. The
+qualified layout capability registration, revision, and read-only normalized
+hit-region declaration/projection contract is available separately. Version-3 capabilities may receive typed pointer
 input and request runtime-owned layout capture; version 2 remains query-only.
 This slice does not provide semantic/keyboard behavior or implement
 `VirtualLayoutPolicy`.
@@ -5921,7 +5928,7 @@ manual validation:
 | --- | --- |
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
-| Layout, scrolling, and virtualization | `layout_rows_columns`, `split_pane_static`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -6268,6 +6275,9 @@ Run `cargo run --example layout_rows_columns` for a compact row/column layout
 sandbox with padding and fill sizing.
 Run `cargo run --example split_pane_static` for a product-neutral static
 two-pane geometry sandbox that inspects the public `split_pane(...)` builder.
+Run `cargo run --example split_pane_runtime` for a deterministic runtime-owned
+divider sandbox that reports the projected target, captured live resize, and
+commit cleanup without application projection.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example tree_and_details` for tree-list and sortable details
@@ -6497,8 +6507,12 @@ for generic surface containers. Version 4 additionally provides the optional
 typed `ContainerStateDeclaration` / `LayoutContainerStateContext` seam with
 bounded UI-local state; version 2 remains projection/query-only.
 `SurfaceRuntime::layout_hit_target_at(...)` is a read-only query over those
-projected targets. Split ratio interaction, settled callbacks,
-semantic/keyboard behavior, and `VirtualLayoutPolicy` remain future work.
+projected targets. Runtime-owned splits with a positive resolved divider expose
+one clipped built-in divider target matching the quantized child geometry;
+primary pointer capture drives the mounted ratio through the shared
+`PanelResizeState` lifecycle, while static and controlled-ratio splits remain
+inert. Settled callbacks, semantic/keyboard behavior, and `VirtualLayoutPolicy`
+remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

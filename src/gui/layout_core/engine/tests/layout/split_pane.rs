@@ -698,7 +698,7 @@ fn stateful_split_ratio_changes_placement_without_changing_measurement() {
     );
     let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
     let mounted_id = MountedContainerStateId::new(
-        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 2),
         NonZeroU64::new(1).expect("non-zero generation"),
     );
     let mut engine = LayoutEngine::default();
@@ -783,7 +783,7 @@ fn controlled_split_uses_controlled_slot_and_falls_back_on_ownership_mismatch() 
     );
     let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
     let mounted_id = MountedContainerStateId::new(
-        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 2),
         NonZeroU64::new(1).expect("non-zero generation"),
     );
     let matching = SplitRuntimeSource {
@@ -820,7 +820,7 @@ fn stateful_split_missing_wrong_and_invalid_state_fail_closed_to_policy_ratio() 
     let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
     let fallback = layout_tree(&split_node(policy, root_children(&root)), viewport);
     let mounted_id = MountedContainerStateId::new(
-        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 1),
+        ContainerStateId::new::<SplitPaneRuntimeState>(SPLIT_ID, 2),
         NonZeroU64::new(1).expect("non-zero generation"),
     );
 

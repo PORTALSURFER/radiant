@@ -3078,6 +3078,7 @@ where
     pub fn refresh_with_scope(&mut self, scope: RepaintScope) {
         let terminal_messages = self.refresh_with_scope_inner(scope);
         self.dispatch_deferred_surface_messages(terminal_messages);
+        self.service_pending_current_surface_relayout();
     }
 
     fn refresh_with_scope_inner(&mut self, scope: RepaintScope) -> Vec<Message> {

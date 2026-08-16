@@ -1,9 +1,9 @@
 //! Runtime-local state for the additive split-pane ratio modes.
 
 use super::{ContainerStateDeclaration, ContainerStateId, Controlled, NodeId};
-use crate::gui::panel::sanitized_split_pane_ratio;
+use crate::gui::panel::{PanelResizeState, sanitized_split_pane_ratio};
 
-pub(crate) const SPLIT_PANE_RUNTIME_STATE_SCHEMA_VERSION: u16 = 1;
+pub(crate) const SPLIT_PANE_RUNTIME_STATE_SCHEMA_VERSION: u16 = 2;
 
 /// Explicit source of a split-pane ratio.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,6 +61,7 @@ pub(crate) struct SplitPaneRuntimeState {
     pub(crate) ownership: SplitPaneRuntimeOwnership,
     pub(crate) ratio: f32,
     pub(crate) accepted_controlled_generation: Option<u64>,
+    pub(crate) resize: PanelResizeState,
 }
 
 impl SplitPaneRuntimeState {
@@ -71,11 +72,16 @@ impl SplitPaneRuntimeState {
                 ownership: SplitPaneRuntimeOwnership::RuntimeOwned,
                 ratio: fallback,
                 accepted_controlled_generation: None,
+                resize: PanelResizeState::new(fallback),
             },
             SplitPaneRuntimeMode::Controlled(controlled) => Self {
                 ownership: SplitPaneRuntimeOwnership::Controlled,
                 ratio: sanitize_controlled_ratio(*controlled.value(), fallback),
                 accepted_controlled_generation: Some(controlled.generation()),
+                resize: PanelResizeState::new(sanitize_controlled_ratio(
+                    *controlled.value(),
+                    fallback,
+                )),
             },
         }
     }

@@ -1160,7 +1160,7 @@ mod tests {
     }
 
     fn accepted_split_state(store: &RuntimeLayoutContainerStateStore) -> SplitPaneRuntimeState {
-        let id = ContainerStateId::new::<SplitPaneRuntimeState>(42, 1);
+        let id = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.0).state_id();
         let mounted_id = store
             .current_mounted_state_id(id)
             .expect("accepted split mount");

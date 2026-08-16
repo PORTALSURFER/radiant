@@ -388,6 +388,31 @@ fn begin_container_runtime<Message>(
                 })
             })
             .flatten(),
+        split_pane_divider: (container.policy.kind == ContainerKind::SplitPane
+            && matches!(
+                container.split_pane_runtime,
+                Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned)
+            )
+            && container
+                .layout_capabilities
+                .as_ref()
+                .is_some_and(|capabilities| {
+                    crate::layout::supports_layout_input_contract(capabilities.contract_version)
+                        && capabilities.interaction.is_some()
+                }))
+        .then(|| {
+            let children = container
+                .children
+                .iter()
+                .map(|child| child.child.id())
+                .collect::<Vec<_>>();
+            crate::gui::layout_core::SplitPaneDividerDescriptor::from_policy(
+                container.id,
+                container.policy.split_pane,
+                &children,
+            )
+        })
+        .flatten(),
         virtual_layout: container.virtual_layout.clone(),
     });
     if is_scroll {

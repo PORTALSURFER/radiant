@@ -301,7 +301,7 @@ where
             return None;
         }
         if self.interaction.pointer.capture.is_none() && self.layout_pointer_capture_active() {
-            let _ = self.dispatch_captured_layout_input(
+            let dispatch = self.dispatch_captured_layout_input(
                 LayoutInput::PointerRelease {
                     position,
                     button,
@@ -310,7 +310,9 @@ where
                 },
                 true,
             );
-            self.rearm_tooltip_hover_intent();
+            if dispatch.handled {
+                self.rearm_tooltip_hover_intent();
+            }
             return None;
         }
         if self.interaction.pointer.capture.is_none()

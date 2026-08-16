@@ -31,6 +31,10 @@ struct LayoutTargetBinding<Message> {
     state_id: Option<crate::layout::ContainerStateId>,
     interaction: Rc<dyn LayoutInteraction<Message>>,
     revision: LayoutInteractionRevision,
+    container_bounds: Option<crate::gui::types::Rect>,
+    target_bounds: Option<crate::gui::types::Rect>,
+    divider_bounds: Option<crate::gui::types::Rect>,
+    split_capture_witness: Option<crate::gui::layout_core::SplitPaneCaptureWitness>,
 }
 
 fn layout_input_metadata(
@@ -88,6 +92,10 @@ impl<Message> Clone for LayoutTargetBinding<Message> {
             state_id: self.state_id,
             interaction: Rc::clone(&self.interaction),
             revision: self.revision.clone(),
+            container_bounds: self.container_bounds,
+            target_bounds: self.target_bounds,
+            divider_bounds: self.divider_bounds,
+            split_capture_witness: self.split_capture_witness,
         }
     }
 }
@@ -125,6 +133,16 @@ where
             input,
             LayoutInput::PointerRelease { .. } | LayoutInput::PointerCaptureCancelled { .. }
         );
+        if let LayoutInput::PointerRelease { button, .. } = input
+            && self
+                .interaction
+                .layout_capture
+                .as_ref()
+                .and_then(|capture| capture.button)
+                .is_some_and(|expected| expected != button)
+        {
+            return LayoutInputDispatch::default();
+        }
         let capture = if terminal_input {
             self.interaction.layout_capture.take()
         } else {
@@ -133,13 +151,19 @@ where
         let Some(capture) = capture else {
             return LayoutInputDispatch::default();
         };
-        let binding = LayoutTargetBinding {
-            identity: capture.identity,
-            contract_version: capture.contract_version,
-            state_id: capture.state_id,
-            interaction: capture.interaction,
-            revision: capture.revision,
-        };
+        let binding = self
+            .layout_target_binding_for_identity(capture.identity)
+            .unwrap_or_else(|| LayoutTargetBinding {
+                identity: capture.identity,
+                contract_version: capture.contract_version,
+                state_id: capture.state_id,
+                interaction: Rc::clone(&capture.interaction),
+                revision: capture.revision.clone(),
+                container_bounds: capture.container_bounds,
+                target_bounds: capture.target_bounds,
+                divider_bounds: capture.divider_bounds,
+                split_capture_witness: capture.split_capture_witness,
+            });
         self.dispatch_layout_binding(binding, input, refresh_after_message, false)
     }
 
@@ -153,6 +177,10 @@ where
             state_id: capture.state_id,
             interaction: capture.interaction,
             revision: capture.revision,
+            container_bounds: capture.container_bounds,
+            target_bounds: capture.target_bounds,
+            divider_bounds: capture.divider_bounds,
+            split_capture_witness: capture.split_capture_witness,
         };
         let _ = self.dispatch_layout_binding(
             binding,
@@ -188,6 +216,10 @@ where
                     state_id: capture.state_id,
                     interaction: capture.interaction,
                     revision: capture.revision,
+                    container_bounds: capture.container_bounds,
+                    target_bounds: capture.target_bounds,
+                    divider_bounds: capture.divider_bounds,
+                    split_capture_witness: capture.split_capture_witness,
                 },
                 LayoutInput::PointerCaptureCancelled {
                     position: capture.last_position,
@@ -205,6 +237,7 @@ where
             && capture.contract_version == current.contract_version
             && capture.state_id == current.state_id
             && capture.revision == current.revision
+            && capture.split_capture_witness == current.split_capture_witness
         {
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
                 identity: current.identity,
@@ -212,6 +245,11 @@ where
                 state_id: current.state_id,
                 revision: current.revision,
                 interaction: current.interaction,
+                button: capture.button,
+                container_bounds: current.container_bounds,
+                target_bounds: current.target_bounds,
+                divider_bounds: current.divider_bounds,
+                split_capture_witness: current.split_capture_witness,
                 last_position: capture.last_position,
                 last_modifiers: capture.last_modifiers,
                 last_timestamp: capture.last_timestamp,
@@ -228,6 +266,10 @@ where
                 state_id: capture.state_id,
                 interaction: capture.interaction,
                 revision: capture.revision,
+                container_bounds: capture.container_bounds,
+                target_bounds: capture.target_bounds,
+                divider_bounds: capture.divider_bounds,
+                split_capture_witness: capture.split_capture_witness,
             },
             LayoutInput::PointerCaptureCancelled {
                 position: capture.last_position,
@@ -276,7 +318,12 @@ where
         refresh_after_message: bool,
         allow_capture: bool,
     ) -> LayoutInputDispatch {
-        let mut context = LayoutEventContext::new(binding.identity);
+        let mut context = LayoutEventContext::with_geometry(
+            binding.identity,
+            binding.container_bounds,
+            binding.target_bounds,
+            binding.divider_bounds,
+        );
         if !matches!(input, LayoutInput::PointerCaptureCancelled { .. }) {
             let fallback_position = self
                 .interaction
@@ -310,6 +357,9 @@ where
         if context.repaint_requested() || context.work_requested() {
             self.repaint_requested = true;
         }
+        if context.work_requested() {
+            self.queue_current_surface_relayout();
+        }
 
         let terminal_input = matches!(
             input,
@@ -323,12 +373,22 @@ where
                 .unwrap_or_else(|| Point::new(0.0, 0.0));
             let (position, modifiers, timestamp, sequence_range) =
                 layout_input_metadata(input, fallback_position);
+            let button = if let LayoutInput::PointerPress { button, .. } = input {
+                Some(button)
+            } else {
+                None
+            };
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
                 identity: binding.identity,
                 contract_version: binding.contract_version,
                 state_id: binding.state_id,
                 revision: binding.revision.clone(),
                 interaction: Rc::clone(&binding.interaction),
+                button,
+                container_bounds: binding.container_bounds,
+                target_bounds: binding.target_bounds,
+                divider_bounds: binding.divider_bounds,
+                split_capture_witness: binding.split_capture_witness,
                 last_position: position,
                 last_modifiers: modifiers,
                 last_timestamp: timestamp,
@@ -375,6 +435,10 @@ impl<Message> RuntimeLayoutHitTarget<Message> {
             state_id: self.state_id,
             interaction: Rc::clone(&self.interaction),
             revision: self.revision.clone(),
+            container_bounds: self.container_bounds,
+            target_bounds: self.target_bounds,
+            divider_bounds: self.divider_bounds,
+            split_capture_witness: self.split_capture_witness,
         }
     }
 }

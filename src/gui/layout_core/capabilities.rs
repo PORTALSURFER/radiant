@@ -392,6 +392,9 @@ pub enum LayoutInput {
 /// Bounded decisions returned by one layout interaction callback.
 pub struct LayoutEventContext<Message> {
     target: LayoutTargetIdentity,
+    container_bounds: Option<Rect>,
+    target_bounds: Option<Rect>,
+    divider_bounds: Option<Rect>,
     handled: bool,
     capture_requested: bool,
     release_requested: bool,
@@ -405,6 +408,9 @@ impl<Message> LayoutEventContext<Message> {
     pub fn new(target: LayoutTargetIdentity) -> Self {
         Self {
             target,
+            container_bounds: None,
+            target_bounds: None,
+            divider_bounds: None,
             handled: false,
             capture_requested: false,
             release_requested: false,
@@ -414,9 +420,38 @@ impl<Message> LayoutEventContext<Message> {
         }
     }
 
+    pub(crate) fn with_geometry(
+        target: LayoutTargetIdentity,
+        container_bounds: Option<Rect>,
+        target_bounds: Option<Rect>,
+        divider_bounds: Option<Rect>,
+    ) -> Self {
+        let mut context = Self::new(target);
+        context.container_bounds = container_bounds;
+        context.target_bounds = target_bounds;
+        context.divider_bounds = divider_bounds;
+        context
+    }
+
     /// Return the target identity receiving this event.
     pub const fn target(&self) -> LayoutTargetIdentity {
         self.target
+    }
+
+    /// Return the final logical bounds of the declaring container, when the
+    /// runtime supplied geometry for this event.
+    pub const fn container_bounds(&self) -> Option<Rect> {
+        self.container_bounds
+    }
+
+    /// Return the clip-constrained logical bounds of the target, when the
+    /// runtime supplied geometry for this event.
+    pub const fn target_bounds(&self) -> Option<Rect> {
+        self.target_bounds
+    }
+
+    pub(crate) const fn divider_bounds(&self) -> Option<Rect> {
+        self.divider_bounds
     }
 
     /// Return whether the capability claimed this event.

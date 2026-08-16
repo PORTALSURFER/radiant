@@ -220,9 +220,12 @@ where
         })
     }
 
-    /// Advance the active-surface generation at the existing refresh commit
-    /// boundary.  This is authority bookkeeping only; it does not alter the
-    /// established refresh behavior or its fallback decisions.
+    /// Test-only stale-generation fixture.
+    ///
+    /// The checked fail-closed behavior remains so preparation tests can model
+    /// a newer active-surface generation and verify stale candidates are
+    /// rejected.  Production refresh paths must not call this helper.
+    #[cfg(test)]
     pub(super) fn advance_fresh_surface_active_generation(&mut self) {
         if self.fresh_surface_authority_exhausted {
             return;
@@ -1151,17 +1154,27 @@ mod tests {
     #[test]
     fn production_refresh_and_direct_relayout_remain_separate_from_preparation() {
         let (mut runtime, pull_calls, project_calls) = runtime_fixture();
+        runtime.fresh_surface_active_generation = u64::MAX - 1;
         let request = runtime
             .issue_fresh_surface_refresh_request(RepaintScope::Projection)
             .expect("request");
         let candidate = runtime
             .prepare_fresh_surface(ordinary_surface(Vector2::new(24.0, 16.0)), request)
             .expect("candidate");
-        candidate.discard();
+        assert!(candidate.is_current(&runtime));
+
+        let fresh_surface_state_before = (
+            runtime.fresh_surface_active_generation,
+            runtime.fresh_surface_request_revision,
+            runtime.fresh_surface_request,
+            runtime.fresh_surface_authority_exhausted,
+        );
+        let layout_root_authority_before = runtime.layout_root_authority;
 
         let pull_before = pull_calls.get();
         let project_before = project_calls.get();
         let counters_before = runtime.refresh_counters();
+        let owner_reconciliations_before = runtime.declarative_owner_ledger.reconciliation_count();
         runtime.refresh_with_scope(RepaintScope::Projection);
         assert_eq!(pull_calls.get(), pull_before + 1);
         assert_eq!(project_calls.get(), project_before);
@@ -1169,12 +1182,40 @@ mod tests {
             runtime.refresh_counters().application_projection,
             counters_before.application_projection + 1
         );
+        assert_eq!(
+            runtime.declarative_owner_ledger.reconciliation_count(),
+            owner_reconciliations_before + 1
+        );
+        assert_eq!(
+            (
+                runtime.fresh_surface_active_generation,
+                runtime.fresh_surface_request_revision,
+                runtime.fresh_surface_request,
+                runtime.fresh_surface_authority_exhausted,
+            ),
+            fresh_surface_state_before
+        );
+        assert_eq!(runtime.fresh_surface_active_generation, u64::MAX - 1);
+        assert!(!runtime.fresh_surface_authority_exhausted);
+        assert_ne!(runtime.layout_root_authority, layout_root_authority_before);
+        assert_eq!(
+            candidate.authority.layout_root_authority,
+            layout_root_authority_before
+        );
+        assert!(!candidate.is_current(&runtime));
 
         let counters_before_relayout = runtime.refresh_counters();
+        let owner_reconciliations_before_relayout =
+            runtime.declarative_owner_ledger.reconciliation_count();
         runtime.relayout();
         assert_eq!(runtime.refresh_counters(), counters_before_relayout);
+        assert_eq!(
+            runtime.declarative_owner_ledger.reconciliation_count(),
+            owner_reconciliations_before_relayout + 1
+        );
         assert_eq!(runtime.layout_root, runtime.surface.layout_node());
         assert!(!runtime.scratch.projection_source.records.is_empty());
+        candidate.discard();
     }
 
     #[test]

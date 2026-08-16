@@ -3725,7 +3725,6 @@ where
         }
 
         self.surface = next_surface;
-        self.advance_fresh_surface_active_generation();
         self.replace_layout_root(layout_root);
         if self.interaction.pointer.managed_capture.is_some() {
             self.interaction.pointer.capture_state = None;

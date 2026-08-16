@@ -300,6 +300,10 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.needs_state_synchronization()
     }
 
+    pub(in crate::runtime) fn supports_prepared_state_synchronization(&self) -> bool {
+        self.widget.supports_prepared_state_synchronization()
+    }
+
     pub(in crate::runtime::surface) fn prepare_replacement(
         &mut self,
         successor: Option<&dyn Widget>,

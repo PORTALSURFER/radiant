@@ -33,8 +33,8 @@ pub(crate) use source::{
     SourceTraversalIndex,
 };
 pub(in crate::runtime) use state_sync::{
-    WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
-    WidgetStateSyncPolicy,
+    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetReplacementCommitResult,
+    WidgetReplacementPlan, WidgetReplacementPlanVeto, WidgetStateSyncPolicy,
 };
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,

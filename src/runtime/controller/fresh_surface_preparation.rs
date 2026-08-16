@@ -8,19 +8,21 @@
 #![allow(dead_code)]
 
 use super::SurfaceRuntime;
+use super::layout_state::RuntimeLayoutContainerStateCandidate;
 use crate::gui::layout_core::{
-    LayoutAuthorityEvidence, LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
-    RootLayoutAuthorityOwner,
+    LayoutAuthorityEvidence, LayoutInputEvidence, LayoutOutput, LayoutStateAuthorityOwner,
+    MountedLayoutSourceAuthorityOwner, PreparedLayoutPass, RootLayoutAuthorityOwner,
 };
 use crate::gui::types::Rect;
-use crate::layout::LayoutDebugOptions;
+use crate::layout::{LayoutDebugOptions, LayoutNode};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, RuntimeLifecyclePhase, SurfaceRuntimeProjection, UiSurface,
     WindowEnvironment,
     surface::{
-        DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, RefreshExecutionDecision, SourceMetadata,
-        SourceTopology, SourceTraversalIndex, SurfaceTraversalIndex as ProjectedTraversalIndex,
-        ViewDelta, ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
+        DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
+        PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
+        SourceTraversalIndex, SurfaceTraversalIndex as ProjectedTraversalIndex, ViewDelta,
+        ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
     },
 };
 
@@ -67,6 +69,16 @@ struct FreshSurfacePreparationAuthority {
     layout_debug_options: LayoutDebugOptions,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FreshSurfaceLayoutAuthority {
+    preparation: FreshSurfacePreparationAuthority,
+    candidate_root_authority: LayoutAuthorityEvidence<RootLayoutAuthorityOwner>,
+    candidate_root_id: u64,
+    candidate_root_state_version: u64,
+    input: LayoutInputEvidence,
+    candidate_mounted_source_present: bool,
+}
+
 /// Candidate-owned, single-use-by-convention fresh surface preparation.
 ///
 /// This type intentionally does not implement `Clone`.  It owns the fresh
@@ -83,6 +95,25 @@ pub(in crate::runtime::controller) struct FreshSurfacePreparationCandidate<Messa
     replacement_plan: WidgetReplacementPlan,
     view_delta_scratch: ViewDeltaScratch,
     authority: FreshSurfacePreparationAuthority,
+}
+
+/// Candidate-owned fresh-surface synchronization and prepared layout.
+///
+/// This type intentionally does not implement `Clone` and has no publication
+/// operation. Its surface, mounted state, prepared output, and cleanup storage
+/// are all released by dropping this value exactly once.
+pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
+    surface: UiSurface<Message>,
+    layout_root: LayoutNode,
+    traversal: ProjectedTraversalIndex<Message>,
+    source: SourceTraversalIndex,
+    view_delta: ViewDelta,
+    execution: RefreshExecutionDecision,
+    replacement_plan: WidgetReplacementPlan,
+    view_delta_scratch: ViewDeltaScratch,
+    mounted_state: RuntimeLayoutContainerStateCandidate,
+    prepared_layout: PreparedLayoutPass,
+    authority: FreshSurfaceLayoutAuthority,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -220,6 +251,175 @@ where
         })
     }
 
+    /// Prepare one private candidate-only synchronization and layout pass.
+    ///
+    /// The initial prepared pass is an owned preflight witness for the exact
+    /// engine/cache/dirty/generation state observed before callbacks. It is
+    /// discarded before the final pass is prepared against the synchronized
+    /// successor root. No direct refresh, relayout, replacement, output, or
+    /// publication path is entered here.
+    pub(in crate::runtime::controller) fn prepare_fresh_surface_layout(
+        &mut self,
+        mut candidate: FreshSurfacePreparationCandidate<Message>,
+    ) -> Result<Option<FreshSurfaceLayoutCandidate<Message>>, PreparedWidgetStateSyncVeto> {
+        if !candidate.is_current(self)
+            || candidate.layout_root.id() != self.layout_root.id()
+            || self.layout_authority_exhausted
+        {
+            return Ok(None);
+        }
+
+        let mut candidate_root_authority = self.layout_root_authority;
+        if !candidate_root_authority.advance_revision()
+            || candidate_root_authority == self.layout_root_authority
+        {
+            return Ok(None);
+        }
+
+        let mounted_state = self.prepare_layout_container_state_candidate(&candidate.traversal);
+        if !mounted_state.is_admissible() {
+            return Ok(None);
+        }
+        let candidate_mounted_source_present = mounted_state.source_present();
+        let Some(input) = self.runtime_layout_input_evidence_for_root(
+            candidate_root_authority,
+            candidate_mounted_source_present,
+        ) else {
+            return Ok(None);
+        };
+
+        let preflight_layout = if candidate_mounted_source_present {
+            let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
+            self.layout_engine.prepare_layout_with_state_and_source(
+                &candidate.layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                Some(&container_state_source),
+                input,
+            )
+        } else {
+            self.layout_engine.prepare_layout_with_state_and_source(
+                &candidate.layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                None,
+                input,
+            )
+        };
+        if !preflight_layout.is_usable()
+            || preflight_layout
+                .validate_for_engine(&self.layout_engine, input)
+                .is_err()
+        {
+            preflight_layout.discard();
+            return Ok(None);
+        }
+
+        let sync_evidence = PreparedWidgetStateSyncEvidence {
+            stateful_widget_order: &candidate.traversal.stateful_widget_order,
+            current_paths: &candidate.traversal.widget_paths,
+            previous_paths: &self.traversal.widgets.paths.current,
+            previous_widget_order: &self.traversal.widgets.hit_order,
+            current_widget_order: &candidate.traversal.widget_paint_order,
+            policy: self.widget_state_sync_policy(),
+        };
+        candidate
+            .surface
+            .prepare_and_synchronize_widget_state(&self.surface, sync_evidence)?;
+        candidate
+            .surface
+            .prepared_widget_state_sync_is_current(&self.surface, sync_evidence)?;
+
+        let SurfaceRuntimeProjection {
+            layout_root,
+            traversal,
+            source,
+        } = candidate.surface.runtime_projection();
+        if layout_root.id() != candidate.layout_root.id()
+            || !traversal_matches_runtime(&traversal, &self.traversal)
+            || !source_indices_match(&source, &self.scratch.projection_source)
+            || !traversal.virtual_layout_registrations.is_empty()
+        {
+            preflight_layout.discard();
+            return Ok(None);
+        }
+        candidate.layout_root = layout_root;
+        candidate.traversal = traversal;
+        candidate.source = source;
+
+        if !candidate.is_current(self)
+            || !preflight_layout.is_current_for_engine(&self.layout_engine)
+        {
+            preflight_layout.discard();
+            return Ok(None);
+        }
+        preflight_layout.discard();
+
+        let prepared_layout = if candidate_mounted_source_present {
+            let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
+            self.layout_engine.prepare_layout_with_state_and_source(
+                &candidate.layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                Some(&container_state_source),
+                input,
+            )
+        } else {
+            self.layout_engine.prepare_layout_with_state_and_source(
+                &candidate.layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                None,
+                input,
+            )
+        };
+        if !prepared_layout.is_usable()
+            || prepared_layout
+                .validate_for_engine(&self.layout_engine, input)
+                .is_err()
+        {
+            prepared_layout.discard();
+            return Ok(None);
+        }
+
+        let authority = FreshSurfaceLayoutAuthority {
+            preparation: candidate.authority,
+            candidate_root_authority,
+            candidate_root_id: candidate.layout_root.id(),
+            candidate_root_state_version: candidate.layout_root.state_version(),
+            input,
+            candidate_mounted_source_present,
+        };
+        let FreshSurfacePreparationCandidate {
+            surface,
+            layout_root,
+            traversal,
+            source,
+            view_delta,
+            execution,
+            replacement_plan,
+            view_delta_scratch,
+            authority: _,
+        } = candidate;
+        Ok(Some(FreshSurfaceLayoutCandidate {
+            surface,
+            layout_root,
+            traversal,
+            source,
+            view_delta,
+            execution,
+            replacement_plan,
+            view_delta_scratch,
+            mounted_state,
+            prepared_layout,
+            authority,
+        }))
+    }
+
     /// Test-only stale-generation fixture.
     ///
     /// The checked fail-closed behavior remains so preparation tests can model
@@ -268,54 +468,111 @@ impl<Message> FreshSurfacePreparationCandidate<Message> {
     where
         Bridge: RuntimeBridge<Message>,
     {
-        let authority = self.authority;
-        if runtime.fresh_surface_authority_exhausted
-            || !valid_checked_generation(authority.request.request_revision)
-            || !valid_checked_generation(authority.request.active_surface_generation)
-            || !valid_checked_generation(authority.request.lifecycle_transition_sequence)
-            || !runtime.fresh_surface_request_is_current(authority.request)
-            || authority.request.runtime_identity != runtime.runtime_identity()
-            || authority.request.lifecycle_phase != RuntimeLifecyclePhase::Running
-            || authority.request.lifecycle_phase != runtime.lifecycle_phase()
-            || authority.request.lifecycle_transition_sequence
-                != runtime.lifecycle_transition_sequence()
-            || authority.request.active_surface_generation
-                != runtime.fresh_surface_active_generation
-            || !same_rect_bits(authority.request.viewport, runtime.viewport)
-            || authority.request.window_environment != runtime.window_environment
-            || runtime.surface.window_environment() != runtime.window_environment
-            || runtime.layout_authority_exhausted
-            || authority.layout_root_authority != runtime.layout_root_authority
-            || authority.layout_state_authority != runtime.layout_state_authority
-            || authority.mounted_layout_source_authority != runtime.mounted_layout_source_authority
-            || authority.mounted_layout_source_present != runtime.mounted_layout_source_present
-            || authority.layout_state_generation != runtime.layout_state_generation
-            || authority.layout_debug_options != runtime.layout_debug_options
-            || authority.active_root_id != runtime.layout_root.id()
-            || authority.active_root_state_version != runtime.layout_root.state_version()
-            || runtime.layout_root != runtime.surface.layout_node()
-            || self.surface.window_environment() != authority.request.window_environment
-            || self.layout_root != self.surface.layout_node()
-            || !self.traversal.virtual_layout_registrations.is_empty()
-            || !self.source_matches_active(runtime)
-            || !traversal_matches_runtime(&self.traversal, &runtime.traversal)
-        {
-            return false;
-        }
-        true
+        fresh_surface_preparation_is_current(
+            runtime,
+            &self.surface,
+            &self.layout_root,
+            &self.traversal,
+            &self.source,
+            self.authority,
+        )
     }
 
     /// Explicitly abandon the candidate.  Dropping the candidate is equally
     /// inert; this spelling makes the discard boundary testable without a
     /// consumer or commit operation.
     pub(in crate::runtime::controller) fn discard(self) {}
+}
 
-    fn source_matches_active<Bridge>(&self, runtime: &SurfaceRuntime<Bridge, Message>) -> bool
+impl<Message> FreshSurfaceLayoutCandidate<Message> {
+    /// Borrow the candidate-owned prepared layout output without exposing a
+    /// mutable or active runtime layout value.
+    pub(in crate::runtime::controller) fn layout_output(&self) -> Option<&LayoutOutput> {
+        self.prepared_layout.output()
+    }
+
+    /// Return whether all captured fresh, candidate-root, mounted, and engine
+    /// evidence remains current. This method is observational and never
+    /// installs candidate state into the active runtime.
+    pub(in crate::runtime::controller) fn is_current<Bridge>(
+        &self,
+        runtime: &SurfaceRuntime<Bridge, Message>,
+    ) -> bool
     where
         Bridge: RuntimeBridge<Message>,
     {
-        source_indices_match(&self.source, &runtime.scratch.projection_source)
+        let authority = self.authority;
+        authority.candidate_root_authority.is_valid()
+            && authority.candidate_root_authority != runtime.layout_root_authority
+            && authority.candidate_root_id == self.layout_root.id()
+            && authority.candidate_root_state_version == self.layout_root.state_version()
+            && authority.candidate_mounted_source_present == self.mounted_state.source_present()
+            && self.mounted_state.is_admissible()
+            && fresh_surface_preparation_is_current(
+                runtime,
+                &self.surface,
+                &self.layout_root,
+                &self.traversal,
+                &self.source,
+                authority.preparation,
+            )
+            && runtime
+                .runtime_layout_input_evidence_for_root(
+                    authority.candidate_root_authority,
+                    authority.candidate_mounted_source_present,
+                )
+                .is_some_and(|input| input == authority.input)
+            && self
+                .prepared_layout
+                .validate_for_engine(&runtime.layout_engine, authority.input)
+                .is_ok()
     }
+
+    /// Explicitly abandon this candidate. Dropping it releases the prepared
+    /// workspace, mounted candidate values, surface, and cleanup storage once.
+    pub(in crate::runtime::controller) fn discard(self) {}
+}
+
+fn fresh_surface_preparation_is_current<Bridge, Message>(
+    runtime: &SurfaceRuntime<Bridge, Message>,
+    surface: &UiSurface<Message>,
+    layout_root: &LayoutNode,
+    traversal: &ProjectedTraversalIndex<Message>,
+    source: &SourceTraversalIndex,
+    authority: FreshSurfacePreparationAuthority,
+) -> bool
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    !(runtime.fresh_surface_authority_exhausted
+        || !valid_checked_generation(authority.request.request_revision)
+        || !valid_checked_generation(authority.request.active_surface_generation)
+        || !valid_checked_generation(authority.request.lifecycle_transition_sequence)
+        || !runtime.fresh_surface_request_is_current(authority.request)
+        || authority.request.runtime_identity != runtime.runtime_identity()
+        || authority.request.lifecycle_phase != RuntimeLifecyclePhase::Running
+        || authority.request.lifecycle_phase != runtime.lifecycle_phase()
+        || authority.request.lifecycle_transition_sequence
+            != runtime.lifecycle_transition_sequence()
+        || authority.request.active_surface_generation != runtime.fresh_surface_active_generation
+        || !same_rect_bits(authority.request.viewport, runtime.viewport)
+        || authority.request.window_environment != runtime.window_environment
+        || runtime.surface.window_environment() != runtime.window_environment
+        || runtime.layout_authority_exhausted
+        || authority.layout_root_authority != runtime.layout_root_authority
+        || authority.layout_state_authority != runtime.layout_state_authority
+        || authority.mounted_layout_source_authority != runtime.mounted_layout_source_authority
+        || authority.mounted_layout_source_present != runtime.mounted_layout_source_present
+        || authority.layout_state_generation != runtime.layout_state_generation
+        || authority.layout_debug_options != runtime.layout_debug_options
+        || authority.active_root_id != runtime.layout_root.id()
+        || authority.active_root_state_version != runtime.layout_root.state_version()
+        || runtime.layout_root != runtime.surface.layout_node()
+        || surface.window_environment() != authority.request.window_environment
+        || layout_root != &surface.layout_node()
+        || !traversal.virtual_layout_registrations.is_empty()
+        || !source_indices_match(source, &runtime.scratch.projection_source)
+        || !traversal_matches_runtime(traversal, &runtime.traversal))
 }
 
 fn valid_checked_generation(value: u64) -> bool {
@@ -689,6 +946,105 @@ mod tests {
         ))
     }
 
+    #[derive(Clone, Copy)]
+    enum PreparedSyncBehavior {
+        Qualified,
+        Unsupported,
+        Panic,
+    }
+
+    #[derive(Clone)]
+    struct PreparedSyncWidget {
+        common: WidgetCommon,
+        local_state: u64,
+        behavior: PreparedSyncBehavior,
+        sync_calls: usize,
+        drop_observation: Rc<Cell<usize>>,
+    }
+
+    impl PreparedSyncWidget {
+        fn new(
+            id: u64,
+            initial_size: Vector2,
+            local_state: u64,
+            behavior: PreparedSyncBehavior,
+            drop_observation: Rc<Cell<usize>>,
+        ) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, initial_size.x, initial_size.y),
+                local_state,
+                behavior,
+                sync_calls: 0,
+                drop_observation,
+            }
+        }
+    }
+
+    impl Drop for PreparedSyncWidget {
+        fn drop(&mut self) {
+            self.drop_observation
+                .set(self.drop_observation.get().saturating_add(self.sync_calls));
+        }
+    }
+
+    impl Widget for PreparedSyncWidget {
+        fn revision(&self) -> crate::widgets::WidgetRevision {
+            crate::widgets::WidgetRevision::exact((), (), (), ())
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            !matches!(self.behavior, PreparedSyncBehavior::Unsupported)
+        }
+
+        fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+            self.sync_calls = self.sync_calls.saturating_add(1);
+            let previous = previous
+                .as_any()
+                .downcast_ref::<Self>()
+                .expect("prepared fixture should synchronize like-for-like widgets");
+            if matches!(self.behavior, PreparedSyncBehavior::Panic) {
+                panic!("prepared synchronization fixture panic");
+            }
+            self.local_state = previous.local_state;
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    fn prepared_sync_surface(widgets: Vec<PreparedSyncWidget>) -> UiSurface<()> {
+        UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            widgets
+                .into_iter()
+                .map(|widget| SurfaceChild::fill(SurfaceNode::static_widget(widget)))
+                .collect(),
+        ))
+    }
+
     #[derive(Clone, Debug, PartialEq)]
     struct TraversalSnapshot {
         widget_paint_order: Vec<u64>,
@@ -860,6 +1216,285 @@ mod tests {
         assert_eq!(pull_calls.get(), pull_before);
         assert_eq!(project_calls.get(), project_before);
         assert_eq!(candidate.layout_root, candidate.surface.layout_node());
+    }
+
+    #[test]
+    fn qualified_state_sync_changes_only_candidate_layout_and_state() {
+        let active_calls = Rc::new(Cell::new(0));
+        let candidate_calls = Rc::new(Cell::new(0));
+        let active = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            41,
+            PreparedSyncBehavior::Qualified,
+            Rc::clone(&active_calls),
+        )]);
+        let candidate_surface = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(64.0, 28.0),
+            0,
+            PreparedSyncBehavior::Qualified,
+            Rc::clone(&candidate_calls),
+        )]);
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("request");
+        let before = active_snapshot(&runtime);
+        let preparation = runtime
+            .prepare_fresh_surface(candidate_surface, request)
+            .expect("qualified ordinary candidate should prepare");
+        let candidate = runtime
+            .prepare_fresh_surface_layout(preparation)
+            .expect("qualified synchronization should not veto")
+            .expect("candidate layout should be prepared");
+
+        assert!(candidate.is_current(&runtime));
+        assert!(candidate.layout_output().is_some());
+        assert_ne!(candidate.layout_root, runtime.layout_root);
+        assert_ne!(
+            candidate.authority.candidate_root_authority,
+            candidate.authority.preparation.layout_root_authority
+        );
+        let synchronized = candidate
+            .surface
+            .find_widget(2)
+            .expect("candidate widget")
+            .widget()
+            .as_any()
+            .downcast_ref::<PreparedSyncWidget>()
+            .expect("prepared fixture widget");
+        assert_eq!(synchronized.local_state, 41);
+        assert_eq!(
+            synchronized.common.sizing.preferred,
+            Vector2::new(64.0, 28.0)
+        );
+        assert_eq!(synchronized.sync_calls, 1);
+        assert_eq!(candidate_calls.get(), 0);
+        assert_eq!(active_calls.get(), 0);
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+
+        candidate.discard();
+        assert_eq!(candidate_calls.get(), 1);
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+    }
+
+    #[test]
+    fn unsupported_and_mixed_state_sync_veto_before_any_callback() {
+        let cases = [
+            (
+                vec![PreparedSyncBehavior::Unsupported],
+                PreparedWidgetStateSyncVeto::Unsupported,
+            ),
+            (
+                vec![
+                    PreparedSyncBehavior::Qualified,
+                    PreparedSyncBehavior::Unsupported,
+                ],
+                PreparedWidgetStateSyncVeto::Unsupported,
+            ),
+        ];
+
+        for (behaviors, expected) in cases {
+            let active_calls = Rc::new(Cell::new(0));
+            let candidate_calls = behaviors
+                .iter()
+                .map(|_| Rc::new(Cell::new(0)))
+                .collect::<Vec<_>>();
+            let active = prepared_sync_surface(
+                behaviors
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| {
+                        PreparedSyncWidget::new(
+                            2 + index as u64,
+                            Vector2::new(24.0, 16.0),
+                            10 + index as u64,
+                            PreparedSyncBehavior::Qualified,
+                            Rc::clone(&active_calls),
+                        )
+                    })
+                    .collect(),
+            );
+            let candidate_surface = prepared_sync_surface(
+                behaviors
+                    .iter()
+                    .enumerate()
+                    .map(|(index, behavior)| {
+                        PreparedSyncWidget::new(
+                            2 + index as u64,
+                            Vector2::new(24.0, 16.0),
+                            0,
+                            *behavior,
+                            Rc::clone(&candidate_calls[index]),
+                        )
+                    })
+                    .collect(),
+            );
+            let (mut runtime, _, _) = runtime_for_surface(active);
+            let request = runtime
+                .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+                .expect("request");
+            let before = active_snapshot(&runtime);
+            let preparation = runtime
+                .prepare_fresh_surface(candidate_surface, request)
+                .expect("ordinary candidate should prepare");
+            let result = runtime.prepare_fresh_surface_layout(preparation);
+            assert!(matches!(result, Err(veto) if veto == expected));
+            assert_eq!(active_calls.get(), 0);
+            assert!(candidate_calls.iter().all(|calls| calls.get() == 0));
+            assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        }
+    }
+
+    #[test]
+    fn first_and_mid_batch_panics_stop_later_callbacks_and_preserve_active_state() {
+        let cases = [
+            vec![PreparedSyncBehavior::Panic, PreparedSyncBehavior::Qualified],
+            vec![
+                PreparedSyncBehavior::Qualified,
+                PreparedSyncBehavior::Panic,
+                PreparedSyncBehavior::Qualified,
+            ],
+        ];
+
+        for behaviors in cases {
+            let candidate_calls = behaviors
+                .iter()
+                .map(|_| Rc::new(Cell::new(0)))
+                .collect::<Vec<_>>();
+            let active = prepared_sync_surface(
+                behaviors
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| {
+                        PreparedSyncWidget::new(
+                            2 + index as u64,
+                            Vector2::new(24.0, 16.0),
+                            20 + index as u64,
+                            PreparedSyncBehavior::Qualified,
+                            Rc::new(Cell::new(0)),
+                        )
+                    })
+                    .collect(),
+            );
+            let candidate_surface = prepared_sync_surface(
+                behaviors
+                    .iter()
+                    .enumerate()
+                    .map(|(index, behavior)| {
+                        PreparedSyncWidget::new(
+                            2 + index as u64,
+                            Vector2::new(24.0, 16.0),
+                            0,
+                            *behavior,
+                            Rc::clone(&candidate_calls[index]),
+                        )
+                    })
+                    .collect(),
+            );
+            let (mut runtime, _, _) = runtime_for_surface(active);
+            let request = runtime
+                .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+                .expect("request");
+            let before = active_snapshot(&runtime);
+            let preparation = runtime
+                .prepare_fresh_surface(candidate_surface, request)
+                .expect("ordinary candidate should prepare");
+            let result = runtime.prepare_fresh_surface_layout(preparation);
+            assert!(matches!(result, Err(PreparedWidgetStateSyncVeto::Panicked)));
+
+            let panic_index = behaviors
+                .iter()
+                .position(|behavior| matches!(behavior, PreparedSyncBehavior::Panic))
+                .expect("panic fixture");
+            assert_eq!(candidate_calls[panic_index].get(), 1);
+            assert!(
+                candidate_calls
+                    .iter()
+                    .skip(panic_index + 1)
+                    .all(|calls| calls.get() == 0)
+            );
+            assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        }
+    }
+
+    #[test]
+    fn repeated_candidate_prepare_discard_reuses_bounded_workspace() {
+        let active = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            41,
+            PreparedSyncBehavior::Qualified,
+            Rc::new(Cell::new(0)),
+        )]);
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let mut capacities = None;
+        for iteration in 0..3 {
+            let candidate_surface = prepared_sync_surface(vec![PreparedSyncWidget::new(
+                2,
+                Vector2::new(40.0 + iteration as f32, 20.0),
+                iteration,
+                PreparedSyncBehavior::Qualified,
+                Rc::new(Cell::new(0)),
+            )]);
+            let request = runtime
+                .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+                .expect("request");
+            let preparation = runtime
+                .prepare_fresh_surface(candidate_surface, request)
+                .expect("ordinary candidate should prepare");
+            let candidate = runtime
+                .prepare_fresh_surface_layout(preparation)
+                .expect("qualified synchronization should not veto")
+                .expect("candidate layout should be prepared");
+            candidate.discard();
+            let next = runtime
+                .layout_engine
+                .prepared_workspace_capacity_signature()
+                .expect("prepared workspace should be retained");
+            if let Some(previous) = capacities {
+                assert_eq!(previous, next);
+            } else {
+                capacities = Some(next);
+            }
+        }
+    }
+
+    #[test]
+    fn candidate_root_revision_exhaustion_vetoes_before_callbacks() {
+        let candidate_calls = Rc::new(Cell::new(0));
+        let active = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            41,
+            PreparedSyncBehavior::Qualified,
+            Rc::new(Cell::new(0)),
+        )]);
+        let candidate_surface = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            0,
+            PreparedSyncBehavior::Qualified,
+            Rc::clone(&candidate_calls),
+        )]);
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        runtime.layout_root_authority = LayoutAuthorityEvidence::new(1, u64::MAX - 1);
+        let request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("request");
+        let before = active_snapshot(&runtime);
+        let preparation = runtime
+            .prepare_fresh_surface(candidate_surface, request)
+            .expect("candidate preparation should reach the root fence");
+        assert!(
+            runtime
+                .prepare_fresh_surface_layout(preparation)
+                .expect("root exhaustion should be an inert veto")
+                .is_none()
+        );
+        assert_eq!(candidate_calls.get(), 0);
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use super::{SurfaceRuntime, SurfaceTraversalIndex};
 use crate::gui::layout_core::{
     LayoutAuthorityEvidence, LayoutInputEvidence, LayoutOutput, PreparedLayoutPass,
+    RootLayoutAuthorityOwner,
 };
 use crate::layout::LayoutNode;
 use crate::runtime::WindowEnvironment;
@@ -307,6 +308,30 @@ where
         }
         let input = LayoutInputEvidence::new(
             Some(self.layout_root_authority),
+            Some(self.layout_state_authority),
+            mounted_source_present.then_some(self.mounted_layout_source_authority),
+            self.viewport,
+            self.layout_debug_options,
+        );
+        input
+            .is_valid_for_prepare(
+                self.viewport,
+                self.layout_debug_options,
+                mounted_source_present,
+            )
+            .then_some(input)
+    }
+
+    pub(in crate::runtime::controller) fn runtime_layout_input_evidence_for_root(
+        &self,
+        root_authority: LayoutAuthorityEvidence<RootLayoutAuthorityOwner>,
+        mounted_source_present: bool,
+    ) -> Option<LayoutInputEvidence> {
+        if self.layout_authority_exhausted {
+            return None;
+        }
+        let input = LayoutInputEvidence::new(
+            Some(root_authority),
             Some(self.layout_state_authority),
             mounted_source_present.then_some(self.mounted_layout_source_authority),
             self.viewport,

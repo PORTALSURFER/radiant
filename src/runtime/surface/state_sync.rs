@@ -1,6 +1,7 @@
 use super::{UiSurface, WidgetDispatchResult, WidgetPath};
 use crate::widgets::{WidgetId, WidgetRevision};
 use std::collections::{HashMap, HashSet};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Read-only evidence for one retained-widget replacement boundary.
 ///
@@ -72,6 +73,35 @@ pub(in crate::runtime) struct WidgetStateSyncEvidence<'a> {
     pub(in crate::runtime::surface) policy: WidgetStateSyncPolicy,
 }
 
+/// Typed veto for the private candidate-only retained-state synchronization
+/// boundary.
+///
+/// All non-panic variants are discovered by the complete preflight before the
+/// first successor callback. A panic is caught around the candidate-owned
+/// batch; the caller drops the candidate and therefore never publishes partial
+/// successor state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::runtime) enum PreparedWidgetStateSyncVeto {
+    Unsupported,
+    Ambiguous,
+    InvalidIdentity,
+    InvalidPath,
+    InvalidRevision,
+    Incompatible,
+    Panicked,
+}
+
+/// Complete identity/path evidence for one candidate-only state-sync batch.
+#[derive(Clone, Copy)]
+pub(in crate::runtime) struct PreparedWidgetStateSyncEvidence<'a> {
+    pub(in crate::runtime) stateful_widget_order: &'a [WidgetId],
+    pub(in crate::runtime) current_paths: &'a HashMap<WidgetId, WidgetPath>,
+    pub(in crate::runtime) previous_paths: &'a HashMap<WidgetId, WidgetPath>,
+    pub(in crate::runtime) previous_widget_order: &'a [WidgetId],
+    pub(in crate::runtime) current_widget_order: &'a [WidgetId],
+    pub(in crate::runtime) policy: WidgetStateSyncPolicy,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::runtime) struct WidgetStateSyncPolicy {
     exclusive_pointer_capture: Option<WidgetId>,
@@ -102,6 +132,47 @@ impl WidgetStateSyncPolicy {
 }
 
 impl<Message> UiSurface<Message> {
+    /// Preflight and then synchronize one detached successor batch.
+    ///
+    /// This operation is intentionally separate from the established direct
+    /// refresh method. It performs no mapper, output, replacement, owner, or
+    /// runtime dispatch, and catches unwind across only the candidate-owned
+    /// callbacks.
+    pub(in crate::runtime) fn prepare_and_synchronize_widget_state(
+        &mut self,
+        previous: &Self,
+        evidence: PreparedWidgetStateSyncEvidence<'_>,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            self.root
+                .preflight_prepared_widget_state_sync(&evidence, &previous.root)?;
+            self.root
+                .synchronize_prepared_widget_state(&evidence, &previous.root)?;
+            Ok(())
+        }));
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(PreparedWidgetStateSyncVeto::Panicked),
+        }
+    }
+
+    /// Revalidate candidate-only state-sync evidence after the callback batch
+    /// without invoking any widget callback.
+    pub(in crate::runtime) fn prepared_widget_state_sync_is_current(
+        &self,
+        previous: &Self,
+        evidence: PreparedWidgetStateSyncEvidence<'_>,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            self.root
+                .preflight_prepared_widget_state_sync(&evidence, &previous.root)
+        }));
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(PreparedWidgetStateSyncVeto::Panicked),
+        }
+    }
+
     pub(in crate::runtime) fn plan_widget_replacements(
         &self,
         successor: &Self,

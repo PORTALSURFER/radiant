@@ -43,7 +43,9 @@ pub(super) struct LayoutContext<'a> {
     measured_by_node: &'a mut HashMap<NodeId, Vector2>,
     virtual_touched: &'a mut HashSet<VirtualizationCacheKey>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    active_cache: Option<&'a HashMap<MeasureCacheKey, Vector2>>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    active_virtual_cache: Option<&'a HashMap<VirtualizationCacheKey, CachedVirtualMetrics>>,
     linear_windows: &'a mut HashMap<NodeId, ResolvedLinearWindow>,
     linear_sizes: &'a mut Vec<f32>,
     linear_unresolved: &'a mut Vec<usize>,
@@ -52,12 +54,16 @@ pub(super) struct LayoutContext<'a> {
     debug_options: LayoutDebugOptions,
     debug_node_filter: Option<&'a HashSet<NodeId>>,
     container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
+    cache_key_ambiguity: Option<&'a mut bool>,
     pub(super) output: &'a mut LayoutOutput,
 }
 
 pub(super) struct LayoutContextParts<'a> {
     pub(super) cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    pub(super) active_cache: Option<&'a HashMap<MeasureCacheKey, Vector2>>,
     pub(super) virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    pub(super) active_virtual_cache:
+        Option<&'a HashMap<VirtualizationCacheKey, CachedVirtualMetrics>>,
     pub(super) scratch: &'a mut LayoutScratch,
     pub(super) output: &'a mut LayoutOutput,
     pub(super) measure_dirty: &'a HashSet<NodeId>,
@@ -65,6 +71,7 @@ pub(super) struct LayoutContextParts<'a> {
     pub(super) debug_options: LayoutDebugOptions,
     pub(super) debug_node_filter: Option<&'a HashSet<NodeId>>,
     pub(super) container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
+    pub(super) cache_key_ambiguity: Option<&'a mut bool>,
 }
 
 impl<'a> LayoutContext<'a> {
@@ -81,13 +88,17 @@ impl<'a> LayoutContext<'a> {
         parts.scratch.linear_windows.clear();
         parts.scratch.linear_sizes.clear();
         parts.scratch.linear_unresolved.clear();
+        parts.scratch.dirty_path.clear();
+        parts.scratch.dirty_marked.clear();
         parts.output.clear_reusing_storage();
         Self {
             measured: &mut parts.scratch.measured,
             measured_by_node: &mut parts.scratch.measured_by_node,
             virtual_touched: &mut parts.scratch.virtual_touched,
             cache: parts.cache,
+            active_cache: parts.active_cache,
             virtual_cache: parts.virtual_cache,
+            active_virtual_cache: parts.active_virtual_cache,
             linear_windows: &mut parts.scratch.linear_windows,
             linear_sizes: &mut parts.scratch.linear_sizes,
             linear_unresolved: &mut parts.scratch.linear_unresolved,
@@ -96,6 +107,7 @@ impl<'a> LayoutContext<'a> {
             debug_options: parts.debug_options,
             debug_node_filter: parts.debug_node_filter,
             container_state_source: parts.container_state_source,
+            cache_key_ambiguity: parts.cache_key_ambiguity,
             output: parts.output,
         }
     }

@@ -2,6 +2,7 @@ use super::*;
 use crate::{
     gui::automation::AutomationRole,
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
+    gui::layout_core::SplitPaneRuntimeState,
     gui::types::{Point, Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, ContainerStateDeclaration,
@@ -9,7 +10,7 @@ use crate::{
         LayoutCapabilities, LayoutContainerStateContext, LayoutHitRegion, LayoutHitRegionId,
         LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
         LayoutTargetIdentity, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
-        SplitPaneAxis, SplitPanePolicy,
+        SplitPaneAxis, SplitPaneCollapsePolicy, SplitPanePolicy,
     },
     runtime::{
         Command, CommandOutcome, Event, PaintPrimitive, RepaintScope, SurfaceChild, SurfaceNode,
@@ -831,6 +832,7 @@ enum SplitInteractionMode {
 struct SplitInteractionBridge {
     mode: SplitInteractionMode,
     policy: SplitPanePolicy,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
     ratio: f32,
     generation: u64,
     clipped: bool,
@@ -849,6 +851,7 @@ impl SplitInteractionBridge {
                 first_min_extent: 0.0,
                 second_min_extent: 0.0,
             },
+            collapse_policy: None,
             ratio: 0.25,
             generation: 1,
             clipped: false,
@@ -864,6 +867,11 @@ impl SplitInteractionBridge {
 
     fn with_nested(mut self) -> Self {
         self.nested = true;
+        self
+    }
+
+    fn with_collapse_policy(mut self, collapse_policy: SplitPaneCollapsePolicy) -> Self {
+        self.collapse_policy = Some(collapse_policy);
         self
     }
 
@@ -914,11 +922,14 @@ impl SplitInteractionBridge {
                 SplitInteractionMode::RuntimeOwned => {
                     inner = inner
                         .with_split_pane_runtime_mode(Some(
-                            crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                            crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+                                collapse_policy: self.collapse_policy,
+                            },
                         ))
                         .with_layout_capabilities(
                             crate::gui::layout_core::runtime_owned_split_pane_capabilities(
                                 inner_policy,
+                                self.collapse_policy,
                             ),
                         );
                 }
@@ -955,10 +966,15 @@ impl SplitInteractionBridge {
             SplitInteractionMode::RuntimeOwned => {
                 split = split
                     .with_split_pane_runtime_mode(Some(
-                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+                            collapse_policy: self.collapse_policy,
+                        },
                     ))
                     .with_layout_capabilities(
-                        crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy),
+                        crate::gui::layout_core::runtime_owned_split_pane_capabilities(
+                            policy,
+                            self.collapse_policy,
+                        ),
                     );
             }
             SplitInteractionMode::Controlled => {
@@ -999,6 +1015,7 @@ enum SplitSettledMessage {
 struct SettledSplitInteractionBridge {
     mode: SplitInteractionMode,
     policy: SplitPanePolicy,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
     ratio: f32,
     generation: u64,
     mapper: u8,
@@ -1017,12 +1034,23 @@ impl SettledSplitInteractionBridge {
                 first_min_extent: 0.0,
                 second_min_extent: 0.0,
             },
+            collapse_policy: None,
             ratio: 0.25,
             generation: 1,
             mapper: 1,
             mounted: true,
             messages,
         }
+    }
+
+    fn with_collapse_policy(mut self, collapse_policy: SplitPaneCollapsePolicy) -> Self {
+        self.collapse_policy = Some(collapse_policy);
+        self
+    }
+
+    fn with_axis(mut self, axis: SplitPaneAxis) -> Self {
+        self.policy.axis = axis;
+        self
     }
 
     fn surface(&self) -> UiSurface<SplitSettledMessage> {
@@ -1060,11 +1088,14 @@ impl SettledSplitInteractionBridge {
                 let mapper = self.mapper;
                 split = split
                     .with_split_pane_runtime_mode(Some(
-                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+                            collapse_policy: self.collapse_policy,
+                        },
                     ))
                     .with_layout_capabilities(
                         crate::gui::layout_core::runtime_owned_split_pane_capabilities_with_ratio_settled(
                             policy,
+                            self.collapse_policy,
                             Some(Rc::new(move |ratio| {
                                 SplitSettledMessage::Settled { mapper, ratio }
                             })),
@@ -4625,6 +4656,38 @@ fn runtime_owned_nested_splits_project_independent_separators() {
 }
 
 #[test]
+fn runtime_owned_nested_split_collapse_keeps_inner_authority_independent() {
+    let mut bridge = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned)
+        .with_nested()
+        .with_collapse_policy(SplitPaneCollapsePolicy::FirstPane);
+    bridge.policy.first_min_extent = 20.0;
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 120.0));
+    let inner_first_height = runtime.layout().rects[&5].height();
+
+    runtime.dispatch_event(Event::primary_double_click(Point::new(52.0, 60.0)));
+
+    assert_eq!(runtime.layout().rects[&4].width(), 20.0);
+    assert_eq!(runtime.layout().rects[&5].height(), inner_first_height);
+    let projections = runtime.split_pane_separator_projections();
+    assert_eq!(
+        projections
+            .iter()
+            .find(|projection| projection.target.container_id == 1)
+            .expect("outer separator remains projected")
+            .live_ratio,
+        20.0_f32 / 192.0_f32
+    );
+    assert_eq!(
+        projections
+            .iter()
+            .find(|projection| projection.target.container_id == 4)
+            .expect("inner separator remains independently projected")
+            .live_ratio,
+        0.25
+    );
+}
+
+#[test]
 fn runtime_owned_split_drag_reprojects_without_application_projection_and_commits() {
     let mut runtime = SurfaceRuntime::new(
         SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
@@ -4975,6 +5038,194 @@ fn runtime_owned_split_settled_output_emits_once_for_meaningful_commit_and_silen
         1,
         "one commit produces one message"
     );
+}
+
+#[test]
+fn runtime_owned_split_collapse_restores_latest_horizontal_drag_ratio() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut bridge = SettledSplitInteractionBridge::new(
+        SplitInteractionMode::RuntimeOwned,
+        Rc::clone(&messages),
+    )
+    .with_collapse_policy(SplitPaneCollapsePolicy::FirstPane);
+    bridge.policy.initial_ratio = 0.5;
+    bridge.policy.first_min_extent = 40.0;
+    bridge.policy.second_min_extent = 60.0;
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+
+    let initial_divider = Point::new(100.0, 40.0);
+    let moved = Point::new(130.0, 100.0);
+    runtime.dispatch_event(Event::primary_press(initial_divider));
+    runtime.dispatch_event(Event::pointer_move(moved));
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    runtime.refresh();
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+
+    runtime.dispatch_event(Event::primary_double_click(Point::new(134.0, 40.0)));
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].width(), 40.0);
+    assert_eq!(runtime.layout().rects[&3].width(), 152.0);
+
+    runtime.set_viewport(Vector2::new(240.0, 80.0));
+    assert_eq!(runtime.layout().rects[&2].width(), 48.0);
+    runtime.dispatch_event(Event::primary_double_click(Point::new(52.0, 40.0)));
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].width(), 157.0);
+    assert_eq!(runtime.layout().rects[&3].width(), 75.0);
+    assert_eq!(
+        messages.borrow().as_slice(),
+        &[
+            SplitSettledMessage::Settled {
+                mapper: 1,
+                ratio: 130.0_f32 / 192.0_f32,
+            },
+            SplitSettledMessage::Settled {
+                mapper: 1,
+                ratio: 40.0_f32 / 192.0_f32,
+            },
+            SplitSettledMessage::Settled {
+                mapper: 1,
+                ratio: 130.0_f32 / 192.0_f32,
+            },
+        ]
+    );
+}
+
+#[test]
+fn runtime_owned_vertical_split_second_pane_collapse_restores_seed_ratio() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut bridge = SettledSplitInteractionBridge::new(
+        SplitInteractionMode::RuntimeOwned,
+        Rc::clone(&messages),
+    )
+    .with_axis(SplitPaneAxis::Vertical)
+    .with_collapse_policy(SplitPaneCollapsePolicy::SecondPane);
+    bridge.policy.initial_ratio = 0.4;
+    bridge.policy.first_min_extent = 30.0;
+    bridge.policy.second_min_extent = 50.0;
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 200.0));
+
+    runtime.dispatch_event(Event::primary_double_click(Point::new(40.0, 81.0)));
+    assert_eq!(runtime.layout().rects[&2].height(), 142.0);
+    assert_eq!(runtime.layout().rects[&3].height(), 50.0);
+
+    runtime.dispatch_event(Event::primary_double_click(Point::new(40.0, 146.0)));
+    assert_eq!(runtime.layout().rects[&2].height(), 77.0);
+    assert_eq!(runtime.layout().rects[&3].height(), 115.0);
+    assert_eq!(
+        messages.borrow().as_slice(),
+        &[
+            SplitSettledMessage::Settled {
+                mapper: 1,
+                ratio: 142.0_f32 / 192.0_f32,
+            },
+            SplitSettledMessage::Settled {
+                mapper: 1,
+                ratio: 0.4,
+            },
+        ]
+    );
+}
+
+#[test]
+fn runtime_owned_split_double_activation_is_inert_during_active_drag() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        )
+        .with_collapse_policy(SplitPaneCollapsePolicy::FirstPane),
+        Vector2::new(200.0, 80.0),
+    );
+
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(Point::new(120.0, 100.0)));
+    runtime.dispatch_event(Event::primary_double_click(Point::new(124.0, 40.0)));
+    assert!(runtime.layout_pointer_capture().is_some());
+    assert_eq!(runtime.layout().rects[&2].width(), 120.0);
+    assert!(messages.borrow().is_empty());
+
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(120.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(messages.borrow().len(), 1);
+}
+
+#[test]
+fn runtime_owned_undersized_split_collapse_is_fail_closed_for_each_axis_and_policy() {
+    for (axis, collapse_policy, viewport, divider_position) in [
+        (
+            SplitPaneAxis::Horizontal,
+            SplitPaneCollapsePolicy::FirstPane,
+            Vector2::new(100.0, 40.0),
+            Point::new(50.0, 20.0),
+        ),
+        (
+            SplitPaneAxis::Horizontal,
+            SplitPaneCollapsePolicy::SecondPane,
+            Vector2::new(100.0, 40.0),
+            Point::new(50.0, 20.0),
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            SplitPaneCollapsePolicy::FirstPane,
+            Vector2::new(40.0, 100.0),
+            Point::new(20.0, 50.0),
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            SplitPaneCollapsePolicy::SecondPane,
+            Vector2::new(40.0, 100.0),
+            Point::new(20.0, 50.0),
+        ),
+    ] {
+        let messages = Rc::new(RefCell::new(Vec::new()));
+        let mut bridge = SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        )
+        .with_axis(axis)
+        .with_collapse_policy(collapse_policy);
+        bridge.policy.initial_ratio = 0.5;
+        bridge.policy.divider_extent = 20.0;
+        bridge.policy.first_min_extent = 60.0;
+        bridge.policy.second_min_extent = 60.0;
+        let mut runtime = SurfaceRuntime::new(bridge, viewport);
+
+        let mounted_state_id = runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("undersized split still has a valid divider projection")
+            .mounted_state_id;
+        let before_state = runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("runtime-owned split state is mounted");
+        let before_layout = runtime.layout().rects.clone();
+        let before_layout_count = runtime.refresh_counters().layout;
+
+        runtime.dispatch_event(Event::primary_double_click(divider_position));
+
+        let after_state = runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("runtime-owned split state remains mounted");
+        assert_eq!(after_state, before_state);
+        assert_eq!(runtime.layout().rects, before_layout);
+        assert_eq!(runtime.refresh_counters().layout, before_layout_count);
+        assert!(messages.borrow().is_empty());
+    }
 }
 
 #[test]

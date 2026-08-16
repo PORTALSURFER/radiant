@@ -1,7 +1,8 @@
 use crate::gui::panel::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
-    SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts, SplitPaneSidebarPanes,
-    SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel, SplitPaneTreePanelIdentity,
+    SplitPaneAxis, SplitPaneCollapsePolicy, SplitPaneLayout, SplitPaneLayoutParts,
+    SplitPaneSidebarPanes, SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel,
+    SplitPaneTreePanelIdentity,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -274,6 +275,89 @@ fn split_pane_layout_sanitizes_nonfinite_inputs() {
         assert!(rect.width() >= 0.0);
         assert!(rect.height() >= 0.0);
     }
+}
+
+#[test]
+fn split_pane_collapse_targets_follow_minimums_and_quantization() {
+    let parts = SplitPaneLayoutParts {
+        bounds: Rect::from_size(200.0, 100.0),
+        axis: SplitPaneAxis::Horizontal,
+        ratio: 0.5,
+        divider_extent: 8.0,
+        first_min_extent: 40.0,
+        second_min_extent: 60.0,
+    };
+    let first = super::super::split_pane_collapse_target(parts, SplitPaneCollapsePolicy::FirstPane)
+        .expect("positive horizontal split has a first-pane target");
+    let second =
+        super::super::split_pane_collapse_target(parts, SplitPaneCollapsePolicy::SecondPane)
+            .expect("positive horizontal split has a second-pane target");
+    assert_eq!(first.ratio, 40.0 / 192.0);
+    assert_eq!(first.selected_extent, 40.0);
+    assert_eq!(second.ratio, 132.0 / 192.0);
+    assert_eq!(second.selected_extent, 60.0);
+
+    let vertical = super::super::split_pane_collapse_target(
+        SplitPaneLayoutParts {
+            bounds: Rect::from_size(100.0, 200.0),
+            axis: SplitPaneAxis::Vertical,
+            ..parts
+        },
+        SplitPaneCollapsePolicy::SecondPane,
+    )
+    .expect("positive vertical split has a second-pane target");
+    assert_eq!(vertical.ratio, 132.0 / 192.0);
+    assert_eq!(vertical.selected_extent, 60.0);
+
+    let nonfinite = super::super::split_pane_collapse_target(
+        SplitPaneLayoutParts {
+            bounds: Rect::from_size(100.0, 40.0),
+            divider_extent: f32::NAN,
+            first_min_extent: f32::INFINITY,
+            second_min_extent: f32::NEG_INFINITY,
+            ..parts
+        },
+        SplitPaneCollapsePolicy::FirstPane,
+    )
+    .expect("nonfinite declared extents are sanitized by the split resolver");
+    assert_eq!(nonfinite.ratio, 0.0);
+    assert_eq!(nonfinite.selected_extent, 0.0);
+}
+
+#[test]
+fn split_pane_collapse_targets_fail_closed_for_unsatisfied_minimums() {
+    let undersized = SplitPaneLayoutParts {
+        bounds: Rect::from_size(100.0, 40.0),
+        divider_extent: 20.0,
+        first_min_extent: 60.0,
+        second_min_extent: 60.0,
+        ..SplitPaneLayoutParts::default()
+    };
+    for policy in [
+        SplitPaneCollapsePolicy::FirstPane,
+        SplitPaneCollapsePolicy::SecondPane,
+    ] {
+        assert_eq!(
+            super::super::split_pane_collapse_target(undersized, policy),
+            None,
+            "undersized split must not admit a collapse target"
+        );
+    }
+
+    let selected_min_exceeds_capacity = SplitPaneLayoutParts {
+        bounds: Rect::from_size(100.0, 40.0),
+        divider_extent: 20.0,
+        first_min_extent: 100.0,
+        second_min_extent: 0.0,
+        ..SplitPaneLayoutParts::default()
+    };
+    assert_eq!(
+        super::super::split_pane_collapse_target(
+            selected_min_exceeds_capacity,
+            SplitPaneCollapsePolicy::FirstPane,
+        ),
+        None
+    );
 }
 
 #[test]

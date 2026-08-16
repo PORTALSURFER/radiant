@@ -744,6 +744,24 @@ The layout system should support:
 
 Layout behavior should be easy to reason about and easy to inspect when something goes wrong.
 
+The current split-pane boundary is intentionally narrower than the complete
+input/accessibility target. The public `SplitPaneCollapsePolicy::{FirstPane,
+SecondPane}` and additive `SplitPaneBuilder::collapse_policy(...)` opt-in apply
+only to runtime-owned split panes. An admitted divider double activation
+discretely resolves the selected pane to its declared minimum through the
+authoritative current geometry/quantization rules; the next accepted
+activation restores the last finite normalized expanded ratio, including the
+latest committed drag ratio. Capacity-limited or undersized geometry is
+rejected before collapse. Static and controlled modes, active drags, stale or
+incompatible mounted state, unavailable capacity, invalid evidence, and no-ops
+remain inert. Meaningful collapse/restore updates mounted state first,
+requests the existing layout work, and emits one settled ratio after cleanup;
+restore evidence is bounded and retired with the existing lifecycle.
+Passive separator automation may report final geometry/value, but remains
+non-focusable, actionless, non-interactive, and native-omitted. Focus ownership,
+Tab/spatial traversal, keyboard/arrow-key resizing, semantic actions, native
+adapters, and paint/cursor/renderer behavior remain future work.
+
 ## Styling and Theming
 
 Radiant should make coherent application styling easy.

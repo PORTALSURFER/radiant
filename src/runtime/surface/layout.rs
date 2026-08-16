@@ -384,6 +384,11 @@ fn begin_container_runtime<Message>(
                         container_id: container.id,
                         initial_ratio: container.policy.split_pane.initial_ratio,
                         mode,
+                        policy_revision:
+                            crate::gui::layout_core::SplitPaneRuntimePolicyRevision::new(
+                                container.policy.split_pane,
+                                mode.collapse_policy(),
+                            ),
                     }
                 })
             })
@@ -391,7 +396,7 @@ fn begin_container_runtime<Message>(
         split_pane_divider: (container.policy.kind == ContainerKind::SplitPane
             && matches!(
                 container.split_pane_runtime,
-                Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned)
+                Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned { .. })
             )
             && container
                 .layout_capabilities

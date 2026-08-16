@@ -96,7 +96,7 @@ mod split_pane_state;
 mod tree;
 mod virtual_layout;
 
-pub use crate::gui::panel::SplitPaneAxis;
+pub use crate::gui::panel::{SplitPaneAxis, SplitPaneCollapsePolicy};
 pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
     ContainerStateDeclaration, ContainerStateId, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
@@ -138,8 +138,8 @@ pub(crate) use split_pane_interaction::{
     runtime_owned_split_pane_capabilities_with_ratio_settled,
 };
 pub(crate) use split_pane_state::{
-    SplitPaneRuntimeMode, SplitPaneRuntimeOwnership, SplitPaneRuntimeState,
-    SplitPaneRuntimeStateInput, sanitize_runtime_ratio,
+    SplitPaneRuntimeMode, SplitPaneRuntimeOwnership, SplitPaneRuntimePolicyRevision,
+    SplitPaneRuntimeState, SplitPaneRuntimeStateInput, sanitize_runtime_ratio,
 };
 pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,

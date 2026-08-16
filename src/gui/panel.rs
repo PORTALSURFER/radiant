@@ -14,14 +14,17 @@ pub use resize::{
     CollapsiblePanelResizeConstraints, PanelResizeConstraints, PanelResizeDrag, PanelResizeEdge,
     PanelResizeState, update_collapsible_panel_resize_drag, update_panel_resize_drag,
 };
-pub(crate) use split_pane::sanitized_split_pane_ratio;
+pub(crate) use split_pane::SplitPaneCollapseTarget;
 pub use split_pane::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
-    SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts, SplitPaneSidebarChrome,
-    SplitPaneSidebarContent, SplitPaneSidebarPanes, SplitPaneSidebarSelection,
-    SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot, SplitPaneTreePanel,
-    SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment, SplitPaneTreePanelContent,
-    SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
+    SplitPaneAxis, SplitPaneCollapsePolicy, SplitPaneLayout, SplitPaneLayoutParts,
+    SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
+    SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot,
+    SplitPaneTreePanel, SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment,
+    SplitPaneTreePanelContent, SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
+};
+pub(crate) use split_pane::{
+    quantized_split_pane_rects, sanitized_split_pane_ratio, split_pane_collapse_target,
 };
 
 #[cfg(test)]

@@ -2077,17 +2077,32 @@ mounted identity; controlled mode consumes its mount value and only strictly
 newer generations. Runtime-owned to controlled initializes from the controlled
 projection, controlled to runtime-owned resets from the current sanitized
 initial ratio, and static/stateful transitions create or drop the mounted slot.
+Runtime-owned mode may additionally select
+`.collapse_policy(SplitPaneCollapsePolicy::FirstPane)` or
+`.collapse_policy(SplitPaneCollapsePolicy::SecondPane)`. With that opt-in, an
+admitted primary divider double activation is a discrete runtime command: it
+resolves the selected pane's declared minimum through the same current
+viewport, divider, opposite-minimum, and quantization geometry as ordinary
+layout; capacity-limited or undersized minima fail closed instead of using the
+ordinary layout fallback. A subsequent accepted activation restores the last
+finite normalized expanded ratio, including the latest committed drag ratio.
+Static and controlled modes remain inert; active drags, invalid or stale
+evidence, missing/unmounted/incompatible/capacity-limited state, and no-ops emit
+no output and do not mutate mounted state. A meaningful collapse or restore
+mutates mounted state first, requests the existing runtime/layout work, and
+maps exactly one settled ratio after interaction cleanup. Restore authority is
+bounded to the mounted runtime slot and resets with its existing lifecycle.
 Runtime-owned mode projects one clipped built-in divider `LayoutHitTarget` from
 final quantized child geometry when the resolved divider is positive. Its
 primary pointer path uses controller-owned capture and the shared
 `PanelResizeState` edit lifecycle; static and controlled-ratio modes remain
 inert. `.on_ratio_settled(...)` is an additive runtime-owned output bridge: it
 maps exactly one final finite normalized mounted ratio after a meaningful
-successful commit, while press, intermediate motion, no-op commit,
+successful drag commit or discrete collapse/restore, while press, intermediate
+motion, no-op commit,
 cancellation, capture loss, incompatible refresh, unmount, static mode, and
 controlled-ratio mode remain silent. This output is not persistence; settled
-persistence, separator focus/keyboard/action behavior, and other
-product-specific behavior remain later slices. The runtime also retains a
+persistence remains a later application-owned concern. The runtime also retains a
 bounded crate-private `SplitPaneSeparatorProjection` collection as
 non-authorizing observation. After a committed mounted-state candidate, each
 valid entry is consumed only by the controller-owned pure automation
@@ -2132,10 +2147,13 @@ size projections. An interrupted drag restores its transaction start and
 delivers typed `Cancel`; collapsible double activation remains a discrete
 collapse/restore command outside the continuous edit stream.
 
-The divider has separator semantics, a visible focus treatment when keyboard
-reachable, logical arrow-key resizing, and an explicit collapse policy. Nested
-split panes use the same constraint, transaction, persistence, and accessibility
-rules without becoming workspace or docking nodes.
+The shipped divider automation remains passive: it reports final geometry and
+value but is non-focusable, actionless, has no interaction target, and omits
+native publication. Divider focus ownership, Tab/spatial traversal, keyboard or
+arrow-key resizing, semantic actions, native adapters, and paint/cursor/renderer
+work remain future slices. Nested split panes retain independent mounted
+collapse/restore authority and use the same geometry/lifecycle rules without
+becoming workspace or docking nodes.
 
 All children use one slot-sizing vocabulary: `fixed`, `fill`, `grow`, `shrink`,
 `min_size`, `max_size`, `aspect_ratio`, and cross-axis alignment. `spacer()`

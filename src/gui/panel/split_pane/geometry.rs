@@ -1,4 +1,4 @@
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::{Point, Rect, Vector2};
 
 /// Axis along which a two-pane split is resolved.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -8,6 +8,15 @@ pub enum SplitPaneAxis {
     Horizontal,
     /// Resolve the first and second panes from top to bottom.
     Vertical,
+}
+
+/// Pane selected by a runtime-owned split-pane collapse command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplitPaneCollapsePolicy {
+    /// Collapse the first, leading pane to its resolved minimum.
+    FirstPane,
+    /// Collapse the second, trailing pane to its resolved minimum.
+    SecondPane,
 }
 
 /// Named geometry inputs for a resolved split-pane layout.
@@ -147,6 +156,82 @@ impl Default for SplitPaneLayout {
     }
 }
 
+/// Resolved collapse target using the same normalization and quantization as
+/// the split layout engine.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SplitPaneCollapseTarget {
+    pub(crate) ratio: f32,
+    pub(crate) selected_extent: f32,
+}
+
+pub(crate) fn split_pane_collapse_target(
+    parts: SplitPaneLayoutParts,
+    policy: SplitPaneCollapsePolicy,
+) -> Option<SplitPaneCollapseTarget> {
+    let base = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        ratio: 0.5,
+        ..parts
+    });
+    if !base.minima_satisfied {
+        return None;
+    }
+    let total_extent = selected_extent(base.bounds, base.axis);
+    let available_extent = total_extent - base.divider_extent;
+    if !available_extent.is_finite() || available_extent <= 0.0 {
+        return None;
+    }
+
+    let requested_ratio = match policy {
+        SplitPaneCollapsePolicy::FirstPane => base.first_min_extent / available_extent,
+        SplitPaneCollapsePolicy::SecondPane => {
+            (available_extent - base.second_min_extent) / available_extent
+        }
+    };
+    let ratio = sanitized_split_pane_ratio(requested_ratio);
+    let resolved = SplitPaneLayout::from_parts(SplitPaneLayoutParts { ratio, ..parts });
+    let (first, _divider, second) = quantized_split_pane_rects(resolved);
+    let selected_extent = match policy {
+        SplitPaneCollapsePolicy::FirstPane => selected_extent(first, base.axis),
+        SplitPaneCollapsePolicy::SecondPane => selected_extent(second, base.axis),
+    };
+    selected_extent
+        .is_finite()
+        .then_some(SplitPaneCollapseTarget {
+            ratio,
+            selected_extent,
+        })
+}
+
+/// Quantize resolved split rectangles with the layout engine's cumulative
+/// rounded-boundary contract.
+pub(crate) fn quantized_split_pane_rects(resolved: SplitPaneLayout) -> (Rect, Rect, Rect) {
+    let outer = round_rect(resolved.bounds);
+    let total_extent = selected_extent(outer, resolved.axis).max(0.0);
+    let divider_extent = if total_extent > 0.0 && resolved.divider_extent > 0.0 {
+        resolved.divider_extent.round().max(1.0).min(total_extent)
+    } else {
+        0.0
+    };
+    let first_extent = selected_extent(resolved.first, resolved.axis)
+        .round()
+        .clamp(0.0, total_extent - divider_extent);
+    let second_extent = total_extent - divider_extent - first_extent;
+
+    let q0 = match resolved.axis {
+        SplitPaneAxis::Horizontal => outer.min.x,
+        SplitPaneAxis::Vertical => outer.min.y,
+    };
+    let q1 = q0 + first_extent;
+    let q2 = q1 + divider_extent;
+    let q3 = q2 + second_extent;
+
+    (
+        rect_for_axis_span(outer, resolved.axis, q0, q1),
+        rect_for_axis_span(outer, resolved.axis, q1, q2),
+        rect_for_axis_span(outer, resolved.axis, q2, q3),
+    )
+}
+
 fn resolved_rects(
     bounds: Rect,
     axis: SplitPaneAxis,
@@ -224,6 +309,32 @@ fn axis_extent(rect: Rect, axis: SplitPaneAxis) -> f32 {
     } else {
         0.0
     }
+}
+
+fn selected_extent(rect: Rect, axis: SplitPaneAxis) -> f32 {
+    match axis {
+        SplitPaneAxis::Horizontal => rect.width(),
+        SplitPaneAxis::Vertical => rect.height(),
+    }
+}
+
+fn rect_for_axis_span(outer: Rect, axis: SplitPaneAxis, start: f32, end: f32) -> Rect {
+    match axis {
+        SplitPaneAxis::Horizontal => {
+            Rect::from_min_max(Point::new(start, outer.min.y), Point::new(end, outer.max.y))
+        }
+        SplitPaneAxis::Vertical => {
+            Rect::from_min_max(Point::new(outer.min.x, start), Point::new(outer.max.x, end))
+        }
+    }
+}
+
+fn round_rect(rect: Rect) -> Rect {
+    let min_x = rect.min.x.floor();
+    let min_y = rect.min.y.floor();
+    let width = rect.width().round().max(0.0);
+    let height = rect.height().round().max(0.0);
+    Rect::from_min_size(Point::new(min_x, min_y), Vector2::new(width, height))
 }
 
 /// Sanitize a split-pane ratio using the static geometry contract.

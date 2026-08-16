@@ -525,7 +525,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::layout_core::{Controlled, SplitPaneRuntimeMode};
+    use crate::gui::layout_core::{
+        Controlled, SplitPaneCollapsePolicy, SplitPaneRuntimeMode, SplitPaneRuntimePolicyRevision,
+    };
     use std::cell::Cell;
     use std::rc::Rc;
 
@@ -1164,11 +1166,18 @@ mod tests {
             container_id: 42,
             initial_ratio,
             mode,
+            policy_revision: SplitPaneRuntimePolicyRevision::default(),
         }
     }
 
     fn accepted_split_state(store: &RuntimeLayoutContainerStateStore) -> SplitPaneRuntimeState {
-        let id = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.0).state_id();
+        let id = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+            0.0,
+        )
+        .state_id();
         let mounted_id = store
             .current_mounted_state_id(id)
             .expect("accepted split mount");
@@ -1199,7 +1208,12 @@ mod tests {
     #[test]
     fn split_runtime_state_seeds_once_and_accepts_only_newer_controlled_generations() {
         let mut store = RuntimeLayoutContainerStateStore::default();
-        let runtime = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.25);
+        let runtime = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+            0.25,
+        );
         let runtime_declaration = runtime.declaration();
         let mut candidate = store.prepare(std::slice::from_ref(&runtime_declaration));
         candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&runtime));
@@ -1212,7 +1226,21 @@ mod tests {
             .current_mounted_state_id(runtime.state_id())
             .expect("runtime-owned mount");
 
-        let changed_seed = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.9);
+        let changed_seed = SplitPaneRuntimeStateInput {
+            policy_revision: SplitPaneRuntimePolicyRevision::new(
+                crate::layout::SplitPanePolicy {
+                    initial_ratio: 0.9,
+                    ..crate::layout::SplitPanePolicy::default()
+                },
+                None,
+            ),
+            ..split_input(
+                SplitPaneRuntimeMode::RuntimeOwned {
+                    collapse_policy: None,
+                },
+                0.9,
+            )
+        };
         let changed_seed_declaration = changed_seed.declaration();
         let mut candidate = store.prepare(std::slice::from_ref(&changed_seed_declaration));
         candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&changed_seed));
@@ -1289,7 +1317,12 @@ mod tests {
             Some(5)
         );
 
-        let runtime_transition = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.15);
+        let runtime_transition = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+            0.15,
+        );
         let declaration = runtime_transition.declaration();
         let mut candidate = store.prepare(std::slice::from_ref(&declaration));
         candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&runtime_transition));
@@ -1324,10 +1357,48 @@ mod tests {
     }
 
     #[test]
+    fn split_runtime_policy_changes_reset_bounded_restore_authority() {
+        let input = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: Some(SplitPaneCollapsePolicy::FirstPane),
+            },
+            0.25,
+        );
+        let mut state = SplitPaneRuntimeState::from_input(input);
+        state.ratio = 0.7;
+        state.last_expanded_ratio = Some(0.7);
+
+        let changed = SplitPaneRuntimeStateInput {
+            mode: SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: Some(SplitPaneCollapsePolicy::SecondPane),
+            },
+            policy_revision: SplitPaneRuntimePolicyRevision::new(
+                crate::layout::SplitPanePolicy {
+                    first_min_extent: 12.0,
+                    ..crate::layout::SplitPanePolicy::default()
+                },
+                Some(SplitPaneCollapsePolicy::SecondPane),
+            ),
+            ..input
+        };
+        let replacement = state
+            .reconcile(changed)
+            .expect("incompatible policy retires the old restore authority");
+        assert_eq!(replacement.ratio, 0.25);
+        assert_eq!(replacement.last_expanded_ratio, Some(0.25));
+        assert_eq!(replacement.policy_revision, changed.policy_revision);
+    }
+
+    #[test]
     fn split_runtime_candidate_is_atomic_and_fail_closed_for_wrong_capacity_and_mount_paths() {
         let mut store = RuntimeLayoutContainerStateStore::default();
         store.set_next_mount_generation_for_test(41);
-        let input = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.3);
+        let input = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+            0.3,
+        );
         let declaration = input.declaration();
         let mut candidate = store.prepare(std::slice::from_ref(&declaration));
         candidate.apply_split_pane_runtime(&store, std::slice::from_ref(&input));
@@ -1354,7 +1425,12 @@ mod tests {
             .map(|container_id| ContainerStateDeclaration::new::<u32, _>(container_id, 1, || 0))
             .collect::<Vec<_>>();
         store.reconcile(&declarations);
-        let capacity_input = split_input(SplitPaneRuntimeMode::RuntimeOwned, 0.3);
+        let capacity_input = split_input(
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+            0.3,
+        );
         let capacity_input = SplitPaneRuntimeStateInput {
             container_id: 100,
             ..capacity_input

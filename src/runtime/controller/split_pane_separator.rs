@@ -37,7 +37,7 @@ pub(super) fn build_split_pane_separator_projection<Message>(
     descriptor: SplitPaneDividerDescriptor,
     state_store: &RuntimeLayoutContainerStateStore,
 ) -> Option<SplitPaneSeparatorProjection> {
-    if !matches!(input.mode, SplitPaneRuntimeMode::RuntimeOwned)
+    if !matches!(input.mode, SplitPaneRuntimeMode::RuntimeOwned { .. })
         || descriptor.container_id != input.container_id
         || target.target.identity()
             != LayoutTargetIdentity::new(input.container_id, SPLIT_PANE_DIVIDER_REGION_ID)
@@ -80,7 +80,7 @@ mod tests {
     use crate::{
         gui::layout_core::{
             ContainerStateDeclaration, LayoutHitTarget, LayoutInteraction,
-            LayoutInteractionRevision, SplitPaneRuntimeStateInput,
+            LayoutInteractionRevision, SplitPaneRuntimePolicyRevision, SplitPaneRuntimeStateInput,
         },
         layout::{LayoutHitRegionId, LayoutTargetIdentity, NodeId},
         runtime::controller::{
@@ -100,6 +100,7 @@ mod tests {
             container_id,
             initial_ratio: 0.25,
             mode,
+            policy_revision: SplitPaneRuntimePolicyRevision::default(),
         }
     }
 
@@ -164,7 +165,12 @@ mod tests {
                 Rect::from_xy_size(0.0, 48.0, 80.0, 8.0),
             ),
         ] {
-            let input = split_input(container_id, SplitPaneRuntimeMode::RuntimeOwned);
+            let input = split_input(
+                container_id,
+                SplitPaneRuntimeMode::RuntimeOwned {
+                    collapse_policy: None,
+                },
+            );
             let mut store = RuntimeLayoutContainerStateStore::default();
             let mounted_state_id = committed_state(&mut store, input);
             let mut traversal = RuntimeContainerTraversal::default();
@@ -200,7 +206,12 @@ mod tests {
 
     #[test]
     fn admission_fails_closed_for_all_state_and_geometry_vetoes() {
-        let input = split_input(1, SplitPaneRuntimeMode::RuntimeOwned);
+        let input = split_input(
+            1,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
         let descriptor = descriptor(input.container_id, SplitPaneAxis::Horizontal);
         let bounds = Rect::from_xy_size(48.0, 0.0, 8.0, 80.0);
 
@@ -365,8 +376,18 @@ mod tests {
 
     #[test]
     fn collection_is_bounded_and_duplicate_evidence_fails_closed() {
-        let outer = split_input(1, SplitPaneRuntimeMode::RuntimeOwned);
-        let inner = split_input(10, SplitPaneRuntimeMode::RuntimeOwned);
+        let outer = split_input(
+            1,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
+        let inner = split_input(
+            10,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
         let mut store = RuntimeLayoutContainerStateStore::default();
         let outer_declaration = outer.declaration();
         let inner_declaration = inner.declaration();

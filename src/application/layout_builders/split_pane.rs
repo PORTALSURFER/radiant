@@ -3,7 +3,7 @@
 use crate::{
     application::{IntoView, ViewNode, ViewNodeKind},
     gui::layout_core::{Controlled, SplitPaneRuntimeMode},
-    gui::panel::SplitPaneAxis,
+    gui::panel::{SplitPaneAxis, SplitPaneCollapsePolicy},
     layout::{ContainerKind, ContainerPolicy, SplitPanePolicy},
 };
 use std::rc::Rc;
@@ -14,6 +14,7 @@ pub struct SplitPaneBuilder<Message> {
     second: ViewNode<Message>,
     policy: SplitPanePolicy,
     runtime_ratio: Option<SplitPaneRuntimeMode>,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
     ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
 }
 
@@ -60,10 +61,22 @@ impl<Message> SplitPaneBuilder<Message> {
         self
     }
 
+    /// Select which pane a runtime-owned divider double activation collapses.
+    ///
+    /// The option is inert for the static and controlled-ratio forms. Runtime
+    /// collapse resolves the selected pane through the shared split geometry
+    /// contract and restores its last finite expanded ratio.
+    pub fn collapse_policy(mut self, policy: SplitPaneCollapsePolicy) -> Self {
+        self.collapse_policy = Some(policy);
+        self
+    }
+
     /// Let the mounted split-pane state own the live ratio, seeded once from
     /// [`Self::initial_ratio`].
     pub fn runtime_owned_ratio(mut self) -> Self {
-        self.runtime_ratio = Some(SplitPaneRuntimeMode::RuntimeOwned);
+        self.runtime_ratio = Some(SplitPaneRuntimeMode::RuntimeOwned {
+            collapse_policy: None,
+        });
         self
     }
 
@@ -86,6 +99,14 @@ impl<Message> SplitPaneBuilder<Message> {
 
     /// Lower this builder into an ordinary declarative view node.
     pub fn into_view(self) -> ViewNode<Message> {
+        let runtime_ratio = match self.runtime_ratio {
+            Some(SplitPaneRuntimeMode::RuntimeOwned { .. }) => {
+                Some(SplitPaneRuntimeMode::RuntimeOwned {
+                    collapse_policy: self.collapse_policy,
+                })
+            }
+            runtime_ratio => runtime_ratio,
+        };
         let has_reserved_descendant_identity = self.first.has_reserved_identity_in_subtree()
             || self.second.has_reserved_identity_in_subtree();
         ViewNode::new(ViewNodeKind::Container {
@@ -96,7 +117,7 @@ impl<Message> SplitPaneBuilder<Message> {
             },
             children: vec![self.first, self.second],
         })
-        .with_split_pane_runtime_mode(self.runtime_ratio)
+        .with_split_pane_runtime_mode(runtime_ratio)
         .with_split_pane_ratio_settled(self.ratio_settled)
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
     }
@@ -112,6 +133,7 @@ pub fn split_pane<Message>(
         second,
         policy: SplitPanePolicy::default(),
         runtime_ratio: None,
+        collapse_policy: None,
         ratio_settled: None,
     }
 }

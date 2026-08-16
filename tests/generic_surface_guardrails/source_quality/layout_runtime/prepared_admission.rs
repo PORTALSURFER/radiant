@@ -14,8 +14,11 @@ fn direct_runtime_refresh_and_relayout_do_not_publish_prepared_candidates() {
         .expect("refresh_with_scope_inner should remain in the runtime refresh controller");
     assert!(
         !refresh_inner.contains("prepare_runtime_layout_candidate")
-            && !refresh_inner.contains("RuntimeLayoutCandidate"),
-        "refresh_with_scope_inner must keep the existing direct publication path"
+            && !refresh_inner.contains("RuntimeLayoutCandidate")
+            && !refresh_inner.contains("fresh_surface")
+            && !refresh_inner.contains("FreshSurface")
+            && !refresh_inner.contains("advance_fresh_surface_active_generation"),
+        "refresh_with_scope_inner must keep fresh-surface preparation and bookkeeping out of the existing direct publication path"
     );
     assert!(
         refresh_inner.contains("self.relayout_with_traversal(traversal)")

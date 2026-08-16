@@ -423,15 +423,67 @@ impl PreparedLayoutPass {
     /// Return whether the active engine still has the exact authority and
     /// cache/dirty evidence observed when this pass was prepared.
     pub(crate) fn is_current_for_engine(&self, engine: &LayoutEngine) -> bool {
-        self.is_usable()
-            && !engine.generation_exhausted
-            && self.generation == engine.generation
-            && self.checked_generation == engine.checked_generation
-            && self.cache_authority == engine.cache_authority
-            && self.workspace.as_ref().is_some_and(|storage| {
-                storage.layout_dirty == engine.layout_dirty
-                    && storage.measure_dirty == engine.measure_dirty
+        self.input_evidence
+            .is_some_and(|input| self.validate_for_engine(engine, input).is_ok())
+    }
+
+    /// Validate every prepared-engine authority without touching active
+    /// output, caches, scratch, or dirty sets.
+    pub(crate) fn validate_for_engine(
+        &self,
+        engine: &LayoutEngine,
+        current_input_evidence: LayoutInputEvidence,
+    ) -> Result<(), PreparedLayoutCommitError> {
+        let Some(storage) = self.workspace.as_ref() else {
+            return Err(if self.invalid_input_evidence {
+                PreparedLayoutCommitError::InvalidInputEvidence
+            } else {
+                PreparedLayoutCommitError::Incomplete
+            });
+        };
+        let veto = if !self.complete {
+            Some(if self.invalid_input_evidence {
+                PreparedLayoutCommitError::InvalidInputEvidence
+            } else {
+                PreparedLayoutCommitError::Incomplete
             })
+        } else if !self.input_evidence.is_some_and(|prepared_input_evidence| {
+            prepared_input_evidence.is_valid_for_presence(prepared_input_evidence.mounted.is_some())
+                && current_input_evidence
+                    .is_valid_for_presence(prepared_input_evidence.mounted.is_some())
+                && prepared_input_evidence == current_input_evidence
+        }) {
+            Some(PreparedLayoutCommitError::InvalidInputEvidence)
+        } else if self.generation_exhausted || engine.generation_exhausted {
+            Some(PreparedLayoutCommitError::GenerationExhausted)
+        } else if self.generation != engine.generation {
+            Some(PreparedLayoutCommitError::StaleEngineGeneration)
+        } else if self.checked_generation != engine.checked_generation {
+            Some(PreparedLayoutCommitError::StaleCheckedGeneration)
+        } else if self.cache_authority != engine.cache_authority {
+            Some(PreparedLayoutCommitError::StaleCacheAuthority)
+        } else if storage.layout_dirty != engine.layout_dirty
+            || storage.measure_dirty != engine.measure_dirty
+        {
+            Some(PreparedLayoutCommitError::StaleDirtyEvidence)
+        } else if storage.cache_key_ambiguity {
+            Some(PreparedLayoutCommitError::CacheKeyAmbiguous)
+        } else if !storage.pruning_is_reproducible() {
+            Some(PreparedLayoutCommitError::PruningEvidenceUnavailable)
+        } else if engine.generation.checked_add(1).is_none()
+            || engine.checked_generation.checked_add(1).is_none()
+            || engine.cache_authority.checked_add(1).is_none()
+        {
+            Some(PreparedLayoutCommitError::GenerationExhausted)
+        } else {
+            None
+        };
+
+        if let Some(veto) = veto {
+            Err(veto)
+        } else {
+            Ok(())
+        }
     }
 
     /// Consume this candidate into `engine` and `output` after exact evidence
@@ -760,54 +812,7 @@ impl LayoutEngine {
         output: &mut LayoutOutput,
         current_input_evidence: LayoutInputEvidence,
     ) -> Result<(), PreparedLayoutCommitError> {
-        let Some(storage) = prepared.workspace.as_ref() else {
-            return Err(if prepared.invalid_input_evidence {
-                PreparedLayoutCommitError::InvalidInputEvidence
-            } else {
-                PreparedLayoutCommitError::Incomplete
-            });
-        };
-        let veto = if !prepared.complete {
-            Some(PreparedLayoutCommitError::Incomplete)
-        } else if !prepared
-            .input_evidence
-            .is_some_and(|prepared_input_evidence| {
-                prepared_input_evidence
-                    .is_valid_for_presence(prepared_input_evidence.mounted.is_some())
-                    && current_input_evidence
-                        .is_valid_for_presence(prepared_input_evidence.mounted.is_some())
-                    && prepared_input_evidence == current_input_evidence
-            })
-        {
-            Some(PreparedLayoutCommitError::InvalidInputEvidence)
-        } else if prepared.generation_exhausted || self.generation_exhausted {
-            Some(PreparedLayoutCommitError::GenerationExhausted)
-        } else if prepared.generation != self.generation {
-            Some(PreparedLayoutCommitError::StaleEngineGeneration)
-        } else if prepared.checked_generation != self.checked_generation {
-            Some(PreparedLayoutCommitError::StaleCheckedGeneration)
-        } else if prepared.cache_authority != self.cache_authority {
-            Some(PreparedLayoutCommitError::StaleCacheAuthority)
-        } else if storage.layout_dirty != self.layout_dirty
-            || storage.measure_dirty != self.measure_dirty
-        {
-            Some(PreparedLayoutCommitError::StaleDirtyEvidence)
-        } else if storage.cache_key_ambiguity {
-            Some(PreparedLayoutCommitError::CacheKeyAmbiguous)
-        } else if !storage.pruning_is_reproducible() {
-            Some(PreparedLayoutCommitError::PruningEvidenceUnavailable)
-        } else if self.generation.checked_add(1).is_none()
-            || self.checked_generation.checked_add(1).is_none()
-            || self.cache_authority.checked_add(1).is_none()
-        {
-            Some(PreparedLayoutCommitError::GenerationExhausted)
-        } else {
-            None
-        };
-        if let Some(veto) = veto {
-            prepared.release_workspace();
-            return Err(veto);
-        }
+        prepared.validate_for_engine(self, current_input_evidence)?;
 
         let Some(mut storage) = prepared.take_workspace() else {
             return Err(PreparedLayoutCommitError::Incomplete);

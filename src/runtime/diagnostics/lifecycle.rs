@@ -86,6 +86,10 @@ impl RuntimeLifecycleController {
         self.phase.accepts_work()
     }
 
+    pub(crate) const fn transition_sequence(&self) -> u64 {
+        self.transition_count
+    }
+
     pub(crate) fn transition(&mut self, next: RuntimeLifecyclePhase) -> bool {
         if !is_legal_transition(self.phase, next) {
             return false;

@@ -344,12 +344,12 @@ fn auxiliary_route_time_stale_redraw_commits_once_to_parent_observation() {
     for (redraw_failed, recovery_triggered) in [(false, false), (true, true)] {
         let mut parent_ledger = CpuFrameObservationLedger::default();
         let key = FrameScheduleKey::Auxiliary(String::from("settings"));
-        let mut child = GenericNativeVelloRunner::new(
+        let mut child = GenericNativeVelloRunner::new_auxiliary(
             NativeRunOptions::default(),
             TestFrameMessageBridge::default(),
             Vector2::new(320.0, 40.0),
+            String::from("settings"),
         );
-        child.mark_as_auxiliary();
 
         let now = Instant::now();
         child.timing.redraw_requested = true;

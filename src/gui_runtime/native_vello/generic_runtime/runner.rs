@@ -196,6 +196,62 @@ where
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
         native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
     ) -> Self {
+        Self::new_with_diagnostic_identity_and_schedule_key(
+            options,
+            bridge,
+            viewport,
+            native_window_diagnostic_identity,
+            native_window_diagnostic_identity_allocator,
+            FrameScheduleKey::Primary,
+            false,
+        )
+    }
+
+    pub(super) fn new_auxiliary_with_diagnostic_identity(
+        options: NativeRunOptions,
+        bridge: Bridge,
+        viewport: Vector2,
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+        native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
+        key: String,
+    ) -> Self {
+        Self::new_with_diagnostic_identity_and_schedule_key(
+            options,
+            bridge,
+            viewport,
+            native_window_diagnostic_identity,
+            native_window_diagnostic_identity_allocator,
+            FrameScheduleKey::Auxiliary(key),
+            true,
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn new_auxiliary(
+        options: NativeRunOptions,
+        bridge: Bridge,
+        viewport: Vector2,
+        key: String,
+    ) -> Self {
+        Self::new_auxiliary_with_diagnostic_identity(
+            options,
+            bridge,
+            viewport,
+            None,
+            NativeWindowDiagnosticIdentityAllocator::exhausted(),
+            key,
+        )
+    }
+
+    fn new_with_diagnostic_identity_and_schedule_key(
+        options: NativeRunOptions,
+        bridge: Bridge,
+        viewport: Vector2,
+        native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
+        native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
+        frame_schedule_key: FrameScheduleKey,
+        auxiliary_owner: bool,
+    ) -> Self {
         let activation_reveal = ActivationRevealController::new(&options);
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
@@ -227,11 +283,12 @@ where
             timing: NativeRunnerTimingState::new(native_window_diagnostic_identity),
             native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
-            frame_stage_owner: WindowStageOwner::new(FrameScheduleKey::Primary),
-            cpu_frame_fairness: Some(CpuFrameFairnessLedger::default()),
+            frame_stage_owner: WindowStageOwner::new(frame_schedule_key),
+            cpu_frame_fairness: (!auxiliary_owner).then(CpuFrameFairnessLedger::default),
             cpu_frame_observation: frame_diagnostics_enabled
                 .then(CpuFrameObservationLedger::default)
-                .or_else(|| frame_profile_enabled.then(CpuFrameObservationLedger::default)),
+                .or_else(|| frame_profile_enabled.then(CpuFrameObservationLedger::default))
+                .filter(|_| !auxiliary_owner),
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
             frame_profile_enabled,
@@ -240,7 +297,7 @@ where
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
             native_lifecycle: NativeLifecycle::default(),
-            auxiliary_owner: false,
+            auxiliary_owner,
             terminal_cause: None,
             recovery: NativeRecoveryCoordinator::default(),
             renderer_recovery: NativeRendererRecoveryPolicy::default(),
@@ -273,14 +330,6 @@ where
             error = %error,
             "radiant native semantic accessibility adapter retired after host publication failure"
         );
-    }
-
-    pub(super) fn mark_as_auxiliary(&mut self) {
-        self.auxiliary_owner = true;
-        self.native_window_diagnostic_identity_allocator =
-            NativeWindowDiagnosticIdentityAllocator::exhausted();
-        self.cpu_frame_fairness = None;
-        self.cpu_frame_observation = None;
     }
 
     pub(super) fn require_primary_frame_diagnostics_schedule_admission(&mut self) {
@@ -1831,6 +1880,23 @@ where
         );
     }
 
+    pub(super) fn handle_route_outcome_with_adapter_without_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+        adapter: &mut GenericNativeAdapterOwner,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
+    ) {
+        self.handle_route_outcome_inner(
+            event_loop,
+            outcome,
+            Some(adapter),
+            observation,
+            false,
+            false,
+        );
+    }
+
     pub(super) fn handle_route_outcome_deferred_publication(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -2434,8 +2500,12 @@ mod tests {
 
     #[test]
     fn auxiliary_runner_omits_parent_fairness_ledger() {
-        let mut runner = runner();
-        runner.mark_as_auxiliary();
+        let runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            EmptyBridge,
+            Vector2::new(320.0, 240.0),
+            String::from("settings"),
+        );
         assert!(runner.cpu_frame_fairness.is_none());
     }
 

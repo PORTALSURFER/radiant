@@ -93,14 +93,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             frame_diagnostics_enabled,
             frame_profile_enabled,
         );
-        let mut runner = GenericNativeVelloRunner::new_with_diagnostic_identity(
+        let runner = GenericNativeVelloRunner::new_auxiliary_with_diagnostic_identity(
             options,
             bridge,
             viewport,
             native_window_diagnostic_identity,
             NativeWindowDiagnosticIdentityAllocator::exhausted(),
+            projection.key.clone(),
         );
-        runner.mark_as_auxiliary();
         Self {
             key: projection.key,
             owner,
@@ -476,28 +476,43 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         now: Instant,
         demand: &FrameScheduleDemand,
     ) -> Option<AuxiliaryWindowEventResult<Message>> {
-        let current_generation = adapter.capture_generation();
+        let parent_generation = adapter.capture_generation()?;
+        if !adapter.admit_generation(parent_generation) {
+            return None;
+        }
         if !matches!(
             demand.key(),
             FrameScheduleKey::Auxiliary(key) if key == &self.key
         ) || !self
-            .frame_schedule_eligibility(current_generation)
+            .frame_schedule_eligibility(Some(parent_generation))
             .is_eligible()
         {
             return None;
         }
-        let admission = self.runner.admit_frame_schedule_work(now, demand);
+        let admission =
+            self.runner
+                .admit_auxiliary_frame_schedule_work(now, demand, parent_generation);
         if !admission.did_work {
             return None;
         }
         self.require_scheduled_frame_admission();
         if admission.route_outcome {
-            self.runner.handle_route_outcome_with_adapter(
-                event_loop,
-                admission.outcome,
-                adapter,
-                observation,
-            );
+            if admission.timed_frame_already_handled {
+                self.runner
+                    .handle_route_outcome_with_adapter_without_timed_frame(
+                        event_loop,
+                        admission.outcome,
+                        adapter,
+                        observation,
+                    );
+            } else {
+                self.runner.handle_route_outcome_with_adapter(
+                    event_loop,
+                    admission.outcome,
+                    adapter,
+                    observation,
+                );
+            }
         }
         let terminal_cause = self.runner.take_terminal_cause();
         Some(self.event_result(terminal_cause))
@@ -1052,10 +1067,11 @@ impl AuxiliaryRecoveryOpportunity {
 mod tests {
     use super::{
         AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity, AuxiliarySurfaceBridge,
-        AuxiliaryWindowEventResult, GenericNativeVelloRunner, NativeFrameRenderFailure,
-        NativeResourceMaintenanceTurn, append_initialized_auxiliary_window,
-        auxiliary_key_is_retiring, auxiliary_projection_contains_key,
-        auxiliary_redraw_terminal_cause, take_deferred_auxiliary_recovery_failure_cause,
+        AuxiliaryWindowEventResult, FrameScheduleKey, GenericNativeVelloRunner,
+        NativeFrameRenderFailure, NativeResourceMaintenanceTurn,
+        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
+        auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
+        take_deferred_auxiliary_recovery_failure_cause,
     };
     use crate::gui::types::Vector2;
     use crate::{
@@ -1092,6 +1108,16 @@ mod tests {
 
     fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
         auxiliary_window_with_diagnostics(cache_on_close, false)
+    }
+
+    #[test]
+    fn constructed_auxiliary_runner_owns_its_exact_schedule_key() {
+        let window = auxiliary_window(false);
+
+        assert_eq!(
+            window.runner.frame_stage_owner.key(),
+            &FrameScheduleKey::Auxiliary(String::from("settings"))
+        );
     }
 
     #[test]

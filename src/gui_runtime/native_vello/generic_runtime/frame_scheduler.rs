@@ -10,10 +10,11 @@ use super::frame_scheduler_policy::{
     SchedulerWorkClass,
 };
 use super::frame_stage_admission::{FrameStageIdentity, NextReadyStage, TimedFrame};
+use super::runner_state::NativeTargetGeneration;
 use super::{
     CpuFramePendingRedrawAge, FrameWork, FrameWorkReason, GenericNativeVelloRunner,
-    GenericRouteOutcome, SceneRebuildMode, TimedFrameCadence, animation_frame_interval,
-    timed_frame_cadence, timed_frame_target_fps,
+    GenericRouteOutcome, NativeAdapterGeneration, SceneRebuildMode, TimedFrameCadence,
+    animation_frame_interval, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::{RuntimeAnimationActivity, RuntimeBridge};
 use std::time::{Duration, Instant};
@@ -424,30 +425,36 @@ pub(super) struct FrameScheduleAdmission {
     pub(super) outcome: GenericRouteOutcome,
     pub(super) route_outcome: bool,
     pub(super) did_work: bool,
+    pub(super) timed_frame_already_handled: bool,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    fn admit_primary_timed_frame_deadline(
+    fn admit_timed_frame_deadline(
         &mut self,
         now: Instant,
-        due_at: Instant,
-        animation_activity: RuntimeAnimationActivity,
-        needs_text_caret_animation: bool,
+        key: FrameScheduleKey,
+        adapter_generation: Option<NativeAdapterGeneration>,
+        target_generation: NativeTargetGeneration,
+        selected_payload: TimedFrame,
     ) -> FrameScheduleAdmission {
+        if !self.frame_stage_owner.owns_key(&key) {
+            return FrameScheduleAdmission::default();
+        }
         let fallback = |runner: &mut Self| {
             let actual_drain_at = Instant::now();
             let outcome = runner.drain_timed_frame_now(
                 actual_drain_at,
-                animation_activity,
-                needs_text_caret_animation,
+                selected_payload.animation_activity(),
+                selected_payload.needs_text_caret_animation(),
             );
             FrameScheduleAdmission {
                 outcome,
                 route_outcome: true,
                 did_work: true,
+                timed_frame_already_handled: true,
             }
         };
         let pre_begin_fallback = |runner: &mut Self| {
@@ -460,17 +467,9 @@ where
             runner.frame_stage_owner.invalidate();
             fallback(runner)
         };
-        let selected_payload =
-            TimedFrame::new(due_at, animation_activity, needs_text_caret_animation);
-
-        let Some(adapter_generation) = self
-            .adapter
-            .as_ref()
-            .and_then(super::GenericNativeAdapterOwner::capture_generation)
-        else {
+        let Some(adapter_generation) = adapter_generation else {
             return pre_begin_fallback(self);
         };
-        let target_generation = self.window.target_generation;
         if !target_generation.is_known()
             || !self.frame_stage_owner.prepare_fence(
                 adapter_generation,
@@ -484,7 +483,7 @@ where
             return pre_begin_fallback(self);
         };
         let identity = FrameStageIdentity::new(
-            FrameScheduleKey::Primary,
+            key,
             adapter_generation,
             target_generation,
             SchedulerStage::Deadline,
@@ -523,12 +522,14 @@ where
                 outcome,
                 route_outcome: true,
                 did_work: true,
+                timed_frame_already_handled: true,
             };
         }
         FrameScheduleAdmission {
             outcome,
             route_outcome: true,
             did_work: true,
+            timed_frame_already_handled: true,
         }
     }
 
@@ -541,6 +542,28 @@ where
         &mut self,
         now: Instant,
         demand: &FrameScheduleDemand,
+    ) -> FrameScheduleAdmission {
+        let adapter_generation = self
+            .adapter
+            .as_ref()
+            .and_then(super::GenericNativeAdapterOwner::capture_generation);
+        self.admit_frame_schedule_work_with_generation(now, demand, adapter_generation)
+    }
+
+    pub(super) fn admit_auxiliary_frame_schedule_work(
+        &mut self,
+        now: Instant,
+        demand: &FrameScheduleDemand,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> FrameScheduleAdmission {
+        self.admit_frame_schedule_work_with_generation(now, demand, Some(adapter_generation))
+    }
+
+    fn admit_frame_schedule_work_with_generation(
+        &mut self,
+        now: Instant,
+        demand: &FrameScheduleDemand,
+        adapter_generation: Option<NativeAdapterGeneration>,
     ) -> FrameScheduleAdmission {
         let work = demand.work(now);
         if work.is_empty() || !self.is_running() {
@@ -557,17 +580,21 @@ where
         if work.reissue_pending_redraw {
             self.request_redraw_for_frame_work(FrameWork::None);
         }
-        if matches!(demand.key(), FrameScheduleKey::Primary)
-            && work.drain_timed_frame
+        if work.drain_timed_frame
             && !work.advance_timed_repaint
             && !work.reissue_pending_redraw
             && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
         {
-            return self.admit_primary_timed_frame_deadline(
+            return self.admit_timed_frame_deadline(
                 now,
-                due_at,
-                demand.animation_activity(),
-                demand.needs_text_caret_animation(),
+                demand.key().clone(),
+                adapter_generation,
+                self.window.target_generation,
+                TimedFrame::new(
+                    due_at,
+                    demand.animation_activity(),
+                    demand.needs_text_caret_animation(),
+                ),
             );
         }
         let should_route =
@@ -585,6 +612,7 @@ where
             outcome,
             route_outcome: should_route,
             did_work: true,
+            timed_frame_already_handled: false,
         }
     }
 }
@@ -654,6 +682,15 @@ mod tests {
         )
     }
 
+    fn auxiliary_runner() -> GenericNativeVelloRunner<CountingFrameBridge, ()> {
+        GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+            String::from("settings"),
+        )
+    }
+
     #[test]
     fn selected_primary_demand_uses_exact_owner_payload_and_does_not_merge_again() {
         let mut runner = GenericNativeVelloRunner::new(
@@ -709,6 +746,132 @@ mod tests {
             "the selected scheduled outcome must not invoke route-time merge"
         );
         assert_eq!(runner.timing.last_timed_frame_drain, drained_at);
+    }
+
+    #[test]
+    fn selected_auxiliary_demand_uses_borrowed_generation_and_does_not_merge_again() {
+        let mut runner = auxiliary_runner();
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let scheduler_now = Instant::now() - Duration::from_millis(50);
+        let demand = FrameScheduleDemand::from_cadence(
+            key.clone(),
+            TimedFrameCadence::DrainNow {
+                due_at: scheduler_now - Duration::from_millis(50),
+                next_wake: scheduler_now + Duration::from_millis(16),
+            },
+            60,
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+            FrameScheduleRedrawEvidence::default(),
+        );
+
+        assert_eq!(runner.frame_stage_owner.key(), &key);
+        let admission =
+            runner.admit_auxiliary_frame_schedule_work(scheduler_now, &demand, adapter_generation);
+
+        assert!(admission.did_work);
+        assert!(admission.route_outcome);
+        let drained_at = runner.timing.last_timed_frame_drain;
+        assert!(drained_at > scheduler_now);
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "borrowed parent generation should admit exactly one auxiliary frame"
+        );
+
+        runner.apply_route_outcome_with_timed_frame(admission.outcome, false);
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "the selected auxiliary route must not merge a second timed frame"
+        );
+        assert_eq!(runner.timing.last_timed_frame_drain, drained_at);
+    }
+
+    #[test]
+    fn auxiliary_key_mismatch_vetoes_before_payload_release() {
+        let mut runner = auxiliary_runner();
+        runner.window.target_generation.advance();
+        let demand = due_demand(
+            FrameScheduleKey::Auxiliary(String::from("other")),
+            Instant::now(),
+        );
+
+        let admission = runner.admit_auxiliary_frame_schedule_work(
+            Instant::now(),
+            &demand,
+            NativeAdapterGeneration::from_test_serial(1),
+        );
+
+        assert_eq!(admission, FrameScheduleAdmission::default());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert!(!runner.frame_stage_owner.has_in_flight());
+    }
+
+    #[test]
+    fn auxiliary_stale_generation_and_target_vetoes_never_redrain_in_flight_work() {
+        let mut runner = auxiliary_runner();
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let target_generation = runner.window.target_generation;
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let now = Instant::now();
+        assert!(runner.frame_stage_owner.prepare_fence(
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+        ));
+        let revision = runner
+            .frame_stage_owner
+            .next_revision()
+            .expect("first auxiliary revision");
+        let identity = FrameStageIdentity::new(
+            key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            runner.frame_stage_owner.owner_generation(),
+            revision,
+        );
+        assert!(runner.frame_stage_owner.queue(
+            identity.clone(),
+            TimedFrame::new(now, RuntimeAnimationActivity::frame_messages(), false),
+        ));
+        assert!(runner.frame_stage_owner.begin(&identity, now).is_some());
+        runner.drain_timed_frame_now(now, RuntimeAnimationActivity::frame_messages(), false);
+
+        let wrong_completion = FrameStageIdentity::new(
+            key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            identity.owner_generation(),
+            identity.revision() + 1,
+        );
+        assert!(
+            !runner
+                .frame_stage_owner
+                .complete(&wrong_completion, now, Instant::now())
+        );
+
+        let demand = due_demand(key, now);
+        let stale_generation = NativeAdapterGeneration::from_test_serial(2);
+        let stale_admission =
+            runner.admit_auxiliary_frame_schedule_work(Instant::now(), &demand, stale_generation);
+        assert!(stale_admission.did_work);
+        assert!(!stale_admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+
+        assert!(runner.window.target_generation.advance());
+        let target_admission =
+            runner.admit_auxiliary_frame_schedule_work(Instant::now(), &demand, adapter_generation);
+        assert!(target_admission.did_work);
+        assert!(!target_admission.route_outcome);
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
     }
 
     #[test]

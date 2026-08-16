@@ -54,6 +54,13 @@ where
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             layout_state_generation: 0,
+            layout_root_authority: crate::gui::layout_core::LayoutAuthorityEvidence::new(1, 1),
+            layout_state_authority: crate::gui::layout_core::LayoutAuthorityEvidence::new(1, 1),
+            mounted_layout_source_authority: crate::gui::layout_core::LayoutAuthorityEvidence::new(
+                1, 1,
+            ),
+            mounted_layout_source_present: false,
+            layout_authority_exhausted: false,
             last_layout_state_diagnostics: super::super::SurfaceLayoutStateDiagnostics::startup(),
             layout_debug_options: LayoutDebugOptions::default(),
             completed_layout: None,
@@ -101,20 +108,22 @@ where
         let traversal = if runtime.virtual_layout.is_empty() {
             traversal
         } else {
-            runtime.layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
+            let layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
                 &mut traversal,
                 &mut runtime.scratch.projection_scroll_stack,
                 &mut runtime.scratch.projection_child_path,
                 &mut runtime.scratch.projection_source,
             );
+            runtime.replace_layout_root(layout_root);
             runtime.rebuild_virtual_layout_shell_layout();
             runtime.materialize_virtual_layout_surface();
-            runtime.layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
+            let layout_root = runtime.surface.runtime_projection_reusing_with_scratch(
                 &mut traversal,
                 &mut runtime.scratch.projection_scroll_stack,
                 &mut runtime.scratch.projection_child_path,
                 &mut runtime.scratch.projection_source,
             );
+            runtime.replace_layout_root(layout_root);
             traversal
         };
         runtime.relayout_with_traversal(traversal);
@@ -241,7 +250,7 @@ where
     /// Replace the viewport and report whether the rounded layout root changed.
     pub(crate) fn set_viewport_and_report_relayout(&mut self, viewport: Vector2) -> bool {
         let viewport = normalized_viewport(viewport);
-        if self.viewport == viewport {
+        if same_rect_bits(self.viewport, viewport) {
             return false;
         }
         let previous_layout_viewport = layout_effective_viewport(self.viewport);
@@ -400,6 +409,13 @@ fn layout_effective_viewport(viewport: Rect) -> Rect {
             viewport.height().round().max(0.0),
         ),
     )
+}
+
+fn same_rect_bits(left: Rect, right: Rect) -> bool {
+    left.min.x.to_bits() == right.min.x.to_bits()
+        && left.min.y.to_bits() == right.min.y.to_bits()
+        && left.max.x.to_bits() == right.max.x.to_bits()
+        && left.max.y.to_bits() == right.max.y.to_bits()
 }
 
 #[cfg(test)]

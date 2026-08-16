@@ -8,12 +8,13 @@ where
 {
     pub(in crate::runtime::controller) fn relayout(&mut self) {
         let mut traversal = self.take_reusable_traversal_index(true);
-        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+        let layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
             &mut self.scratch.projection_source,
         );
+        self.replace_layout_root(layout_root);
         self.relayout_with_traversal(traversal);
         self.install_declarative_owner_projection();
     }
@@ -49,9 +50,18 @@ where
         traversal: SurfaceTraversalIndex<Message>,
         candidate: super::super::layout_state::RuntimeLayoutContainerStateCandidate,
     ) {
+        let candidate_source_present = candidate.source_present();
+        let candidate_mutates_values_or_identity = candidate.mutates_values_or_identity();
+        let accepted_source_present = self.mounted_layout_source_present;
         self.install_traversal_index(traversal);
         self.refresh_visible_traversal_orders();
         self.commit_layout_container_state_candidate(candidate);
+        if !candidate_mutates_values_or_identity
+            && candidate_source_present != accepted_source_present
+        {
+            self.note_mounted_layout_source_mutation(true);
+        }
+        self.mounted_layout_source_present = candidate_source_present;
         self.traversal
             .containers
             .bind_committed_mounted_state_ids(&self.interaction.layout_state);
@@ -117,10 +127,11 @@ where
                     ))
                 }),
         );
-        for (node_id, offset) in self.scratch.scroll_clamp_updates.drain(..) {
+        let scroll_clamp_updates = std::mem::take(&mut self.scratch.scroll_clamp_updates);
+        for (node_id, offset) in scroll_clamp_updates {
             if self.layout_state.scroll_offset(node_id) != offset {
                 self.layout_state.scroll_offsets.insert(node_id, offset);
-                self.layout_state_generation = self.layout_state_generation.saturating_add(1);
+                self.note_layout_state_mutation();
             }
         }
     }

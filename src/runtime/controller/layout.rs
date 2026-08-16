@@ -342,6 +342,8 @@ where
                 capture.last_sequence_range = sequence_range;
             }
         }
+        let has_layout_state_input = supports_layout_state_input_contract(binding.contract_version)
+            && binding.state_id.is_some();
         if supports_layout_state_input_contract(binding.contract_version) {
             let mut state = self
                 .layout_container_state_context(binding.identity.container_id, binding.state_id);
@@ -350,6 +352,9 @@ where
                 .handle_layout_input_with_state(input, &mut context, &mut state);
         } else {
             binding.interaction.handle_layout_input(input, &mut context);
+        }
+        if has_layout_state_input {
+            self.note_mounted_layout_source_mutation(false);
         }
 
         if context.repaint_requested() || context.work_requested() {

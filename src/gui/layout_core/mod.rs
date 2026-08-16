@@ -112,11 +112,15 @@ pub(crate) use capabilities::{
 };
 pub use constraints::{Constraints, ConstraintsParts};
 pub use controlled::Controlled;
-pub(crate) use engine::LayoutContainerStateReadSource;
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutEngine, LayoutOutput, LayoutState, LayoutStats, OverflowInfo,
     VirtualWindowInfo, layout_tree, layout_tree_with_state,
+};
+pub(crate) use engine::{
+    LayoutAuthorityEvidence, LayoutContainerStateReadSource, LayoutInputEvidence,
+    LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner, PreparedLayoutPass,
+    RootLayoutAuthorityOwner,
 };
 pub use model::{
     ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerHorizontalOverflow,

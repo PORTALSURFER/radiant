@@ -231,6 +231,18 @@ mod tests {
         runner
     }
 
+    fn focused_auxiliary_runner()
+    -> super::super::GenericNativeVelloRunner<ImeBridge, TextInputMessage> {
+        let mut runner = super::super::GenericNativeVelloRunner::new_auxiliary(
+            crate::gui_runtime::NativeRunOptions::default(),
+            ImeBridge::default(),
+            Vector2::new(200.0, 40.0),
+            String::from("ime"),
+        );
+        assert!(runner.core.runtime.focus_widget(7));
+        runner
+    }
+
     fn text_value(
         runner: &super::super::GenericNativeVelloRunner<ImeBridge, TextInputMessage>,
     ) -> String {
@@ -446,8 +458,7 @@ mod tests {
     #[test]
     fn primary_and_auxiliary_runners_share_identical_ime_behavior() {
         let mut primary = focused_runner();
-        let mut auxiliary = focused_runner();
-        auxiliary.mark_as_auxiliary();
+        let mut auxiliary = focused_auxiliary_runner();
         for runner in [&mut primary, &mut auxiliary] {
             assert!(!runner.route_native_ime_event(Ime::Enabled).routed);
             assert!(

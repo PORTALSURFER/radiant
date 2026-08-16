@@ -18,7 +18,10 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
         runner.contains("fn drain_timed_frame_now")
             && !runner.contains("fn drain_due_timed_frame")
             && !runner.contains("match timed_frame_cadence(")
-            && scheduler.contains("fn admit_frame_schedule_work"),
+            && scheduler.contains("fn admit_frame_schedule_work")
+            && scheduler.contains("fn admit_timed_frame_deadline")
+            && scheduler.contains("fn admit_auxiliary_frame_schedule_work")
+            && !scheduler.contains("matches!(demand.key(), FrameScheduleKey::Primary)"),
         "runner timed-frame admission should not recompute cadence already selected by lifecycle"
     );
 }

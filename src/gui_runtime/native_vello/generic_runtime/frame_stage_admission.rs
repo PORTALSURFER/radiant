@@ -211,6 +211,10 @@ impl WindowStageOwner {
         &self.key
     }
 
+    pub(super) fn owns_key(&self, key: &FrameScheduleKey) -> bool {
+        &self.key == key
+    }
+
     pub(super) const fn owner_generation(&self) -> u64 {
         self.owner_generation
     }
@@ -504,6 +508,16 @@ mod tests {
         assert!(complete(&mut owner, &first));
         assert!(owner.stale(&first));
         assert!(!complete(&mut owner, &first));
+    }
+
+    #[test]
+    fn auxiliary_deadline_owner_is_bound_to_its_exact_schedule_key() {
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let owner = WindowStageOwner::new(key.clone());
+
+        assert_eq!(owner.key(), &key);
+        assert!(owner.owns_key(&key));
+        assert!(!owner.owns_key(&FrameScheduleKey::Primary));
     }
 
     #[test]

@@ -13,6 +13,7 @@ mod declarative_owner;
 mod effects;
 mod events;
 mod focus;
+mod fresh_surface_preparation;
 mod hit_order;
 mod hit_test;
 mod host;
@@ -133,6 +134,13 @@ where
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
     lifecycle: RuntimeLifecycleController,
+    fresh_surface_active_generation: u64,
+    #[allow(dead_code)]
+    fresh_surface_request_revision: u64,
+    #[allow(dead_code)]
+    fresh_surface_request: Option<fresh_surface_preparation::FreshSurfaceRefreshRequest>,
+    #[allow(dead_code)]
+    fresh_surface_authority_exhausted: bool,
     host_closing_hook_called: bool,
     host_exit_hook_called: bool,
     gpu_shader_presentation_uniform_mailbox: GpuShaderPresentationUniformMailbox,

@@ -45,6 +45,11 @@ pub(super) struct RuntimeWheelTargetTraversal {
 }
 
 impl RuntimeWheelTargetTraversal {
+    #[allow(dead_code)]
+    pub(super) fn order(&self) -> &[WheelHitTarget] {
+        &self.order
+    }
+
     pub(super) fn set_order(&mut self, order: Vec<WheelHitTarget>) {
         self.order = order;
         self.visible.clear();

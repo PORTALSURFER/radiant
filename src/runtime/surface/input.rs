@@ -1,4 +1,6 @@
-use super::state_sync::WidgetStateSyncEvidence;
+use super::state_sync::{
+    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetStateSyncEvidence,
+};
 use super::{
     SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
 };
@@ -140,6 +142,87 @@ impl<Message> SurfaceNode<Message> {
                     .hovered = false;
             }
         }
+    }
+
+    pub(super) fn preflight_prepared_widget_state_sync(
+        &self,
+        evidence: &PreparedWidgetStateSyncEvidence<'_>,
+        previous: &Self,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        for widget_id in evidence.stateful_widget_order {
+            if !has_unique_widget_id_prepared(evidence.previous_widget_order, *widget_id)
+                || !has_unique_widget_id_prepared(evidence.current_widget_order, *widget_id)
+            {
+                return Err(PreparedWidgetStateSyncVeto::Ambiguous);
+            }
+
+            let previous_path = evidence
+                .previous_paths
+                .get(widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let current_path = evidence
+                .current_paths
+                .get(widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let previous_widget = previous
+                .find_widget_at_path(previous_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let current_widget = self
+                .find_widget_at_path(current_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+
+            if previous_widget.id() != *widget_id || current_widget.id() != *widget_id {
+                return Err(PreparedWidgetStateSyncVeto::InvalidIdentity);
+            }
+            if !previous_widget.revision_evidence().valid
+                || !current_widget.revision_evidence().valid
+            {
+                return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+            }
+            if previous_widget.compatibility_kind() != current_widget.compatibility_kind() {
+                return Err(PreparedWidgetStateSyncVeto::Incompatible);
+            }
+            if !current_widget.supports_prepared_state_synchronization() {
+                return Err(PreparedWidgetStateSyncVeto::Unsupported);
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn synchronize_prepared_widget_state(
+        &mut self,
+        evidence: &PreparedWidgetStateSyncEvidence<'_>,
+        previous: &Self,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        for widget_id in evidence.stateful_widget_order {
+            let previous_path = evidence
+                .previous_paths
+                .get(widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let current_path = evidence
+                .current_paths
+                .get(widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let previous_widget = previous
+                .find_widget_at_path(previous_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let current_widget = self
+                .find_widget_mut_at_path(current_path.as_slice())
+                .filter(|widget| widget.id() == *widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
+
+            current_widget
+                .widget_object_mut_runtime()
+                .synchronize_from_previous(previous_widget.widget_object());
+            if evidence.policy.clears_retained_hover_for(*widget_id) {
+                current_widget
+                    .widget_object_mut_runtime()
+                    .common_mut()
+                    .state
+                    .hovered = false;
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn handle_input(
@@ -383,6 +466,20 @@ impl<Message> SurfaceNode<Message> {
             _ => None,
         }
     }
+}
+
+fn has_unique_widget_id_prepared(widget_order: &[WidgetId], widget_id: WidgetId) -> bool {
+    let mut found = false;
+    for candidate in widget_order {
+        if *candidate != widget_id {
+            continue;
+        }
+        if found {
+            return false;
+        }
+        found = true;
+    }
+    found
 }
 
 fn has_unique_widget_id(widget_order: &[WidgetId], widget_id: WidgetId) -> bool {

@@ -560,6 +560,24 @@ impl LayoutEngine {
         !self.layout_dirty.is_empty() || !self.measure_dirty.is_empty()
     }
 
+    #[cfg(test)]
+    pub(crate) fn prepared_workspace_capacity_signature(&self) -> Option<[usize; 11]> {
+        let capacities = self.preparation_workspace.as_ref()?.capacities();
+        Some([
+            capacities.measure_updates,
+            capacities.virtual_updates,
+            capacities.measured,
+            capacities.virtual_touched,
+            capacities.linear_windows,
+            capacities.linear_sizes,
+            capacities.linear_unresolved,
+            capacities.layout_dirty,
+            capacities.measure_dirty,
+            capacities.diagnostics,
+            capacities.debug_primitives,
+        ])
+    }
+
     /// Mark a node as geometry-dirty.
     pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
         self.layout_dirty.insert(node_id);

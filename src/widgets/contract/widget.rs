@@ -240,6 +240,18 @@ pub trait Widget: WidgetClone + Any {
     /// requiring the runtime controller to know concrete widget types.
     fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {}
 
+    /// Return whether this widget opts into the private prepared-surface state
+    /// synchronization boundary.
+    ///
+    /// A `true` implementation promises that its synchronization callback only
+    /// mutates successor-owned local state, reads the previous widget, and does
+    /// not dispatch output or re-enter projection, layout, paint, or runtime
+    /// state. The default keeps existing built-in and custom widgets on the
+    /// established direct refresh path.
+    fn supports_prepared_state_synchronization(&self) -> bool {
+        false
+    }
+
     /// Prepare this widget's local interaction state for removal or loss of
     /// authority during surface reconciliation.
     ///

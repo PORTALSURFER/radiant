@@ -570,6 +570,38 @@ and missed 60Hz frame deadlines. Stress tests should assert that stable idle
 frames and overlay-only motion reuse cached work, while targeted invalidation
 rebuilds only the affected regions or retained segments.
 
+### Measured staged-refresh consumer boundary
+
+The visible state has exactly one complete `CommittedFrameState`/last-complete
+frame. A private invisible `PreparedSurfaceRefresh` candidate may contain
+candidate surface and traversal, source projection, layout root, view-delta
+decision, candidate layout, candidate paint plan, damage, and timing evidence.
+Preparation may mutate candidate-owned storage only; it never mutates active
+focus/capture/composition/wheel ownership, the declarative owner,
+accessibility/automation projection, active layout, retiring-widget ownership,
+or the last-complete frame.
+
+Immediately before irreversible replacement cleanup, revalidate runtime
+identity, lifecycle-transition generation, active-surface generation,
+layout-state generation, viewport, window environment, requested refresh
+revision, and the existing native window/adapter/target/stage/owner/revision
+fences. On mismatch, stale generation, lifecycle transition, resize/recovery,
+newer visual work, unsupported/ambiguous/incomplete evidence, or failure before
+commit, drop the candidate with no active mutation, callback, terminal message,
+or presentation and retain the combined correctness-first fallback. After
+validation, perform irreversible replacement cleanup once, atomically publish
+complete candidate state, then dispatch terminal messages. No scheduler yield
+is permitted after cleanup begins; a panic then is terminal recovery/shutdown,
+not rollback.
+
+This is a reversible prerequisite/evidence contract, not a claim that
+production Projection/Reconciliation/Layout/Paint is independently scheduled.
+The existing combined path remains authoritative for virtual materialization
+and unsupported paths. The parent event loop is the sole cross-window
+authority, `WindowStageOwner` is a private Deadline owner, and diagnostics or
+timing remain observational: they cannot authorize execution, cache, admission,
+or commit.
+
 ## Modern CPU/GPU Architecture
 
 Radiant should be designed from the ground up to take advantage of modern CPU and GPU capabilities.
@@ -1124,6 +1156,18 @@ Benchmark or stress-test areas may include:
 Performance examples should make it possible to see whether Radiant feels smooth under realistic load.
 
 Performance work should be measured where possible, not guessed.
+
+The maintained `examples/arrangement_shell` is consumed directly by three
+deterministic `standalone_gui` lanes: frame update plus current combined refresh
+and paint-plan materialization; browser/inspector structural toggle plus full
+refresh and relayout; and existing hover movement plus paint-only output with
+zero application projection, runtime projection, widget-state synchronization,
+and layout. Exact counter deltas and repeated-run counter identity are part of
+the workload contract. The harness reports finite nearest-rank `p50_us`,
+`p95_us`, and `p99_us` in text, JSONL, and baseline JSONL, while baseline
+comparison remains average-based and old baseline files remain readable. These
+measurements establish a consumer contract only; they do not claim production
+staged execution or earn design-only credit.
 
 ## Examples, Applications, and Sandboxes
 

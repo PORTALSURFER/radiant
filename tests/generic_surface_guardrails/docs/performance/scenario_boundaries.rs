@@ -56,6 +56,40 @@ fn runtime_surface_perf_scenarios_keep_fixtures_and_commands_focused() {
 }
 
 #[test]
+fn arrangement_shell_perf_scenarios_use_the_maintained_example_and_exact_lanes() {
+    let bench = read_project_file("benches/perf_harness.rs");
+    let runtime_scenarios = read_project_file("benches/perf_harness/runtime_scenarios.rs");
+    let arrangement_shell =
+        read_project_file("benches/perf_harness/runtime_scenarios/arrangement_shell.rs");
+    let catalog = read_project_file("benches/perf_harness/catalog.rs");
+
+    assert!(
+        bench.contains("../examples/arrangement_shell/mod.rs")
+            && runtime_scenarios.contains("runtime_scenarios/arrangement_shell.rs")
+            && arrangement_shell.contains("ArrangementShellState")
+            && arrangement_shell.contains("project_surface")
+            && arrangement_shell.contains("ToggleBrowser")
+            && arrangement_shell.contains("dispatch_pointer_move_with_outcome")
+            && arrangement_shell.contains("runtime_overlay_paint_into")
+            && !arrangement_shell.contains("struct ArrangementShellState")
+            && catalog.contains("runtime_arrangement_shell_frame_refresh")
+            && catalog.contains("runtime_arrangement_shell_structural_toggle")
+            && catalog.contains("runtime_arrangement_shell_hover_paint_only")
+            && catalog.contains("\"standalone_gui\""),
+        "arrangement-shell perf lanes should directly use the maintained example and remain in the standalone_gui group"
+    );
+    assert!(
+        arrangement_shell.contains("application_projection, 1")
+            && arrangement_shell.contains("runtime_projection, 1")
+            && arrangement_shell.contains("widget_state_sync, 1")
+            && arrangement_shell.contains("layout, 1")
+            && arrangement_shell.contains("with_paint_only_count(1)")
+            && arrangement_shell.contains("with_application_projection_count(0)"),
+        "arrangement-shell perf lanes should retain their exact full-refresh and paint-only counter contracts"
+    );
+}
+
+#[test]
 fn runtime_virtualized_perf_scenarios_keep_bridge_fixtures_focused() {
     let runtime_virtualized =
         read_project_file("benches/perf_harness/runtime_scenarios/virtualized.rs");

@@ -238,6 +238,13 @@ pub(super) struct ScenarioMetric {
     pub(super) baseline_jsonl: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ScenarioPercentiles {
+    pub(super) p50_us: f64,
+    pub(super) p95_us: f64,
+    pub(super) p99_us: f64,
+}
+
 pub(super) struct MetricRequest<'a> {
     pub(super) name: &'a str,
     pub(super) category: &'a str,
@@ -250,20 +257,33 @@ impl ScenarioMetric {
         request: MetricRequest<'_>,
         elapsed: Duration,
         counters: ScenarioCounters,
+        samples_us: &[f64],
         output_format: OutputFormat,
         baseline: Option<Option<&BaselineMetric>>,
     ) -> Self {
         let total_us = elapsed.as_micros();
         let avg_us = total_us as f64 / request.iterations.max(1) as f64;
+        let percentiles = nearest_rank_percentiles(samples_us);
         let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
-        let baseline_jsonl = baseline_metric_json_line(&request, total_us, avg_us, counters);
+        let baseline_jsonl =
+            baseline_metric_json_line(&request, total_us, avg_us, percentiles, counters);
         match output_format {
-            OutputFormat::Text => {
-                print_text_metric(&request, total_us, avg_us, counters, comparison)
-            }
-            OutputFormat::JsonLines => {
-                print_json_metric(&request, total_us, avg_us, counters, comparison)
-            }
+            OutputFormat::Text => print_text_metric(
+                &request,
+                total_us,
+                avg_us,
+                percentiles,
+                counters,
+                comparison,
+            ),
+            OutputFormat::JsonLines => print_json_metric(
+                &request,
+                total_us,
+                avg_us,
+                percentiles,
+                counters,
+                comparison,
+            ),
         }
         Self {
             comparison,
@@ -276,9 +296,24 @@ fn print_text_metric(
     request: &MetricRequest<'_>,
     total_us: u128,
     avg_us: f64,
+    percentiles: ScenarioPercentiles,
     counters: ScenarioCounters,
     comparison: Option<MetricComparison>,
 ) {
+    println!(
+        "{}",
+        text_metric_line(request, total_us, avg_us, percentiles, counters, comparison,)
+    );
+}
+
+fn text_metric_line(
+    request: &MetricRequest<'_>,
+    total_us: u128,
+    avg_us: f64,
+    percentiles: ScenarioPercentiles,
+    counters: ScenarioCounters,
+    comparison: Option<MetricComparison>,
+) -> String {
     let name = request.name;
     let category = request.category;
     let group = request.group;
@@ -289,14 +324,17 @@ fn print_text_metric(
             baseline_avg_us,
             ratio,
             status,
-        }) => println!(
-            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}{counter_fields} baseline_avg_us={baseline_avg_us:.3} baseline_ratio={ratio:.3} baseline_status={status}"
+        }) => format!(
+            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} p50_us={:.3} p95_us={:.3} p99_us={:.3}{counter_fields} baseline_avg_us={baseline_avg_us:.3} baseline_ratio={ratio:.3} baseline_status={status}",
+            percentiles.p50_us, percentiles.p95_us, percentiles.p99_us,
         ),
-        Some(MetricComparison::Missing) => println!(
-            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}{counter_fields} baseline_status=missing"
+        Some(MetricComparison::Missing) => format!(
+            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} p50_us={:.3} p95_us={:.3} p99_us={:.3}{counter_fields} baseline_status=missing",
+            percentiles.p50_us, percentiles.p95_us, percentiles.p99_us,
         ),
-        None => println!(
-            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}{counter_fields}"
+        None => format!(
+            "radiant_perf scenario={name} category={category} group={group} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} p50_us={:.3} p95_us={:.3} p99_us={:.3}{counter_fields}",
+            percentiles.p50_us, percentiles.p95_us, percentiles.p99_us,
         ),
     }
 }
@@ -305,43 +343,99 @@ fn print_json_metric(
     request: &MetricRequest<'_>,
     total_us: u128,
     avg_us: f64,
+    percentiles: ScenarioPercentiles,
     counters: ScenarioCounters,
     comparison: Option<MetricComparison>,
 ) {
+    println!(
+        "{}",
+        json_metric_line(request, total_us, avg_us, percentiles, counters, comparison,)
+    );
+}
+
+fn json_metric_line(
+    request: &MetricRequest<'_>,
+    total_us: u128,
+    avg_us: f64,
+    percentiles: ScenarioPercentiles,
+    counters: ScenarioCounters,
+    comparison: Option<MetricComparison>,
+) -> String {
     let counter_fields = json_counter_fields(counters);
     match comparison {
         Some(MetricComparison::Matched {
             baseline_avg_us,
             ratio,
             status,
-        }) => println!(
-            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
+        }) => format!(
+            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"p50_us\":{:.3},\"p95_us\":{:.3},\"p99_us\":{:.3}{counter_fields},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
             json_escape(request.name),
             json_escape(request.category),
             json_escape(request.group),
             request.iterations,
             total_us,
             avg_us,
+            percentiles.p50_us,
+            percentiles.p95_us,
+            percentiles.p99_us,
         ),
-        Some(MetricComparison::Missing) => println!(
-            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields},\"baseline_status\":\"missing\"}}",
+        Some(MetricComparison::Missing) => format!(
+            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"p50_us\":{:.3},\"p95_us\":{:.3},\"p99_us\":{:.3}{counter_fields},\"baseline_status\":\"missing\"}}",
             json_escape(request.name),
             json_escape(request.category),
             json_escape(request.group),
             request.iterations,
             total_us,
             avg_us,
+            percentiles.p50_us,
+            percentiles.p95_us,
+            percentiles.p99_us,
         ),
-        None => println!(
-            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields}}}",
+        None => format!(
+            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"p50_us\":{:.3},\"p95_us\":{:.3},\"p99_us\":{:.3}{counter_fields}}}",
             json_escape(request.name),
             json_escape(request.category),
             json_escape(request.group),
             request.iterations,
             total_us,
-            avg_us
+            avg_us,
+            percentiles.p50_us,
+            percentiles.p95_us,
+            percentiles.p99_us,
         ),
     }
+}
+
+pub(super) fn nearest_rank_percentiles(samples_us: &[f64]) -> ScenarioPercentiles {
+    assert!(
+        !samples_us.is_empty(),
+        "percentiles require at least one sample"
+    );
+    assert!(
+        samples_us
+            .iter()
+            .all(|sample| sample.is_finite() && *sample >= 0.0),
+        "percentile samples must be finite and non-negative"
+    );
+
+    let mut sorted = samples_us.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let nearest_rank = |quantile: f64| {
+        let rank = (quantile * sorted.len() as f64).ceil() as usize;
+        sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
+    };
+    let percentiles = ScenarioPercentiles {
+        p50_us: nearest_rank(0.50),
+        p95_us: nearest_rank(0.95),
+        p99_us: nearest_rank(0.99),
+    };
+    assert!(
+        percentiles.p50_us.is_finite()
+            && percentiles.p95_us.is_finite()
+            && percentiles.p99_us.is_finite()
+    );
+    assert!(percentiles.p50_us <= percentiles.p95_us && percentiles.p95_us <= percentiles.p99_us);
+    percentiles
 }
 
 fn text_counter_fields(counters: ScenarioCounters) -> String {
@@ -362,4 +456,60 @@ pub(crate) fn json_counter_fields(counters: ScenarioCounters) -> String {
         .iter()
         .map(|(name, value)| format!(",\"{name}\":{value}"))
         .collect()
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod tests {
+    use super::{
+        MetricRequest, ScenarioCounters, ScenarioPercentiles, json_metric_line,
+        nearest_rank_percentiles, text_metric_line,
+    };
+    use serde_json::Value;
+
+    #[test]
+    fn nearest_rank_percentiles_sort_and_round_up() {
+        assert_eq!(
+            nearest_rank_percentiles(&[4.0, 1.0, 3.0, 2.0]),
+            ScenarioPercentiles {
+                p50_us: 2.0,
+                p95_us: 4.0,
+                p99_us: 4.0,
+            }
+        );
+    }
+
+    #[test]
+    fn metric_serialization_includes_finite_ordered_percentiles() {
+        let request = MetricRequest {
+            name: "runtime_test",
+            category: "runtime_surface",
+            group: "standalone_gui",
+            iterations: 4,
+        };
+        let percentiles = nearest_rank_percentiles(&[1.0, 4.0, 2.0, 3.0]);
+        let json = json_metric_line(
+            &request,
+            10,
+            2.5,
+            percentiles,
+            ScenarioCounters::default().with_paint_only_count(1),
+            None,
+        );
+        let value: Value = serde_json::from_str(&json).expect("metric JSON should parse");
+        assert_eq!(value["p50_us"], 2.0);
+        assert_eq!(value["p95_us"], 4.0);
+        assert_eq!(value["p99_us"], 4.0);
+        assert_eq!(value["paint_only_count"], 1);
+
+        let text = text_metric_line(
+            &request,
+            10,
+            2.5,
+            percentiles,
+            ScenarioCounters::default(),
+            None,
+        );
+        assert!(text.contains("p50_us=2.000 p95_us=4.000 p99_us=4.000"));
+    }
 }

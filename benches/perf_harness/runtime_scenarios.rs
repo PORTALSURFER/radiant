@@ -1,5 +1,7 @@
 //! Runtime surface performance scenarios.
 
+#[path = "runtime_scenarios/arrangement_shell.rs"]
+mod arrangement_shell;
 #[path = "runtime_scenarios/frame_cadence.rs"]
 mod frame_cadence;
 #[path = "runtime_scenarios/invalidation.rs"]
@@ -73,6 +75,20 @@ pub(super) fn resize_large_tree() -> impl FnMut() -> crate::runner::ScenarioCoun
 
 pub(super) fn animation_frame_cadence_1k() -> impl FnMut() -> crate::runner::ScenarioCounters {
     frame_cadence::animation_frame_cadence_1k()
+}
+
+pub(super) fn arrangement_shell_frame_refresh() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    arrangement_shell::frame_refresh()
+}
+
+pub(super) fn arrangement_shell_structural_toggle()
+-> impl FnMut() -> crate::runner::ScenarioCounters {
+    arrangement_shell::structural_toggle()
+}
+
+pub(super) fn arrangement_shell_hover_paint_only() -> impl FnMut() -> crate::runner::ScenarioCounters
+{
+    arrangement_shell::hover_paint_only()
 }
 
 pub(super) fn command_flattening_512() -> impl FnMut() -> crate::runner::ScenarioCounters {

@@ -5456,7 +5456,8 @@ cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 ```
 
 Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
-`total_us`, and `avg_us`, plus any scenario-owned counters such as
+`total_us`, `avg_us`, and finite nearest-rank `p50_us`, `p95_us`, and `p99_us`,
+plus any scenario-owned counters such as
 `scene_rebuild_count`, `static_rebuild_count`, `paint_only_count`,
 `surface_refresh_count`, `relayout_count`, `dirty_mark_count`,
 `overlay_paint_count`, `overlay_rebuild_count`, `text_cache_hit_count`,
@@ -5467,6 +5468,33 @@ Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `scene_append_count`. This keeps
 performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
+The `p50_us`, `p95_us`, and `p99_us` are finite nearest-rank percentiles.
+
+The maintained `examples/arrangement_shell` implementation is used directly by
+the standalone GUI consumer contract; the harness does not copy or simplify
+that workload. Run the focused lanes with:
+
+```powershell
+cargo bench --bench perf_harness runtime_arrangement_shell -- --jsonl
+```
+
+The `standalone_gui` lanes are:
+
+- `runtime_arrangement_shell_frame_refresh`: continuous frame update followed
+  by the current combined refresh and paint-plan materialization;
+- `runtime_arrangement_shell_structural_toggle`: browser/inspector structural
+  toggle followed by full refresh and relayout; and
+- `runtime_arrangement_shell_hover_paint_only`: existing hover movement followed
+  by paint-only output with zero application projection, runtime projection,
+  widget-state synchronization, and layout.
+
+The lanes preserve exact counter deltas and assert repeated identical runs have
+identical counters. Sampling uses bounded batches; bounded batches avoid a
+clock read around every tiny iteration. Percentiles are finite and assert
+`p50_us <= p95_us <= p99_us`; average-based baseline comparison is unchanged,
+and legacy baseline JSONL remains readable. These are measured consumer-contract
+lanes only: they establish no production staged Projection/Reconciliation/
+Layout/Paint execution and receive no design-only credit.
 Capture a machine-local baseline artifact directly with
 `--write-baseline-jsonl`:
 
@@ -6769,3 +6797,35 @@ The lifecycle is:
 4. Widget outputs are mapped to host messages.
 5. The host reducer mutates host state and may request repaint.
 6. Radiant refreshes the surface and rebuilds only the necessary runtime data.
+
+### Prepared surface refresh evidence (private, non-executing consumer contract)
+
+There is exactly one externally visible complete
+`CommittedFrameState`/last-complete frame. A staged consumer may prepare an
+invisible private `PreparedSurfaceRefresh` containing candidate
+surface/traversal, source projection, layout root, view-delta decision,
+candidate layout, candidate paint plan, damage, and timing evidence.
+Preparation may mutate candidate-owned storage only; it never mutates active
+focus/capture/composition/wheel ownership, the declarative owner,
+accessibility/automation projection, active layout, retiring-widget ownership,
+or the last-complete frame.
+
+Immediately before irreversible replacement cleanup, revalidate runtime
+identity, lifecycle-transition generation, active-surface generation,
+layout-state generation, viewport, window environment, requested refresh
+revision, and existing native window/adapter/target/stage/owner/revision
+fences. A mismatch, stale generation, lifecycle transition, resize/recovery,
+newer visual work, unsupported/ambiguous/incomplete evidence, or pre-commit
+failure drops the candidate with no active mutation, callback, terminal message,
+or presentation and retains the combined correctness-first fallback. After
+validation, perform irreversible replacement cleanup once, atomically publish
+complete candidate state, then dispatch terminal messages. No scheduler yield
+follows cleanup start; a panic then is terminal recovery/shutdown, not rollback.
+
+This is a reversible prerequisite/evidence contract only. It does not claim
+production Projection, Reconciliation, Layout, or Paint is independently
+scheduled; the existing combined path remains authoritative for virtual
+materialization and unsupported paths. The parent event loop remains the sole
+cross-window authority, `WindowStageOwner` remains a private Deadline owner,
+and diagnostics/timing are observational and cannot authorize execution, cache,
+admission, or commit. No public API is introduced by this contract.

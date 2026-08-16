@@ -18,6 +18,7 @@ pub(crate) use metrics::ScenarioCounters;
 use metrics::ScenarioMetric;
 
 const RUN_ALL_IN_DEBUG_ENV: &str = args::RUN_ALL_IN_DEBUG_ENV;
+const SAMPLE_BATCH_SIZE: usize = 8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum OutputFormat {
@@ -239,8 +240,16 @@ where
     bench();
     let started = Instant::now();
     let mut counters = ScenarioCounters::default();
-    for _ in 0..iterations {
-        counters.add(bench().into());
+    let mut samples_us = Vec::with_capacity(iterations.div_ceil(SAMPLE_BATCH_SIZE));
+    let mut remaining = iterations;
+    while remaining > 0 {
+        let batch_len = remaining.min(SAMPLE_BATCH_SIZE);
+        let sample_started = Instant::now();
+        for _ in 0..batch_len {
+            counters.add(bench().into());
+        }
+        samples_us.push(sample_started.elapsed().as_secs_f64() * 1_000_000.0 / batch_len as f64);
+        remaining -= batch_len;
     }
     ScenarioMetric::print(
         metrics::MetricRequest {
@@ -251,6 +260,7 @@ where
         },
         started.elapsed(),
         counters,
+        &samples_us,
         output_format,
         baseline.map(|baseline| baseline.metric_for(name)),
     )

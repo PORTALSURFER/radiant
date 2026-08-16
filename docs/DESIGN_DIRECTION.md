@@ -4923,6 +4923,40 @@ render canvases at their declared layer, then transient overlays. Every retained
 overlay path states its clipping, occlusion, hit-testing, and cache-key behavior
 explicitly.
 
+### Measured staged-refresh consumer boundary (normative; private)
+
+Radiant exposes exactly one externally visible complete frame at a time: the
+`CommittedFrameState`/last-complete frame. A staged consumer may prepare an
+invisible private `PreparedSurfaceRefresh` candidate containing the candidate
+surface, traversal, source projection, layout root, view-delta decision,
+candidate layout, candidate paint plan, damage, and timing evidence. Candidate
+preparation may mutate candidate-owned storage only. It must not mutate active
+focus, capture, composition, or wheel ownership; the declarative owner;
+accessibility or automation projection; active layout; retiring-widget
+ownership; or the last-complete frame.
+
+Immediately before irreversible replacement cleanup, the consumer revalidates
+runtime identity, lifecycle-transition generation, active-surface generation,
+layout-state generation, viewport, window environment, requested refresh
+revision, and the existing native window, adapter, target, stage, owner, and
+revision fences. A mismatch, stale generation, lifecycle transition, resize or
+recovery, newer visual work, unsupported/ambiguous/incomplete evidence, or any
+failure before commit drops the candidate. The drop performs no active
+mutation, callback, terminal message, or presentation and retains the combined
+correctness-first fallback.
+
+After validation, irreversible replacement cleanup completes exactly once, the
+complete candidate state is atomically published, and only then are terminal
+messages dispatched. There is no scheduler yield after irreversible cleanup
+begins. A panic after that point is terminal recovery/shutdown, not rollback.
+This candidate preparation is a reversible prerequisite/evidence contract; it
+does not claim that production Projection, Reconciliation, Layout, or Paint is
+independently scheduled. The existing combined path remains authoritative for
+virtual materialization and unsupported paths. The parent event loop remains
+the sole cross-window authority; `WindowStageOwner` remains a private Deadline
+owner; diagnostics and timing are observational and cannot authorize
+execution, cache, admission, or commit.
+
 ## Invalidation
 
 Application code declares the *cause* of a change. The runtime chooses the
@@ -5888,3 +5922,17 @@ scrolling, waveform pan/zoom, text editing, resize, and transient animation.
 The test suite verifies the public API contract, layout behavior, input
 routing, layer ordering, and invalidation rules. Performance scenarios verify
 that the intended reuse boundaries remain real rather than documentary.
+
+The maintained `examples/arrangement_shell` implementation is the direct
+consumer workload for the measured staged-refresh contract; it is not copied or
+simplified into the harness. Its `standalone_gui` lanes cover continuous frame
+update followed by the current combined refresh and paint-plan materialization,
+a browser/inspector structural toggle followed by full refresh and relayout,
+and existing hover movement followed by paint-only output with zero application
+projection, runtime projection, widget-state synchronization, and layout. Each
+lane preserves exact counter deltas and repeated identical runs must produce
+identical counters. Harness samples use bounded batches, add finite nearest-rank
+`p50_us`, `p95_us`, and `p99_us` to text/JSONL/baseline JSONL, assert their
+ordering, and retain average-based baseline comparison. This is measured
+consumer evidence only: it establishes no production staged Projection,
+Reconciliation, Layout, or Paint execution and receives no design-only credit.

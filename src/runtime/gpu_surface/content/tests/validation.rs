@@ -249,6 +249,14 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     let empty_vertices = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").vertex_count(0)),
     };
+    let unaligned_presentation = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(
+            GpuShaderSurfaceDescriptor::new("meter").presentation_uniform([1, 2, 3], 1),
+        ),
+    };
+    let empty_presentation = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").presentation_uniform([], 1)),
+    };
 
     assert_eq!(
         empty_key.validate(),
@@ -284,6 +292,24 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
             shader_key: String::from("meter"),
         })
     );
+    assert_eq!(
+        unaligned_presentation.validate(),
+        Err(
+            GpuSurfaceContentError::UnalignedShaderPresentationUniformBytes {
+                shader_key: String::from("meter"),
+                actual_len: 3,
+                alignment: 4,
+            }
+        )
+    );
+    assert_eq!(
+        unaligned_presentation
+            .validate()
+            .expect_err("expected unaligned presentation bytes to be rejected")
+            .to_string(),
+        "invalid GPU shader surface meter: presentation-uniform byte length 3 must be a multiple of 4 for WGPU uniform writes"
+    );
+    assert_eq!(empty_presentation.validate(), Ok(()));
 }
 
 #[test]

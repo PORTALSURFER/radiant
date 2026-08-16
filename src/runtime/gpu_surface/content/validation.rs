@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     gui::types::{ImageRgba, Rect},
-    runtime::GpuSignalSummary,
+    runtime::{GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuSignalSummary},
 };
 
 pub(super) fn validate_atlas(
@@ -215,6 +215,18 @@ pub(super) fn validate_shader_descriptor(
                 shader_key: descriptor.shader_key.clone(),
             });
         }
+    }
+    if let Some(bytes) = descriptor.presentation_uniform_bytes.as_deref()
+        && !bytes.is_empty()
+        && bytes.len() % GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT != 0
+    {
+        return Err(
+            GpuSurfaceContentError::UnalignedShaderPresentationUniformBytes {
+                shader_key: descriptor.shader_key.clone(),
+                actual_len: bytes.len(),
+                alignment: GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT,
+            },
+        );
     }
     if descriptor.vertex_count == 0 {
         return Err(GpuSurfaceContentError::EmptyShaderVertexCount {

@@ -59,3 +59,48 @@ fn custom_shader_gpu_surface_uses_normal_paint_plan_path() {
     assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);
     assert_eq!(descriptor.vertex_count, 6);
 }
+
+#[test]
+fn custom_shader_gpu_surface_preserves_presentation_uniform_builder_fields() {
+    let presentation_uniform = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    let descriptor = GpuShaderSurfaceDescriptor::new("presentation-meter")
+        .storage_identity(17)
+        .storage_revision(23)
+        .presentation_uniform(presentation_uniform, 29);
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 42,
+            sizing: WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+            key: 9002,
+            revision: 8,
+            content: GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(descriptor),
+            },
+        }),
+    ));
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    let gpu = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(gpu) => Some(gpu),
+            _ => None,
+        })
+        .expect("expected gpu surface primitive");
+    let GpuSurfaceContent::CustomShader { descriptor } = &gpu.content else {
+        panic!("expected custom shader gpu content");
+    };
+    assert_eq!(descriptor.storage_identity, 17);
+    assert_eq!(descriptor.storage_revision, 23);
+    assert_eq!(
+        descriptor.presentation_uniform_bytes.as_deref(),
+        Some(presentation_uniform.as_slice())
+    );
+    assert_eq!(descriptor.presentation_uniform_revision, Some(29));
+}

@@ -432,6 +432,14 @@ pub struct FrameProfileGpuSurfaceCustomShaderCounters {
     pub binding_rebuilds: usize,
     /// Custom-shader bindings reused for the frame.
     pub binding_cache_hits: usize,
+    /// Custom-shader static uniform/storage buffer writes.
+    pub static_writes: usize,
+    /// Total bytes written by custom-shader static uniform/storage uploads.
+    pub static_write_bytes: usize,
+    /// Custom-shader volatile presentation-uniform writes.
+    pub presentation_writes: usize,
+    /// Total bytes written by custom-shader presentation-uniform uploads.
+    pub presentation_write_bytes: usize,
     /// Custom-shader setup failures.
     pub failures: FrameProfileGpuSurfaceCustomShaderFailureCounters,
     /// Valid custom-shader surfaces skipped by this backend.
@@ -744,6 +752,10 @@ impl From<NativeGpuSurfaceDiagnostics> for FrameProfileGpuSurfaceCounters {
                 pipeline_rebuilds: gpu.custom_shader.pipeline_rebuilds,
                 binding_rebuilds: gpu.custom_shader.binding_rebuilds,
                 binding_cache_hits: gpu.custom_shader.binding_cache_hits,
+                static_writes: gpu.custom_shader.static_writes,
+                static_write_bytes: gpu.custom_shader.static_write_bytes,
+                presentation_writes: gpu.custom_shader.presentation_writes,
+                presentation_write_bytes: gpu.custom_shader.presentation_write_bytes,
                 failures: FrameProfileGpuSurfaceCustomShaderFailureCounters {
                     surfaces_failed: gpu.custom_shader.failures.surfaces_failed,
                     shader_module_failures: gpu.custom_shader.failures.shader_module_failures,

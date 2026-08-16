@@ -6,6 +6,7 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
     let runtime_diagnostics = read_project_file("src/runtime/diagnostics/gpu_surface.rs");
     let native_diagnostics =
         read_project_file("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs");
+    let frame_profile = read_project_file("src/runtime/diagnostics/profile.rs");
     let render_profile =
         read_project_file("src/gui_runtime/native_vello/generic_runtime/render_profile.rs");
 
@@ -17,6 +18,10 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         "`pipeline_rebuilds`",
         "`binding_rebuilds`",
         "`binding_cache_hits`",
+        "`static_writes`",
+        "`static_write_bytes`",
+        "`presentation_writes`",
+        "`presentation_write_bytes`",
         "`custom_shader.failures.surfaces_failed`",
         "`custom_shader.failures.shader_module_failures`",
         "`custom_shader.failures.pipeline_failures`",
@@ -33,6 +38,10 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         "pipeline_rebuilds",
         "binding_rebuilds",
         "binding_cache_hits",
+        "static_writes",
+        "static_write_bytes",
+        "presentation_writes",
+        "presentation_write_bytes",
         "surfaces_failed",
         "shader_module_failures",
         "pipeline_failures",
@@ -41,8 +50,9 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         assert!(
             runtime_diagnostics.contains(required)
                 && native_diagnostics.contains(required)
+                && frame_profile.contains(required)
                 && render_profile.contains(&format!("custom_shader_{required}")),
-            "custom shader diagnostic field `{required}` should flow through public diagnostics and the render profile"
+            "custom shader diagnostic field `{required}` should flow through public diagnostics, frame profiles, and the render profile"
         );
     }
 }

@@ -4,7 +4,7 @@ use super::runtime_helpers::SurfaceOcclusionPlan;
 use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};
 #[cfg(test)]
 use crate::gui::types::{Point, Rect as UiRect, Rgba8, Vector2};
-use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
+use crate::runtime::{GpuShaderPresentationUniformUpdate, PaintPrimitive, SurfacePaintPlan};
 use vello::{util::RenderSurface, wgpu};
 
 mod frame;
@@ -31,24 +31,22 @@ struct BaseFrameRefreshState<'a> {
     profile: &'a mut RenderFrameProfile,
 }
 
+pub(super) struct BaseFramePresentRequest<'a> {
+    pub(super) paint_plan: &'a SurfacePaintPlan,
+    pub(super) occlusion_plan: &'a SurfaceOcclusionPlan,
+    pub(super) transient_overlay_primitives: &'a [PaintPrimitive],
+    pub(super) has_gpu_surfaces: bool,
+    pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
+}
+
 pub(super) fn present_base_frame(
     state: &mut BaseFramePresentState<'_>,
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
-    paint_plan: &SurfacePaintPlan,
-    occlusion_plan: &SurfaceOcclusionPlan,
-    transient_overlay_primitives: &[PaintPrimitive],
-    has_gpu_surfaces: bool,
+    request: &BaseFramePresentRequest<'_>,
 ) -> gpu_surface::GpuSurfaceRenderStats {
-    if !should_use_composited_base(transient_overlay_primitives) {
-        return present_live_base(
-            state.gpu_surface_renderer,
-            surface,
-            target,
-            paint_plan,
-            occlusion_plan,
-            has_gpu_surfaces,
-        );
+    if !should_use_composited_base(request.transient_overlay_primitives) {
+        return present_live_base(state.gpu_surface_renderer, surface, target, request);
     }
 
     let (frame, frame_recreated) = CompositedBaseFrame::ensure(
@@ -58,22 +56,18 @@ pub(super) fn present_base_frame(
         surface.config.height,
         surface.config.format,
     );
-    let needs_refresh = composited_base_needs_refresh(*state.base_dirty, frame_recreated);
+    let needs_refresh = composited_base_needs_refresh(
+        *state.base_dirty,
+        frame_recreated,
+        !request.presentation_updates.is_empty(),
+    );
     let stats = if needs_refresh {
         let refresh_state = BaseFrameRefreshState {
             base_dirty: state.base_dirty,
             gpu_surface_renderer: state.gpu_surface_renderer,
             profile: state.profile,
         };
-        refresh_composited_base_frame(
-            frame,
-            refresh_state,
-            surface,
-            target,
-            paint_plan,
-            occlusion_plan,
-            has_gpu_surfaces,
-        )
+        refresh_composited_base_frame(frame, refresh_state, surface, target, request)
     } else {
         state.profile.composited_base_cache_hit = true;
         gpu_surface::GpuSurfaceRenderStats::default()
@@ -91,9 +85,7 @@ fn present_live_base(
     gpu_surface_renderer: &mut GpuSurfaceRenderer,
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
-    paint_plan: &SurfacePaintPlan,
-    occlusion_plan: &SurfaceOcclusionPlan,
-    has_gpu_surfaces: bool,
+    request: &BaseFramePresentRequest<'_>,
 ) -> gpu_surface::GpuSurfaceRenderStats {
     surface.blitter.copy(
         target.device,
@@ -101,7 +93,7 @@ fn present_live_base(
         &surface.target_view,
         target.surface_view,
     );
-    if !should_render_gpu_surfaces(has_gpu_surfaces) {
+    if !should_render_gpu_surfaces(request.has_gpu_surfaces) {
         return gpu_surface::GpuSurfaceRenderStats::default();
     }
     let surface_size = RenderSurfacePixelSize::from_surface(surface);
@@ -115,8 +107,9 @@ fn present_live_base(
             size: surface_size.physical_size(),
             dpi_scale: target.dpi_scale,
         },
-        &paint_plan.primitives,
-        occlusion_plan,
+        &request.paint_plan.primitives,
+        request.occlusion_plan,
+        request.presentation_updates,
     )
 }
 
@@ -125,9 +118,7 @@ fn refresh_composited_base_frame(
     state: BaseFrameRefreshState<'_>,
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
-    paint_plan: &SurfacePaintPlan,
-    occlusion_plan: &SurfaceOcclusionPlan,
-    has_gpu_surfaces: bool,
+    request: &BaseFramePresentRequest<'_>,
 ) -> gpu_surface::GpuSurfaceRenderStats {
     let (stats, elapsed) = state.profile.measure(|| {
         surface.blitter.copy(
@@ -136,7 +127,7 @@ fn refresh_composited_base_frame(
             &surface.target_view,
             &frame.view,
         );
-        if should_render_gpu_surfaces(has_gpu_surfaces) {
+        if should_render_gpu_surfaces(request.has_gpu_surfaces) {
             let surface_size = RenderSurfacePixelSize::from_surface(surface);
             state.gpu_surface_renderer.render(
                 &mut gpu_surface::GpuSurfaceRenderTarget {
@@ -148,8 +139,9 @@ fn refresh_composited_base_frame(
                     size: surface_size.physical_size(),
                     dpi_scale: target.dpi_scale,
                 },
-                &paint_plan.primitives,
-                occlusion_plan,
+                &request.paint_plan.primitives,
+                request.occlusion_plan,
+                request.presentation_updates,
             )
         } else {
             gpu_surface::GpuSurfaceRenderStats::default()
@@ -160,8 +152,12 @@ fn refresh_composited_base_frame(
     stats
 }
 
-fn composited_base_needs_refresh(base_dirty: bool, frame_recreated: bool) -> bool {
-    base_dirty || frame_recreated
+fn composited_base_needs_refresh(
+    base_dirty: bool,
+    frame_recreated: bool,
+    has_presentation_updates: bool,
+) -> bool {
+    base_dirty || frame_recreated || has_presentation_updates
 }
 
 fn should_use_composited_base(transient_overlay_primitives: &[PaintPrimitive]) -> bool {
@@ -177,11 +173,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn composited_base_refreshes_when_dirty_or_recreated() {
-        assert!(composited_base_needs_refresh(true, false));
-        assert!(composited_base_needs_refresh(false, true));
-        assert!(composited_base_needs_refresh(true, true));
-        assert!(!composited_base_needs_refresh(false, false));
+    fn composited_base_refreshes_when_dirty_recreated_or_updated() {
+        assert!(composited_base_needs_refresh(true, false, false));
+        assert!(composited_base_needs_refresh(false, true, false));
+        assert!(composited_base_needs_refresh(true, true, false));
+        assert!(composited_base_needs_refresh(false, false, true));
+        assert!(!composited_base_needs_refresh(false, false, false));
     }
 
     #[test]

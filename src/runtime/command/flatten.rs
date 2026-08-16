@@ -35,6 +35,7 @@ impl<Message> Command<Message> {
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::UpdateGpuShaderPresentationUniform(_)
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
@@ -66,6 +67,7 @@ impl<Message> Command<Message> {
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::UpdateGpuShaderPresentationUniform(_)
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)

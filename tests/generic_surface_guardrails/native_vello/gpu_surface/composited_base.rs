@@ -24,7 +24,9 @@ fn frame_cache_avoids_post_mutation_expect() {
     );
     assert!(
         module.contains("use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};")
-            && module.contains("use crate::runtime::{PaintPrimitive, SurfacePaintPlan};")
+            && module.contains(
+                "use crate::runtime::{GpuShaderPresentationUniformUpdate, PaintPrimitive, SurfacePaintPlan};",
+            )
             && module.contains("profile.measure(||")
             && module.contains("use vello::{util::RenderSurface, wgpu};")
             && !module.starts_with("use super::*;"),

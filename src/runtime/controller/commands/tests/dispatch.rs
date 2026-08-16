@@ -5,7 +5,46 @@ use super::{
         DeferredScrollFocusBridge,
     },
 };
-use crate::runtime::{FileDialogRequest, PlatformRequest, RepaintScope, SurfaceInvalidation};
+use crate::runtime::{
+    FileDialogRequest, GpuShaderPresentationUniformUpdate, PlatformRequest, RepaintScope,
+    SurfaceInvalidation,
+};
+
+#[test]
+fn gpu_shader_presentation_uniform_updates_are_admitted_as_paint_only_and_drained() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+    let first = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [1, 2, 3, 4])
+        .expect("valid presentation uniform update");
+    let newer = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 2, [4, 5, 6, 7])
+        .expect("valid presentation uniform update");
+    let stale = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [9, 10, 11, 12])
+        .expect("valid presentation uniform update");
+
+    let first_outcome =
+        runtime.execute_command(Command::update_gpu_shader_presentation_uniform(first));
+    assert!(first_outcome.repaint_requested);
+    assert!(first_outcome.paint_only_requested);
+    assert!(!first_outcome.surface_repaint_requested);
+    assert!(!first_outcome.surface_refresh_requested);
+
+    let newer_outcome =
+        runtime.execute_command(Command::update_gpu_shader_presentation_uniform(newer));
+    assert!(newer_outcome.repaint_requested);
+    assert!(newer_outcome.paint_only_requested);
+    assert!(!newer_outcome.surface_refresh_requested);
+
+    let _ = runtime.take_repaint_requested();
+    let stale_outcome =
+        runtime.execute_command(Command::update_gpu_shader_presentation_uniform(stale));
+    assert!(!stale_outcome.repaint_requested);
+    assert!(!stale_outcome.paint_only_requested);
+    assert!(!stale_outcome.surface_refresh_requested);
+    assert!(!runtime.repaint_requested());
+
+    assert_eq!(runtime.take_gpu_shader_presentation_updates(), &[newer]);
+    assert!(runtime.take_gpu_shader_presentation_updates().is_empty());
+}
 
 #[test]
 fn frame_refresh_diagnostics_accumulate_eager_refreshes_until_consumed() {

@@ -596,6 +596,12 @@ where
         if adapter.admit_generation(generation) {
             return true;
         }
+        if let Some(resources) = self.window.native_resources.as_mut() {
+            resources
+                .gpu_resources
+                .gpu_surface_renderer
+                .discard_presentation_staging_belt();
+        }
         let _ = self.window.isolate_native_resources();
         self.fence_native_surface_target();
         false

@@ -14,6 +14,7 @@ fn custom_shader_binding_key_tracks_payload_lengths() {
     assert_eq!(key.pipeline_key, pipeline_key);
     assert_eq!(key.uniform_bytes_len, 4);
     assert_eq!(key.storage_bytes_len, 2);
+    assert_eq!(key.presentation_uniform_bytes_len, 0);
 }
 
 #[test]
@@ -27,8 +28,14 @@ fn custom_shader_binding_key_changes_when_payload_shape_changes() {
         &pipeline_key,
         &GpuShaderSurfaceDescriptor::new("test/custom-shader").storage_bytes([1]),
     );
+    let presentation_only = custom_shader_binding_key(
+        &pipeline_key,
+        &GpuShaderSurfaceDescriptor::new("test/custom-shader")
+            .presentation_uniform_bytes([1, 2, 3, 4]),
+    );
 
     assert_ne!(uniform_only, storage_only);
+    assert_ne!(storage_only, presentation_only);
 }
 
 fn test_pipeline_key() -> CustomShaderPipelineKey {
@@ -39,5 +46,6 @@ fn test_pipeline_key() -> CustomShaderPipelineKey {
         fragment_entry_point: String::from("fragment_main"),
         has_uniform_payload: true,
         has_storage_payload: true,
+        has_presentation_uniform_payload: false,
     }
 }

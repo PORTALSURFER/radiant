@@ -114,6 +114,13 @@ pub(super) fn maybe_log_render_profile(
             gpu_surface_stats.custom_shader.binding_rebuilds,
         gpu_surface_custom_shader_binding_cache_hits =
             gpu_surface_stats.custom_shader.binding_cache_hits,
+        gpu_surface_custom_shader_static_writes = gpu_surface_stats.custom_shader.static_writes,
+        gpu_surface_custom_shader_static_write_bytes =
+            gpu_surface_stats.custom_shader.static_write_bytes,
+        gpu_surface_custom_shader_presentation_writes =
+            gpu_surface_stats.custom_shader.presentation_writes,
+        gpu_surface_custom_shader_presentation_write_bytes =
+            gpu_surface_stats.custom_shader.presentation_write_bytes,
         gpu_surface_custom_shader_surfaces_failed =
             gpu_surface_stats.custom_shader.failures.surfaces_failed,
         gpu_surface_custom_shader_shader_module_failures = gpu_surface_stats

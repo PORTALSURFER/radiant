@@ -228,6 +228,45 @@ fn window_size_commands_request_surface_repaint_without_flattening_messages() {
 }
 
 #[test]
+fn shader_presentation_uniform_updates_request_paint_only() {
+    let update = crate::runtime::GpuShaderPresentationUniformUpdate::try_new(
+        7,
+        11,
+        13,
+        17,
+        19,
+        [1, 2, 3, 4],
+    )
+    .expect("valid presentation uniform update");
+    let command = Command::<()>::update_gpu_shader_presentation_uniform(update);
+
+    assert!(!command.is_empty());
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::PaintOnly));
+    assert!(command.requests_repaint());
+    assert!(command.requests_paint_only());
+}
+
+#[test]
+fn shader_presentation_uniform_updates_are_not_immediate_messages() {
+    let update = crate::runtime::GpuShaderPresentationUniformUpdate::try_new(
+        7,
+        11,
+        13,
+        17,
+        19,
+        [1, 2, 3, 4],
+    )
+    .expect("valid presentation uniform update");
+    let command = Command::<&str>::batch([
+        Command::message("before"),
+        Command::update_gpu_shader_presentation_uniform(update),
+        Command::message("after"),
+    ]);
+
+    assert_eq!(command.into_messages(), ["before", "after"]);
+}
+
+#[test]
 fn drag_with_external_batches_preview_before_external_payload() {
     let command = Command::begin_drag_with_external(
         crate::runtime::DragRequest::new(

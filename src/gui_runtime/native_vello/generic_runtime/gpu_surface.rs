@@ -6,7 +6,7 @@ use super::runtime_helpers::{
     planned_surface_occlusion_regions_into,
 };
 use crate::gui::types::{Rect as UiRect, Vector2};
-use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
+use crate::runtime::{GpuShaderPresentationUniformUpdate, GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
 
 mod active_keys;
@@ -38,6 +38,8 @@ pub(in crate::gui_runtime::native_vello) use visibility::{
     surface_rect_has_visible_region_in_viewport,
 };
 
+const PRESENTATION_STAGING_BELT_CHUNK_SIZE: wgpu::BufferAddress = 4096;
+
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {
     pipeline: Option<GpuSurfacePipeline>,
@@ -48,6 +50,7 @@ pub(super) struct GpuSurfaceRenderer {
     active_keys: ActiveGpuSurfaceKeys,
     occlusion_regions: Vec<UiRect>,
     occlusion_query_scratch: SurfaceOcclusionQueryScratch,
+    presentation_staging_belt: Option<wgpu::util::StagingBelt>,
 }
 
 pub(super) struct GpuSurfaceRenderTarget<'a> {
@@ -66,6 +69,7 @@ impl GpuSurfaceRenderer {
         target: &mut GpuSurfaceRenderTarget<'_>,
         primitives: &[PaintPrimitive],
         occlusion_plan: &SurfaceOcclusionPlan,
+        presentation_updates: &[GpuShaderPresentationUniformUpdate],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
         let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
@@ -134,7 +138,13 @@ impl GpuSurfaceRenderer {
                     }
                 }
                 GpuSurfaceContent::CustomShader { .. } => {
-                    self.render_custom_shader(target, surface, &occlusion_regions, &mut stats);
+                    self.render_custom_shader(
+                        target,
+                        surface,
+                        &occlusion_regions,
+                        presentation_updates,
+                        &mut stats,
+                    );
                 }
             }
             self.active_keys.mark_active(surface.key);
@@ -146,6 +156,26 @@ impl GpuSurfaceRenderer {
         }
         self.occlusion_regions = occlusion_regions;
         stats
+    }
+
+    /// Close the mapped presentation staging chunks before the frame encoder
+    /// is finished and submitted.
+    pub(super) fn finish_presentation_staging_belt(&mut self) {
+        if let Some(belt) = self.presentation_staging_belt.as_mut() {
+            belt.finish();
+        }
+    }
+
+    /// Return submitted presentation staging chunks to the reusable belt.
+    pub(super) fn recall_presentation_staging_belt(&mut self) {
+        if let Some(belt) = self.presentation_staging_belt.as_mut() {
+            belt.recall();
+        }
+    }
+
+    /// Drop presentation staging chunks when the frame cannot be submitted.
+    pub(super) fn discard_presentation_staging_belt(&mut self) {
+        self.presentation_staging_belt = None;
     }
 
     fn prune_inactive_resources(&mut self) {

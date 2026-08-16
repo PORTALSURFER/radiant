@@ -84,7 +84,13 @@ pub(super) fn upload_custom_shader_buffers(
         if request
             .binding
             .write_state
-            .should_upload_initial_presentation(static_payload)
+            .should_upload_initial_presentation(
+                static_payload,
+                request
+                    .descriptor
+                    .presentation_uniform_revision
+                    .unwrap_or_default(),
+            )
             && let Some(bytes) = request.descriptor.presentation_uniform_bytes.as_deref()
             && write_presentation_uniform(
                 request.presentation_staging_belt.as_deref_mut(),

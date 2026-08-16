@@ -16,6 +16,7 @@ use crate::{
     },
     widgets::{DragHandleMessage, DragHandleMetadata, EditPhase, PointerButton, PointerModifiers},
 };
+use std::rc::Rc;
 
 /// Stable private identity for the built-in split divider region.
 pub(crate) const SPLIT_PANE_DIVIDER_REGION_ID: LayoutHitRegionId =
@@ -93,27 +94,40 @@ impl SplitPaneRevision {
     }
 }
 
-pub(crate) struct SplitPaneDividerInteraction {
+pub(crate) struct SplitPaneDividerInteraction<Message> {
     policy: SplitPanePolicy,
     initial_ratio: f32,
+    on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
 }
 
-impl SplitPaneDividerInteraction {
-    pub(crate) fn new(policy: SplitPanePolicy) -> Self {
+impl<Message> SplitPaneDividerInteraction<Message> {
+    pub(crate) fn new(
+        policy: SplitPanePolicy,
+        on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
+    ) -> Self {
         Self {
             policy,
             initial_ratio: policy.initial_ratio,
+            on_ratio_settled,
         }
     }
 }
 
-pub(crate) fn runtime_owned_split_pane_capabilities<Message>(
+pub(crate) fn runtime_owned_split_pane_capabilities<Message: 'static>(
     policy: SplitPanePolicy,
 ) -> LayoutCapabilities<Message> {
-    LayoutCapabilities::new().interaction_local(SplitPaneDividerInteraction::new(policy))
+    runtime_owned_split_pane_capabilities_with_ratio_settled(policy, None)
 }
 
-impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction {
+pub(crate) fn runtime_owned_split_pane_capabilities_with_ratio_settled<Message: 'static>(
+    policy: SplitPanePolicy,
+    on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
+) -> LayoutCapabilities<Message> {
+    LayoutCapabilities::new()
+        .interaction_local(SplitPaneDividerInteraction::new(policy, on_ratio_settled))
+}
+
+impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message> {
     fn revision(&self) -> LayoutInteractionRevision {
         LayoutInteractionRevision::exact(SplitPaneRevision::from_policy(self.policy))
     }
@@ -221,6 +235,13 @@ impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction {
                     context.release_pointer();
                     if changed {
                         context.request_work();
+                    }
+                    if event.value.is_finite()
+                        && (0.0..=1.0).contains(&event.value)
+                        && event.value.to_bits() != event.start_value.to_bits()
+                        && let Some(map) = &self.on_ratio_settled
+                    {
+                        context.emit_message(map(state.ratio));
                     }
                 }
             }

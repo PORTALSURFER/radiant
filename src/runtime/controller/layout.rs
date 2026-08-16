@@ -151,19 +151,17 @@ where
         let Some(capture) = capture else {
             return LayoutInputDispatch::default();
         };
-        let binding = self
-            .layout_target_binding_for_identity(capture.identity)
-            .unwrap_or_else(|| LayoutTargetBinding {
-                identity: capture.identity,
-                contract_version: capture.contract_version,
-                state_id: capture.state_id,
-                interaction: Rc::clone(&capture.interaction),
-                revision: capture.revision.clone(),
-                container_bounds: capture.container_bounds,
-                target_bounds: capture.target_bounds,
-                divider_bounds: capture.divider_bounds,
-                split_capture_witness: capture.split_capture_witness,
-            });
+        let binding = LayoutTargetBinding {
+            identity: capture.identity,
+            contract_version: capture.contract_version,
+            state_id: capture.state_id,
+            interaction: Rc::clone(&capture.interaction),
+            revision: capture.revision.clone(),
+            container_bounds: capture.container_bounds,
+            target_bounds: capture.target_bounds,
+            divider_bounds: capture.divider_bounds,
+            split_capture_witness: capture.split_capture_witness,
+        };
         self.dispatch_layout_binding(binding, input, refresh_after_message, false)
     }
 
@@ -196,7 +194,7 @@ where
         true
     }
 
-    /// Rebind an active layout capture only across exact, compatible evidence.
+    /// Retain an active layout capture only across exact, compatible evidence.
     ///
     /// This is called after the new traversal and layout target projection are
     /// installed. A stale capture is taken before its cancellation callback is
@@ -240,16 +238,16 @@ where
             && capture.split_capture_witness == current.split_capture_witness
         {
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
-                identity: current.identity,
-                contract_version: current.contract_version,
-                state_id: current.state_id,
-                revision: current.revision,
-                interaction: current.interaction,
+                identity: capture.identity,
+                contract_version: capture.contract_version,
+                state_id: capture.state_id,
+                revision: capture.revision,
+                interaction: capture.interaction,
                 button: capture.button,
-                container_bounds: current.container_bounds,
-                target_bounds: current.target_bounds,
-                divider_bounds: current.divider_bounds,
-                split_capture_witness: current.split_capture_witness,
+                container_bounds: capture.container_bounds,
+                target_bounds: capture.target_bounds,
+                divider_bounds: capture.divider_bounds,
+                split_capture_witness: capture.split_capture_witness,
                 last_position: capture.last_position,
                 last_modifiers: capture.last_modifiers,
                 last_timestamp: capture.last_timestamp,

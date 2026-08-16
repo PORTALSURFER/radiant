@@ -4,6 +4,12 @@ use radiant::gui::types::{Point, Vector2};
 use radiant::prelude::*;
 use radiant::runtime::{Event, SurfaceRuntime, declarative_owned_runtime_bridge};
 use radiant::widgets::PointerButton;
+use std::{cell::RefCell, rc::Rc};
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RuntimeSplitMessage {
+    RatioSettled(f32),
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct RuntimeSplitReport {
@@ -11,19 +17,27 @@ struct RuntimeSplitReport {
     moved_first_width: f32,
     capture_after_press: bool,
     capture_after_release: bool,
+    settled_ratio: Option<f32>,
 }
 
 fn run_runtime_split_demo() -> RuntimeSplitReport {
+    let settled_ratio = Rc::new(RefCell::new(None));
+    let reduced_settled_ratio = Rc::clone(&settled_ratio);
     let bridge = declarative_owned_runtime_bridge(
         (),
         |_state: &mut ()| {
-            split_pane(text("First pane"), text("Second pane"))
+            split_pane::<RuntimeSplitMessage>(text("First pane"), text("Second pane"))
                 .initial_ratio(0.25)
                 .divider_extent(8.0)
                 .runtime_owned_ratio()
+                .on_ratio_settled(RuntimeSplitMessage::RatioSettled)
                 .into_surface()
         },
-        |_state: &mut (), _message: ()| {},
+        move |_state: &mut (), message| match message {
+            RuntimeSplitMessage::RatioSettled(ratio) => {
+                *reduced_settled_ratio.borrow_mut() = Some(ratio);
+            }
+        },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
     let initial_divider = runtime
@@ -52,17 +66,19 @@ fn run_runtime_split_demo() -> RuntimeSplitReport {
         moved_first_width,
         capture_after_press,
         capture_after_release: runtime.layout_pointer_capture().is_some(),
+        settled_ratio: *settled_ratio.borrow(),
     }
 }
 
 fn main() {
     let report = run_runtime_split_demo();
     println!(
-        "runtime split divider={:?} moved_first_width={:.0} capture_press={} capture_release={}",
+        "runtime split divider={:?} moved_first_width={:.0} capture_press={} capture_release={} settled_ratio={:?}",
         report.initial_divider,
         report.moved_first_width,
         report.capture_after_press,
         report.capture_after_release,
+        report.settled_ratio,
     );
 }
 
@@ -80,5 +96,6 @@ mod tests {
         assert_eq!(report.moved_first_width, 130.0);
         assert!(report.capture_after_press);
         assert!(!report.capture_after_release);
+        assert_eq!(report.settled_ratio, Some(130.0_f32 / 192.0_f32));
     }
 }

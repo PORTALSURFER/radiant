@@ -6,6 +6,7 @@ use crate::{
     gui::panel::SplitPaneAxis,
     layout::{ContainerKind, ContainerPolicy, SplitPanePolicy},
 };
+use std::rc::Rc;
 
 /// Declarative builder for one static, exactly-two-child split pane.
 pub struct SplitPaneBuilder<Message> {
@@ -13,6 +14,7 @@ pub struct SplitPaneBuilder<Message> {
     second: ViewNode<Message>,
     policy: SplitPanePolicy,
     runtime_ratio: Option<SplitPaneRuntimeMode>,
+    ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
 }
 
 impl<Message> SplitPaneBuilder<Message> {
@@ -72,6 +74,16 @@ impl<Message> SplitPaneBuilder<Message> {
         self
     }
 
+    /// Emit one host message when a meaningful runtime-owned divider drag
+    /// commits its final normalized ratio.
+    pub fn on_ratio_settled(mut self, map: impl Fn(f32) -> Message + 'static) -> Self
+    where
+        Message: 'static,
+    {
+        self.ratio_settled = Some(Rc::new(map));
+        self
+    }
+
     /// Lower this builder into an ordinary declarative view node.
     pub fn into_view(self) -> ViewNode<Message> {
         let has_reserved_descendant_identity = self.first.has_reserved_identity_in_subtree()
@@ -85,6 +97,7 @@ impl<Message> SplitPaneBuilder<Message> {
             children: vec![self.first, self.second],
         })
         .with_split_pane_runtime_mode(self.runtime_ratio)
+        .with_split_pane_ratio_settled(self.ratio_settled)
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
     }
 }
@@ -99,6 +112,7 @@ pub fn split_pane<Message>(
         second,
         policy: SplitPanePolicy::default(),
         runtime_ratio: None,
+        ratio_settled: None,
     }
 }
 

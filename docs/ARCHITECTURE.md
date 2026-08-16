@@ -145,7 +145,11 @@ new focused export leaf or a module split, not a formatting workaround.
   mounted-container state kernel and candidate-safe lifecycle reconciliation;
   the split-pane runtime/controlled ratio projection consumes that slot without
   broadening global capability semantics, while the runtime-owned divider
-  capability and controller capture remain private to split-pane lowering.
+  capability and controller capture remain private to split-pane lowering. Its
+  optional settled-ratio mapper is lowering-owned output: the controller
+  completes mounted state mutation and terminal capture cleanup before host
+  message reduction, and compatible same-identity reprojection retains the
+  captured interaction and geometry authority.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

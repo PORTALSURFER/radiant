@@ -1619,6 +1619,13 @@ layout capability registration and the same controller-owned capture/edit
 lifecycle: a valid divider press begins one `PanelResizeState` edit, effective
 captured motion updates the mounted ratio with a bounded current-surface
 relayout, and release commits while interruption rolls back once. The
+optional `SplitPaneBuilder::on_ratio_settled(...)` mapper emits exactly one
+finite normalized mounted ratio after a meaningful successful runtime-owned
+commit; it is silent for press, intermediate motion, no-op commits,
+cancellation, capture loss, incompatible refresh, unmount, static mode, and
+controlled-ratio mode. Mounted state mutation and terminal capture cleanup
+complete before the mapped host message is reduced, and an ordinary
+same-identity reprojection retains the captured interaction authority.
 qualified layout capability registration, revision, and read-only normalized
 hit-region declaration/projection contract is available separately. Version-3 capabilities may receive typed pointer
 input and request runtime-owned layout capture; version 2 remains query-only.
@@ -6486,7 +6493,8 @@ export accept `.axis(...)`, `.initial_ratio(...)`, `.min_first(...)`,
 `.min_second(...)`, and `.divider_extent(...)`, plus the additive
 `.runtime_owned_ratio()` and
 `.controlled_ratio(radiant::layout::Controlled::new(value, generation))`
-opt-ins. It lowers exactly two ordered children through a dedicated
+opt-ins, plus the additive `.on_ratio_settled(|ratio| Message::Settled(ratio))`
+output mapper. It lowers exactly two ordered children through a dedicated
 `ContainerKind::SplitPane` policy and keeps the existing `SplitPanePolicy`
 fields and defaults source-compatible. The static form owns no runtime ratio,
 pointer, focus, hit-region, capability, or semantic state. Runtime-owned mode
@@ -6511,8 +6519,11 @@ projected targets. Runtime-owned splits with a positive resolved divider expose
 one clipped built-in divider target matching the quantized child geometry;
 primary pointer capture drives the mounted ratio through the shared
 `PanelResizeState` lifecycle, while static and controlled-ratio splits remain
-inert. Settled callbacks, semantic/keyboard behavior, and `VirtualLayoutPolicy`
-remain future work.
+inert. A settled mapper is runtime-owned output only, not persistence: it emits
+once for a meaningful successful commit of the final finite normalized ratio,
+and remains silent for intermediate, no-op, cancelled, lost, incompatible,
+unmounted, static, and controlled interactions. Semantic/keyboard behavior and
+`VirtualLayoutPolicy` remain future work.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

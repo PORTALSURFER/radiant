@@ -132,6 +132,67 @@ fn application_runtime_owned_split_lowers_the_private_divider_target() {
     assert!(runtime.layout_pointer_capture().is_some());
 }
 
+#[test]
+fn application_runtime_owned_split_settled_mapper_survives_same_identity_refresh() {
+    use radiant::{
+        layout::Point,
+        prelude as ui,
+        prelude::IntoView,
+        runtime::{Event, SurfaceRuntime, declarative_runtime_bridge},
+    };
+    use std::{cell::RefCell, rc::Rc};
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum SettledMessage {
+        RefreshMapper(u8),
+        Ratio { mapper: u8, ratio: f32 },
+    }
+
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let reduced_messages = Rc::clone(&messages);
+    let bridge = declarative_runtime_bridge(
+        1_u8,
+        |mapper: &mut u8| {
+            let mapper = *mapper;
+            crate::arc_surface(
+                ui::split_pane::<SettledMessage>(ui::text("First"), ui::text("Second"))
+                    .initial_ratio(0.25)
+                    .divider_extent(8.0)
+                    .runtime_owned_ratio()
+                    .on_ratio_settled(move |ratio| SettledMessage::Ratio { mapper, ratio })
+                    .into_surface(),
+            )
+        },
+        move |mapper: &mut u8, message| match message {
+            SettledMessage::RefreshMapper(next) => *mapper = next,
+            SettledMessage::Ratio { mapper, ratio } => {
+                reduced_messages.borrow_mut().push((mapper, ratio));
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let moved = Point::new(130.0, 100.0);
+
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(moved));
+    runtime.dispatch_message(SettledMessage::RefreshMapper(2));
+    assert!(runtime.layout_pointer_capture().is_some());
+    assert_eq!(
+        runtime
+            .layout_target_at(Point::new(134.0, 40.0))
+            .map(|target| target.bounds),
+        Some(Rect::from_xy_size(130.0, 0.0, 8.0, 80.0))
+    );
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        radiant::widgets::PointerButton::Primary,
+        radiant::widgets::PointerModifiers::default(),
+    ));
+
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(messages.borrow().as_slice(), &[(1, 130.0_f32 / 192.0_f32)]);
+}
+
 #[derive(Clone, Copy)]
 enum RuntimeRatioMode {
     Static,

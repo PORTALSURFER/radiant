@@ -104,6 +104,7 @@ pub struct ViewNode<Message> {
     pub(in crate::application) style: Option<WidgetStyle>,
     hoverable: bool,
     pub(in crate::application) split_pane_runtime: Option<SplitPaneRuntimeMode>,
+    pub(in crate::application) split_pane_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
     input_only: bool,
     text_wrap: Option<TextWrap>,
     text_align: Option<TextAlign>,
@@ -177,6 +178,7 @@ impl<Message> ViewNode<Message> {
             style: None,
             hoverable: false,
             split_pane_runtime: None,
+            split_pane_ratio_settled: None,
             input_only: false,
             text_wrap: None,
             text_align: None,
@@ -205,6 +207,14 @@ impl<Message> ViewNode<Message> {
         mode: Option<SplitPaneRuntimeMode>,
     ) -> Self {
         self.split_pane_runtime = mode;
+        self
+    }
+
+    pub(in crate::application) fn with_split_pane_ratio_settled(
+        mut self,
+        map: Option<Rc<dyn Fn(f32) -> Message>>,
+    ) -> Self {
+        self.split_pane_ratio_settled = map;
         self
     }
 

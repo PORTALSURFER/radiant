@@ -220,7 +220,7 @@ impl RuntimeLayoutContainerStateStore {
         Some(MountedContainerStateId::new(state_id, generation))
     }
 
-    fn current_mounted_state_id(
+    pub(super) fn current_mounted_state_id(
         &self,
         state_id: ContainerStateId,
     ) -> Option<MountedContainerStateId> {
@@ -228,6 +228,14 @@ impl RuntimeLayoutContainerStateStore {
             .iter()
             .find(|slot| slot.id == state_id)
             .map(|slot| slot.mounted_id)
+    }
+
+    pub(super) fn lookup_current_state_view_for_state_id(
+        &self,
+        state_id: ContainerStateId,
+    ) -> Option<MountedContainerStateRead<'_>> {
+        let mounted_id = self.current_mounted_state_id(state_id)?;
+        self.lookup_current_state_view(mounted_id)
     }
 
     fn lookup_current_state(

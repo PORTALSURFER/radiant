@@ -149,7 +149,11 @@ new focused export leaf or a module split, not a formatting workaround.
   optional settled-ratio mapper is lowering-owned output: the controller
   completes mounted state mutation and terminal capture cleanup before host
   message reduction, and compatible same-identity reprojection retains the
-  captured interaction and geometry authority.
+  captured interaction and geometry authority. A crate-private
+  `SplitPaneSeparatorProjection` is a post-commit read-only observation joining
+  only the exact committed mounted state to one valid clipped divider target;
+  it carries no interaction, focus, key, paint, relayout, message, semantic,
+  automation, native, or public-API authority.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

@@ -82,6 +82,13 @@ where
         self.reconcile_layout_pointer_capture();
     }
 
+    #[cfg(test)]
+    pub(in crate::runtime::controller) fn split_pane_separator_projections(
+        &self,
+    ) -> &[super::super::split_pane_separator::SplitPaneSeparatorProjection] {
+        &self.traversal.containers.split_pane_separator_projections
+    }
+
     pub(in crate::runtime::controller) fn take_reusable_traversal_index(
         &mut self,
         reuse_widget_paths: bool,

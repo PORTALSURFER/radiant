@@ -52,6 +52,12 @@ where
         self.install_traversal_index(traversal);
         self.refresh_visible_traversal_orders();
         self.commit_layout_container_state_candidate(candidate);
+        self.traversal
+            .containers
+            .bind_committed_mounted_state_ids(&self.interaction.layout_state);
+        self.traversal
+            .containers
+            .rebuild_split_pane_separator_projections(&self.interaction.layout_state);
     }
 
     pub(in crate::runtime::controller) fn relayout_with_traversal(

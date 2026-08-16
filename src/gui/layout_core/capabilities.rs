@@ -164,14 +164,12 @@ impl MountedContainerStateId {
 /// The mounted identity travels with the view so a read remains associated
 /// with the exact generation that admitted it. The underlying state remains
 /// runtime-local and may be a non-`Send` value.
-#[cfg_attr(not(test), expect(dead_code))]
 #[derive(Clone, Copy)]
 pub(crate) struct MountedContainerStateRead<'a> {
     mounted_id: MountedContainerStateId,
     state: &'a dyn Any,
 }
 
-#[cfg_attr(not(test), expect(dead_code))]
 impl<'a> MountedContainerStateRead<'a> {
     pub(crate) const fn new(mounted_id: MountedContainerStateId, state: &'a dyn Any) -> Self {
         Self { mounted_id, state }

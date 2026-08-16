@@ -89,6 +89,8 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) virtual_layout_registrations:
         Vec<crate::runtime::surface::VirtualLayoutRegistration<Message>>,
     pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
+    pub(super) split_pane_separator_projections:
+        Vec<super::split_pane_separator::SplitPaneSeparatorProjection>,
     pub(super) layout_hit_region_diagnostics: LayoutHitRegionDiagnostics,
     layout_region_declarations: Vec<LayoutHitRegion>,
 }
@@ -102,6 +104,7 @@ pub(super) struct RuntimeLayoutHitTarget<Message> {
     pub(super) container_bounds: Option<Rect>,
     pub(super) target_bounds: Option<Rect>,
     pub(super) divider_bounds: Option<Rect>,
+    pub(super) mounted_state_id: Option<crate::gui::layout_core::MountedContainerStateId>,
     pub(super) split_capture_witness: Option<crate::gui::layout_core::SplitPaneCaptureWitness>,
 }
 
@@ -117,6 +120,7 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             split_pane_dividers: Vec::new(),
             virtual_layout_registrations: Vec::new(),
             layout_targets: Vec::new(),
+            split_pane_separator_projections: Vec::new(),
             layout_hit_region_diagnostics: LayoutHitRegionDiagnostics::default(),
             layout_region_declarations: Vec::new(),
         }
@@ -174,6 +178,7 @@ impl<Message> RuntimeContainerTraversal<Message> {
                     container_bounds: Some(container_bounds),
                     target_bounds: Some(bounds),
                     divider_bounds: None,
+                    mounted_state_id: None,
                     split_capture_witness: None,
                 });
             }
@@ -217,9 +222,91 @@ impl<Message> RuntimeContainerTraversal<Message> {
                 container_bounds: Some(container_bounds),
                 target_bounds: Some(target_bounds),
                 divider_bounds: Some(divider_bounds),
+                mounted_state_id: None,
                 split_capture_witness: Some(descriptor.witness(container_bounds)),
             });
         }
+    }
+
+    pub(super) fn bind_committed_mounted_state_ids(
+        &mut self,
+        state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+    ) {
+        for target in &mut self.layout_targets {
+            target.mounted_state_id = target
+                .state_id
+                .and_then(|state_id| state_store.current_mounted_state_id(state_id));
+        }
+    }
+
+    pub(super) fn rebuild_split_pane_separator_projections(
+        &mut self,
+        state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+    ) {
+        let mut next = Vec::with_capacity(
+            self.split_pane_runtime
+                .len()
+                .min(self.split_pane_dividers.len()),
+        );
+        for input in &self.split_pane_runtime {
+            if self
+                .split_pane_runtime
+                .iter()
+                .filter(|candidate| candidate.container_id == input.container_id)
+                .count()
+                != 1
+            {
+                continue;
+            }
+
+            let descriptor_count = self
+                .split_pane_dividers
+                .iter()
+                .filter(|descriptor| descriptor.container_id == input.container_id)
+                .count();
+            if descriptor_count != 1 {
+                continue;
+            }
+            let Some(descriptor) = self
+                .split_pane_dividers
+                .iter()
+                .find(|descriptor| descriptor.container_id == input.container_id)
+                .copied()
+            else {
+                continue;
+            };
+
+            let identity = crate::layout::LayoutTargetIdentity::new(
+                input.container_id,
+                crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+            );
+            let target_count = self
+                .layout_targets
+                .iter()
+                .filter(|target| target.target.identity() == identity)
+                .count();
+            if target_count != 1 {
+                continue;
+            }
+            let Some(target) = self
+                .layout_targets
+                .iter()
+                .find(|target| target.target.identity() == identity)
+            else {
+                continue;
+            };
+            if let Some(projection) =
+                super::split_pane_separator::build_split_pane_separator_projection(
+                    target,
+                    *input,
+                    descriptor,
+                    state_store,
+                )
+            {
+                next.push(projection);
+            }
+        }
+        self.split_pane_separator_projections = next;
     }
 
     fn layout_clip_for_container<'a>(

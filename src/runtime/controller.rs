@@ -28,6 +28,7 @@ mod scratch;
 mod scroll;
 mod semantic_coordinate;
 mod semantic_demand;
+mod split_pane_separator;
 mod state;
 mod timers;
 mod traversal_state;

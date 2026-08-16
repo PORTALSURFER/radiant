@@ -2087,7 +2087,14 @@ successful commit, while press, intermediate motion, no-op commit,
 cancellation, capture loss, incompatible refresh, unmount, static mode, and
 controlled-ratio mode remain silent. This output is not persistence; settled
 persistence, semantic/keyboard behavior, and other product-specific behavior
-remain later slices.
+remain later slices. The runtime also retains a bounded crate-private
+`SplitPaneSeparatorProjection` collection as non-authorizing observation only:
+each entry is admitted after the mounted-state candidate commits and joins one
+exact mounted generation, the existing split divider identity, axis, final
+clipped bounds, and finite normalized live ratio. Missing, mismatched, stale,
+retired, unmounted, or capacity-limited evidence withholds the entry; this
+observation does not add focus, key, paint, semantic, automation, relayout,
+provider/native, or application-message behavior.
 
 ```rust
 split_pane(library_panel(state), detail_panel(state))

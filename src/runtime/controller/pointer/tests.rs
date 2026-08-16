@@ -834,6 +834,7 @@ struct SplitInteractionBridge {
     generation: u64,
     clipped: bool,
     mounted: bool,
+    nested: bool,
 }
 
 impl SplitInteractionBridge {
@@ -851,11 +852,17 @@ impl SplitInteractionBridge {
             generation: 1,
             clipped: false,
             mounted: true,
+            nested: false,
         }
     }
 
     fn with_axis(mut self, axis: SplitPaneAxis) -> Self {
         self.policy.axis = axis;
+        self
+    }
+
+    fn with_nested(mut self) -> Self {
+        self.nested = true;
         self
     }
 
@@ -876,10 +883,59 @@ impl SplitInteractionBridge {
         } else {
             Vector2::new(20.0, 20.0)
         };
-        let first = SurfaceNode::widget(
-            TextWidget::new(2, "first", WidgetSizing::fixed(child_size)),
-            WidgetMessageMapper::none(),
-        );
+        let first = if self.nested {
+            let inner_policy = SplitPanePolicy {
+                axis: SplitPaneAxis::Vertical,
+                ..policy
+            };
+            let inner_first = SurfaceNode::widget(
+                TextWidget::new(5, "inner-first", WidgetSizing::fixed(child_size)),
+                WidgetMessageMapper::none(),
+            );
+            let inner_second = SurfaceNode::widget(
+                TextWidget::new(6, "inner-second", WidgetSizing::fixed(child_size)),
+                WidgetMessageMapper::none(),
+            );
+            let mut inner = SurfaceNode::container(
+                4,
+                ContainerPolicy {
+                    kind: ContainerKind::SplitPane,
+                    split_pane: inner_policy,
+                    ..ContainerPolicy::default()
+                },
+                vec![
+                    SurfaceChild::fill(inner_first),
+                    SurfaceChild::fill(inner_second),
+                ],
+            );
+            match self.mode {
+                SplitInteractionMode::Static => {}
+                SplitInteractionMode::RuntimeOwned => {
+                    inner = inner
+                        .with_split_pane_runtime_mode(Some(
+                            crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                        ))
+                        .with_layout_capabilities(
+                            crate::gui::layout_core::runtime_owned_split_pane_capabilities(
+                                inner_policy,
+                            ),
+                        );
+                }
+                SplitInteractionMode::Controlled => {
+                    inner = inner.with_split_pane_runtime_mode(Some(
+                        crate::gui::layout_core::SplitPaneRuntimeMode::Controlled(
+                            crate::gui::layout_core::Controlled::new(self.ratio, self.generation),
+                        ),
+                    ));
+                }
+            }
+            inner
+        } else {
+            SurfaceNode::widget(
+                TextWidget::new(2, "first", WidgetSizing::fixed(child_size)),
+                WidgetMessageMapper::none(),
+            )
+        };
         let second = SurfaceNode::widget(
             TextWidget::new(3, "second", WidgetSizing::fixed(child_size)),
             WidgetMessageMapper::none(),
@@ -4410,6 +4466,7 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         static_runtime.layout_target_at(Point::new(52.0, 40.0)),
         None
     );
+    assert!(static_runtime.split_pane_separator_projections().is_empty());
 
     let controlled_runtime = SurfaceRuntime::new(
         SplitInteractionBridge::new(SplitInteractionMode::Controlled),
@@ -4419,11 +4476,17 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         controlled_runtime.layout_target_at(Point::new(52.0, 40.0)),
         None
     );
+    assert!(
+        controlled_runtime
+            .split_pane_separator_projections()
+            .is_empty()
+    );
 
     let mut zero_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     zero_divider.policy.divider_extent = 0.0;
     let zero_runtime = SurfaceRuntime::new(zero_divider, Vector2::new(200.0, 80.0));
     assert_eq!(zero_runtime.layout_target_at(Point::new(50.0, 40.0)), None);
+    assert!(zero_runtime.split_pane_separator_projections().is_empty());
 
     let mut full_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     full_divider.policy.divider_extent = 400.0;
@@ -4443,6 +4506,11 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         malformed_runtime.layout_target_at(Point::new(50.0, 40.0)),
         None
     );
+    assert!(
+        malformed_runtime
+            .split_pane_separator_projections()
+            .is_empty()
+    );
     assert_eq!(
         malformed_runtime.layout_target_at(Point::new(f32::NAN, 40.0)),
         None
@@ -4461,6 +4529,16 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID
     );
     assert_eq!(target.bounds, Rect::from_xy_size(48.0, 0.0, 8.0, 80.0));
+    let separator = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("runtime-owned split separator projection");
+    assert_eq!(separator.target, target.identity());
+    assert_eq!(separator.axis, SplitPaneAxis::Horizontal);
+    assert_eq!(separator.divider_bounds, target.bounds);
+    assert_eq!(separator.live_ratio, 0.25);
+    assert_eq!(separator.mounted_state_id.generation().get(), 1);
 
     let mut clipped_bridge = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     clipped_bridge.clipped = true;
@@ -4471,6 +4549,38 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         None,
         "a divider wholly outside its scroll clip is not projected"
     );
+    assert!(
+        clipped_runtime
+            .split_pane_separator_projections()
+            .is_empty()
+    );
+}
+
+#[test]
+fn runtime_owned_nested_splits_project_independent_separators() {
+    let runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_nested(),
+        Vector2::new(200.0, 120.0),
+    );
+    let projections = runtime.split_pane_separator_projections();
+    assert_eq!(projections.len(), 2);
+
+    let outer = projections
+        .iter()
+        .find(|projection| projection.target.container_id == 1)
+        .expect("outer split separator projection");
+    assert_eq!(outer.axis, SplitPaneAxis::Horizontal);
+    assert_eq!(outer.mounted_state_id.generation().get(), 1);
+    assert!(outer.divider_bounds.has_finite_positive_area());
+
+    let inner = projections
+        .iter()
+        .find(|projection| projection.target.container_id == 4)
+        .expect("inner split separator projection");
+    assert_eq!(inner.axis, SplitPaneAxis::Vertical);
+    assert_eq!(inner.mounted_state_id.generation().get(), 2);
+    assert!(inner.divider_bounds.has_finite_positive_area());
+    assert_ne!(outer.mounted_state_id, inner.mounted_state_id);
 }
 
 #[test]
@@ -4482,6 +4592,11 @@ fn runtime_owned_split_drag_reprojects_without_application_projection_and_commit
     let target = runtime
         .layout_target_at(Point::new(52.0, 40.0))
         .expect("divider target at initial ratio");
+    let initial_separator = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("initial separator projection");
     let counters = runtime.refresh_counters();
     let initial_first = runtime.layout().rects[&2];
 
@@ -4522,6 +4637,21 @@ fn runtime_owned_split_drag_reprojects_without_application_projection_and_commit
         counters.application_projection,
         "live runtime-owned movement does not reproject application state"
     );
+    let moved_separator = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("moved separator projection");
+    assert_eq!(moved_separator.target, initial_separator.target);
+    assert_eq!(
+        moved_separator.mounted_state_id,
+        initial_separator.mounted_state_id
+    );
+    assert_eq!(
+        moved_separator.divider_bounds,
+        Rect::from_xy_size(130.0, 0.0, 8.0, 80.0)
+    );
+    assert_eq!(moved_separator.live_ratio, 130.0_f32 / 192.0_f32);
 
     assert_eq!(
         runtime.dispatch_event(Event::pointer_release(
@@ -4533,6 +4663,14 @@ fn runtime_owned_split_drag_reprojects_without_application_projection_and_commit
     );
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert_eq!(
+        runtime
+            .split_pane_separator_projections()
+            .first()
+            .copied()
+            .expect("committed separator projection"),
+        moved_separator
+    );
     assert_eq!(
         runtime.refresh_counters().application_projection,
         counters.application_projection
@@ -4563,6 +4701,17 @@ fn runtime_owned_vertical_split_drag_reprojects_and_commits_outside_bounds() {
             .bounds,
         Rect::from_xy_size(0.0, 130.0, 80.0, 8.0)
     );
+    let moved_separator = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("moved vertical separator projection");
+    assert_eq!(moved_separator.axis, SplitPaneAxis::Vertical);
+    assert_eq!(
+        moved_separator.divider_bounds,
+        Rect::from_xy_size(0.0, 130.0, 80.0, 8.0)
+    );
+    assert_eq!(moved_separator.live_ratio, 130.0_f32 / 192.0_f32);
 
     runtime.dispatch_event(Event::pointer_release(
         Point::new(120.0, 130.0),
@@ -4571,6 +4720,14 @@ fn runtime_owned_vertical_split_drag_reprojects_and_commits_outside_bounds() {
     ));
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert_eq!(runtime.layout().rects[&2].height(), 130.0);
+    assert_eq!(
+        runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("committed vertical separator projection")
+            .live_ratio,
+        130.0_f32 / 192.0_f32
+    );
 }
 
 #[test]
@@ -4588,6 +4745,14 @@ fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_
     runtime.cancel_pointer_capture();
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert_eq!(runtime.layout().rects[&2].width(), 48.0);
+    assert_eq!(
+        runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("cancelled separator projection")
+            .live_ratio,
+        0.25
+    );
     runtime.dispatch_event(Event::pointer_release(
         Point::new(160.0, 100.0),
         PointerButton::Primary,
@@ -4601,6 +4766,14 @@ fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_
     runtime.refresh();
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert_eq!(runtime.layout().rects[&2].width(), 47.0);
+    assert_eq!(
+        runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("runtime-owned replacement projection")
+            .divider_bounds,
+        Rect::from_xy_size(47.0, 0.0, 12.0, 80.0)
+    );
     runtime.dispatch_event(Event::pointer_release(
         Point::new(160.0, 100.0),
         PointerButton::Primary,
@@ -4611,6 +4784,7 @@ fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_
     runtime.bridge_mut().mounted = false;
     runtime.refresh();
     assert_eq!(runtime.layout_pointer_capture(), None);
+    assert!(runtime.split_pane_separator_projections().is_empty());
 }
 
 #[test]
@@ -4627,6 +4801,7 @@ fn runtime_owned_split_capture_cancels_on_mode_and_container_geometry_changes() 
     mode_runtime.refresh();
     assert_eq!(mode_runtime.layout_pointer_capture(), None);
     assert_eq!(mode_runtime.layout().rects[&2].width(), 144.0);
+    assert!(mode_runtime.split_pane_separator_projections().is_empty());
     mode_runtime.dispatch_event(Event::pointer_release(
         Point::new(160.0, 100.0),
         PointerButton::Primary,
@@ -4643,6 +4818,15 @@ fn runtime_owned_split_capture_cancels_on_mode_and_container_geometry_changes() 
     geometry_runtime.set_viewport(Vector2::new(240.0, 80.0));
     assert_eq!(geometry_runtime.layout_pointer_capture(), None);
     assert_eq!(geometry_runtime.layout().rects[&2].width(), 58.0);
+    assert_eq!(
+        geometry_runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("runtime-owned geometry replacement projection")
+            .divider_bounds
+            .width(),
+        8.0
+    );
     geometry_runtime.dispatch_event(Event::pointer_release(
         Point::new(180.0, 100.0),
         PointerButton::Primary,
@@ -4826,11 +5010,24 @@ fn runtime_owned_split_capture_keeps_original_mapper_and_geometry_across_refresh
     let moved = Point::new(130.0, 100.0);
     runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
     runtime.dispatch_event(Event::pointer_move(moved));
+    let initial_generation = runtime
+        .split_pane_separator_projections()
+        .first()
+        .expect("separator before compatible refresh")
+        .mounted_state_id;
     runtime.bridge_mut().mapper = 2;
     runtime.refresh();
 
     assert!(runtime.layout_pointer_capture().is_some());
     assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert_eq!(
+        runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("separator after compatible refresh")
+            .mounted_state_id,
+        initial_generation
+    );
     runtime.dispatch_event(Event::pointer_release(
         moved,
         PointerButton::Primary,

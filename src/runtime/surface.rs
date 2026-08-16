@@ -32,7 +32,10 @@ pub(crate) use source::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
     SourceTraversalIndex,
 };
-pub(in crate::runtime) use state_sync::WidgetStateSyncPolicy;
+pub(in crate::runtime) use state_sync::{
+    WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
+    WidgetStateSyncPolicy,
+};
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,
     SurfaceTraversalStats, SurfaceWidgetTraversalRecord, WheelHitTarget,

@@ -9,7 +9,11 @@ use super::{
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
-    surface::{RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics, classify_view_delta},
+    surface::{
+        RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics,
+        WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
+        classify_view_delta,
+    },
 };
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
@@ -75,7 +79,7 @@ mod tests {
         runtime::{
             Command, Event, RuntimeBridge, RuntimeHostCapabilities, RuntimeTaskHost, SurfaceChild,
             SurfaceNode, TaskPriority, UiSurface, WidgetMessageMapper,
-            surface::{ViewDeltaCause, ViewDeltaEffect},
+            surface::{ViewDeltaCause, ViewDeltaEffect, WidgetReplacementPlanVeto},
         },
         widgets::{
             ButtonWidget, EditPhase, InteractionProvenance, KnobDomainCancellationReason,
@@ -898,6 +902,319 @@ mod tests {
                 ..
             }]
         ));
+    }
+
+    #[test]
+    fn replacement_plan_creation_and_drop_is_inert() {
+        let (mut bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(1)));
+        let previous = bridge.surface();
+        bridge.mode = TeardownMode::Single(TeardownProbeConfig {
+            active: false,
+            authority: false,
+            marker: 9,
+            ..active_probe(9)
+        });
+        let successor = bridge.surface();
+        let previous_index = previous.runtime_traversal_index();
+        let successor_index = successor.runtime_traversal_index();
+        log.borrow_mut().events.clear();
+
+        let plan = previous.plan_widget_replacements(
+            &successor,
+            &previous_index.stateful_widget_order,
+            &previous_index.widget_paint_order,
+            &successor_index.widget_paint_order,
+            &successor_index.widget_paths,
+            &previous_index.widget_paths,
+        );
+        drop(plan);
+
+        assert!(log.borrow().events.is_empty());
+        assert_eq!(
+            previous
+                .find_widget(20)
+                .and_then(|widget| widget
+                    .widget()
+                    .as_any()
+                    .downcast_ref::<TeardownProbeWidget>())
+                .map(|widget| widget.active),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn replacement_plan_veto_precedes_callbacks_and_immediate_fallback_retires_once() {
+        let (mut bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(1)));
+        let mut previous = bridge.surface();
+        bridge.mode = TeardownMode::Single(TeardownProbeConfig {
+            active: false,
+            authority: false,
+            marker: 9,
+            ..active_probe(9)
+        });
+        let mut successor = bridge.surface();
+        let previous_index = previous.runtime_traversal_index();
+        let successor_index = successor.runtime_traversal_index();
+        let plan = previous.plan_widget_replacements(
+            &successor,
+            &previous_index.stateful_widget_order,
+            &previous_index.widget_paint_order,
+            &successor_index.widget_paint_order,
+            &successor_index.widget_paths,
+            &previous_index.widget_paths,
+        );
+        let Some(widget) = successor.find_widget_mut(20) else {
+            panic!("successor probe exists");
+        };
+        widget.widget_mut().common_mut().state.disabled = true;
+        log.borrow_mut().events.clear();
+
+        let veto = previous.commit_widget_replacements(
+            &successor,
+            plan,
+            &previous_index.widget_paint_order,
+            &successor_index.widget_paint_order,
+            &previous_index.widget_paths,
+            &successor_index.widget_paths,
+        );
+        assert_eq!(veto.veto, Some(WidgetReplacementPlanVeto::StaleEvidence));
+        assert!(veto.terminal_messages.is_empty());
+        assert!(veto.retired_widget_ids.is_empty());
+        assert!(log.borrow().events.is_empty());
+
+        let fallback = previous.commit_widget_replacements_immediately(
+            &successor,
+            &previous_index.stateful_widget_order,
+            &previous_index.widget_paint_order,
+            &successor_index.widget_paint_order,
+            &successor_index.widget_paths,
+            &previous_index.widget_paths,
+        );
+        assert_eq!(fallback.veto, None);
+        assert_eq!(fallback.retired_widget_ids, [20]);
+        assert_eq!(
+            fallback.terminal_messages,
+            [TeardownMessage { id: 20, marker: 1 }]
+        );
+        assert_eq!(
+            log.borrow().events,
+            [
+                TeardownEvent::Prepare {
+                    id: 20,
+                    successor_authority: None,
+                    projection_depth: 0,
+                },
+                TeardownEvent::Map { id: 20, marker: 1 },
+            ]
+        );
+    }
+
+    #[test]
+    fn replacement_commit_is_consuming_stable_and_uses_old_mappers_for_unmapped_output() {
+        for maps_output in [true, false] {
+            let (mut bridge, log) = TeardownBridge::new(TeardownMode::Multiple([
+                TeardownProbeConfig {
+                    maps_output,
+                    ..active_probe(1)
+                },
+                TeardownProbeConfig {
+                    maps_output,
+                    ..active_probe(2)
+                },
+            ]));
+            let mut previous = bridge.surface();
+            bridge.mode = TeardownMode::Multiple([
+                TeardownProbeConfig {
+                    active: false,
+                    authority: false,
+                    marker: 9,
+                    ..active_probe(9)
+                },
+                TeardownProbeConfig {
+                    active: false,
+                    authority: false,
+                    marker: 9,
+                    ..active_probe(9)
+                },
+            ]);
+            let successor = bridge.surface();
+            let previous_index = previous.runtime_traversal_index();
+            let successor_index = successor.runtime_traversal_index();
+            let plan = previous.plan_widget_replacements(
+                &successor,
+                &previous_index.stateful_widget_order,
+                &previous_index.widget_paint_order,
+                &successor_index.widget_paint_order,
+                &successor_index.widget_paths,
+                &previous_index.widget_paths,
+            );
+            log.borrow_mut().events.clear();
+
+            let result = previous.commit_widget_replacements(
+                &successor,
+                plan,
+                &previous_index.widget_paint_order,
+                &successor_index.widget_paint_order,
+                &previous_index.widget_paths,
+                &successor_index.widget_paths,
+            );
+            assert_eq!(result.veto, None);
+            assert_eq!(result.retired_widget_ids, [20, 21]);
+            if maps_output {
+                assert_eq!(
+                    result.terminal_messages,
+                    [
+                        TeardownMessage { id: 20, marker: 1 },
+                        TeardownMessage { id: 21, marker: 2 },
+                    ]
+                );
+            } else {
+                assert!(result.terminal_messages.is_empty());
+            }
+            let prepares = log
+                .borrow()
+                .events
+                .iter()
+                .filter_map(|event| match event {
+                    TeardownEvent::Prepare { id, .. } => Some(*id),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(prepares, [20, 21]);
+            let mapped = log
+                .borrow()
+                .events
+                .iter()
+                .filter_map(|event| match event {
+                    TeardownEvent::Map { marker, .. } => Some(*marker),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(mapped, if maps_output { vec![1, 2] } else { Vec::new() });
+        }
+    }
+
+    #[test]
+    fn refresh_installs_successor_and_defers_terminal_reduction_until_returned_batch() {
+        let (bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(1)));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+        log.borrow_mut().events.clear();
+        runtime.bridge_mut().mode = TeardownMode::Single(TeardownProbeConfig {
+            active: false,
+            authority: false,
+            marker: 9,
+            ..active_probe(9)
+        });
+
+        let terminal_messages = runtime.refresh_with_scope_inner(RepaintScope::Surface);
+
+        assert_eq!(runtime.bridge().reduced, []);
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(20)
+                .and_then(|widget| widget
+                    .widget()
+                    .as_any()
+                    .downcast_ref::<TeardownProbeWidget>())
+                .map(|widget| widget.active),
+            Some(false)
+        );
+        assert!(!runtime.layout().rects.is_empty());
+        assert!(
+            !log.borrow()
+                .events
+                .iter()
+                .any(|event| matches!(event, TeardownEvent::Reduce { .. }))
+        );
+
+        runtime.dispatch_deferred_surface_messages(terminal_messages);
+
+        assert_eq!(
+            runtime.bridge().reduced,
+            [TeardownMessage { id: 20, marker: 1 }]
+        );
+        assert_eq!(
+            log.borrow()
+                .events
+                .iter()
+                .filter(|event| matches!(event, TeardownEvent::Reduce { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn replacement_commit_passes_none_for_duplicate_or_ambiguous_evidence() {
+        for ambiguous in [false, true] {
+            let (mut bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(1)));
+            let mut previous = bridge.surface();
+            bridge.mode = TeardownMode::Single(TeardownProbeConfig {
+                active: false,
+                authority: false,
+                marker: 9,
+                ..active_probe(9)
+            });
+            let successor = bridge.surface();
+            let previous_index = previous.runtime_traversal_index();
+            let successor_index = successor.runtime_traversal_index();
+            let duplicate_order = [20, 20];
+            let current_paths = if ambiguous {
+                std::collections::HashMap::new()
+            } else {
+                successor_index.widget_paths.clone()
+            };
+            let plan = previous.plan_widget_replacements(
+                &successor,
+                &previous_index.stateful_widget_order,
+                if ambiguous {
+                    &previous_index.widget_paint_order
+                } else {
+                    &duplicate_order
+                },
+                if ambiguous {
+                    &successor_index.widget_paint_order
+                } else {
+                    &duplicate_order
+                },
+                &current_paths,
+                &previous_index.widget_paths,
+            );
+            log.borrow_mut().events.clear();
+
+            let result = previous.commit_widget_replacements(
+                &successor,
+                plan,
+                if ambiguous {
+                    &previous_index.widget_paint_order
+                } else {
+                    &duplicate_order
+                },
+                if ambiguous {
+                    &successor_index.widget_paint_order
+                } else {
+                    &duplicate_order
+                },
+                &previous_index.widget_paths,
+                &current_paths,
+            );
+            assert_eq!(result.veto, None);
+            assert_eq!(result.retired_widget_ids, [20]);
+            assert_eq!(
+                result.terminal_messages,
+                [TeardownMessage { id: 20, marker: 1 }]
+            );
+            assert!(matches!(
+                log.borrow().events.as_slice(),
+                [
+                    TeardownEvent::Prepare {
+                        successor_authority: None,
+                        ..
+                    },
+                    TeardownEvent::Map { marker: 1, .. }
+                ]
+            ));
+        }
     }
 
     struct RefreshNumericCodec;
@@ -3309,7 +3626,7 @@ where
             Some(std::mem::take(&mut self.traversal.widgets.paths.previous))
         };
         let previous_paths_for_refresh = previous_paths.as_ref().unwrap_or(&traversal.widget_paths);
-        let (terminal_messages, retired_widget_ids) = self.surface.prepare_widget_replacements(
+        let replacement_plan: WidgetReplacementPlan = self.surface.plan_widget_replacements(
             &next_surface,
             &previous_stateful_widget_order,
             &previous_widget_order,
@@ -3317,6 +3634,30 @@ where
             &traversal.widget_paths,
             previous_paths_for_refresh,
         );
+        let replacement_commit: WidgetReplacementCommitResult<Message> =
+            self.surface.commit_widget_replacements(
+                &next_surface,
+                replacement_plan,
+                &previous_widget_order,
+                &traversal.widget_paint_order,
+                previous_paths_for_refresh,
+                &traversal.widget_paths,
+            );
+        let replacement_veto: Option<WidgetReplacementPlanVeto> = replacement_commit.veto;
+        let replacement_commit = if replacement_veto.is_some() {
+            self.surface.commit_widget_replacements_immediately(
+                &next_surface,
+                &previous_stateful_widget_order,
+                &previous_widget_order,
+                &traversal.widget_paint_order,
+                &traversal.widget_paths,
+                previous_paths_for_refresh,
+            )
+        } else {
+            replacement_commit
+        };
+        let terminal_messages = replacement_commit.terminal_messages;
+        let retired_widget_ids = replacement_commit.retired_widget_ids;
         let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
         let composition_focus_before_refresh = self.interaction.focus.focused_widget;
         let identity = self.discard_incompatible_widget_ownership(

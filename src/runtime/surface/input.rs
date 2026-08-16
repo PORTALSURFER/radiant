@@ -15,7 +15,7 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
-    pub(super) fn prepare_widget_replacement_at_path(
+    pub(super) fn commit_widget_replacement_at_path(
         &mut self,
         widget_id: WidgetId,
         child_path: &[usize],
@@ -37,7 +37,7 @@ impl<Message> SurfaceNode<Message> {
         (true, result)
     }
 
-    pub(super) fn prepare_widget_replacement(
+    pub(super) fn commit_widget_replacement(
         &mut self,
         widget_id: WidgetId,
         successor: Option<&dyn crate::widgets::Widget>,

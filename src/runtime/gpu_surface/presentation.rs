@@ -8,6 +8,9 @@ use std::fmt;
 /// update.
 pub const MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES: usize = 256;
 
+/// Required byte alignment for custom-shader presentation uniform payloads.
+pub const GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT: usize = 4;
+
 /// Maximum number of pending latest-only presentation updates retained by one
 /// [`crate::runtime::SurfaceRuntime`].
 pub(crate) const GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY: usize = 32;
@@ -18,6 +21,13 @@ pub(crate) const GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY: usize = 32;
 pub enum GpuShaderPresentationUniformUpdateError {
     /// The update carried no bytes.
     Empty,
+    /// The update length was not aligned for WGPU uniform writes.
+    UnalignedBytes {
+        /// Number of bytes supplied by the caller.
+        actual_len: usize,
+        /// Required byte alignment.
+        alignment: usize,
+    },
     /// The update exceeded [`MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES`].
     TooManyBytes {
         /// Number of bytes supplied by the caller.
@@ -32,6 +42,13 @@ impl fmt::Display for GpuShaderPresentationUniformUpdateError {
         match self {
             Self::Empty => formatter.write_str(
                 "custom-shader presentation uniform update must carry at least one byte",
+            ),
+            Self::UnalignedBytes {
+                actual_len,
+                alignment,
+            } => write!(
+                formatter,
+                "custom-shader presentation uniform update has {actual_len} bytes; length must be a multiple of {alignment} for WGPU uniform writes"
             ),
             Self::TooManyBytes {
                 actual_len,
@@ -105,6 +122,12 @@ impl GpuShaderPresentationUniformUpdate {
             return Err(GpuShaderPresentationUniformUpdateError::TooManyBytes {
                 actual_len: source.len(),
                 max_len: MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
+            });
+        }
+        if source.len() % GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT != 0 {
+            return Err(GpuShaderPresentationUniformUpdateError::UnalignedBytes {
+                actual_len: source.len(),
+                alignment: GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT,
             });
         }
 
@@ -254,38 +277,58 @@ mod tests {
             GpuShaderPresentationUniformUpdate::try_new(1, 2, 3, 4, 5, []),
             Err(GpuShaderPresentationUniformUpdateError::Empty)
         );
-        let bytes = vec![0; MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES + 1];
+        assert_eq!(
+            GpuShaderPresentationUniformUpdate::try_new(1, 2, 3, 4, 5, [0, 1, 2]),
+            Err(GpuShaderPresentationUniformUpdateError::UnalignedBytes {
+                actual_len: 3,
+                alignment: GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT,
+            })
+        );
+        let bytes = vec![
+            0;
+            MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES
+                + GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT
+        ];
         assert_eq!(
             GpuShaderPresentationUniformUpdate::try_new(1, 2, 3, 4, 5, &bytes),
             Err(GpuShaderPresentationUniformUpdateError::TooManyBytes {
-                actual_len: MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES + 1,
+                actual_len: MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES
+                    + GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT,
                 max_len: MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
             })
+        );
+        assert_eq!(
+            GpuShaderPresentationUniformUpdateError::UnalignedBytes {
+                actual_len: 3,
+                alignment: GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT,
+            }
+            .to_string(),
+            "custom-shader presentation uniform update has 3 bytes; length must be a multiple of 4 for WGPU uniform writes"
         );
     }
 
     #[test]
     fn mailbox_replaces_latest_and_rejects_stale_revisions() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
-        assert!(mailbox.admit(update(2, 1, &[1])));
-        assert!(mailbox.admit(update(2, 3, &[3])));
-        assert!(!mailbox.admit(update(2, 2, &[2])));
-        assert!(!mailbox.admit(update(2, 3, &[3])));
+        assert!(mailbox.admit(update(2, 1, &[1, 1, 1, 1])));
+        assert!(mailbox.admit(update(2, 3, &[3, 3, 3, 3])));
+        assert!(!mailbox.admit(update(2, 2, &[2, 2, 2, 2])));
+        assert!(!mailbox.admit(update(2, 3, &[3, 3, 3, 3])));
 
         let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
         mailbox.drain_into(&mut drained);
         assert_eq!(drained.len(), 1);
         assert_eq!(drained[0].presentation_revision, 3);
-        assert_eq!(drained[0].bytes(), &[3]);
+        assert_eq!(drained[0].bytes(), &[3, 3, 3, 3]);
         assert_eq!(mailbox.pending_len(), 0);
-        assert!(!mailbox.admit(update(2, 2, &[2])));
+        assert!(!mailbox.admit(update(2, 2, &[2, 2, 2, 2])));
     }
 
     #[test]
     fn mailbox_reuses_drained_slots_for_new_keys() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
         for key in 0..GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64 {
-            assert!(mailbox.admit(update(key, 1, &[1])));
+            assert!(mailbox.admit(update(key, 1, &[1, 1, 1, 1])));
         }
 
         let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
@@ -299,27 +342,27 @@ mod tests {
         for key in GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64
             ..(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY * 2) as u64
         {
-            assert!(mailbox.admit(update(key, 1, &[1])));
+            assert!(mailbox.admit(update(key, 1, &[1, 1, 1, 1])));
         }
         assert!(!mailbox.admit(update(
             (GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY * 2) as u64,
             1,
-            &[1]
+            &[1, 1, 1, 1]
         )));
     }
 
     #[test]
     fn mailbox_resets_presentation_revision_for_new_storage_generations() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
-        assert!(mailbox.admit(update_with_storage(2, 11, 13, 7, &[7])));
-        assert!(!mailbox.admit(update_with_storage(2, 11, 13, 7, &[7])));
+        assert!(mailbox.admit(update_with_storage(2, 11, 13, 7, &[7, 7, 7, 7])));
+        assert!(!mailbox.admit(update_with_storage(2, 11, 13, 7, &[7, 7, 7, 7])));
 
         // The new generation is allowed to restart its presentation revision,
         // including at a value lower than the previous generation's revision.
-        assert!(mailbox.admit(update_with_storage(2, 12, 13, 1, &[1])));
-        assert!(!mailbox.admit(update_with_storage(2, 12, 13, 1, &[1])));
-        assert!(!mailbox.admit(update_with_storage(2, 12, 13, 0, &[0])));
-        assert!(mailbox.admit(update_with_storage(2, 12, 13, 2, &[2])));
+        assert!(mailbox.admit(update_with_storage(2, 12, 13, 1, &[1, 1, 1, 1])));
+        assert!(!mailbox.admit(update_with_storage(2, 12, 13, 1, &[1, 1, 1, 1])));
+        assert!(!mailbox.admit(update_with_storage(2, 12, 13, 0, &[0, 0, 0, 0])));
+        assert!(mailbox.admit(update_with_storage(2, 12, 13, 2, &[2, 2, 2, 2])));
 
         let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
         mailbox.drain_into(&mut drained);

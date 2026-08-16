@@ -229,9 +229,15 @@ fn window_size_commands_request_surface_repaint_without_flattening_messages() {
 
 #[test]
 fn shader_presentation_uniform_updates_request_paint_only() {
-    let update =
-        crate::runtime::GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 19, [1, 2, 3])
-            .expect("valid presentation uniform update");
+    let update = crate::runtime::GpuShaderPresentationUniformUpdate::try_new(
+        7,
+        11,
+        13,
+        17,
+        19,
+        [1, 2, 3, 4],
+    )
+    .expect("valid presentation uniform update");
     let command = Command::<()>::update_gpu_shader_presentation_uniform(update);
 
     assert!(!command.is_empty());
@@ -242,9 +248,15 @@ fn shader_presentation_uniform_updates_request_paint_only() {
 
 #[test]
 fn shader_presentation_uniform_updates_are_not_immediate_messages() {
-    let update =
-        crate::runtime::GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 19, [1, 2, 3])
-            .expect("valid presentation uniform update");
+    let update = crate::runtime::GpuShaderPresentationUniformUpdate::try_new(
+        7,
+        11,
+        13,
+        17,
+        19,
+        [1, 2, 3, 4],
+    )
+    .expect("valid presentation uniform update");
     let command = Command::<&str>::batch([
         Command::message("before"),
         Command::update_gpu_shader_presentation_uniform(update),

@@ -135,4 +135,14 @@ pub enum GpuSurfaceContentError {
         /// Stable application-defined shader or pipeline identity.
         shader_key: String,
     },
+    /// A custom shader descriptor carried a non-empty presentation-uniform
+    /// payload whose length is not aligned for WGPU uniform writes.
+    UnalignedShaderPresentationUniformBytes {
+        /// Stable application-defined shader or pipeline identity.
+        shader_key: String,
+        /// Actual presentation-uniform byte length.
+        actual_len: usize,
+        /// Required byte alignment.
+        alignment: usize,
+    },
 }

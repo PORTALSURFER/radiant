@@ -14,11 +14,11 @@ use crate::runtime::{
 fn gpu_shader_presentation_uniform_updates_are_admitted_as_paint_only_and_drained() {
     let mut runtime =
         SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
-    let first = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [1, 2, 3])
+    let first = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [1, 2, 3, 4])
         .expect("valid presentation uniform update");
-    let newer = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 2, [4, 5, 6])
+    let newer = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 2, [4, 5, 6, 7])
         .expect("valid presentation uniform update");
-    let stale = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [9])
+    let stale = GpuShaderPresentationUniformUpdate::try_new(7, 11, 13, 17, 1, [9, 10, 11, 12])
         .expect("valid presentation uniform update");
 
     let first_outcome =

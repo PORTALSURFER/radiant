@@ -177,13 +177,14 @@ pub use external_drag::{
 pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
 pub use file_open::NativeFileOpen;
 pub use gpu_surface::{
-    CanvasKey, GpuShaderPresentationUniformUpdate, GpuShaderPresentationUniformUpdateError,
-    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
-    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
-    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
-    RenderCanvasCapabilities, RenderCanvasContent, RenderCanvasContentError, RenderCanvasLineStyle,
-    RenderCanvasOverlay, RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
+    CanvasKey, GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuShaderPresentationUniformUpdate,
+    GpuShaderPresentationUniformUpdateError, GpuShaderSurfaceDescriptor,
+    GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,
+    GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
+    GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
+    MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES, RenderCanvasCapabilities, RenderCanvasContent,
+    RenderCanvasContentError, RenderCanvasLineStyle, RenderCanvasOverlay,
+    RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
     RenderCanvasShaderSurfaceDescriptorParts,
 };
 pub(crate) use paint::{

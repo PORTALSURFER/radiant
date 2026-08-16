@@ -44,12 +44,12 @@ pub use content::{
     GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,
     RenderCanvasShaderSurfaceDescriptor, RenderCanvasShaderSurfaceDescriptorParts,
 };
+pub use presentation::{
+    GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuShaderPresentationUniformUpdate,
+    GpuShaderPresentationUniformUpdateError, MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
+};
 pub(crate) use presentation::{
     GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY, GpuShaderPresentationUniformMailbox,
-};
-pub use presentation::{
-    GpuShaderPresentationUniformUpdate, GpuShaderPresentationUniformUpdateError,
-    MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 

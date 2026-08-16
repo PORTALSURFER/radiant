@@ -1,5 +1,5 @@
 use super::stats::GpuSurfaceRenderStats;
-use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
+use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer, PRESENTATION_STAGING_BELT_CHUNK_SIZE};
 use crate::gui::types::Rect as UiRect;
 use crate::runtime::{
     GpuShaderPresentationUniformUpdate, GpuShaderSurfaceDescriptor, GpuSurfaceContent,
@@ -35,6 +35,15 @@ impl GpuSurfaceRenderer {
         }
         let presentation_update =
             matching_presentation_update(surface, descriptor, presentation_updates);
+        let presentation_staging_belt = descriptor
+            .presentation_uniform_bytes
+            .as_ref()
+            .filter(|bytes| !bytes.is_empty())
+            .map(|_| {
+                self.presentation_staging_belt.get_or_insert_with(|| {
+                    vello::wgpu::util::StagingBelt::new(PRESENTATION_STAGING_BELT_CHUNK_SIZE)
+                })
+            });
         {
             let Some(binding) = self.resources.custom_shader_bindings.get_mut(&surface.key) else {
                 record_failed_custom_shader_surface(stats);
@@ -47,6 +56,7 @@ impl GpuSurfaceRenderer {
                     descriptor,
                     binding,
                     presentation_update,
+                    presentation_staging_belt,
                 },
                 stats,
             );
@@ -224,7 +234,7 @@ mod tests {
         let descriptor = GpuShaderSurfaceDescriptor::new("test/custom-shader")
             .storage_identity(11)
             .storage_revision(13)
-            .presentation_uniform([1, 2, 3], 2);
+            .presentation_uniform([1, 2, 3, 4], 2);
         let surface = PaintGpuSurface {
             widget_id: 17,
             key: 93,
@@ -236,12 +246,12 @@ mod tests {
             capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
         };
-        let matching = GpuShaderPresentationUniformUpdate::try_new(17, 93, 11, 13, 4, [4, 5, 6])
+        let matching = GpuShaderPresentationUniformUpdate::try_new(17, 93, 11, 13, 4, [4, 5, 6, 7])
             .expect("valid matching presentation update");
         let wrong_storage =
-            GpuShaderPresentationUniformUpdate::try_new(17, 93, 12, 13, 5, [7, 8, 9])
+            GpuShaderPresentationUniformUpdate::try_new(17, 93, 12, 13, 5, [7, 8, 9, 10])
                 .expect("valid mismatched presentation update");
-        let wrong_length = GpuShaderPresentationUniformUpdate::try_new(17, 93, 11, 13, 6, [10])
+        let wrong_length = GpuShaderPresentationUniformUpdate::try_new(17, 93, 11, 13, 6, [10; 8])
             .expect("valid mismatched presentation update");
 
         assert_eq!(

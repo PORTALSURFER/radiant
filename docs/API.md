@@ -5064,6 +5064,11 @@ presentation-uniform bytes at `@group(0) @binding(3)`. `storage_identity` and
 `storage_revision` form the immutable payload fence, while
 `presentation_uniform_revision` on the descriptor and `presentation_revision`
 on volatile updates form the latest-only volatile fence.
+Presentation-uniform payloads may be empty, but every non-empty descriptor or
+update payload must have a byte length divisible by four for WGPU uniform
+writes. `GpuShaderPresentationUniformUpdate::try_new` reports an alignment
+error for invalid updates, while `RenderCanvasContent::validate()` reports a
+typed descriptor validation error.
 `UiUpdateContext::update_gpu_shader_presentation_uniform` and
 `Command::update_gpu_shader_presentation_uniform` are paint-only updates: they
 do not enter application messages or force projection. The presentation

@@ -31,7 +31,7 @@ fn custom_shader_binding_key_changes_when_payload_shape_changes() {
     let presentation_only = custom_shader_binding_key(
         &pipeline_key,
         &GpuShaderSurfaceDescriptor::new("test/custom-shader")
-            .presentation_uniform_bytes([1, 2, 3]),
+            .presentation_uniform_bytes([1, 2, 3, 4]),
     );
 
     assert_ne!(uniform_only, storage_only);

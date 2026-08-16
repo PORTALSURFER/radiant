@@ -242,6 +242,9 @@ where
                     },
                 );
             }
+            gpu_resources
+                .gpu_surface_renderer
+                .finish_presentation_staging_belt();
             gpu_surface_stats
         };
         self.cpu_frame_observation_capture.record_profile_stage(
@@ -262,6 +265,12 @@ where
         }
         let (_, elapsed) = profile.measure(|| {
             dev_handle.queue.submit(std::iter::once(encoder.finish()));
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .recall_presentation_staging_belt();
+            }
             self.record_successful_native_submission();
             surface_texture.present();
         });

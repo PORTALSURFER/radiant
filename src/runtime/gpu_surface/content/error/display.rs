@@ -127,6 +127,14 @@ impl fmt::Display for GpuSurfaceContentError {
                 formatter,
                 "invalid GPU shader surface {shader_key}: vertex count must be positive"
             ),
+            Self::UnalignedShaderPresentationUniformBytes {
+                shader_key,
+                actual_len,
+                alignment,
+            } => write!(
+                formatter,
+                "invalid GPU shader surface {shader_key}: presentation-uniform byte length {actual_len} must be a multiple of {alignment} for WGPU uniform writes"
+            ),
         }
     }
 }

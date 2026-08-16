@@ -218,6 +218,10 @@ where
         self.lifecycle.accepts_work()
     }
 
+    pub(in crate::runtime::controller) const fn lifecycle_transition_sequence(&self) -> u64 {
+        self.lifecycle.transition_sequence()
+    }
+
     pub(in crate::runtime::controller) fn lifecycle_diagnostics(
         &self,
     ) -> crate::runtime::RuntimeLifecycleDiagnostics {

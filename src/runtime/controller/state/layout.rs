@@ -89,7 +89,7 @@ where
         self.record_completed_layout();
     }
 
-    fn record_completed_layout(&mut self) {
+    pub(in crate::runtime::controller) fn record_completed_layout(&mut self) {
         self.external_layout_dirty = false;
         self.completed_layout = Some(super::super::CompletedLayoutContext {
             viewport: effective_layout_viewport(self.viewport),
@@ -99,7 +99,7 @@ where
         });
     }
 
-    fn sync_scroll_offsets(&mut self) {
+    pub(in crate::runtime::controller) fn sync_scroll_offsets(&mut self) {
         self.scratch.scroll_clamp_updates.clear();
         self.scratch.scroll_clamp_updates.extend(
             self.layout

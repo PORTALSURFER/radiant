@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    gui::automation::AutomationRole,
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::{Point, Rect, Vector2},
     layout::{
@@ -4467,6 +4468,14 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         None
     );
     assert!(static_runtime.split_pane_separator_projections().is_empty());
+    assert!(
+        static_runtime
+            .automation_snapshot()
+            .root
+            .automation_targets()
+            .iter()
+            .all(|target| target.role != AutomationRole::Separator)
+    );
 
     let controlled_runtime = SurfaceRuntime::new(
         SplitInteractionBridge::new(SplitInteractionMode::Controlled),
@@ -4481,12 +4490,28 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
             .split_pane_separator_projections()
             .is_empty()
     );
+    assert!(
+        controlled_runtime
+            .automation_snapshot()
+            .root
+            .automation_targets()
+            .iter()
+            .all(|target| target.role != AutomationRole::Separator)
+    );
 
     let mut zero_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     zero_divider.policy.divider_extent = 0.0;
     let zero_runtime = SurfaceRuntime::new(zero_divider, Vector2::new(200.0, 80.0));
     assert_eq!(zero_runtime.layout_target_at(Point::new(50.0, 40.0)), None);
     assert!(zero_runtime.split_pane_separator_projections().is_empty());
+    assert!(
+        zero_runtime
+            .automation_snapshot()
+            .root
+            .automation_targets()
+            .iter()
+            .all(|target| target.role != AutomationRole::Separator)
+    );
 
     let mut full_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     full_divider.policy.divider_extent = 400.0;
@@ -4510,6 +4535,14 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         malformed_runtime
             .split_pane_separator_projections()
             .is_empty()
+    );
+    assert!(
+        malformed_runtime
+            .automation_snapshot()
+            .root
+            .automation_targets()
+            .iter()
+            .all(|target| target.role != AutomationRole::Separator)
     );
     assert_eq!(
         malformed_runtime.layout_target_at(Point::new(f32::NAN, 40.0)),
@@ -4553,6 +4586,14 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
         clipped_runtime
             .split_pane_separator_projections()
             .is_empty()
+    );
+    assert!(
+        clipped_runtime
+            .automation_snapshot()
+            .root
+            .automation_targets()
+            .iter()
+            .all(|target| target.role != AutomationRole::Separator)
     );
 }
 
@@ -4736,6 +4777,12 @@ fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_
         SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
         Vector2::new(200.0, 80.0),
     );
+    let initial_separator = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.role == AutomationRole::Separator)
+        .expect("initial semantic separator target");
     let divider = Point::new(52.0, 40.0);
     runtime.dispatch_event(Event::primary_press(divider));
     runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
@@ -4753,6 +4800,15 @@ fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_
             .live_ratio,
         0.25
     );
+    let cancelled_separator = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.role == AutomationRole::Separator)
+        .expect("cancelled semantic separator target");
+    assert_eq!(cancelled_separator.id, initial_separator.id);
+    assert_eq!(cancelled_separator.value, initial_separator.value);
+    assert_eq!(cancelled_separator.bounds, initial_separator.bounds);
     runtime.dispatch_event(Event::pointer_release(
         Point::new(160.0, 100.0),
         PointerButton::Primary,
@@ -5015,6 +5071,12 @@ fn runtime_owned_split_capture_keeps_original_mapper_and_geometry_across_refresh
         .first()
         .expect("separator before compatible refresh")
         .mounted_state_id;
+    let before_refresh_separator = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.role == AutomationRole::Separator)
+        .expect("semantic separator before compatible refresh");
     runtime.bridge_mut().mapper = 2;
     runtime.refresh();
 
@@ -5027,6 +5089,21 @@ fn runtime_owned_split_capture_keeps_original_mapper_and_geometry_across_refresh
             .expect("separator after compatible refresh")
             .mounted_state_id,
         initial_generation
+    );
+    let after_refresh_separator = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.role == AutomationRole::Separator)
+        .expect("semantic separator after compatible refresh");
+    assert_eq!(after_refresh_separator.id, before_refresh_separator.id);
+    assert_eq!(
+        after_refresh_separator.value,
+        before_refresh_separator.value
+    );
+    assert_eq!(
+        after_refresh_separator.bounds,
+        before_refresh_separator.bounds
     );
     runtime.dispatch_event(Event::pointer_release(
         moved,

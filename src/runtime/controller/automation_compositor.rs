@@ -228,7 +228,7 @@ impl VirtualLayoutAutomationComposition {
                 materialized: !self.unmaterialized_ids.contains(&target.id),
             });
         }
-        snapshot.schema_version = 2;
+        snapshot.schema_version = 3;
         snapshot
     }
 
@@ -1461,7 +1461,7 @@ mod tests {
 
     fn ordinary_snapshot() -> GuiAutomationSnapshot {
         GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: 200,
             viewport_height: 100,
             root: snapshot_node(

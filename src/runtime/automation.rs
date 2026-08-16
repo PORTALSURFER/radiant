@@ -359,8 +359,9 @@ where
             .compose_virtual_layout_automation_snapshot(ordinary, batches)
     }
 
-    /// Return a serializable backend-neutral automation snapshot for the current surface.
-    pub fn automation_snapshot(&self) -> GuiAutomationSnapshot {
+    /// Return the ordinary serializable backend-neutral automation snapshot for
+    /// the current surface before runtime-owned semantic publication.
+    fn ordinary_automation_snapshot(&self) -> GuiAutomationSnapshot {
         let viewport = self.context().viewport;
         let root = self
             .surface()
@@ -368,11 +369,17 @@ where
             .automation_snapshot_node(self.context().layout);
 
         GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: viewport.width().max(0.0).round() as u32,
             viewport_height: viewport.height().max(0.0).round() as u32,
             root,
         }
+    }
+
+    /// Return a serializable backend-neutral automation snapshot for the current surface.
+    pub fn automation_snapshot(&self) -> GuiAutomationSnapshot {
+        let ordinary = self.ordinary_automation_snapshot();
+        self.compose_split_pane_automation_snapshot(&ordinary)
     }
 
     /// Return a flattened, coordinate-bearing automation target snapshot for the
@@ -384,7 +391,7 @@ where
         for target in &mut snapshot.targets {
             target.authority = Some(authority);
         }
-        snapshot.schema_version = 2;
+        snapshot.schema_version = 3;
         snapshot
     }
 
@@ -571,7 +578,7 @@ fn selected_snapshot_from_ordinary(
     for target in &mut targets.targets {
         target.authority = Some(authority);
     }
-    targets.schema_version = 2;
+    targets.schema_version = 3;
     SemanticAutomationSelectedSnapshot {
         snapshot,
         targets,

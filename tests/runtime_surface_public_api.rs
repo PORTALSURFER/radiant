@@ -20,7 +20,7 @@ use radiant::{
         RepaintScope, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost, RuntimeQueueHost,
         RuntimeTaskHost, SurfaceChild, SurfaceLayer, SurfaceNode, SurfacePaintPlan, SurfaceRuntime,
         UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
-        declarative_runtime_bridge,
+        declarative_owned_runtime_bridge, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{

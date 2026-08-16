@@ -4087,7 +4087,7 @@ mod macos {
                 )
             };
             let snapshot = GuiAutomationSnapshot {
-                schema_version: 1,
+                schema_version: 3,
                 viewport_width: 240,
                 viewport_height: 120,
                 root: AutomationNodeSnapshot::from_semantics(
@@ -4106,7 +4106,7 @@ mod macos {
             for target in &mut targets.targets {
                 target.authority = Some(AutomationTargetAuthority::materialized(1));
             }
-            targets.schema_version = 2;
+            targets.schema_version = 3;
             (snapshot, targets)
         }
 
@@ -6906,7 +6906,7 @@ mod macos {
             let (node, target) = numeric_target_fixture();
             let path = target.path.clone();
             let targets = GuiAutomationTargetSnapshot {
-                schema_version: 2,
+                schema_version: 3,
                 viewport_width: 320,
                 viewport_height: 120,
                 targets: vec![target.clone()],

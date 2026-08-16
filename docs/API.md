@@ -6426,10 +6426,23 @@ tree into coordinate-bearing automation targets with tree order, depth,
 root-to-node path, bounds, center point, role, label/value text, current state,
 actions, and metadata; this is the supported bridge shape for tests, devtools,
 Computer Use sidecars, and native adapters that need stable GUI targets
-without coupling to host state. `SurfaceRuntime::automation_target_snapshot()`
-adds runtime-owned `AutomationTargetAuthority` evidence and schema version 2;
-the pure `GuiAutomationSnapshot::target_snapshot()` helper remains a
-read-only schema-version-1 flattening helper. Directional focus hints and
+without coupling to host state. Runtime `SurfaceRuntime::automation_snapshot()`
+uses schema version 3 for this staged-and-published tree.
+`SurfaceRuntime::automation_target_snapshot()`
+adds runtime-owned `AutomationTargetAuthority` evidence and schema version 3;
+the pure `GuiAutomationSnapshot::target_snapshot()` helper is a read-only
+schema-version-2 flattening helper. Runtime-owned split-pane automation reads
+consume only the committed crate-private divider projection: each valid
+projection publishes one `AutomationRole::Separator` directly between its
+split container's two content children. Its stable ID is
+`radiant:layout-target:<container-id>:<region-id-as-16-lowercase-hex>`, its
+value is the shortest round-tripping normalized `f32` ratio, and its metadata
+includes `orientation=horizontal` or `orientation=vertical`. The separator is
+enabled and materialized, but has no actions and no focus, selection, checked,
+read-only, or traversal behavior; its flattened `interaction_target` is false.
+The complete insertion set is preflighted, so stale, missing, malformed,
+ambiguous, colliding, or otherwise invalid evidence returns the unchanged
+ordinary snapshot without partial separator nodes. Directional focus hints and
 live-region values are backend-neutral hints only. Native platform adapters are
 separate future consumers of selected public semantic data, not the first
 consumer of the provider-backed session contract above; ordinary application
@@ -6522,14 +6535,18 @@ primary pointer capture drives the mounted ratio through the shared
 inert. A settled mapper is runtime-owned output only, not persistence: it emits
 once for a meaningful successful commit of the final finite normalized ratio,
 and remains silent for intermediate, no-op, cancelled, lost, incompatible,
-unmounted, static, and controlled interactions. Semantic/keyboard behavior and
-`VirtualLayoutPolicy` remain future work. Internally, the controller may retain
+unmounted, static, and controlled interactions. Passive separator semantics are
+published by the pure automation read above; separator focus, keyboard/action
+behavior, and `VirtualLayoutPolicy` remain future work. Internally, the
+controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the
 mounted-state commit. It is read-only evidence joining the exact
 `MountedContainerStateId` generation, existing divider `LayoutTargetIdentity`,
-axis, final clipped bounds, and finite normalized live ratio; it is not a
-public API or an authority for focus, key handling, paint, semantics,
-automation, relayout, provider/native calls, or application projection.
+axis, final clipped bounds, and finite normalized live ratio. The pure runtime
+automation compositor may consume that evidence for the passive separator
+publication above; it is not a public API or an authority for focus, key
+handling, actions, paint, relayout, provider/native calls, or application
+projection.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

@@ -151,9 +151,14 @@ new focused export leaf or a module split, not a formatting workaround.
   message reduction, and compatible same-identity reprojection retains the
   captured interaction and geometry authority. A crate-private
   `SplitPaneSeparatorProjection` is a post-commit read-only observation joining
-  only the exact committed mounted state to one valid clipped divider target;
-  it carries no interaction, focus, key, paint, relayout, message, semantic,
-  automation, native, or public-API authority.
+  only the exact committed mounted state to one valid clipped divider target.
+  The controller-owned pure automation compositor may consume it to publish one
+  passive backend-neutral `AutomationRole::Separator` between the split's two
+  direct content children, with the stable layout-target identity, exact clipped
+  bounds, normalized ratio value, and logical-axis orientation. The projection
+  itself carries no interaction, focus, key, paint, relayout, message, native,
+  or public-API authority; malformed or ambiguous evidence leaves the ordinary
+  snapshot unchanged.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

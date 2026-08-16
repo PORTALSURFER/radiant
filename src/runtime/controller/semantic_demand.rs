@@ -2990,7 +2990,7 @@ mod tests {
         );
         root.children.push(container);
         GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: 160,
             viewport_height: 80,
             root,

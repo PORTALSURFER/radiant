@@ -40,7 +40,7 @@ impl GuiAutomationSnapshot {
     /// Return a flattened, coordinate-bearing target snapshot.
     pub fn target_snapshot(&self) -> GuiAutomationTargetSnapshot {
         GuiAutomationTargetSnapshot {
-            schema_version: 1,
+            schema_version: 2,
             viewport_width: self.viewport_width,
             viewport_height: self.viewport_height,
             targets: self.root.automation_targets(),

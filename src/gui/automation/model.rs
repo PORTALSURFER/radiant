@@ -73,6 +73,8 @@ pub enum AutomationRole {
     Readout,
     /// Dialog or modal container.
     Dialog,
+    /// Non-interactive divider between two ordered content regions.
+    Separator,
     /// Custom widget or host-defined semantic surface.
     Custom,
 }

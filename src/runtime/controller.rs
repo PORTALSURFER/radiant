@@ -28,6 +28,7 @@ mod scratch;
 mod scroll;
 mod semantic_coordinate;
 mod semantic_demand;
+mod split_pane_semantics;
 mod split_pane_separator;
 mod state;
 mod timers;
@@ -179,6 +180,16 @@ where
 {
     pub(in crate::runtime) const fn runtime_identity(&self) -> u64 {
         self.effect_owner.id()
+    }
+
+    pub(in crate::runtime) fn compose_split_pane_automation_snapshot(
+        &self,
+        ordinary: &crate::gui::automation::GuiAutomationSnapshot,
+    ) -> crate::gui::automation::GuiAutomationSnapshot {
+        split_pane_semantics::compose_split_pane_automation_snapshot(
+            ordinary,
+            &self.traversal.containers.split_pane_separator_projections,
+        )
     }
 
     pub(crate) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {

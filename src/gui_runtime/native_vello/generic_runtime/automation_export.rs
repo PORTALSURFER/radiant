@@ -223,7 +223,7 @@ mod tests {
         let mut semantics = AutomationNodeSemantics::new(AutomationRole::Button).with_label(label);
         semantics.focusable = true;
         GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: 320,
             viewport_height: 120,
             root: crate::gui::automation::AutomationNodeSnapshot::from_semantics(

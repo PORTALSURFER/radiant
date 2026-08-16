@@ -90,13 +90,15 @@ impl FrameStageIdentity {
 }
 
 /// Payload for one selected deadline bundle.  It is never returned by
-/// readiness queries.
+/// readiness queries.  The repaint and timed-frame bits are independent so a
+/// pure repaint does not need fabricated animation or caret evidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct TimedFrame {
     due_at: Instant,
     animation_activity: RuntimeAnimationActivity,
     needs_text_caret_animation: bool,
     advance_timed_repaint: bool,
+    drain_timed_frame: bool,
 }
 
 impl TimedFrame {
@@ -106,26 +108,33 @@ impl TimedFrame {
         animation_activity: RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
     ) -> Self {
-        Self::with_timed_repaint(
+        Self::with_operations(
             due_at,
             animation_activity,
             needs_text_caret_animation,
             false,
+            true,
         )
     }
 
-    pub(super) const fn with_timed_repaint(
+    pub(super) const fn with_operations(
         due_at: Instant,
         animation_activity: RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
         advance_timed_repaint: bool,
+        drain_timed_frame: bool,
     ) -> Self {
         Self {
             due_at,
             animation_activity,
             needs_text_caret_animation,
             advance_timed_repaint,
+            drain_timed_frame,
         }
+    }
+
+    pub(super) const fn timed_repaint(due_at: Instant) -> Self {
+        Self::with_operations(due_at, RuntimeAnimationActivity::idle(), false, true, false)
     }
 
     #[cfg(test)]
@@ -145,6 +154,10 @@ impl TimedFrame {
         self.advance_timed_repaint
     }
 
+    pub(super) const fn drain_timed_frame(self) -> bool {
+        self.drain_timed_frame
+    }
+
     fn is_due(self, now: Instant) -> bool {
         self.due_at <= now
     }
@@ -158,7 +171,8 @@ impl TimedFrame {
             },
             animation_activity: newer.animation_activity,
             needs_text_caret_animation: newer.needs_text_caret_animation,
-            advance_timed_repaint: newer.advance_timed_repaint,
+            advance_timed_repaint: self.advance_timed_repaint || newer.advance_timed_repaint,
+            drain_timed_frame: self.drain_timed_frame || newer.drain_timed_frame,
         }
     }
 }
@@ -605,7 +619,7 @@ mod tests {
     }
 
     fn frame_with_timed_repaint(due_at: Instant, caret: bool) -> TimedFrame {
-        TimedFrame::with_timed_repaint(
+        TimedFrame::with_operations(
             due_at,
             if caret {
                 RuntimeAnimationActivity::frame_messages()
@@ -614,7 +628,45 @@ mod tests {
             },
             caret,
             true,
+            true,
         )
+    }
+
+    #[test]
+    fn deadline_owner_coalesces_repaint_and_frame_operations_independently() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let exact = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        assert!(owner.queue(
+            exact.clone(),
+            TimedFrame::timed_repaint(now + Duration::from_millis(10)),
+        ));
+        assert!(owner.queue(
+            exact.clone(),
+            TimedFrame::new(
+                now + Duration::from_millis(20),
+                RuntimeAnimationActivity::frame_messages(),
+                true,
+            ),
+        ));
+
+        let payload = owner
+            .begin(&exact, now + Duration::from_millis(10))
+            .expect("coalesced payload should use the earliest due time");
+        assert_eq!(payload.due_at(), now + Duration::from_millis(10));
+        assert!(payload.advance_timed_repaint());
+        assert!(payload.drain_timed_frame());
+        assert!(payload.needs_text_caret_animation());
+        assert!(complete(&mut owner, &exact));
     }
 
     fn complete(owner: &mut WindowStageOwner, identity: &FrameStageIdentity) -> bool {
@@ -1071,6 +1123,45 @@ mod tests {
         ));
         assert!(owner.has_in_flight());
         assert!(owner.complete(&exact, now, now + Duration::from_millis(1)));
+    }
+
+    #[test]
+    fn checked_revision_and_generation_exhaustion_veto_without_payload_release() {
+        let now = Instant::now();
+        let mut revision_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        revision_owner.next_revision = u64::MAX;
+        assert_eq!(revision_owner.next_revision(), None);
+        assert!(revision_owner.revision_exhausted);
+        assert!(revision_owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let generation_identity = FrameStageIdentity::new(
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision_owner.owner_generation(),
+            u64::MAX,
+        );
+        assert!(!revision_owner.queue(generation_identity, TimedFrame::timed_repaint(now),));
+        assert_eq!(revision_owner.next_ready_stage(now), NextReadyStage::None);
+
+        let mut generation_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(generation_owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = generation_owner.next_revision().expect("revision");
+        let identity = identity(
+            &generation_owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        assert!(generation_owner.queue(identity, TimedFrame::timed_repaint(now)));
+        generation_owner.owner_generation = u64::MAX;
+        generation_owner.invalidate();
+        assert!(generation_owner.generation_exhausted);
+        assert!(!generation_owner.has_in_flight());
+        assert_eq!(generation_owner.next_ready_stage(now), NextReadyStage::None);
+        assert!(!generation_owner.prepare_fence(adapter(2), target(2), SchedulerStage::Deadline));
     }
 
     #[test]

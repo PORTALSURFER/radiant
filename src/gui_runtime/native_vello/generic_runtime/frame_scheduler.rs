@@ -471,6 +471,18 @@ where
             });
         }
 
+        if !bundle.drain_timed_frame() {
+            return DeadlineBundleExecution {
+                admission: FrameScheduleAdmission {
+                    outcome: GenericRouteOutcome::default(),
+                    route_outcome: false,
+                    did_work: true,
+                    timed_frame_already_handled: false,
+                },
+                drain_deferred: false,
+            };
+        }
+
         let drain_deferred =
             repaint_advanced && self.should_defer_timed_frame_drain_for_pending_redraw(now);
         let admission = if drain_deferred {
@@ -551,6 +563,9 @@ where
                 };
             }
             runner.frame_stage_owner.invalidate();
+            if !selected_payload.drain_timed_frame() {
+                return FrameScheduleAdmission::default();
+            }
             runner
                 .execute_deadline_bundle(now, selected_payload)
                 .admission
@@ -644,6 +659,7 @@ where
         adapter_generation: Option<NativeAdapterGeneration>,
     ) -> FrameScheduleAdmission {
         if !self.is_running() {
+            self.frame_stage_owner.invalidate();
             return FrameScheduleAdmission::default();
         }
         let work = demand.work(now);
@@ -661,6 +677,19 @@ where
         if work.is_empty() {
             return FrameScheduleAdmission::default();
         }
+        if work.advance_timed_repaint
+            && !work.drain_timed_frame
+            && !work.reissue_pending_redraw
+            && let Some(due_at) = demand.timed_repaint_deadline
+        {
+            return self.admit_timed_frame_deadline(
+                now,
+                demand.key().clone(),
+                adapter_generation,
+                self.window.target_generation,
+                TimedFrame::timed_repaint(due_at),
+            );
+        }
         if work.drain_timed_frame
             && !work.reissue_pending_redraw
             && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
@@ -670,11 +699,12 @@ where
                 demand.key().clone(),
                 adapter_generation,
                 self.window.target_generation,
-                TimedFrame::with_timed_repaint(
+                TimedFrame::with_operations(
                     due_at,
                     demand.animation_activity(),
                     demand.needs_text_caret_animation(),
                     work.advance_timed_repaint,
+                    work.drain_timed_frame,
                 ),
             );
         }
@@ -798,6 +828,25 @@ mod tests {
             false,
             FrameScheduleRedrawEvidence {
                 timed_repaint_deadline: Some(due_at),
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        )
+    }
+
+    fn pure_timed_repaint_demand(
+        key: FrameScheduleKey,
+        timed_repaint_deadline: Instant,
+    ) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            TimedFrameCadence::Idle,
+            60,
+            // These fields deliberately carry animation/caret evidence to
+            // prove that pure repaint ownership does not deliver either one.
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+            FrameScheduleRedrawEvidence {
+                timed_repaint_deadline: Some(timed_repaint_deadline),
                 ..FrameScheduleRedrawEvidence::default()
             },
         )
@@ -1007,6 +1056,197 @@ mod tests {
             "the selected scheduled outcome must not invoke route-time merge"
         );
         assert_eq!(runner.timing.last_timed_frame_drain, drained_at);
+    }
+
+    #[test]
+    fn selected_primary_pure_timed_repaint_uses_exact_owner_without_frame_drain() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let admission = runner.admit_frame_schedule_work(
+            now,
+            &pure_timed_repaint_demand(FrameScheduleKey::Primary, due_at),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(!admission.timed_frame_already_handled);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.core.timed_repaint_deadline(), None);
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("pure repaint completion should remain owner evidence");
+        assert!(completed.advance_timed_repaint());
+        assert!(!completed.drain_timed_frame());
+        assert!(!completed.animation_activity().needs_frame_message());
+        assert!(!completed.needs_text_caret_animation());
+    }
+
+    #[test]
+    fn selected_auxiliary_pure_timed_repaint_uses_exact_owner_without_frame_drain() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+            String::from("settings"),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+
+        let admission = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &pure_timed_repaint_demand(key, due_at),
+            adapter_generation,
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(!admission.timed_frame_already_handled);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("auxiliary pure repaint completion should remain owner evidence");
+        assert!(completed.advance_timed_repaint());
+        assert!(!completed.drain_timed_frame());
+        assert!(!completed.animation_activity().needs_frame_message());
+        assert!(!completed.needs_text_caret_animation());
+    }
+
+    #[test]
+    fn pure_timed_repaint_adapter_and_target_vetoes_do_not_release_payload() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let demand = pure_timed_repaint_demand(FrameScheduleKey::Primary, due_at);
+        runner.window.target_generation.advance();
+
+        let missing_adapter = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(missing_adapter, FrameScheduleAdmission::default());
+        assert_eq!(repaint_advance_calls.get(), 0);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::unknown(),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let unknown_adapter = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(unknown_adapter, FrameScheduleAdmission::default());
+        assert_eq!(repaint_advance_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        runner.window.target_generation.invalidate_unknown();
+        let unknown_target = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(unknown_target, FrameScheduleAdmission::default());
+        assert_eq!(repaint_advance_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+    }
+
+    #[test]
+    fn lifecycle_recovery_veto_cancels_retained_owner_without_release() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let target_generation = runner.window.target_generation;
+        assert!(runner.frame_stage_owner.prepare_fence(
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+        ));
+        let revision = runner
+            .frame_stage_owner
+            .next_revision()
+            .expect("retained revision");
+        let identity = FrameStageIdentity::new(
+            FrameScheduleKey::Primary,
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Deadline,
+            runner.frame_stage_owner.owner_generation(),
+            revision,
+        );
+        assert!(
+            runner
+                .frame_stage_owner
+                .queue(identity, TimedFrame::timed_repaint(Instant::now()),)
+        );
+        let owner_generation = runner.frame_stage_owner.owner_generation();
+        assert!(runner.admit_device_recovery());
+
+        let demand = pure_timed_repaint_demand(FrameScheduleKey::Primary, Instant::now());
+        let admission = runner.admit_frame_schedule_work(Instant::now(), &demand);
+
+        assert_eq!(admission, FrameScheduleAdmission::default());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert_eq!(
+            runner.frame_stage_owner.next_ready_stage(Instant::now()),
+            NextReadyStage::None
+        );
+        assert!(runner.frame_stage_owner.owner_generation() > owner_generation);
+        assert!(runner.finish_device_recovery());
+    }
+
+    #[test]
+    fn pure_timed_repaint_without_change_does_not_rebuild_or_drain() {
+        let mut runner = auxiliary_runner();
+        runner.window.target_generation.advance();
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let admission = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &pure_timed_repaint_demand(key, now),
+            NativeAdapterGeneration::from_test_serial(1),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert!(!runner.timing.redraw_requested);
+        assert!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .is_some_and(|bundle| {
+                    bundle.advance_timed_repaint() && !bundle.drain_timed_frame()
+                })
+        );
     }
 
     #[test]

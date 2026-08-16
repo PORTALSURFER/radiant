@@ -6481,7 +6481,8 @@ other app-owned systems. Host applications map product-specific copy into these
 slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
-`SplitPaneAxis`, `SplitPaneLayout`, `SplitPaneLayoutParts`, `SplitPaneSlot`,
+`SplitPaneAxis`, `SplitPaneCollapsePolicy`, `SplitPaneLayout`,
+`SplitPaneLayoutParts`, `SplitPaneSlot`,
 `SplitPaneAssignmentState`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
 `SplitPaneSidebarState`, plus `anchored_panel_rect`
 for clamped popup/panel placement and `PanelResizeState` with
@@ -6508,7 +6509,10 @@ export accept `.axis(...)`, `.initial_ratio(...)`, `.min_first(...)`,
 `.runtime_owned_ratio()` and
 `.controlled_ratio(radiant::layout::Controlled::new(value, generation))`
 opt-ins, plus the additive `.on_ratio_settled(|ratio| Message::Settled(ratio))`
-output mapper. It lowers exactly two ordered children through a dedicated
+output mapper and `.collapse_policy(SplitPaneCollapsePolicy::FirstPane)` or
+`.collapse_policy(SplitPaneCollapsePolicy::SecondPane)`. The collapse option is
+inert unless runtime-owned ratio mode is selected. It lowers exactly two
+ordered children through a dedicated
 `ContainerKind::SplitPane` policy and keeps the existing `SplitPanePolicy`
 fields and defaults source-compatible. The static form owns no runtime ratio,
 pointer, focus, hit-region, capability, or semantic state. Runtime-owned mode
@@ -6533,12 +6537,25 @@ projected targets. Runtime-owned splits with a positive resolved divider expose
 one clipped built-in divider target matching the quantized child geometry;
 primary pointer capture drives the mounted ratio through the shared
 `PanelResizeState` lifecycle, while static and controlled-ratio splits remain
-inert. A settled mapper is runtime-owned output only, not persistence: it emits
-once for a meaningful successful commit of the final finite normalized ratio,
-and remains silent for intermediate, no-op, cancelled, lost, incompatible,
-unmounted, static, and controlled interactions. Passive separator semantics are
-published by the pure automation read above; separator focus, keyboard/action
-behavior, and `VirtualLayoutPolicy` remain future work. Internally, the
+inert. A collapse policy makes an admitted primary divider double activation
+resolve the selected pane to its authoritative declared minimum through the
+same current viewport, divider extent, opposite minimum, quantization, and
+undersized fallback rules as `SplitPaneLayout`; the next accepted activation
+restores the last finite normalized expanded ratio, including the latest
+committed drag ratio. Active drags, invalid or stale evidence, no-ops, missing
+or unavailable capacity, incompatible state, unmount, static mode, and
+controlled mode are inert. Meaningful collapse and restore mutate mounted
+state, request the existing runtime/layout work, and then map exactly one
+settled ratio after cleanup. A settled mapper is runtime-owned output only, not
+persistence: it emits once for a meaningful successful drag commit or discrete
+collapse/restore of the final finite normalized ratio, and remains silent for
+intermediate, no-op, cancelled, lost, incompatible, unmounted, static, and
+controlled interactions. Passive separator semantics are published by the pure
+automation read above; they remain non-focusable, actionless, non-interactive,
+and native-omitted. Separator focus ownership, Tab/spatial traversal,
+keyboard/arrow-key resizing, semantic actions, native adapters,
+paint/cursor/renderer behavior, and `VirtualLayoutPolicy` remain future work.
+Internally, the
 controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the
 mounted-state commit. It is read-only evidence joining the exact

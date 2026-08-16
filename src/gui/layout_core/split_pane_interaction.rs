@@ -3,14 +3,15 @@
 use super::{
     ContainerStateDeclaration, LayoutCapabilities, LayoutContainerStateContext, LayoutEventContext,
     LayoutHitRegionId, LayoutInput, LayoutInteraction, LayoutInteractionRevision, NodeId,
-    SplitPanePolicy, SplitPaneRuntimeMode, SplitPaneRuntimeOwnership, SplitPaneRuntimeState,
-    SplitPaneRuntimeStateInput,
+    SplitPanePolicy, SplitPaneRuntimeMode, SplitPaneRuntimeOwnership,
+    SplitPaneRuntimePolicyRevision, SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
 };
 use crate::{
     gui::{
         panel::{
-            PanelResizeConstraints, PanelResizeEdge, SplitPaneAxis, SplitPaneLayout,
-            SplitPaneLayoutParts,
+            PanelResizeConstraints, PanelResizeEdge, SplitPaneAxis, SplitPaneCollapsePolicy,
+            SplitPaneCollapseTarget, SplitPaneLayout, SplitPaneLayoutParts,
+            quantized_split_pane_rects, split_pane_collapse_target,
         },
         types::{Point, Rect},
     },
@@ -73,41 +74,23 @@ pub(crate) struct SplitPaneCaptureWitness {
     pub(crate) divider_extent: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SplitPaneRevision {
-    axis: SplitPaneAxis,
-    initial_ratio: u32,
-    divider_extent: u32,
-    first_min_extent: u32,
-    second_min_extent: u32,
-}
-
-impl SplitPaneRevision {
-    fn from_policy(policy: SplitPanePolicy) -> Self {
-        Self {
-            axis: policy.axis,
-            initial_ratio: policy.initial_ratio.to_bits(),
-            divider_extent: policy.divider_extent.to_bits(),
-            first_min_extent: policy.first_min_extent.to_bits(),
-            second_min_extent: policy.second_min_extent.to_bits(),
-        }
-    }
-}
-
 pub(crate) struct SplitPaneDividerInteraction<Message> {
     policy: SplitPanePolicy,
     initial_ratio: f32,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
     on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
 }
 
 impl<Message> SplitPaneDividerInteraction<Message> {
     pub(crate) fn new(
         policy: SplitPanePolicy,
+        collapse_policy: Option<SplitPaneCollapsePolicy>,
         on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
     ) -> Self {
         Self {
             policy,
             initial_ratio: policy.initial_ratio,
+            collapse_policy,
             on_ratio_settled,
         }
     }
@@ -115,21 +98,29 @@ impl<Message> SplitPaneDividerInteraction<Message> {
 
 pub(crate) fn runtime_owned_split_pane_capabilities<Message: 'static>(
     policy: SplitPanePolicy,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
 ) -> LayoutCapabilities<Message> {
-    runtime_owned_split_pane_capabilities_with_ratio_settled(policy, None)
+    runtime_owned_split_pane_capabilities_with_ratio_settled(policy, collapse_policy, None)
 }
 
 pub(crate) fn runtime_owned_split_pane_capabilities_with_ratio_settled<Message: 'static>(
     policy: SplitPanePolicy,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
     on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
 ) -> LayoutCapabilities<Message> {
-    LayoutCapabilities::new()
-        .interaction_local(SplitPaneDividerInteraction::new(policy, on_ratio_settled))
+    LayoutCapabilities::new().interaction_local(SplitPaneDividerInteraction::new(
+        policy,
+        collapse_policy,
+        on_ratio_settled,
+    ))
 }
 
 impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message> {
     fn revision(&self) -> LayoutInteractionRevision {
-        LayoutInteractionRevision::exact(SplitPaneRevision::from_policy(self.policy))
+        LayoutInteractionRevision::exact(SplitPaneRuntimePolicyRevision::new(
+            self.policy,
+            self.collapse_policy,
+        ))
     }
 
     fn state(&self, container_id: NodeId) -> Option<ContainerStateDeclaration> {
@@ -137,7 +128,13 @@ impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message
             SplitPaneRuntimeStateInput {
                 container_id,
                 initial_ratio: self.initial_ratio,
-                mode: SplitPaneRuntimeMode::RuntimeOwned,
+                mode: SplitPaneRuntimeMode::RuntimeOwned {
+                    collapse_policy: self.collapse_policy,
+                },
+                policy_revision: SplitPaneRuntimePolicyRevision::new(
+                    self.policy,
+                    self.collapse_policy,
+                ),
             }
             .declaration(),
         )
@@ -231,6 +228,7 @@ impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message
                 );
                 if let Some(event) = event.filter(|event| event.phase == EditPhase::Commit) {
                     state.ratio = event.value;
+                    remember_expanded_ratio(state, context, self.policy, self.collapse_policy);
                     context.handle();
                     context.release_pointer();
                     if changed {
@@ -245,6 +243,35 @@ impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message
                     }
                 }
             }
+            LayoutInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } => {
+                let Some(collapse_policy) = self.collapse_policy else {
+                    return;
+                };
+                if state.resize.is_resizing()
+                    || ratio_for_pointer(position, context, self.policy).is_none()
+                {
+                    return;
+                }
+                let Some(ratio) = toggle_split_pane_collapse(
+                    state,
+                    context,
+                    self.policy,
+                    collapse_policy,
+                    constraints,
+                ) else {
+                    return;
+                };
+                context.handle();
+                context.request_work();
+                if let Some(map) = &self.on_ratio_settled {
+                    context.emit_message(map(ratio));
+                }
+            }
+            LayoutInput::PointerDoubleClick { .. } => {}
             LayoutInput::PointerCaptureCancelled { position, .. } => {
                 if !state.resize.is_resizing() {
                     return;
@@ -264,10 +291,154 @@ impl<Message> LayoutInteraction<Message> for SplitPaneDividerInteraction<Message
             }
             LayoutInput::PointerPress { .. }
             | LayoutInput::PointerRelease { .. }
-            | LayoutInput::PointerDoubleClick { .. }
             | LayoutInput::PointerModifiersChanged { .. } => {}
         }
     }
+}
+
+fn toggle_split_pane_collapse<Message>(
+    state: &mut SplitPaneRuntimeState,
+    context: &LayoutEventContext<Message>,
+    policy: SplitPanePolicy,
+    collapse_policy: SplitPaneCollapsePolicy,
+    constraints: PanelResizeConstraints,
+) -> Option<f32> {
+    let target = collapse_target(context, policy, collapse_policy)?;
+    let current_collapsed = state.collapsed_policy == Some(collapse_policy);
+    let next_ratio = if current_collapsed {
+        let expanded = state
+            .last_expanded_ratio
+            .filter(|ratio| ratio.is_finite() && (0.0..=1.0).contains(ratio))?;
+        ratio_is_expanded(context, policy, collapse_policy, expanded).then_some(expanded)?
+    } else {
+        let current_extent = current_selected_extent(context, policy.axis, collapse_policy)?;
+        if current_extent <= target.selected_extent
+            || !state.ratio.is_finite()
+            || !(0.0..=1.0).contains(&state.ratio)
+        {
+            return None;
+        }
+        target.ratio
+    };
+    if next_ratio.to_bits() == state.ratio.to_bits() {
+        return None;
+    }
+
+    if !current_collapsed {
+        state.last_expanded_ratio = Some(state.ratio);
+        state.collapsed_policy = Some(collapse_policy);
+    } else {
+        state.collapsed_policy = None;
+    }
+    state.resize.set_size(next_ratio, constraints);
+    state.ratio = next_ratio;
+    Some(next_ratio)
+}
+
+fn remember_expanded_ratio<Message>(
+    state: &mut SplitPaneRuntimeState,
+    context: &LayoutEventContext<Message>,
+    policy: SplitPanePolicy,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
+) {
+    let Some(collapse_policy) = collapse_policy else {
+        return;
+    };
+    let Some(target) = collapse_target(context, policy, collapse_policy) else {
+        return;
+    };
+    let Some(selected_extent) =
+        ratio_selected_extent(context, policy, collapse_policy, state.ratio)
+    else {
+        return;
+    };
+    if selected_extent > target.selected_extent {
+        state.last_expanded_ratio = Some(state.ratio);
+        state.collapsed_policy = None;
+    } else if selected_extent.to_bits() == target.selected_extent.to_bits() {
+        state.collapsed_policy = Some(collapse_policy);
+    }
+}
+
+fn collapse_target(
+    context: &LayoutEventContext<impl Sized>,
+    policy: SplitPanePolicy,
+    collapse_policy: SplitPaneCollapsePolicy,
+) -> Option<SplitPaneCollapseTarget> {
+    let bounds = context.container_bounds()?;
+    if !bounds.has_finite_positive_area() || !context.divider_bounds()?.has_finite_positive_area() {
+        return None;
+    }
+    split_pane_collapse_target(
+        SplitPaneLayoutParts {
+            bounds,
+            axis: policy.axis,
+            ratio: policy.initial_ratio,
+            divider_extent: policy.divider_extent,
+            first_min_extent: policy.first_min_extent,
+            second_min_extent: policy.second_min_extent,
+        },
+        collapse_policy,
+    )
+}
+
+fn current_selected_extent(
+    context: &LayoutEventContext<impl Sized>,
+    axis: SplitPaneAxis,
+    collapse_policy: SplitPaneCollapsePolicy,
+) -> Option<f32> {
+    let bounds = context.container_bounds()?;
+    let divider = context.divider_bounds()?;
+    if !bounds.is_finite() || !divider.is_finite() {
+        return None;
+    }
+    let (first, second) = match axis {
+        SplitPaneAxis::Horizontal => (divider.min.x - bounds.min.x, bounds.max.x - divider.max.x),
+        SplitPaneAxis::Vertical => (divider.min.y - bounds.min.y, bounds.max.y - divider.max.y),
+    };
+    (first.is_finite() && second.is_finite()).then_some(match collapse_policy {
+        SplitPaneCollapsePolicy::FirstPane => first,
+        SplitPaneCollapsePolicy::SecondPane => second,
+    })
+}
+
+fn ratio_is_expanded(
+    context: &LayoutEventContext<impl Sized>,
+    policy: SplitPanePolicy,
+    collapse_policy: SplitPaneCollapsePolicy,
+    ratio: f32,
+) -> bool {
+    if !ratio.is_finite() || !(0.0..=1.0).contains(&ratio) {
+        return false;
+    }
+    let Some(target) = collapse_target(context, policy, collapse_policy) else {
+        return false;
+    };
+    ratio_selected_extent(context, policy, collapse_policy, ratio)
+        .is_some_and(|selected_extent| selected_extent > target.selected_extent)
+}
+
+fn ratio_selected_extent(
+    context: &LayoutEventContext<impl Sized>,
+    policy: SplitPanePolicy,
+    collapse_policy: SplitPaneCollapsePolicy,
+    ratio: f32,
+) -> Option<f32> {
+    let bounds = context.container_bounds()?;
+    let resolved = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        bounds,
+        axis: policy.axis,
+        ratio,
+        divider_extent: policy.divider_extent,
+        first_min_extent: policy.first_min_extent,
+        second_min_extent: policy.second_min_extent,
+    });
+    let (first, _divider, second) = quantized_split_pane_rects(resolved);
+    let selected_extent = match collapse_policy {
+        SplitPaneCollapsePolicy::FirstPane => axis_extent(first, policy.axis),
+        SplitPaneCollapsePolicy::SecondPane => axis_extent(second, policy.axis),
+    };
+    selected_extent.is_finite().then_some(selected_extent)
 }
 
 fn ratio_for_pointer(

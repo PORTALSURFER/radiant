@@ -61,6 +61,60 @@ fn application_split_pane_defaults_match_the_shared_geometry_contract() {
 }
 
 #[test]
+fn application_split_pane_collapse_policy_is_additive_and_runtime_owned() {
+    use radiant::{layout::SplitPaneCollapsePolicy, prelude as ui, prelude::IntoView};
+
+    let static_view: ui::View<()> = ui::split_pane(ui::text("First"), ui::text("Second"))
+        .initial_ratio(0.25)
+        .collapse_policy(SplitPaneCollapsePolicy::SecondPane)
+        .into_view();
+    let static_surface = static_view.into_surface();
+    let static_node = static_surface.layout_node();
+    let static_layout = layout_tree(
+        &static_node,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+    );
+    assert!(static_layout.rects.values().all(|rect| rect.is_finite()));
+
+    let controlled_view: ui::View<()> = ui::split_pane(ui::text("First"), ui::text("Second"))
+        .controlled_ratio(radiant::layout::Controlled::new(0.75, 1))
+        .collapse_policy(SplitPaneCollapsePolicy::FirstPane)
+        .into_view();
+    let controlled_surface = controlled_view.into_surface();
+    let controlled_bridge = radiant::runtime::declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| crate::arc_surface(controlled_surface.clone()),
+        |_state: &mut (), _message: ()| {},
+    );
+    let controlled_runtime =
+        radiant::runtime::SurfaceRuntime::new(controlled_bridge, Vector2::new(200.0, 80.0));
+    assert_eq!(
+        controlled_runtime.layout_target_at(Point::new(152.0, 40.0)),
+        None
+    );
+
+    let runtime_view: ui::View<()> = ui::split_pane(ui::text("First"), ui::text("Second"))
+        .initial_ratio(0.25)
+        .divider_extent(8.0)
+        .collapse_policy(SplitPaneCollapsePolicy::FirstPane)
+        .runtime_owned_ratio()
+        .into_view();
+    let runtime_surface = runtime_view.into_surface();
+    let runtime_node = runtime_surface.layout_node();
+    let bridge = radiant::runtime::declarative_runtime_bridge(
+        (),
+        move |_state: &mut ()| crate::arc_surface(runtime_surface.clone()),
+        |_state: &mut (), _message: ()| {},
+    );
+    let runtime = radiant::runtime::SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    assert!(runtime.layout_target_at(Point::new(52.0, 40.0)).is_some());
+    let radiant::layout::LayoutNode::Container(container) = runtime_node else {
+        panic!("runtime split should lower to a container");
+    };
+    assert_eq!(container.children.len(), 2);
+}
+
+#[test]
 fn application_split_pane_runtime_ratio_opt_ins_keep_static_policy_and_fallback_geometry() {
     use radiant::{layout::Controlled, prelude as ui, prelude::IntoView};
 

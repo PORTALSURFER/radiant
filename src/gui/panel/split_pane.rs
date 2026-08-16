@@ -14,7 +14,10 @@ pub use assigned_row::{
     SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
 };
 pub(crate) use geometry::sanitized_split_pane_ratio;
-pub use geometry::{SplitPaneAxis, SplitPaneLayout, SplitPaneLayoutParts};
+pub use geometry::{SplitPaneAxis, SplitPaneCollapsePolicy, SplitPaneLayout, SplitPaneLayoutParts};
+pub(crate) use geometry::{
+    SplitPaneCollapseTarget, quantized_split_pane_rects, split_pane_collapse_target,
+};
 pub use sidebar_state::{
     SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
     SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls,

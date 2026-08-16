@@ -6,7 +6,8 @@ use crate::gui::layout_core::{
     Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, ContainerStateId, Controlled,
     DebugPrimitiveKind, Insets, LayoutNode, MountedContainerStateId, MountedContainerStateRead,
     NodeId, SizeModeCross, SizeModeMain, SlotChild, SlotParams, SplitPaneAxis, SplitPanePolicy,
-    SplitPaneRuntimeMode, SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
+    SplitPaneRuntimeMode, SplitPaneRuntimePolicyRevision, SplitPaneRuntimeState,
+    SplitPaneRuntimeStateInput,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 use std::cell::RefCell;
@@ -91,7 +92,14 @@ fn split_runtime_state(mode: SplitPaneRuntimeMode, initial_ratio: f32) -> SplitP
         container_id: SPLIT_ID,
         initial_ratio,
         mode,
+        policy_revision: SplitPaneRuntimePolicyRevision::default(),
     })
+}
+
+fn runtime_owned_mode() -> SplitPaneRuntimeMode {
+    SplitPaneRuntimeMode::RuntimeOwned {
+        collapse_policy: None,
+    }
 }
 
 fn measured_debug_primitives(output: &LayoutOutput) -> Vec<(NodeId, Rect)> {
@@ -694,7 +702,7 @@ fn stateful_split_ratio_changes_placement_without_changing_measurement() {
             child(2, Vector2::new(10.0, 20.0)),
             child(3, Vector2::new(20.0, 30.0)),
         ],
-        SplitPaneRuntimeMode::RuntimeOwned,
+        runtime_owned_mode(),
     );
     let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
     let mounted_id = MountedContainerStateId::new(
@@ -705,7 +713,7 @@ fn stateful_split_ratio_changes_placement_without_changing_measurement() {
     let mut output = LayoutOutput::default();
     let first_source = SplitRuntimeSource {
         mounted_id,
-        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.75),
+        state: split_runtime_state(runtime_owned_mode(), 0.75),
         reads: RefCell::new(Vec::new()),
     };
 
@@ -727,7 +735,7 @@ fn stateful_split_ratio_changes_placement_without_changing_measurement() {
 
     let fresh_second_source = SplitRuntimeSource {
         mounted_id,
-        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.2),
+        state: split_runtime_state(runtime_owned_mode(), 0.2),
         reads: RefCell::new(Vec::new()),
     };
     let mut fresh_engine = LayoutEngine::default();
@@ -748,7 +756,7 @@ fn stateful_split_ratio_changes_placement_without_changing_measurement() {
 
     let second_source = SplitRuntimeSource {
         mounted_id,
-        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.2),
+        state: split_runtime_state(runtime_owned_mode(), 0.2),
         reads: RefCell::new(Vec::new()),
     };
     engine.layout_with_state_and_source_into(
@@ -799,7 +807,7 @@ fn controlled_split_uses_controlled_slot_and_falls_back_on_ownership_mismatch() 
 
     let mismatched = SplitRuntimeSource {
         mounted_id,
-        state: split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.9),
+        state: split_runtime_state(runtime_owned_mode(), 0.9),
         reads: RefCell::new(Vec::new()),
     };
     let fallback = layout_with_optional_source(&root, viewport, Some(&mismatched));
@@ -815,7 +823,7 @@ fn stateful_split_missing_wrong_and_invalid_state_fail_closed_to_policy_ratio() 
             child(2, Vector2::new(10.0, 20.0)),
             child(3, Vector2::new(20.0, 30.0)),
         ],
-        SplitPaneRuntimeMode::RuntimeOwned,
+        runtime_owned_mode(),
     );
     let viewport = root_rect(0.0, 0.0, 100.0, 40.0);
     let fallback = layout_tree(&split_node(policy, root_children(&root)), viewport);
@@ -828,7 +836,7 @@ fn stateful_split_missing_wrong_and_invalid_state_fail_closed_to_policy_ratio() 
     assert_eq!(missing.rects[&2], fallback.rects[&2]);
     assert_eq!(missing.rects[&3], fallback.rects[&3]);
 
-    let mut invalid_state = split_runtime_state(SplitPaneRuntimeMode::RuntimeOwned, 0.25);
+    let mut invalid_state = split_runtime_state(runtime_owned_mode(), 0.25);
     invalid_state.ratio = f32::NAN;
     let invalid_source = SplitRuntimeSource {
         mounted_id,

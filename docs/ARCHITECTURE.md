@@ -146,6 +146,15 @@ new focused export leaf or a module split, not a formatting workaround.
   the split-pane runtime/controlled ratio projection consumes that slot without
   broadening global capability semantics, while the runtime-owned divider
   capability and controller capture remain private to split-pane lowering. Its
+  optional collapse policy is carried alongside the split layout/lowering
+  interaction state rather than public `SplitPanePolicy`; the private mounted
+  state schema includes bounded last-expanded-ratio evidence. An admitted
+  divider double activation is a discrete runtime command that reuses the
+  authoritative split resolver and quantization, mutates the mounted state
+  before requesting existing layout work, and restores only a finite expanded
+  ratio retained by the same compatible mounted identity. Policy/mode/schema
+  incompatibility, unmount, stale evidence, and unavailable state retire that
+  restore authority. The
   optional settled-ratio mapper is lowering-owned output: the controller
   completes mounted state mutation and terminal capture cleanup before host
   message reduction, and compatible same-identity reprojection retains the
@@ -158,7 +167,10 @@ new focused export leaf or a module split, not a formatting workaround.
   bounds, normalized ratio value, and logical-axis orientation. The projection
   itself carries no interaction, focus, key, paint, relayout, message, native,
   or public-API authority; malformed or ambiguous evidence leaves the ordinary
-  snapshot unchanged.
+  snapshot unchanged. The shipped collapse boundary does not add focus
+  ownership, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
+  actions, native adapters, or paint/cursor/renderer work; those remain future
+  slices.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

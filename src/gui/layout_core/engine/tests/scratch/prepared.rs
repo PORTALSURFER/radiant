@@ -5,8 +5,8 @@ use crate::gui::{
         constraints::Constraints,
         engine::{
             LayoutAuthorityEvidence, LayoutContainerStateReadSource, LayoutDebugOptions,
-            LayoutEngine, LayoutInputEvidence, LayoutOutput, LayoutState,
-            LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
+            LayoutEngine, LayoutInputEvidence, LayoutOutput, LayoutPreparationWorkspaceCapacities,
+            LayoutState, LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
             PreparedLayoutCommitError, RootLayoutAuthorityOwner,
         },
         model::{ContainerKind, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams},
@@ -275,6 +275,14 @@ fn prepare_with_source(
     )
 }
 
+fn workspace_capacities_of(engine: &LayoutEngine) -> LayoutPreparationWorkspaceCapacities {
+    engine
+        .preparation_workspace
+        .as_ref()
+        .map(|workspace| workspace.capacities())
+        .unwrap_or_default()
+}
+
 fn commit(
     engine: &mut LayoutEngine,
     prepared: super::super::super::PreparedLayoutPass,
@@ -294,6 +302,26 @@ fn commit_with_evidence(
     current_input_evidence: LayoutInputEvidence,
 ) -> Result<(), PreparedLayoutCommitError> {
     prepared.commit(engine, output, current_input_evidence)
+}
+
+#[test]
+fn direct_layout_does_not_initialize_preparation_workspace() {
+    let root = ordinary_root();
+    let mut engine = LayoutEngine::default();
+
+    assert!(engine.preparation_workspace.is_none());
+    let _ = engine.layout(&root, viewport());
+    assert!(engine.preparation_workspace.is_none());
+
+    let prepared = prepare(
+        &mut engine,
+        &root,
+        viewport(),
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+    );
+    assert!(engine.preparation_workspace.is_some());
+    drop(prepared);
 }
 
 fn assert_input_evidence_veto(
@@ -317,7 +345,7 @@ fn assert_input_evidence_veto(
     };
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     assert_eq!(
         commit_with_evidence(&mut engine, prepared, &mut output, current_input_evidence),
@@ -325,10 +353,7 @@ fn assert_input_evidence_veto(
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -684,7 +709,7 @@ fn root_authority_revision_vetoes_after_layout_visible_mutation() {
         engine.prepare_layout_with_state(&root, viewport(), &state, debug, prepared_input);
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     if let LayoutNode::Container(container) = &mut root {
         container.policy.spacing = 24.0;
@@ -696,10 +721,7 @@ fn root_authority_revision_vetoes_after_layout_visible_mutation() {
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -720,7 +742,7 @@ fn viewport_only_change_vetoes_before_active_mutation() {
     );
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     assert_eq!(
         commit_with_evidence(
@@ -733,10 +755,7 @@ fn viewport_only_change_vetoes_before_active_mutation() {
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -756,7 +775,7 @@ fn layout_state_scroll_revision_vetoes_after_mutation() {
     );
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     state.scroll_offsets.insert(1, Vector2::new(0.0, 320.0));
     assert_eq!(
@@ -770,10 +789,7 @@ fn layout_state_scroll_revision_vetoes_after_mutation() {
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -803,7 +819,7 @@ fn mounted_revision_vetoes_value_mutation_with_same_mounted_identity() {
     );
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     source.state.ratio = 0.84;
     assert_eq!(source.mounted_id, mounted_id);
@@ -818,10 +834,7 @@ fn mounted_revision_vetoes_value_mutation_with_same_mounted_identity() {
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -851,7 +864,7 @@ fn mounted_identity_and_authority_replacement_veto_with_equal_visible_value() {
     );
     let before = snapshot(&engine);
     let output_before = output.clone();
-    let workspace_capacities = engine.preparation_workspace.capacities();
+    let workspace_capacities = workspace_capacities_of(&engine);
 
     source.mounted_id = MountedContainerStateId::new(
         ContainerStateId::new::<SplitPaneRuntimeState>(10, 1),
@@ -869,10 +882,7 @@ fn mounted_identity_and_authority_replacement_veto_with_equal_visible_value() {
     );
     assert_eq!(snapshot(&engine), before);
     assert_eq!(output, output_before);
-    assert_eq!(
-        engine.preparation_workspace.capacities(),
-        workspace_capacities
-    );
+    assert_eq!(workspace_capacities_of(&engine), workspace_capacities);
 }
 
 #[test]
@@ -1021,7 +1031,7 @@ fn warmed_preparation_reads_active_caches_without_cloning_complete_cache_state()
 fn warmed_preparation_reuses_workspace_capacities() {
     let root = fixed_virtualized_root(128, 12.0);
     let mut engine = LayoutEngine::default();
-    let initial = engine.preparation_workspace.capacities();
+    let initial = workspace_capacities_of(&engine);
     let prepared = prepare(
         &mut engine,
         &root,
@@ -1029,13 +1039,13 @@ fn warmed_preparation_reuses_workspace_capacities() {
         &LayoutState::default(),
         LayoutDebugOptions::all_enabled(),
     );
-    let established = engine.preparation_workspace.capacities();
+    let established = workspace_capacities_of(&engine);
     assert!(established.measure_updates >= initial.measure_updates);
     assert!(established.measured > 0);
     assert!(established.debug_primitives > 0);
     let mut output = LayoutOutput::default();
     commit(&mut engine, prepared, &mut output);
-    let warmed = engine.preparation_workspace.capacities();
+    let warmed = workspace_capacities_of(&engine);
 
     let prepared = prepare(
         &mut engine,
@@ -1044,10 +1054,10 @@ fn warmed_preparation_reuses_workspace_capacities() {
         &LayoutState::default(),
         LayoutDebugOptions::all_enabled(),
     );
-    let second = engine.preparation_workspace.capacities();
+    let second = workspace_capacities_of(&engine);
     assert_eq!(second, warmed);
     drop(prepared);
-    assert_eq!(engine.preparation_workspace.capacities(), second);
+    assert_eq!(workspace_capacities_of(&engine), second);
 }
 
 #[test]
@@ -1072,7 +1082,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
         commit(&mut engine, prepared, &mut output);
     }
 
-    let warmed_capacities = engine.preparation_workspace.capacities();
+    let warmed_capacities = workspace_capacities_of(&engine);
     let warmed_metrics = engine
         .virtual_cache
         .values()
@@ -1094,7 +1104,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
         );
         engine.discard_prepared_layout(prepared);
         discard_samples.push(started.elapsed().as_nanos());
-        assert_eq!(engine.preparation_workspace.capacities(), warmed_capacities);
+        assert_eq!(workspace_capacities_of(&engine), warmed_capacities);
         assert!(
             engine
                 .virtual_cache
@@ -1116,7 +1126,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
         );
         commit(&mut engine, prepared, &mut output);
         commit_samples.push(started.elapsed().as_nanos());
-        assert_eq!(engine.preparation_workspace.capacities(), warmed_capacities);
+        assert_eq!(workspace_capacities_of(&engine), warmed_capacities);
         assert!(
             engine
                 .virtual_cache

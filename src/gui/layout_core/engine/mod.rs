@@ -326,7 +326,7 @@ impl LayoutPreparationWorkspaceStorage {
 #[allow(dead_code)]
 pub(crate) struct PreparedLayoutPass {
     workspace: Option<LayoutPreparationWorkspaceStorage>,
-    workspace_pool: Arc<Mutex<LayoutPreparationWorkspacePool>>,
+    workspace_pool: LayoutPreparationWorkspace,
     generation: u64,
     checked_generation: u64,
     cache_authority: u64,
@@ -341,7 +341,7 @@ impl PreparedLayoutPass {
     fn incomplete(workspace: &LayoutPreparationWorkspace, engine: &LayoutEngine) -> Self {
         Self {
             workspace: None,
-            workspace_pool: Arc::clone(&workspace.pool),
+            workspace_pool: workspace.clone(),
             generation: engine.generation,
             checked_generation: engine.checked_generation,
             cache_authority: engine.cache_authority,
@@ -355,7 +355,7 @@ impl PreparedLayoutPass {
     fn invalid_input(workspace: &LayoutPreparationWorkspace, engine: &LayoutEngine) -> Self {
         Self {
             workspace: None,
-            workspace_pool: Arc::clone(&workspace.pool),
+            workspace_pool: workspace.clone(),
             generation: engine.generation,
             checked_generation: engine.checked_generation,
             cache_authority: engine.cache_authority,
@@ -368,10 +368,7 @@ impl PreparedLayoutPass {
 
     fn release_workspace(&mut self) {
         if let Some(storage) = self.workspace.take() {
-            let workspace = LayoutPreparationWorkspace {
-                pool: Arc::clone(&self.workspace_pool),
-            };
-            workspace.return_storage(storage);
+            self.workspace_pool.return_storage(storage);
         }
     }
 
@@ -424,7 +421,7 @@ pub struct LayoutEngine {
     layout_dirty: HashSet<NodeId>,
     measure_dirty: HashSet<NodeId>,
     #[allow(dead_code)]
-    preparation_workspace: LayoutPreparationWorkspace,
+    preparation_workspace: Option<LayoutPreparationWorkspace>,
     generation: u64,
     #[allow(dead_code)]
     checked_generation: u64,
@@ -632,7 +629,10 @@ impl LayoutEngine {
         container_state_source: Option<&dyn LayoutContainerStateReadSource>,
         input_evidence: LayoutInputEvidence,
     ) -> PreparedLayoutPass {
-        let workspace = self.preparation_workspace.clone();
+        let workspace = self
+            .preparation_workspace
+            .get_or_insert_with(LayoutPreparationWorkspace::default)
+            .clone();
         if !input_evidence.is_valid_for_prepare(root_rect, debug, container_state_source.is_some())
         {
             return PreparedLayoutPass::invalid_input(&workspace, self);
@@ -681,7 +681,7 @@ impl LayoutEngine {
         workspace.observe(&storage);
         PreparedLayoutPass {
             workspace: Some(storage),
-            workspace_pool: Arc::clone(&workspace.pool),
+            workspace_pool: workspace,
             generation: self.generation,
             checked_generation: self.checked_generation,
             cache_authority: self.cache_authority,
@@ -784,7 +784,7 @@ impl LayoutEngine {
         self.generation = next_generation;
         self.checked_generation = next_checked_generation;
         self.cache_authority = next_cache_authority;
-        self.preparation_workspace.return_storage(storage);
+        prepared.workspace_pool.return_storage(storage);
         Ok(())
     }
 

@@ -4,9 +4,9 @@ use radiant::layout::{
     Constraints, ConstraintsParts, ContainerKind, ContainerNodeParts, ContainerPolicy,
     ContainerStateDeclaration, ContainerStateId, Controlled, CrossAlign, Insets,
     LayoutContainerStateContext, LayoutEngine, LayoutEventContext, LayoutInput, LayoutInteraction,
-    LayoutNode, LayoutState, NodeId, Point, Rect, SizeModeCross, SizeModeMain, SlotChild,
-    SlotChildParts, SlotParams, SplitPaneAxis, SplitPanePolicy, Vector2, WidgetNodeParts,
-    layout_tree,
+    LayoutNode, LayoutState, LayoutTargetIdentity, NodeId, Point, Rect, SizeModeCross,
+    SizeModeMain, SlotChild, SlotChildParts, SlotParams, SplitPaneAxis, SplitPanePolicy, Vector2,
+    WidgetNodeParts, layout_tree,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -73,6 +73,17 @@ fn public_layout_module_supports_generic_tree_construction() {
     assert_eq!(one_shot.rects, stateful.rects);
     assert!(one_shot.rects.contains_key(&2));
     assert!(one_shot.rects.contains_key(&3));
+}
+
+#[test]
+fn public_layout_event_context_geometry_is_optional_and_read_only() {
+    let context = LayoutEventContext::<()>::new(LayoutTargetIdentity::new(
+        41,
+        radiant::layout::LayoutHitRegionId::new(9),
+    ));
+
+    assert_eq!(context.container_bounds(), None);
+    assert_eq!(context.target_bounds(), None);
 }
 
 #[test]

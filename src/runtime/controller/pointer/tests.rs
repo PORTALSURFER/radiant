@@ -8,6 +8,7 @@ use crate::{
         LayoutCapabilities, LayoutContainerStateContext, LayoutHitRegion, LayoutHitRegionId,
         LayoutInput, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
         LayoutTargetIdentity, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
+        SplitPaneAxis, SplitPanePolicy,
     },
     runtime::{
         Command, CommandOutcome, Event, PaintPrimitive, RepaintScope, SurfaceChild, SurfaceNode,
@@ -817,6 +818,120 @@ fn fixed_width_child<Message>(width: f32, child: SurfaceNode<Message>) -> Surfac
         },
         child,
     )
+}
+
+#[derive(Clone, Copy)]
+enum SplitInteractionMode {
+    Static,
+    RuntimeOwned,
+    Controlled,
+}
+
+struct SplitInteractionBridge {
+    mode: SplitInteractionMode,
+    policy: SplitPanePolicy,
+    ratio: f32,
+    generation: u64,
+    clipped: bool,
+    mounted: bool,
+}
+
+impl SplitInteractionBridge {
+    fn new(mode: SplitInteractionMode) -> Self {
+        Self {
+            mode,
+            policy: SplitPanePolicy {
+                axis: SplitPaneAxis::Horizontal,
+                initial_ratio: 0.25,
+                divider_extent: 8.0,
+                first_min_extent: 0.0,
+                second_min_extent: 0.0,
+            },
+            ratio: 0.25,
+            generation: 1,
+            clipped: false,
+            mounted: true,
+        }
+    }
+
+    fn with_axis(mut self, axis: SplitPaneAxis) -> Self {
+        self.policy.axis = axis;
+        self
+    }
+
+    fn surface(&self) -> UiSurface<()> {
+        if !self.mounted {
+            return UiSurface::new(SurfaceNode::widget(
+                TextWidget::new(
+                    90,
+                    "unmounted",
+                    WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ));
+        }
+        let policy = self.policy;
+        let child_size = if self.clipped {
+            Vector2::new(160.0, 80.0)
+        } else {
+            Vector2::new(20.0, 20.0)
+        };
+        let first = SurfaceNode::widget(
+            TextWidget::new(2, "first", WidgetSizing::fixed(child_size)),
+            WidgetMessageMapper::none(),
+        );
+        let second = SurfaceNode::widget(
+            TextWidget::new(3, "second", WidgetSizing::fixed(child_size)),
+            WidgetMessageMapper::none(),
+        );
+        let mut split = SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::SplitPane,
+                split_pane: policy,
+                ..ContainerPolicy::default()
+            },
+            vec![SurfaceChild::fill(first), SurfaceChild::fill(second)],
+        );
+        match self.mode {
+            SplitInteractionMode::Static => {}
+            SplitInteractionMode::RuntimeOwned => {
+                split = split
+                    .with_split_pane_runtime_mode(Some(
+                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                    ))
+                    .with_layout_capabilities(
+                        crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy),
+                    );
+            }
+            SplitInteractionMode::Controlled => {
+                split = split.with_split_pane_runtime_mode(Some(
+                    crate::gui::layout_core::SplitPaneRuntimeMode::Controlled(
+                        crate::gui::layout_core::Controlled::new(self.ratio, self.generation),
+                    ),
+                ));
+            }
+        }
+        if self.clipped {
+            UiSurface::new(SurfaceNode::container(
+                99,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(split)],
+            ))
+        } else {
+            UiSurface::new(split)
+        }
+    }
+}
+
+impl RuntimeBridge<()> for SplitInteractionBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -4181,4 +4296,282 @@ fn managed_double_click_fallback_preflights_exact_press_metadata_and_blocked_fal
             PointerPressAdmission::Blocked
         )]
     );
+}
+
+#[test]
+fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
+    let static_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::Static),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        static_runtime.layout_target_at(Point::new(52.0, 40.0)),
+        None
+    );
+
+    let controlled_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::Controlled),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        controlled_runtime.layout_target_at(Point::new(52.0, 40.0)),
+        None
+    );
+
+    let mut zero_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
+    zero_divider.policy.divider_extent = 0.0;
+    let zero_runtime = SurfaceRuntime::new(zero_divider, Vector2::new(200.0, 80.0));
+    assert_eq!(zero_runtime.layout_target_at(Point::new(50.0, 40.0)), None);
+
+    let mut full_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
+    full_divider.policy.divider_extent = 400.0;
+    let full_runtime = SurfaceRuntime::new(full_divider, Vector2::new(200.0, 80.0));
+    assert_eq!(
+        full_runtime
+            .layout_target_at(Point::new(100.0, 40.0))
+            .expect("a positive resolved divider still projects its geometry")
+            .bounds,
+        Rect::from_xy_size(0.0, 0.0, 200.0, 80.0)
+    );
+
+    let mut malformed = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
+    malformed.policy.divider_extent = f32::NAN;
+    let malformed_runtime = SurfaceRuntime::new(malformed, Vector2::new(200.0, 80.0));
+    assert_eq!(
+        malformed_runtime.layout_target_at(Point::new(50.0, 40.0)),
+        None
+    );
+    assert_eq!(
+        malformed_runtime.layout_target_at(Point::new(f32::NAN, 40.0)),
+        None
+    );
+
+    let runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let target = runtime
+        .layout_target_at(Point::new(52.0, 40.0))
+        .expect("runtime-owned split divider target");
+    assert_eq!(target.container_id, 1);
+    assert_eq!(
+        target.region_id,
+        crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID
+    );
+    assert_eq!(target.bounds, Rect::from_xy_size(48.0, 0.0, 8.0, 80.0));
+
+    let mut clipped_bridge = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
+    clipped_bridge.clipped = true;
+    clipped_bridge.policy.initial_ratio = 0.8;
+    let clipped_runtime = SurfaceRuntime::new(clipped_bridge, Vector2::new(100.0, 40.0));
+    assert_eq!(
+        clipped_runtime.layout_target_at(Point::new(98.0, 20.0)),
+        None,
+        "a divider wholly outside its scroll clip is not projected"
+    );
+}
+
+#[test]
+fn runtime_owned_split_drag_reprojects_without_application_projection_and_commits() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let target = runtime
+        .layout_target_at(Point::new(52.0, 40.0))
+        .expect("divider target at initial ratio");
+    let counters = runtime.refresh_counters();
+    let initial_first = runtime.layout().rects[&2];
+
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_press(Point::new(52.0, 40.0))),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2], initial_first);
+    let no_op_counters = runtime.refresh_counters();
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(Point::new(48.0, 100.0)));
+    assert_eq!(runtime.layout().rects[&2], initial_first);
+    assert_eq!(runtime.refresh_counters(), no_op_counters);
+    runtime.cancel_pointer_capture();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0))),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), Some(target.identity()));
+    assert_eq!(runtime.pointer_capture(), None);
+
+    let moved = Point::new(130.0, 120.0);
+    assert_eq!(runtime.dispatch_event(Event::pointer_move(moved)), None);
+    assert_eq!(runtime.layout_pointer_capture(), Some(target.identity()));
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert_eq!(
+        runtime
+            .layout_target_at(Point::new(134.0, 40.0))
+            .expect("divider target follows the live ratio")
+            .bounds,
+        Rect::from_xy_size(130.0, 0.0, 8.0, 80.0)
+    );
+    assert_eq!(
+        runtime.refresh_counters().application_projection,
+        counters.application_projection,
+        "live runtime-owned movement does not reproject application state"
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_release(
+            moved,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )),
+        None
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert_eq!(
+        runtime.refresh_counters().application_projection,
+        counters.application_projection
+    );
+}
+
+#[test]
+fn runtime_owned_vertical_split_drag_reprojects_and_commits_outside_bounds() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned)
+            .with_axis(SplitPaneAxis::Vertical),
+        Vector2::new(80.0, 200.0),
+    );
+    let target = runtime
+        .layout_target_at(Point::new(40.0, 52.0))
+        .expect("vertical divider target at initial ratio");
+    assert_eq!(target.bounds, Rect::from_xy_size(0.0, 48.0, 80.0, 8.0));
+
+    runtime.dispatch_event(Event::primary_press(Point::new(40.0, 52.0)));
+    assert_eq!(runtime.layout_pointer_capture(), Some(target.identity()));
+    runtime.dispatch_event(Event::pointer_move(Point::new(120.0, 130.0)));
+
+    assert_eq!(runtime.layout().rects[&2].height(), 130.0);
+    assert_eq!(
+        runtime
+            .layout_target_at(Point::new(40.0, 134.0))
+            .expect("vertical divider follows the live ratio")
+            .bounds,
+        Rect::from_xy_size(0.0, 130.0, 80.0, 8.0)
+    );
+
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(120.0, 130.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].height(), 130.0);
+}
+
+#[test]
+fn runtime_owned_split_capture_cancellation_rolls_back_once_and_delayed_release_is_inert() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let divider = Point::new(52.0, 40.0);
+    runtime.dispatch_event(Event::primary_press(divider));
+    runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert!(runtime.layout_pointer_capture().is_some());
+
+    runtime.cancel_pointer_capture();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].width(), 48.0);
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(160.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(runtime.layout().rects[&2].width(), 48.0);
+
+    runtime.dispatch_event(Event::primary_press(divider));
+    runtime.dispatch_event(Event::pointer_move(Point::new(140.0, 100.0)));
+    runtime.bridge_mut().policy.divider_extent = 12.0;
+    runtime.refresh();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects[&2].width(), 47.0);
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(160.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(runtime.layout().rects[&2].width(), 47.0);
+
+    runtime.bridge_mut().mounted = false;
+    runtime.refresh();
+    assert_eq!(runtime.layout_pointer_capture(), None);
+}
+
+#[test]
+fn runtime_owned_split_capture_cancels_on_mode_and_container_geometry_changes() {
+    let mut mode_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    mode_runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    mode_runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    mode_runtime.bridge_mut().ratio = 0.75;
+    mode_runtime.bridge_mut().generation = 2;
+    mode_runtime.bridge_mut().mode = SplitInteractionMode::Controlled;
+    mode_runtime.refresh();
+    assert_eq!(mode_runtime.layout_pointer_capture(), None);
+    assert_eq!(mode_runtime.layout().rects[&2].width(), 144.0);
+    mode_runtime.dispatch_event(Event::pointer_release(
+        Point::new(160.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(mode_runtime.layout().rects[&2].width(), 144.0);
+
+    let mut geometry_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    geometry_runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    geometry_runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    geometry_runtime.set_viewport(Vector2::new(240.0, 80.0));
+    assert_eq!(geometry_runtime.layout_pointer_capture(), None);
+    assert_eq!(geometry_runtime.layout().rects[&2].width(), 58.0);
+    geometry_runtime.dispatch_event(Event::pointer_release(
+        Point::new(180.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(geometry_runtime.layout().rects[&2].width(), 58.0);
+}
+
+#[test]
+fn runtime_owned_split_repeated_effective_moves_keep_one_bounded_capture() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    for index in 0..100 {
+        let x = 60.0 + index as f32;
+        runtime.dispatch_event(Event::pointer_move(Point::new(x, 100.0)));
+        assert_eq!(
+            runtime.layout_pointer_capture(),
+            Some(LayoutTargetIdentity::new(
+                1,
+                crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+            ))
+        );
+    }
+    assert_eq!(runtime.layout().rects[&2].width(), 159.0);
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(159.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(runtime.layout_pointer_capture(), None);
 }

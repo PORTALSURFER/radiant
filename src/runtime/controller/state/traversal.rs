@@ -52,6 +52,7 @@ where
             traversal.scroll_content_by_container;
         self.traversal.containers.layout_interactions = traversal.layout_interactions;
         self.traversal.containers.split_pane_runtime = traversal.split_pane_runtime;
+        self.traversal.containers.split_pane_dividers = traversal.split_pane_dividers;
         self.traversal.containers.virtual_layout_registrations =
             traversal.virtual_layout_registrations;
     }
@@ -111,6 +112,7 @@ where
             ),
             layout_interactions: std::mem::take(&mut self.traversal.containers.layout_interactions),
             split_pane_runtime: std::mem::take(&mut self.traversal.containers.split_pane_runtime),
+            split_pane_dividers: std::mem::take(&mut self.traversal.containers.split_pane_dividers),
             virtual_layout_registrations: std::mem::take(
                 &mut self.traversal.containers.virtual_layout_registrations,
             ),

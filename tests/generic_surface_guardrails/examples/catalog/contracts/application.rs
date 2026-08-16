@@ -101,6 +101,19 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         ],
     ),
     (
+        "split_pane_runtime",
+        &[
+            "use radiant::prelude::*;",
+            ".divider_extent(8.0)",
+            ".runtime_owned_ratio()",
+            "SurfaceRuntime::new",
+            "Event::primary_press",
+            "Event::pointer_move",
+            "Event::pointer_release",
+            "layout_target_at",
+        ],
+    ),
+    (
         "logical_provider_attachment",
         &[
             "use radiant::prelude as ui;",

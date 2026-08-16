@@ -123,6 +123,8 @@ where
     host_closing_hook_called: bool,
     host_exit_hook_called: bool,
     pub(in crate::runtime) repaint_requested: bool,
+    pub(in crate::runtime) pending_current_surface_relayout: bool,
+    pub(in crate::runtime) servicing_current_surface_relayout: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     effect_owner: RuntimeOwner,

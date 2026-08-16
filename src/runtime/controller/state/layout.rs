@@ -23,6 +23,27 @@ where
         self.relayout_with_traversal(traversal);
     }
 
+    pub(in crate::runtime::controller) fn queue_current_surface_relayout(&mut self) {
+        self.pending_current_surface_relayout = true;
+        self.repaint_requested = true;
+    }
+
+    pub(in crate::runtime::controller) fn service_pending_current_surface_relayout(&mut self) {
+        if self.servicing_current_surface_relayout {
+            return;
+        }
+        self.servicing_current_surface_relayout = true;
+        for _ in 0..2 {
+            if !self.pending_current_surface_relayout {
+                break;
+            }
+            self.pending_current_surface_relayout = false;
+            self.relayout_current_surface();
+            self.repaint_requested = true;
+        }
+        self.servicing_current_surface_relayout = false;
+    }
+
     pub(in crate::runtime::controller) fn install_traversal_with_candidate(
         &mut self,
         traversal: SurfaceTraversalIndex<Message>,

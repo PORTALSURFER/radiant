@@ -1,6 +1,6 @@
 use super::SurfaceTraversalStats;
 use crate::{
-    gui::layout_core::SplitPaneRuntimeStateInput,
+    gui::layout_core::{SplitPaneDividerDescriptor, SplitPaneRuntimeStateInput},
     layout::NodeId,
     runtime::{ClipAncestors, WidgetPath},
     widgets::WidgetId,
@@ -41,6 +41,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
     pub(in crate::runtime) scroll_content_by_container: HashMap<NodeId, NodeId>,
     pub(in crate::runtime) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
     pub(in crate::runtime) split_pane_runtime: Vec<SplitPaneRuntimeStateInput>,
+    pub(in crate::runtime) split_pane_dividers: Vec<SplitPaneDividerDescriptor>,
     pub(in crate::runtime) virtual_layout_registrations:
         Vec<super::super::VirtualLayoutRegistration<Message>>,
 }
@@ -65,6 +66,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
             scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
             layout_interactions: Vec::with_capacity(stats.max_depth),
             split_pane_runtime: Vec::with_capacity(stats.max_depth),
+            split_pane_dividers: Vec::with_capacity(stats.max_depth),
             virtual_layout_registrations: Vec::with_capacity(stats.max_depth),
         }
     }
@@ -111,6 +113,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         );
         self.layout_interactions.clear();
         self.split_pane_runtime.clear();
+        self.split_pane_dividers.clear();
         self.virtual_layout_registrations.clear();
     }
 
@@ -132,6 +135,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.scroll_content_by_container.clear();
         self.layout_interactions.clear();
         self.split_pane_runtime.clear();
+        self.split_pane_dividers.clear();
         self.virtual_layout_registrations.clear();
     }
 }

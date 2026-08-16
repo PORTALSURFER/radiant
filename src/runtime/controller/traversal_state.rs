@@ -85,6 +85,7 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) scroll_content_by_container: HashMap<NodeId, NodeId>,
     pub(super) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
     pub(super) split_pane_runtime: Vec<crate::gui::layout_core::SplitPaneRuntimeStateInput>,
+    pub(super) split_pane_dividers: Vec<crate::gui::layout_core::SplitPaneDividerDescriptor>,
     pub(super) virtual_layout_registrations:
         Vec<crate::runtime::surface::VirtualLayoutRegistration<Message>>,
     pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
@@ -98,6 +99,10 @@ pub(super) struct RuntimeLayoutHitTarget<Message> {
     pub(super) state_id: Option<crate::layout::ContainerStateId>,
     pub(super) interaction: std::rc::Rc<dyn LayoutInteraction<Message>>,
     pub(super) revision: LayoutInteractionRevision,
+    pub(super) container_bounds: Option<Rect>,
+    pub(super) target_bounds: Option<Rect>,
+    pub(super) divider_bounds: Option<Rect>,
+    pub(super) split_capture_witness: Option<crate::gui::layout_core::SplitPaneCaptureWitness>,
 }
 
 impl<Message> Default for RuntimeContainerTraversal<Message> {
@@ -109,6 +114,7 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             scroll_content_by_container: HashMap::new(),
             layout_interactions: Vec::new(),
             split_pane_runtime: Vec::new(),
+            split_pane_dividers: Vec::new(),
             virtual_layout_registrations: Vec::new(),
             layout_targets: Vec::new(),
             layout_hit_region_diagnostics: LayoutHitRegionDiagnostics::default(),
@@ -165,8 +171,54 @@ impl<Message> RuntimeContainerTraversal<Message> {
                     state_id: interaction.state.as_ref().map(|state| state.id()),
                     interaction: std::rc::Rc::clone(&interaction.interaction),
                     revision: interaction.revision.clone(),
+                    container_bounds: Some(container_bounds),
+                    target_bounds: Some(bounds),
+                    divider_bounds: None,
+                    split_capture_witness: None,
                 });
             }
+
+            let Some(descriptor) = self
+                .split_pane_dividers
+                .iter()
+                .find(|descriptor| descriptor.container_id == interaction.id)
+                .copied()
+            else {
+                continue;
+            };
+            let Some(first) = layout.rects.get(&descriptor.first_child).copied() else {
+                continue;
+            };
+            let Some(second) = layout.rects.get(&descriptor.second_child).copied() else {
+                continue;
+            };
+            let Some((divider_bounds, _split_bounds)) =
+                split_divider_geometry(first, second, descriptor.axis)
+            else {
+                continue;
+            };
+            let Some(target_bounds) = std::iter::once(container_bounds)
+                .chain(self.layout_clip_for_container(interaction.id, layout))
+                .try_fold(divider_bounds, |bounds, clip| bounds.intersection(clip))
+                .filter(|rect| rect.has_finite_positive_area())
+            else {
+                continue;
+            };
+            self.layout_targets.push(RuntimeLayoutHitTarget {
+                target: LayoutHitTarget {
+                    container_id: interaction.id,
+                    region_id: crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+                    bounds: target_bounds,
+                },
+                contract_version: interaction.contract_version,
+                state_id: interaction.state.as_ref().map(|state| state.id()),
+                interaction: std::rc::Rc::clone(&interaction.interaction),
+                revision: interaction.revision.clone(),
+                container_bounds: Some(container_bounds),
+                target_bounds: Some(target_bounds),
+                divider_bounds: Some(divider_bounds),
+                split_capture_witness: Some(descriptor.witness(container_bounds)),
+            });
         }
     }
 
@@ -190,6 +242,66 @@ impl<Message> RuntimeContainerTraversal<Message> {
             });
         own_viewport.into_iter().chain(ancestors)
     }
+}
+
+fn split_divider_geometry(
+    first: Rect,
+    second: Rect,
+    axis: crate::gui::panel::SplitPaneAxis,
+) -> Option<(Rect, Rect)> {
+    if !first.is_finite() || !second.is_finite() {
+        return None;
+    }
+    let (divider, split) = match axis {
+        crate::gui::panel::SplitPaneAxis::Horizontal => {
+            let start = first.max.x;
+            let end = second.min.x;
+            if !start.is_finite() || !end.is_finite() || end <= start {
+                return None;
+            }
+            (
+                Rect::from_min_max(
+                    crate::gui::types::Point::new(start, first.min.y.min(second.min.y)),
+                    crate::gui::types::Point::new(end, first.max.y.max(second.max.y)),
+                ),
+                Rect::from_min_max(
+                    crate::gui::types::Point::new(
+                        first.min.x.min(second.min.x),
+                        first.min.y.min(second.min.y),
+                    ),
+                    crate::gui::types::Point::new(
+                        first.max.x.max(second.max.x),
+                        first.max.y.max(second.max.y),
+                    ),
+                ),
+            )
+        }
+        crate::gui::panel::SplitPaneAxis::Vertical => {
+            let start = first.max.y;
+            let end = second.min.y;
+            if !start.is_finite() || !end.is_finite() || end <= start {
+                return None;
+            }
+            (
+                Rect::from_min_max(
+                    crate::gui::types::Point::new(first.min.x.min(second.min.x), start),
+                    crate::gui::types::Point::new(first.max.x.max(second.max.x), end),
+                ),
+                Rect::from_min_max(
+                    crate::gui::types::Point::new(
+                        first.min.x.min(second.min.x),
+                        first.min.y.min(second.min.y),
+                    ),
+                    crate::gui::types::Point::new(
+                        first.max.x.max(second.max.x),
+                        first.max.y.max(second.max.y),
+                    ),
+                ),
+            )
+        }
+    };
+    (divider.has_finite_positive_area() && split.has_finite_positive_area())
+        .then_some((divider, split))
 }
 
 fn project_layout_region(container_bounds: Rect, local_bounds: Rect) -> Option<Rect> {

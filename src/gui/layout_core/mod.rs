@@ -37,8 +37,11 @@
 //! capture for both. State slots are UI-local and bounded, and are distinct
 //! from [`LayoutState`](crate::layout::LayoutState) scroll offsets.
 //! Static `split_pane` construction is available through the application
-//! builders. Semantic/keyboard behavior, ratio interaction, and the target
-//! `VirtualLayoutPolicy` remain future runtime work.
+//! builders. Runtime-owned ratio mode additionally projects one clipped
+//! built-in divider target when its resolved divider is positive; primary
+//! pointer drags use controller-owned capture and the mounted ratio state.
+//! Static and controlled-ratio modes remain non-interactive. Semantic/keyboard
+//! behavior and the target `VirtualLayoutPolicy` remain future runtime work.
 //!
 //! # Example
 //!
@@ -88,6 +91,7 @@ mod controlled;
 mod engine;
 mod model;
 mod row_helpers;
+mod split_pane_interaction;
 mod split_pane_state;
 mod tree;
 mod virtual_layout;
@@ -128,8 +132,13 @@ pub use row_helpers::{
     stacked_row_rects_into, stacked_row_rects_into_from_parts, visible_suffix_widths,
     visible_suffix_widths_into,
 };
+pub(crate) use split_pane_interaction::{
+    SPLIT_PANE_DIVIDER_REGION_ID, SplitPaneCaptureWitness, SplitPaneDividerDescriptor,
+    runtime_owned_split_pane_capabilities,
+};
 pub(crate) use split_pane_state::{
-    SplitPaneRuntimeMode, SplitPaneRuntimeState, SplitPaneRuntimeStateInput, sanitize_runtime_ratio,
+    SplitPaneRuntimeMode, SplitPaneRuntimeOwnership, SplitPaneRuntimeState,
+    SplitPaneRuntimeStateInput, sanitize_runtime_ratio,
 };
 pub use tree::{
     ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,

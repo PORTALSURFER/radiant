@@ -62,6 +62,8 @@ where
             host_closing_hook_called: false,
             host_exit_hook_called: false,
             repaint_requested: false,
+            pending_current_surface_relayout: false,
+            servicing_current_surface_relayout: false,
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
             effect_owner: effect_owner.clone(),
@@ -244,6 +246,7 @@ where
         if !self.relayout_virtual_layout_for_geometry() {
             self.relayout_current_surface();
         }
+        self.service_pending_current_surface_relayout();
         true
     }
 

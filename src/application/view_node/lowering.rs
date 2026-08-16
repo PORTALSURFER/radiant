@@ -188,12 +188,23 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let base_policy = || defaults.base_policy();
         let styled_container =
             |lowering: &mut Self, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>| {
+                let runtime_split_policy = (policy.kind == ContainerKind::SplitPane
+                    && matches!(
+                        split_pane_runtime,
+                        Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned)
+                    ))
+                .then_some(policy.split_pane);
                 let mut container =
                     lowering.lower_container(id, policy, style, hoverable, children);
                 if let Some(scroll_message) = scroll_message.clone() {
                     container = container.with_scroll_message_local(scroll_message);
                 }
                 container = container.with_split_pane_runtime_mode(split_pane_runtime);
+                if let Some(policy) = runtime_split_policy {
+                    container = container.with_layout_capabilities(
+                        crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy),
+                    );
+                }
                 container
             };
 

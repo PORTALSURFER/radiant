@@ -17,7 +17,10 @@ where
     /// that only update runtime state, such as resize or focus clearing, return
     /// `None`.
     pub fn dispatch_event(&mut self, event: Event) -> Option<WidgetId> {
-        match event {
+        if event_pointer_position(&event).is_some_and(|position| !position.is_finite()) {
+            return None;
+        }
+        let target = match event {
             Event::Resize { viewport } => {
                 self.set_viewport(viewport);
                 None
@@ -139,7 +142,9 @@ where
                 );
                 None
             }
-        }
+        };
+        self.service_pending_current_surface_relayout();
+        target
     }
 
     fn observe_pointer_position(&mut self, position: Point) {
@@ -191,5 +196,16 @@ where
             PointerButton::Secondary,
             PointerModifiers::default(),
         )
+    }
+}
+
+fn event_pointer_position(event: &Event) -> Option<Point> {
+    match event {
+        Event::PointerMove { position, .. }
+        | Event::PointerPress { position, .. }
+        | Event::PointerDoubleClick { position, .. }
+        | Event::PointerRelease { position, .. }
+        | Event::Scroll { position, .. } => Some(*position),
+        _ => None,
     }
 }

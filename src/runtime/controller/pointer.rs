@@ -91,6 +91,7 @@ where
             timestamp,
             sequence_range,
         );
+        self.service_pending_current_surface_relayout();
         let target = dispatch.target;
         let hover_changed = previous_hovered_widget != self.interaction.hover.widget
             || previous_hovered_container != self.interaction.hover.container;
@@ -710,6 +711,7 @@ where
             self.finish_managed_pointer_capture_cancellation();
         }
         self.reset_tooltip_hover_intent();
+        self.service_pending_current_surface_relayout();
     }
 
     fn cancel_captured_widget_state(&mut self, widget_id: WidgetId) {

@@ -172,6 +172,9 @@ pub(crate) fn split_pane_collapse_target(
         ratio: 0.5,
         ..parts
     });
+    if !base.minima_satisfied {
+        return None;
+    }
     let total_extent = selected_extent(base.bounds, base.axis);
     let available_extent = total_extent - base.divider_extent;
     if !available_extent.is_finite() || available_extent <= 0.0 {

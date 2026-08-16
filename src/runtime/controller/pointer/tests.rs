@@ -2,6 +2,7 @@ use super::*;
 use crate::{
     gui::automation::AutomationRole,
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
+    gui::layout_core::SplitPaneRuntimeState,
     gui::types::{Point, Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, ContainerStateDeclaration,
@@ -5155,6 +5156,76 @@ fn runtime_owned_split_double_activation_is_inert_during_active_drag() {
         PointerModifiers::default(),
     ));
     assert_eq!(messages.borrow().len(), 1);
+}
+
+#[test]
+fn runtime_owned_undersized_split_collapse_is_fail_closed_for_each_axis_and_policy() {
+    for (axis, collapse_policy, viewport, divider_position) in [
+        (
+            SplitPaneAxis::Horizontal,
+            SplitPaneCollapsePolicy::FirstPane,
+            Vector2::new(100.0, 40.0),
+            Point::new(50.0, 20.0),
+        ),
+        (
+            SplitPaneAxis::Horizontal,
+            SplitPaneCollapsePolicy::SecondPane,
+            Vector2::new(100.0, 40.0),
+            Point::new(50.0, 20.0),
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            SplitPaneCollapsePolicy::FirstPane,
+            Vector2::new(40.0, 100.0),
+            Point::new(20.0, 50.0),
+        ),
+        (
+            SplitPaneAxis::Vertical,
+            SplitPaneCollapsePolicy::SecondPane,
+            Vector2::new(40.0, 100.0),
+            Point::new(20.0, 50.0),
+        ),
+    ] {
+        let messages = Rc::new(RefCell::new(Vec::new()));
+        let mut bridge = SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        )
+        .with_axis(axis)
+        .with_collapse_policy(collapse_policy);
+        bridge.policy.initial_ratio = 0.5;
+        bridge.policy.divider_extent = 20.0;
+        bridge.policy.first_min_extent = 60.0;
+        bridge.policy.second_min_extent = 60.0;
+        let mut runtime = SurfaceRuntime::new(bridge, viewport);
+
+        let mounted_state_id = runtime
+            .split_pane_separator_projections()
+            .first()
+            .expect("undersized split still has a valid divider projection")
+            .mounted_state_id;
+        let before_state = runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("runtime-owned split state is mounted");
+        let before_layout = runtime.layout().rects.clone();
+        let before_layout_count = runtime.refresh_counters().layout;
+
+        runtime.dispatch_event(Event::primary_double_click(divider_position));
+
+        let after_state = runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("runtime-owned split state remains mounted");
+        assert_eq!(after_state, before_state);
+        assert_eq!(runtime.layout().rects, before_layout);
+        assert_eq!(runtime.refresh_counters().layout, before_layout_count);
+        assert!(messages.borrow().is_empty());
+    }
 }
 
 #[test]

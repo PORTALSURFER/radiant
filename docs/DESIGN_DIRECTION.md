@@ -2082,10 +2082,11 @@ Runtime-owned mode may additionally select
 `.collapse_policy(SplitPaneCollapsePolicy::SecondPane)`. With that opt-in, an
 admitted primary divider double activation is a discrete runtime command: it
 resolves the selected pane's declared minimum through the same current
-viewport, divider, opposite-minimum, quantization, and undersized-fallback
-geometry as ordinary layout, then a subsequent accepted activation restores the
-last finite normalized expanded ratio, including the latest committed drag
-ratio. Static and controlled modes remain inert; active drags, invalid or stale
+viewport, divider, opposite-minimum, and quantization geometry as ordinary
+layout; capacity-limited or undersized minima fail closed instead of using the
+ordinary layout fallback. A subsequent accepted activation restores the last
+finite normalized expanded ratio, including the latest committed drag ratio.
+Static and controlled modes remain inert; active drags, invalid or stale
 evidence, missing/unmounted/incompatible/capacity-limited state, and no-ops emit
 no output and do not mutate mounted state. A meaningful collapse or restore
 mutates mounted state first, requests the existing runtime/layout work, and

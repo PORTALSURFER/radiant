@@ -751,9 +751,10 @@ only to runtime-owned split panes. An admitted divider double activation
 discretely resolves the selected pane to its declared minimum through the
 authoritative current geometry/quantization rules; the next accepted
 activation restores the last finite normalized expanded ratio, including the
-latest committed drag ratio. Static and controlled modes, active drags, stale
-or incompatible mounted state, unavailable capacity, invalid evidence, and
-no-ops remain inert. Meaningful collapse/restore updates mounted state first,
+latest committed drag ratio. Capacity-limited or undersized geometry is
+rejected before collapse. Static and controlled modes, active drags, stale or
+incompatible mounted state, unavailable capacity, invalid evidence, and no-ops
+remain inert. Meaningful collapse/restore updates mounted state first,
 requests the existing layout work, and emits one settled ratio after cleanup;
 restore evidence is bounded and retired with the existing lifecycle.
 Passive separator automation may report final geometry/value, but remains

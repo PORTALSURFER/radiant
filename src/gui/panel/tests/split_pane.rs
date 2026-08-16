@@ -278,7 +278,7 @@ fn split_pane_layout_sanitizes_nonfinite_inputs() {
 }
 
 #[test]
-fn split_pane_collapse_targets_follow_minimums_quantization_and_fallback() {
+fn split_pane_collapse_targets_follow_minimums_and_quantization() {
     let parts = SplitPaneLayoutParts {
         bounds: Rect::from_size(200.0, 100.0),
         axis: SplitPaneAxis::Horizontal,
@@ -309,34 +309,6 @@ fn split_pane_collapse_targets_follow_minimums_quantization_and_fallback() {
     assert_eq!(vertical.ratio, 132.0 / 192.0);
     assert_eq!(vertical.selected_extent, 60.0);
 
-    let undersized = super::super::split_pane_collapse_target(
-        SplitPaneLayoutParts {
-            bounds: Rect::from_size(100.0, 40.0),
-            divider_extent: 20.0,
-            first_min_extent: 60.0,
-            second_min_extent: 60.0,
-            ..parts
-        },
-        SplitPaneCollapsePolicy::FirstPane,
-    )
-    .expect("undersized split retains the deterministic fallback target");
-    assert_eq!(undersized.ratio, 0.75);
-    assert_eq!(undersized.selected_extent, 60.0);
-
-    let selected_min_exceeds_capacity = super::super::split_pane_collapse_target(
-        SplitPaneLayoutParts {
-            bounds: Rect::from_size(100.0, 40.0),
-            divider_extent: 20.0,
-            first_min_extent: 100.0,
-            second_min_extent: 0.0,
-            ..parts
-        },
-        SplitPaneCollapsePolicy::FirstPane,
-    )
-    .expect("an oversized selected minimum uses the split fallback clamp");
-    assert_eq!(selected_min_exceeds_capacity.ratio, 1.0);
-    assert_eq!(selected_min_exceeds_capacity.selected_extent, 80.0);
-
     let nonfinite = super::super::split_pane_collapse_target(
         SplitPaneLayoutParts {
             bounds: Rect::from_size(100.0, 40.0),
@@ -350,6 +322,42 @@ fn split_pane_collapse_targets_follow_minimums_quantization_and_fallback() {
     .expect("nonfinite declared extents are sanitized by the split resolver");
     assert_eq!(nonfinite.ratio, 0.0);
     assert_eq!(nonfinite.selected_extent, 0.0);
+}
+
+#[test]
+fn split_pane_collapse_targets_fail_closed_for_unsatisfied_minimums() {
+    let undersized = SplitPaneLayoutParts {
+        bounds: Rect::from_size(100.0, 40.0),
+        divider_extent: 20.0,
+        first_min_extent: 60.0,
+        second_min_extent: 60.0,
+        ..SplitPaneLayoutParts::default()
+    };
+    for policy in [
+        SplitPaneCollapsePolicy::FirstPane,
+        SplitPaneCollapsePolicy::SecondPane,
+    ] {
+        assert_eq!(
+            super::super::split_pane_collapse_target(undersized, policy),
+            None,
+            "undersized split must not admit a collapse target"
+        );
+    }
+
+    let selected_min_exceeds_capacity = SplitPaneLayoutParts {
+        bounds: Rect::from_size(100.0, 40.0),
+        divider_extent: 20.0,
+        first_min_extent: 100.0,
+        second_min_extent: 0.0,
+        ..SplitPaneLayoutParts::default()
+    };
+    assert_eq!(
+        super::super::split_pane_collapse_target(
+            selected_min_exceeds_capacity,
+            SplitPaneCollapsePolicy::FirstPane,
+        ),
+        None
+    );
 }
 
 #[test]

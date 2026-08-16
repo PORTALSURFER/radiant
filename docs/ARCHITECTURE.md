@@ -152,7 +152,9 @@ new focused export leaf or a module split, not a formatting workaround.
   divider double activation is a discrete runtime command that reuses the
   authoritative split resolver and quantization, mutates the mounted state
   before requesting existing layout work, and restores only a finite expanded
-  ratio retained by the same compatible mounted identity. Policy/mode/schema
+  ratio retained by the same compatible mounted identity. The resolver fails
+  closed when its normalized minima are unsatisfied; ordinary split-layout
+  undersized fallback does not authorize collapse. Policy/mode/schema
   incompatibility, unmount, stale evidence, and unavailable state retire that
   restore authority. The
   optional settled-ratio mapper is lowering-owned output: the controller

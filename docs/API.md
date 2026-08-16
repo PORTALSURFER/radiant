@@ -6539,11 +6539,12 @@ primary pointer capture drives the mounted ratio through the shared
 `PanelResizeState` lifecycle, while static and controlled-ratio splits remain
 inert. A collapse policy makes an admitted primary divider double activation
 resolve the selected pane to its authoritative declared minimum through the
-same current viewport, divider extent, opposite minimum, quantization, and
-undersized fallback rules as `SplitPaneLayout`; the next accepted activation
-restores the last finite normalized expanded ratio, including the latest
-committed drag ratio. Active drags, invalid or stale evidence, no-ops, missing
-or unavailable capacity, incompatible state, unmount, static mode, and
+same current viewport, divider extent, opposite minimum, and quantization
+rules as `SplitPaneLayout`; capacity-limited or undersized minima
+are rejected rather than using the ordinary layout fallback. The next accepted
+activation restores the last finite normalized expanded ratio, including the
+latest committed drag ratio. Active drags, invalid or stale evidence, no-ops,
+missing or unavailable capacity, incompatible state, unmount, static mode, and
 controlled mode are inert. Meaningful collapse and restore mutate mounted
 state, request the existing runtime/layout work, and then map exactly one
 settled ratio after cleanup. A settled mapper is runtime-owned output only, not

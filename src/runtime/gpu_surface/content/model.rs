@@ -27,7 +27,7 @@ pub struct GpuShaderSurfaceDescriptor {
     pub storage_revision: u64,
     /// Optional volatile presentation-uniform bytes uploaded independently of
     /// the immutable uniform/storage payload. Non-empty payloads must have a
-    /// length divisible by four; [`GpuSurfaceContent::validate`] reports
+    /// length divisible by four; [`crate::runtime::GpuSurfaceContent::validate`] reports
     /// otherwise.
     pub presentation_uniform_bytes: Option<Arc<[u8]>>,
     /// Optional revision of the initial volatile presentation-uniform bytes.
@@ -57,7 +57,7 @@ pub struct GpuShaderSurfaceDescriptorParts {
     pub storage_revision: u64,
     /// Optional volatile presentation-uniform bytes uploaded independently of
     /// the immutable uniform/storage payload. Non-empty payloads must have a
-    /// length divisible by four; [`GpuSurfaceContent::validate`] reports
+    /// length divisible by four; [`crate::runtime::GpuSurfaceContent::validate`] reports
     /// otherwise.
     pub presentation_uniform_bytes: Option<Arc<[u8]>>,
     /// Optional revision of the initial volatile presentation-uniform bytes.
@@ -156,7 +156,7 @@ impl GpuShaderSurfaceDescriptor {
     /// Set the initial volatile presentation-uniform bytes.
     ///
     /// Non-empty payloads must have a length divisible by four; validate the
-    /// containing [`GpuSurfaceContent`] before handing it to a renderer.
+    /// containing [`crate::runtime::GpuSurfaceContent`] before handing it to a renderer.
     pub fn presentation_uniform_bytes(mut self, bytes: impl AsRef<[u8]>) -> Self {
         self.presentation_uniform_bytes = Some(Arc::from(bytes.as_ref()));
         self
@@ -171,7 +171,7 @@ impl GpuShaderSurfaceDescriptor {
     /// Set the initial volatile presentation-uniform bytes and revision.
     ///
     /// Non-empty payloads must have a length divisible by four; validate the
-    /// containing [`GpuSurfaceContent`] before handing it to a renderer.
+    /// containing [`crate::runtime::GpuSurfaceContent`] before handing it to a renderer.
     pub fn presentation_uniform(mut self, bytes: impl AsRef<[u8]>, revision: u64) -> Self {
         self.presentation_uniform_bytes = Some(Arc::from(bytes.as_ref()));
         self.presentation_uniform_revision = Some(revision);

@@ -89,24 +89,42 @@ impl FrameStageIdentity {
     }
 }
 
-/// Payload for one timed frame.  It is never returned by readiness queries.
+/// Payload for one selected deadline bundle.  It is never returned by
+/// readiness queries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct TimedFrame {
     due_at: Instant,
     animation_activity: RuntimeAnimationActivity,
     needs_text_caret_animation: bool,
+    advance_timed_repaint: bool,
 }
 
 impl TimedFrame {
+    #[cfg(test)]
     pub(super) const fn new(
         due_at: Instant,
         animation_activity: RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
     ) -> Self {
+        Self::with_timed_repaint(
+            due_at,
+            animation_activity,
+            needs_text_caret_animation,
+            false,
+        )
+    }
+
+    pub(super) const fn with_timed_repaint(
+        due_at: Instant,
+        animation_activity: RuntimeAnimationActivity,
+        needs_text_caret_animation: bool,
+        advance_timed_repaint: bool,
+    ) -> Self {
         Self {
             due_at,
             animation_activity,
             needs_text_caret_animation,
+            advance_timed_repaint,
         }
     }
 
@@ -123,6 +141,10 @@ impl TimedFrame {
         self.needs_text_caret_animation
     }
 
+    pub(super) const fn advance_timed_repaint(self) -> bool {
+        self.advance_timed_repaint
+    }
+
     fn is_due(self, now: Instant) -> bool {
         self.due_at <= now
     }
@@ -136,6 +158,7 @@ impl TimedFrame {
             },
             animation_activity: newer.animation_activity,
             needs_text_caret_animation: newer.needs_text_caret_animation,
+            advance_timed_repaint: newer.advance_timed_repaint,
         }
     }
 }
@@ -161,6 +184,12 @@ struct PendingTimedFrame {
     frame: TimedFrame,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct InFlightTimedFrame {
+    identity: FrameStageIdentity,
+    frame: TimedFrame,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -169,6 +198,7 @@ enum FrameStageBudgetStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FrameStageCompletionEvidence {
     identity: FrameStageIdentity,
+    frame: TimedFrame,
     elapsed: Duration,
     budget_status: FrameStageBudgetStatus,
 }
@@ -187,7 +217,7 @@ pub(super) struct WindowStageOwner {
     generation_exhausted: bool,
     fence: Option<FrameStageFence>,
     pending: Option<PendingTimedFrame>,
-    in_flight: Option<FrameStageIdentity>,
+    in_flight: Option<InFlightTimedFrame>,
     last_completion: Option<FrameStageCompletionEvidence>,
 }
 
@@ -292,10 +322,12 @@ impl WindowStageOwner {
             return false;
         }
         if let Some(in_flight) = self.in_flight.as_ref() {
-            if in_flight == &identity {
+            if in_flight.identity == identity {
                 return true;
             }
-            if !in_flight.same_fence(&identity) || identity.revision <= in_flight.revision {
+            if !in_flight.identity.same_fence(&identity)
+                || identity.revision <= in_flight.identity.revision
+            {
                 return false;
             }
         }
@@ -345,7 +377,10 @@ impl WindowStageOwner {
             return None;
         }
         let pending = self.pending.take()?;
-        self.in_flight = Some(identity.clone());
+        self.in_flight = Some(InFlightTimedFrame {
+            identity: identity.clone(),
+            frame: pending.frame,
+        });
         Some(pending.frame)
     }
 
@@ -356,12 +391,19 @@ impl WindowStageOwner {
         started_at: Instant,
         completed_at: Instant,
     ) -> bool {
-        if self.in_flight.as_ref() != Some(identity) {
+        if self
+            .in_flight
+            .as_ref()
+            .is_none_or(|in_flight| in_flight.identity != *identity)
+        {
             return false;
         }
-        self.in_flight = None;
+        let Some(in_flight) = self.in_flight.take() else {
+            return false;
+        };
         self.last_completion = Some(FrameStageCompletionEvidence {
             identity: identity.clone(),
+            frame: in_flight.frame,
             elapsed: completed_at.saturating_duration_since(started_at),
             budget_status: FrameStageBudgetStatus::NotBudgeted,
         });
@@ -380,7 +422,8 @@ impl WindowStageOwner {
             return true;
         }
         if self.in_flight.as_ref().is_some_and(|in_flight| {
-            in_flight.same_fence(identity) && identity.revision < in_flight.revision
+            in_flight.identity.same_fence(identity)
+                && identity.revision < in_flight.identity.revision
         }) {
             return true;
         }
@@ -410,8 +453,10 @@ impl WindowStageOwner {
     }
 
     #[cfg(test)]
-    fn completion_evidence(&self) -> Option<&FrameStageCompletionEvidence> {
-        self.last_completion.as_ref()
+    pub(super) fn completion_bundle(&self) -> Option<TimedFrame> {
+        self.last_completion
+            .as_ref()
+            .map(|completion| completion.frame)
     }
 
     fn accepts_identity(&self, identity: &FrameStageIdentity) -> bool {
@@ -466,6 +511,19 @@ mod tests {
                 RuntimeAnimationActivity::paint_only()
             },
             caret,
+        )
+    }
+
+    fn frame_with_timed_repaint(due_at: Instant, caret: bool) -> TimedFrame {
+        TimedFrame::with_timed_repaint(
+            due_at,
+            if caret {
+                RuntimeAnimationActivity::frame_messages()
+            } else {
+                RuntimeAnimationActivity::paint_only()
+            },
+            caret,
+            true,
         )
     }
 
@@ -541,11 +599,42 @@ mod tests {
         assert!(owner.complete(&exact, started_at, completed_at));
 
         let evidence = owner
-            .completion_evidence()
+            .last_completion
+            .as_ref()
             .expect("completion evidence should be retained");
         assert_eq!(evidence.identity, exact);
+        assert_eq!(evidence.frame.due_at(), now);
+        assert!(!evidence.frame.advance_timed_repaint());
         assert_eq!(evidence.elapsed, Duration::from_millis(3));
         assert_eq!(evidence.budget_status, FrameStageBudgetStatus::NotBudgeted);
+    }
+
+    #[test]
+    fn deadline_bundle_retains_selected_timed_repaint_evidence() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let exact = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let bundle = frame_with_timed_repaint(now, true);
+        assert!(owner.queue(exact.clone(), bundle));
+        let begun = owner.begin(&exact, now).expect("due deadline bundle");
+        assert_eq!(begun, bundle);
+        assert!(begun.advance_timed_repaint());
+        assert!(begun.needs_text_caret_animation());
+        assert_eq!(
+            begun.animation_activity(),
+            RuntimeAnimationActivity::frame_messages()
+        );
+        assert!(owner.complete(&exact, now, now + Duration::from_millis(1)));
+        assert_eq!(owner.completion_bundle(), Some(bundle));
     }
 
     #[test]

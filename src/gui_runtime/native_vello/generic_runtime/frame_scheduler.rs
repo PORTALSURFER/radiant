@@ -432,6 +432,44 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Execute the operations selected by one deadline demand in their
+    /// existing order.  Both exact-owner execution and compatibility fallback
+    /// use this helper so repaint advancement, redraw requests, deferral, and
+    /// timed-frame drainage cannot diverge.
+    fn execute_deadline_bundle(
+        &mut self,
+        now: Instant,
+        bundle: TimedFrame,
+    ) -> FrameScheduleAdmission {
+        let repaint_advanced =
+            bundle.advance_timed_repaint() && self.core.advance_timed_repaints(now);
+        if repaint_advanced {
+            self.rebuild_scene();
+            self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::Immediate,
+            });
+        }
+
+        let should_route = !self.should_defer_timed_frame_drain_for_pending_redraw(now);
+        let outcome = if should_route {
+            let actual_drain_at = Instant::now();
+            self.drain_timed_frame_now(
+                actual_drain_at,
+                bundle.animation_activity(),
+                bundle.needs_text_caret_animation(),
+            )
+        } else {
+            GenericRouteOutcome::default()
+        };
+        FrameScheduleAdmission {
+            outcome,
+            route_outcome: should_route,
+            did_work: true,
+            timed_frame_already_handled: true,
+        }
+    }
+
     fn admit_timed_frame_deadline(
         &mut self,
         now: Instant,
@@ -443,20 +481,6 @@ where
         if !self.frame_stage_owner.owns_key(&key) {
             return FrameScheduleAdmission::default();
         }
-        let fallback = |runner: &mut Self| {
-            let actual_drain_at = Instant::now();
-            let outcome = runner.drain_timed_frame_now(
-                actual_drain_at,
-                selected_payload.animation_activity(),
-                selected_payload.needs_text_caret_animation(),
-            );
-            FrameScheduleAdmission {
-                outcome,
-                route_outcome: true,
-                did_work: true,
-                timed_frame_already_handled: true,
-            }
-        };
         let pre_begin_fallback = |runner: &mut Self| {
             if runner.frame_stage_owner.has_in_flight() {
                 return FrameScheduleAdmission {
@@ -465,7 +489,7 @@ where
                 };
             }
             runner.frame_stage_owner.invalidate();
-            fallback(runner)
+            runner.execute_deadline_bundle(now, selected_payload)
         };
         let Some(adapter_generation) = adapter_generation else {
             return pre_begin_fallback(self);
@@ -505,32 +529,18 @@ where
         let Some(payload) = self.frame_stage_owner.begin(&identity, now) else {
             return pre_begin_fallback(self);
         };
-        let actual_drain_at = Instant::now();
-        let outcome = self.drain_timed_frame_now(
-            actual_drain_at,
-            payload.animation_activity(),
-            payload.needs_text_caret_animation(),
-        );
+        let started_at = Instant::now();
+        let admission = self.execute_deadline_bundle(now, payload);
         let completed_at = Instant::now();
         if !self
             .frame_stage_owner
-            .complete(&identity, actual_drain_at, completed_at)
+            .complete(&identity, started_at, completed_at)
         {
-            // The drain already happened after begin. A failed completion must
-            // not fall back to a second direct drain.
-            return FrameScheduleAdmission {
-                outcome,
-                route_outcome: true,
-                did_work: true,
-                timed_frame_already_handled: true,
-            };
+            // The bundle already ran after begin. A failed completion must not
+            // fall back to a second repaint advance, redraw request, or drain.
+            return admission;
         }
-        FrameScheduleAdmission {
-            outcome,
-            route_outcome: true,
-            did_work: true,
-            timed_frame_already_handled: true,
-        }
+        admission
     }
 
     /// Apply one already-selected window's existing timed-frame policy.
@@ -570,6 +580,23 @@ where
             return FrameScheduleAdmission::default();
         }
         self.require_primary_frame_diagnostics_schedule_admission();
+        if work.drain_timed_frame
+            && !work.reissue_pending_redraw
+            && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
+        {
+            return self.admit_timed_frame_deadline(
+                now,
+                demand.key().clone(),
+                adapter_generation,
+                self.window.target_generation,
+                TimedFrame::with_timed_repaint(
+                    due_at,
+                    demand.animation_activity(),
+                    demand.needs_text_caret_animation(),
+                    work.advance_timed_repaint,
+                ),
+            );
+        }
         if work.advance_timed_repaint && self.core.advance_timed_repaints(now) {
             self.rebuild_scene();
             self.request_redraw_for_frame_work(FrameWork::RebuildScene {
@@ -580,37 +607,9 @@ where
         if work.reissue_pending_redraw {
             self.request_redraw_for_frame_work(FrameWork::None);
         }
-        if work.drain_timed_frame
-            && !work.advance_timed_repaint
-            && !work.reissue_pending_redraw
-            && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
-        {
-            return self.admit_timed_frame_deadline(
-                now,
-                demand.key().clone(),
-                adapter_generation,
-                self.window.target_generation,
-                TimedFrame::new(
-                    due_at,
-                    demand.animation_activity(),
-                    demand.needs_text_caret_animation(),
-                ),
-            );
-        }
-        let should_route =
-            work.drain_timed_frame && !self.should_defer_timed_frame_drain_for_pending_redraw(now);
-        let outcome = if should_route {
-            self.drain_timed_frame_now(
-                now,
-                demand.animation_activity(),
-                demand.needs_text_caret_animation(),
-            )
-        } else {
-            GenericRouteOutcome::default()
-        };
         FrameScheduleAdmission {
-            outcome,
-            route_outcome: should_route,
+            outcome: GenericRouteOutcome::default(),
+            route_outcome: false,
             did_work: true,
             timed_frame_already_handled: false,
         }
@@ -628,7 +627,8 @@ mod tests {
         gui::types::Vector2,
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
-        runtime::{RuntimeAnimationHost, RuntimeHostCapabilities, UiSurface},
+        runtime::{RuntimeAnimationHost, RuntimeHostCapabilities, SurfaceNode, UiSurface},
+        widgets::{DragHandleWidget, WidgetSizing},
     };
     use std::{cell::Cell, sync::Arc};
 
@@ -680,6 +680,48 @@ mod tests {
             false,
             FrameScheduleRedrawEvidence::default(),
         )
+    }
+
+    fn mixed_due_demand(key: FrameScheduleKey, now: Instant) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            TimedFrameCadence::DrainNow {
+                due_at: now - Duration::from_millis(1),
+                next_wake: now + Duration::from_millis(16),
+            },
+            60,
+            RuntimeAnimationActivity::frame_messages(),
+            false,
+            FrameScheduleRedrawEvidence {
+                timed_repaint_deadline: Some(now - Duration::from_millis(1)),
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        )
+    }
+
+    struct DelayedRepaintBridge;
+
+    impl crate::runtime::RuntimeBridge<()> for DelayedRepaintBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+                DragHandleWidget::new(70, WidgetSizing::fixed(Vector2::new(8.0, 40.0)))
+                    .with_hover_chrome_only()
+                    .with_trailing_rail(1.0),
+                crate::runtime::WidgetMessageMapper::none(),
+            )))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_frame_diagnostics()
+        }
+    }
+
+    impl crate::runtime::RuntimeFrameDiagnosticsHost for DelayedRepaintBridge {
+        fn observe_frame_diagnostics(
+            &mut self,
+            _diagnostics: crate::runtime::NativeFrameDiagnostics,
+        ) {
+        }
     }
 
     fn auxiliary_runner() -> GenericNativeVelloRunner<CountingFrameBridge, ()> {
@@ -788,6 +830,143 @@ mod tests {
             "the selected auxiliary route must not merge a second timed frame"
         );
         assert_eq!(runner.timing.last_timed_frame_drain, drained_at);
+    }
+
+    #[test]
+    fn selected_primary_mixed_deadline_uses_one_owner_bundle_when_repaint_is_due() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+        runner.window.target_generation.advance();
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let now = Instant::now() - Duration::from_millis(50);
+        let demand = mixed_due_demand(FrameScheduleKey::Primary, now);
+        let due_at = now - Duration::from_millis(1);
+
+        let admission = runner.admit_frame_schedule_work(now, &demand);
+
+        assert!(admission.did_work);
+        assert!(admission.route_outcome);
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "mixed deadline work should drain exactly once"
+        );
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .map(|bundle| bundle.due_at()),
+            Some(due_at)
+        );
+        assert!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .is_some_and(|bundle| bundle.advance_timed_repaint())
+        );
+    }
+
+    #[test]
+    fn selected_auxiliary_mixed_deadline_uses_exact_key_and_borrowed_generation() {
+        let mut runner = auxiliary_runner();
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let now = Instant::now() - Duration::from_millis(50);
+        let demand = mixed_due_demand(key.clone(), now);
+
+        let admission =
+            runner.admit_auxiliary_frame_schedule_work(now, &demand, adapter_generation);
+
+        assert!(admission.did_work);
+        assert!(admission.route_outcome);
+        assert_eq!(runner.frame_stage_owner.key(), &key);
+        assert_eq!(
+            runner.core.runtime.bridge_mut().queue_calls.get(),
+            1,
+            "auxiliary mixed deadline work should use the borrowed parent generation once"
+        );
+        assert!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .is_some_and(|bundle| bundle.advance_timed_repaint())
+        );
+    }
+
+    #[test]
+    fn fresh_pending_redraw_after_repaint_advancement_defers_the_timed_frame() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge,
+            Vector2::new(320.0, 40.0),
+        );
+        let bounds = runner
+            .core
+            .runtime
+            .layout()
+            .rects
+            .get(&70)
+            .copied()
+            .expect("delayed repaint widget should be laid out");
+        assert!(
+            runner
+                .core
+                .route_pointer_move(bounds.center())
+                .needs_scene_rebuild()
+        );
+        let repaint_deadline = runner
+            .core
+            .timed_repaint_deadline()
+            .expect("hover should schedule a finite repaint");
+        let now = repaint_deadline;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_millis(1));
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let demand = FrameScheduleDemand::from_cadence(
+            FrameScheduleKey::Primary,
+            TimedFrameCadence::DrainNow {
+                due_at: now,
+                next_wake: now + Duration::from_millis(16),
+            },
+            60,
+            RuntimeAnimationActivity::paint_only(),
+            false,
+            FrameScheduleRedrawEvidence {
+                timed_repaint_deadline: Some(repaint_deadline),
+                pending_redraw_requested: true,
+                pending_redraw_retry_deadline: Some(now + Duration::from_millis(16)),
+                pending_redraw_fresh: false,
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        );
+
+        let admission = runner.admit_frame_schedule_work(now, &demand);
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.core.timed_repaint_deadline(), None);
+        assert!(matches!(
+            runner.timing.pending_frame_work,
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                ..
+            }
+        ));
     }
 
     #[test]

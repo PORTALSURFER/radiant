@@ -11,8 +11,9 @@ pub const MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES: usize = 256;
 /// Required byte alignment for custom-shader presentation uniform payloads.
 pub const GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT: usize = 4;
 
-/// Maximum number of pending latest-only presentation updates retained by one
-/// [`crate::runtime::SurfaceRuntime`].
+/// Maximum number of pending presentation updates retained by one
+/// [`crate::runtime::SurfaceRuntime`]. Updates are latest-only per target plus
+/// immutable storage fence.
 pub(crate) const GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY: usize = 32;
 
 /// Error returned when a volatile custom-shader presentation update cannot be
@@ -63,12 +64,13 @@ impl fmt::Display for GpuShaderPresentationUniformUpdateError {
 
 impl std::error::Error for GpuShaderPresentationUniformUpdateError {}
 
-/// One fixed-size, latest-only volatile presentation-uniform update.
+/// One fixed-size volatile presentation-uniform update.
 ///
 /// The update is copied into inline storage during construction. Once admitted
 /// by a runtime mailbox, replacing or draining it does not allocate for the
-/// update payload. `storage_identity` and `storage_revision` fence the update
-/// to the immutable payload currently presented by the surface.
+/// update payload. Mailbox admission is latest-only per target plus immutable
+/// storage fence. `storage_identity` and `storage_revision` fence the update to
+/// the immutable payload currently presented by the surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GpuShaderPresentationUniformUpdate {
     /// Widget that owns the target surface.
@@ -144,7 +146,10 @@ impl GpuShaderPresentationUniformUpdate {
         })
     }
 
-    /// Return the stable `(widget_id, surface_key)` mailbox key.
+    /// Return the stable `(widget_id, surface_key)` target key.
+    ///
+    /// The mailbox combines this target key with the immutable storage fence for
+    /// its slot identity.
     pub const fn key(self) -> (WidgetId, CanvasKey) {
         (self.widget_id, self.surface_key)
     }
@@ -166,14 +171,20 @@ impl GpuShaderPresentationUniformUpdate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MailboxSlotKey {
+    target: (WidgetId, CanvasKey),
+    storage_fence: (u64, u64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MailboxSlot {
-    key: (WidgetId, CanvasKey),
+    key: MailboxSlotKey,
     latest: Option<GpuShaderPresentationUniformUpdate>,
-    last_storage_fence: Option<(u64, u64)>,
     last_presentation_revision: Option<u64>,
 }
 
-/// Fixed-capacity latest-only mailbox owned by one [`SurfaceRuntime`].
+/// Fixed-capacity mailbox owned by one [`SurfaceRuntime`]. Pending updates are
+/// latest-only per target plus immutable storage fence.
 pub(crate) struct GpuShaderPresentationUniformMailbox {
     slots: Vec<MailboxSlot>,
 }
@@ -187,27 +198,28 @@ impl Default for GpuShaderPresentationUniformMailbox {
 }
 
 impl GpuShaderPresentationUniformMailbox {
-    /// Admit a newer update, replacing any pending update for the same key.
+    /// Admit a newer update, replacing any pending update for the same target
+    /// and immutable storage fence.
     pub(crate) fn admit(&mut self, update: GpuShaderPresentationUniformUpdate) -> bool {
-        let storage_fence = (update.storage_identity, update.storage_revision);
-        if let Some(slot) = self.slots.iter_mut().find(|slot| slot.key == update.key()) {
-            if slot.last_storage_fence == Some(storage_fence)
-                && slot
-                    .last_presentation_revision
-                    .is_some_and(|revision| update.presentation_revision <= revision)
+        let key = MailboxSlotKey {
+            target: update.key(),
+            storage_fence: (update.storage_identity, update.storage_revision),
+        };
+        if let Some(slot) = self.slots.iter_mut().find(|slot| slot.key == key) {
+            if slot
+                .last_presentation_revision
+                .is_some_and(|revision| update.presentation_revision <= revision)
             {
                 return false;
             }
-            slot.last_storage_fence = Some(storage_fence);
             slot.last_presentation_revision = Some(update.presentation_revision);
             slot.latest = Some(update);
             return true;
         }
         if let Some(slot) = self.slots.iter_mut().find(|slot| slot.latest.is_none()) {
             *slot = MailboxSlot {
-                key: update.key(),
+                key,
                 latest: Some(update),
-                last_storage_fence: Some(storage_fence),
                 last_presentation_revision: Some(update.presentation_revision),
             };
             return true;
@@ -217,9 +229,8 @@ impl GpuShaderPresentationUniformMailbox {
         }
         debug_assert!(self.slots.len() < self.slots.capacity());
         self.slots.push(MailboxSlot {
-            key: update.key(),
+            key,
             latest: Some(update),
-            last_storage_fence: Some(storage_fence),
             last_presentation_revision: Some(update.presentation_revision),
         });
         true
@@ -325,11 +336,25 @@ mod tests {
     }
 
     #[test]
-    fn mailbox_reuses_drained_slots_for_new_keys() {
+    fn mailbox_keeps_capacity_bounded_and_reuses_drained_slots() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
-        for key in 0..GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64 {
-            assert!(mailbox.admit(update(key, 1, &[1, 1, 1, 1])));
+        for storage_identity in 0..GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64 {
+            assert!(mailbox.admit(update_with_storage(
+                2,
+                storage_identity,
+                13,
+                1,
+                &[1, 1, 1, 1],
+            )));
         }
+        assert_eq!(
+            mailbox.pending_len(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
+        assert_eq!(
+            mailbox.slots.len(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
 
         let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
         mailbox.drain_into(&mut drained);
@@ -339,20 +364,36 @@ mod tests {
         );
         assert_eq!(mailbox.pending_len(), 0);
 
-        for key in GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64
+        for storage_identity in GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64
             ..(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY * 2) as u64
         {
-            assert!(mailbox.admit(update(key, 1, &[1, 1, 1, 1])));
+            assert!(mailbox.admit(update_with_storage(
+                2,
+                storage_identity,
+                13,
+                1,
+                &[1, 1, 1, 1],
+            )));
         }
-        assert!(!mailbox.admit(update(
+        assert_eq!(
+            mailbox.pending_len(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
+        assert_eq!(
+            mailbox.slots.len(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
+        assert!(!mailbox.admit(update_with_storage(
+            2,
             (GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY * 2) as u64,
+            13,
             1,
-            &[1, 1, 1, 1]
+            &[1, 1, 1, 1],
         )));
     }
 
     #[test]
-    fn mailbox_resets_presentation_revision_for_new_storage_generations() {
+    fn mailbox_keeps_storage_generations_in_separate_slots() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
         assert!(mailbox.admit(update_with_storage(2, 11, 13, 7, &[7, 7, 7, 7])));
         assert!(!mailbox.admit(update_with_storage(2, 11, 13, 7, &[7, 7, 7, 7])));
@@ -366,8 +407,48 @@ mod tests {
 
         let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
         mailbox.drain_into(&mut drained);
-        assert_eq!(drained.len(), 1);
-        assert_eq!(drained[0].storage_identity, 12);
-        assert_eq!(drained[0].presentation_revision, 2);
+        assert_eq!(drained.len(), 2);
+        assert!(drained.iter().any(|update| {
+            update.storage_identity == 11
+                && update.storage_revision == 13
+                && update.presentation_revision == 7
+        }));
+        assert!(drained.iter().any(|update| {
+            update.storage_identity == 12
+                && update.storage_revision == 13
+                && update.presentation_revision == 2
+        }));
+    }
+
+    #[test]
+    fn mailbox_retains_current_generation_when_late_old_generation_arrives() {
+        let mut mailbox = GpuShaderPresentationUniformMailbox::default();
+        let current_generation_b = update_with_storage(2, 12, 13, 5, &[5, 5, 5, 5]);
+        let late_old_generation_a = update_with_storage(2, 11, 13, 6, &[6, 6, 6, 6]);
+        assert!(mailbox.admit(current_generation_b));
+        assert!(mailbox.admit(late_old_generation_a));
+
+        let mut drained = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
+        mailbox.drain_into(&mut drained);
+
+        assert_eq!(drained.len(), 2);
+        let selected_for_b = drained
+            .iter()
+            .filter(|update| {
+                update.widget_id == current_generation_b.widget_id
+                    && update.surface_key == current_generation_b.surface_key
+                    && update.storage_identity == current_generation_b.storage_identity
+                    && update.storage_revision == current_generation_b.storage_revision
+            })
+            .max_by_key(|update| update.presentation_revision);
+        assert_eq!(
+            selected_for_b.map(|update| update.presentation_revision),
+            Some(5)
+        );
+        assert!(drained.iter().any(|update| {
+            update.storage_identity == late_old_generation_a.storage_identity
+                && update.storage_revision == late_old_generation_a.storage_revision
+                && update.presentation_revision == late_old_generation_a.presentation_revision
+        }));
     }
 }

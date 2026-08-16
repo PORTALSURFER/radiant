@@ -165,9 +165,41 @@ impl<Message> UiSurface<Message> {
             };
         }
 
-        let mut terminal_messages = Vec::with_capacity(plan.entries.len());
-        let mut retired_widget_ids = Vec::with_capacity(plan.entries.len());
-        for entry in plan.entries {
+        self.commit_widget_replacement_entries(successor, plan.entries)
+    }
+
+    /// Commit the current combined replacement evidence without a retained
+    /// plan. This is the conservative fallback after a plan-wide veto; it
+    /// preserves the original immediate callback, mapper, and retired-ID
+    /// behavior without projecting either surface again.
+    pub(in crate::runtime) fn commit_widget_replacements_immediately(
+        &mut self,
+        successor: &Self,
+        previous_stateful_widget_order: &[WidgetId],
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> WidgetReplacementCommitResult<Message> {
+        let plan = self.plan_widget_replacements(
+            successor,
+            previous_stateful_widget_order,
+            previous_widget_order,
+            current_widget_order,
+            current_paths,
+            previous_paths,
+        );
+        self.commit_widget_replacement_entries(successor, plan.entries)
+    }
+
+    fn commit_widget_replacement_entries(
+        &mut self,
+        successor: &Self,
+        entries: Vec<WidgetReplacementPlanEntry>,
+    ) -> WidgetReplacementCommitResult<Message> {
+        let mut terminal_messages = Vec::with_capacity(entries.len());
+        let mut retired_widget_ids = Vec::with_capacity(entries.len());
+        for entry in entries {
             let successor_widget = self
                 .exact_successor_for_plan_entry(successor, &entry)
                 .map(|widget| widget.widget_object());

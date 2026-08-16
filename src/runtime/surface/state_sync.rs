@@ -1,6 +1,66 @@
 use super::{UiSurface, WidgetDispatchResult, WidgetPath};
-use crate::widgets::WidgetId;
+use crate::widgets::{WidgetId, WidgetRevision};
 use std::collections::{HashMap, HashSet};
+
+/// Read-only evidence for one retained-widget replacement boundary.
+///
+/// The plan owns only identity, compatibility, revision, and validity
+/// evidence. It deliberately does not retain widget references, output
+/// values, host messages, or mapper callbacks.
+#[derive(Clone, PartialEq, Eq)]
+struct WidgetReplacementEvidence {
+    widget_id: WidgetId,
+    compatibility_kind: &'static str,
+    revision: WidgetRevision,
+    valid: bool,
+}
+
+impl WidgetReplacementEvidence {
+    fn from_widget<Message>(widget: &super::SurfaceWidget<Message>) -> Self {
+        let evidence = widget.revision_evidence();
+        Self {
+            widget_id: widget.id(),
+            compatibility_kind: evidence.compatibility_kind,
+            revision: evidence.revision.clone(),
+            valid: evidence.valid,
+        }
+    }
+}
+
+/// One owned read-only replacement witness retained until commit.
+struct WidgetReplacementPlanEntry {
+    widget_id: WidgetId,
+    previous_path: Option<WidgetPath>,
+    previous_evidence: Option<WidgetReplacementEvidence>,
+    successor_path: Option<WidgetPath>,
+    successor_evidence: Option<WidgetReplacementEvidence>,
+    previous_unique: bool,
+    successor_unique: bool,
+}
+
+/// A crate-private, consuming replacement plan.
+///
+/// This type intentionally does not implement `Clone`. Dropping it is an
+/// inert discard of read-only evidence; irreversible widget callbacks and
+/// message mapping occur only through [`UiSurface::commit_widget_replacements`].
+pub(in crate::runtime) struct WidgetReplacementPlan {
+    entries: Vec<WidgetReplacementPlanEntry>,
+}
+
+/// Reason a complete replacement plan was vetoed before its first callback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::runtime) enum WidgetReplacementPlanVeto {
+    /// Stored identity/path/revision or uniqueness evidence no longer matches
+    /// the surfaces supplied to commit.
+    StaleEvidence,
+}
+
+/// Results produced by consuming one validated replacement plan.
+pub(in crate::runtime) struct WidgetReplacementCommitResult<Message> {
+    pub(in crate::runtime) terminal_messages: Vec<Message>,
+    pub(in crate::runtime) retired_widget_ids: Vec<WidgetId>,
+    pub(in crate::runtime) veto: Option<WidgetReplacementPlanVeto>,
+}
 
 pub(in crate::runtime) struct WidgetStateSyncEvidence<'a> {
     pub(in crate::runtime::surface) stateful_widget_order: &'a [WidgetId],
@@ -42,17 +102,16 @@ impl WidgetStateSyncPolicy {
 }
 
 impl<Message> UiSurface<Message> {
-    pub(in crate::runtime) fn prepare_widget_replacements(
-        &mut self,
+    pub(in crate::runtime) fn plan_widget_replacements(
+        &self,
         successor: &Self,
         previous_stateful_widget_order: &[WidgetId],
         previous_widget_order: &[WidgetId],
         current_widget_order: &[WidgetId],
         current_paths: &HashMap<WidgetId, WidgetPath>,
         previous_paths: &HashMap<WidgetId, WidgetPath>,
-    ) -> (Vec<Message>, Vec<WidgetId>) {
-        let mut messages = Vec::with_capacity(previous_stateful_widget_order.len());
-        let mut retired_widget_ids = Vec::with_capacity(previous_stateful_widget_order.len());
+    ) -> WidgetReplacementPlan {
+        let mut entries = Vec::with_capacity(previous_stateful_widget_order.len());
         let mut visited = HashSet::with_capacity(previous_stateful_widget_order.len());
 
         for widget_id in previous_stateful_widget_order {
@@ -60,60 +119,169 @@ impl<Message> UiSurface<Message> {
                 continue;
             }
 
-            let previous_path = previous_paths.get(widget_id);
-            let successor_widget = match (previous_path, current_paths.get(widget_id)) {
-                (Some(previous_path), Some(current_path))
-                    if has_unique_widget_id(previous_widget_order, *widget_id)
-                        && has_unique_widget_id(current_widget_order, *widget_id) =>
-                {
-                    let previous_widget = self.find_widget_at_path(*widget_id, previous_path);
-                    let current_widget = successor.find_widget_at_path(*widget_id, current_path);
-                    match (previous_widget, current_widget) {
-                        (Some(previous_widget), Some(current_widget))
-                            if previous_widget.revision_evidence().valid
-                                && current_widget.revision_evidence().valid
-                                && previous_widget.compatibility_kind()
-                                    == current_widget.compatibility_kind() =>
-                        {
-                            Some(current_widget.widget_object())
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
-            };
+            let previous_path = previous_paths.get(widget_id).cloned();
+            let previous_evidence = previous_path
+                .as_ref()
+                .and_then(|path| self.replacement_evidence_at_path(path));
+            let successor_path = current_paths.get(widget_id).cloned();
+            let successor_evidence = successor_path
+                .as_ref()
+                .and_then(|path| successor.replacement_evidence_at_path(path));
+            entries.push(WidgetReplacementPlanEntry {
+                widget_id: *widget_id,
+                previous_path,
+                previous_evidence,
+                successor_path,
+                successor_evidence,
+                previous_unique: has_unique_widget_id(previous_widget_order, *widget_id),
+                successor_unique: has_unique_widget_id(current_widget_order, *widget_id),
+            });
+        }
 
-            let (called, result) = match previous_path {
+        WidgetReplacementPlan { entries }
+    }
+
+    pub(in crate::runtime) fn commit_widget_replacements(
+        &mut self,
+        successor: &Self,
+        plan: WidgetReplacementPlan,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> WidgetReplacementCommitResult<Message> {
+        if !self.replacement_plan_is_current(
+            successor,
+            &plan,
+            previous_widget_order,
+            current_widget_order,
+            previous_paths,
+            current_paths,
+        ) {
+            return WidgetReplacementCommitResult {
+                terminal_messages: Vec::new(),
+                retired_widget_ids: Vec::new(),
+                veto: Some(WidgetReplacementPlanVeto::StaleEvidence),
+            };
+        }
+
+        let mut terminal_messages = Vec::with_capacity(plan.entries.len());
+        let mut retired_widget_ids = Vec::with_capacity(plan.entries.len());
+        for entry in plan.entries {
+            let successor_widget = self
+                .exact_successor_for_plan_entry(successor, &entry)
+                .map(|widget| widget.widget_object());
+            let (called, result) = match entry.previous_path.as_ref() {
                 Some(previous_path) => {
-                    let prepared = self.root.prepare_widget_replacement_at_path(
-                        *widget_id,
+                    let committed = self.root.commit_widget_replacement_at_path(
+                        entry.widget_id,
                         previous_path.as_slice(),
                         successor_widget,
                     );
-                    if prepared.0 {
-                        prepared
+                    if committed.0 {
+                        committed
                     } else {
                         self.root
-                            .prepare_widget_replacement(*widget_id, successor_widget)
+                            .commit_widget_replacement(entry.widget_id, successor_widget)
                     }
                 }
                 None => self
                     .root
-                    .prepare_widget_replacement(*widget_id, successor_widget),
+                    .commit_widget_replacement(entry.widget_id, successor_widget),
             };
             if !called {
                 continue;
             }
 
             if !matches!(result, WidgetDispatchResult::NoOutput) {
-                retired_widget_ids.push(*widget_id);
+                retired_widget_ids.push(entry.widget_id);
             }
             if let WidgetDispatchResult::Message(message) = result {
-                messages.push(message);
+                terminal_messages.push(message);
             }
         }
 
-        (messages, retired_widget_ids)
+        WidgetReplacementCommitResult {
+            terminal_messages,
+            retired_widget_ids,
+            veto: None,
+        }
+    }
+
+    fn replacement_plan_is_current(
+        &self,
+        successor: &Self,
+        plan: &WidgetReplacementPlan,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> bool {
+        plan.entries.iter().all(|entry| {
+            entry.previous_unique == has_unique_widget_id(previous_widget_order, entry.widget_id)
+                && entry.successor_unique
+                    == has_unique_widget_id(current_widget_order, entry.widget_id)
+                && path_evidence_matches(
+                    previous_paths.get(&entry.widget_id),
+                    entry.previous_path.as_ref(),
+                )
+                && path_evidence_matches(
+                    current_paths.get(&entry.widget_id),
+                    entry.successor_path.as_ref(),
+                )
+                && self.replacement_evidence_matches(
+                    entry.previous_path.as_ref(),
+                    entry.previous_evidence.as_ref(),
+                )
+                && successor.replacement_evidence_matches(
+                    entry.successor_path.as_ref(),
+                    entry.successor_evidence.as_ref(),
+                )
+        })
+    }
+
+    fn replacement_evidence_matches(
+        &self,
+        path: Option<&WidgetPath>,
+        expected: Option<&WidgetReplacementEvidence>,
+    ) -> bool {
+        match (path, expected) {
+            (None, None) => true,
+            (Some(path), Some(expected)) => self
+                .replacement_evidence_at_path(path)
+                .is_some_and(|actual| actual == *expected),
+            (Some(path), None) => self.replacement_evidence_at_path(path).is_none(),
+            (None, Some(_)) => false,
+        }
+    }
+
+    fn exact_successor_for_plan_entry<'a>(
+        &self,
+        successor: &'a Self,
+        entry: &WidgetReplacementPlanEntry,
+    ) -> Option<&'a super::SurfaceWidget<Message>> {
+        if !entry.previous_unique || !entry.successor_unique {
+            return None;
+        }
+        let previous = entry.previous_evidence.as_ref()?;
+        if !previous.valid || previous.widget_id != entry.widget_id {
+            return None;
+        }
+        let current = entry.successor_evidence.as_ref()?;
+        if !current.valid
+            || current.widget_id != entry.widget_id
+            || current.compatibility_kind != previous.compatibility_kind
+        {
+            return None;
+        }
+        let successor_path = entry.successor_path.as_ref()?;
+        successor.find_widget_at_path(entry.widget_id, successor_path)
+    }
+
+    fn replacement_evidence_at_path(&self, path: &WidgetPath) -> Option<WidgetReplacementEvidence> {
+        self.root
+            .find_widget_at_path(path.as_slice())
+            .map(WidgetReplacementEvidence::from_widget)
     }
 
     pub(in crate::runtime) fn widget_compatibility_at_path(
@@ -162,4 +330,8 @@ fn has_unique_widget_id(widget_order: &[WidgetId], widget_id: WidgetId) -> bool 
         found = true;
     }
     found
+}
+
+fn path_evidence_matches(actual: Option<&WidgetPath>, expected: Option<&WidgetPath>) -> bool {
+    actual == expected
 }

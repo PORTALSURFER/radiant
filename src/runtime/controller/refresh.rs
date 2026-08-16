@@ -9,7 +9,11 @@ use super::{
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
-    surface::{RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics, classify_view_delta},
+    surface::{
+        RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics,
+        WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
+        classify_view_delta,
+    },
 };
 use crate::widgets::WidgetId;
 use std::fmt::Write as _;
@@ -3309,7 +3313,7 @@ where
             Some(std::mem::take(&mut self.traversal.widgets.paths.previous))
         };
         let previous_paths_for_refresh = previous_paths.as_ref().unwrap_or(&traversal.widget_paths);
-        let (terminal_messages, retired_widget_ids) = self.surface.prepare_widget_replacements(
+        let replacement_plan: WidgetReplacementPlan = self.surface.plan_widget_replacements(
             &next_surface,
             &previous_stateful_widget_order,
             &previous_widget_order,
@@ -3317,6 +3321,18 @@ where
             &traversal.widget_paths,
             previous_paths_for_refresh,
         );
+        let replacement_commit: WidgetReplacementCommitResult<Message> =
+            self.surface.commit_widget_replacements(
+                &next_surface,
+                replacement_plan,
+                &previous_widget_order,
+                &traversal.widget_paint_order,
+                previous_paths_for_refresh,
+                &traversal.widget_paths,
+            );
+        let _replacement_veto: Option<WidgetReplacementPlanVeto> = replacement_commit.veto;
+        let terminal_messages = replacement_commit.terminal_messages;
+        let retired_widget_ids = replacement_commit.retired_widget_ids;
         let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
         let composition_focus_before_refresh = self.interaction.focus.focused_widget;
         let identity = self.discard_incompatible_widget_ownership(

@@ -5059,11 +5059,23 @@ before a native pipeline implementation consumes it. The native WGPU path can
 execute WGSL-backed descriptors that use Radiant's built-in surface uniform
 ABI at `@group(0) @binding(0)`, optional app uniform payload bytes at
 `@group(0) @binding(1)`, and optional read-only storage payload bytes at
-`@group(0) @binding(2)`. Native frame diagnostics expose direct custom-shader
-work, including custom shader pipeline rebuilds, under
+`@group(0) @binding(2)`. Descriptors may also carry optional volatile
+presentation-uniform bytes at `@group(0) @binding(3)`. `storage_identity` and
+`storage_revision` form the immutable payload fence, while
+`presentation_uniform_revision` on the descriptor and `presentation_revision`
+on volatile updates form the latest-only volatile fence.
+`UiUpdateContext::update_gpu_shader_presentation_uniform` and
+`Command::update_gpu_shader_presentation_uniform` are paint-only updates: they
+do not enter application messages or force projection. The presentation
+payload is bounded and latest-only; stale-generation updates are ignored unless
+their storage fence matches the currently presented immutable payload. Native
+frame diagnostics expose direct custom-shader work, including custom shader
+pipeline rebuilds, under
 `NativeGpuSurfaceDiagnostics::custom_shader`: `surfaces_rendered`,
-`pipeline_rebuilds`, `binding_rebuilds`, and `binding_cache_hits`, so rendered
-surfaces and shader pipeline/bind-group cache activity stay distinct from
+`pipeline_rebuilds`, `binding_rebuilds`, `binding_cache_hits`,
+`static_writes`, `static_write_bytes`, `presentation_writes`, and
+`presentation_write_bytes`, so rendered surfaces, shader pipeline/bind-group
+cache activity, and custom-shader buffer upload activity stay distinct from
 descriptors that cannot be handed to the direct WGPU path. Native WGPU
 validation failures are counted separately through
 `custom_shader.failures.surfaces_failed`,

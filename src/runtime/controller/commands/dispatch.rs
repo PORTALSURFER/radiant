@@ -344,6 +344,13 @@ where
                 outcome.repaint_requested = true;
                 outcome.paint_only_requested = true;
             }
+            Command::UpdateGpuShaderPresentationUniform(update) => {
+                if self.gpu_shader_presentation_uniform_mailbox.admit(update) {
+                    self.repaint_requested = true;
+                    outcome.repaint_requested = true;
+                    outcome.paint_only_requested = true;
+                }
+            }
             Command::RequestProjectionRefresh => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;

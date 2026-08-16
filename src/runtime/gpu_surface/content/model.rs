@@ -21,6 +21,15 @@ pub struct GpuShaderSurfaceDescriptor {
     pub uniform_bytes: Arc<[u8]>,
     /// Opaque storage/data payload consumed by a backend-specific pipeline.
     pub storage_bytes: Arc<[u8]>,
+    /// Stable identity for the immutable uniform/storage payload source.
+    pub storage_identity: u64,
+    /// Monotonic revision for the immutable uniform/storage payload source.
+    pub storage_revision: u64,
+    /// Optional volatile presentation-uniform bytes uploaded independently of
+    /// the immutable uniform/storage payload.
+    pub presentation_uniform_bytes: Option<Arc<[u8]>>,
+    /// Optional revision of the initial volatile presentation-uniform bytes.
+    pub presentation_uniform_revision: Option<u64>,
     /// Number of vertices the backend should draw for this surface.
     pub vertex_count: u32,
 }
@@ -40,6 +49,15 @@ pub struct GpuShaderSurfaceDescriptorParts {
     pub uniform_bytes: Arc<[u8]>,
     /// Opaque storage/data payload consumed by a backend-specific pipeline.
     pub storage_bytes: Arc<[u8]>,
+    /// Stable identity for the immutable uniform/storage payload source.
+    pub storage_identity: u64,
+    /// Monotonic revision for the immutable uniform/storage payload source.
+    pub storage_revision: u64,
+    /// Optional volatile presentation-uniform bytes uploaded independently of
+    /// the immutable uniform/storage payload.
+    pub presentation_uniform_bytes: Option<Arc<[u8]>>,
+    /// Optional revision of the initial volatile presentation-uniform bytes.
+    pub presentation_uniform_revision: Option<u64>,
     /// Number of vertices the backend should draw for this surface.
     pub vertex_count: u32,
 }
@@ -64,6 +82,10 @@ impl GpuShaderSurfaceDescriptor {
             fragment_entry_point: parts.fragment_entry_point,
             uniform_bytes: parts.uniform_bytes,
             storage_bytes: parts.storage_bytes,
+            storage_identity: parts.storage_identity,
+            storage_revision: parts.storage_revision,
+            presentation_uniform_bytes: parts.presentation_uniform_bytes,
+            presentation_uniform_revision: parts.presentation_uniform_revision,
             vertex_count: parts.vertex_count,
         }
     }
@@ -77,6 +99,10 @@ impl GpuShaderSurfaceDescriptor {
             fragment_entry_point: None,
             uniform_bytes: Arc::<[u8]>::from([]),
             storage_bytes: Arc::<[u8]>::from([]),
+            storage_identity: 0,
+            storage_revision: 0,
+            presentation_uniform_bytes: None,
+            presentation_uniform_revision: None,
             vertex_count: 3,
         })
     }
@@ -108,6 +134,37 @@ impl GpuShaderSurfaceDescriptor {
     /// Set opaque storage/data bytes for the backend pipeline.
     pub fn storage_bytes(mut self, bytes: impl AsRef<[u8]>) -> Self {
         self.storage_bytes = Arc::from(bytes.as_ref());
+        self
+    }
+
+    /// Set the immutable uniform/storage payload identity fence.
+    pub fn storage_identity(mut self, identity: u64) -> Self {
+        self.storage_identity = identity;
+        self
+    }
+
+    /// Set the immutable uniform/storage payload revision fence.
+    pub fn storage_revision(mut self, revision: u64) -> Self {
+        self.storage_revision = revision;
+        self
+    }
+
+    /// Set the initial volatile presentation-uniform bytes.
+    pub fn presentation_uniform_bytes(mut self, bytes: impl AsRef<[u8]>) -> Self {
+        self.presentation_uniform_bytes = Some(Arc::from(bytes.as_ref()));
+        self
+    }
+
+    /// Set the revision for the initial volatile presentation-uniform bytes.
+    pub fn presentation_uniform_revision(mut self, revision: u64) -> Self {
+        self.presentation_uniform_revision = Some(revision);
+        self
+    }
+
+    /// Set the initial volatile presentation-uniform bytes and revision.
+    pub fn presentation_uniform(mut self, bytes: impl AsRef<[u8]>, revision: u64) -> Self {
+        self.presentation_uniform_bytes = Some(Arc::from(bytes.as_ref()));
+        self.presentation_uniform_revision = Some(revision);
         self
     }
 

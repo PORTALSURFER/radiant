@@ -7,14 +7,17 @@ use super::super::passes::{gpu_surface_render_pass, set_surface_scissor, surface
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::visibility::visible_surface_regions;
 use crate::gui::types::Rect as UiRect;
-use crate::runtime::{GpuShaderSurfaceDescriptor, PaintGpuSurface};
+use crate::runtime::{
+    GpuShaderPresentationUniformUpdate, GpuShaderSurfaceDescriptor, PaintGpuSurface,
+};
 use std::time::Instant;
 
 pub(super) struct CustomShaderBufferUploadRequest<'a, 'target> {
     pub(super) target: &'a mut GpuSurfaceRenderTarget<'target>,
     pub(super) surface: &'a PaintGpuSurface,
     pub(super) descriptor: &'a GpuShaderSurfaceDescriptor,
-    pub(super) binding: &'a CustomShaderBinding,
+    pub(super) binding: &'a mut CustomShaderBinding,
+    pub(super) presentation_update: Option<&'a GpuShaderPresentationUniformUpdate>,
 }
 
 pub(super) struct CustomShaderDrawRequest<'a, 'target> {
@@ -26,7 +29,10 @@ pub(super) struct CustomShaderDrawRequest<'a, 'target> {
     pub(super) occlusion_regions: &'a [UiRect],
 }
 
-pub(super) fn upload_custom_shader_buffers(request: CustomShaderBufferUploadRequest<'_, '_>) {
+pub(super) fn upload_custom_shader_buffers(
+    request: CustomShaderBufferUploadRequest<'_, '_>,
+    stats: &mut GpuSurfaceRenderStats,
+) {
     let uniforms = GpuSurfaceUniforms {
         dest: surface_dest(request.surface, request.target.dpi_scale),
         target_size: [
@@ -40,17 +46,70 @@ pub(super) fn upload_custom_shader_buffers(request: CustomShaderBufferUploadRequ
         0,
         uniforms_as_bytes(&uniforms),
     );
-    if let Some(buffer) = &request.binding.app_uniform_buffer {
-        request
-            .target
-            .queue
-            .write_buffer(buffer, 0, &request.descriptor.uniform_bytes);
+    if request.binding.write_state.static_payload_needs_write(
+        request.descriptor.storage_identity,
+        request.descriptor.storage_revision,
+    ) {
+        if let Some(buffer) = &request.binding.app_uniform_buffer {
+            request
+                .target
+                .queue
+                .write_buffer(buffer, 0, &request.descriptor.uniform_bytes);
+            stats.custom_shader.static_writes += 1;
+            stats.custom_shader.static_write_bytes += request.descriptor.uniform_bytes.len();
+        }
+        if let Some(buffer) = &request.binding.storage_buffer {
+            request
+                .target
+                .queue
+                .write_buffer(buffer, 0, &request.descriptor.storage_bytes);
+            stats.custom_shader.static_writes += 1;
+            stats.custom_shader.static_write_bytes += request.descriptor.storage_bytes.len();
+        }
+        request.binding.write_state.cache_static_payload(
+            request.descriptor.storage_identity,
+            request.descriptor.storage_revision,
+        );
     }
-    if let Some(buffer) = &request.binding.storage_buffer {
-        request
-            .target
-            .queue
-            .write_buffer(buffer, 0, &request.descriptor.storage_bytes);
+    if let Some(buffer) = &request.binding.presentation_uniform_buffer {
+        if request
+            .binding
+            .write_state
+            .should_upload_initial_presentation()
+            && let Some(bytes) = request.descriptor.presentation_uniform_bytes.as_deref()
+        {
+            request.target.queue.write_buffer(buffer, 0, bytes);
+            request.binding.write_state.cache_presentation_revision(
+                request
+                    .descriptor
+                    .presentation_uniform_revision
+                    .unwrap_or_default(),
+            );
+            stats.custom_shader.presentation_writes += 1;
+            stats.custom_shader.presentation_write_bytes += bytes.len();
+        }
+        if let Some(update) = request.presentation_update
+            && request
+                .binding
+                .write_state
+                .presentation_update_is_acceptable(
+                    update.presentation_revision,
+                    request
+                        .descriptor
+                        .presentation_uniform_bytes
+                        .as_ref()
+                        .map_or(0, |bytes| bytes.len()),
+                    update.byte_len(),
+                )
+        {
+            request.target.queue.write_buffer(buffer, 0, update.bytes());
+            request
+                .binding
+                .write_state
+                .cache_presentation_revision(update.presentation_revision);
+            stats.custom_shader.presentation_writes += 1;
+            stats.custom_shader.presentation_write_bytes += update.byte_len();
+        }
     }
 }
 

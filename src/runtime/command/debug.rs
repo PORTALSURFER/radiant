@@ -12,6 +12,10 @@ where
             Self::Batch(commands) => f.debug_tuple("Batch").field(commands).finish(),
             Self::RequestRepaint => f.write_str("RequestRepaint"),
             Self::RequestPaintOnly => f.write_str("RequestPaintOnly"),
+            Self::UpdateGpuShaderPresentationUniform(update) => f
+                .debug_tuple("UpdateGpuShaderPresentationUniform")
+                .field(update)
+                .finish(),
             Self::RequestProjectionRefresh => f.write_str("RequestProjectionRefresh"),
             Self::RequestLayoutRefresh => f.write_str("RequestLayoutRefresh"),
             Self::SetDpiScale(scale) => f.debug_tuple("SetDpiScale").field(scale).finish(),

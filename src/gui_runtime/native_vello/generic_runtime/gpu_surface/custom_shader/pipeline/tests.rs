@@ -18,8 +18,9 @@ fn custom_shader_pipeline_key_requires_source_and_fragment_entry() {
             key.fragment_entry_point,
             key.has_uniform_payload,
             key.has_storage_payload,
+            key.has_presentation_uniform_payload,
         )),
-        Some((String::from("fragment_main"), false, false))
+        Some((String::from("fragment_main"), false, false, false))
     );
 }
 
@@ -31,12 +32,16 @@ fn custom_shader_pipeline_key_tracks_payload_bindings() {
         )
         .fragment_entry_point("fragment_main")
         .uniform_bytes([1, 2, 3, 4])
-        .storage_bytes([5, 6, 7, 8]);
+        .storage_bytes([5, 6, 7, 8])
+        .presentation_uniform_bytes([9, 10, 11, 12]);
 
     assert_eq!(
-        custom_shader_pipeline_key(&descriptor)
-            .map(|key| (key.has_uniform_payload, key.has_storage_payload,)),
-        Some((true, true))
+        custom_shader_pipeline_key(&descriptor).map(|key| (
+            key.has_uniform_payload,
+            key.has_storage_payload,
+            key.has_presentation_uniform_payload,
+        )),
+        Some((true, true, true))
     );
 }
 
@@ -57,6 +62,9 @@ fn custom_shader_layout_entries_include_optional_payload_bindings() {
     let storage_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
         CustomShaderPayloads::Storage,
     ));
+    let presentation_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
+        CustomShaderPayloads::Presentation,
+    ));
     let combined_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
         CustomShaderPayloads::UniformStorage,
     ));
@@ -65,6 +73,8 @@ fn custom_shader_layout_entries_include_optional_payload_bindings() {
     assert_uniform_binding(&uniform_entries[1], 1);
     assert_eq!(binding_numbers(&storage_entries), vec![0, 2]);
     assert_storage_binding(&storage_entries[1], 2);
+    assert_eq!(binding_numbers(&presentation_entries), vec![0, 3]);
+    assert_uniform_binding(&presentation_entries[1], 3);
     assert_eq!(binding_numbers(&combined_entries), vec![0, 1, 2]);
     assert_uniform_binding(&combined_entries[1], 1);
     assert_storage_binding(&combined_entries[2], 2);
@@ -76,15 +86,27 @@ enum CustomShaderPayloads {
     Uniform,
     Storage,
     UniformStorage,
+    Presentation,
+    UniformStoragePresentation,
 }
 
 impl CustomShaderPayloads {
     fn has_uniform_payload(self) -> bool {
-        matches!(self, Self::Uniform | Self::UniformStorage)
+        matches!(
+            self,
+            Self::Uniform | Self::UniformStorage | Self::UniformStoragePresentation
+        )
     }
 
     fn has_storage_payload(self) -> bool {
-        matches!(self, Self::Storage | Self::UniformStorage)
+        matches!(
+            self,
+            Self::Storage | Self::UniformStorage | Self::UniformStoragePresentation
+        )
+    }
+
+    fn has_presentation_uniform_payload(self) -> bool {
+        matches!(self, Self::Presentation | Self::UniformStoragePresentation)
     }
 }
 
@@ -99,7 +121,18 @@ fn custom_shader_test_key(payloads: CustomShaderPayloads) -> CustomShaderPipelin
         fragment_entry_point: String::from("fragment_main"),
         has_uniform_payload: payloads.has_uniform_payload(),
         has_storage_payload: payloads.has_storage_payload(),
+        has_presentation_uniform_payload: payloads.has_presentation_uniform_payload(),
     }
+}
+
+#[test]
+fn custom_shader_layout_entries_include_presentation_uniform_binding_after_storage() {
+    let entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
+        CustomShaderPayloads::UniformStoragePresentation,
+    ));
+
+    assert_eq!(binding_numbers(&entries), vec![0, 1, 2, 3]);
+    assert_uniform_binding(&entries[3], 3);
 }
 
 fn binding_numbers(entries: &[wgpu::BindGroupLayoutEntry]) -> Vec<u32> {

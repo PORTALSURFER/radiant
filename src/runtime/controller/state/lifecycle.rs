@@ -1,3 +1,6 @@
+use super::super::super::gpu_surface::{
+    GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY, GpuShaderPresentationUniformMailbox,
+};
 use super::super::{
     PlatformCompletionRegistry, RuntimeInteractionState, RuntimeLifecycleController,
     RuntimeLifecyclePhase, RuntimeScratch, RuntimeTraversalState, RuntimeWorkQueues,
@@ -61,6 +64,10 @@ where
             lifecycle: RuntimeLifecycleController::starting(),
             host_closing_hook_called: false,
             host_exit_hook_called: false,
+            gpu_shader_presentation_uniform_mailbox: GpuShaderPresentationUniformMailbox::default(),
+            gpu_shader_presentation_uniform_updates: Vec::with_capacity(
+                GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY,
+            ),
             repaint_requested: false,
             pending_current_surface_relayout: false,
             servicing_current_surface_relayout: false,

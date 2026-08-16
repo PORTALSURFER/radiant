@@ -8,6 +8,7 @@ impl<Message> Command<Message> {
             Self::Message(_)
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::UpdateGpuShaderPresentationUniform(_)
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
@@ -44,7 +45,9 @@ impl<Message> Command<Message> {
             Self::RequestRepaint | Self::SetDpiScale(_) | Self::SetWindowLogicalSize(_) => {
                 Some(RepaintScope::Surface)
             }
-            Self::RequestPaintOnly => Some(RepaintScope::PaintOnly),
+            Self::RequestPaintOnly | Self::UpdateGpuShaderPresentationUniform(_) => {
+                Some(RepaintScope::PaintOnly)
+            }
             Self::RequestProjectionRefresh => Some(RepaintScope::Projection),
             Self::RequestLayoutRefresh => Some(RepaintScope::Layout),
             Self::Batch(commands) => commands
@@ -88,6 +91,7 @@ impl<Message> Command<Message> {
             | Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::UpdateGpuShaderPresentationUniform(_)
             | Self::RequestProjectionRefresh
             | Self::RequestLayoutRefresh
             | Self::SetDpiScale(_)

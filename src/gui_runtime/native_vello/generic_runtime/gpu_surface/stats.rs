@@ -46,6 +46,10 @@ pub(crate) struct GpuSurfaceCustomShaderRenderStats {
     pub(crate) pipeline_rebuilds: usize,
     pub(crate) binding_rebuilds: usize,
     pub(crate) binding_cache_hits: usize,
+    pub(crate) static_writes: usize,
+    pub(crate) static_write_bytes: usize,
+    pub(crate) presentation_writes: usize,
+    pub(crate) presentation_write_bytes: usize,
     pub(crate) failures: GpuSurfaceCustomShaderFailureStats,
     pub(crate) unsupported: GpuSurfaceUnsupportedCustomShaderStats,
 }
@@ -81,6 +85,10 @@ mod tests {
         assert_eq!(stats.custom_shader.pipeline_rebuilds, 0);
         assert_eq!(stats.custom_shader.binding_rebuilds, 0);
         assert_eq!(stats.custom_shader.binding_cache_hits, 0);
+        assert_eq!(stats.custom_shader.static_writes, 0);
+        assert_eq!(stats.custom_shader.static_write_bytes, 0);
+        assert_eq!(stats.custom_shader.presentation_writes, 0);
+        assert_eq!(stats.custom_shader.presentation_write_bytes, 0);
         assert_eq!(stats.custom_shader.failures.surfaces_failed, 0);
         assert_eq!(stats.custom_shader.failures.shader_module_failures, 0);
         assert_eq!(stats.custom_shader.failures.pipeline_failures, 0);

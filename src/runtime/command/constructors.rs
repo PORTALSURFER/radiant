@@ -9,8 +9,8 @@ pub(crate) struct WorkerStreamOptions {
 }
 use crate::{
     runtime::{
-        DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResult,
-        RepaintScope,
+        DragRequest, ExternalDragOutcome, ExternalDragRequest, GpuShaderPresentationUniformUpdate,
+        PlatformRequest, PlatformResult, RepaintScope,
     },
     theme::DpiScale,
     widgets::WidgetId,
@@ -72,6 +72,14 @@ impl<Message> Command<Message> {
     /// Build a command that repaints without refreshing the declarative surface.
     pub const fn request_paint_only() -> Self {
         Self::RequestPaintOnly
+    }
+
+    /// Build a command that updates volatile presentation uniforms for a custom
+    /// GPU shader surface.
+    pub const fn update_gpu_shader_presentation_uniform(
+        update: GpuShaderPresentationUniformUpdate,
+    ) -> Self {
+        Self::UpdateGpuShaderPresentationUniform(update)
     }
 
     /// Build a command that overrides native DPI scale for the active runtime adapter.

@@ -1,7 +1,7 @@
 use crate::{
     application::{DeclarativeEffectOwner, LatestTask},
     layout::Vector2,
-    runtime::{Command, RepaintScope},
+    runtime::{Command, GpuShaderPresentationUniformUpdate, RepaintScope},
     theme::DpiScale,
 };
 
@@ -21,6 +21,14 @@ impl<Message> UiUpdateContext<Message> {
     /// Request repaint without forcing declarative surface reprojection.
     pub fn request_paint_only(&mut self) {
         self.queue_command(Command::request_paint_only());
+    }
+
+    /// Update volatile presentation uniforms for a custom GPU shader surface.
+    pub fn update_gpu_shader_presentation_uniform(
+        &mut self,
+        update: GpuShaderPresentationUniformUpdate,
+    ) {
+        self.queue_command(Command::update_gpu_shader_presentation_uniform(update));
     }
 
     /// Request a repaint using an explicit repaint scope.

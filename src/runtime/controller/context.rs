@@ -5,7 +5,10 @@ use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
-    runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface, WindowEnvironment},
+    runtime::{
+        GpuShaderPresentationUniformUpdate, RuntimeBridge, RuntimeDiagnostics, UiSurface,
+        WindowEnvironment,
+    },
     widgets::WidgetId,
 };
 
@@ -199,6 +202,16 @@ where
         let repaint_requested = self.repaint_requested;
         self.repaint_requested = false;
         repaint_requested
+    }
+
+    /// Return and clear the currently admitted volatile GPU-shader presentation
+    /// uniform updates without allocating a new drain buffer.
+    pub(crate) fn take_gpu_shader_presentation_updates(
+        &mut self,
+    ) -> &[GpuShaderPresentationUniformUpdate] {
+        self.gpu_shader_presentation_uniform_mailbox
+            .drain_into(&mut self.gpu_shader_presentation_uniform_updates);
+        &self.gpu_shader_presentation_uniform_updates
     }
 
     /// Return and clear the current runtime-exit request flag.

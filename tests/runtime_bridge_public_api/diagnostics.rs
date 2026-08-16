@@ -85,6 +85,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
                 pipeline_rebuilds: 1,
                 binding_rebuilds: 1,
                 binding_cache_hits: 3,
+                static_writes: 5,
+                static_write_bytes: 320,
+                presentation_writes: 7,
+                presentation_write_bytes: 448,
                 failures: NativeGpuSurfaceCustomShaderFailureDiagnostics {
                     surfaces_failed: 1,
                     shader_module_failures: 1,
@@ -183,6 +187,22 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(diagnostics.surface_recovery.retry_requests, 17);
     assert_eq!(diagnostics.surface_recovery.timeout_retry_requests, 19);
     assert_eq!(diagnostics.surface_recovery.other_retry_requests, 23);
+    assert_eq!(diagnostics.gpu_surfaces.custom_shader.static_writes, 5);
+    assert_eq!(
+        diagnostics.gpu_surfaces.custom_shader.static_write_bytes,
+        320
+    );
+    assert_eq!(
+        diagnostics.gpu_surfaces.custom_shader.presentation_writes,
+        7
+    );
+    assert_eq!(
+        diagnostics
+            .gpu_surfaces
+            .custom_shader
+            .presentation_write_bytes,
+        448
+    );
     assert!(diagnostics.text.has_shaping_limits());
     assert!(diagnostics.text.has_font_coverage_gaps());
     assert!(diagnostics.text.has_text_quality_warnings());

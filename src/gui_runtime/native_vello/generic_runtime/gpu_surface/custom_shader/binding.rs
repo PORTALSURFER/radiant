@@ -12,6 +12,7 @@ struct CustomShaderBindingBuffers {
     surface_uniform_buffer: wgpu::Buffer,
     app_uniform_buffer: Option<wgpu::Buffer>,
     storage_buffer: Option<wgpu::Buffer>,
+    presentation_uniform_buffer: Option<wgpu::Buffer>,
 }
 
 pub(super) struct CustomShaderBindingRequest<'a> {
@@ -76,6 +77,8 @@ impl GpuSurfaceRenderer {
                 surface_uniform_buffer: buffers.surface_uniform_buffer,
                 app_uniform_buffer: buffers.app_uniform_buffer,
                 storage_buffer: buffers.storage_buffer,
+                presentation_uniform_buffer: buffers.presentation_uniform_buffer,
+                write_state: Default::default(),
                 bind_group,
             },
         );
@@ -90,6 +93,10 @@ fn custom_shader_binding_key(
         pipeline_key: pipeline_key.clone(),
         uniform_bytes_len: descriptor.uniform_bytes.len(),
         storage_bytes_len: descriptor.storage_bytes.len(),
+        presentation_uniform_bytes_len: descriptor
+            .presentation_uniform_bytes
+            .as_ref()
+            .map_or(0, |bytes| bytes.len()),
     }
 }
 
@@ -125,10 +132,25 @@ fn custom_shader_binding_buffers(
             },
         )
     });
+    let presentation_uniform_buffer = descriptor
+        .presentation_uniform_bytes
+        .as_ref()
+        .filter(|bytes| !bytes.is_empty())
+        .map(|bytes| {
+            custom_shader_buffer(
+                device,
+                CustomShaderBufferSpec {
+                    label: Some("radiant_custom_shader_presentation_uniforms"),
+                    size: bytes.len(),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                },
+            )
+        });
     CustomShaderBindingBuffers {
         surface_uniform_buffer,
         app_uniform_buffer,
         storage_buffer,
+        presentation_uniform_buffer,
     }
 }
 
@@ -161,6 +183,12 @@ fn custom_shader_bind_group_entries(
     if let Some(buffer) = &buffers.storage_buffer {
         entries.push(wgpu::BindGroupEntry {
             binding: 2,
+            resource: buffer.as_entire_binding(),
+        });
+    }
+    if let Some(buffer) = &buffers.presentation_uniform_buffer {
+        entries.push(wgpu::BindGroupEntry {
+            binding: 3,
             resource: buffer.as_entire_binding(),
         });
     }

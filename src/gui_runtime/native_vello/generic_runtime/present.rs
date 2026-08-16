@@ -11,7 +11,9 @@ use winit::event_loop::ActiveEventLoop;
 
 mod diagnostics;
 
-use super::composited_base::{BaseFramePresentState, BaseFramePresentTarget, present_base_frame};
+use super::composited_base::{
+    BaseFramePresentRequest, BaseFramePresentState, BaseFramePresentTarget, present_base_frame,
+};
 use super::scene_texture::{
     NativeFrameRenderFailure, SceneTextureContext, render_scene_texture_if_needed,
     render_scene_to_surface_view,
@@ -193,6 +195,7 @@ where
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("generic_native_vello_present_blit"),
                 });
+        let presentation_updates = self.core.runtime.take_gpu_shader_presentation_updates();
         let started = profile.record_timings.then(Instant::now);
         let gpu_surface_stats = {
             let Some(resources) = self.window.native_resources.as_mut() else {
@@ -200,6 +203,13 @@ where
             };
             let surface = &mut resources.render_surface;
             let gpu_resources = &mut resources.gpu_resources;
+            let request = BaseFramePresentRequest {
+                paint_plan: &self.frame.last_paint_plan,
+                occlusion_plan: &self.frame.surface_occlusion_plan,
+                transient_overlay_primitives: &self.frame.transient_overlay_primitives,
+                has_gpu_surfaces: self.frame.last_scene_stats.gpu_surface_count > 0,
+                presentation_updates,
+            };
             let gpu_surface_stats = present_base_frame(
                 &mut BaseFramePresentState {
                     base_frame: &mut gpu_resources.composited_base_frame,
@@ -215,10 +225,7 @@ where
                     surface_view: &surface_view,
                     dpi_scale: self.window.dpi_scale,
                 },
-                &self.frame.last_paint_plan,
-                &self.frame.surface_occlusion_plan,
-                &self.frame.transient_overlay_primitives,
-                self.frame.last_scene_stats.gpu_surface_count > 0,
+                &request,
             );
             profile.full_screen_blit = started.map(|started| started.elapsed()).unwrap_or_default();
             if self.frame.has_post_gpu_overlay_work() {

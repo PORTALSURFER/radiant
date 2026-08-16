@@ -6,7 +6,7 @@ use super::runtime_helpers::{
     planned_surface_occlusion_regions_into,
 };
 use crate::gui::types::{Rect as UiRect, Vector2};
-use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
+use crate::runtime::{GpuShaderPresentationUniformUpdate, GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
 
 mod active_keys;
@@ -66,6 +66,7 @@ impl GpuSurfaceRenderer {
         target: &mut GpuSurfaceRenderTarget<'_>,
         primitives: &[PaintPrimitive],
         occlusion_plan: &SurfaceOcclusionPlan,
+        presentation_updates: &[GpuShaderPresentationUniformUpdate],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
         let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
@@ -134,7 +135,13 @@ impl GpuSurfaceRenderer {
                     }
                 }
                 GpuSurfaceContent::CustomShader { .. } => {
-                    self.render_custom_shader(target, surface, &occlusion_regions, &mut stats);
+                    self.render_custom_shader(
+                        target,
+                        surface,
+                        &occlusion_regions,
+                        presentation_updates,
+                        &mut stats,
+                    );
                 }
             }
             self.active_keys.mark_active(surface.key);

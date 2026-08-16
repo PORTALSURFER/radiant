@@ -151,6 +151,13 @@ pub(super) fn native_frame_diagnostics(
                 pipeline_rebuilds: parts.gpu_surface_stats.custom_shader.pipeline_rebuilds,
                 binding_rebuilds: parts.gpu_surface_stats.custom_shader.binding_rebuilds,
                 binding_cache_hits: parts.gpu_surface_stats.custom_shader.binding_cache_hits,
+                static_writes: parts.gpu_surface_stats.custom_shader.static_writes,
+                static_write_bytes: parts.gpu_surface_stats.custom_shader.static_write_bytes,
+                presentation_writes: parts.gpu_surface_stats.custom_shader.presentation_writes,
+                presentation_write_bytes: parts
+                    .gpu_surface_stats
+                    .custom_shader
+                    .presentation_write_bytes,
                 failures: crate::runtime::NativeGpuSurfaceCustomShaderFailureDiagnostics {
                     surfaces_failed: parts
                         .gpu_surface_stats

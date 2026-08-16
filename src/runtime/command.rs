@@ -2,6 +2,7 @@
 
 use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
+use super::gpu_surface::GpuShaderPresentationUniformUpdate;
 use super::platform::{PlatformCompletion, PlatformRequest};
 use crate::application::{DeclarativeEffectOwner, LatestTaskTransaction};
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
@@ -65,6 +66,8 @@ pub enum Command<Message> {
     RequestRepaint,
     /// Request redraw without forcing declarative surface reprojection.
     RequestPaintOnly,
+    /// Update volatile presentation uniforms for a custom GPU shader surface.
+    UpdateGpuShaderPresentationUniform(GpuShaderPresentationUniformUpdate),
     /// Request fresh projection/traversal while reusing revision-proven layout.
     RequestProjectionRefresh,
     /// Request fresh projection/traversal and a layout pass.

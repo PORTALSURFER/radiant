@@ -71,6 +71,9 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
             && (context.contains("runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface}")
                 || context.contains(
                     "runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface, WindowEnvironment}",
+                )
+                || context.contains(
+                    "GpuShaderPresentationUniformUpdate, RuntimeBridge, RuntimeDiagnostics, UiSurface,",
                 ))
             && context.contains("widgets::WidgetId")
             && !context.starts_with("use super::*;")

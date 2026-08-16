@@ -88,6 +88,14 @@ pub struct NativeGpuSurfaceCustomShaderDiagnostics {
     pub binding_rebuilds: usize,
     /// Custom-shader bind groups reused from cache this frame.
     pub binding_cache_hits: usize,
+    /// Custom-shader static uniform/storage buffer writes performed this frame.
+    pub static_writes: usize,
+    /// Total bytes written by custom-shader static uniform/storage uploads this frame.
+    pub static_write_bytes: usize,
+    /// Custom-shader volatile presentation-uniform writes performed this frame.
+    pub presentation_writes: usize,
+    /// Total bytes written by custom-shader presentation-uniform uploads this frame.
+    pub presentation_write_bytes: usize,
     /// Custom-shader native setup failures observed this frame.
     pub failures: NativeGpuSurfaceCustomShaderFailureDiagnostics,
     /// Valid custom-shader surfaces skipped by this native backend.

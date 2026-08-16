@@ -173,6 +173,10 @@ pub(super) fn custom_shader_pipeline_key(
         fragment_entry_point: descriptor.fragment_entry_point.clone()?,
         has_uniform_payload: !descriptor.uniform_bytes.is_empty(),
         has_storage_payload: !descriptor.storage_bytes.is_empty(),
+        has_presentation_uniform_payload: descriptor
+            .presentation_uniform_bytes
+            .as_ref()
+            .is_some_and(|bytes| !bytes.is_empty()),
     })
 }
 

@@ -54,6 +54,14 @@ pub(super) fn custom_shader_layout_entries(
             },
         ));
     }
+    if key.has_presentation_uniform_payload {
+        entries.push(custom_shader_buffer_layout_entry(
+            CustomShaderBufferLayoutSpec {
+                binding: 3,
+                ty: wgpu::BufferBindingType::Uniform,
+            },
+        ));
+    }
     entries
 }
 

@@ -58,6 +58,7 @@ pub(crate) use scroll::WheelOrScrollRoute;
 pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
 pub(crate) use virtual_layout::VirtualLayoutSemanticClassificationBatch;
 
+use super::gpu_surface::GpuShaderPresentationUniformMailbox;
 use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,
     ExternalDragIdentity, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,
@@ -123,6 +124,8 @@ where
     lifecycle: RuntimeLifecycleController,
     host_closing_hook_called: bool,
     host_exit_hook_called: bool,
+    gpu_shader_presentation_uniform_mailbox: GpuShaderPresentationUniformMailbox,
+    gpu_shader_presentation_uniform_updates: Vec<super::GpuShaderPresentationUniformUpdate>,
     pub(in crate::runtime) repaint_requested: bool,
     pub(in crate::runtime) pending_current_surface_relayout: bool,
     pub(in crate::runtime) servicing_current_surface_relayout: bool,

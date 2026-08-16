@@ -68,10 +68,38 @@ impl<Owner> LayoutAuthorityEvidence<Owner> {
         }
     }
 
-    fn is_valid(&self) -> bool {
+    pub(crate) fn is_valid(&self) -> bool {
         self.authority_generation != 0
             && self.authority_generation != u64::MAX
             && self.revision != u64::MAX
+    }
+
+    pub(crate) fn advance_revision(&mut self) -> bool {
+        if !self.is_valid() {
+            return false;
+        }
+        let Some(next_revision) = self.revision.checked_add(1) else {
+            return false;
+        };
+        if next_revision == u64::MAX {
+            return false;
+        }
+        self.revision = next_revision;
+        true
+    }
+
+    pub(crate) fn advance_authority_generation(&mut self) -> bool {
+        if !self.is_valid() {
+            return false;
+        }
+        let Some(next_generation) = self.authority_generation.checked_add(1) else {
+            return false;
+        };
+        if next_generation == 0 || next_generation == u64::MAX {
+            return false;
+        }
+        self.authority_generation = next_generation;
+        true
     }
 }
 
@@ -131,7 +159,7 @@ impl LayoutInputEvidence {
         }
     }
 
-    fn is_valid_for_prepare(
+    pub(crate) fn is_valid_for_prepare(
         &self,
         viewport: Rect,
         debug: LayoutDebugOptions,
@@ -142,7 +170,7 @@ impl LayoutInputEvidence {
             && self.debug == debug
     }
 
-    fn is_valid_for_presence(&self, mounted_source_present: bool) -> bool {
+    pub(crate) fn is_valid_for_presence(&self, mounted_source_present: bool) -> bool {
         self.root.is_some_and(|evidence| evidence.is_valid())
             && self.state.is_some_and(|evidence| evidence.is_valid())
             && self.mounted.is_some() == mounted_source_present
@@ -374,6 +402,36 @@ impl PreparedLayoutPass {
 
     fn take_workspace(&mut self) -> Option<LayoutPreparationWorkspaceStorage> {
         self.workspace.take()
+    }
+
+    /// Return the candidate-owned layout output without transferring ownership.
+    pub(crate) fn output(&self) -> Option<&LayoutOutput> {
+        self.workspace.as_ref().map(|storage| &storage.output)
+    }
+
+    /// Return whether preparation produced a complete, internally reproducible
+    /// pass that is safe to expose as a runtime candidate.
+    pub(crate) fn is_usable(&self) -> bool {
+        self.complete
+            && !self.invalid_input_evidence
+            && !self.generation_exhausted
+            && self.workspace.as_ref().is_some_and(|storage| {
+                !storage.cache_key_ambiguity && storage.pruning_is_reproducible()
+            })
+    }
+
+    /// Return whether the active engine still has the exact authority and
+    /// cache/dirty evidence observed when this pass was prepared.
+    pub(crate) fn is_current_for_engine(&self, engine: &LayoutEngine) -> bool {
+        self.is_usable()
+            && !engine.generation_exhausted
+            && self.generation == engine.generation
+            && self.checked_generation == engine.checked_generation
+            && self.cache_authority == engine.cache_authority
+            && self.workspace.as_ref().is_some_and(|storage| {
+                storage.layout_dirty == engine.layout_dirty
+                    && storage.measure_dirty == engine.measure_dirty
+            })
     }
 
     /// Consume this candidate into `engine` and `output` after exact evidence

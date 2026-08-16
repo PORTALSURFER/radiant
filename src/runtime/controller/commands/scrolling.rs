@@ -13,7 +13,7 @@ where
         let previous_offset = self.layout_state.scroll_offset(node_id);
         self.layout_state.scroll_offsets.insert(node_id, offset);
         if offset != previous_offset {
-            self.layout_state_generation = self.layout_state_generation.saturating_add(1);
+            self.note_layout_state_mutation();
         }
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(node_id);

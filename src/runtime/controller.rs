@@ -23,6 +23,7 @@ mod layout_state;
 mod owner;
 mod platform;
 mod pointer;
+mod prepared_layout;
 mod refresh;
 mod scratch;
 mod scroll;
@@ -67,6 +68,10 @@ use super::{
     UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath, WindowEnvironment,
 };
 use crate::{
+    gui::layout_core::{
+        LayoutAuthorityEvidence, LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
+        RootLayoutAuthorityOwner,
+    },
     gui::types::Rect,
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     runtime::RuntimeLifecyclePhase,
@@ -115,6 +120,11 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     layout_state_generation: u64,
+    layout_root_authority: LayoutAuthorityEvidence<RootLayoutAuthorityOwner>,
+    layout_state_authority: LayoutAuthorityEvidence<LayoutStateAuthorityOwner>,
+    mounted_layout_source_authority: LayoutAuthorityEvidence<MountedLayoutSourceAuthorityOwner>,
+    mounted_layout_source_present: bool,
+    layout_authority_exhausted: bool,
     last_layout_state_diagnostics: SurfaceLayoutStateDiagnostics,
     layout_debug_options: LayoutDebugOptions,
     completed_layout: Option<CompletedLayoutContext>,

@@ -2759,20 +2759,22 @@ where
             .clone();
         self.prepare_virtual_layout_surface(&registrations);
         let mut traversal = self.take_reusable_traversal_index(true);
-        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+        let layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
             &mut self.scratch.projection_source,
         );
+        self.replace_layout_root(layout_root);
         self.rebuild_virtual_layout_shell_layout();
         self.materialize_virtual_layout_surface();
-        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+        let layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
             &mut self.scratch.projection_source,
         );
+        self.replace_layout_root(layout_root);
         self.relayout_with_traversal(traversal);
         self.install_declarative_owner_projection();
         true

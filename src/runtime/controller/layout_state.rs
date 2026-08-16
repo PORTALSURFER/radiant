@@ -124,9 +124,37 @@ pub(super) struct RuntimeLayoutContainerStateCandidate {
     slots: Vec<RuntimeLayoutContainerStateCandidateSlot>,
     diagnostics: SurfaceLayoutStateDiagnostics,
     next_mount_generation: u64,
+    source_present: bool,
+    mutated: bool,
+    identity_replaced: bool,
+    ambiguous: bool,
 }
 
 impl RuntimeLayoutContainerStateCandidate {
+    #[allow(dead_code)]
+    pub(super) fn is_admissible(&self) -> bool {
+        self.diagnostics.capacity_exceeded_count == 0
+            && self.diagnostics.foreign_declaration_count == 0
+            && self.diagnostics.generation_exhaustion_count == 0
+            && !self.ambiguous
+    }
+
+    pub(super) const fn source_present(&self) -> bool {
+        self.source_present
+    }
+
+    pub(super) fn changes_layout_visible_state(&self, accepted_source_present: bool) -> bool {
+        self.mutated || self.source_present != accepted_source_present
+    }
+
+    pub(super) const fn replaces_layout_visible_owner(&self) -> bool {
+        self.identity_replaced
+    }
+
+    pub(super) const fn mutates_values_or_identity(&self) -> bool {
+        self.mutated
+    }
+
     fn read_exact<'a>(
         &'a self,
         accepted: &'a RuntimeLayoutContainerStateStore,
@@ -175,13 +203,19 @@ impl RuntimeLayoutContainerStateCandidate {
                 continue;
             };
             let Some(value) = self.slots[slot_index].value.as_mut() else {
-                self.slots[slot_index].value = Some(Box::new(next));
+                if next != current {
+                    self.slots[slot_index].value = Some(Box::new(next));
+                    self.mutated = true;
+                }
                 continue;
             };
             let Some(value) = value.downcast_mut::<SplitPaneRuntimeState>() else {
                 continue;
             };
-            *value = next;
+            if *value != next {
+                *value = next;
+                self.mutated = true;
+            }
         }
     }
 }
@@ -282,6 +316,10 @@ impl RuntimeLayoutContainerStateStore {
             slots: Vec::with_capacity(declarations.len().min(MAX_LAYOUT_CONTAINER_STATE_SLOTS)),
             diagnostics: SurfaceLayoutStateDiagnostics::default(),
             next_mount_generation: self.next_mount_generation,
+            source_present: !declarations.is_empty(),
+            mutated: false,
+            identity_replaced: false,
+            ambiguous: false,
         };
         let mut mounted = Vec::with_capacity(declarations.len());
 
@@ -292,17 +330,20 @@ impl RuntimeLayoutContainerStateStore {
             {
                 candidate.diagnostics.dropped_count =
                     candidate.diagnostics.dropped_count.saturating_add(1);
+                candidate.mutated = true;
             }
         }
 
         for declaration in declarations {
             let id = declaration.id();
             if mounted.contains(&id) {
+                candidate.ambiguous = true;
                 continue;
             }
             mounted.push(id);
 
             if candidate.slots.iter().any(|slot| slot.id == id) {
+                candidate.ambiguous = true;
                 continue;
             }
 
@@ -311,6 +352,7 @@ impl RuntimeLayoutContainerStateStore {
                 .iter()
                 .any(|slot| slot.id.same_container(id))
             {
+                candidate.ambiguous = true;
                 continue;
             }
 
@@ -324,6 +366,8 @@ impl RuntimeLayoutContainerStateStore {
                         previous: previous.id,
                         current: id,
                     });
+                candidate.mutated = true;
+                candidate.identity_replaced = true;
             }
 
             if let Some(previous) = self.slots.iter().find(|slot| slot.id == id) {
@@ -362,6 +406,7 @@ impl RuntimeLayoutContainerStateStore {
                     mounted_id,
                     value: Some(declaration.initialize()),
                 });
+            candidate.mutated = true;
             candidate.diagnostics.initialized_count =
                 candidate.diagnostics.initialized_count.saturating_add(1);
         }
@@ -377,6 +422,7 @@ impl RuntimeLayoutContainerStateStore {
             slots: candidate_slots,
             diagnostics,
             next_mount_generation,
+            ..
         } = candidate;
         let mut accepted_slots = std::mem::take(&mut self.slots);
         let mut committed_slots = Vec::with_capacity(candidate_slots.len());
@@ -466,7 +512,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn prepare_layout_container_state_candidate(
-        &mut self,
+        &self,
         traversal: &SurfaceTraversalIndex<Message>,
     ) -> RuntimeLayoutContainerStateCandidate {
         let declarations = traversal
@@ -503,7 +549,17 @@ where
         &mut self,
         candidate: RuntimeLayoutContainerStateCandidate,
     ) {
+        let accepted_source_present = self.mounted_layout_source_present;
+        let changes_layout_visible_state = candidate
+            .changes_layout_visible_state(accepted_source_present)
+            && (candidate.mutates_values_or_identity()
+                || candidate.source_present() != accepted_source_present);
+        let replaces_layout_visible_owner = candidate.replaces_layout_visible_owner()
+            || candidate.source_present() != accepted_source_present;
         self.last_layout_state_diagnostics = self.interaction.layout_state.commit(candidate);
+        if changes_layout_visible_state {
+            self.note_mounted_layout_source_mutation(replaces_layout_visible_owner);
+        }
     }
 
     pub(super) fn layout_container_state_context<'a>(

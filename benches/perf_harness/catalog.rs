@@ -93,6 +93,28 @@ const FRAME_CADENCE_COUNTERS: &[&str] = &[
     "frame_cadence_wait_count",
     "allocation_sensitive_work_count",
 ];
+const ARRANGEMENT_SHELL_REFRESH_COUNTERS: &[&str] = &[
+    "scene_rebuild_count",
+    "surface_refresh_count",
+    "application_projection_count",
+    "runtime_projection_count",
+    "widget_state_sync_count",
+    "layout_count",
+    "paint_plan_rebuild_count",
+    "paint_primitive_count",
+];
+const ARRANGEMENT_SHELL_HOVER_COUNTERS: &[&str] = &[
+    "scene_rebuild_count",
+    "paint_only_count",
+    "surface_refresh_count",
+    "application_projection_count",
+    "runtime_projection_count",
+    "widget_state_sync_count",
+    "layout_count",
+    "paint_plan_rebuild_count",
+    "overlay_paint_count",
+    "paint_primitive_count",
+];
 const RESIZE_COUNTERS: &[&str] = &["relayout_count"];
 const COMMAND_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 const COMMAND_DRAIN_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
@@ -130,6 +152,9 @@ macro_rules! perf_scenario_catalog {
             ("runtime_layout_reuse_large_cohort_3k", "runtime_surface", "layout_reuse", LAYOUT_REUSE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::layout_reuse_large_cohort_3k),
             ("runtime_resize_large_tree", "runtime_surface", "frame_cadence", RESIZE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
             ("runtime_animation_frame_cadence_1k", "runtime_surface", "frame_cadence", FRAME_CADENCE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::animation_frame_cadence_1k),
+            ("runtime_arrangement_shell_frame_refresh", "runtime_surface", "standalone_gui", ARRANGEMENT_SHELL_REFRESH_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::arrangement_shell_frame_refresh),
+            ("runtime_arrangement_shell_structural_toggle", "runtime_surface", "standalone_gui", ARRANGEMENT_SHELL_REFRESH_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::arrangement_shell_structural_toggle),
+            ("runtime_arrangement_shell_hover_paint_only", "runtime_surface", "standalone_gui", ARRANGEMENT_SHELL_HOVER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::arrangement_shell_hover_paint_only),
             ("runtime_command_flattening_512", "runtime_commands", "runtime_commands", COMMAND_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),
             ("runtime_command_drain_1k", "runtime_commands", "runtime_commands", COMMAND_DRAIN_COUNTERS, RUNTIME_ITERATIONS, command_drain::flat_command_drain),
             ("runtime_nested_command_drain_1k", "runtime_commands", "runtime_commands", COMMAND_DRAIN_COUNTERS, RUNTIME_ITERATIONS, command_drain::nested_command_drain),

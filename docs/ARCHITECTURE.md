@@ -777,6 +777,39 @@ cached base-scene presentation, retained GPU-surface reuse, and frame-diagnostic
 counters that prove stable frames avoid unnecessary reprojection, scene
 encoding, GPU upload, or text/layout cache churn.
 
+### Private staged-refresh consumer boundary (normative evidence contract)
+
+Only one externally visible complete frame exists: the
+`CommittedFrameState`/last-complete frame. An invisible private
+`PreparedSurfaceRefresh` candidate may contain candidate surface, traversal,
+source projection, layout root, view-delta decision, candidate layout,
+candidate paint plan, damage, and timing evidence. Candidate preparation may
+mutate candidate-owned storage only. It must not mutate active
+focus/capture/composition/wheel ownership, the declarative owner,
+accessibility/automation projection, active layout, retiring-widget ownership,
+or the last-complete frame.
+
+Immediately before irreversible replacement cleanup, the consumer revalidates
+runtime identity, lifecycle-transition generation, active-surface generation,
+layout-state generation, viewport, window environment, requested refresh
+revision, and the existing native window, adapter, target, stage, owner, and
+revision fences. Any mismatch, stale generation, lifecycle transition,
+resize/recovery, newer visual work, unsupported/ambiguous/incomplete evidence,
+or failure before commit drops the candidate with no active mutation, callback,
+terminal message, or presentation and retains the combined correctness-first
+fallback. After validation, irreversible replacement cleanup happens once,
+complete candidate state is atomically published, and terminal messages are
+dispatched only afterward. No scheduler yield occurs after cleanup begins. A
+panic after that point is terminal recovery/shutdown, not rollback.
+
+Preparation is a reversible prerequisite/evidence contract, not a claim that
+production Projection/Reconciliation/Layout/Paint is independently scheduled.
+The existing combined path remains authoritative for virtual materialization
+and unsupported paths. The parent event loop is the sole cross-window
+authority; `WindowStageOwner` is a private Deadline owner; diagnostics and
+timing are observational and cannot authorize execution, cache, admission, or
+commit.
+
 ## Text Boundary
 
 Radiant treats text as a first-class GUI concern but keeps the responsibilities
@@ -996,6 +1029,17 @@ normal quality lane before merging meaningful changes.
   `cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\target\perf-baseline.jsonl --fail-on-missing-baseline`.
 - Performance investigation: run `cargo bench --bench perf_harness <scenario>`
   or a filtered `--category` pass for focused trend work.
+
+The maintained `examples/arrangement_shell` is the direct source for the
+`standalone_gui` workload lanes. They cover combined frame refresh and paint-plan
+materialization, browser/inspector structural toggle with full refresh and
+relayout, and existing hover movement with paint-only output whose application
+projection, runtime projection, widget-state synchronization, and layout deltas
+are zero. Exact counter deltas and repeated-run identity are asserted. The
+harness samples bounded batches and reports finite nearest-rank `p50_us`,
+`p95_us`, and `p99_us` in text/JSONL/baseline JSONL while retaining
+average-based baseline comparison and legacy baseline compatibility. This is
+consumer evidence only and does not establish production staged execution.
 
 Performance benchmarks are trend and profiling tools, not portable timing
 pass/fail gates. They should still cover hot paths that matter to the target:

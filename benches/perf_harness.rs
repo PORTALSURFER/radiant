@@ -2,6 +2,9 @@
 
 #[path = "perf_harness/app_projection.rs"]
 mod app_projection;
+#[allow(dead_code, unused_imports)]
+#[path = "../examples/arrangement_shell/mod.rs"]
+mod arrangement_shell;
 #[path = "perf_harness/catalog.rs"]
 mod catalog;
 #[path = "perf_harness/command_drain.rs"]

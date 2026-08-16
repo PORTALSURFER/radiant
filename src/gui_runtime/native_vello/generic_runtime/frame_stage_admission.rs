@@ -90,8 +90,9 @@ impl FrameStageIdentity {
 }
 
 /// Payload for one selected deadline bundle.  It is never returned by
-/// readiness queries.  The repaint and timed-frame bits are independent so a
-/// pure repaint does not need fabricated animation or caret evidence.
+/// readiness queries.  The repaint, timed-frame, and stale-redraw-reissue bits
+/// are independent so a pure repaint or reissue does not need fabricated
+/// animation or caret evidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct TimedFrame {
     due_at: Instant,
@@ -99,6 +100,7 @@ pub(super) struct TimedFrame {
     needs_text_caret_animation: bool,
     advance_timed_repaint: bool,
     drain_timed_frame: bool,
+    reissue_pending_redraw: bool,
 }
 
 impl TimedFrame {
@@ -114,6 +116,7 @@ impl TimedFrame {
             needs_text_caret_animation,
             false,
             true,
+            false,
         )
     }
 
@@ -123,6 +126,7 @@ impl TimedFrame {
         needs_text_caret_animation: bool,
         advance_timed_repaint: bool,
         drain_timed_frame: bool,
+        reissue_pending_redraw: bool,
     ) -> Self {
         Self {
             due_at,
@@ -130,11 +134,30 @@ impl TimedFrame {
             needs_text_caret_animation,
             advance_timed_repaint,
             drain_timed_frame,
+            reissue_pending_redraw,
         }
     }
 
     pub(super) const fn timed_repaint(due_at: Instant) -> Self {
-        Self::with_operations(due_at, RuntimeAnimationActivity::idle(), false, true, false)
+        Self::with_operations(
+            due_at,
+            RuntimeAnimationActivity::idle(),
+            false,
+            true,
+            false,
+            false,
+        )
+    }
+
+    pub(super) const fn pending_redraw_reissue(due_at: Instant) -> Self {
+        Self::with_operations(
+            due_at,
+            RuntimeAnimationActivity::idle(),
+            false,
+            false,
+            false,
+            true,
+        )
     }
 
     #[cfg(test)]
@@ -158,21 +181,35 @@ impl TimedFrame {
         self.drain_timed_frame
     }
 
+    pub(super) const fn reissue_pending_redraw(self) -> bool {
+        self.reissue_pending_redraw
+    }
+
     fn is_due(self, now: Instant) -> bool {
         self.due_at <= now
     }
 
     fn coalesce(self, newer: Self) -> Self {
+        let drain_timed_frame = self.drain_timed_frame || newer.drain_timed_frame;
         Self {
             due_at: if self.due_at <= newer.due_at {
                 self.due_at
             } else {
                 newer.due_at
             },
-            animation_activity: newer.animation_activity,
-            needs_text_caret_animation: newer.needs_text_caret_animation,
+            animation_activity: if newer.drain_timed_frame || !self.drain_timed_frame {
+                newer.animation_activity
+            } else {
+                self.animation_activity
+            },
+            needs_text_caret_animation: if newer.drain_timed_frame || !self.drain_timed_frame {
+                newer.needs_text_caret_animation
+            } else {
+                self.needs_text_caret_animation
+            },
             advance_timed_repaint: self.advance_timed_repaint || newer.advance_timed_repaint,
-            drain_timed_frame: self.drain_timed_frame || newer.drain_timed_frame,
+            drain_timed_frame,
+            reissue_pending_redraw: self.reissue_pending_redraw || newer.reissue_pending_redraw,
         }
     }
 }
@@ -629,6 +666,7 @@ mod tests {
             caret,
             true,
             true,
+            false,
         )
     }
 
@@ -667,6 +705,44 @@ mod tests {
         assert!(payload.drain_timed_frame());
         assert!(payload.needs_text_caret_animation());
         assert!(complete(&mut owner, &exact));
+    }
+
+    #[test]
+    fn deadline_owner_coalesces_reissue_without_losing_timed_frame_evidence() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let exact = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let reissue = TimedFrame::pending_redraw_reissue(now + Duration::from_millis(10));
+        let timed_frame = TimedFrame::new(
+            now + Duration::from_millis(20),
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+        );
+        assert!(owner.queue(exact.clone(), reissue));
+        assert!(owner.queue(exact.clone(), timed_frame));
+
+        let payload = owner
+            .begin(&exact, now + Duration::from_millis(10))
+            .expect("coalesced reissue and drain should be due");
+        assert!(payload.reissue_pending_redraw());
+        assert!(payload.drain_timed_frame());
+        assert!(!payload.advance_timed_repaint());
+        assert_eq!(
+            payload.animation_activity(),
+            RuntimeAnimationActivity::frame_messages()
+        );
+        assert!(payload.needs_text_caret_animation());
+        assert!(complete(&mut owner, &exact));
+        assert!(!complete(&mut owner, &exact));
     }
 
     fn complete(owner: &mut WindowStageOwner, identity: &FrameStageIdentity) -> bool {

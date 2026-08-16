@@ -471,6 +471,10 @@ where
             });
         }
 
+        if bundle.reissue_pending_redraw() {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+
         if !bundle.drain_timed_frame() {
             return DeadlineBundleExecution {
                 admission: FrameScheduleAdmission {
@@ -563,7 +567,7 @@ where
                 };
             }
             runner.frame_stage_owner.invalidate();
-            if !selected_payload.drain_timed_frame() {
+            if selected_payload.reissue_pending_redraw() || !selected_payload.drain_timed_frame() {
                 return FrameScheduleAdmission::default();
             }
             runner
@@ -677,54 +681,51 @@ where
         if work.is_empty() {
             return FrameScheduleAdmission::default();
         }
-        if work.advance_timed_repaint
-            && !work.drain_timed_frame
-            && !work.reissue_pending_redraw
-            && let Some(due_at) = demand.timed_repaint_deadline
-        {
-            return self.admit_timed_frame_deadline(
-                now,
-                demand.key().clone(),
-                adapter_generation,
-                self.window.target_generation,
-                TimedFrame::timed_repaint(due_at),
-            );
-        }
-        if work.drain_timed_frame
-            && !work.reissue_pending_redraw
-            && let TimedFrameCadence::DrainNow { due_at, .. } = demand.cadence()
-        {
-            return self.admit_timed_frame_deadline(
-                now,
-                demand.key().clone(),
-                adapter_generation,
-                self.window.target_generation,
-                TimedFrame::with_operations(
-                    due_at,
-                    demand.animation_activity(),
-                    demand.needs_text_caret_animation(),
-                    work.advance_timed_repaint,
-                    work.drain_timed_frame,
-                ),
-            );
-        }
-        if work.advance_timed_repaint && self.core.advance_timed_repaints(now) {
-            self.rebuild_scene();
-            self.request_redraw_for_frame_work(FrameWork::RebuildScene {
-                reason: FrameWorkReason::RuntimeSurfaceRepaint,
-                mode: SceneRebuildMode::Immediate,
-            });
-        }
-        if work.reissue_pending_redraw {
-            self.request_redraw_for_frame_work(FrameWork::None);
-        }
-        FrameScheduleAdmission {
-            outcome: GenericRouteOutcome::default(),
-            route_outcome: false,
-            did_work: true,
-            timed_frame_already_handled: false,
-        }
+        let Some(selected_payload) = deadline_payload(demand, work) else {
+            return FrameScheduleAdmission::default();
+        };
+        self.admit_timed_frame_deadline(
+            now,
+            demand.key().clone(),
+            adapter_generation,
+            self.window.target_generation,
+            selected_payload,
+        )
     }
+}
+
+fn deadline_payload(demand: &FrameScheduleDemand, work: FrameScheduleWork) -> Option<TimedFrame> {
+    let due_at = if work.drain_timed_frame {
+        match demand.cadence() {
+            TimedFrameCadence::DrainNow { due_at, .. } => due_at,
+            TimedFrameCadence::Idle | TimedFrameCadence::WaitUntil(_) => return None,
+        }
+    } else if work.advance_timed_repaint {
+        demand.timed_repaint_deadline?
+    } else if work.reissue_pending_redraw {
+        demand.pending_redraw_retry_deadline?
+    } else {
+        return None;
+    };
+    if work.advance_timed_repaint && !work.drain_timed_frame && !work.reissue_pending_redraw {
+        return Some(TimedFrame::timed_repaint(due_at));
+    }
+    if work.reissue_pending_redraw && !work.advance_timed_repaint && !work.drain_timed_frame {
+        return Some(TimedFrame::pending_redraw_reissue(due_at));
+    }
+    let has_timed_frame_drain = work.drain_timed_frame;
+    Some(TimedFrame::with_operations(
+        due_at,
+        if has_timed_frame_drain {
+            demand.animation_activity()
+        } else {
+            RuntimeAnimationActivity::idle()
+        },
+        has_timed_frame_drain && demand.needs_text_caret_animation(),
+        work.advance_timed_repaint,
+        work.drain_timed_frame,
+        work.reissue_pending_redraw,
+    ))
 }
 
 #[cfg(test)]
@@ -847,6 +848,48 @@ mod tests {
             true,
             FrameScheduleRedrawEvidence {
                 timed_repaint_deadline: Some(timed_repaint_deadline),
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        )
+    }
+
+    fn pure_pending_redraw_reissue_demand(
+        key: FrameScheduleKey,
+        pending_redraw_retry_deadline: Instant,
+    ) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            TimedFrameCadence::Idle,
+            60,
+            // These fields deliberately carry animation/caret evidence to
+            // prove that pure reissue does not deliver either one.
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+            FrameScheduleRedrawEvidence {
+                pending_redraw_requested: true,
+                pending_redraw_retry_deadline: Some(pending_redraw_retry_deadline),
+                pending_redraw_fresh: false,
+                ..FrameScheduleRedrawEvidence::default()
+            },
+        )
+    }
+
+    fn mixed_repaint_and_reissue_demand(
+        key: FrameScheduleKey,
+        timed_repaint_deadline: Instant,
+        pending_redraw_retry_deadline: Instant,
+    ) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            TimedFrameCadence::Idle,
+            60,
+            RuntimeAnimationActivity::frame_messages(),
+            true,
+            FrameScheduleRedrawEvidence {
+                timed_repaint_deadline: Some(timed_repaint_deadline),
+                pending_redraw_requested: true,
+                pending_redraw_retry_deadline: Some(pending_redraw_retry_deadline),
+                pending_redraw_fresh: false,
                 ..FrameScheduleRedrawEvidence::default()
             },
         )
@@ -1099,6 +1142,51 @@ mod tests {
     }
 
     #[test]
+    fn selected_primary_pure_pending_redraw_reissue_uses_exact_owner_without_frame_work() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let now = Instant::now();
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_millis(50));
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let admission = runner.admit_frame_schedule_work(
+            now,
+            &pure_pending_redraw_reissue_demand(FrameScheduleKey::Primary, now),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(!admission.timed_frame_already_handled);
+        assert_eq!(repaint_advance_calls.get(), 0);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("pure reissue completion should remain owner evidence");
+        assert!(!completed.advance_timed_repaint());
+        assert!(!completed.drain_timed_frame());
+        assert!(completed.reissue_pending_redraw());
+        assert_eq!(
+            completed.animation_activity(),
+            RuntimeAnimationActivity::idle()
+        );
+        assert!(!completed.needs_text_caret_animation());
+    }
+
+    #[test]
     fn selected_auxiliary_pure_timed_repaint_uses_exact_owner_without_frame_drain() {
         let repaint_advance_calls = Rc::new(Cell::new(0));
         let mut runner = GenericNativeVelloRunner::new_auxiliary(
@@ -1133,6 +1221,46 @@ mod tests {
         assert!(completed.advance_timed_repaint());
         assert!(!completed.drain_timed_frame());
         assert!(!completed.animation_activity().needs_frame_message());
+        assert!(!completed.needs_text_caret_animation());
+    }
+
+    #[test]
+    fn selected_auxiliary_pure_pending_redraw_reissue_uses_exact_owner_without_frame_work() {
+        let mut runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 40.0),
+            String::from("settings"),
+        );
+        let now = Instant::now();
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_millis(50));
+        runner.window.target_generation.advance();
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+
+        let admission = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &pure_pending_redraw_reissue_demand(key, now),
+            NativeAdapterGeneration::from_test_serial(1),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert!(!admission.timed_frame_already_handled);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("auxiliary pure reissue completion should remain owner evidence");
+        assert!(completed.reissue_pending_redraw());
+        assert!(!completed.advance_timed_repaint());
+        assert!(!completed.drain_timed_frame());
+        assert_eq!(
+            completed.animation_activity(),
+            RuntimeAnimationActivity::idle()
+        );
         assert!(!completed.needs_text_caret_animation());
     }
 
@@ -1172,6 +1300,42 @@ mod tests {
         let unknown_target = runner.admit_frame_schedule_work(now, &demand);
         assert_eq!(unknown_target, FrameScheduleAdmission::default());
         assert_eq!(repaint_advance_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+    }
+
+    #[test]
+    fn pure_pending_redraw_reissue_adapter_and_target_vetoes_preserve_evidence() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingFrameBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+        let now = Instant::now();
+        let demand = pure_pending_redraw_reissue_demand(FrameScheduleKey::Primary, now);
+        runner.window.target_generation.advance();
+
+        let missing_adapter = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(missing_adapter, FrameScheduleAdmission::default());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::unknown(),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let unknown_adapter = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(unknown_adapter, FrameScheduleAdmission::default());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        runner.window.target_generation.invalidate_unknown();
+        let unknown_target = runner.admit_frame_schedule_work(now, &demand);
+        assert_eq!(unknown_target, FrameScheduleAdmission::default());
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
         assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
     }
 
@@ -1333,6 +1497,57 @@ mod tests {
     }
 
     #[test]
+    fn selected_primary_mixed_repaint_and_reissue_preserve_stronger_work_without_drain() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_millis(50));
+        runner.window.target_generation.advance();
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let admission = runner.admit_frame_schedule_work(
+            now,
+            &mixed_repaint_and_reissue_demand(FrameScheduleKey::Primary, due_at, now),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert!(matches!(
+            runner.timing.pending_frame_work,
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                ..
+            }
+        ));
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("mixed repaint and reissue completion should remain owner evidence");
+        assert!(completed.advance_timed_repaint());
+        assert!(completed.reissue_pending_redraw());
+        assert!(!completed.drain_timed_frame());
+        assert_eq!(
+            completed.animation_activity(),
+            RuntimeAnimationActivity::idle()
+        );
+        assert!(!completed.needs_text_caret_animation());
+    }
+
+    #[test]
     fn selected_auxiliary_mixed_deadline_uses_exact_key_and_borrowed_generation() {
         let mut runner = auxiliary_runner();
         runner.window.target_generation.advance();
@@ -1358,6 +1573,49 @@ mod tests {
                 .completion_bundle()
                 .is_some_and(|bundle| bundle.advance_timed_repaint())
         );
+    }
+
+    #[test]
+    fn selected_auxiliary_mixed_repaint_and_reissue_use_one_borrowed_owner_bundle() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+            String::from("settings"),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_millis(50));
+        runner.window.target_generation.advance();
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+
+        let admission = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &mixed_repaint_and_reissue_demand(key.clone(), due_at, now),
+            NativeAdapterGeneration::from_test_serial(1),
+        );
+
+        assert!(admission.did_work);
+        assert!(!admission.route_outcome);
+        assert_eq!(runner.frame_stage_owner.key(), &key);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        let completed = runner
+            .frame_stage_owner
+            .completion_bundle()
+            .expect("auxiliary mixed completion should remain owner evidence");
+        assert!(completed.advance_timed_repaint());
+        assert!(completed.reissue_pending_redraw());
+        assert!(!completed.drain_timed_frame());
+        assert_eq!(
+            completed.animation_activity(),
+            RuntimeAnimationActivity::idle()
+        );
+        assert!(!completed.needs_text_caret_animation());
     }
 
     #[test]

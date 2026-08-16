@@ -14,6 +14,7 @@ use super::constraints::Constraints;
 use super::tree::{LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{HashMap, HashSet};
+use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use cache::{
@@ -30,6 +31,123 @@ pub use types::{
 /// evaluation.
 pub(crate) trait LayoutContainerStateReadSource {
     fn read_container_state(&self, container_id: NodeId) -> Option<MountedContainerStateRead<'_>>;
+}
+
+/// Marker for the owner of root layout-visible values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RootLayoutAuthorityOwner {}
+
+/// Marker for the owner of caller-supplied dynamic layout state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayoutStateAuthorityOwner {}
+
+/// Marker for the owner of an optional mounted layout-state source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MountedLayoutSourceAuthorityOwner {}
+
+/// Exact caller-owned authority evidence for one layout-visible input owner.
+///
+/// The authority generation distinguishes recreated owners even when their
+/// revisions repeat. Revisions are caller-owned monotonic evidence covering
+/// every layout-visible value for that owner; the prepared boundary never
+/// derives them from the values themselves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LayoutAuthorityEvidence<Owner> {
+    authority_generation: u64,
+    revision: u64,
+    owner: PhantomData<fn() -> Owner>,
+}
+
+impl<Owner> LayoutAuthorityEvidence<Owner> {
+    #[allow(dead_code)]
+    pub(crate) const fn new(authority_generation: u64, revision: u64) -> Self {
+        Self {
+            authority_generation,
+            revision,
+            owner: PhantomData,
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.authority_generation != 0
+            && self.authority_generation != u64::MAX
+            && self.revision != u64::MAX
+    }
+}
+
+pub(crate) type RootLayoutAuthorityEvidence = LayoutAuthorityEvidence<RootLayoutAuthorityOwner>;
+pub(crate) type LayoutStateAuthorityEvidence = LayoutAuthorityEvidence<LayoutStateAuthorityOwner>;
+pub(crate) type MountedLayoutSourceAuthorityEvidence =
+    LayoutAuthorityEvidence<MountedLayoutSourceAuthorityOwner>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LayoutViewportEvidence {
+    min_x: u32,
+    min_y: u32,
+    max_x: u32,
+    max_y: u32,
+}
+
+impl LayoutViewportEvidence {
+    const fn from_rect(rect: Rect) -> Self {
+        Self {
+            min_x: rect.min.x.to_bits(),
+            min_y: rect.min.y.to_bits(),
+            max_x: rect.max.x.to_bits(),
+            max_y: rect.max.y.to_bits(),
+        }
+    }
+}
+
+/// Exact private-boundary evidence for one prepared layout input set.
+///
+/// Root and state authorities are required. Mounted authority evidence is
+/// present exactly when the preparation source is present. Viewport bits and
+/// debug options are captured directly because both affect layout output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LayoutInputEvidence {
+    root: Option<RootLayoutAuthorityEvidence>,
+    state: Option<LayoutStateAuthorityEvidence>,
+    mounted: Option<MountedLayoutSourceAuthorityEvidence>,
+    viewport: LayoutViewportEvidence,
+    debug: LayoutDebugOptions,
+}
+
+impl LayoutInputEvidence {
+    #[allow(dead_code)]
+    pub(crate) const fn new(
+        root: Option<RootLayoutAuthorityEvidence>,
+        state: Option<LayoutStateAuthorityEvidence>,
+        mounted: Option<MountedLayoutSourceAuthorityEvidence>,
+        viewport: Rect,
+        debug: LayoutDebugOptions,
+    ) -> Self {
+        Self {
+            root,
+            state,
+            mounted,
+            viewport: LayoutViewportEvidence::from_rect(viewport),
+            debug,
+        }
+    }
+
+    fn is_valid_for_prepare(
+        &self,
+        viewport: Rect,
+        debug: LayoutDebugOptions,
+        mounted_source_present: bool,
+    ) -> bool {
+        self.is_valid_for_presence(mounted_source_present)
+            && self.viewport == LayoutViewportEvidence::from_rect(viewport)
+            && self.debug == debug
+    }
+
+    fn is_valid_for_presence(&self, mounted_source_present: bool) -> bool {
+        self.root.is_some_and(|evidence| evidence.is_valid())
+            && self.state.is_some_and(|evidence| evidence.is_valid())
+            && self.mounted.is_some() == mounted_source_present
+            && self.mounted.is_none_or(|evidence| evidence.is_valid())
+    }
 }
 
 #[allow(dead_code)]
@@ -214,6 +332,8 @@ pub(crate) struct PreparedLayoutPass {
     cache_authority: u64,
     generation_exhausted: bool,
     complete: bool,
+    input_evidence: Option<LayoutInputEvidence>,
+    invalid_input_evidence: bool,
 }
 
 #[allow(dead_code)]
@@ -227,6 +347,22 @@ impl PreparedLayoutPass {
             cache_authority: engine.cache_authority,
             generation_exhausted: engine.generation_exhausted,
             complete: false,
+            input_evidence: None,
+            invalid_input_evidence: false,
+        }
+    }
+
+    fn invalid_input(workspace: &LayoutPreparationWorkspace, engine: &LayoutEngine) -> Self {
+        Self {
+            workspace: None,
+            workspace_pool: Arc::clone(&workspace.pool),
+            generation: engine.generation,
+            checked_generation: engine.checked_generation,
+            cache_authority: engine.cache_authority,
+            generation_exhausted: engine.generation_exhausted,
+            complete: false,
+            input_evidence: None,
+            invalid_input_evidence: true,
         }
     }
 
@@ -249,8 +385,9 @@ impl PreparedLayoutPass {
         self,
         engine: &mut LayoutEngine,
         output: &mut LayoutOutput,
+        current_input_evidence: LayoutInputEvidence,
     ) -> Result<(), PreparedLayoutCommitError> {
-        engine.commit_prepared_layout(self, output)
+        engine.commit_prepared_layout(self, output, current_input_evidence)
     }
 
     /// Explicitly discard this candidate without touching active layout state.
@@ -268,6 +405,7 @@ impl Drop for PreparedLayoutPass {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PreparedLayoutCommitError {
     Incomplete,
+    InvalidInputEvidence,
     StaleEngineGeneration,
     StaleCheckedGeneration,
     StaleDirtyEvidence,
@@ -471,8 +609,16 @@ impl LayoutEngine {
         root_rect: Rect,
         state: &LayoutState,
         debug: LayoutDebugOptions,
+        input_evidence: LayoutInputEvidence,
     ) -> PreparedLayoutPass {
-        self.prepare_layout_with_state_and_source(root, root_rect, state, debug, None)
+        self.prepare_layout_with_state_and_source(
+            root,
+            root_rect,
+            state,
+            debug,
+            None,
+            input_evidence,
+        )
     }
 
     /// Prepare one complete layout pass using an immutable mounted-state source.
@@ -484,8 +630,13 @@ impl LayoutEngine {
         state: &LayoutState,
         debug: LayoutDebugOptions,
         container_state_source: Option<&dyn LayoutContainerStateReadSource>,
+        input_evidence: LayoutInputEvidence,
     ) -> PreparedLayoutPass {
         let workspace = self.preparation_workspace.clone();
+        if !input_evidence.is_valid_for_prepare(root_rect, debug, container_state_source.is_some())
+        {
+            return PreparedLayoutPass::invalid_input(&workspace, self);
+        }
         let Some(mut storage) = workspace.take_storage() else {
             return PreparedLayoutPass::incomplete(&workspace, self);
         };
@@ -536,6 +687,8 @@ impl LayoutEngine {
             cache_authority: self.cache_authority,
             generation_exhausted: self.generation_exhausted,
             complete: true,
+            input_evidence: Some(input_evidence),
+            invalid_input_evidence: false,
         }
     }
 
@@ -547,12 +700,28 @@ impl LayoutEngine {
         &mut self,
         mut prepared: PreparedLayoutPass,
         output: &mut LayoutOutput,
+        current_input_evidence: LayoutInputEvidence,
     ) -> Result<(), PreparedLayoutCommitError> {
         let Some(storage) = prepared.workspace.as_ref() else {
-            return Err(PreparedLayoutCommitError::Incomplete);
+            return Err(if prepared.invalid_input_evidence {
+                PreparedLayoutCommitError::InvalidInputEvidence
+            } else {
+                PreparedLayoutCommitError::Incomplete
+            });
         };
         let veto = if !prepared.complete {
             Some(PreparedLayoutCommitError::Incomplete)
+        } else if !prepared
+            .input_evidence
+            .is_some_and(|prepared_input_evidence| {
+                prepared_input_evidence
+                    .is_valid_for_presence(prepared_input_evidence.mounted.is_some())
+                    && current_input_evidence
+                        .is_valid_for_presence(prepared_input_evidence.mounted.is_some())
+                    && prepared_input_evidence == current_input_evidence
+            })
+        {
+            Some(PreparedLayoutCommitError::InvalidInputEvidence)
         } else if prepared.generation_exhausted || self.generation_exhausted {
             Some(PreparedLayoutCommitError::GenerationExhausted)
         } else if prepared.generation != self.generation {

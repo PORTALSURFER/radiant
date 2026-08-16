@@ -4,8 +4,10 @@ use crate::gui::{
         SplitPaneAxis, SplitPanePolicy,
         constraints::Constraints,
         engine::{
-            LayoutContainerStateReadSource, LayoutDebugOptions, LayoutEngine, LayoutOutput,
-            LayoutState, PreparedLayoutCommitError,
+            LayoutAuthorityEvidence, LayoutContainerStateReadSource, LayoutDebugOptions,
+            LayoutEngine, LayoutInputEvidence, LayoutOutput, LayoutState,
+            LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
+            PreparedLayoutCommitError, RootLayoutAuthorityOwner,
         },
         model::{ContainerKind, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams},
         tree::{LayoutNode, SlotChild, WidgetNode},
@@ -203,12 +205,130 @@ fn runtime_split_state_source(ratio: f32) -> RuntimeSplitStateSource {
     }
 }
 
+fn input_evidence(
+    viewport: Rect,
+    debug: LayoutDebugOptions,
+    root: (u64, u64),
+    state: (u64, u64),
+    mounted: Option<(u64, u64)>,
+) -> LayoutInputEvidence {
+    LayoutInputEvidence::new(
+        Some(LayoutAuthorityEvidence::<RootLayoutAuthorityOwner>::new(
+            root.0, root.1,
+        )),
+        Some(LayoutAuthorityEvidence::<LayoutStateAuthorityOwner>::new(
+            state.0, state.1,
+        )),
+        mounted.map(|(generation, revision)| {
+            LayoutAuthorityEvidence::<MountedLayoutSourceAuthorityOwner>::new(generation, revision)
+        }),
+        viewport,
+        debug,
+    )
+}
+
+fn default_input_evidence(
+    viewport: Rect,
+    debug: LayoutDebugOptions,
+    mounted_source_present: bool,
+) -> LayoutInputEvidence {
+    input_evidence(
+        viewport,
+        debug,
+        (1, 1),
+        (1, 1),
+        mounted_source_present.then_some((1, 1)),
+    )
+}
+
+fn prepare(
+    engine: &mut LayoutEngine,
+    root: &LayoutNode,
+    viewport: Rect,
+    state: &LayoutState,
+    debug: LayoutDebugOptions,
+) -> super::super::super::PreparedLayoutPass {
+    engine.prepare_layout_with_state(
+        root,
+        viewport,
+        state,
+        debug,
+        default_input_evidence(viewport, debug, false),
+    )
+}
+
+fn prepare_with_source(
+    engine: &mut LayoutEngine,
+    root: &LayoutNode,
+    viewport: Rect,
+    state: &LayoutState,
+    debug: LayoutDebugOptions,
+    source: Option<&dyn LayoutContainerStateReadSource>,
+) -> super::super::super::PreparedLayoutPass {
+    engine.prepare_layout_with_state_and_source(
+        root,
+        viewport,
+        state,
+        debug,
+        source,
+        default_input_evidence(viewport, debug, source.is_some()),
+    )
+}
+
 fn commit(
     engine: &mut LayoutEngine,
     prepared: super::super::super::PreparedLayoutPass,
     output: &mut LayoutOutput,
 ) {
-    assert_eq!(prepared.commit(engine, output), Ok(()));
+    let current_input_evidence = prepared.input_evidence.expect("complete prepared input");
+    assert_eq!(
+        prepared.commit(engine, output, current_input_evidence),
+        Ok(())
+    );
+}
+
+fn commit_with_evidence(
+    engine: &mut LayoutEngine,
+    prepared: super::super::super::PreparedLayoutPass,
+    output: &mut LayoutOutput,
+    current_input_evidence: LayoutInputEvidence,
+) -> Result<(), PreparedLayoutCommitError> {
+    prepared.commit(engine, output, current_input_evidence)
+}
+
+fn assert_input_evidence_veto(
+    current_input_evidence: LayoutInputEvidence,
+    mounted_source_present: bool,
+) {
+    let root = if mounted_source_present {
+        runtime_split_root()
+    } else {
+        ordinary_root()
+    };
+    let state = LayoutState::default();
+    let debug = LayoutDebugOptions::default();
+    let mut engine = LayoutEngine::default();
+    let mut output = engine.layout(&root, viewport());
+    let source = runtime_split_state_source(0.72);
+    let prepared = if mounted_source_present {
+        prepare_with_source(&mut engine, &root, viewport(), &state, debug, Some(&source))
+    } else {
+        prepare(&mut engine, &root, viewport(), &state, debug)
+    };
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    assert_eq!(
+        commit_with_evidence(&mut engine, prepared, &mut output, current_input_evidence),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
 }
 
 #[test]
@@ -220,7 +340,7 @@ fn prepared_pass_matches_direct_for_ordinary_dirty_debug_split_and_virtualized_i
     let expected = direct.layout_with_state(&root, viewport(), &state, debug);
     let mut prepared_engine = LayoutEngine::default();
     let mut output = LayoutOutput::default();
-    let prepared = prepared_engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+    let prepared = prepare(&mut prepared_engine, &root, viewport(), &state, debug);
     commit(&mut prepared_engine, prepared, &mut output);
     assert_eq!(output, expected);
     assert_eq!(prepared_engine.measure_cache, direct.measure_cache);
@@ -234,7 +354,7 @@ fn prepared_pass_matches_direct_for_ordinary_dirty_debug_split_and_virtualized_i
     let _ = prepared_engine.layout(&root, viewport());
     prepared_engine.mark_measure_dirty(2);
     let mut output = LayoutOutput::default();
-    let prepared = prepared_engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+    let prepared = prepare(&mut prepared_engine, &root, viewport(), &state, debug);
     commit(&mut prepared_engine, prepared, &mut output);
     assert_eq!(output, expected);
 
@@ -243,7 +363,7 @@ fn prepared_pass_matches_direct_for_ordinary_dirty_debug_split_and_virtualized_i
     let expected = direct.layout_with_state(&root, viewport(), &state, debug);
     let mut prepared_engine = LayoutEngine::default();
     let mut output = LayoutOutput::default();
-    let prepared = prepared_engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+    let prepared = prepare(&mut prepared_engine, &root, viewport(), &state, debug);
     commit(&mut prepared_engine, prepared, &mut output);
     assert_eq!(output, expected);
 
@@ -252,7 +372,8 @@ fn prepared_pass_matches_direct_for_ordinary_dirty_debug_split_and_virtualized_i
     let expected = direct.layout(&split, viewport());
     let mut prepared_engine = LayoutEngine::default();
     let mut output = LayoutOutput::default();
-    let prepared = prepared_engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut prepared_engine,
         &split,
         viewport(),
         &LayoutState::default(),
@@ -273,7 +394,8 @@ fn prepared_pass_matches_direct_for_ordinary_dirty_debug_split_and_virtualized_i
     );
     let mut prepared_engine = LayoutEngine::default();
     let mut output = LayoutOutput::default();
-    let prepared = prepared_engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut prepared_engine,
         &virtual_root,
         viewport(),
         &state,
@@ -304,7 +426,8 @@ fn prepared_pass_matches_direct_for_runtime_container_state_split() {
     let mut prepared_engine = LayoutEngine::default();
     let mut prepared_output = LayoutOutput::default();
     let prepared_source = runtime_split_state_source(0.72);
-    let prepared = prepared_engine.prepare_layout_with_state_and_source(
+    let prepared = prepare_with_source(
+        &mut prepared_engine,
         &root,
         viewport,
         &state,
@@ -326,7 +449,8 @@ fn prepare_discard_and_drop_leave_active_state_and_output_inert() {
     let before = snapshot(&engine);
     let output_before = active_output.clone();
 
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -338,7 +462,8 @@ fn prepare_discard_and_drop_leave_active_state_and_output_inert() {
     assert_eq!(snapshot(&engine), before);
     assert_eq!(active_output, output_before);
 
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -365,7 +490,8 @@ fn consuming_commit_installs_exact_output_and_prunes_untouched_cache_entries() {
     let mut engine = LayoutEngine::default();
     let _ = engine.layout(&old_widget, viewport());
     let mut output = LayoutOutput::default();
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &new_widget,
         viewport(),
         &LayoutState::default(),
@@ -388,7 +514,8 @@ fn consuming_commit_installs_exact_output_and_prunes_untouched_cache_entries() {
     let _ = engine.layout(&old_virtual, viewport());
     assert_eq!(engine.virtual_cache.len(), 1);
     let mut output = LayoutOutput::default();
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &new_virtual,
         viewport(),
         &LayoutState::default(),
@@ -410,13 +537,15 @@ fn consuming_commit_installs_exact_output_and_prunes_untouched_cache_entries() {
 fn incomplete_candidate_vetoes_without_active_mutation() {
     let root = ordinary_root();
     let mut engine = LayoutEngine::default();
-    let held = engine.prepare_layout_with_state(
+    let held = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
         LayoutDebugOptions::default(),
     );
-    let incomplete = engine.prepare_layout_with_state(
+    let incomplete = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -426,7 +555,11 @@ fn incomplete_candidate_vetoes_without_active_mutation() {
     let before = snapshot(&engine);
 
     assert_eq!(
-        engine.commit_prepared_layout(incomplete, &mut output),
+        engine.commit_prepared_layout(
+            incomplete,
+            &mut output,
+            default_input_evidence(viewport(), LayoutDebugOptions::default(), false),
+        ),
         Err(PreparedLayoutCommitError::Incomplete)
     );
     assert_eq!(snapshot(&engine), before);
@@ -462,7 +595,8 @@ fn ambiguous_cache_key_vetoes_without_active_mutation() {
     );
     let mut engine = LayoutEngine::default();
     engine.mark_measure_dirty(2);
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -472,7 +606,11 @@ fn ambiguous_cache_key_vetoes_without_active_mutation() {
     let before = snapshot(&engine);
 
     assert_eq!(
-        engine.commit_prepared_layout(prepared, &mut output),
+        engine.commit_prepared_layout(
+            prepared,
+            &mut output,
+            default_input_evidence(viewport(), LayoutDebugOptions::default(), false),
+        ),
         Err(PreparedLayoutCommitError::CacheKeyAmbiguous)
     );
     assert_eq!(snapshot(&engine), before);
@@ -483,7 +621,8 @@ fn stale_commit_vetoes_before_any_active_mutation() {
     let root = ordinary_root();
     let mut engine = LayoutEngine::default();
     let mut output = engine.layout(&root, viewport());
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -494,7 +633,11 @@ fn stale_commit_vetoes_before_any_active_mutation() {
     let output_before = output.clone();
 
     assert_eq!(
-        engine.commit_prepared_layout(prepared, &mut output),
+        engine.commit_prepared_layout(
+            prepared,
+            &mut output,
+            default_input_evidence(viewport(), LayoutDebugOptions::default(), false),
+        ),
         Err(PreparedLayoutCommitError::StaleEngineGeneration)
     );
     assert_eq!(snapshot(&engine), before_commit);
@@ -506,7 +649,8 @@ fn stale_cache_authority_vetoes_before_any_active_mutation() {
     let root = ordinary_root();
     let mut engine = LayoutEngine::default();
     let mut output = engine.layout(&root, viewport());
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -517,11 +661,318 @@ fn stale_cache_authority_vetoes_before_any_active_mutation() {
     let output_before = output.clone();
 
     assert_eq!(
-        engine.commit_prepared_layout(prepared, &mut output),
+        engine.commit_prepared_layout(
+            prepared,
+            &mut output,
+            default_input_evidence(viewport(), LayoutDebugOptions::default(), false),
+        ),
         Err(PreparedLayoutCommitError::StaleCacheAuthority)
     );
     assert_eq!(snapshot(&engine), before_commit);
     assert_eq!(output, output_before);
+}
+
+#[test]
+fn root_authority_revision_vetoes_after_layout_visible_mutation() {
+    let mut root = ordinary_root();
+    let state = LayoutState::default();
+    let debug = LayoutDebugOptions::default();
+    let mut engine = LayoutEngine::default();
+    let mut output = engine.layout(&root, viewport());
+    let prepared_input = input_evidence(viewport(), debug, (1, 1), (1, 1), None);
+    let prepared =
+        engine.prepare_layout_with_state(&root, viewport(), &state, debug, prepared_input);
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    if let LayoutNode::Container(container) = &mut root {
+        container.policy.spacing = 24.0;
+    }
+    let current = input_evidence(viewport(), debug, (1, 2), (1, 1), None);
+    assert_eq!(
+        commit_with_evidence(&mut engine, prepared, &mut output, current),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
+}
+
+#[test]
+fn viewport_only_change_vetoes_before_active_mutation() {
+    let old_viewport = viewport();
+    let new_viewport = Rect::from_min_size(Point::new(9.0, 11.0), Vector2::new(240.0, 140.0));
+    let root = ordinary_root();
+    let state = LayoutState::default();
+    let debug = LayoutDebugOptions::default();
+    let mut engine = LayoutEngine::default();
+    let mut output = engine.layout(&root, old_viewport);
+    let prepared = engine.prepare_layout_with_state(
+        &root,
+        old_viewport,
+        &state,
+        debug,
+        input_evidence(old_viewport, debug, (1, 1), (1, 1), None),
+    );
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    assert_eq!(
+        commit_with_evidence(
+            &mut engine,
+            prepared,
+            &mut output,
+            input_evidence(new_viewport, debug, (1, 1), (1, 1), None),
+        ),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
+}
+
+#[test]
+fn layout_state_scroll_revision_vetoes_after_mutation() {
+    let root = fixed_virtualized_root(96, 12.0);
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(0.0, 160.0));
+    let debug = LayoutDebugOptions::default();
+    let mut engine = LayoutEngine::default();
+    let mut output = engine.layout_with_state(&root, viewport(), &state, debug);
+    let prepared = engine.prepare_layout_with_state(
+        &root,
+        viewport(),
+        &state,
+        debug,
+        input_evidence(viewport(), debug, (1, 1), (1, 1), None),
+    );
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    state.scroll_offsets.insert(1, Vector2::new(0.0, 320.0));
+    assert_eq!(
+        commit_with_evidence(
+            &mut engine,
+            prepared,
+            &mut output,
+            input_evidence(viewport(), debug, (1, 1), (1, 2), None),
+        ),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
+}
+
+#[test]
+fn mounted_revision_vetoes_value_mutation_with_same_mounted_identity() {
+    let root = runtime_split_root();
+    let state = LayoutState::default();
+    let debug = LayoutDebugOptions::default();
+    let mut source = runtime_split_state_source(0.72);
+    let mounted_id = source.mounted_id;
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport(),
+        &state,
+        debug,
+        Some(&source),
+        &mut output,
+    );
+    let prepared = engine.prepare_layout_with_state_and_source(
+        &root,
+        viewport(),
+        &state,
+        debug,
+        Some(&source),
+        input_evidence(viewport(), debug, (1, 1), (1, 1), Some((1, 1))),
+    );
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    source.state.ratio = 0.84;
+    assert_eq!(source.mounted_id, mounted_id);
+    assert_eq!(
+        commit_with_evidence(
+            &mut engine,
+            prepared,
+            &mut output,
+            input_evidence(viewport(), debug, (1, 1), (1, 1), Some((1, 2))),
+        ),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
+}
+
+#[test]
+fn mounted_identity_and_authority_replacement_veto_with_equal_visible_value() {
+    let root = runtime_split_root();
+    let state = LayoutState::default();
+    let debug = LayoutDebugOptions::default();
+    let mut source = runtime_split_state_source(0.72);
+    let visible_ratio = source.state.ratio;
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    engine.layout_with_state_and_source_into(
+        &root,
+        viewport(),
+        &state,
+        debug,
+        Some(&source),
+        &mut output,
+    );
+    let prepared = engine.prepare_layout_with_state_and_source(
+        &root,
+        viewport(),
+        &state,
+        debug,
+        Some(&source),
+        input_evidence(viewport(), debug, (1, 1), (1, 1), Some((1, 1))),
+    );
+    let before = snapshot(&engine);
+    let output_before = output.clone();
+    let workspace_capacities = engine.preparation_workspace.capacities();
+
+    source.mounted_id = MountedContainerStateId::new(
+        ContainerStateId::new::<SplitPaneRuntimeState>(10, 1),
+        NonZeroU64::new(2).expect("non-zero replacement generation"),
+    );
+    assert_eq!(source.state.ratio, visible_ratio);
+    assert_eq!(
+        commit_with_evidence(
+            &mut engine,
+            prepared,
+            &mut output,
+            input_evidence(viewport(), debug, (1, 1), (1, 1), Some((2, 1))),
+        ),
+        Err(PreparedLayoutCommitError::InvalidInputEvidence)
+    );
+    assert_eq!(snapshot(&engine), before);
+    assert_eq!(output, output_before);
+    assert_eq!(
+        engine.preparation_workspace.capacities(),
+        workspace_capacities
+    );
+}
+
+#[test]
+fn equal_revisions_under_different_authority_generations_veto() {
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (2, 1),
+            (1, 1),
+            None,
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (2, 1),
+            None,
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (1, 1),
+            Some((2, 1)),
+        ),
+        true,
+    );
+}
+
+#[test]
+fn missing_exhausted_malformed_and_presence_mismatched_evidence_veto() {
+    assert_input_evidence_veto(
+        LayoutInputEvidence::new(
+            None,
+            Some(LayoutAuthorityEvidence::<LayoutStateAuthorityOwner>::new(
+                1, 1,
+            )),
+            None,
+            viewport(),
+            LayoutDebugOptions::default(),
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (u64::MAX, 1),
+            (1, 1),
+            None,
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (0, 1),
+            None,
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (1, 1),
+            Some((1, 1)),
+        ),
+        false,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (1, 1),
+            None,
+        ),
+        true,
+    );
+    assert_input_evidence_veto(
+        input_evidence(
+            viewport(),
+            LayoutDebugOptions::default(),
+            (1, 1),
+            (1, 1),
+            Some((u64::MAX, 1)),
+        ),
+        true,
+    );
 }
 
 #[test]
@@ -535,7 +986,8 @@ fn warmed_preparation_reads_active_caches_without_cloning_complete_cache_state()
         .next()
         .map(|entry| Arc::clone(&entry.metrics));
     let before = snapshot(&engine);
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -570,7 +1022,8 @@ fn warmed_preparation_reuses_workspace_capacities() {
     let root = fixed_virtualized_root(128, 12.0);
     let mut engine = LayoutEngine::default();
     let initial = engine.preparation_workspace.capacities();
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -584,7 +1037,8 @@ fn warmed_preparation_reuses_workspace_capacities() {
     commit(&mut engine, prepared, &mut output);
     let warmed = engine.preparation_workspace.capacities();
 
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -607,7 +1061,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
     let mut output = engine.layout_with_state(&root, viewport(), &state, debug);
 
     for _ in 0..10 {
-        let prepared = engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+        let prepared = prepare(&mut engine, &root, viewport(), &state, debug);
         assert_eq!(
             prepared
                 .workspace
@@ -630,7 +1084,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
 
     for _ in 0..SAMPLES {
         let started = Instant::now();
-        let prepared = engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+        let prepared = prepare(&mut engine, &root, viewport(), &state, debug);
         assert_eq!(
             prepared
                 .workspace
@@ -652,7 +1106,7 @@ fn warmed_preparation_performance_evidence_reports_percentiles() {
 
     for _ in 0..SAMPLES {
         let started = Instant::now();
-        let prepared = engine.prepare_layout_with_state(&root, viewport(), &state, debug);
+        let prepared = prepare(&mut engine, &root, viewport(), &state, debug);
         assert_eq!(
             prepared
                 .workspace
@@ -694,7 +1148,8 @@ fn generation_exhaustion_vetoes_without_active_mutation() {
     let mut engine = LayoutEngine::default();
     let mut output = engine.layout(&root, viewport());
     engine.generation = u64::MAX;
-    let prepared = engine.prepare_layout_with_state(
+    let prepared = prepare(
+        &mut engine,
         &root,
         viewport(),
         &LayoutState::default(),
@@ -703,7 +1158,11 @@ fn generation_exhaustion_vetoes_without_active_mutation() {
     let before = snapshot(&engine);
     let output_before = output.clone();
     assert_eq!(
-        engine.commit_prepared_layout(prepared, &mut output),
+        engine.commit_prepared_layout(
+            prepared,
+            &mut output,
+            default_input_evidence(viewport(), LayoutDebugOptions::default(), false),
+        ),
         Err(PreparedLayoutCommitError::GenerationExhausted)
     );
     assert_eq!(snapshot(&engine), before);

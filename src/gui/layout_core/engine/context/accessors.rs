@@ -24,14 +24,23 @@ impl<'a> LayoutContext<'a> {
         if let Some(value) = self.measured.get(&key).copied() {
             return Some(value);
         }
-        let value = self.cache.get(&key).copied()?;
+        let value = self
+            .cache
+            .get(&key)
+            .copied()
+            .or_else(|| self.active_cache.and_then(|cache| cache.get(&key).copied()))?;
         self.measured.insert(key, value);
         Some(value)
     }
 
     pub(crate) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
         self.measured.insert(key, value);
-        self.cache.insert(key, value);
+        if let Some(previous) = self.cache.insert(key, value)
+            && previous != value
+            && let Some(ambiguity) = self.cache_key_ambiguity.as_deref_mut()
+        {
+            *ambiguity = true;
+        }
         if self.records_measured_bounds() {
             self.measured_by_node.insert(key.node_id, value);
         }
@@ -44,6 +53,7 @@ impl<'a> LayoutContext<'a> {
         let metrics = self
             .virtual_cache
             .get(&key)
+            .or_else(|| self.active_virtual_cache.and_then(|cache| cache.get(&key)))
             .map(|entry| Arc::clone(&entry.metrics))?;
         self.virtual_touched.insert(key);
         Some(metrics)
@@ -56,8 +66,15 @@ impl<'a> LayoutContext<'a> {
         dependencies: Vec<NodeId>,
     ) {
         self.virtual_touched.insert(key);
-        self.virtual_cache
-            .insert(key, CachedVirtualMetrics::new(metrics, dependencies));
+        let entry = CachedVirtualMetrics::new(metrics, dependencies);
+        let ambiguous = self
+            .virtual_cache
+            .get(&key)
+            .is_some_and(|previous| previous != &entry);
+        self.virtual_cache.insert(key, entry);
+        if ambiguous && let Some(ambiguity) = self.cache_key_ambiguity.as_deref_mut() {
+            *ambiguity = true;
+        }
     }
 
     pub(crate) fn record_measured_size(&mut self, node_id: NodeId, value: Vector2) {

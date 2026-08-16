@@ -2081,8 +2081,13 @@ Runtime-owned mode projects one clipped built-in divider `LayoutHitTarget` from
 final quantized child geometry when the resolved divider is positive. Its
 primary pointer path uses controller-owned capture and the shared
 `PanelResizeState` edit lifecycle; static and controlled-ratio modes remain
-inert. Settled persistence, semantic/keyboard behavior, and other
-product-specific behavior remain later slices.
+inert. `.on_ratio_settled(...)` is an additive runtime-owned output bridge: it
+maps exactly one final finite normalized mounted ratio after a meaningful
+successful commit, while press, intermediate motion, no-op commit,
+cancellation, capture loss, incompatible refresh, unmount, static mode, and
+controlled-ratio mode remain silent. This output is not persistence; settled
+persistence, semantic/keyboard behavior, and other product-specific behavior
+remain later slices.
 
 ```rust
 split_pane(library_panel(state), detail_panel(state))
@@ -2104,7 +2109,10 @@ or unavailable. Ratio state is consumed only by top-down placement, so
 bottom-up measurement and its cache identity remain unchanged. The existing
 generic `LayoutInteraction` runtime capability remains available independently;
 runtime-owned split-pane mode now attaches its private divider capability and
-uses the shipped controller capture/edit path. The shipped `PanelResizeState` model still
+uses the shipped controller capture/edit path. Compatible same-identity
+application reprojection retains the mounted ratio and the captured
+interaction/geometry authority, while incompatible refresh or unmount cancels
+silently before any host output. The shipped `PanelResizeState` model still
 provides the host-facing resize path: its qualified `resize_edit(...)` and
 `resize_collapsible_edit(...)` methods deliver one typed `EditEvent<f32>` per
 accepted drag boundary, while the concise resize methods remain compatible
@@ -3961,7 +3969,10 @@ a separate consumer; Slider and Knob domain mapping are separate qualified
 consumers. Knob is also shipped, and PanelResizeState is the shared-edit
 consumer for the runtime-owned split-pane divider; the generic
 `LayoutInteraction` capability and runtime `split_pane` ratio projection are
-shipped, while settled callbacks remain future work.
+shipped. The optional settled-ratio output bridge is also shipped; it is
+runtime-owned output rather than persistence and reduces only after mounted
+state mutation and terminal capture cleanup. Settled persistence remains a
+future concern.
 The target API will allow applications to provide a custom mapping only when it
 is total, finite, and monotonic over the declared range; the target runtime will
 reject ambiguous inverse mappings rather than allowing a displayed value and

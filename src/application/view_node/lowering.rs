@@ -180,6 +180,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let style = node.style;
         let hoverable = node.hoverable;
         let split_pane_runtime = node.split_pane_runtime;
+        let split_pane_ratio_settled = node.split_pane_ratio_settled;
         let scroll_message = node.scroll_message;
         let accepts_native_file_drop = node.accepts_native_file_drop;
         let native_file_drop = node.native_file_drop.clone();
@@ -201,9 +202,17 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 }
                 container = container.with_split_pane_runtime_mode(split_pane_runtime);
                 if let Some(policy) = runtime_split_policy {
-                    container = container.with_layout_capabilities(
-                        crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy),
-                    );
+                    let capabilities = match split_pane_ratio_settled.clone() {
+                        Some(map) => crate::gui::layout_core::
+                            runtime_owned_split_pane_capabilities_with_ratio_settled(
+                                policy,
+                                Some(map),
+                            ),
+                        None => crate::gui::layout_core::runtime_owned_split_pane_capabilities(
+                            policy,
+                        ),
+                    };
+                    container = container.with_layout_capabilities(capabilities);
                 }
                 container
             };

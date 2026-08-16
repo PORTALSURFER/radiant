@@ -934,6 +934,108 @@ impl RuntimeBridge<()> for SplitInteractionBridge {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SplitSettledMessage {
+    Settled { mapper: u8, ratio: f32 },
+}
+
+struct SettledSplitInteractionBridge {
+    mode: SplitInteractionMode,
+    policy: SplitPanePolicy,
+    ratio: f32,
+    generation: u64,
+    mapper: u8,
+    mounted: bool,
+    messages: Rc<RefCell<Vec<SplitSettledMessage>>>,
+}
+
+impl SettledSplitInteractionBridge {
+    fn new(mode: SplitInteractionMode, messages: Rc<RefCell<Vec<SplitSettledMessage>>>) -> Self {
+        Self {
+            mode,
+            policy: SplitPanePolicy {
+                axis: SplitPaneAxis::Horizontal,
+                initial_ratio: 0.25,
+                divider_extent: 8.0,
+                first_min_extent: 0.0,
+                second_min_extent: 0.0,
+            },
+            ratio: 0.25,
+            generation: 1,
+            mapper: 1,
+            mounted: true,
+            messages,
+        }
+    }
+
+    fn surface(&self) -> UiSurface<SplitSettledMessage> {
+        if !self.mounted {
+            return UiSurface::new(SurfaceNode::widget(
+                TextWidget::new(
+                    90,
+                    "unmounted",
+                    WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ));
+        }
+        let policy = self.policy;
+        let first = SurfaceNode::widget(
+            TextWidget::new(2, "first", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+            WidgetMessageMapper::none(),
+        );
+        let second = SurfaceNode::widget(
+            TextWidget::new(3, "second", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+            WidgetMessageMapper::none(),
+        );
+        let mut split = SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::SplitPane,
+                split_pane: policy,
+                ..ContainerPolicy::default()
+            },
+            vec![SurfaceChild::fill(first), SurfaceChild::fill(second)],
+        );
+        match self.mode {
+            SplitInteractionMode::Static => {}
+            SplitInteractionMode::RuntimeOwned => {
+                let mapper = self.mapper;
+                split = split
+                    .with_split_pane_runtime_mode(Some(
+                        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned,
+                    ))
+                    .with_layout_capabilities(
+                        crate::gui::layout_core::runtime_owned_split_pane_capabilities_with_ratio_settled(
+                            policy,
+                            Some(Rc::new(move |ratio| {
+                                SplitSettledMessage::Settled { mapper, ratio }
+                            })),
+                        ),
+                    );
+            }
+            SplitInteractionMode::Controlled => {
+                split = split.with_split_pane_runtime_mode(Some(
+                    crate::gui::layout_core::SplitPaneRuntimeMode::Controlled(
+                        crate::gui::layout_core::Controlled::new(self.ratio, self.generation),
+                    ),
+                ));
+            }
+        }
+        UiSurface::new(split)
+    }
+}
+
+impl RuntimeBridge<SplitSettledMessage> for SettledSplitInteractionBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<SplitSettledMessage>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn reduce_message(&mut self, message: SplitSettledMessage) {
+        self.messages.borrow_mut().push(message);
+    }
+}
+
 #[derive(Clone, Copy)]
 enum LayoutProbeRevision {
     Exact(&'static str),
@@ -4574,4 +4676,196 @@ fn runtime_owned_split_repeated_effective_moves_keep_one_bounded_capture() {
         PointerModifiers::default(),
     ));
     assert_eq!(runtime.layout_pointer_capture(), None);
+}
+
+#[test]
+fn runtime_owned_split_settled_output_emits_once_for_meaningful_commit_and_silences_noop() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    let divider = Point::new(52.0, 40.0);
+
+    runtime.dispatch_event(Event::primary_press(divider));
+    runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    assert!(
+        messages.borrow().is_empty(),
+        "intermediate moves are silent"
+    );
+    runtime.dispatch_event(Event::pointer_move(Point::new(48.0, 100.0)));
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(48.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert!(
+        messages.borrow().is_empty(),
+        "a move back to the start is a no-op"
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+
+    let moved = Point::new(130.0, 100.0);
+    runtime.dispatch_event(Event::primary_press(divider));
+    runtime.dispatch_event(Event::pointer_move(moved));
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(
+        messages.borrow().as_slice(),
+        &[SplitSettledMessage::Settled {
+            mapper: 1,
+            ratio: 130.0_f32 / 192.0_f32,
+        }]
+    );
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(
+        messages.borrow().len(),
+        1,
+        "one commit produces one message"
+    );
+}
+
+#[test]
+fn runtime_owned_split_settled_output_is_silent_for_cancellation_loss_and_unmount() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    runtime.cancel_pointer_capture();
+    assert!(messages.borrow().is_empty());
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(160.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert!(messages.borrow().is_empty(), "delayed release stays inert");
+
+    let incompatible_messages = Rc::new(RefCell::new(Vec::new()));
+    let mut incompatible = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&incompatible_messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    incompatible.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    incompatible.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    incompatible.bridge_mut().policy.divider_extent = 12.0;
+    incompatible.refresh();
+    assert_eq!(incompatible.layout_pointer_capture(), None);
+    assert!(incompatible_messages.borrow().is_empty());
+
+    let unmounted_messages = Rc::new(RefCell::new(Vec::new()));
+    let mut unmounted = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&unmounted_messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    unmounted.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    unmounted.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    unmounted.bridge_mut().mounted = false;
+    unmounted.refresh();
+    assert_eq!(unmounted.layout_pointer_capture(), None);
+    assert!(unmounted_messages.borrow().is_empty());
+}
+
+#[test]
+fn runtime_owned_split_settled_output_is_silent_for_static_and_controlled_modes() {
+    for mode in [
+        SplitInteractionMode::Static,
+        SplitInteractionMode::Controlled,
+    ] {
+        let messages = Rc::new(RefCell::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            SettledSplitInteractionBridge::new(mode, Rc::clone(&messages)),
+            Vector2::new(200.0, 80.0),
+        );
+        assert_eq!(runtime.layout_target_at(Point::new(52.0, 40.0)), None);
+        runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+        runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+        runtime.dispatch_event(Event::pointer_release(
+            Point::new(130.0, 100.0),
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        ));
+        assert!(messages.borrow().is_empty());
+        assert_eq!(runtime.layout_pointer_capture(), None);
+    }
+}
+
+#[test]
+fn runtime_owned_split_capture_keeps_original_mapper_and_geometry_across_refresh() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    let moved = Point::new(130.0, 100.0);
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(moved));
+    runtime.bridge_mut().mapper = 2;
+    runtime.refresh();
+
+    assert!(runtime.layout_pointer_capture().is_some());
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(
+        messages.borrow().as_slice(),
+        &[SplitSettledMessage::Settled {
+            mapper: 1,
+            ratio: 130.0_f32 / 192.0_f32,
+        }]
+    );
+}
+
+#[test]
+fn runtime_owned_split_same_identity_refresh_preserves_mounted_ratio() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    let moved = Point::new(130.0, 100.0);
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(moved));
+    runtime.refresh();
+
+    assert_eq!(runtime.layout().rects[&2].width(), 130.0);
+    assert!(runtime.layout_pointer_capture().is_some());
+    runtime.dispatch_event(Event::pointer_release(
+        moved,
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    assert_eq!(messages.borrow().len(), 1);
 }

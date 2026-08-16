@@ -3,6 +3,8 @@ use super::{
     GuiAutomationTargetSnapshot,
 };
 
+const AUTOMATION_TARGET_SNAPSHOT_SCHEMA_VERSION: u32 = 3;
+
 impl AutomationNodeSnapshot {
     /// Return a flattened list of automation targets rooted at this node.
     pub fn automation_targets(&self) -> Vec<AutomationTarget> {
@@ -38,9 +40,12 @@ impl AutomationNodeSnapshot {
 
 impl GuiAutomationSnapshot {
     /// Return a flattened, coordinate-bearing target snapshot.
+    ///
+    /// The pure target projection uses schema version 3 because the semantic
+    /// tree may contain the `Separator` role.
     pub fn target_snapshot(&self) -> GuiAutomationTargetSnapshot {
         GuiAutomationTargetSnapshot {
-            schema_version: 2,
+            schema_version: AUTOMATION_TARGET_SNAPSHOT_SCHEMA_VERSION,
             viewport_width: self.viewport_width,
             viewport_height: self.viewport_height,
             targets: self.root.automation_targets(),

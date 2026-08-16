@@ -313,7 +313,7 @@ mod tests {
         assert!(separator.available_actions.is_empty());
         assert!(separator.children.is_empty());
         assert_eq!(snapshot.schema_version, 3);
-        assert_eq!(snapshot.target_snapshot().schema_version, 2);
+        assert_eq!(snapshot.target_snapshot().schema_version, 3);
     }
 
     #[test]

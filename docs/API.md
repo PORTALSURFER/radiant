@@ -6431,7 +6431,8 @@ uses schema version 3 for this staged-and-published tree.
 `SurfaceRuntime::automation_target_snapshot()`
 adds runtime-owned `AutomationTargetAuthority` evidence and schema version 3;
 the pure `GuiAutomationSnapshot::target_snapshot()` helper is a read-only
-schema-version-2 flattening helper. Runtime-owned split-pane automation reads
+schema-version-3 flattening helper because its targets can carry
+`AutomationRole::Separator`. Runtime-owned split-pane automation reads
 consume only the committed crate-private divider projection: each valid
 projection publishes one `AutomationRole::Separator` directly between its
 split container's two content children. Its stable ID is

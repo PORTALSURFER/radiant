@@ -48,7 +48,7 @@ fn automation_targets_preserve_preorder_depth_and_paths() {
 fn target_snapshot_preserves_viewport_and_interaction_state() {
     let targets = fixture_snapshot().target_snapshot();
 
-    assert_eq!(targets.schema_version, 2);
+    assert_eq!(targets.schema_version, 3);
     assert_eq!(
         (targets.viewport_width, targets.viewport_height),
         (1280, 720)
@@ -103,7 +103,7 @@ fn separator_role_and_snapshot_schemas_round_trip_through_json() {
     );
 
     let targets = snapshot.target_snapshot();
-    assert_eq!(targets.schema_version, 2);
+    assert_eq!(targets.schema_version, 3);
     let encoded_targets = serde_json::to_string(&targets).expect("serialize target snapshot");
     assert_eq!(
         serde_json::from_str::<super::GuiAutomationTargetSnapshot>(&encoded_targets)

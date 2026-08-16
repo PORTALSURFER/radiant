@@ -298,7 +298,9 @@ impl WindowStageOwner {
             stage,
         };
         if self.fence != Some(fence) {
-            if self.in_flight.is_some() {
+            if self.has_deferred_timed_frame() {
+                self.invalidate();
+            } else if self.in_flight.is_some() {
                 return false;
             }
             if self.fence.is_some() {
@@ -427,18 +429,22 @@ impl WindowStageOwner {
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
     ) -> Option<TimedFrame> {
-        let in_flight = self.in_flight.as_mut()?;
-        let identity = &in_flight.identity;
-        if in_flight.phase != InFlightTimedFramePhase::DrainDeferredAfterTimedRepaint
-            || identity.key != *key
-            || identity.adapter_generation != adapter_generation
-            || identity.target_generation != target_generation
-            || identity.stage != SchedulerStage::Deadline
-            || identity.owner_generation != self.owner_generation
-            || self.fence != Some(identity.fence())
-        {
+        let in_flight = self.in_flight.as_ref()?;
+        if in_flight.phase != InFlightTimedFramePhase::DrainDeferredAfterTimedRepaint {
             return None;
         }
+        let identity = &in_flight.identity;
+        let matches_deferred_fence = identity.key == *key
+            && identity.adapter_generation == adapter_generation
+            && identity.target_generation == target_generation
+            && identity.stage == SchedulerStage::Deadline
+            && identity.owner_generation == self.owner_generation
+            && self.fence == Some(identity.fence());
+        if !matches_deferred_fence {
+            self.invalidate();
+            return None;
+        }
+        let in_flight = self.in_flight.as_mut()?;
         in_flight.phase = InFlightTimedFramePhase::ExecutingDeferredDrain;
         Some(in_flight.frame)
     }
@@ -722,7 +728,7 @@ mod tests {
     }
 
     #[test]
-    fn deferred_drain_retains_owner_until_exact_resume_or_cancellation() {
+    fn deferred_drain_retains_owner_until_exact_resume() {
         let now = Instant::now();
         let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
         assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
@@ -742,13 +748,6 @@ mod tests {
         assert!(owner.has_deferred_timed_frame());
         assert!(!owner.complete(&exact, now, Instant::now()));
         assert_eq!(owner.completion_bundle(), None);
-        assert!(
-            owner
-                .resume_deferred_timed_frame(&exact.key, adapter(2), target(1))
-                .is_none()
-        );
-        assert!(owner.has_deferred_timed_frame());
-
         assert_eq!(
             owner.resume_deferred_timed_frame(&exact.key, adapter(1), target(1)),
             Some(bundle)
@@ -759,6 +758,65 @@ mod tests {
 
         owner.invalidate();
         assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn deferred_drain_resume_mismatch_cancels_without_completion() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let exact = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let bundle = frame_with_timed_repaint(now, true);
+        assert!(owner.queue(exact.clone(), bundle));
+        assert_eq!(owner.begin(&exact, now), Some(bundle));
+        assert!(owner.defer_timed_frame_drain(&exact));
+        let owner_generation = owner.owner_generation();
+
+        assert!(
+            owner
+                .resume_deferred_timed_frame(&exact.key, adapter(2), target(1))
+                .is_none()
+        );
+        assert!(!owner.has_deferred_timed_frame());
+        assert!(!owner.has_in_flight());
+        assert_eq!(owner.completion_bundle(), None);
+        assert!(owner.owner_generation() > owner_generation);
+        assert!(owner.prepare_fence(adapter(2), target(1), SchedulerStage::Deadline));
+    }
+
+    #[test]
+    fn deferred_drain_fence_transition_cancels_before_new_fence() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let exact = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let bundle = frame_with_timed_repaint(now, true);
+        assert!(owner.queue(exact.clone(), bundle));
+        assert_eq!(owner.begin(&exact, now), Some(bundle));
+        assert!(owner.defer_timed_frame_drain(&exact));
+        let owner_generation = owner.owner_generation();
+
+        assert!(owner.prepare_fence(adapter(1), target(2), SchedulerStage::Deadline));
+        assert!(!owner.has_deferred_timed_frame());
+        assert!(!owner.has_in_flight());
+        assert_eq!(owner.completion_bundle(), None);
+        assert!(owner.owner_generation() > owner_generation);
     }
 
     #[test]

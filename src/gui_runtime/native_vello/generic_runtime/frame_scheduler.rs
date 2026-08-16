@@ -1307,6 +1307,289 @@ mod tests {
     }
 
     #[test]
+    fn primary_deferred_deadline_target_generation_cancels_without_replay() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now);
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let first = runner
+            .admit_frame_schedule_work(now, &mixed_live_demand(FrameScheduleKey::Primary, due_at));
+        assert!(first.did_work);
+        assert!(!first.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert!(runner.frame_stage_owner.has_deferred_timed_frame());
+        let first_pending_frame_work = runner.timing.pending_frame_work;
+
+        runner.timing.redraw_requested = false;
+        runner.timing.redraw_requested_at = None;
+        assert!(runner.window.target_generation.advance());
+        let stale = runner.admit_frame_schedule_work(
+            Instant::now(),
+            &retained_drain_demand(FrameScheduleKey::Primary, due_at, Instant::now()),
+        );
+        assert!(stale.did_work);
+        assert!(!stale.route_outcome);
+        assert!(!runner.frame_stage_owner.has_deferred_timed_frame());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+
+        let later_now = due_at + Duration::from_millis(5);
+        let later = runner.admit_frame_schedule_work(
+            later_now,
+            &retained_drain_demand(FrameScheduleKey::Primary, due_at, later_now),
+        );
+        assert!(later.did_work);
+        assert!(later.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+        assert!(runner.timing.last_timed_frame_drain > last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .map(|bundle| bundle.advance_timed_repaint()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn primary_deferred_deadline_adapter_generation_cancels_without_replay() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now);
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let first = runner
+            .admit_frame_schedule_work(now, &mixed_live_demand(FrameScheduleKey::Primary, due_at));
+        assert!(first.did_work);
+        assert!(!first.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert!(runner.frame_stage_owner.has_deferred_timed_frame());
+        let first_pending_frame_work = runner.timing.pending_frame_work;
+
+        let mut next_adapter_generation = adapter_generation;
+        assert!(next_adapter_generation.advance());
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            next_adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        runner.timing.redraw_requested = false;
+        runner.timing.redraw_requested_at = None;
+        let stale = runner.admit_frame_schedule_work(
+            Instant::now(),
+            &retained_drain_demand(FrameScheduleKey::Primary, due_at, Instant::now()),
+        );
+        assert!(stale.did_work);
+        assert!(!stale.route_outcome);
+        assert!(!runner.frame_stage_owner.has_deferred_timed_frame());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+
+        let later_now = due_at + Duration::from_millis(5);
+        let later = runner.admit_frame_schedule_work(
+            later_now,
+            &retained_drain_demand(FrameScheduleKey::Primary, due_at, later_now),
+        );
+        assert!(later.did_work);
+        assert!(later.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+        assert!(runner.timing.last_timed_frame_drain > last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .map(|bundle| bundle.advance_timed_repaint()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn auxiliary_deferred_deadline_target_generation_cancels_without_replay() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+            String::from("settings"),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now);
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+
+        let first = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &mixed_live_demand(key.clone(), due_at),
+            adapter_generation,
+        );
+        assert!(first.did_work);
+        assert!(!first.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert!(runner.frame_stage_owner.has_deferred_timed_frame());
+        let first_pending_frame_work = runner.timing.pending_frame_work;
+
+        runner.timing.redraw_requested = false;
+        runner.timing.redraw_requested_at = None;
+        assert!(runner.window.target_generation.advance());
+        let stale = runner.admit_auxiliary_frame_schedule_work(
+            Instant::now(),
+            &retained_drain_demand(key.clone(), due_at, Instant::now()),
+            adapter_generation,
+        );
+        assert!(stale.did_work);
+        assert!(!stale.route_outcome);
+        assert!(!runner.frame_stage_owner.has_deferred_timed_frame());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+
+        let later_now = due_at + Duration::from_millis(5);
+        let later = runner.admit_auxiliary_frame_schedule_work(
+            later_now,
+            &retained_drain_demand(key, due_at, later_now),
+            adapter_generation,
+        );
+        assert!(later.did_work);
+        assert!(later.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+        assert!(runner.timing.last_timed_frame_drain > last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .map(|bundle| bundle.advance_timed_repaint()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn auxiliary_deferred_deadline_adapter_generation_cancels_without_replay() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new_auxiliary(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+            String::from("settings"),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        let last_drain = runner.timing.last_timed_frame_drain;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now);
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        let next_adapter_generation = {
+            let mut generation = adapter_generation;
+            assert!(generation.advance());
+            generation
+        };
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+
+        let first = runner.admit_auxiliary_frame_schedule_work(
+            now,
+            &mixed_live_demand(key.clone(), due_at),
+            adapter_generation,
+        );
+        assert!(first.did_work);
+        assert!(!first.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert!(runner.frame_stage_owner.has_deferred_timed_frame());
+        let first_pending_frame_work = runner.timing.pending_frame_work;
+
+        runner.timing.redraw_requested = false;
+        runner.timing.redraw_requested_at = None;
+        let stale = runner.admit_auxiliary_frame_schedule_work(
+            Instant::now(),
+            &retained_drain_demand(key.clone(), due_at, Instant::now()),
+            next_adapter_generation,
+        );
+        assert!(stale.did_work);
+        assert!(!stale.route_outcome);
+        assert!(!runner.frame_stage_owner.has_deferred_timed_frame());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert_eq!(runner.frame_stage_owner.completion_bundle(), None);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 0);
+        assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+
+        let later_now = due_at + Duration::from_millis(5);
+        let later = runner.admit_auxiliary_frame_schedule_work(
+            later_now,
+            &retained_drain_demand(key, due_at, later_now),
+            next_adapter_generation,
+        );
+        assert!(later.did_work);
+        assert!(later.route_outcome);
+        assert_eq!(repaint_advance_calls.get(), 1);
+        assert_eq!(runner.core.runtime.bridge_mut().queue_calls.get(), 1);
+        assert!(runner.timing.last_timed_frame_drain > last_drain);
+        assert_eq!(runner.timing.pending_frame_work, first_pending_frame_work);
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .completion_bundle()
+                .map(|bundle| bundle.advance_timed_repaint()),
+            Some(false)
+        );
+    }
+
+    #[test]
     fn auxiliary_key_mismatch_vetoes_before_payload_release() {
         let mut runner = auxiliary_runner();
         runner.window.target_generation.advance();

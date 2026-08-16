@@ -3557,7 +3557,7 @@ mod tests {
                 )
             }));
         GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: 160,
             viewport_height: 80,
             root,
@@ -4340,7 +4340,7 @@ mod tests {
             .classify_virtual_layout_semantic_range(&projection_batch)
             .expect("the live materialization should classify the range");
         let source = GuiAutomationSnapshot {
-            schema_version: 2,
+            schema_version: 3,
             viewport_width: 160,
             viewport_height: 80,
             root: AutomationNodeSnapshot::from_semantics(

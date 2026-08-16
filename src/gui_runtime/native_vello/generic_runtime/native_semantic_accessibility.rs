@@ -2400,7 +2400,7 @@ mod macos {
             for (index, child) in snapshot.root.children.iter().enumerate() {
                 let mut path = vec![index];
                 let mut semantic_path = vec![snapshot.root.id.clone(), child.id.clone()];
-                let token = self.build_snapshot_node(
+                if let Some(token) = self.build_snapshot_node(
                     snapshot,
                     child,
                     Some(root_token),
@@ -2417,8 +2417,9 @@ mod macos {
                     runtime_projection_generation,
                     &mut focused_matches,
                     &mut specs,
-                )?;
-                child_tokens.push(token);
+                )? {
+                    child_tokens.push(token);
+                }
             }
             specs[0].children = child_tokens;
             if focused_matches != 1 {
@@ -2448,7 +2449,11 @@ mod macos {
             runtime_projection_generation: u64,
             focused_matches: &mut usize,
             specs: &mut Vec<NativeNodeSpec>,
-        ) -> Result<u64, String> {
+        ) -> Result<Option<u64>, String> {
+            if node.role == AutomationRole::Separator {
+                return Ok(None);
+            }
+
             let container = anchor_ids
                 .iter()
                 .position(|anchor| anchor == &node.id)
@@ -2541,7 +2546,7 @@ mod macos {
                         for (child_index, child) in item_node.children.iter().enumerate() {
                             item_path.push(child_index);
                             item_semantic_path.push(child.id.clone());
-                            let child_token = self.build_snapshot_node(
+                            if let Some(child_token) = self.build_snapshot_node(
                                 snapshot,
                                 child,
                                 Some(item_token),
@@ -2558,10 +2563,11 @@ mod macos {
                                 runtime_projection_generation,
                                 focused_matches,
                                 specs,
-                            )?;
+                            )? {
+                                nested.push(child_token);
+                            }
                             item_semantic_path.pop();
                             item_path.pop();
-                            nested.push(child_token);
                         }
                         specs[item_index].children = nested;
                         virtual_children.push(item_token);
@@ -2575,8 +2581,8 @@ mod macos {
                     let is_sidecar_path = item_paths.iter().any(|(_, item_path)| {
                         item_path.len() >= path.len() && item_path.starts_with(path)
                     });
-                    if !is_sidecar_path {
-                        let child_token = self.build_snapshot_node(
+                    if !is_sidecar_path
+                        && let Some(child_token) = self.build_snapshot_node(
                             snapshot,
                             child,
                             Some(token),
@@ -2593,7 +2599,8 @@ mod macos {
                             runtime_projection_generation,
                             focused_matches,
                             specs,
-                        )?;
+                        )?
+                    {
                         children.push(child_token);
                     }
                     semantic_path.pop();
@@ -2603,7 +2610,7 @@ mod macos {
                 for (child_index, child) in node.children.iter().enumerate() {
                     path.push(child_index);
                     semantic_path.push(child.id.clone());
-                    let child_token = self.build_snapshot_node(
+                    if let Some(child_token) = self.build_snapshot_node(
                         snapshot,
                         child,
                         Some(token),
@@ -2620,15 +2627,16 @@ mod macos {
                         runtime_projection_generation,
                         focused_matches,
                         specs,
-                    )?;
+                    )? {
+                        children.push(child_token);
+                    }
                     semantic_path.pop();
                     path.pop();
-                    children.push(child_token);
                 }
             }
             specs[spec_index].children = children;
             specs[spec_index].logical_children = logical_children;
-            Ok(token)
+            Ok(Some(token))
         }
 
         fn update_stable_value_projection(
@@ -4087,7 +4095,7 @@ mod macos {
                 )
             };
             let snapshot = GuiAutomationSnapshot {
-                schema_version: 1,
+                schema_version: 3,
                 viewport_width: 240,
                 viewport_height: 120,
                 root: AutomationNodeSnapshot::from_semantics(
@@ -4106,7 +4114,7 @@ mod macos {
             for target in &mut targets.targets {
                 target.authority = Some(AutomationTargetAuthority::materialized(1));
             }
-            targets.schema_version = 2;
+            targets.schema_version = 3;
             (snapshot, targets)
         }
 
@@ -5443,6 +5451,113 @@ mod macos {
             let (readback, count) = accessibility_children_readback(host);
             assert!(readback.is_null());
             assert_eq!(count, 0);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_publication_omits_separator_without_changing_the_native_tree() {
+            let node = |id: &str, role: AutomationRole, label: &str, x: f32, width: f32| {
+                AutomationNodeSnapshot::from_semantics(
+                    AutomationNodeId::new(id),
+                    AutomationBounds {
+                        x,
+                        y: 0.0,
+                        width,
+                        height: 120.0,
+                    },
+                    AutomationNodeSemantics::new(role).with_label(label),
+                )
+            };
+            let snapshot = |include_separator: bool| {
+                let mut children = vec![
+                    node("left", AutomationRole::Text, "Left", 0.0, 100.0),
+                    node("right", AutomationRole::Text, "Right", 108.0, 132.0),
+                ];
+                if include_separator {
+                    children.insert(
+                        1,
+                        node(
+                            "separator",
+                            AutomationRole::Separator,
+                            "Divider",
+                            100.0,
+                            8.0,
+                        ),
+                    );
+                }
+                let container = AutomationNodeSnapshot::from_semantics(
+                    AutomationNodeId::new("container"),
+                    AutomationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 240.0,
+                        height: 120.0,
+                    },
+                    AutomationNodeSemantics::new(AutomationRole::Group),
+                )
+                .with_children(children);
+                let snapshot = GuiAutomationSnapshot {
+                    schema_version: 3,
+                    viewport_width: 240,
+                    viewport_height: 120,
+                    root: AutomationNodeSnapshot::from_semantics(
+                        AutomationNodeId::new("root"),
+                        AutomationBounds {
+                            x: 0.0,
+                            y: 0.0,
+                            width: 240.0,
+                            height: 120.0,
+                        },
+                        AutomationNodeSemantics::new(AutomationRole::Root),
+                    )
+                    .with_children(vec![container]),
+                };
+                let targets = snapshot.target_snapshot();
+                (snapshot, targets)
+            };
+
+            let (ordinary, ordinary_targets) = snapshot(false);
+            let (with_separator, separator_targets) = snapshot(true);
+            assert_eq!(separator_targets.schema_version, 3);
+            assert!(
+                separator_targets
+                    .targets
+                    .iter()
+                    .any(|target| target.role == AutomationRole::Separator)
+            );
+            assert_eq!(
+                with_separator.root.children[0].children[1].role,
+                AutomationRole::Separator
+            );
+
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter
+                .publish_projection(&ordinary, &ordinary_targets, &[], None, 1)
+                .expect("the ordinary native tree should publish");
+            let ordinary_projection = adapter.callback_state.borrow().projection.clone();
+
+            adapter
+                .publish_projection(&with_separator, &separator_targets, &[], None, 1)
+                .expect("the separator-bearing backend-neutral tree should publish");
+            assert_eq!(
+                adapter.callback_state.borrow().projection,
+                ordinary_projection,
+                "Separator remains backend-neutral and does not alter the native tree"
+            );
+            assert_eq!(adapter.layout_notifications, 1);
+            assert!(
+                adapter
+                    .callback_state
+                    .borrow()
+                    .projection
+                    .nodes
+                    .iter()
+                    .all(|node| node.label.as_deref() != Some("Divider"))
+            );
+
+            assert!(adapter.retire_published_objects());
+            drop(adapter);
             release_accessibility_children_test_host(host);
         }
 
@@ -6906,7 +7021,7 @@ mod macos {
             let (node, target) = numeric_target_fixture();
             let path = target.path.clone();
             let targets = GuiAutomationTargetSnapshot {
-                schema_version: 2,
+                schema_version: 3,
                 viewport_width: 320,
                 viewport_height: 120,
                 targets: vec![target.clone()],

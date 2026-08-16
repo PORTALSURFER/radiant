@@ -15,9 +15,13 @@ use crate::gui::{
 
 /// Read-only evidence for one currently mounted runtime-owned split divider.
 ///
-/// This projection is deliberately not an interaction, focus, semantic, or
+/// This projection is deliberately not an interaction, focus, or
 /// application-output authority. It is built only from a committed mounted
 /// state and the already-projected clipped divider target for the same split.
+/// The controller-owned pure automation compositor may consume it to publish a
+/// passive backend-neutral separator semantic node; that publication does not
+/// grant the projection focus, key, action, paint, relayout, provider/native,
+/// or application-message authority.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct SplitPaneSeparatorProjection {
     pub(super) target: LayoutTargetIdentity,

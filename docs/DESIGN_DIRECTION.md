@@ -2086,15 +2086,20 @@ maps exactly one final finite normalized mounted ratio after a meaningful
 successful commit, while press, intermediate motion, no-op commit,
 cancellation, capture loss, incompatible refresh, unmount, static mode, and
 controlled-ratio mode remain silent. This output is not persistence; settled
-persistence, semantic/keyboard behavior, and other product-specific behavior
-remain later slices. The runtime also retains a bounded crate-private
-`SplitPaneSeparatorProjection` collection as non-authorizing observation only:
-each entry is admitted after the mounted-state candidate commits and joins one
-exact mounted generation, the existing split divider identity, axis, final
-clipped bounds, and finite normalized live ratio. Missing, mismatched, stale,
-retired, unmounted, or capacity-limited evidence withholds the entry; this
-observation does not add focus, key, paint, semantic, automation, relayout,
-provider/native, or application-message behavior.
+persistence, separator focus/keyboard/action behavior, and other
+product-specific behavior remain later slices. The runtime also retains a
+bounded crate-private `SplitPaneSeparatorProjection` collection as
+non-authorizing observation. After a committed mounted-state candidate, each
+valid entry is consumed only by the controller-owned pure automation
+compositor, which publishes one passive backend-neutral
+`AutomationRole::Separator` directly between the split's two content children.
+The node keeps a stable layout-target ID, exact final clipped bounds, shortest
+round-tripping normalized ratio value, and logical-axis orientation; it is
+enabled/materialized but has no actions or focus/traversal behavior. Missing,
+mismatched, stale, retired, unmounted, capacity-limited, malformed, ambiguous,
+or colliding evidence withholds the complete insertion set and leaves the
+ordinary snapshot unchanged. The projection and publication do not add focus,
+key, paint, relayout, provider/native, or application-message behavior.
 
 ```rust
 split_pane(library_panel(state), detail_panel(state))

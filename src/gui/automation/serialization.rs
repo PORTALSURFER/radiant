@@ -120,7 +120,8 @@ impl AutomationTarget {
 /// Flattened automation target list for one GUI frame/state.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GuiAutomationTargetSnapshot {
-    /// Schema version for forward-compatible artifact readers.
+    /// Schema version for forward-compatible artifact readers. Pure target
+    /// snapshots currently use version 3 because they can carry `Separator`.
     pub schema_version: u32,
     /// Quantized viewport width for the captured layout.
     pub viewport_width: u32,

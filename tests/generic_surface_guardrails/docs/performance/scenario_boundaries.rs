@@ -87,6 +87,55 @@ fn arrangement_shell_perf_scenarios_use_the_maintained_example_and_exact_lanes()
             && arrangement_shell.contains("with_application_projection_count(0)"),
         "arrangement-shell perf lanes should retain their exact full-refresh and paint-only counter contracts"
     );
+
+    let hover_setup = arrangement_shell
+        .split_once("pub(super) fn hover_paint_only()")
+        .and_then(|(_, remainder)| remainder.split_once("fn arrangement_shell_runtime"))
+        .map(|(setup, _)| setup)
+        .expect("arrangement-shell hover setup should be bounded before runtime construction");
+    let hover_step = arrangement_shell
+        .split_once("fn hover_paint_only_step")
+        .and_then(|(_, remainder)| remainder.split_once("fn refresh_delta"))
+        .map(|(step, _)| step)
+        .expect("arrangement-shell hover step should have a bounded source body");
+
+    assert!(
+        hover_setup.contains("let theme = ThemeTokens::default();")
+            && hover_setup.contains("let positions = [")
+            && hover_setup.contains("runtime.widget_at(*position)")
+            && hover_setup.contains("SurfacePaintPlan::empty(&theme)")
+            && hover_setup.contains("runtime.base_paint_plan_into(&theme, &mut base_plan)")
+            && hover_setup.contains("assert_eq!(first.target, Some(ARRANGEMENT_WIDGET_ID))")
+            && hover_setup.contains("assert!(first.routed())")
+            && hover_setup.contains("assert!(first.needs_scene_rebuild())")
+            && hover_setup.contains("runtime.runtime_overlay_paint_into(&theme, &mut overlay)")
+            && hover_setup.contains("overlay.clear()"),
+        "arrangement-shell hover setup should establish the first hover, materialize the retained base plan, and warm reusable overlay storage"
+    );
+    assert!(
+        hover_step
+            .matches("dispatch_pointer_move_with_outcome")
+            .count()
+            == 1
+            && hover_step.matches("runtime_overlay_paint_into").count() == 1
+            && hover_step.contains("positions[*next_position]")
+            && hover_step.contains("overlay.clear()")
+            && hover_step.contains("assert_eq!(outcome.target, Some(ARRANGEMENT_WIDGET_ID))")
+            && hover_step.contains("assert!(outcome.routed())")
+            && hover_step.contains("assert!(outcome.paint_only_requested)")
+            && hover_step.contains("assert!(!outcome.hover_changed)")
+            && hover_step.contains("assert!(!outcome.needs_scene_rebuild())")
+            && hover_step.contains("assert_eq!(runtime.hovered_widget(), owner_before)")
+            && hover_step.contains("assert_eq!(after, before)"),
+        "arrangement-shell hover step should contain exactly one alternating paint-only move and overlay refresh"
+    );
+    assert!(
+        !hover_step.contains(".paint_plan(")
+            && !hover_step.contains(".paint_plan_into(")
+            && !hover_step.contains("base_paint_plan_into")
+            && !hover_step.contains("Point::new(-1.0, -1.0)"),
+        "arrangement-shell hover step must not rebuild a base plan or reset hover off-widget"
+    );
 }
 
 #[test]

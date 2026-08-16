@@ -9,7 +9,7 @@ use crate::{
 };
 use radiant::{
     gui::types::{Point, Vector2},
-    runtime::{RuntimeBridge, SurfaceRuntime},
+    runtime::{PaintPrimitive, RuntimeBridge, SurfacePaintPlan, SurfaceRuntime},
     theme::ThemeTokens,
 };
 use std::hint::black_box;
@@ -30,7 +30,44 @@ pub(super) fn structural_toggle() -> impl FnMut() -> ScenarioCounters {
 
 pub(super) fn hover_paint_only() -> impl FnMut() -> ScenarioCounters {
     let mut runtime = arrangement_shell_runtime();
-    move || hover_paint_only_step(&mut runtime)
+    let theme = ThemeTokens::default();
+    let bounds = runtime.layout().rects[&ARRANGEMENT_WIDGET_ID];
+    let positions = [
+        Point::new(bounds.min.x + 280.0, bounds.center().y),
+        Point::new(bounds.min.x + 300.0, bounds.center().y),
+    ];
+    assert!(positions.iter().all(|position| bounds.contains(*position)));
+    assert!(
+        positions
+            .iter()
+            .all(|position| runtime.widget_at(*position) == Some(ARRANGEMENT_WIDGET_ID))
+    );
+
+    let first = runtime.dispatch_pointer_move_with_outcome(positions[0]);
+    assert_eq!(first.target, Some(ARRANGEMENT_WIDGET_ID));
+    assert!(first.routed());
+    assert!(first.needs_scene_rebuild());
+    assert_eq!(runtime.hovered_widget(), Some(ARRANGEMENT_WIDGET_ID));
+
+    let mut base_plan = SurfacePaintPlan::empty(&theme);
+    runtime.base_paint_plan_into(&theme, &mut base_plan);
+    assert!(!base_plan.primitives.is_empty());
+
+    let mut overlay = Vec::new();
+    runtime.runtime_overlay_paint_into(&theme, &mut overlay);
+    assert!(!overlay.is_empty());
+    overlay.clear();
+    let mut next_position = 1;
+    move || {
+        hover_paint_only_step(
+            &mut runtime,
+            &theme,
+            &positions,
+            &mut next_position,
+            &base_plan,
+            &mut overlay,
+        )
+    }
 }
 
 fn arrangement_shell_runtime() -> SurfaceRuntime<impl RuntimeBridge<AppMessage>, AppMessage> {
@@ -108,35 +145,35 @@ where
 
 fn hover_paint_only_step<Bridge>(
     runtime: &mut SurfaceRuntime<Bridge, AppMessage>,
+    theme: &ThemeTokens,
+    positions: &[Point; 2],
+    next_position: &mut usize,
+    base_plan: &SurfacePaintPlan,
+    overlay: &mut Vec<PaintPrimitive>,
 ) -> ScenarioCounters
 where
     Bridge: RuntimeBridge<AppMessage>,
 {
-    let bounds = runtime.layout().rects[&ARRANGEMENT_WIDGET_ID];
-    let first = runtime
-        .dispatch_pointer_move_with_outcome(Point::new(bounds.min.x + 160.0, bounds.center().y));
-    assert!(first.routed());
-    assert!(first.needs_scene_rebuild());
-
+    let owner_before = runtime.hovered_widget();
+    assert_eq!(owner_before, Some(ARRANGEMENT_WIDGET_ID));
     let before = runtime.refresh_counters();
-    let second = runtime
-        .dispatch_pointer_move_with_outcome(Point::new(bounds.min.x + 280.0, bounds.center().y));
-    assert!(second.routed());
-    assert!(second.paint_only_requested);
-    assert!(!second.needs_scene_rebuild());
+    let outcome = runtime.dispatch_pointer_move_with_outcome(positions[*next_position]);
+    assert_eq!(outcome.target, Some(ARRANGEMENT_WIDGET_ID));
+    assert!(outcome.routed());
+    assert!(outcome.paint_only_requested);
+    assert!(!outcome.hover_changed);
+    assert!(!outcome.needs_scene_rebuild());
+    assert_eq!(runtime.hovered_widget(), owner_before);
 
-    let plan = runtime.paint_plan(&ThemeTokens::default());
-    let mut overlay = Vec::new();
-    runtime.runtime_overlay_paint_into(&ThemeTokens::default(), &mut overlay);
+    overlay.clear();
+    runtime.runtime_overlay_paint_into(theme, overlay);
     let after = runtime.refresh_counters();
     assert_eq!(after, before);
-    assert!(!plan.primitives.is_empty());
+    assert!(!base_plan.primitives.is_empty());
     assert!(!overlay.is_empty());
     let overlay_primitive_count = overlay.len() as u64;
-    black_box((plan, overlay));
-    // Leave the retained example state in its pre-hover condition so every
-    // measured iteration exercises the same first-hover transition.
-    black_box(runtime.dispatch_pointer_move_with_outcome(Point::new(-1.0, -1.0)));
+    black_box((base_plan, overlay));
+    *next_position = (*next_position + 1) % positions.len();
 
     ScenarioCounters::default()
         .with_scene_rebuild_count(0)
@@ -173,9 +210,17 @@ fn refresh_delta(
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
+#[allow(dead_code, unused_imports)]
 mod tests {
     use super::{frame_refresh, hover_paint_only, structural_toggle};
+
+    fn counter(counters: super::ScenarioCounters, name: &str) -> u64 {
+        counters
+            .iter()
+            .find(|(counter, _)| *counter == name)
+            .map(|(_, value)| value)
+            .unwrap_or_else(|| panic!("missing scenario counter {name}"))
+    }
 
     #[test]
     fn repeated_identical_lanes_have_identical_counter_deltas() {
@@ -187,5 +232,28 @@ mod tests {
 
         let mut hover = hover_paint_only();
         assert_eq!(hover(), hover());
+    }
+
+    #[test]
+    fn hover_paint_only_reports_only_overlay_work_after_setup() {
+        let mut hover = hover_paint_only();
+        let first = hover();
+        let second = hover();
+
+        assert_eq!(first, second);
+        for (name, expected) in [
+            ("scene_rebuild_count", 0),
+            ("paint_only_count", 1),
+            ("surface_refresh_count", 0),
+            ("application_projection_count", 0),
+            ("runtime_projection_count", 0),
+            ("widget_state_sync_count", 0),
+            ("layout_count", 0),
+            ("paint_plan_rebuild_count", 0),
+            ("overlay_paint_count", 1),
+        ] {
+            assert_eq!(counter(first, name), expected, "counter {name}");
+        }
+        assert!(counter(first, "paint_primitive_count") > 0);
     }
 }

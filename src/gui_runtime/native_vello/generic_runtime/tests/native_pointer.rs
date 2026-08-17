@@ -10,7 +10,8 @@ use crate::{
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
-        PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        PointerModifiers, WheelDelta, WheelPhase, WheelSample, Widget, WidgetCommon, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::time::{Duration, Instant};
@@ -128,6 +129,104 @@ impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
             sequence_range,
         } = message;
         self.samples.push((modifiers, timestamp, sequence_range));
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ManagedWheelMessage {
+    delta: WheelDelta,
+    phase: Option<WheelPhase>,
+    modifiers: PointerModifiers,
+    timestamp: Option<InputTimestamp>,
+    sequence_range: Option<InputSequenceRange>,
+}
+
+#[derive(Clone, Debug)]
+struct ManagedWheelWidget {
+    common: WidgetCommon,
+}
+
+impl ManagedWheelWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+        }
+    }
+}
+
+impl Widget for ManagedWheelWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn handle_wheel_sample(
+        &mut self,
+        _bounds: Rect,
+        _position: Point,
+        sample: WheelSample,
+    ) -> Option<WidgetOutput> {
+        Some(WidgetOutput::typed(ManagedWheelMessage {
+            delta: sample.delta(),
+            phase: sample.phase(),
+            modifiers: sample.modifiers(),
+            timestamp: sample.timestamp(),
+            sequence_range: sample.sequence_range(),
+        }))
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
+    fn retains_managed_wheel_sequence(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Default)]
+struct ManagedWheelBridge {
+    samples: Vec<ManagedWheelMessage>,
+}
+
+impl RuntimeBridge<ManagedWheelMessage> for ManagedWheelBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<ManagedWheelMessage>> {
+        let rows = (0..20)
+            .map(|index| {
+                crate::application::text(format!("Row {index}"))
+                    .height(20.0)
+                    .fill_width()
+            })
+            .collect();
+        crate::application::overlay_stack(crate::application::bounded_scroll_column(
+            rows, 4, 20.0, 0.0,
+        ))
+        .input(crate::application::custom_widget_direct(
+            ManagedWheelWidget::new(4),
+        ))
+        .into_view()
+        .into_surface()
+        .into()
+    }
+
+    fn reduce_message(&mut self, message: ManagedWheelMessage) {
+        self.samples.push(message);
     }
 }
 
@@ -304,6 +403,144 @@ fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
         },
         Some(InputTimestamp::capture()),
     ));
+}
+
+#[test]
+fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let first_position = Point::new(40.0, 20.0);
+    let newest_position = Point::new(80.0, 24.0);
+    runner.input.last_cursor = Some(first_position);
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+
+    let first = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -1.0),
+        TouchPhase::Moved,
+    );
+    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Coalesced);
+    let first_pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("phaseful ordinary scroll should be pending");
+    let first_sequence = first_pending
+        .sequence_range
+        .expect("first phaseful sample should carry sequence metadata");
+    let first_timestamp = first_pending
+        .timestamp
+        .expect("first phaseful sample should carry timestamp metadata");
+
+    runner.input.last_cursor = Some(newest_position);
+    runner.input.modifiers = ModifiersState::SHIFT;
+    let second = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::PixelDelta(PhysicalPosition::new(0.0, -10.0)),
+        TouchPhase::Moved,
+    );
+    assert_eq!(
+        second.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+
+    let pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("phaseful ordinary burst should remain coalesced");
+    assert_eq!(pending.position, newest_position);
+    assert_eq!(pending.delta, Vector2::new(0.0, 50.0));
+    assert_eq!(
+        pending.modifiers,
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        }
+    );
+    let newest_timestamp = pending
+        .timestamp
+        .expect("newest phaseful sample should carry timestamp metadata");
+    assert!(newest_timestamp >= first_timestamp);
+    let pending_sequence = pending
+        .sequence_range
+        .expect("coalesced phaseful samples should retain sequence metadata");
+    assert_eq!(pending_sequence.start(), first_sequence.start());
+    assert_eq!(
+        pending_sequence.end().runtime_value(),
+        first_sequence.end().runtime_value() + 1
+    );
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 0);
+
+    runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+}
+
+#[test]
+fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+    runner.input.last_cursor = Some(point);
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+
+    let moved = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Moved,
+    );
+    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 0);
+
+    let started = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Started,
+    );
+    assert_eq!(started.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 2);
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    let moved = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, 0.25),
+        TouchPhase::Moved,
+    );
+    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Coalesced);
+
+    let ended = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, 0.25),
+        TouchPhase::Ended,
+    );
+    assert_eq!(ended.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 4);
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    let moved = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Moved,
+    );
+    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Coalesced);
+
+    let cancelled = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Cancelled,
+    );
+    assert_eq!(
+        cancelled.diagnostic.result,
+        NativePointerRouteResult::Routed
+    );
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 6);
 }
 
 #[derive(Default)]
@@ -944,6 +1181,75 @@ fn native_phaseful_wheel_dispatches_exact_sample_without_coalescing() {
     assert_eq!(bridge.last_delta, Vector2::new(0.0, 80.0));
     assert!(bridge.last_timestamp.is_some());
     assert!(bridge.last_sequence_range.is_some());
+}
+
+#[test]
+fn native_phaseful_managed_wheel_stays_exact_across_hit_target_changes() {
+    let mut harness =
+        NativePointerHarness::new(ManagedWheelBridge::default(), Vector2::new(240.0, 80.0));
+    let widget_position = Point::new(40.0, 20.0);
+    harness.runner.input.last_cursor = Some(widget_position);
+
+    let started = harness.runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Started,
+    );
+    assert_eq!(started.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none()
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().samples.len(), 1);
+    assert_eq!(
+        harness.runner.core.runtime.bridge().samples[0].phase,
+        Some(WheelPhase::Started)
+    );
+
+    harness.runner.input.last_cursor = Some(Point::new(200.0, 60.0));
+    harness.runner.timing.redraw_requested = true;
+    harness.runner.timing.redraw_requested_at = Some(Instant::now());
+    let changed = harness.runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::PixelDelta(PhysicalPosition::new(0.0, -8.0)),
+        TouchPhase::Moved,
+    );
+    assert_eq!(changed.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none()
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().samples.len(), 2);
+    assert_eq!(
+        harness.runner.core.runtime.bridge().samples[1].delta,
+        WheelDelta::Pixels(Vector2::new(0.0, 8.0))
+    );
+    assert_eq!(
+        harness.runner.core.runtime.bridge().samples[1].phase,
+        Some(WheelPhase::Changed)
+    );
+
+    let ended = harness.runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Ended,
+    );
+    assert_eq!(ended.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none()
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().samples.len(), 3);
+    assert_eq!(
+        harness.runner.core.runtime.bridge().samples[2].phase,
+        Some(WheelPhase::Ended)
+    );
 }
 
 #[test]

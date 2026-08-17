@@ -482,7 +482,7 @@ impl<Message> WorkerEffects<Message> {
                     return;
                 }
                 let result = panic::catch_unwind(AssertUnwindSafe(|| match work {
-                    WorkerEffectWork::Once(work) => work(),
+                    WorkerEffectWork::Once(work) => work(is_cancelled.clone()),
                     WorkerEffectWork::Stream(work) => {
                         let sink = stream_sink.unwrap_or_else(|| {
                             let ordered = Arc::clone(&final_ingress);

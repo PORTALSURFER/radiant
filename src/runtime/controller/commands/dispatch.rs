@@ -1,5 +1,8 @@
 use super::super::owner::EffectOrigin;
 use super::{CommandOutcome, SurfaceRuntime};
+use crate::application::runtime::update_context::business::admission::{
+    BusinessTaskAdmission, resolve as resolve_admission,
+};
 use crate::runtime::RepaintScope;
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
@@ -54,6 +57,29 @@ where
         self.timer_effects.schedule(effect, origin, |delay, wake| {
             capability.is_some_and(|capability| (capability.schedule_timer)(bridge, delay, wake))
         })
+    }
+
+    fn submit_worker_effect(
+        &mut self,
+        mut effect: crate::runtime::command::WorkerEffect<Message>,
+        origin: EffectOrigin,
+    ) -> bool {
+        let origin = match effect.owner.take() {
+            Some(handle) => {
+                let Some(origin) = self.declarative_owner_origin_for_handle(handle) else {
+                    if let Some(transaction) = effect.transaction.as_ref() {
+                        transaction.reject();
+                    }
+                    if let Some(receipt) = effect.admission_receipt.as_ref() {
+                        resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
+                    }
+                    return false;
+                };
+                origin
+            }
+            None => origin,
+        };
+        self.submit_worker_effect_with_origin(effect, origin)
     }
 
     pub(in crate::runtime::controller) fn dispatch_message_inner(
@@ -385,7 +411,7 @@ where
                 }
             }
             Command::PerformWorker(effect) => {
-                if self.submit_worker_effect_with_origin(effect, origin) {
+                if self.submit_worker_effect(effect, origin) {
                     outcome.repaint_requested = true;
                 }
             }

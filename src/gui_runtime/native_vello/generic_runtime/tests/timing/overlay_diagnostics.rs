@@ -1,4 +1,5 @@
 use super::{fixtures::*, shared::*};
+use std::rc::Rc;
 
 #[test]
 fn transient_overlay_hint_skips_empty_app_overlay_callback() {
@@ -67,6 +68,115 @@ fn exact_scene_refresh_reuses_encoded_scene_and_preserves_derived_state() {
     assert!(runner.frame.post_gpu_overlay_has_replayable_suffix);
     assert!(runner.frame.scene_texture_dirty);
     assert_eq!(runner.core.runtime.bridge().paint_calls, 1);
+}
+
+#[test]
+fn prepared_plan_admission_encodes_once_without_a_second_plan_build() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactTransientOverlayBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    assert!(runner.window.target_generation.advance());
+
+    runner.rebuild_scene();
+    let before_refresh = runner.core.runtime.refresh_counters();
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    let terminal_messages = runner.core.try_prepared_surface_refresh(
+        crate::runtime::RepaintScope::Projection,
+        &mut runner.frame.last_paint_plan,
+        || true,
+    );
+    assert!(terminal_messages.is_some());
+    let after_plan = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        after_plan.base_paint_plan_rebuilds,
+        before_refresh.base_paint_plan_rebuilds + 1
+    );
+    runner.frame.scene_texture_dirty = false;
+
+    runner.complete_prepared_surface_refresh(terminal_messages.unwrap());
+
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_reuse_count, 0);
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .refresh_counters()
+            .base_paint_plan_rebuilds,
+        after_plan.base_paint_plan_rebuilds
+    );
+    assert!(runner.frame.scene_texture_dirty);
+    assert_eq!(
+        runner.frame.test_phase_trace(),
+        [
+            Some(super::super::super::frame_state::NativeVelloTestPhase::EligibilityObserved),
+            Some(super::super::super::frame_state::NativeVelloTestPhase::SceneEncode),
+        ]
+    );
+}
+
+#[test]
+fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
+    let recorder = prepared_refresh_scene_admission_recorder();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedRefreshReplacementBridge::new(Rc::clone(&recorder)),
+        Vector2::new(120.0, 40.0),
+    );
+
+    runner.rebuild_scene();
+    runner.frame.set_test_scene_encode_observer(Rc::new({
+        let recorder = Rc::clone(&recorder);
+        move || record_prepared_refresh_scene_encode(&recorder)
+    }));
+    runner.frame.set_test_scene_admission_observer(Rc::new({
+        let recorder = Rc::clone(&recorder);
+        move || record_prepared_refresh_scene_admission(&recorder)
+    }));
+    let before_refresh = runner.core.runtime.refresh_counters();
+    runner.core.runtime.bridge_mut().replace = true;
+    // The native owner needs a real window/device resource bundle; exercise
+    // the same prepared transaction directly and keep completion on the
+    // production ordering helper below.
+    let terminal_messages = runner.core.try_prepared_surface_refresh(
+        crate::runtime::RepaintScope::Projection,
+        &mut runner.frame.last_paint_plan,
+        || true,
+    );
+    let terminal_messages = terminal_messages.expect("prepared replacement terminal messages");
+    assert_eq!(terminal_messages.len(), 1);
+
+    let after_plan = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        after_plan.base_paint_plan_rebuilds,
+        before_refresh.base_paint_plan_rebuilds + 1
+    );
+    runner.frame.scene_texture_dirty = false;
+    runner.complete_prepared_surface_refresh(terminal_messages);
+
+    assert_eq!(runner.frame.scene_encode_count, 2);
+    assert_eq!(runner.frame.scene_reuse_count, 0);
+    assert_eq!(
+        prepared_refresh_events(&recorder),
+        vec![
+            PreparedRefreshEvent::SceneEncode,
+            PreparedRefreshEvent::SceneAdmitted,
+            PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),
+        ]
+    );
+    assert!(runner.frame.scene_texture_dirty);
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .refresh_counters()
+            .base_paint_plan_rebuilds,
+        after_plan.base_paint_plan_rebuilds
+    );
 }
 
 #[test]

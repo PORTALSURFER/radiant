@@ -79,6 +79,22 @@ impl NativePaintSegmentRenderSelection {
         )
     }
 
+    /// Carry the residence selected by this immutable boundary into the
+    /// detached scene publication witness. A slot is exact only when the
+    /// selection retained its admission; all fresh slots are intentionally
+    /// represented as absent from the selected resident set.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn selected_artifact_residency(
+        self,
+    ) -> [NativePaintSegmentArtifactResidency; MAX_PAINT_SEGMENTS] {
+        let mut residency = [NativePaintSegmentArtifactResidency::Absent; MAX_PAINT_SEGMENTS];
+        for (slot, admission) in residency.iter_mut().zip(self.admissions) {
+            if admission.is_some() {
+                *slot = NativePaintSegmentArtifactResidency::Exact;
+            }
+        }
+        residency
+    }
+
     #[cfg(test)]
     fn outcome(self) -> NativePaintSegmentRenderSelectionOutcome {
         self.outcome

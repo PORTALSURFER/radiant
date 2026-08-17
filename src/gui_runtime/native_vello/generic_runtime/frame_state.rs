@@ -21,12 +21,14 @@ use super::{
         collect_gpu_surface_interaction_regions_with_scratch,
     },
     scene::{
-        NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactStore,
-        NativePaintSegmentAssemblyBundle, NativePaintSegmentAssemblyInput,
-        NativePaintSegmentAssemblyVetoReason, focused_text_input_caret_area,
+        NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactResidency,
+        NativePaintSegmentArtifactStore, NativePaintSegmentAssemblyBundle,
+        NativePaintSegmentAssemblyInput, NativePaintSegmentAssemblyVetoReason,
+        focused_text_input_caret_area,
     },
 };
 use crate::runtime::BasePaintPlanContext;
+use crate::runtime::MAX_PAINT_SEGMENTS;
 use crate::runtime::{PaintSegmentObservation, collect_segment_spans};
 use crate::theme::DpiScale;
 use crate::theme::ResolvedAppearance;
@@ -43,6 +45,8 @@ use vello::kurbo::Affine;
 use super::scene::NativePaintSegmentAssemblyResult;
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
+#[cfg(test)]
+use std::rc::Rc;
 
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +96,10 @@ pub(super) struct NativeVelloFrameState {
     last_native_paint_segment_render_selection: NativePaintSegmentRenderSelection,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
+    #[cfg(test)]
+    test_scene_encode_observer: Option<Rc<dyn Fn()>>,
+    #[cfg(test)]
+    test_scene_admission_observer: Option<Rc<dyn Fn()>>,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
@@ -128,6 +136,37 @@ pub(in crate::gui_runtime::native_vello) struct NativeSceneValidityFingerprint {
     pub(super) dpi_scale: DpiScale,
     pub(super) native_scene_context_generation: u64,
     pub(super) retained_cache_policy: RetainedSurfaceCachePolicy,
+}
+
+/// Exact CPU-side evidence carried from native scene selection to publication.
+/// The witness keeps the prepared plan's context, observations, revisions,
+/// target, and selected resident slots together so a detached scene cannot be
+/// published with independently reread admission state.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct NativeSceneAdmissionWitness {
+    pub(super) scene_validity: NativeSceneValidityFingerprint,
+    pub(super) target_generation: NativeTargetGeneration,
+    pub(super) paint: PaintSegmentObservation,
+    pub(super) eligibility: NativePaintSegmentEligibilityPlan,
+    pub(super) render_selection: NativePaintSegmentRenderSelection,
+    pub(super) artifact_residency: [NativePaintSegmentArtifactResidency; MAX_PAINT_SEGMENTS],
+}
+
+pub(super) enum NativeSceneAdmissionKind {
+    FullEncode { assembly_vetoed: bool },
+}
+
+/// Complete detached CPU-side successor state. Nothing in this bundle is
+/// installed into the last-complete frame until `commit_native_scene_admission`
+/// has all scene, text-run, artifact, and observation values ready.
+pub(super) struct NativeSceneAdmissionCandidate {
+    pub(super) scene: Scene,
+    pub(super) stats: RetainedSurfaceEncodeStats,
+    pub(super) text_runs: Option<SceneTextRunBuffer>,
+    pub(super) retained_surface_cache: Option<RetainedSurfaceFrameCache>,
+    pub(super) materialization: NativePaintSegmentArtifactMaterialization,
+    pub(super) witness: NativeSceneAdmissionWitness,
+    pub(super) kind: NativeSceneAdmissionKind,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -179,6 +218,10 @@ impl NativeVelloFrameState {
             ),
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
+            #[cfg(test)]
+            test_scene_encode_observer: None,
+            #[cfg(test)]
+            test_scene_admission_observer: None,
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
@@ -230,6 +273,10 @@ impl NativeVelloFrameState {
         self.native_scene_invalidated = false;
         self.last_scene_validity = Some(fingerprint);
         self.scene_build_outcome = NativeSceneBuildOutcome::FullEncode;
+        #[cfg(test)]
+        if let Some(observer) = self.test_scene_admission_observer.as_ref() {
+            observer();
+        }
     }
 
     pub(super) fn record_scene_encode_after_assembly_veto(
@@ -409,6 +456,59 @@ impl NativeVelloFrameState {
         Ok(())
     }
 
+    pub(super) fn commit_native_scene_admission(
+        &mut self,
+        candidate: NativeSceneAdmissionCandidate,
+    ) {
+        let NativeSceneAdmissionCandidate {
+            scene,
+            stats,
+            text_runs,
+            retained_surface_cache,
+            materialization,
+            witness,
+            kind,
+        } = candidate;
+        let paint = witness.paint;
+        let target_generation = witness.target_generation;
+        let scene_validity = witness.scene_validity;
+        let encoding = stats.segment_encoding;
+        let feasibility = stats.artifact_feasibility;
+        debug_assert_eq!(
+            witness.artifact_residency,
+            witness.render_selection.selected_artifact_residency()
+        );
+        self.scene = scene;
+        self.last_scene_stats = stats;
+        if let Some(text_runs) = text_runs {
+            self.scene_text_runs = text_runs;
+        }
+        if let Some(retained_surface_cache) = retained_surface_cache {
+            self.retained_surface_cache = retained_surface_cache;
+        }
+        self.last_native_paint_segment_eligibility = witness.eligibility;
+        self.last_native_paint_segment_render_selection = witness.render_selection;
+        self.reconcile_native_paint_segment_artifacts(materialization);
+        self.reconcile_native_paint_segments(paint, encoding, target_generation);
+
+        match kind {
+            NativeSceneAdmissionKind::FullEncode { assembly_vetoed } => {
+                if assembly_vetoed {
+                    self.record_scene_encode_after_assembly_veto(scene_validity);
+                } else {
+                    self.record_scene_encode(scene_validity);
+                }
+                self.record_native_paint_segment_full_encode(
+                    paint,
+                    encoding,
+                    feasibility,
+                    target_generation,
+                    assembly_vetoed,
+                );
+            }
+        }
+    }
+
     pub(super) fn record_native_paint_segment_full_encode(
         &mut self,
         paint: PaintSegmentObservation,
@@ -480,6 +580,19 @@ impl NativeVelloFrameState {
     pub(super) fn record_scene_encode_boundary(&mut self) {
         self.test_phase_trace
             .record(NativeVelloTestPhase::SceneEncode);
+        if let Some(observer) = self.test_scene_encode_observer.as_ref() {
+            observer();
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_scene_encode_observer(&mut self, observer: Rc<dyn Fn()>) {
+        self.test_scene_encode_observer = Some(observer);
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_scene_admission_observer(&mut self, observer: Rc<dyn Fn()>) {
+        self.test_scene_admission_observer = Some(observer);
     }
 
     #[cfg(test)]

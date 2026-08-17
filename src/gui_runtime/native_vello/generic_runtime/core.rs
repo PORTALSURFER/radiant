@@ -228,24 +228,22 @@ where
         scope: crate::runtime::RepaintScope,
         plan: &mut crate::runtime::SurfacePaintPlan,
         before_publication: F,
-    ) -> bool
+    ) -> Option<Vec<Message>>
     where
         F: FnOnce() -> bool,
     {
         let environment = self.runtime.context().resolved_environment();
         let appearance = self.appearance_policy.resolve(environment);
-        let Some(candidate) = self
+        let candidate = self
             .runtime
-            .prepare_fresh_surface_refresh(scope, appearance)
-        else {
-            return false;
-        };
-        if !before_publication() {
-            return false;
+            .prepare_fresh_surface_refresh(scope, appearance)?;
+        if !candidate.supports_native_scene_admission() {
+            return None;
         }
-        let Some(publication) = self.runtime.publish_prepared_surface_refresh(candidate) else {
-            return false;
-        };
+        if !before_publication() {
+            return None;
+        }
+        let publication = self.runtime.publish_prepared_surface_refresh(candidate)?;
         let (prepared_plan, appearance, terminal_messages) = publication.into_parts();
         *plan = prepared_plan;
         self.resolved_appearance = appearance;
@@ -257,9 +255,15 @@ where
             false,
         );
         self.runtime.record_paint_segment_observation(observation);
+        // Keep terminal dispatch behind native scene admission. The runtime
+        // publication above is irreversible, so a later scene failure must
+        // use terminal recovery rather than direct refresh fallback.
+        Some(terminal_messages)
+    }
+
+    pub(super) fn finish_prepared_surface_refresh(&mut self, terminal_messages: Vec<Message>) {
         self.runtime
             .finish_prepared_surface_refresh(terminal_messages);
-        true
     }
 
     pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
